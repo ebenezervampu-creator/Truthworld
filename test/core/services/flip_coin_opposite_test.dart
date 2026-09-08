@@ -21,9 +21,7 @@ void main() {
     algorithm = Get.put(TruthworldAlgorithm());
   });
 
-  tearDown(() {
-    Get.reset();
-  });
+  tearDown(Get.reset);
 
   Video createSampleVideo({
     required String id,

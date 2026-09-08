@@ -118,6 +118,8 @@ export const onCommentCreated = onDocumentCreated(
     if (!videoSnap.exists) return;
     const videoOwnerId = videoSnap.data()?.ownerId;
 
+    const commentText = (text || "").toString();
+
     // Notify video owner (if not commenting on own video)
     if (commentAuthorId !== videoOwnerId) {
       await notifyUser({
@@ -125,7 +127,7 @@ export const onCommentCreated = onDocumentCreated(
         type: "comment",
         severity: "info",
         title: "New Comment!",
-        message: `${displayName} commented: "${text.substring(0, 30)}..."`,
+        message: `${displayName} commented: "${commentText.slice(0, 30)}..."`,
         actionUrl: `/video/${event.params.videoId}`,
         metadata: { 
           videoId: event.params.videoId, 
@@ -138,12 +140,12 @@ export const onCommentCreated = onDocumentCreated(
 
     // 2. Scan comment text for channel mentions
     await notifyMentions({
-      text: text || "",
+      text: commentText,
       senderUserId: commentAuthorId || "",
       senderName: displayName,
       actionUrl: `/video/${event.params.videoId}`,
       title: "Mentioned in a Comment!",
-      message: `${displayName} mentioned you: "${text.substring(0, 30)}..."`,
+      message: `${displayName} mentioned you: "${commentText.slice(0, 30)}..."`,
       metadata: {
         videoId: event.params.videoId,
         commentId: event.params.commentId,
@@ -292,7 +294,7 @@ export const onUserNotificationCreated = onDocumentCreated(
     // Skip if already sent directly by notifyUser
     if (data.pushSent === true) return;
 
-    const { userId, type, severity, title, message, actionUrl } = data;
+    const { userId, type, severity, title, message, actionUrl, metadata } = data;
     if (!userId || userId === "guest_user" || !title) return;
 
     try {
@@ -304,6 +306,7 @@ export const onUserNotificationCreated = onDocumentCreated(
           title: title || "Notification",
           message: message || "",
           actionUrl: actionUrl || "",
+          metadata: metadata || undefined,
         },
         event.params.notificationId
       );

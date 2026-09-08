@@ -998,9 +998,9 @@ class ShimmerChannelDetailsScreen extends StatelessWidget {
                         children: [
                           _bone(width: 180, height: 22, radius: 6),
                           const SizedBox(height: 8),
-                          _bone(width: 120, height: 14, radius: 4),
+                          _bone(width: 120),
                           const SizedBox(height: 8),
-                          _bone(width: 200, height: 12, radius: 4),
+                          _bone(width: 200, height: 12),
                           const SizedBox(height: 12),
                           _bone(width: 130, height: 36, radius: 18),
                         ],

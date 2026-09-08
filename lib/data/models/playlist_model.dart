@@ -121,6 +121,28 @@ class PlaylistModel {
   String get playlistName => name;
   bool get isPublic => visibility == PlaylistVisibility.public;
 
+  /// Check if the playlist has valid metadata and at least 1 video to be displayed in discovery feeds
+  bool get isValidPlaylist {
+    final t = name.trim().toLowerCase();
+    if (t.isEmpty ||
+        t == 'playlist' ||
+        t == 'truthworld playlist' ||
+        t == 'untitled' ||
+        t == 'untitled playlist' ||
+        t.startsWith('untitled')) {
+      return false;
+    }
+    if (status.trim().toLowerCase() != 'active' &&
+        status.trim().toLowerCase() != 'ready' &&
+        status.trim().toLowerCase() != 'processed') {
+      return false;
+    }
+    if (videoCount <= 0 && videoIds.isEmpty) {
+      return false;
+    }
+    return true;
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,

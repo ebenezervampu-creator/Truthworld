@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -17,6 +16,7 @@ import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
@@ -90,6 +90,11 @@ class _ModernAvatar extends StatelessWidget {
 class HoverPreviewCoordinator {
   static final RxBool globalMute = false.obs;
   static _VideoCardState? _activeCardState;
+  static _VideoCardState? _pendingCardState;
+
+  // Centralized mobile visibility registry (cardState -> visibleFraction)
+  static final Map<_VideoCardState, double> _mobileCardVisibilities = {};
+  static Timer? _mobileVisibilityDebounce;
 
   /// Checks if any active main video playback on Homepage or VideoScreen is currently muted.
   static bool isMainVideoMuted() {
@@ -124,18 +129,148 @@ class HoverPreviewCoordinator {
     return false;
   }
 
+  /// Sets the currently active card and immediately deactivates any previously active card.
   static void setActiveCard(dynamic cardState) {
     if (cardState is! _VideoCardState) return;
     if (_activeCardState != null && _activeCardState != cardState) {
       _activeCardState!._handleHoverExit();
     }
     _activeCardState = cardState;
-    pauseAllMainPlayers();
+    _pendingCardState = null;
+    if (!globalMute.value) {
+      pauseAllMainPlayers();
+    }
   }
 
+  /// Clears the active or pending card if it matches.
   static void clearActiveCard(dynamic cardState) {
     if (_activeCardState == cardState) {
       _activeCardState = null;
+    }
+    if (_pendingCardState == cardState) {
+      _pendingCardState = null;
+    }
+  }
+
+  /// Completely unregisters a card when disposed or scrolled off-screen.
+  static void unregisterCard(State cardState) {
+    _mobileCardVisibilities.remove(cardState);
+    if (_activeCardState == cardState) {
+      _activeCardState = null;
+    }
+    if (_pendingCardState == cardState) {
+      _pendingCardState = null;
+    }
+  }
+
+  /// Reports visibleFraction (0.0 to 1.0) for a VideoCard on mobile feeds.
+  /// Automatically determines the single card with the highest visibility and starts preview.
+  static void reportMobileVisibility(
+    State cardState,
+    double visibleFraction,
+  ) {
+    if (cardState is! _VideoCardState) return;
+    if (!cardState.mounted || cardState.widget.disableHoverPreview) {
+      _mobileCardVisibilities.remove(cardState);
+      return;
+    }
+
+    if (visibleFraction < 0.1) {
+      _mobileCardVisibilities.remove(cardState);
+      if (_activeCardState == cardState) {
+        cardState._handleHoverExit();
+        _activeCardState = null;
+      }
+      if (_pendingCardState == cardState) {
+        cardState._handleHoverExit();
+        _pendingCardState = null;
+      }
+    } else {
+      _mobileCardVisibilities[cardState] = visibleFraction;
+    }
+
+    // Debounce visibility evaluation during active scrolling / flings
+    _mobileVisibilityDebounce?.cancel();
+    _mobileVisibilityDebounce = Timer(
+      const Duration(milliseconds: 150),
+      _evaluateMobileAutoplay,
+    );
+  }
+
+  /// Evaluates which video card in the mobile feed should autoplay.
+  static void _evaluateMobileAutoplay() {
+    // 1. Clean up any unmounted cards
+    _mobileCardVisibilities.removeWhere((card, _) => !card.mounted);
+
+    if (_mobileCardVisibilities.isEmpty) {
+      if (_activeCardState != null) {
+        _activeCardState!._handleHoverExit();
+        _activeCardState = null;
+      }
+      _pendingCardState = null;
+      return;
+    }
+
+    // 2. Find the card with the highest visible fraction
+    _VideoCardState? topCard;
+    var maxFraction = 0.0;
+
+    for (final entry in _mobileCardVisibilities.entries) {
+      if (entry.value > maxFraction) {
+        maxFraction = entry.value;
+        topCard = entry.key;
+      }
+    }
+
+    // 3. Minimum visibility threshold to qualify for autoplay preview (70%)
+    const minVisibleThreshold = 0.70;
+
+    if (topCard != null && maxFraction >= minVisibleThreshold) {
+      // If the top card is already the active card, ensure all others are stopped
+      if (_activeCardState == topCard) {
+        for (final card in _mobileCardVisibilities.keys) {
+          if (card != topCard &&
+              (card._isHovered.value ||
+                  card._videoPlayerController.value != null)) {
+            card._handleHoverExit();
+          }
+        }
+        return;
+      }
+
+      // If already pending initialization for topCard, wait for it
+      if (_pendingCardState == topCard) {
+        return;
+      }
+
+      // Stop any other active/pending card
+      if (_activeCardState != null && _activeCardState != topCard) {
+        _activeCardState!._handleHoverExit();
+        _activeCardState = null;
+      }
+      if (_pendingCardState != null && _pendingCardState != topCard) {
+        _pendingCardState!._handleHoverExit();
+        _pendingCardState = null;
+      }
+      for (final card in _mobileCardVisibilities.keys) {
+        if (card != topCard) {
+          card._handleHoverExit();
+        }
+      }
+
+      // Mark topCard as pending and start hover playback flow
+      _pendingCardState = topCard;
+      topCard._startHoverPlayback();
+    } else {
+      // No card is sufficiently visible
+      if (_activeCardState != null) {
+        _activeCardState!._handleHoverExit();
+        _activeCardState = null;
+      }
+      if (_pendingCardState != null) {
+        _pendingCardState!._handleHoverExit();
+        _pendingCardState = null;
+      }
     }
   }
 
@@ -238,7 +373,7 @@ class _VideoCardState extends State<VideoCard> {
           .collection(FirestoreCollections.channels)
           .doc(widget.video.channelId)
           .getCacheFirst();
-      if (doc.exists && mounted) {
+      if (doc.exists) {
         final data = doc.data();
         if (data != null) {
           final avatar = data['avatarUrl'] as String? ?? '';
@@ -284,7 +419,7 @@ class _VideoCardState extends State<VideoCard> {
   void dispose() {
     _muteWorker.dispose();
     _hoverTimer?.cancel();
-    HoverPreviewCoordinator.clearActiveCard(this);
+    HoverPreviewCoordinator.unregisterCard(this);
     _disposePreviewPlayer();
     super.dispose();
   }
@@ -313,34 +448,44 @@ class _VideoCardState extends State<VideoCard> {
 
     _isLoadingVideo.value = true;
 
-    var previewUrl = widget.video.animatedPreviewUrl;
-    if (previewUrl.isEmpty ||
-        previewUrl.startsWith('gs://') ||
-        (kIsWeb && previewUrl.contains('.m3u8'))) {
-      if (widget.video.adaptiveResolutions.isNotEmpty) {
-        // Cost-effective: find lowest bitrate resolution
-        final playable = widget.video.adaptiveResolutions
-            .where(
-              (r) =>
-                  r.url.isNotEmpty &&
-                  (!kIsWeb || !r.url.contains('.m3u8')),
-            )
-            .toList();
-        if (playable.isNotEmpty) {
-          final lowest = playable.reduce(
-            (a, b) => a.bitrate < b.bitrate ? a : b,
-          );
-          previewUrl = lowest.url;
-        }
+    var previewUrl = '';
+
+    // 1. Try animatedPreviewUrl if valid video
+    if (widget.video.animatedPreviewUrl.isNotEmpty &&
+        !widget.video.animatedPreviewUrl.startsWith('gs://') &&
+        (!kIsWeb || !widget.video.animatedPreviewUrl.contains('.m3u8'))) {
+      previewUrl = widget.video.animatedPreviewUrl;
+    }
+
+    // 2. Check adaptiveResolutions for valid video resolutions (must have height > 0 and not be an audio track or raw file)
+    if (previewUrl.isEmpty && widget.video.adaptiveResolutions.isNotEmpty) {
+      final videoResolutions = widget.video.adaptiveResolutions
+          .where(
+            (r) =>
+                r.url.trim().isNotEmpty &&
+                r.height > 0 &&
+                !r.label.toLowerCase().contains('audio') &&
+                !r.url.toLowerCase().contains('/audio') &&
+                !r.url.toLowerCase().endsWith('original.mp4') &&
+                !r.url.toLowerCase().contains('/original/') &&
+                (!kIsWeb || !r.url.contains('.m3u8')),
+          )
+          .toList();
+      if (videoResolutions.isNotEmpty) {
+        // Pick lowest resolution for lightweight fast-buffering preview
+        final lowest = videoResolutions.reduce(
+          (a, b) => a.bitrate < b.bitrate ? a : b,
+        );
+        previewUrl = lowest.url;
       }
-      if (previewUrl.isEmpty ||
-          previewUrl.startsWith('gs://') ||
-          (kIsWeb && previewUrl.contains('.m3u8'))) {
-        if (widget.video.originalUrl.isNotEmpty &&
-            (!kIsWeb || !widget.video.originalUrl.contains('.m3u8'))) {
-          previewUrl = widget.video.originalUrl;
-        }
-      }
+    }
+
+    // 3. Fallback to hlsUrl (if not raw file)
+    if (previewUrl.isEmpty &&
+        widget.video.hlsUrl.isNotEmpty &&
+        !widget.video.hlsUrl.endsWith('original.mp4') &&
+        !widget.video.hlsUrl.contains('/original/')) {
+      previewUrl = widget.video.hlsUrl;
     }
 
     if (previewUrl.isEmpty) {
@@ -349,22 +494,7 @@ class _VideoCardState extends State<VideoCard> {
     }
 
     // Resolve gs:// and raw storage.googleapis.com references to authenticated HTTPS download URLs
-    if (previewUrl.startsWith('gs://') ||
-        previewUrl.startsWith('https://storage.googleapis.com/') ||
-        (previewUrl.contains('firebasestorage.googleapis.com') &&
-            !previewUrl.contains('token='))) {
-      try {
-        previewUrl = await FirebaseStorage.instance
-            .refFromURL(previewUrl)
-            .getDownloadURL();
-      } catch (e) {
-        debugPrint('Error resolving storage preview URL ($previewUrl): $e');
-        final fallback = StorageUtils.getFastDownloadUrl(previewUrl);
-        if (fallback.isNotEmpty && fallback != previewUrl) {
-          previewUrl = fallback;
-        }
-      }
-    }
+    previewUrl = await StorageUtils.resolveUrl(previewUrl);
 
     try {
       final controller = VideoPlayerController.networkUrl(
@@ -378,9 +508,10 @@ class _VideoCardState extends State<VideoCard> {
       if (mounted &&
           _isHovered.value &&
           _videoPlayerController.value == controller) {
+        // Enforce single active hover player across the app unconditionally (whether muted or not)
+        HoverPreviewCoordinator.setActiveCard(this);
         final isMuted = HoverPreviewCoordinator.globalMute.value;
         if (!isMuted) {
-          HoverPreviewCoordinator.setActiveCard(this);
           await controller.setVolume(1.0);
         } else {
           await controller.setVolume(0.0);
@@ -400,8 +531,9 @@ class _VideoCardState extends State<VideoCard> {
     }
   }
 
-  void _handleHoverEnter() {
-    if (widget.disableHoverPreview) return;
+  void _startHoverPlayback() {
+    if (!mounted || widget.disableHoverPreview) return;
+    if (_isHovered.value && _videoPlayerController.value != null) return;
     _isHovered.value = true;
     _hoverTimer?.cancel();
     _hoverTimer = Timer(const Duration(milliseconds: 500), () {
@@ -409,6 +541,12 @@ class _VideoCardState extends State<VideoCard> {
         _initializePreviewPlayer();
       }
     });
+  }
+
+  void _handleHoverEnter() {
+    if (widget.disableHoverPreview) return;
+    HoverPreviewCoordinator.setActiveCard(this);
+    _startHoverPlayback();
   }
 
   void _handleHoverExit() {
@@ -426,31 +564,38 @@ class _VideoCardState extends State<VideoCard> {
     final isMobile =
         defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS;
-    if (!isMobile || !mounted) return;
+    if (!isMobile) return;
 
-    if (visibleFraction >= 0.8) {
-      if (!_isHovered.value) {
-        _handleHoverEnter();
-      }
-    } else {
-      if (_isHovered.value) {
-        _handleHoverExit();
-      }
-    }
+    HoverPreviewCoordinator.reportMobileVisibility(this, visibleFraction);
   }
 
   void _handleTap(BuildContext context) {
     DeepLinkService.instance.cacheVideo(widget.video);
     final controller = _videoPlayerController.value;
-    if (controller != null && _isControllerInitialized.value && !kIsWeb) {
-      VideoPlaybackHandoff.registerActiveController(
-        widget.video.id,
-        controller,
-      );
+    Duration? resumePos;
+
+    if (controller != null && _isControllerInitialized.value) {
+      final pos = controller.value.position;
+      if (pos > Duration.zero) {
+        resumePos = pos;
+        VideoPlaybackHandoff.registerResumePosition(widget.video.id, pos);
+      }
+      if (!kIsWeb) {
+        VideoPlaybackHandoff.registerActiveController(
+          widget.video.id,
+          controller,
+          position: pos,
+        );
+      } else {
+        // On web, dispose local preview controller to free up DOM elements
+        try {
+          controller.dispose();
+        } catch (_) {}
+      }
       _videoPlayerController.value = null;
       _isControllerInitialized.value = false;
       _isLoadingVideo.value = false;
-    } else if (!kIsWeb) {
+    } else {
       VideoPlaybackHandoff.prewarmVideo(widget.video);
     }
 
@@ -459,9 +604,12 @@ class _VideoCardState extends State<VideoCard> {
     } else {
       MiniplayerNavigationHelper.navigateToVideoScreen(
         video: widget.video,
+        resumePosition: resumePos,
         routeArguments: {
           'video': widget.video,
           'heroTag': '${widget.heroPrefix}_${widget.video.id}',
+          if (resumePos != null) 'resumePosition': resumePos,
+          if (resumePos != null) 'initialPosition': resumePos,
         },
       );
     }
@@ -469,7 +617,16 @@ class _VideoCardState extends State<VideoCard> {
 
   @override
   Widget build(BuildContext context) {
+    if (!VideoVisibilityPolicy.isValidVideo(widget.video)) {
+      return const SizedBox.shrink();
+    }
+    if (Get.isRegistered<UserPreferencesService>() &&
+        UserPreferencesService.to.isVideoBlocked(widget.video)) {
+      return const SizedBox.shrink();
+    }
+
     final theme = Theme.of(context);
+    final hovered = _isHovered.value;
 
     final cardContent = MouseRegion(
       onEnter: (_) => _handleHoverEnter(),
@@ -479,61 +636,51 @@ class _VideoCardState extends State<VideoCard> {
         enabled: true,
         label: 'Video: ${widget.video.title} by ${widget.video.channelName}',
         onTap: () => _handleTap(context),
-          child: Obx(() {
-            if (!VideoVisibilityPolicy.isValidVideo(widget.video)) {
-              return const SizedBox.shrink();
-            }
-            if (Get.isRegistered<UserPreferencesService>() &&
-                UserPreferencesService.to.isVideoBlocked(widget.video)) {
-              return const SizedBox.shrink();
-            }
-            final hovered = _isHovered.value;
-            return AnimatedScale(
-              scale: hovered ? 1.02 : 1.0,
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeOutCubic,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                margin: widget.isGrid
-                    ? EdgeInsets.zero
-                    : EdgeInsets.only(bottom: AppTheme.spacing.md),
-                decoration: widget.isGrid
-                    ? BoxDecoration(
-                        color: theme.colorScheme.surface,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: theme.colorScheme.outline.withValues(
-                            alpha: 0.1,
-                          ),
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.bgPage.withValues(alpha: 0.1),
-                            blurRadius: 8,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      )
-                    : const BoxDecoration(
-                        color: Colors.transparent,
+        child: AnimatedScale(
+          scale: hovered ? 1.02 : 1.0,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            margin: widget.isGrid
+                ? EdgeInsets.zero
+                : EdgeInsets.only(bottom: AppTheme.spacing.md),
+            decoration: widget.isGrid
+                ? BoxDecoration(
+                    color: theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: theme.colorScheme.outline.withValues(
+                        alpha: 0.1,
                       ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () => _handleTap(context),
-                    borderRadius: widget.isGrid
-                        ? BorderRadius.circular(16)
-                        : null,
-                    child: widget.isGrid
-                        ? _buildGridContent(context, theme)
-                        : _buildListContent(context, theme),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.bgPage.withValues(alpha: 0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  )
+                : const BoxDecoration(
+                    color: Colors.transparent,
                   ),
-                ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => _handleTap(context),
+                borderRadius: widget.isGrid
+                    ? BorderRadius.circular(16)
+                    : null,
+                child: widget.isGrid
+                    ? _buildGridContent(context, theme)
+                    : _buildListContent(context, theme),
               ),
-            );
-          }),
+            ),
+          ),
         ),
-      );
+      ),
+    );
 
     if (kIsWeb) {
       return cardContent;
@@ -630,6 +777,8 @@ class _VideoCardState extends State<VideoCard> {
             final isInitialized = _isControllerInitialized.value;
             final controller = _videoPlayerController.value;
             final hovered = _isHovered.value;
+            final isSaved = Get.isRegistered<PlaylistController>() &&
+                Get.find<PlaylistController>().isInWatchLater(widget.video.id);
 
             return GestureDetector(
               behavior: HitTestBehavior.translucent,
@@ -649,7 +798,10 @@ class _VideoCardState extends State<VideoCard> {
                             height: controller.value.size.height > 0
                                 ? controller.value.size.height
                                 : 90,
-                            child: VideoPlayer(controller),
+                            child: MobileFriendlyVideoPlayer(
+                              controller: controller,
+                              looping: true,
+                            ),
                           ),
                         ),
                       ),
@@ -756,266 +908,257 @@ class _VideoCardState extends State<VideoCard> {
                     Positioned(
                       bottom: 8,
                       left: 8,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () async {
-                          final newMute =
-                              !HoverPreviewCoordinator.globalMute.value;
-                          HoverPreviewCoordinator.globalMute.value = newMute;
-                          if (newMute) {
-                            await _videoPlayerController.value
-                                ?.setVolume(0.0);
-                          } else {
-                            HoverPreviewCoordinator.pauseAllMainPlayers();
-                            await _videoPlayerController.value
-                                ?.setVolume(1.0);
-                          }
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: AppColors.bgPage.withValues(alpha: 0.8),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: AppColors.textPrimary
-                                  .withValues(alpha: 0.2),
-                              width: 0.5,
+                      child: Obx(() {
+                        final isMuted = HoverPreviewCoordinator.globalMute.value;
+                        return GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () async {
+                            final newMute =
+                                !HoverPreviewCoordinator.globalMute.value;
+                            HoverPreviewCoordinator.globalMute.value = newMute;
+                            if (newMute) {
+                              await _videoPlayerController.value
+                                  ?.setVolume(0.0);
+                            } else {
+                              HoverPreviewCoordinator.pauseAllMainPlayers();
+                              await _videoPlayerController.value
+                                  ?.setVolume(1.0);
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: AppColors.bgPage.withValues(alpha: 0.8),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: AppColors.textPrimary
+                                    .withValues(alpha: 0.2),
+                                width: 0.5,
+                              ),
                             ),
-                          ),
-                          child: Obx(() {
-                            final isMuted =
-                                HoverPreviewCoordinator.globalMute.value;
-                            return Icon(
+                            child: Icon(
                               isMuted
                                   ? Icons.volume_off_rounded
                                   : Icons.volume_up_rounded,
                               color: AppColors.textPrimary,
                               size: 16,
-                            );
-                          }),
-                        ),
-                      ),
+                            ),
+                          ),
+                        );
+                      }),
                     ),
                   // Watch Later and Add to Queue overlay icons when hovered (Truthworld style)
                   if (hovered)
                     Positioned(
                       top: 8,
                       right: 8,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Builder(
-                          builder: (context) {
-                            final playlistCtrl = Get.find<PlaylistController>();
-                            return Obx(() {
-                              final isSaved = playlistCtrl.isInWatchLater(
-                                widget.video.id,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildHoverActionIconButton(
+                            icon: isSaved
+                                ? Icons.check_circle_rounded
+                                : Icons.watch_later_outlined,
+                            tooltip: isSaved
+                                ? 'Saved to Watch Later'
+                                : 'Watch later',
+                            onTap: () {
+                              showModernizedPlaylistDialog(
+                                context: context,
+                                videoId: widget.video.id,
                               );
-                              return _buildHoverActionIconButton(
-                                icon: isSaved
-                                    ? Icons.check_circle_rounded
-                                    : Icons.watch_later_outlined,
-                                tooltip: isSaved
-                                    ? 'Saved to Watch Later'
-                                    : 'Watch later',
-                                onTap: () {
-                                  showModernizedPlaylistDialog(
-                                    context: context,
-                                    videoId: widget.video.id,
-                                  );
-                                },
+                            },
+                          ),
+                          const SizedBox(height: 6),
+                          _buildHoverActionIconButton(
+                            icon: Icons.playlist_add_rounded,
+                            tooltip: 'Add to queue',
+                            onTap: () {
+                              AppSnackbar.show(
+                                'Added to queue',
+                                "'${widget.video.title}' has been added to your play queue.",
+                                snackPosition: SnackPosition.BOTTOM,
+                                backgroundColor: theme.colorScheme.primary
+                                    .withValues(alpha: 0.8),
+                                colorText: AppColors.textPrimary,
+                                margin: const EdgeInsets.all(20),
+                                borderRadius: 16,
                               );
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 6),
-                        _buildHoverActionIconButton(
-                          icon: Icons.playlist_add_rounded,
-                          tooltip: 'Add to queue',
-                          onTap: () {
-                            AppSnackbar.show(
-                              'Added to queue',
-                              "'${widget.video.title}' has been added to your play queue.",
-                              snackPosition: SnackPosition.BOTTOM,
-                              backgroundColor: theme.colorScheme.primary
-                                  .withValues(alpha: 0.8),
-                              colorText: AppColors.textPrimary,
-                              margin: const EdgeInsets.all(20),
-                              borderRadius: 16,
-                            );
-                          },
-                        ),
-                      ],
+                            },
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                // Watch progress bar (Truthworld style)
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: Builder(
-                    builder: (context) {
-                      return Obx(() {
-                        final progress = WatchHistoryService.to.getProgress(
-                          widget.video.id,
-                        );
-                        if (progress <= 0) return const SizedBox.shrink();
-
-                        return Container(
-                          height: 3,
-                          width: double.infinity,
-                          color: AppColors.textPrimary.withValues(alpha: 0.2),
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: FractionallySizedBox(
-                              widthFactor: (progress / 100).clamp(0.0, 1.0),
-                              child: Container(
-                                color: AppColors.error,
-                              ),
+                  // Watch progress bar (Truthworld style)
+                  Obx(() {
+                    final progress =
+                        WatchHistoryService.to.getProgress(widget.video.id);
+                    if (progress <= 0) return const SizedBox.shrink();
+                    return Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        height: 3,
+                        width: double.infinity,
+                        color: AppColors.textPrimary.withValues(alpha: 0.2),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: FractionallySizedBox(
+                            widthFactor: (progress / 100).clamp(0.0, 1.0),
+                            child: Container(
+                              color: AppColors.error,
                             ),
                           ),
-                        );
-                      });
-                    },
-                  ),
-                ),
-              ],
-            ),
-          );
-        }),
-      ),
-    ),
-  );
-}
-
-  Widget _buildGridVideoInfo(BuildContext context, ThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 10, right: 10, top: 10, bottom: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _ModernAvatar(
-            imageUrl: _realChannelAvatarUrl.value,
-            radius: 16,
-            placeholderText: _realChannelName.value.isEmpty
-                ? '?'
-                : _realChannelName.value.substring(0, 1).toUpperCase(),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  widget.video.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    height: 1.25,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${_realChannelName.value} · ${_formatViews(widget.video.views)} views · ${_formatTimestamp(widget.video.uploadedAt)}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontSize: 11,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            icon: Icon(
-              Icons.more_vert,
-              size: 18,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            onPressed: () => VideoOptionsSheet.show(context, widget.video),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-          ),
-        ],
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            );
+          }),
+        ),
       ),
     );
   }
 
-  Widget _buildListVideoInfo(BuildContext context, ThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.video.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    height: 1.3,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    _ModernAvatar(
-                      imageUrl: _realChannelAvatarUrl.value,
-                      radius: 10,
-                      placeholderText: _realChannelName.value.isEmpty
-                          ? '?'
-                          : _realChannelName.value
-                                .substring(0, 1)
-                                .toUpperCase(),
+  Widget _buildGridVideoInfo(BuildContext context, ThemeData theme) {
+    return Obx(() {
+      final avatarUrl = _realChannelAvatarUrl.value;
+      final channelName = _realChannelName.value;
+
+      return Padding(
+        padding: const EdgeInsets.only(left: 10, right: 10, top: 10, bottom: 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _ModernAvatar(
+              imageUrl: avatarUrl,
+              radius: 16,
+              placeholderText: channelName.isEmpty
+                  ? '?'
+                  : channelName.substring(0, 1).toUpperCase(),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    widget.video.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      height: 1.25,
+                      fontSize: 14,
                     ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        _realChannelName.value,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w500,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$channelName · ${_formatViews(widget.video.views)} views · ${_formatTimestamp(widget.video.uploadedAt)}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontSize: 11,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(
+                Icons.more_vert,
+                size: 18,
+                color: AppColors.textPrimary,
+              ),
+              onPressed: () => VideoOptionsSheet.show(context, widget.video),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _buildListVideoInfo(BuildContext context, ThemeData theme) {
+    return Obx(() {
+      final avatarUrl = _realChannelAvatarUrl.value;
+      final channelName = _realChannelName.value;
+
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.video.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      height: 1.3,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      _ModernAvatar(
+                        imageUrl: avatarUrl,
+                        radius: 10,
+                        placeholderText: channelName.isEmpty
+                            ? '?'
+                            : channelName.substring(0, 1).toUpperCase(),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          channelName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${_formatViews(widget.video.views)} views · ${_formatTimestamp(widget.video.uploadedAt)}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                    ],
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  Text(
+                    '${_formatViews(widget.video.views)} views · ${_formatTimestamp(widget.video.uploadedAt)}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
-          ),
-          IconButton(
-            icon: Icon(
-              Icons.more_vert,
-              size: 20,
-              color: theme.colorScheme.onSurfaceVariant,
+            IconButton(
+              icon: const Icon(
+                Icons.more_vert,
+                size: 18,
+                color: AppColors.textPrimary,
+              ),
+              onPressed: () => VideoOptionsSheet.show(context, widget.video),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
             ),
-            onPressed: () => VideoOptionsSheet.show(context, widget.video),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-          ),
-        ],
-      ),
-    );
+          ],
+        ),
+      );
+    });
   }
 
   Widget _buildThumbnailShimmer(ThemeData theme) {

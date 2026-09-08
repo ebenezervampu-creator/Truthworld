@@ -117,8 +117,11 @@ class NotificationService extends GetxService {
           return;
         } else if (actionUrl.startsWith('http://') ||
             actionUrl.startsWith('https://')) {
-          launchUrl(Uri.parse(actionUrl), mode: LaunchMode.externalApplication);
-          return;
+          final uri = Uri.tryParse(actionUrl);
+          if (uri != null && (uri.isScheme('https') || uri.isScheme('http'))) {
+            launchUrl(uri, mode: LaunchMode.externalApplication);
+            return;
+          }
         }
       } catch (e) {
         debugPrint('Error navigating to actionUrl $actionUrl: $e');

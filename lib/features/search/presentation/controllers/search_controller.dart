@@ -13,6 +13,7 @@ import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
+import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/search/data/models/search_result.dart'; // Correct name
 import 'package:truthworld/features/search/data/services/search_service.dart';
 import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
@@ -374,11 +375,16 @@ class SearchController extends BaseController {
       try {
         final topicsSnap = await FirebaseFirestore.instance
             .collection(FirestoreCollections.topics)
-            .limit(3)
+            .where('status', isEqualTo: 'active')
+            .orderBy('videoCount', descending: true)
+            .limit(6)
             .get();
         for (final doc in topicsSnap.docs) {
           final data = doc.data();
-          final title = data['title'] as String? ?? 'Trending Topic';
+          final vCount = (data['videoCount'] as num?)?.toInt() ?? 0;
+          if (vCount <= 0) continue;
+          final title = data['title'] as String? ?? '';
+          if (title.isEmpty || title.toLowerCase() == 'topic') continue;
           items.add(
             TrendingItem(
               id: doc.id,
@@ -393,6 +399,7 @@ class SearchController extends BaseController {
             ),
           );
           rank++;
+          if (items.where((i) => i.category == 'topic').length >= 3) break;
         }
       } catch (_) {}
 
@@ -885,6 +892,13 @@ class SearchController extends BaseController {
         // Add matching topics
         for (final doc in results[2].docs) {
           final data = doc.data();
+          final status = (data['status'] as String?)?.toLowerCase();
+          if (status != null && status != 'active') continue;
+          final count = (data['videoCount'] as num?)?.toInt() ??
+              (data['featuredVideoIds'] as List?)?.length ??
+              0;
+          if (count <= 0) continue;
+
           final title = data['title'] as String? ??
               data['slug'] as String? ??
               '';
@@ -1402,7 +1416,7 @@ class SearchController extends BaseController {
       switch (result.type) {
         case ResultType.video:
           final video = Video.fromDocumentSnapshot(doc);
-          Get.toNamed('/watch?v=${video.id}', arguments: {'video': video});
+          MiniplayerNavigationHelper.navigateToVideoScreen(video: video);
         case ResultType.channel:
           final channel = Channel.fromDocumentSnapshot(doc);
           Get.toNamed(channel.channelRoute, arguments: {'channel': channel});
@@ -1418,6 +1432,10 @@ class SearchController extends BaseController {
           }
         case ResultType.topic:
           final topic = Topic.fromDocumentSnapshot(doc);
+          if (!topic.isValidTopic || topic.videoCount <= 0) {
+            Get.snackbar('Unavailable', 'This topic is currently unavailable or has no videos.');
+            return;
+          }
           Get.toNamed(topic.topicRoute, arguments: {'topic': topic});
       }
     } catch (e) {

@@ -29,6 +29,23 @@ async function moderatePlaylist(
     return;
   }
 
+  const cleanName = nameAfter.trim().toLowerCase();
+  if (
+    !cleanName ||
+    cleanName === "playlist" ||
+    cleanName === "truthworld playlist" ||
+    cleanName.startsWith("untitled")
+  ) {
+    logger.info(`[moderatePlaylist] Rejecting placeholder playlist ${playlistId}: "${nameAfter}"`);
+    await updateRef.update({
+      geminiApproved: false,
+      status: "verificationRejected",
+      moderationReason: "Playlist name is a placeholder (e.g. 'Playlist', 'Untitled') and cannot be published.",
+      updatedAt: admin.firestore.Timestamp.now(),
+    });
+    return;
+  }
+
   logger.info(`[moderatePlaylist] Starting Gemini moderation for playlist ${playlistId} at path ${playlistPath}`);
 
   const MAX_RETRIES = 3;

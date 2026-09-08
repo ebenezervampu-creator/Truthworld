@@ -47,7 +47,7 @@ class CacheMetadata {
 class FeedCacheManager {
   FeedCacheManager([GetStorage? storage]) : _storage = storage ?? GetStorage();
   final GetStorage _storage;
-  static const int currentSchemaVersion = 2;
+  static const int currentSchemaVersion = 3;
   static const Duration defaultTTL = Duration(minutes: 15);
 
   // Scoped Cache Key Constants
@@ -67,7 +67,7 @@ class FeedCacheManager {
     if (cat == '✨ New' || cat == 'New') return keyNewFeed;
     if (cat == 'Flip Coin' || cat == '🪙 Flip Coin') return keyFlipCoinFeed;
     if (cat == 'Music') return keyMusicFeed;
-    return 'feed_cat_${cat.toLowerCase().replaceAll(RegExp(r'[^a-z0-9_]'), '_')}';
+    return 'feed_cat_${cat.toLowerCase().replaceAll(RegExp('[^a-z0-9_]'), '_')}';
   }
 
   /// Retrieve valid, non-expired, and sanitized videos from local storage for a given cache key.

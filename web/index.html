@@ -121,6 +121,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons|Material+Icons+Rounded|Material+Icons+Outlined&display=swap" rel="stylesheet">
 
   <!-- ── Basic CSS -->
@@ -142,11 +144,26 @@
 
     // Startup error fallback to prevent silent black screen
     window.addEventListener('error', function(e) {
+      var errStr = (e && e.error) ? String(e.error) : ((e && e.message) ? String(e.message) : '');
+      if (errStr.includes('_handledContextLostEvent') || errStr.includes('webglcontextlost')) {
+        return; // Benign CanvasKit WebGL hot-restart teardown artifact
+      }
       console.error('[Truthworld Web Boot Error]', e.error || e.message);
     });
     window.addEventListener('unhandledrejection', function(e) {
       console.error('[Truthworld Web Unhandled Rejection]', e.reason);
     });
+
+    // Unregister legacy service workers to force latest deployment assets
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for (var registration of registrations) {
+          registration.unregister();
+        }
+      }).catch(function(err) {
+        console.warn('ServiceWorker cleanup error:', err);
+      });
+    }
   </script>
 
   <!-- Flutter bootstrap -->

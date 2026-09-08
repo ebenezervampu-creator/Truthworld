@@ -34,11 +34,45 @@ export class CreatorStyleService {
   }
 
   /**
-   * Auto-learn DNA traits from a specific job's success (Future Phase)
+   * Auto-learn DNA traits from a specific job's success
    */
   async learnFromJob(userId: string, jobId: string): Promise<void> {
-    // Placeholder for LLM-based feedback loop
-    logger.info("[CreatorDNA] Learning cycle initiated", { userId, jobId });
+    try {
+      logger.info("[CreatorDNA] Learning cycle initiated", { userId, jobId });
+      const jobDoc = await db().collection("pipeline_jobs").doc(jobId).get();
+      if (!jobDoc.exists) return;
+
+      const jobData = jobDoc.data() || {};
+      const config = jobData.config || {};
+      const acoustic = jobData.acousticFingerprint || {};
+
+      const updates: Partial<CreatorDNA> = {};
+
+      if (acoustic.tempo === "fast" || acoustic.energy === "high") {
+        updates.vibe = "energetic";
+      } else if (acoustic.pitchBand === "deep") {
+        updates.vibe = "authoritative";
+      }
+
+      if (config.slangHandling === "preserve") {
+        updates.slangTolerance = "high";
+      } else if (config.slangHandling === "formalize") {
+        updates.slangTolerance = "low";
+      }
+
+      if (config.terminology === "technical") {
+        updates.vocabPreference = "tech_heavy";
+      } else if (config.terminology === "academic") {
+        updates.vocabPreference = "academic";
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await this.updateCreatorDNA(userId, updates);
+        logger.info("[CreatorDNA] Auto-learned DNA traits from job", { userId, jobId, updates });
+      }
+    } catch (err) {
+      logger.error("[CreatorDNA] Error learning from job", { userId, jobId, err });
+    }
   }
 }
 

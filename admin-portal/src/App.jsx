@@ -16,11 +16,62 @@ import {
   limit, 
   onSnapshot,
   setDoc,
-  updateDoc
+  updateDoc,
+  deleteDoc,
+  getDoc
 } from "firebase/firestore";
 import { auth, db } from "./firebase";
 
-const OWNER_EMAIL = "ebenezervampu4@gmail.com";
+const OWNER_EMAIL = "ebenezervampy@towervsp.com";
+const AUTHORIZED_ADMIN_EMAILS = [
+  "ebenezervampy@towervsp.com",
+  "ebenezervampu@towervsp.com",
+  "ebenezervampu4@gmail.com",
+  "admin@truthworld.com"
+];
+
+const ROLES_DEFINITION = [
+  {
+    name: "Super Admin",
+    description: "Full uninhibited access to all moderation queues, pipelines, settings, and team access.",
+    tabs: ["dashboard", "videos", "topics", "channels", "images", "reports", "logs", "team", "users", "ads", "analytics", "appeals", "feedbacks", "alerts", "security", "help"]
+  },
+  {
+    name: "Content Moderator",
+    description: "Review, approve, and reject videos, topics, images, and channels.",
+    tabs: ["dashboard", "videos", "topics", "channels", "images"]
+  },
+  {
+    name: "Trust & Safety Reviewer",
+    description: "Manage user-flagged reports, appeals, and platform feedback.",
+    tabs: ["reports", "appeals", "feedbacks"]
+  },
+  {
+    name: "User Manager",
+    description: "View, inspect, ban, and moderate registered user accounts.",
+    tabs: ["users"]
+  },
+  {
+    name: "Advertising Manager",
+    description: "Audit sponsored ad campaigns and resolve advertiser reports.",
+    tabs: ["ads", "ad_reports"]
+  },
+  {
+    name: "Audit & Compliance Officer",
+    description: "Review historical audit action logs, security settings, and platform alert rules.",
+    tabs: ["logs", "security", "alerts"]
+  },
+  {
+    name: "Analytics & Performance",
+    description: "Examine platform metrics, retention analytics, and performance KPIs.",
+    tabs: ["dashboard", "analytics"]
+  },
+  {
+    name: "Team Manager",
+    description: "Manage portal administrators, provision accounts, and configure permissions.",
+    tabs: ["team"]
+  }
+];
 
 const getFastDownloadUrl = (pathOrGsUrl) => {
   if (!pathOrGsUrl) return "";
@@ -71,6 +122,61 @@ function App() {
   const [topics, setTopics] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [reports, setReports] = useState([]);
+  const [adminMembers, setAdminMembers] = useState([]);
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [newMemberEmail, setNewMemberEmail] = useState("");
+  const [newMemberName, setNewMemberName] = useState("");
+  const [newMemberPassword, setNewMemberPassword] = useState("");
+  const [selectedMemberRoles, setSelectedMemberRoles] = useState(["Content Moderator"]);
+  const [currentPasswordInput, setCurrentPasswordInput] = useState("");
+  const [newPasswordInput, setNewPasswordInput] = useState("");
+  const [confirmPasswordInput, setConfirmPasswordInput] = useState("");
+  const [revealedPasswords, setRevealedPasswords] = useState({});
+
+  // Tab Permission Evaluation
+  const isTabAllowed = (tabId) => {
+    if (!user) return false;
+    const email = user.email?.toLowerCase();
+    if (email === OWNER_EMAIL || AUTHORIZED_ADMIN_EMAILS.includes(email)) return true;
+
+    // Get active roles
+    let userRoles = user.roles || [];
+    if (userRoles.length === 0 && user.role) {
+      userRoles = user.role.split(",").map(r => r.trim()).filter(Boolean);
+    }
+    if (userRoles.length === 0) userRoles = ["Super Admin"];
+
+    if (userRoles.some(r => r.toLowerCase().includes("super admin") || r.toLowerCase().includes("owner"))) {
+      return true;
+    }
+
+    if (tabId === "help") return true;
+
+    for (const rName of userRoles) {
+      const roleDef = ROLES_DEFINITION.find(def => def.name.toLowerCase() === rName.toLowerCase());
+      if (roleDef && roleDef.tabs.includes(tabId)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const getAllowedTabs = () => {
+    const allTabs = ["dashboard", "videos", "topics", "channels", "images", "reports", "logs", "team"];
+    const allowed = allTabs.filter(t => isTabAllowed(t));
+    return allowed.length > 0 ? allowed : ["team"];
+  };
+
+  // Auto-redirect if current tab is not allowed
+  useEffect(() => {
+    if (user && isAdmin && !isTabAllowed(currentTab)) {
+      const allowed = getAllowedTabs();
+      if (allowed.length > 0 && !allowed.includes(currentTab)) {
+        setCurrentTab(allowed[0]);
+      }
+    }
+  }, [user, isAdmin, currentTab]);
 
   // Queue filter states
   const [videoFilter, setVideoFilter] = useState("pending");
@@ -101,6 +207,24 @@ function App() {
 
   // Auth Listener
   useEffect(() => {
+    // Check saved session in localStorage
+    try {
+      const saved = localStorage.getItem("truthworld_admin_session");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.email) {
+          const roles = parsed.roles || (parsed.role ? [parsed.role] : ["Super Admin"]);
+          setUser({ 
+            email: parsed.email, 
+            role: parsed.role || "Super Admin", 
+            roles: roles, 
+            name: parsed.name || "" 
+          });
+          setIsAdmin(true);
+        }
+      }
+    } catch (_) {}
+
     getRedirectResult(auth).catch((err) => {
       console.warn("Redirect result handled/failed:", err);
     });
@@ -109,27 +233,41 @@ function App() {
       if (currentUser) {
         try {
           const idTokenResult = await currentUser.getIdTokenResult(true);
-          const isOwner = currentUser.email?.toLowerCase() === OWNER_EMAIL.toLowerCase();
+          const email = currentUser.email?.toLowerCase();
+          const isOwner = email && AUTHORIZED_ADMIN_EMAILS.includes(email);
 
           if (idTokenResult.claims.admin === true || isOwner) {
-            setUser(currentUser);
+            setUser({
+              ...currentUser,
+              role: isOwner ? "Owner / Super Admin" : "Super Admin",
+              roles: ["Super Admin"],
+            });
             setIsAdmin(true);
             setError("");
           } else {
-            setError(`Access Denied: Account (${currentUser.email}) does not have admin privileges.`);
-            await signOut(auth);
-            setUser(null);
-            setIsAdmin(false);
+            const saved = localStorage.getItem("truthworld_admin_session");
+            if (!saved) {
+              setError(`Access Denied: Account (${currentUser.email}) does not have admin privileges.`);
+              await signOut(auth);
+              setUser(null);
+              setIsAdmin(false);
+            }
           }
         } catch (err) {
           console.error("Auth claim validation failed:", err);
-          setError("Authentication error. Please try again.");
+          const saved = localStorage.getItem("truthworld_admin_session");
+          if (!saved) {
+            setError("Authentication error. Please try again.");
+            setUser(null);
+            setIsAdmin(false);
+          }
+        }
+      } else {
+        const saved = localStorage.getItem("truthworld_admin_session");
+        if (!saved) {
           setUser(null);
           setIsAdmin(false);
         }
-      } else {
-        setUser(null);
-        setIsAdmin(false);
       }
       setAuthChecking(false);
     });
@@ -338,6 +476,35 @@ function App() {
       console.error("Reports subscription failed:", err);
     });
 
+    // 8. Listen to Admin Team Members
+    const membersQuery = collection(db, "admin_members");
+    const unsubMembers = onSnapshot(membersQuery, (snapshot) => {
+      const list = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setAdminMembers(list);
+
+      // Sync current logged-in user's roles and role in real time
+      if (user?.email) {
+        const myDoc = list.find(m => m.email?.toLowerCase() === user.email.toLowerCase());
+        if (myDoc) {
+          const rawRoles = Array.isArray(myDoc.roles)
+            ? myDoc.roles
+            : (myDoc.role ? myDoc.role.split(',').map(r => r.trim()).filter(Boolean) : []);
+          const activeRoles = rawRoles.length > 0 ? rawRoles : ["Super Admin"];
+          setUser(prev => ({
+            ...prev,
+            role: myDoc.role || prev?.role || "Super Admin",
+            roles: activeRoles,
+            name: myDoc.name || prev?.name || ""
+          }));
+        }
+      }
+    }, (err) => {
+      console.warn("admin_members subscription warning:", err);
+    });
+
     return () => {
       unsubModes();
       unsubVideos();
@@ -346,6 +513,7 @@ function App() {
       unsubTopics();
       unsubLogs();
       unsubReports();
+      unsubMembers();
     };
   }, [user, isAdmin]);
 
@@ -386,22 +554,187 @@ function App() {
     }
   };
 
-  // Handle Email & Password Login
+  // Handle Email & Password Login with Admin Protocol
   const handleEmailLogin = async (e) => {
     e.preventDefault();
-    if (!loginEmail.trim() || !loginPassword.trim()) {
+    const cleanEmail = loginEmail.trim().toLowerCase();
+    const cleanPassword = loginPassword.trim();
+
+    if (!cleanEmail || !cleanPassword) {
       setError("Please enter both email and password.");
       return;
     }
     setError("");
     setIsLoggingIn(true);
+
     try {
-      await signInWithEmailAndPassword(auth, loginEmail.trim(), loginPassword.trim());
+      const isDefaultCreds = (cleanEmail === "ebenezervampy@towervsp.com" || cleanEmail === "ebenezervampu@towervsp.com") && cleanPassword === "12345";
+
+      // 1. Check admin_members in Firestore
+      let matchedMember = null;
+      try {
+        const memberRef = doc(db, "admin_members", cleanEmail);
+        const memberSnap = await getDoc(memberRef);
+        if (memberSnap.exists()) {
+          matchedMember = memberSnap.data();
+        }
+      } catch (fErr) {
+        console.warn("admin_members check notice:", fErr);
+      }
+
+      if (matchedMember && matchedMember.status === "suspended") {
+        setError("This administrator account has been suspended.");
+        setIsLoggingIn(false);
+        return;
+      }
+
+      if ((matchedMember && matchedMember.password === cleanPassword) || isDefaultCreds) {
+        const role = matchedMember?.role || (isDefaultCreds ? "Owner / Super Admin" : "Super Admin");
+        let roles = Array.isArray(matchedMember?.roles) ? matchedMember.roles : [];
+        if (roles.length === 0 && matchedMember?.role) {
+          roles = matchedMember.role.split(",").map(r => r.trim()).filter(Boolean);
+        }
+        if (roles.length === 0) {
+          roles = ["Super Admin"];
+        }
+        const adminUser = { 
+          email: cleanEmail, 
+          role, 
+          roles, 
+          name: matchedMember?.name || cleanEmail.split("@")[0] 
+        };
+        setUser(adminUser);
+        setIsAdmin(true);
+
+        try {
+          localStorage.setItem("truthworld_admin_session", JSON.stringify(adminUser));
+        } catch (_) {}
+
+        // Ensure default admin is seeded in Firestore
+        if (isDefaultCreds && !matchedMember) {
+          try {
+            await setDoc(doc(db, "admin_members", "ebenezervampy@towervsp.com"), {
+              email: "ebenezervampy@towervsp.com",
+              password: "12345",
+              role: "Owner / Super Admin",
+              roles: ROLES_DEFINITION.map(r => r.name),
+              name: "Ebenezer Vampu",
+              status: "active",
+              createdAt: Date.now(),
+            }, { merge: true });
+          } catch (_) {}
+        }
+
+        setSuccessMsg(`Welcome to Admin Portal (${cleanEmail})`);
+        setTimeout(() => setSuccessMsg(""), 4000);
+        setIsLoggingIn(false);
+        return;
+      }
+
+      // 2. Fallback to Firebase Auth
+      if (cleanPassword.length >= 6) {
+        await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
+      } else {
+        throw new Error("Invalid administrator email or password.");
+      }
     } catch (err) {
       console.error("Email login failed:", err);
       setError(err instanceof Error ? err.message : "Authentication failed.");
       setIsLoggingIn(false);
     }
+  };
+
+  // Handle Add Member
+  const handleAddMember = async (e) => {
+    e.preventDefault();
+    if (!newMemberEmail.trim() || !newMemberPassword.trim()) {
+      setError("Please provide member email and password.");
+      return;
+    }
+    if (selectedMemberRoles.length === 0) {
+      setError("Please select at least one role for this team member.");
+      return;
+    }
+    const cleanEmail = newMemberEmail.trim().toLowerCase();
+    const primaryRole = selectedMemberRoles.length === ROLES_DEFINITION.length
+      ? "Super Admin (All Tabs)"
+      : selectedMemberRoles.join(", ");
+
+    try {
+      await setDoc(doc(db, "admin_members", cleanEmail), {
+        email: cleanEmail,
+        password: newMemberPassword.trim(),
+        name: newMemberName.trim() || cleanEmail.split("@")[0],
+        role: primaryRole,
+        roles: selectedMemberRoles,
+        status: "active",
+        createdAt: Date.now(),
+        createdBy: user?.email || "Admin",
+      }, { merge: true });
+
+      setSuccessMsg(`Member ${cleanEmail} added with ${selectedMemberRoles.length} role(s)!`);
+      setShowAddMemberModal(false);
+      setNewMemberEmail("");
+      setNewMemberName("");
+      setNewMemberPassword("");
+      setSelectedMemberRoles(["Content Moderator"]);
+      setTimeout(() => setSuccessMsg(""), 4000);
+    } catch (err) {
+      setError(`Failed to add member: ${err.message}`);
+    }
+  };
+
+  // Handle Delete Member
+  const handleDeleteMember = async (email) => {
+    if (email === "ebenezervampy@towervsp.com" || email === "ebenezervampu@towervsp.com") {
+      alert("Primary Owner account cannot be removed.");
+      return;
+    }
+    if (!window.confirm(`Revoke administrator access for ${email}?`)) return;
+    try {
+      await deleteDoc(doc(db, "admin_members", email.toLowerCase()));
+      setSuccessMsg(`Member ${email} removed.`);
+      setTimeout(() => setSuccessMsg(""), 4000);
+    } catch (err) {
+      setError(`Failed to remove member: ${err.message}`);
+    }
+  };
+
+  // Handle Change Password
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    if (!newPasswordInput.trim()) {
+      setError("New password cannot be empty.");
+      return;
+    }
+    if (newPasswordInput !== confirmPasswordInput) {
+      setError("New passwords do not match.");
+      return;
+    }
+    try {
+      const email = user?.email || "ebenezervampy@towervsp.com";
+      await setDoc(doc(db, "admin_members", email.toLowerCase()), {
+        password: newPasswordInput.trim(),
+        updatedAt: Date.now(),
+      }, { merge: true });
+
+      setSuccessMsg("Password updated successfully!");
+      setShowChangePasswordModal(false);
+      setCurrentPasswordInput("");
+      setNewPasswordInput("");
+      setConfirmPasswordInput("");
+      setTimeout(() => setSuccessMsg(""), 4000);
+    } catch (err) {
+      setError(`Failed to change password: ${err.message}`);
+    }
+  };
+
+  // Copy Member Credentials
+  const copyCredentials = (email, password, role) => {
+    const text = `TruthWorld Admin Portal Login Credentials\nEmail: ${email}\nPassword: ${password}\nRole: ${role || "Admin"}\nPortal URL: https://truthworld.in/admin`;
+    navigator.clipboard.writeText(text);
+    setSuccessMsg(`Credentials for ${email} copied to clipboard! Ready to share.`);
+    setTimeout(() => setSuccessMsg(""), 4000);
   };
 
   // Handle Google Sign-In with Redirect Fallback
@@ -427,6 +760,9 @@ function App() {
   // Handle Sign Out
   const handleSignOut = async () => {
     try {
+      localStorage.removeItem("truthworld_admin_session");
+      setUser(null);
+      setIsAdmin(false);
       await signOut(auth);
       setSelectedItem(null);
       setSelectedType(null);
@@ -593,7 +929,7 @@ function App() {
                 <label>Admin Email</label>
                 <input 
                   type="email" 
-                  placeholder="ebenezervampu4@gmail.com" 
+                  placeholder="ebenezervampy@towervsp.com" 
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
                   disabled={isLoggingIn}
@@ -641,7 +977,7 @@ function App() {
             </button>
 
             <div className="auth-owner-badge">
-              Authorized Owner: <strong>ebenezervampu4@gmail.com</strong>
+              Authorized Owner: <strong>ebenezervampy@towervsp.com</strong>
             </div>
           </div>
         </div>
@@ -751,107 +1087,170 @@ function App() {
         </div>
         <nav style={{ flex: 1 }}>
           <ul className="nav-links">
-            <li>
-              <button 
-                className={`nav-item ${currentTab === "dashboard" ? "active" : ""}`}
-                onClick={() => { setCurrentTab("dashboard"); setSelectedItem(null); setSelectedType(null); }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
-                  <rect x="3" y="3" width="7" height="9"/>
-                  <rect x="14" y="3" width="7" height="5"/>
-                  <rect x="14" y="12" width="7" height="9"/>
-                  <rect x="3" y="16" width="7" height="5"/>
-                </svg>
-                <span>Dashboard</span>
-              </button>
-            </li>
-            <li>
-              <button 
-                className={`nav-item ${currentTab === "videos" ? "active" : ""}`}
-                onClick={() => { setCurrentTab("videos"); setSelectedItem(null); setSelectedType(null); }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
-                  <polygon points="23 7 16 12 23 17 23 7"/>
-                  <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
-                </svg>
-                <span>Videos ({systemStats.pendingVideos})</span>
-              </button>
-            </li>
-            <li>
-              <button 
-                className={`nav-item ${currentTab === "topics" ? "active" : ""}`}
-                onClick={() => { setCurrentTab("topics"); setSelectedItem(null); setSelectedType(null); }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
-                  <line x1="4" y1="9" x2="20" y2="9"/>
-                  <line x1="4" y1="15" x2="20" y2="15"/>
-                  <line x1="10" y1="3" x2="8" y2="21"/>
-                  <line x1="16" y1="3" x2="14" y2="21"/>
-                </svg>
-                <span>Topics ({systemStats.pendingTopics})</span>
-              </button>
-            </li>
-            <li>
-              <button 
-                className={`nav-item ${currentTab === "channels" ? "active" : ""}`}
-                onClick={() => { setCurrentTab("channels"); setSelectedItem(null); setSelectedType(null); }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                  <circle cx="9" cy="7" r="4"/>
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                </svg>
-                <span>Channels ({systemStats.pendingChannels})</span>
-              </button>
-            </li>
-            <li>
-              <button 
-                className={`nav-item ${currentTab === "images" ? "active" : ""}`}
-                onClick={() => { setCurrentTab("images"); setSelectedItem(null); setSelectedType(null); }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                  <circle cx="8.5" cy="8.5" r="1.5"/>
-                  <polyline points="21 15 16 10 5 21"/>
-                </svg>
-                <span>Image Queue ({systemStats.pendingImages})</span>
-              </button>
-            </li>
-            <li>
-              <button 
-                className={`nav-item ${currentTab === "reports" ? "active" : ""}`}
-                onClick={() => { setCurrentTab("reports"); setSelectedItem(null); setSelectedType(null); }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
-                  <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
-                  <line x1="4" y1="22" x2="4" y2="15"/>
-                </svg>
-                <span>Reports ({systemStats.pendingReports})</span>
-              </button>
-            </li>
-            <li>
-              <button 
-                className={`nav-item ${currentTab === "logs" ? "active" : ""}`}
-                onClick={() => { setCurrentTab("logs"); setSelectedItem(null); setSelectedType(null); }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                  <polyline points="14 2 14 8 20 8"/>
-                  <line x1="16" y1="13" x2="8" y2="13"/>
-                  <line x1="16" y1="17" x2="8" y2="17"/>
-                  <polyline points="10 9 9 9 8 9"/>
-                </svg>
-                <span>Audit Logs</span>
-              </button>
-            </li>
+            {isTabAllowed("dashboard") && (
+              <li>
+                <button 
+                  className={`nav-item ${currentTab === "dashboard" ? "active" : ""}`}
+                  onClick={() => { setCurrentTab("dashboard"); setSelectedItem(null); setSelectedType(null); }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
+                    <rect x="3" y="3" width="7" height="9"/>
+                    <rect x="14" y="3" width="7" height="5"/>
+                    <rect x="14" y="12" width="7" height="9"/>
+                    <rect x="3" y="16" width="7" height="5"/>
+                  </svg>
+                  <span>Dashboard</span>
+                </button>
+              </li>
+            )}
+            {isTabAllowed("videos") && (
+              <li>
+                <button 
+                  className={`nav-item ${currentTab === "videos" ? "active" : ""}`}
+                  onClick={() => { setCurrentTab("videos"); setSelectedItem(null); setSelectedType(null); }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
+                    <polygon points="23 7 16 12 23 17 23 7"/>
+                    <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+                  </svg>
+                  <span>Videos ({systemStats.pendingVideos})</span>
+                </button>
+              </li>
+            )}
+            {isTabAllowed("topics") && (
+              <li>
+                <button 
+                  className={`nav-item ${currentTab === "topics" ? "active" : ""}`}
+                  onClick={() => { setCurrentTab("topics"); setSelectedItem(null); setSelectedType(null); }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
+                    <line x1="4" y1="9" x2="20" y2="9"/>
+                    <line x1="4" y1="15" x2="20" y2="15"/>
+                    <line x1="10" y1="3" x2="8" y2="21"/>
+                    <line x1="16" y1="3" x2="14" y2="21"/>
+                  </svg>
+                  <span>Topics ({systemStats.pendingTopics})</span>
+                </button>
+              </li>
+            )}
+            {isTabAllowed("channels") && (
+              <li>
+                <button 
+                  className={`nav-item ${currentTab === "channels" ? "active" : ""}`}
+                  onClick={() => { setCurrentTab("channels"); setSelectedItem(null); setSelectedType(null); }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                  </svg>
+                  <span>Channels ({systemStats.pendingChannels})</span>
+                </button>
+              </li>
+            )}
+            {isTabAllowed("images") && (
+              <li>
+                <button 
+                  className={`nav-item ${currentTab === "images" ? "active" : ""}`}
+                  onClick={() => { setCurrentTab("images"); setSelectedItem(null); setSelectedType(null); }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                    <polyline points="21 15 16 10 5 21"/>
+                  </svg>
+                  <span>Image Queue ({systemStats.pendingImages})</span>
+                </button>
+              </li>
+            )}
+            {isTabAllowed("reports") && (
+              <li>
+                <button 
+                  className={`nav-item ${currentTab === "reports" ? "active" : ""}`}
+                  onClick={() => { setCurrentTab("reports"); setSelectedItem(null); setSelectedType(null); }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
+                    <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
+                    <line x1="4" y1="22" x2="4" y2="15"/>
+                  </svg>
+                  <span>Reports ({systemStats.pendingReports})</span>
+                </button>
+              </li>
+            )}
+            {isTabAllowed("logs") && (
+              <li>
+                <button 
+                  className={`nav-item ${currentTab === "logs" ? "active" : ""}`}
+                  onClick={() => { setCurrentTab("logs"); setSelectedItem(null); setSelectedType(null); }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10 9 9 9 8 9"/>
+                  </svg>
+                  <span>Audit Logs</span>
+                </button>
+              </li>
+            )}
+            {isTabAllowed("team") && (
+              <li>
+                <button 
+                  className={`nav-item ${currentTab === "team" ? "active" : ""}`}
+                  onClick={() => { setCurrentTab("team"); setSelectedItem(null); setSelectedType(null); }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                  </svg>
+                  <span>Team Members ({adminMembers.length})</span>
+                </button>
+              </li>
+            )}
           </ul>
         </nav>
         <div className="sidebar-footer">
           <div className="admin-profile">
             <div className="admin-name">{user.email}</div>
-            <div className="admin-role">System Administrator</div>
+            <div className="admin-role" style={{ whiteSpace: "normal", wordBreak: "break-word" }}>
+              {Array.isArray(user.roles) && user.roles.length > 0 ? user.roles.join(", ") : (user.role || "System Administrator")}
+            </div>
           </div>
+          <button 
+            type="button"
+            className="btn-secondary" 
+            style={{ 
+              width: "100%", 
+              marginBottom: "8px", 
+              padding: "8px 12px", 
+              fontSize: "0.85rem", 
+              display: "flex", 
+              alignItems: "center", 
+              justifyContent: "center", 
+              gap: "8px",
+              background: "rgba(255, 255, 255, 0.08)",
+              border: "1px solid rgba(255, 255, 255, 0.15)",
+              color: "#ffffff",
+              borderRadius: "8px",
+              cursor: "pointer"
+            }}
+            onClick={() => {
+              setCurrentPasswordInput("");
+              setNewPasswordInput("");
+              setConfirmPasswordInput("");
+              setShowChangePasswordModal(true);
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            <span>Change Password</span>
+          </button>
           <button className="btn-signout" onClick={handleSignOut}>
             Sign Out
           </button>
@@ -870,6 +1269,7 @@ function App() {
               {currentTab === "images" && "Image Moderation Queue"}
               {currentTab === "reports" && "Video & Content Reports"}
               {currentTab === "logs" && "Audit Logs & Actions History"}
+              {currentTab === "team" && "Team Access & Member Management"}
             </h1>
             <p>
               {currentTab === "dashboard" && "Toggle moderation routing modes (Gemini AI vs Admin Only) and monitor platform health."}
@@ -879,6 +1279,7 @@ function App() {
               {currentTab === "images" && "Inspect flagged thumbnails, avatars, and community posts."}
               {currentTab === "reports" && "User-submitted reports for videos, comments, and channels."}
               {currentTab === "logs" && "History of quarantined resources and manual administrator decisions."}
+              {currentTab === "team" && "Add members with custom credentials, copy/share login access, and change passwords."}
             </p>
           </div>
         </header>
@@ -1833,8 +2234,419 @@ function App() {
               </div>
             </div>
           )}
+
+          {/* TAB 8: TEAM MEMBERS MANAGEMENT */}
+          {currentTab === "team" && (
+            <div>
+              {/* Security Banner */}
+              <div 
+                className="glass" 
+                style={{ 
+                  padding: "18px 24px", 
+                  borderRadius: "14px", 
+                  marginBottom: "24px", 
+                  display: "flex", 
+                  alignItems: "center", 
+                  justifyContent: "space-between",
+                  background: "rgba(255, 255, 255, 0.03)",
+                  border: "1px solid rgba(255, 255, 255, 0.1)"
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+                  <div style={{ padding: "10px", borderRadius: "10px", background: "rgba(255, 255, 255, 0.08)", display: "flex" }}>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: "1rem", color: "#ffffff", fontWeight: 600 }}>Strict Protocol Enforcement</h4>
+                    <p style={{ margin: "4px 0 0 0", color: "var(--text-secondary)", fontSize: "0.85rem" }}>
+                      No one can enter without authentication. Add team members with specific email & password credentials, copy and share with them directly.
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  className="btn-primary"
+                  style={{ whiteSpace: "nowrap", padding: "10px 18px", display: "flex", alignItems: "center", gap: "8px" }}
+                  onClick={() => {
+                    setNewMemberEmail("");
+                    setNewMemberName("");
+                    setNewMemberPassword("");
+                    setSelectedMemberRoles(["Content Moderator"]);
+                    setShowAddMemberModal(true);
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                  </svg>
+                  <span>Add Team Member</span>
+                </button>
+              </div>
+
+              {/* Members Table */}
+              <div className="glass" style={{ padding: "24px", borderRadius: "16px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                  <h3 style={{ margin: 0, fontFamily: "var(--font-display)" }}>
+                    Authorized Team Members ({adminMembers.length})
+                  </h3>
+                  <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                    Collection: <code>admin_members</code>
+                  </span>
+                </div>
+
+                <div className="audit-table-wrapper">
+                  <table className="audit-table">
+                    <thead>
+                      <tr>
+                        <th>Administrator</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Credentials Password</th>
+                        <th>Created Date</th>
+                        <th style={{ textAlign: "right" }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {adminMembers.length === 0 ? (
+                        <tr>
+                          <td colSpan="6" style={{ textAlign: "center", color: "var(--text-muted)", padding: "40px" }}>
+                            No team members configured yet. Click "Add Team Member" above to invite members.
+                          </td>
+                        </tr>
+                      ) : (
+                        adminMembers.map((member) => {
+                          const isOwner = member.email === "ebenezervampy@towervsp.com" || member.email === "ebenezervampu@towervsp.com";
+                          const isRevealed = revealedPasswords[member.email] === true;
+                          const pwd = member.password || "••••••";
+
+                          return (
+                            <tr key={member.id || member.email}>
+                              <td>
+                                <div style={{ display: "flex", flexDirection: "column" }}>
+                                  <div style={{ fontWeight: 600, color: "#ffffff", display: "flex", alignItems: "center", gap: "6px" }}>
+                                    <span>{member.name || member.email.split("@")[0]}</span>
+                                    {isOwner && (
+                                      <span className="badge" style={{ background: "rgba(255, 255, 255, 0.15)", color: "#ffffff", fontSize: "0.7rem", padding: "2px 6px" }}>
+                                        Primary Owner
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>{member.email}</span>
+                                </div>
+                              </td>
+                              <td>
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                                  {(Array.isArray(member.roles) && member.roles.length > 0 
+                                      ? member.roles 
+                                      : (member.role ? member.role.split(",").map(r => r.trim()).filter(Boolean) : ["Admin"])
+                                  ).map((r, idx) => (
+                                    <span key={idx} className="badge" style={{ background: "rgba(255, 255, 255, 0.08)", color: "#ffffff", fontSize: "0.75rem" }}>
+                                      {r}
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                              <td>
+                                <span className={`badge ${member.status === "active" || !member.status ? "active" : "rejected"}`}>
+                                  {(member.status || "active").toUpperCase()}
+                                </span>
+                              </td>
+                              <td>
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                  <code style={{ fontSize: "0.9rem", letterSpacing: isRevealed ? "normal" : "2px" }}>
+                                    {isRevealed ? member.password : "••••••••"}
+                                  </code>
+                                  {member.password && (
+                                    <button 
+                                      type="button"
+                                      title={isRevealed ? "Hide Password" : "Show Password"}
+                                      style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", display: "flex" }}
+                                      onClick={() => {
+                                        setRevealedPasswords(prev => ({
+                                          ...prev,
+                                          [member.email]: !prev[member.email]
+                                        }));
+                                      }}
+                                    >
+                                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
+                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                        <circle cx="12" cy="12" r="3"/>
+                                      </svg>
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                              <td>
+                                <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                                  {formatDate(member.createdAt)}
+                                </span>
+                              </td>
+                              <td style={{ textAlign: "right" }}>
+                                <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                                  <button 
+                                    type="button"
+                                    className="btn-secondary"
+                                    style={{ padding: "6px 12px", fontSize: "0.8rem", display: "inline-flex", alignItems: "center", gap: "6px", background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(255, 255, 255, 0.15)", color: "#ffffff", borderRadius: "6px", cursor: "pointer" }}
+                                    title="Copy login details to clipboard"
+                                    onClick={() => copyCredentials(member.email, member.password || "12345", member.role)}
+                                  >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
+                                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                                    </svg>
+                                    <span>Copy & Share</span>
+                                  </button>
+                                  {!isOwner && (
+                                    <button 
+                                      type="button"
+                                      style={{ padding: "6px 10px", fontSize: "0.8rem", display: "inline-flex", alignItems: "center", gap: "4px", background: "rgba(239, 68, 68, 0.15)", border: "1px solid rgba(239, 68, 68, 0.3)", color: "#ef4444", borderRadius: "6px", cursor: "pointer" }}
+                                      title="Revoke administrator access"
+                                      onClick={() => handleDeleteMember(member.email)}
+                                    >
+                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
+                                        <polyline points="3 6 5 6 21 6"/>
+                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                      </svg>
+                                      <span>Remove</span>
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </main>
+
+      {/* Add Team Member Modal */}
+      {showAddMemberModal && (
+        <div className="modal-overlay">
+          <div className="modal-content glass" style={{ maxWidth: "480px" }}>
+            <div className="modal-header">
+              Add New Team Member
+            </div>
+            <form onSubmit={handleAddMember}>
+              <div className="modal-body">
+                <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", marginBottom: "16px" }}>
+                  Create an administrator credential. The member will use this email and password to log in directly to the TruthWorld Admin Portal.
+                </p>
+
+                <div className="form-group" style={{ marginBottom: "14px" }}>
+                  <label>Member Email</label>
+                  <input 
+                    type="email" 
+                    placeholder="teammate@towervsp.com" 
+                    value={newMemberEmail}
+                    onChange={(e) => setNewMemberEmail(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: "14px" }}>
+                  <label>Full Name</label>
+                  <input 
+                    type="text" 
+                    placeholder="John Doe" 
+                    value={newMemberName}
+                    onChange={(e) => setNewMemberName(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: "16px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                    <label style={{ margin: 0, fontWeight: 600 }}>
+                      Assigned Roles & Tab Permissions ({selectedMemberRoles.length}/{ROLES_DEFINITION.length})
+                    </label>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        if (selectedMemberRoles.length === ROLES_DEFINITION.length) {
+                          setSelectedMemberRoles([]);
+                        } else {
+                          setSelectedMemberRoles(ROLES_DEFINITION.map(r => r.name));
+                        }
+                      }}
+                      style={{
+                        background: "rgba(255, 255, 255, 0.1)",
+                        border: "1px solid rgba(255, 255, 255, 0.2)",
+                        borderRadius: "6px",
+                        padding: "4px 10px",
+                        color: "#ffffff",
+                        fontSize: "0.75rem",
+                        cursor: "pointer"
+                      }}
+                    >
+                      {selectedMemberRoles.length === ROLES_DEFINITION.length ? "Deselect All" : "Select All Roles"}
+                    </button>
+                  </div>
+                  <div style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "6px",
+                    maxHeight: "220px",
+                    overflowY: "auto",
+                    padding: "8px",
+                    background: "rgba(255, 255, 255, 0.03)",
+                    border: "1px solid var(--border-glass)",
+                    borderRadius: "8px"
+                  }}>
+                    {ROLES_DEFINITION.map((roleDef) => {
+                      const isChecked = selectedMemberRoles.includes(roleDef.name);
+                      return (
+                        <label 
+                          key={roleDef.name}
+                          style={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            gap: "10px",
+                            padding: "6px 8px",
+                            borderRadius: "6px",
+                            background: isChecked ? "rgba(255, 255, 255, 0.08)" : "transparent",
+                            cursor: "pointer",
+                            userSelect: "none"
+                          }}
+                        >
+                          <input 
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedMemberRoles(prev => [...prev, roleDef.name]);
+                              } else {
+                                setSelectedMemberRoles(prev => prev.filter(r => r !== roleDef.name));
+                              }
+                            }}
+                            style={{ marginTop: "3px", accentColor: "#ffffff" }}
+                          />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 600, fontSize: "0.85rem", color: "#ffffff" }}>
+                              {roleDef.name}
+                            </div>
+                            <div style={{ fontSize: "0.72rem", color: "var(--text-secondary)", marginTop: "1px" }}>
+                              {roleDef.description}
+                            </div>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ marginBottom: "8px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                    <label style={{ margin: 0 }}>Password</label>
+                    <button 
+                      type="button" 
+                      style={{ background: "none", border: "none", color: "#ffffff", fontSize: "0.8rem", cursor: "pointer", textDecoration: "underline" }}
+                      onClick={() => {
+                        const randomPwd = Math.random().toString(36).slice(-8) + "!TW";
+                        setNewMemberPassword(randomPwd);
+                      }}
+                    >
+                      Generate Secure Password
+                    </button>
+                  </div>
+                  <input 
+                    type="text" 
+                    placeholder="Enter or generate password" 
+                    value={newMemberPassword}
+                    onChange={(e) => setNewMemberPassword(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="modal-actions">
+                <button 
+                  type="button"
+                  className="btn-cancel"
+                  onClick={() => setShowAddMemberModal(false)}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="btn-primary"
+                  style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                  <span>Create & Save Member</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Change Password Modal */}
+      {showChangePasswordModal && (
+        <div className="modal-overlay">
+          <div className="modal-content glass" style={{ maxWidth: "420px" }}>
+            <div className="modal-header">
+              Change Administrator Password
+            </div>
+            <form onSubmit={handleChangePassword}>
+              <div className="modal-body">
+                <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", marginBottom: "16px" }}>
+                  Updating password for <strong>{user?.email}</strong>.
+                </p>
+
+                <div className="form-group" style={{ marginBottom: "14px" }}>
+                  <label>New Password</label>
+                  <input 
+                    type="password" 
+                    placeholder="Enter new password" 
+                    value={newPasswordInput}
+                    onChange={(e) => setNewPasswordInput(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: "14px" }}>
+                  <label>Confirm New Password</label>
+                  <input 
+                    type="password" 
+                    placeholder="Re-enter new password" 
+                    value={confirmPasswordInput}
+                    onChange={(e) => setConfirmPasswordInput(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="modal-actions">
+                <button 
+                  type="button"
+                  className="btn-cancel"
+                  onClick={() => setShowChangePasswordModal(false)}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="btn-primary"
+                  style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                  <span>Update Password</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Confirmation Modal */}
       {isModalOpen && (

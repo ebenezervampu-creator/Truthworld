@@ -23,7 +23,7 @@ class AppLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget logoImage = Image.asset(
+    final Widget logoImage = Image.asset(
       assetPath,
       width: size,
       height: size,

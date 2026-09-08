@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
@@ -30,7 +29,6 @@ class CommentsController extends BaseController with ContentValidationMixin {
     return _commentsRepository.streamComments(videoId);
   }
   final CommentService _commentService = CommentService();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   // Video data
   Video? video;
@@ -61,14 +59,8 @@ class CommentsController extends BaseController with ContentValidationMixin {
   static const int _commentsPerPage = 20;
 
   // Current user info
-  String get currentUserId => _auth.currentUser?.uid ?? '';
-  String get currentUserName {
-    final authService = AuthService.to;
-    if (authService.hasChannel.value && authService.userChannel != null) {
-      return authService.userChannel!.name;
-    }
-    return _auth.currentUser?.displayName ?? 'Anonymous User';
-  }
+  String get currentUserId => AuthService.to.uid;
+  String get currentUserName => AuthService.to.activeDisplayName;
 
   @override
   void onInit() {
@@ -249,7 +241,7 @@ class CommentsController extends BaseController with ContentValidationMixin {
       throw Exception('Video not loaded');
     }
 
-    if (currentUserId.isEmpty) {
+    if (!AuthService.to.isAuthenticated.value || currentUserId.isEmpty) {
       throw Exception('User not authenticated');
     }
 
@@ -350,7 +342,7 @@ class CommentsController extends BaseController with ContentValidationMixin {
     required String commentId,
     required bool likeAsChannel,
   }) async {
-    if (video == null) return;
+    if (!AuthService.to.isAuthenticated.value || video == null) return;
 
     final userId = currentUserId;
     if (userId.isEmpty) return;
@@ -450,7 +442,7 @@ class CommentsController extends BaseController with ContentValidationMixin {
     required String commentId,
     required bool dislikeAsChannel,
   }) async {
-    if (video == null) return;
+    if (!AuthService.to.isAuthenticated.value || video == null) return;
 
     final userId = currentUserId;
     if (userId.isEmpty) return;
@@ -592,6 +584,9 @@ class CommentsController extends BaseController with ContentValidationMixin {
     String? commentAuthorId,
   }) async {
     if (text.trim().isEmpty || video == null) return;
+    if (!AuthService.to.isAuthenticated.value || currentUserId.isEmpty) {
+      throw Exception('User not authenticated');
+    }
 
     final validation = await validateContent(text, fieldName: 'Reply');
     if (!validation.isValid) {
@@ -689,7 +684,7 @@ class CommentsController extends BaseController with ContentValidationMixin {
     String? replyAuthorId,
     String? replyText,
   }) async {
-    if (video == null) return;
+    if (!AuthService.to.isAuthenticated.value || video == null) return;
 
     final userId = currentUserId;
     if (userId.isEmpty) return;
@@ -754,7 +749,7 @@ class CommentsController extends BaseController with ContentValidationMixin {
     required String replyId,
     required bool dislikeAsChannel,
   }) async {
-    if (video == null) return;
+    if (!AuthService.to.isAuthenticated.value || video == null) return;
 
     final userId = currentUserId;
     if (userId.isEmpty) return;

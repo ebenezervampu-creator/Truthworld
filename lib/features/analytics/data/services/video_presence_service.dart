@@ -5,6 +5,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/core/utils/firebase_rtdb_helper.dart';
 import 'package:uuid/uuid.dart';
 
 /// Service responsible for real-time live viewer presence tracking in RTDB.
@@ -25,23 +26,77 @@ class VideoPresenceService extends GetxService {
     return Get.find<VideoPresenceService>();
   }
 
-  final FirebaseDatabase _database = FirebaseDatabase.instance;
+  final FirebaseDatabase _database = getSafeFirebaseDatabase();
   final Uuid _uuid = const Uuid();
 
   String? _currentVideoId;
   String? _currentSessionId;
   DatabaseReference? _currentSessionRef;
   Timer? _heartbeatTimer;
+  StreamSubscription? _connectionSubscription;
 
   int _lastWatchedSeconds = 0;
   double _lastPosition = 0;
+  bool _isTransitioning = false;
 
   /// Whether there is an active watching session
   bool get isWatching => _currentSessionRef != null && _currentVideoId != null;
   String? get currentVideoId => _currentVideoId;
   String? get currentSessionId => _currentSessionId;
 
-  /// Start tracking live viewer presence for a video.
+  @override
+  void onInit() {
+    super.onInit();
+    _listenToConnectionState();
+  }
+
+  /// Listen to RTDB connection state for seamless reconnection recovery
+  void _listenToConnectionState() {
+    try {
+      _connectionSubscription?.cancel();
+      _connectionSubscription = _database.ref('.info/connected').onValue.listen((event) {
+        final isConnected = event.snapshot.value == true;
+        if (isConnected && isWatching && _currentSessionRef != null && _currentVideoId != null) {
+          logger.info('RTDB reconnected. Restoring live presence session: $_currentSessionId', tag: _tag);
+          _reestablishSession();
+        }
+      }, onError: (Object e) {
+        debugPrint('[$_tag] .info/connected listener error: $e');
+      });
+    } catch (e) {
+      debugPrint('[$_tag] Error attaching .info/connected listener: $e');
+    }
+  }
+
+  /// Re-writes presence node and re-attaches onDisconnect handler after network reconnection
+  Future<void> _reestablishSession() async {
+    final ref = _currentSessionRef;
+    final videoId = _currentVideoId;
+    final sessionId = _currentSessionId;
+    if (ref == null || videoId == null || sessionId == null) return;
+
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      final uid = (currentUser != null && !currentUser.isAnonymous)
+          ? currentUser.uid
+          : 'guest_$sessionId';
+
+      final sessionData = <String, dynamic>{
+        'uid': uid,
+        'watchedSeconds': _lastWatchedSeconds,
+        'position': _lastPosition,
+        'updatedAt': ServerValue.timestamp,
+      };
+
+      await ref.set(sessionData);
+      await ref.onDisconnect().remove();
+      logger.info('Presence session re-established: $sessionId for video: $videoId', tag: _tag);
+    } catch (e) {
+      debugPrint('[$_tag] Error re-establishing session on reconnect: $e');
+    }
+  }
+
+  /// Start tracking live viewer presence for a video (idempotent and race-guarded).
   Future<void> startWatching({
     required String videoId,
     double position = 0,
@@ -49,27 +104,33 @@ class VideoPresenceService extends GetxService {
   }) async {
     if (videoId.isEmpty) return;
 
-    // If already watching the same video with active session, just update heartbeat
+    // Idempotent fast-path: if already watching the exact same video with active session
     if (_currentVideoId == videoId && _currentSessionRef != null) {
       heartbeat(position: position, watchedSeconds: watchedSeconds);
       return;
     }
 
-    // Stop existing session if switching videos
-    if (isWatching) {
-      await stopWatching();
+    if (_isTransitioning) {
+      // Small delay to allow previous transition to settle
+      await Future<void>.delayed(const Duration(milliseconds: 50));
     }
 
+    _isTransitioning = true;
     try {
+      // Stop previous session cleanly if switching videos
+      if (isWatching) {
+        await _internalStopWatching();
+      }
+
       _currentVideoId = videoId;
       _currentSessionId = _uuid.v4();
       _lastPosition = position;
       _lastWatchedSeconds = watchedSeconds;
 
-      final user = FirebaseAuth.instance.currentUser;
-      final uid = (user != null && user.uid.isNotEmpty)
-          ? user.uid
-          : 'anonymous_$_currentSessionId';
+      final currentUser = FirebaseAuth.instance.currentUser;
+      final uid = (currentUser != null && !currentUser.isAnonymous)
+          ? currentUser.uid
+          : 'guest_$_currentSessionId';
 
       final ref = _database.ref('activeViewers/$videoId/$_currentSessionId');
       _currentSessionRef = ref;
@@ -90,7 +151,7 @@ class VideoPresenceService extends GetxService {
         tag: _tag,
       );
 
-      // Start periodic heartbeat (every 10s to stay below the 15s stale threshold)
+      // Start periodic heartbeat (every 8s for high fault-tolerance)
       _startHeartbeatTimer();
     } catch (e, stackTrace) {
       logger.error(
@@ -98,6 +159,8 @@ class VideoPresenceService extends GetxService {
         stackTrace: stackTrace,
         tag: _tag,
       );
+    } finally {
+      _isTransitioning = false;
     }
   }
 
@@ -113,6 +176,8 @@ class VideoPresenceService extends GetxService {
         'position': _lastPosition,
         'watchedSeconds': _lastWatchedSeconds,
         'updatedAt': ServerValue.timestamp,
+      }).catchError((Object e) {
+        debugPrint('[$_tag] Heartbeat update error: $e');
       });
     } catch (e) {
       debugPrint('[$_tag] Heartbeat update error: $e');
@@ -121,13 +186,22 @@ class VideoPresenceService extends GetxService {
 
   void _startHeartbeatTimer() {
     _heartbeatTimer?.cancel();
-    _heartbeatTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 8), (_) {
       heartbeat();
     });
   }
 
   /// Stop watching and immediately remove presence session
   Future<void> stopWatching() async {
+    _isTransitioning = true;
+    try {
+      await _internalStopWatching();
+    } finally {
+      _isTransitioning = false;
+    }
+  }
+
+  Future<void> _internalStopWatching() async {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
 
@@ -144,6 +218,10 @@ class VideoPresenceService extends GetxService {
     if (ref != null) {
       try {
         await ref.onDisconnect().cancel();
+      } catch (e) {
+        debugPrint('[$_tag] Warning cancelling onDisconnect: $e');
+      }
+      try {
         await ref.remove();
         logger.info(
           'Live presence stopped for video: $videoId (session: $sessionId)',
@@ -195,6 +273,7 @@ class VideoPresenceService extends GetxService {
 
   @override
   void onClose() {
+    _connectionSubscription?.cancel();
     stopWatching();
     super.onClose();
   }

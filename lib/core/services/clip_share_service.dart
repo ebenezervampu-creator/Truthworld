@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
 import 'package:ffmpeg_kit_flutter_new/return_code.dart';
@@ -10,15 +11,21 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/core/utils/storage_utils.dart';
+import 'package:truthworld/features/video/data/services/video_media_service.dart';
 
 /// Service responsible for extracting, watermarking, caching, and sharing
-/// video clips as actual video media files (.mp4) with Truthworld branding.
+/// video clips as actual video media files (.mp4) with TikTok-style Truthworld branding.
 ///
-/// Uses FFmpeg to trim and burn the Truthworld watermark directly into
+/// Uses Flutter Canvas to generate high-resolution, vector-crisp TikTok watermark badges
+/// and FFmpeg overlay to burn the dynamic alternating watermark directly into
 /// the video frames with minimal network overhead and reliable cross-platform execution.
 class ClipShareService {
   ClipShareService._();
   static final ClipShareService instance = ClipShareService._();
+
+  /// Minimum allowed duration for shareable clips (5 seconds - industry standard)
+  static const double minShareDuration = 5.0;
 
   /// Maximum allowed duration for shareable clips (30 seconds)
   static const double maxShareDuration = 30.0;
@@ -71,6 +78,148 @@ class ClipShareService {
   }
 
   // ────────────────────────────────────────────────
+  // TikTok-Style Dynamic Watermark Image Generator
+  // ────────────────────────────────────────────────
+
+  /// Generates a high-resolution, pixel-perfect transparent PNG overlay badge
+  /// styled exactly like TikTok (Truthworld logo badge + "Truthworld" + creator @channel).
+  ///
+  /// Using native Flutter Canvas guarantees 100% font support, vector sharpness,
+  /// and zero dependency on host system font files.
+  static Future<File> generateTikTokWatermarkImage({
+    String? channelName,
+    String? customBrand,
+  }) async {
+    const width = 320.0;
+    const height = 92.0;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder, const Rect.fromLTWH(0, 0, width, height));
+
+    // 1. Frosted dark pill container
+    final pillRect = RRect.fromRectAndRadius(
+      const Rect.fromLTWH(6, 6, width - 12, height - 12),
+      const Radius.circular(22),
+    );
+
+    // Drop shadow
+    final shadowPaint = Paint()
+      ..color = const Color(0x80000000)
+      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 8);
+    canvas.drawRRect(pillRect.shift(const Offset(0, 4)), shadowPaint);
+
+    // Pill background fill
+    final bgPaint = Paint()
+      ..color = const Color(0xCC111116)
+      ..style = PaintingStyle.fill;
+    canvas.drawRRect(pillRect, bgPaint);
+
+    // Subtle border stroke
+    final borderPaint = Paint()
+      ..color = const Color(0x4DFFFFFF)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    canvas.drawRRect(pillRect, borderPaint);
+
+    // 2. TikTok-style Chromatic 3D Logo Icon (Cyan & Magenta offset glow)
+    const logoCenterX = 48.0;
+    const logoCenterY = 46.0;
+    const logoRadius = 24.0;
+
+    final cyanPaint = Paint()
+      ..color = const Color(0xD900F2EA)
+      ..style = PaintingStyle.fill;
+    final magentaPaint = Paint()
+      ..color = const Color(0xD9FF0050)
+      ..style = PaintingStyle.fill;
+    final darkLogoBg = Paint()
+      ..color = const Color(0xFF0F0F14)
+      ..style = PaintingStyle.fill;
+
+    // Chromatic offset circles
+    canvas.drawCircle(const Offset(logoCenterX - 2, logoCenterY), logoRadius, cyanPaint);
+    canvas.drawCircle(const Offset(logoCenterX + 2, logoCenterY), logoRadius, magentaPaint);
+    canvas.drawCircle(const Offset(logoCenterX, logoCenterY), logoRadius, darkLogoBg);
+
+    // Stylized 'T' inside logo circle
+    final logoTextPainter = TextPainter(
+      text: const TextSpan(
+        text: 'T',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 26,
+          fontWeight: FontWeight.w900,
+          fontFamily: 'Roboto',
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    logoTextPainter.paint(
+      canvas,
+      Offset(
+        logoCenterX - (logoTextPainter.width / 2),
+        logoCenterY - (logoTextPainter.height / 2),
+      ),
+    );
+
+    // 3. Brand Text: Truthworld
+    final brandText = customBrand ?? 'Truthworld';
+    final brandPainter = TextPainter(
+      text: TextSpan(
+        text: brandText,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 0.5,
+          fontFamily: 'Roboto',
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: width - 100);
+    brandPainter.paint(canvas, const Offset(84, 18));
+
+    // 4. Creator Handle: @channelName or Truthworld Clip
+    final cleanHandle = (channelName != null && channelName.trim().isNotEmpty)
+        ? (channelName.trim().startsWith('@')
+            ? channelName.trim()
+            : '@${channelName.trim()}')
+        : '@truthworld.in';
+
+    final handlePainter = TextPainter(
+      text: TextSpan(
+        text: cleanHandle,
+        style: const TextStyle(
+          color: Color(0xEEFFFFFF),
+          fontSize: 13.5,
+          fontWeight: FontWeight.w600,
+          fontFamily: 'Roboto',
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+      ellipsis: '...',
+    )..layout(maxWidth: width - 100);
+    handlePainter.paint(canvas, const Offset(84, 46));
+
+    // 5. Render Picture to PNG byte data
+    final picture = recorder.endRecording();
+    final img = picture.toImageSync(width.toInt(), height.toInt());
+    final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+    final buffer = byteData!.buffer.asUint8List();
+
+    final tempDir = await _getSafeTempDir();
+    final watermarkDir = Directory('${tempDir.path}/watermarks');
+    if (!await watermarkDir.exists()) {
+      await watermarkDir.create(recursive: true);
+    }
+    final watermarkFile = File(
+      '${watermarkDir.path}/truthworld_watermark_${DateTime.now().millisecondsSinceEpoch}.png',
+    );
+    await watermarkFile.writeAsBytes(buffer, flush: true);
+    return watermarkFile;
+  }
+
+  // ────────────────────────────────────────────────
   // URL Resolution (Firebase Storage & Cloud URLs)
   // ────────────────────────────────────────────────
 
@@ -79,6 +228,21 @@ class ClipShareService {
     if (rawUrl == null) return null;
     final clean = rawUrl.trim();
     if (clean.isEmpty) return null;
+
+    try {
+      final fast = StorageUtils.getFastDownloadUrl(clean);
+      if (fast.isNotEmpty &&
+          (fast.startsWith('http://') || fast.startsWith('https://'))) {
+        return fast;
+      }
+      final resolved = await StorageUtils.resolveUrl(clean);
+      if (resolved.isNotEmpty &&
+          (resolved.startsWith('http://') || resolved.startsWith('https://'))) {
+        return resolved;
+      }
+    } catch (e) {
+      debugPrint('[ClipShareService] StorageUtils resolution failed for $clean: $e');
+    }
 
     if (clean.startsWith('http://') || clean.startsWith('https://')) {
       return clean;
@@ -95,53 +259,117 @@ class ClipShareService {
     return null;
   }
 
-  /// Resolve source video media URL from Firestore when not provided directly
+  /// Resolve source video media URL with comprehensive fallbacks:
+  ///   1. In-memory VideoMediaService.streamingCache
+  ///   2. Firestore `videos/{videoId}` doc
+  ///   3. Firestore `videos/{videoId}/media/streaming` subcollection
   Future<String?> resolveVideoSourceUrl(String videoId) async {
     if (videoId.isEmpty) return null;
+
+    // 1. Check in-memory streaming cache first
+    if (VideoMediaService.streamingCache.containsKey(videoId)) {
+      final streaming = VideoMediaService.streamingCache[videoId]!;
+      final original = await _toHttpUrl(streaming.originalUrl);
+      if (original != null && original.isNotEmpty) return original;
+
+      if (streaming.adaptiveResolutions.isNotEmpty) {
+        for (final res in streaming.adaptiveResolutions) {
+          final url = await _toHttpUrl(res.url);
+          if (url != null && url.isNotEmpty) return url;
+        }
+      }
+
+      final hls = await _toHttpUrl(streaming.hlsUrl);
+      if (hls != null && hls.isNotEmpty) return hls;
+    }
+
+    // 2. Query Firestore root video doc
     try {
       final doc = await FirebaseFirestore.instance
           .collection(FirestoreCollections.videos)
           .doc(videoId)
           .get();
 
-      if (!doc.exists) return null;
-      final data = doc.data();
-      if (data == null) return null;
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
 
-      // 1. Check originalUrl
-      final original = await _toHttpUrl(data['originalUrl'] as String?);
-      if (original != null) return original;
+        // Check originalUrl
+        final original = await _toHttpUrl(data['originalUrl'] as String?);
+        if (original != null && original.isNotEmpty) return original;
 
-      // 2. Check videoUrl
-      final video = await _toHttpUrl(data['videoUrl'] as String?);
-      if (video != null) return video;
+        // Check videoUrl
+        final video = await _toHttpUrl(data['videoUrl'] as String?);
+        if (video != null && video.isNotEmpty) return video;
 
-      // 3. Check adaptiveResolutions
-      final adaptiveResolutions = data['adaptiveResolutions'] as List?;
-      if (adaptiveResolutions != null && adaptiveResolutions.isNotEmpty) {
-        for (final item in adaptiveResolutions) {
-          if (item is Map && item['url'] != null) {
-            final url = await _toHttpUrl(item['url']?.toString());
-            if (url != null) return url;
+        // Check downloadUrl / fileUrl / sourceUrl
+        final downloadUrl = await _toHttpUrl(data['downloadUrl'] as String?) ??
+            await _toHttpUrl(data['fileUrl'] as String?) ??
+            await _toHttpUrl(data['sourceUrl'] as String?);
+        if (downloadUrl != null && downloadUrl.isNotEmpty) return downloadUrl;
+
+        // Check adaptiveResolutions list
+        final adaptiveResolutions = data['adaptiveResolutions'] as List?;
+        if (adaptiveResolutions != null && adaptiveResolutions.isNotEmpty) {
+          for (final item in adaptiveResolutions) {
+            if (item is Map && item['url'] != null) {
+              final url = await _toHttpUrl(item['url']?.toString());
+              if (url != null && url.isNotEmpty) return url;
+            }
           }
         }
-      }
 
-      // 4. Check media map
-      if (data['media'] is Map) {
-        final media = data['media'] as Map;
-        final mediaUrl = await _toHttpUrl(media['originalUrl']?.toString()) ??
-            await _toHttpUrl(media['videoUrl']?.toString()) ??
-            await _toHttpUrl(media['hlsUrl']?.toString());
-        if (mediaUrl != null) return mediaUrl;
-      }
+        // Check media map
+        if (data['media'] is Map) {
+          final media = data['media'] as Map;
+          final mediaUrl = await _toHttpUrl(media['originalUrl']?.toString()) ??
+              await _toHttpUrl(media['videoUrl']?.toString()) ??
+              await _toHttpUrl(media['downloadUrl']?.toString()) ??
+              await _toHttpUrl(media['hlsUrl']?.toString());
+          if (mediaUrl != null && mediaUrl.isNotEmpty) return mediaUrl;
+        }
 
-      // 5. Check hlsUrl
-      final hls = await _toHttpUrl(data['hlsUrl'] as String?);
-      if (hls != null) return hls;
+        // Check hlsUrl & dashUrl
+        final hls = await _toHttpUrl(data['hlsUrl'] as String?);
+        if (hls != null && hls.isNotEmpty) return hls;
+
+        final dash = await _toHttpUrl(data['dashUrl'] as String?);
+        if (dash != null && dash.isNotEmpty) return dash;
+      }
     } catch (e) {
-      debugPrint('[ClipShareService] Error resolving video URL from Firestore: $e');
+      debugPrint('[ClipShareService] Error resolving video URL from Firestore root: $e');
     }
+
+    // 3. Check Firestore `media/streaming` subcollection
+    try {
+      final streamingDoc = await FirebaseFirestore.instance
+          .collection(FirestoreCollections.videos)
+          .doc(videoId)
+          .collection('media')
+          .doc('streaming')
+          .get();
+
+      if (streamingDoc.exists && streamingDoc.data() != null) {
+        final data = streamingDoc.data()!;
+        final original = await _toHttpUrl(data['originalUrl'] as String?);
+        if (original != null && original.isNotEmpty) return original;
+
+        final adaptive = data['adaptiveResolutions'] as List?;
+        if (adaptive != null && adaptive.isNotEmpty) {
+          for (final item in adaptive) {
+            if (item is Map && item['url'] != null) {
+              final url = await _toHttpUrl(item['url']?.toString());
+              if (url != null && url.isNotEmpty) return url;
+            }
+          }
+        }
+
+        final hls = await _toHttpUrl(data['hlsUrl'] as String?);
+        if (hls != null && hls.isNotEmpty) return hls;
+      }
+    } catch (e) {
+      debugPrint('[ClipShareService] Error checking streaming subcollection: $e');
+    }
+
     return null;
   }
 
@@ -177,23 +405,30 @@ class ClipShareService {
 
   /// Generate or retrieve the watermarked trimmed video clip file (.mp4).
   ///
-  /// Uses FFmpeg to:
-  ///   1. Seek directly to [startSeconds] in the video stream
-  ///   2. Trim duration to max 30s
-  ///   3. Burn "Truthworld" text watermark overlay into the video
-  ///   4. Encode with H.264/AAC with +faststart for instant WhatsApp/Social playback
+  /// Uses FFmpeg with TikTok-style dynamic watermark overlay:
+  ///   1. Seeks to [startSeconds] in the video stream
+  ///   2. Trims duration to max 30s
+  ///   3. Applies TikTok-style dynamic Truthworld watermark overlay
+  ///      (alternating top-left / bottom-right every 3 seconds like TikTok)
+  ///   4. Encodes with H.264 (yuv420p) + AAC with +faststart for instant WhatsApp / Social playback
   Future<File?> getOrGenerateClipFile({
     required String videoId,
     required double startSeconds,
     required double endSeconds,
     String? videoUrl,
+    String? channelName,
+    String? videoTitle,
+    String? clipTitle,
     void Function(double progress, String status)? onProgress,
   }) async {
     if (kIsWeb) return null;
 
-    // Safety: enforce max 30-second duration
+    // Safety: enforce min 5-second and max 30-second duration bounds
+    final effectiveEnd = (endSeconds - startSeconds < minShareDuration)
+        ? startSeconds + minShareDuration
+        : endSeconds;
     final clampedEnd =
-        endSeconds.clamp(startSeconds, startSeconds + maxShareDuration);
+        effectiveEnd.clamp(startSeconds, startSeconds + maxShareDuration);
     final clipDuration = clampedEnd - startSeconds;
 
     // 1. Check disk cache first
@@ -210,7 +445,7 @@ class ClipShareService {
     // 2. Resolve source video URL
     var resolvedUrl = await _toHttpUrl(videoUrl);
     if (resolvedUrl == null || resolvedUrl.isEmpty) {
-      onProgress?.call(0.1, 'Locating video source...');
+      onProgress?.call(0.15, 'Locating video source...');
       resolvedUrl = await resolveVideoSourceUrl(videoId);
     }
 
@@ -221,10 +456,17 @@ class ClipShareService {
       return null;
     }
 
-    onProgress?.call(0.3, 'Trimming & applying watermark...');
+    onProgress?.call(0.35, 'Generating TikTok-style Truthworld watermark...');
 
+    File? watermarkFile;
     File? tempDownloadedFile;
     try {
+      // 3. Generate high-resolution TikTok-style watermark PNG
+      watermarkFile = await generateTikTokWatermarkImage(
+        channelName: channelName,
+        customBrand: 'Truthworld',
+      );
+
       final clipsDir = await _clipsDirectory();
       final safeId = _safeId(videoId);
       final outputPath =
@@ -237,30 +479,45 @@ class ClipShareService {
         } catch (_) {}
       }
 
-      // Strategy 1: FFmpeg with drawtext watermark directly from remote URL
+      onProgress?.call(0.55, 'Trimming & applying Truthworld watermark...');
+
+      // Strategy 1: Dynamic TikTok-style alternating watermark overlay
       var success = await _executeFFmpegClip(
         input: resolvedUrl,
         startSeconds: startSeconds,
         durationSeconds: clipDuration,
         outputPath: outputPath,
-        withWatermark: true,
+        watermarkPath: watermarkFile.path,
       );
 
-      // Strategy 2: If drawtext filter failed (e.g. font unavailable), retry without filter
+      // Strategy 2: Static corner watermark overlay fallback
       if (!success) {
-        debugPrint('[ClipShareService] Retrying FFmpeg without drawtext filter...');
+        debugPrint('[ClipShareService] Retrying FFmpeg with static corner watermark...');
         success = await _executeFFmpegClip(
           input: resolvedUrl,
           startSeconds: startSeconds,
           durationSeconds: clipDuration,
           outputPath: outputPath,
-          withWatermark: false,
+          watermarkPath: watermarkFile.path,
+          isDynamicTikTok: false,
         );
       }
 
-      // Strategy 3: If streaming input failed, download to temp file first then trim locally
+      // Strategy 3: Pure trim without watermark if overlay filter failed
       if (!success) {
-        onProgress?.call(0.5, 'Buffering video segment...');
+        debugPrint('[ClipShareService] Retrying FFmpeg pure trim without watermark...');
+        success = await _executeFFmpegClip(
+          input: resolvedUrl,
+          startSeconds: startSeconds,
+          durationSeconds: clipDuration,
+          outputPath: outputPath,
+          isDynamicTikTok: false,
+        );
+      }
+
+      // Strategy 4: Local download buffer then trim locally (for strict CORS / timeout streams)
+      if (!success && !resolvedUrl.contains('.m3u8')) {
+        onProgress?.call(0.7, 'Buffering video segment locally...');
         debugPrint('[ClipShareService] Retrying with local temp file download...');
         final tempDir = await getTemporaryDirectory();
         tempDownloadedFile = File(
@@ -275,7 +532,7 @@ class ClipShareService {
             startSeconds: startSeconds,
             durationSeconds: clipDuration,
             outputPath: outputPath,
-            withWatermark: true,
+            watermarkPath: watermarkFile.path,
           );
           if (!success) {
             success = await _executeFFmpegClip(
@@ -283,7 +540,8 @@ class ClipShareService {
               startSeconds: startSeconds,
               durationSeconds: clipDuration,
               outputPath: outputPath,
-              withWatermark: false,
+              watermarkPath: watermarkFile.path,
+              isDynamicTikTok: false,
             );
           }
         }
@@ -299,6 +557,12 @@ class ClipShareService {
     } catch (e) {
       debugPrint('[ClipShareService] ❌ Exception during clip generation: $e');
     } finally {
+      // Clean up temporary watermark image and buffered file
+      if (watermarkFile != null && await watermarkFile.exists()) {
+        try {
+          await watermarkFile.delete();
+        } catch (_) {}
+      }
       if (tempDownloadedFile != null && await tempDownloadedFile.exists()) {
         try {
           await tempDownloadedFile.delete();
@@ -309,17 +573,40 @@ class ClipShareService {
     return null;
   }
 
-  /// Run an FFmpeg execution with specific arguments
+  /// Run FFmpeg execution with proper video encoding flags for WhatsApp / Social platforms
   Future<bool> _executeFFmpegClip({
     required String input,
     required double startSeconds,
     required double durationSeconds,
     required String outputPath,
-    required bool withWatermark,
+    String? watermarkPath,
+    bool isDynamicTikTok = true,
   }) async {
+    if (kIsWeb) return false;
+    if (!Platform.isAndroid &&
+        !Platform.isIOS &&
+        !Platform.isMacOS &&
+        !Platform.isWindows) {
+      debugPrint('[ClipShareService] FFmpegKit is only supported on mobile/desktop.');
+      return false;
+    }
+
     try {
+      final isRemote = input.startsWith('http://') || input.startsWith('https://');
       final args = <String>[
         '-y',
+        '-protocol_whitelist',
+        'file,http,https,tcp,tls,crypto',
+        if (isRemote) ...[
+          '-reconnect',
+          '1',
+          '-reconnect_at_eof',
+          '1',
+          '-reconnect_streamed',
+          '1',
+          '-reconnect_delay_max',
+          '2',
+        ],
         '-ss',
         startSeconds.toStringAsFixed(3),
         '-i',
@@ -328,24 +615,65 @@ class ClipShareService {
         durationSeconds.toStringAsFixed(3),
       ];
 
-      if (withWatermark) {
+      if (watermarkPath != null && await File(watermarkPath).exists()) {
+        args.addAll(['-i', watermarkPath]);
+
+        if (isDynamicTikTok) {
+          // Dynamic TikTok-style alternating watermark:
+          // Moves between Top-Left (28, 28) and Bottom-Right (W-w-28, H-h-28) every 3 seconds
+          const filter =
+              '[0:v]scale=trunc(iw/2)*2:trunc(ih/2)*2[base]; '
+              "[base][1:v]overlay=x='if(lt(mod(t,6),3), 28, main_w-overlay_w-28)':y='if(lt(mod(t,6),3), 28, main_h-overlay_h-28)':eval=frame[v]";
+          args.addAll([
+            '-filter_complex',
+            filter,
+            '-map',
+            '[v]',
+            '-map',
+            '0:a?',
+          ]);
+        } else {
+          // Static bottom-right corner overlay
+          const filter =
+              '[0:v]scale=trunc(iw/2)*2:trunc(ih/2)*2[base]; '
+              '[base][1:v]overlay=main_w-overlay_w-24:main_h-overlay_h-24[v]';
+          args.addAll([
+            '-filter_complex',
+            filter,
+            '-map',
+            '[v]',
+            '-map',
+            '0:a?',
+          ]);
+        }
+      } else {
+        // Pure trim with even dimension scaling
         args.addAll([
           '-vf',
-          "drawtext=text='Truthworld':fontsize=28:fontcolor=white:alpha=0.85:x=w-tw-16:y=h-th-16:box=1:boxcolor=black@0.35:boxborderw=6",
+          'scale=trunc(iw/2)*2:trunc(ih/2)*2',
+          '-map',
+          '0:v:0',
+          '-map',
+          '0:a?',
         ]);
       }
 
+      // Universal H.264 / AAC encoding flags with +faststart for WhatsApp
       args.addAll([
         '-c:v',
         'libx264',
         '-preset',
         'ultrafast',
         '-crf',
-        '28',
+        '26',
+        '-pix_fmt',
+        'yuv420p',
         '-c:a',
         'aac',
         '-b:a',
         '128k',
+        '-ar',
+        '44100',
         '-movflags',
         '+faststart',
         '-f',
@@ -381,6 +709,8 @@ class ClipShareService {
     required double startSeconds,
     required double endSeconds,
     String? videoUrl,
+    String? channelName,
+    String? videoTitle,
     void Function(double progress, String status)? onProgress,
   }) async {
     if (kIsWeb) return null;
@@ -388,6 +718,9 @@ class ClipShareService {
       final clipFile = await getOrGenerateClipFile(
         videoId: videoId,
         videoUrl: videoUrl,
+        channelName: channelName,
+        videoTitle: videoTitle,
+        clipTitle: clipTitle,
         startSeconds: startSeconds,
         endSeconds: endSeconds,
         onProgress: onProgress,
@@ -429,7 +762,7 @@ class ClipShareService {
   // Native Sharing
   // ────────────────────────────────────────────────
 
-  /// Share the actual video clip file (.mp4) with Truthworld watermark caption via SharePlus
+  /// Share the actual video clip file (.mp4) with TikTok-style Truthworld watermark via SharePlus
   Future<ShareResult> shareClipWithWatermark({
     required String videoId,
     required String clipTitle,
@@ -462,6 +795,9 @@ class ClipShareService {
       clipFile = await getOrGenerateClipFile(
         videoId: videoId,
         videoUrl: videoUrl,
+        channelName: channelName,
+        videoTitle: videoTitle,
+        clipTitle: clipTitle,
         startSeconds: startSeconds,
         endSeconds: endSeconds,
         onProgress: onProgress,
@@ -489,8 +825,16 @@ class ClipShareService {
   // Private Utilities
   // ────────────────────────────────────────────────
 
+  static Future<Directory> _getSafeTempDir() async {
+    try {
+      return await getTemporaryDirectory();
+    } catch (_) {
+      return Directory.systemTemp;
+    }
+  }
+
   Future<Directory> _clipsDirectory() async {
-    final tempDir = await getTemporaryDirectory();
+    final tempDir = await _getSafeTempDir();
     final dir = Directory('${tempDir.path}/truthworld_clips');
     if (!await dir.exists()) {
       await dir.create(recursive: true);
@@ -500,4 +844,5 @@ class ClipShareService {
 
   String _safeId(String id) => id.replaceAll(RegExp('[^a-zA-Z0-9_-]'), '_');
 }
+
 

@@ -12,16 +12,23 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == ownerId;
     }
 
-    // Helper function to check if user is an admin
+    // Helper function to check if user has administrative privileges.
+    // Prioritizes Firebase Auth custom claims and Firestore document roles,
+    // with designated email bootstrap fallback.
     function isAdmin() {
       return isAuthenticated() && (
         request.auth.token.admin == true || 
-        request.auth.token.email == 'ebenezervampu4@gmail.com' ||
-        request.auth.token.email == 'admin@truthworld.com' ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
          (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin' ||
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true))
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'moderator' ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true)) ||
+        (request.auth.token.email != null && request.auth.token.email_verified == true && (
+          request.auth.token.email.lower() == 'ebenezervampy@towervsp.com' ||
+          request.auth.token.email.lower() == 'ebenezervampu@towervsp.com' ||
+          request.auth.token.email.lower() == 'ebenezervampu4@gmail.com' ||
+          request.auth.token.email.lower() == 'admin@truthworld.com'
+        ))
       );
     }
 
@@ -42,14 +49,18 @@ service cloud.firestore {
     // Channel Handles Collection (Unique handle registry)
     match /channel_handles/{handle} {
       allow read: if true;
-      allow create, update: if isAuthenticated() && (request.resource.data.ownerId == request.auth.uid || isAdmin());
-      allow delete: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && (request.resource.data.ownerId == request.auth.uid || isAdmin());
+      allow update, delete: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin());
     }
 
     // Hashtags Collection
     match /hashtags/{hashtagId} {
       allow read: if true;
-      allow create, update: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usageCount', 'videoCount', 'updatedAt', 'lastUsedAt'])
+      );
       allow delete: if isAdmin();
     }
 
@@ -65,8 +76,7 @@ service cloud.firestore {
       
       // Allow users to update their own drafts
       allow update: if isAuthenticated() && 
-                       (resource.data.ownerId == request.auth.uid || resource.data.userId == request.auth.uid ||
-                        request.resource.data.ownerId == request.auth.uid);
+                       (resource.data.ownerId == request.auth.uid || resource.data.userId == request.auth.uid);
       
       // Allow users to delete their own drafts
       allow delete: if isAuthenticated() && 
@@ -78,25 +88,46 @@ service cloud.firestore {
       // Allow anyone to read channels (needed for discovery and collection listing)
       allow read: if true;
       
-      // Allow authenticated users to create their own channel
+      // Allow authenticated users to create their own channel without self-verifying or granting self-monetization
       allow create: if isAuthenticated() && 
                        (request.resource.data.ownerId == request.auth.uid ||
                         request.resource.data.userId == request.auth.uid ||
-                        isAdmin());
+                        isAdmin()) &&
+                       (!('isVerified' in request.resource.data) || request.resource.data.isVerified == false) &&
+                       (!('geminiApproved' in request.resource.data) || request.resource.data.geminiApproved == false) &&
+                       (!('monetizationTier' in request.resource.data) || request.resource.data.monetizationTier == 'none' || request.resource.data.monetizationTier == 'free') &&
+                       (!('superchatRevenueTotal' in request.resource.data) || request.resource.data.superchatRevenueTotal == 0) &&
+                       (!('subscriberCount' in request.resource.data) || request.resource.data.subscriberCount == 0);
       
-      // Allow owners or admins to update their channels, or any authenticated user to toggle subscription / stats
-      allow update: if isAuthenticated() && 
-                       (resource.data.ownerId == request.auth.uid || 
-                        resource.data.userId == request.auth.uid ||
-                        isAdmin() ||
-                        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['subscriberCount', 'lastActiveAt', 'videoCount', 'metrics']) &&
-                         (request.resource.data.subscriberCount == resource.data.subscriberCount + 1 ||
-                          request.resource.data.subscriberCount == resource.data.subscriberCount - 1 ||
-                          request.resource.data.subscriberCount == resource.data.subscriberCount)));
+      // Allow owners or admins to update their channels, protecting verification, moderation, and financial fields
+      allow update: if isAuthenticated() && (
+                       isAdmin() ||
+                       ((resource.data.ownerId == request.auth.uid || resource.data.userId == request.auth.uid) &&
+                        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+                          'isVerified', 'geminiApproved', 'status', 'monetizationTier', 'superchatRevenueTotal',
+                          'subscriberCount', 'videoCount', 'ownerId', 'userId', 'createdAt', 'penaltyStatus',
+                          'trustScore', 'reputationScore', 'moderationReason'
+                        ])) ||
+                       (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['subscriberCount', 'lastActiveAt', 'videoCount', 'metrics']) &&
+                        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['subscriberCount']) ||
+                         request.resource.data.subscriberCount == resource.data.subscriberCount + 1 ||
+                         request.resource.data.subscriberCount == resource.data.subscriberCount - 1 ||
+                         request.resource.data.subscriberCount == resource.data.subscriberCount))
+                     );
       
       // Allow owners or admins to delete their channels
       allow delete: if isAuthenticated() && 
                        (resource.data.ownerId == request.auth.uid || resource.data.userId == request.auth.uid || isAdmin());
+
+      // Superchats subcollection (financial ledger)
+      match /superchats/{superchatId} {
+        allow read: if isAuthenticated() && (
+          get(/databases/$(database)/documents/channels/$(channelId)).data.ownerId == request.auth.uid ||
+          resource.data.userId == request.auth.uid ||
+          isAdmin()
+        );
+        allow write: if false; // Only Cloud Functions can author superchat ledger entries
+      }
 
       // Subscribers subcollection
       match /subscribers/{subscriberId} {
@@ -138,6 +169,42 @@ service cloud.firestore {
                          (resource.data.ownerId == request.auth.uid ||
                           request.resource.data.ownerId == request.auth.uid);
       }
+
+      // Membership Tiers subcollection
+      match /membership_tiers/{tierId} {
+        allow read: if true;
+        allow write: if isAuthenticated() && (
+          request.auth.uid == channelId ||
+          (exists(/databases/$(database)/documents/channels/$(channelId)) &&
+           (get(/databases/$(database)/documents/channels/$(channelId)).data.ownerId == request.auth.uid ||
+            get(/databases/$(database)/documents/channels/$(channelId)).data.userId == request.auth.uid)) ||
+          isAdmin() ||
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberCount', 'updatedAt']) &&
+           (request.resource.data.memberCount == resource.data.memberCount + 1 ||
+            request.resource.data.memberCount == resource.data.memberCount - 1 ||
+            request.resource.data.memberCount == resource.data.memberCount))
+        );
+      }
+
+      // Channel Members subcollection
+      match /members/{memberId} {
+        allow read: if isAuthenticated() && (
+          request.auth.uid == channelId ||
+          request.auth.uid == memberId ||
+          (exists(/databases/$(database)/documents/channels/$(channelId)) &&
+           (get(/databases/$(database)/documents/channels/$(channelId)).data.ownerId == request.auth.uid ||
+            get(/databases/$(database)/documents/channels/$(channelId)).data.userId == request.auth.uid)) ||
+          isAdmin()
+        );
+        allow write: if isAuthenticated() && (
+          request.auth.uid == channelId ||
+          request.auth.uid == memberId ||
+          (exists(/databases/$(database)/documents/channels/$(channelId)) &&
+           (get(/databases/$(database)/documents/channels/$(channelId)).data.ownerId == request.auth.uid ||
+            get(/databases/$(database)/documents/channels/$(channelId)).data.userId == request.auth.uid)) ||
+          isAdmin()
+        );
+      }
     }
     
     // Image Status Collection (for moderation)
@@ -160,14 +227,37 @@ service cloud.firestore {
       allow create: if isAuthenticated() && 
                        (request.resource.data.uploaderId == request.auth.uid ||
                         request.resource.data.userId == request.auth.uid ||
-                        request.resource.data.ownerId == request.auth.uid);
+                        request.resource.data.ownerId == request.auth.uid ||
+                        isAdmin()) &&
+                       !('credibilityScore' in request.resource.data) &&
+                       !('truthScore' in request.resource.data) &&
+                       !('gatewayDecision' in request.resource.data) &&
+                       (!('pipelineStatus' in request.resource.data) || request.resource.data.pipelineStatus == 'pending' || request.resource.data.pipelineStatus == 'uploading');
       
       // Allow owners or admins to update their videos, or authenticated users to update engagement / interaction counts
       allow update: if isAuthenticated() && (
-        isVideoOwner(videoId) ||
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        isAdmin() ||
+        (isVideoOwner(videoId) &&
+         !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+           'credibilityScore', 'factCheck', 'truthScore', 'pipelineStatus', 'moderation', 'moderationReason', 'gatewayDecision'
+         ])) ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'likeCount', 'dislikeCount', 'likes', 'dislikes', 'views', 'viewCount', 'shareCount', 'playCount', 'engagement', 'languageRequestsCount', 'commentCount', 'commentsCount'
-        ])
+        ]) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['likeCount']) ||
+         request.resource.data.likeCount == resource.data.likeCount + 1 ||
+         request.resource.data.likeCount == resource.data.likeCount - 1 ||
+         request.resource.data.likeCount == resource.data.likeCount) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['dislikeCount']) ||
+         request.resource.data.dislikeCount == resource.data.dislikeCount + 1 ||
+         request.resource.data.dislikeCount == resource.data.dislikeCount - 1 ||
+         request.resource.data.dislikeCount == resource.data.dislikeCount) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['viewCount']) ||
+         request.resource.data.viewCount == resource.data.viewCount + 1 ||
+         request.resource.data.viewCount == resource.data.viewCount) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['views']) ||
+         request.resource.data.views == resource.data.views + 1 ||
+         request.resource.data.views == resource.data.views))
       );
       
       // Allow owners to delete their videos
@@ -261,7 +351,44 @@ service cloud.firestore {
     // Topics Collection
     match /topics/{topicId} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow create: if isAuthenticated() && (
+        (request.resource.data.videoCount is number && request.resource.data.videoCount > 0) ||
+        (request.resource.data.featuredVideoIds is list && request.resource.data.featuredVideoIds.size() > 0) ||
+        isAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        resource.data.creatorId == request.auth.uid ||
+        (resource.data.channelId != null &&
+         exists(/databases/$(database)/documents/channels/$(resource.data.channelId)) &&
+         get(/databases/$(database)/documents/channels/$(resource.data.channelId)).data.ownerId == request.auth.uid) ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'likes', 'dislikes', 'followers', 'followerCount'
+        ]) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['likes']) ||
+         request.resource.data.likes == resource.data.likes + 1 ||
+         request.resource.data.likes == resource.data.likes - 1 ||
+         request.resource.data.likes == resource.data.likes) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['dislikes']) ||
+         request.resource.data.dislikes == resource.data.dislikes + 1 ||
+         request.resource.data.dislikes == resource.data.dislikes - 1 ||
+         request.resource.data.dislikes == resource.data.dislikes) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['followers']) ||
+         request.resource.data.followers == resource.data.followers + 1 ||
+         request.resource.data.followers == resource.data.followers - 1 ||
+         request.resource.data.followers == resource.data.followers) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['followerCount']) ||
+         request.resource.data.followerCount == resource.data.followerCount + 1 ||
+         request.resource.data.followerCount == resource.data.followerCount - 1 ||
+         request.resource.data.followerCount == resource.data.followerCount))
+      );
+      allow delete: if isAuthenticated() && (
+        isAdmin() ||
+        resource.data.creatorId == request.auth.uid ||
+        (resource.data.channelId != null &&
+         exists(/databases/$(database)/documents/channels/$(resource.data.channelId)) &&
+         get(/databases/$(database)/documents/channels/$(resource.data.channelId)).data.ownerId == request.auth.uid)
+      );
 
       // Likes subcollection
       match /likes/{userId} {
@@ -278,11 +405,16 @@ service cloud.firestore {
       // Comments subcollection
       match /comments/{commentId} {
         allow read: if true;
-        allow create: if isAuthenticated();
-        allow update: if isAuthenticated();
+        allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+        allow update: if isAuthenticated() && (
+          resource.data.userId == request.auth.uid ||
+          isAdmin() ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'dislikes'])
+        );
         allow delete: if isAuthenticated() && 
                          (resource.data.userId == request.auth.uid || 
-                          resource.data.channelId == request.auth.uid);
+                          resource.data.channelId == request.auth.uid ||
+                          isAdmin());
 
         match /likes/{userId} {
           allow read: if true;
@@ -297,11 +429,16 @@ service cloud.firestore {
         // Replies subcollection
         match /replies/{replyId} {
           allow read: if true;
-          allow create: if isAuthenticated();
-          allow update: if isAuthenticated();
+          allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+          allow update: if isAuthenticated() && (
+            resource.data.userId == request.auth.uid ||
+            isAdmin() ||
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'dislikes'])
+          );
           allow delete: if isAuthenticated() && 
                            (resource.data.userId == request.auth.uid || 
-                            resource.data.channelId == request.auth.uid);
+                            resource.data.channelId == request.auth.uid ||
+                            isAdmin());
 
           match /likes/{userId} {
             allow read: if true;
@@ -384,12 +521,28 @@ service cloud.firestore {
       // Allow anyone to read public user profiles
       allow read: if true;
       
-      // Allow users to create/update their own profile
-      allow create, update: if isAuthenticated() && 
-                               request.auth.uid == userId;
+      // Allow users to create their own profile without administrative privileges, or admins to create/initialize user profiles
+      allow create: if isAuthenticated() && (
+        (request.auth.uid == userId &&
+         (!('role' in request.resource.data) || request.resource.data.role == 'user') &&
+         (!('isAdmin' in request.resource.data) || request.resource.data.isAdmin == false) &&
+         (!('isSuperadmin' in request.resource.data) || request.resource.data.isSuperadmin == false) &&
+         (!('isPremium' in request.resource.data) || request.resource.data.isPremium == false) &&
+         (!('monetizationTier' in request.resource.data) || request.resource.data.monetizationTier == 'free')) ||
+        isAdmin()
+      );
       
-      // Prevent deletion
-      allow delete: if false;
+      // Allow users to update their own profile but disallow self-assigning admin, permission roles, or premium status
+      allow update: if isAuthenticated() && (
+        (request.auth.uid == userId &&
+         !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+           'role', 'isAdmin', 'isSuperadmin', 'permissions', 'isPremium', 'monetizationTier', 'premiumExpiresAt', 'premiumPlanId'
+         ])) ||
+        isAdmin()
+      );
+      
+      // Allow admins to delete user profiles
+      allow delete: if isAdmin();
 
       // User Playlists subcollection
       match /playlists/{playlistId} {
@@ -499,14 +652,33 @@ service cloud.firestore {
       match /subscriptions/{subscriptionId} {
         allow read, write: if isOwner(userId);
       }
+
+      // User Channel Memberships subcollection (/users/{userId}/channelMemberships/{channelId})
+      match /channelMemberships/{channelId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+
+      match /channel_memberships/{channelId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+
+      // User Active Notifications subcollection
+      match /notifications_active/{notificationId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // User Archived Notifications subcollection
+      match /notifications_archive/{notificationId} {
+        allow read, write: if isOwner(userId);
+      }
     }
 
     // User Notifications Collection
     match /user_notifications/{notificationId} {
       allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
-      allow create: if isAuthenticated();
+      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
       allow update: if isAuthenticated() && resource.data.userId == request.auth.uid &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId']));
       allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
     }
     
@@ -519,31 +691,55 @@ service cloud.firestore {
     // Ad Campaigns Collection
     match /ad_campaigns/{campaignId} {
       allow read: if true;
-      allow write: if true;
+      allow create: if isAuthenticated() && (
+        request.resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin() ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'impressions', 'clicks', 'spentAmount', 'metrics', 'subtitles', 'audioTracks'
+        ]) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['impressions']) ||
+         request.resource.data.impressions == resource.data.impressions + 1 ||
+         request.resource.data.impressions == resource.data.impressions) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['clicks']) ||
+         request.resource.data.clicks == resource.data.clicks + 1 ||
+         request.resource.data.clicks == resource.data.clicks))
+      );
+      allow delete: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
     }
 
     // Ad Likes Collection
     match /ad_likes/{likeId} {
       allow read: if true;
-      allow write: if true;
+      allow create, update: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     // Ad Saves Collection
     match /ad_saves/{saveId} {
-      allow read: if true;
-      allow write: if true;
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create, update: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     // Ad Comments Collection
     match /ad_comments/{commentId} {
       allow read: if true;
-      allow write: if true;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     // Ad Reports Collection
     match /ad_reports/{reportId} {
-      allow read: if true;
-      allow write: if true;
+      allow read: if isAdmin();
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
     }
     
     // Comments Collection
@@ -593,14 +789,18 @@ service cloud.firestore {
       // Allow reading playlists across public, channel, and studio views
       allow read: if true;
       
-      // Allow authenticated users to create playlists
-      allow create: if isAuthenticated();
+      // Allow authenticated users to create playlists matching their own identity
+      allow create: if isAuthenticated() && 
+                       (request.resource.data.ownerId == request.auth.uid ||
+                        request.resource.data.userId == request.auth.uid ||
+                        isAdmin());
       
       // Allow owners or channel managers to update/delete their playlists
       allow update, delete: if isAuthenticated() && 
                                (resource.data.ownerId == request.auth.uid ||
                                 resource.data.userId == request.auth.uid ||
-                                resource.data.channelId == request.auth.uid);
+                                resource.data.channelId == request.auth.uid ||
+                                isAdmin());
     }
     
     // Community Collection
@@ -615,6 +815,7 @@ service cloud.firestore {
       // Allow owners to update/delete, or other users to update interaction fields
        allow update: if isAuthenticated() && (
                         resource.data.ownerId == request.auth.uid ||
+                        isAdmin() ||
                         (request.resource.data.diff(resource.data).affectedKeys().hasOnly([
                           'likes', 'likedBy', 'dislikes', 'dislikedBy'
                         ]) &&
@@ -624,27 +825,29 @@ service cloud.firestore {
                         (request.resource.data.dislikes == resource.data.dislikes + 1 ||
                          request.resource.data.dislikes == resource.data.dislikes - 1 ||
                          request.resource.data.dislikes == resource.data.dislikes))
-                     );
-                    
+                      );
+                     
       allow delete: if isAuthenticated() && 
-                       resource.data.ownerId == request.auth.uid;
+                       (resource.data.ownerId == request.auth.uid || isAdmin());
 
       match /comments/{commentId} {
         allow read: if true;
-        allow create: if isAuthenticated();
+        allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
         allow update, delete: if isAuthenticated() && 
                                  (resource.data.userId == request.auth.uid || 
                                   resource.data.channelId == request.auth.uid ||
-                                  resource.data.ownerId == request.auth.uid);
+                                  resource.data.ownerId == request.auth.uid ||
+                                  isAdmin());
 
         // Replies subcollection
         match /replies/{replyId} {
           allow read: if true;
-          allow create: if isAuthenticated();
+          allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
           allow update, delete: if isAuthenticated() && 
                                    (resource.data.userId == request.auth.uid || 
                                     resource.data.channelId == request.auth.uid ||
-                                    resource.data.ownerId == request.auth.uid);
+                                    resource.data.ownerId == request.auth.uid ||
+                                    isAdmin());
 
           match /likes/{userId} {
             allow read: if true;
@@ -669,26 +872,48 @@ service cloud.firestore {
       }
     }
 
+    match /community/{postId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      match /{document=**} {
+        allow read: if true;
+        allow write: if isAuthenticated();
+      }
+    }
+
+    match /community_posts/{postId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      match /{document=**} {
+        allow read: if true;
+        allow write: if isAuthenticated();
+      }
+    }
+
     // Public Playlists Collection (alternate root)
     match /public_playlists/{playlistId} {
       allow read: if true;
-      allow create: if isAuthenticated();
+      allow create: if isAuthenticated() && 
+                       (request.resource.data.ownerId == request.auth.uid ||
+                        request.resource.data.userId == request.auth.uid ||
+                        isAdmin());
       allow update, delete: if isAuthenticated() && 
-                               resource.data.ownerId == request.auth.uid;
+                               (resource.data.ownerId == request.auth.uid || isAdmin());
 
       match /items/{videoId} {
         allow read: if true;
         allow write: if isAuthenticated() && 
                          (get(/databases/$(database)/documents/public_playlists/$(playlistId)).data.ownerId == request.auth.uid ||
-                          request.resource.data.ownerId == request.auth.uid);
+                          isAdmin());
       }
     }
     
-    // Channel Slugs (for availability check)
+    // Channel Slugs (managed strictly by Cloud Functions createChannel / cascadeDelete)
     match /channel_slugs/{slug} {
       allow read: if true;
-      allow create: if isAuthenticated();
-      allow update, delete: if false; // Slugs are managed by backend/system
+      allow write: if false; // Slugs are managed exclusively by backend Cloud Functions
     }
 
     // Analytics and Stats
@@ -851,7 +1076,7 @@ service cloud.firestore {
 
     // Reports Collection
     match /reports/{reportId} {
-      allow read, update, delete: if isAuthenticated();
+      allow read, update, delete: if isAdmin();
       allow create: if isAuthenticated() && (
         request.resource.data.userId == request.auth.uid ||
         request.resource.data.reportedBy == request.auth.uid ||
@@ -860,59 +1085,69 @@ service cloud.firestore {
     }
 
     match /video_reports/{reportId} {
-      allow read, write: if isAuthenticated();
+      allow read, update, delete: if isAdmin();
+      allow create: if isAuthenticated();
     }
 
     match /videoReports/{reportId} {
-      allow read, write: if isAuthenticated();
+      allow read, update, delete: if isAdmin();
+      allow create: if isAuthenticated();
     }
 
     // Admin Settings & Moderation Modes
     match /admin_settings/{doc=**} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow write: if isAdmin();
     }
     match /system_settings/{doc=**} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow write: if isAdmin();
     }
 
     // Admin Collections
+    match /admin_members/{doc=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
     match /content_appeals/{doc=**} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
     }
     match /flagged_images_review/{doc=**} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow write: if isAdmin();
     }
     match /rejected_images_log/{doc=**} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow write: if isAdmin();
     }
     match /admin_alerts/{doc=**} {
       allow read: if true;
-      allow write: if isAuthenticated();
-    }
-    match /admin_settings/{doc=**} {
-      allow read: if true;
-      allow write: if isAuthenticated();
+      allow write: if isAdmin();
     }
     match /security_anomalies/{doc=**} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow write: if isAdmin();
     }
     match /account_clusters/{doc=**} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow write: if isAdmin();
     }
     match /video_jobs/{doc=**} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow write: if isAdmin();
     }
     match /pipeline_errors/{doc=**} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    match /userTrust/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    match /admin_actions_log/{doc=**} {
+      allow read, write: if isAdmin();
     }
 
     // Search and Trending Collections
@@ -924,9 +1159,43 @@ service cloud.firestore {
       allow create: if true;
       allow read, update, delete: if false;
     }
-    match /system_meta/{docId} {
-      allow read: if isAuthenticated();
-      allow write: if false;
+    // Financial & Economy Collections
+    match /revenue_statements/{statementId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if false; // Cloud Functions only
+    }
+
+    match /payouts/{payoutId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if false; // Cloud Functions only
+    }
+
+    match /channel_wallet_transactions/{txId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && 
+                       request.resource.data.userId == request.auth.uid &&
+                       request.resource.data.amount >= 0;
+      allow update, delete: if false; // Immutable ledger
+    }
+
+    // Institutional Verification Requests
+    match /verification_requests/{requestId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // User Feedback & Suggestions Collection
+    match /feedback/{feedbackId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // Content Categories Collection
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     // Default: Deny all other access

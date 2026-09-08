@@ -115,20 +115,15 @@ class _DiscoverChannelsPageState extends State<DiscoverChannelsPage>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _fadeAnimation,
-      builder: (context, child) {
-        return FadeTransition(
-          opacity: _fadeAnimation,
-          child: SlideTransition(
-            position: _slideAnimation,
-            child: ScaleTransition(
-              scale: _scaleAnimation,
-              child: _buildResponsiveLayout(context),
-            ),
-          ),
-        );
-      },
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: SlideTransition(
+        position: _slideAnimation,
+        child: ScaleTransition(
+          scale: _scaleAnimation,
+          child: _buildResponsiveLayout(context),
+        ),
+      ),
     );
   }
 

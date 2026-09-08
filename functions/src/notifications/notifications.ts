@@ -57,7 +57,15 @@ export async function notifyUser(params: {
  * Separated from notifyUser to enable fire-and-forget pattern.
  */
 export async function sendPushNotificationForUser(
-  params: { userId: string; type: string; severity: string; title: string; message: string; actionUrl?: string },
+  params: {
+    userId: string;
+    type: string;
+    severity: string;
+    title: string;
+    message: string;
+    actionUrl?: string;
+    metadata?: Record<string, any>;
+  },
   notificationId: string
 ): Promise<void> {
   const userDoc = await db.collection("users").doc(params.userId).get();
@@ -84,19 +92,30 @@ export async function sendPushNotificationForUser(
   if (deviceEntries.length === 0) return;
   const tokens = deviceEntries.map(e => e.token);
 
+  const dataPayload: Record<string, string> = {
+    click_action: "FLUTTER_NOTIFICATION_CLICK",
+    actionUrl: params.actionUrl || "",
+    type: String(params.type),
+    severity: String(params.severity),
+    notificationId: String(notificationId),
+  };
+
+  // Forward metadata fields (e.g. videoId, commentId, replyId, channelId)
+  if (params.metadata && typeof params.metadata === "object") {
+    for (const [key, val] of Object.entries(params.metadata)) {
+      if (val !== undefined && val !== null) {
+        dataPayload[key] = typeof val === "object" ? JSON.stringify(val) : String(val);
+      }
+    }
+  }
+
   const payload = {
     tokens,
     notification: {
       title: params.title,
       body: params.message,
     },
-    data: {
-      click_action: "FLUTTER_NOTIFICATION_CLICK",
-      actionUrl: params.actionUrl || "",
-      type: String(params.type),
-      severity: String(params.severity),
-      notificationId: String(notificationId),
-    },
+    data: dataPayload,
     android: {
       priority: "high" as const,
       notification: {

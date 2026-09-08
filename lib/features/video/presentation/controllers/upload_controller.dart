@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:get/get.dart';
 import 'package:multi_lang_bad_words_filter/multi_lang_bad_words_filter.dart';
 import 'package:path_provider/path_provider.dart';
@@ -121,6 +122,9 @@ class UploadController extends BaseController with ContentValidationMixin {
   final RxString titleValidationReason = ''.obs;
   final RxString descriptionValidationStatus = 'UNKNOWN'.obs;
   final RxString descriptionValidationReason = ''.obs;
+
+  /// Mandatory creator copyright & rights ownership declaration
+  final RxBool hasConfirmedCopyrightDeclaration = false.obs;
 
   // ══════════════════════════════════════════════════════════════
   // VIDEO CONTENT MODERATION STATE (Gemini Audio Analysis)
@@ -462,7 +466,18 @@ class UploadController extends BaseController with ContentValidationMixin {
   double get overallProgress => (uploadStage.value + 1) / 4.0;
 
   void setFormValid(bool valid) {
-    isFormValid.value = valid;
+    if (isFormValid.value != valid) {
+      if (WidgetsBinding.instance.schedulerPhase ==
+          SchedulerPhase.persistentCallbacks) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!isClosed) {
+            isFormValid.value = valid;
+          }
+        });
+      } else {
+        isFormValid.value = valid;
+      }
+    }
   }
 
   // Store video metadata between stages
@@ -848,7 +863,7 @@ class UploadController extends BaseController with ContentValidationMixin {
     try {
       final result = await FilePicker.pickFiles(
         type: FileType.image,
-        withData: true,
+        withData: kIsWeb,
       );
       if (result != null && result.files.isNotEmpty) {
         final pickedFile = result.files.first;
@@ -891,7 +906,7 @@ class UploadController extends BaseController with ContentValidationMixin {
     try {
       final result = await FilePicker.pickFiles(
         type: FileType.video,
-        withData: true,
+        withData: kIsWeb,
       );
 
       if (result != null && result.files.isNotEmpty) {
@@ -1010,10 +1025,12 @@ class UploadController extends BaseController with ContentValidationMixin {
     }
 
     if (kIsWeb) {
+      if (file.bytes == null) return;
       final blob = html.Blob([file.bytes]);
       final url = html.Url.createObjectUrlFromBlob(blob);
       videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(url));
     } else {
+      if (file.path == null || !File(file.path!).existsSync()) return;
       videoPlayerController = VideoPlayerController.file(File(file.path!));
     }
 
@@ -1049,9 +1066,16 @@ class UploadController extends BaseController with ContentValidationMixin {
         final duration = Duration(seconds: durationInSeconds.floor());
         return _formatDuration(duration);
       } else {
-        final tempDir = await getTemporaryDirectory();
-        final tempFile = File('${tempDir.path}/${videoFile.name}');
-        await tempFile.writeAsBytes(videoFile.bytes!);
+        final File tempFile;
+        if (videoFile.path != null && File(videoFile.path!).existsSync()) {
+          tempFile = File(videoFile.path!);
+        } else {
+          final tempDir = await getTemporaryDirectory();
+          tempFile = File('${tempDir.path}/${videoFile.name}');
+          if (videoFile.bytes != null) {
+            await tempFile.writeAsBytes(videoFile.bytes!);
+          }
+        }
 
         final controller = VideoPlayerController.file(tempFile);
         await controller.initialize();
@@ -1386,11 +1410,25 @@ class UploadController extends BaseController with ContentValidationMixin {
       final metadata = SettableMetadata(
         contentType: 'video/mp4',
         customMetadata: {
+          'uploaderId': userId,
           'duration': '$preExtractDurationSecs',
           'durationMs': '$preExtractDurationMs',
         },
       );
-      _videoUploadTask = videoRef.putData(videoFile.bytes!, metadata);
+      if (kIsWeb) {
+        if (videoFile.bytes == null) {
+          throw Exception('Video file bytes are missing on web');
+        }
+        _videoUploadTask = videoRef.putData(videoFile.bytes!, metadata);
+      } else {
+        if (videoFile.path != null && io.File(videoFile.path!).existsSync()) {
+          _videoUploadTask = videoRef.putFile(io.File(videoFile.path!), metadata);
+        } else if (videoFile.bytes != null) {
+          _videoUploadTask = videoRef.putData(videoFile.bytes!, metadata);
+        } else {
+          throw Exception('Video file is missing both path and bytes');
+        }
+      }
 
       // Upload voice sample if Dubbing with cloning is selected
       if (aiGenerateDubbing.value &&
@@ -1399,8 +1437,24 @@ class UploadController extends BaseController with ContentValidationMixin {
         final sampleRef = FirebaseStorage.instance.ref().child(
           'videos/$uniqueId/voice_sample.mp3',
         );
-        final sampleMeta = SettableMetadata(contentType: 'audio/mpeg');
-        await sampleRef.putData(voiceSampleFile.value!.bytes!, sampleMeta);
+        final sampleMeta = SettableMetadata(
+          contentType: 'audio/mpeg',
+          customMetadata: {
+            'uploaderId': userId,
+          },
+        );
+        final sampleFile = voiceSampleFile.value!;
+        if (kIsWeb) {
+          if (sampleFile.bytes != null) {
+            await sampleRef.putData(sampleFile.bytes!, sampleMeta);
+          }
+        } else {
+          if (sampleFile.path != null && io.File(sampleFile.path!).existsSync()) {
+            await sampleRef.putFile(io.File(sampleFile.path!), sampleMeta);
+          } else if (sampleFile.bytes != null) {
+            await sampleRef.putData(sampleFile.bytes!, sampleMeta);
+          }
+        }
         debugPrint('🎙️ Voice sample uploaded for cloning');
       }
 
@@ -1449,7 +1503,7 @@ class UploadController extends BaseController with ContentValidationMixin {
               'status': targetStatus == 'draft'
                   ? 'draft'
                   : 'processing', // Optional: hint for Cloud Function
-              if (targetVisibility != null) 'visibility': targetVisibility,
+              'visibility': ?targetVisibility,
             });
       } catch (e) {
         debugPrint('⚠️ Error syncing upload completion to Firestore: $e');
@@ -1617,11 +1671,28 @@ class UploadController extends BaseController with ContentValidationMixin {
         _currentImageRefVideo = imageRef;
       }
 
-      // 4️⃣ Start new upload
+      final currentUid = FirebaseAuth.instance.currentUser?.uid;
       final metadata = SettableMetadata(
         contentType: 'image/${imageFile.extension}',
+        customMetadata: {
+          'uploaderId': ?currentUid,
+        },
       );
-      final uploadTask = imageRef.putData(imageFile.bytes!, metadata);
+      final UploadTask uploadTask;
+      if (kIsWeb) {
+        if (imageFile.bytes == null) {
+          throw Exception('Image file bytes are missing on web');
+        }
+        uploadTask = imageRef.putData(imageFile.bytes!, metadata);
+      } else {
+        if (imageFile.path != null && io.File(imageFile.path!).existsSync()) {
+          uploadTask = imageRef.putFile(io.File(imageFile.path!), metadata);
+        } else if (imageFile.bytes != null) {
+          uploadTask = imageRef.putData(imageFile.bytes!, metadata);
+        } else {
+          throw Exception('Image file is missing both path and bytes');
+        }
+      }
       if (forCommunity) {
         _currentUploadTaskCommunity = uploadTask;
       } else {
@@ -2145,6 +2216,7 @@ class UploadController extends BaseController with ContentValidationMixin {
               ? newAccessCode
               : null,
           videoCount: 1, // First video linked
+          featuredVideoIds: [videoId],
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
           status: 'underReview',
@@ -2559,13 +2631,14 @@ class UploadController extends BaseController with ContentValidationMixin {
 
       final snap = await _firestore
           .collection('topics')
-          .where('status', isNotEqualTo: 'deletion_pending')
+          .where('status', isEqualTo: 'active')
           .get();
 
       final fetched = <Topic>[];
       for (final doc in snap.docs) {
         try {
           final t = Topic.fromDocumentSnapshot(doc);
+          if (!t.isValidTopic || t.videoCount <= 0) continue;
           if (t.visibilityType == TopicVisibilityType.public ||
               (currentUserId.isNotEmpty && t.creatorId == currentUserId) ||
               (selectedChannel.value != null &&
@@ -2768,6 +2841,16 @@ class UploadController extends BaseController with ContentValidationMixin {
       final topicDoc = query.docs.first;
       final topic = Topic.fromDocumentSnapshot(topicDoc);
 
+      if (!topic.isValidTopic || topic.videoCount <= 0) {
+        Get.snackbar(
+          'Error',
+          'This private topic is inactive or has no videos',
+          backgroundColor: AppColors.error,
+          colorText: AppColors.textPrimary,
+        );
+        return false;
+      }
+
       if (topic.visibilityType == TopicVisibilityType.private) {
         if (topic.accessCode != passcode) {
           Get.snackbar(
@@ -2811,9 +2894,13 @@ class UploadController extends BaseController with ContentValidationMixin {
       final ref = FirebaseStorage.instance.ref().child(
         'thumbnails/topics/$fileName',
       );
+      final currentUid = FirebaseAuth.instance.currentUser?.uid;
       final metadata = SettableMetadata(
         contentType: 'image/jpeg',
-        customMetadata: {'uploaded': DateTime.now().toString()},
+        customMetadata: {
+          'uploaderId': ?currentUid,
+          'uploaded': DateTime.now().toString(),
+        },
       );
       final uploadTask = ref.putData(bytes, metadata);
       await uploadTask.timeout(const Duration(seconds: 20));

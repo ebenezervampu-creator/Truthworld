@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
@@ -71,7 +70,7 @@ class _ModernReplyInputState extends State<ModernReplyInput>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isSignedIn = FirebaseAuth.instance.currentUser != null;
+    final isSignedIn = AuthService.to.isAuthenticated.value;
 
     return Container(
       padding: const EdgeInsets.only(top: 8, left: 16, right: 16, bottom: 16),
@@ -278,7 +277,7 @@ class _ModernReplyInputState extends State<ModernReplyInput>
       ),
       child: Column(
         children: [
-          Icon(Icons.login_rounded, size: 48, color: theme.colorScheme.primary),
+          const Icon(Icons.login_rounded, size: 48, color: Colors.white),
           const SizedBox(height: 16),
           Text(
             'Sign in to reply to comments',
@@ -298,11 +297,11 @@ class _ModernReplyInputState extends State<ModernReplyInput>
           ),
           const SizedBox(height: 16),
           ElevatedButton.icon(
-            onPressed: () {
+            onPressed: () async {
               Get.back();
-              Get.toNamed('/login');
+              await AuthService.to.signInWithGoogle();
             },
-            icon: const Icon(Icons.person_add_alt_1_rounded),
+            icon: const Icon(Icons.person_add_alt_1_rounded, color: Colors.white),
             label: const Text(
               'Sign In',
               style: TextStyle(fontWeight: FontWeight.bold),

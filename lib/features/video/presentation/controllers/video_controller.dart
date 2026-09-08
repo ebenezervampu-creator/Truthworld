@@ -9,6 +9,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
@@ -17,17 +18,13 @@ import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/ad_service.dart';
-import 'package:truthworld/core/services/algorithm/diversity_config.dart';
-import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
-import 'package:truthworld/core/services/algorithm/scored_video.dart';
-import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
+import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
-import 'package:truthworld/core/utils/subtitle_parser.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/analytics/data/services/viewer_identity_service.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
@@ -38,14 +35,16 @@ import 'package:truthworld/features/playlist/presentation/controllers/playlist_c
 import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
+import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
+import 'package:truthworld/features/video/data/models/video_media.dart';
 import 'package:truthworld/features/video/data/repositories/firestore_video_repository.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
 import 'package:truthworld/features/video/domain/database_helpers.dart';
 import 'package:truthworld/features/video/domain/repositories/video_repository.dart';
-import 'package:truthworld/features/video/presentation/controllers/adaptive_birate_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/adaptive_bitrate_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/downloadcontroller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
@@ -53,6 +52,8 @@ import 'package:truthworld/features/video/presentation/controllers/video_analyti
 import 'package:truthworld/features/video/presentation/controllers/video_engagement_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playlist_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_recommendations_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_transcript_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart'
     hide LanguageRequest;
 import 'package:truthworld/features/video/presentation/views/player/tower_custom_player.dart';
@@ -130,12 +131,13 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
   RxBool get isLiked => engagementController.isLiked;
   RxBool get isDisliked => engagementController.isDisliked;
   final RxBool isExpanded = false.obs;
-  final RxBool isTranscriptVisible = false.obs;
-  final RxList<SubtitleSegment> transcriptSegments = <SubtitleSegment>[].obs;
-  final RxBool isLoadingTranscript = false.obs;
-  final RxBool isSummaryVisible = false.obs;
-  final RxString moderationSummary = ''.obs;
-  final RxBool isLoadingSummary = false.obs;
+  late VideoTranscriptController transcriptController;
+  RxBool get isTranscriptVisible => transcriptController.isTranscriptVisible;
+  RxList<SubtitleSegment> get transcriptSegments => transcriptController.transcriptSegments;
+  RxBool get isLoadingTranscript => transcriptController.isLoadingTranscript;
+  RxBool get isSummaryVisible => transcriptController.isSummaryVisible;
+  RxString get moderationSummary => transcriptController.moderationSummary;
+  RxBool get isLoadingSummary => transcriptController.isLoadingSummary;
   final RxBool rxIsLoading = true.obs;
   RxBool get isLoadingRx => rxIsLoading;
   @override
@@ -183,13 +185,14 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
   @override
   bool get isOffline => rxIsOffline.value || super.isOffline;
   String? _offlineBlobUrl;
+  String? get offlineBlobUrl => _offlineBlobUrl;
   StreamSubscription? _connectivitySubscription;
 
   // Milestone tracking — only fire each milestone once per session
   final Set<String> _firedMilestones = {};
   static const _milestoneThresholds = [25, 50, 75, 100];
   static const int _watchPingIntervalSeconds = 20; // Cost-effective heartbeat interval
-  static const int _watchHistoryIntervalSeconds = 15; // Periodic history sync interval
+  static const int _crossDeviceResumeIntervalSeconds = 45; // Throttled RTDB cross-device resume sync interval (0-cost)
 
   // Traffic source for this viewing session
   String _trafficSource = 'direct';
@@ -200,151 +203,21 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
   // Total watch time for this session (seconds)
   int get watchTimeSeconds => analyticsController.watchTimeSeconds;
 
-  // Recommendations Cache
-  final RxList<Video> recommendedVideos = <Video>[].obs;
-  final RxList<CommunityPostModel> communityPosts = <CommunityPostModel>[].obs;
-  final RxList<Video> moreFromChannel = <Video>[].obs;
-  final RxBool isLoadingRecommendations = true.obs;
-  final RxString selectedRecommendationFilter = 'All'.obs;
-  final RxInt recommendationActiveTab = 0.obs;
-
-  List<dynamic> get recommendedItems {
-    final displayVideos = filteredRecommendedVideos;
-    final isFlipped = (selectedRecommendationFilter.value == 'Flip Coin') ||
-        (Get.isRegistered<FlipCoinService>() &&
-            Get.find<FlipCoinService>().isVideoFlipped(video.id));
-    if (isFlipped) {
-      return List<dynamic>.from(displayVideos);
-    }
-
-    final mixed = <dynamic>[];
-    var videoIndex = 0;
-    var postIndex = 0;
-    var topicIndex = 0;
-    var adIndex = 0;
-    final scrollAds = Get.isRegistered<AdService>()
-        ? AdService.to.getAdsForType('scroll')
-        : <AdItem>[];
-
-    while (videoIndex < displayVideos.length ||
-        postIndex < communityPosts.length ||
-        topicIndex < videoTopicsList.length) {
-      for (var i = 0; i < 4 && videoIndex < displayVideos.length; i++) {
-        mixed.add(displayVideos[videoIndex++]);
-      }
-      if (scrollAds.isNotEmpty && videoIndex < displayVideos.length) {
-        mixed.add(scrollAds[adIndex++ % scrollAds.length]);
-      }
-      if (topicIndex < videoTopicsList.length) {
-        mixed.add(videoTopicsList[topicIndex++]);
-      }
-      if (postIndex < communityPosts.length) {
-        mixed.add(communityPosts[postIndex++]);
-      }
-    }
-    return mixed;
-  }
-
-  // Topics and Playlists recommendation tabs state
-  final RxList<Topic> videoTopicsList = <Topic>[].obs;
-  final RxList<PlaylistModel> videoPlaylistsList = <PlaylistModel>[].obs;
-  final RxMap<String, List<Video>> topicVideosCache =
-      <String, List<Video>>{}.obs;
-  final RxMap<String, List<Video>> playlistVideosCache =
-      <String, List<Video>>{}.obs;
-
-  List<String> get recommendationFilters {
-    final list = ['All', 'Flip Coin'];
-
-    // 1. Topics tab (ONLY if navigated from Topics page)
-    if (navigatedFromTopic.value) {
-      for (final topic in videoTopicsList) {
-        final name = 'Topic: ${topic.title}';
-        if (!list.contains(name) && !list.contains(topic.title)) {
-          list.add(name);
-        }
-      }
-    }
-
-    // 2. Channel tab
-    if (video.channelName.isNotEmpty) {
-      list.add('From ${video.channelName}');
-    }
-
-    // 3. Tags / Category
-    if (video.tags.isNotEmpty) {
-      for (final t in video.tags.take(3)) {
-        if (!list.contains(t)) list.add(t);
-      }
-    } else if (video.category.isNotEmpty && !list.contains(video.category)) {
-      list.add(video.category);
-    }
-
-    return list;
-  }
-
-  List<Video> get filteredRecommendedVideos {
-    final filter = selectedRecommendationFilter.value;
-    if (filter == 'All' || filter == 'Flip Coin') {
-      return recommendedVideos;
-    }
-
-    // Check if filter is a Playlist tab
-    if (filter.startsWith('Playlist: ')) {
-      final plName = filter.replaceFirst('Playlist: ', '');
-      if (currentPlaylist.value != null &&
-          currentPlaylist.value!.playlistName == plName) {
-        if (playlistVideos.isNotEmpty) return playlistVideos;
-      }
-      final matchedPlaylist = videoPlaylistsList.firstWhereOrNull(
-        (p) => p.playlistName == plName,
-      );
-      if (matchedPlaylist != null) {
-        return playlistVideosCache[matchedPlaylist.id] ?? [];
-      }
-    }
-
-    final matchedPlaylistDirect = videoPlaylistsList.firstWhereOrNull(
-      (p) => p.playlistName == filter,
-    );
-    if (matchedPlaylistDirect != null) {
-      return playlistVideosCache[matchedPlaylistDirect.id] ?? [];
-    }
-
-    // Check if filter is a Topic tab
-    if (filter.startsWith('Topic: ')) {
-      final topicTitle = filter.replaceFirst('Topic: ', '');
-      final matchedTopic = videoTopicsList.firstWhereOrNull(
-        (t) => t.title == topicTitle,
-      );
-      if (matchedTopic != null) {
-        return topicVideosCache[matchedTopic.id] ?? [];
-      }
-    }
-
-    final matchedTopicDirect = videoTopicsList.firstWhereOrNull(
-      (t) => t.title == filter,
-    );
-    if (matchedTopicDirect != null) {
-      return topicVideosCache[matchedTopicDirect.id] ?? [];
-    }
-
-    if (filter == 'From ${video.channelName}') {
-      return moreFromChannel;
-    }
-
-    final filterLower = filter.toLowerCase();
-    return recommendedVideos.where((v) {
-      final titleLower = v.title.toLowerCase();
-      final descLower = v.description.toLowerCase();
-      final tagMatch = v.tags.any((t) => t.toLowerCase() == filterLower);
-      final categoryMatch = v.category.toLowerCase() == filterLower;
-      return titleLower.contains(filterLower) ||
-          descLower.contains(filterLower) ||
-          tagMatch ||
-          categoryMatch;
-    }).toList();
-  }
+  // Recommendations Cache (Delegated to VideoRecommendationsController)
+  late VideoRecommendationsController recommendationsController;
+  RxList<Video> get recommendedVideos => recommendationsController.recommendedVideos;
+  RxList<CommunityPostModel> get communityPosts => recommendationsController.communityPosts;
+  RxList<Video> get moreFromChannel => recommendationsController.moreFromChannel;
+  RxBool get isLoadingRecommendations => recommendationsController.isLoadingRecommendations;
+  RxString get selectedRecommendationFilter => recommendationsController.selectedRecommendationFilter;
+  RxInt get recommendationActiveTab => recommendationsController.recommendationActiveTab;
+  RxList<Topic> get videoTopicsList => recommendationsController.videoTopicsList;
+  RxList<PlaylistModel> get videoPlaylistsList => recommendationsController.videoPlaylistsList;
+  RxMap<String, List<Video>> get topicVideosCache => recommendationsController.topicVideosCache;
+  RxMap<String, List<Video>> get playlistVideosCache => recommendationsController.playlistVideosCache;
+  List<dynamic> get recommendedItems => recommendationsController.recommendedItems;
+  List<String> get recommendationFilters => recommendationsController.recommendationFilters;
+  List<Video> get filteredRecommendedVideos => recommendationsController.filteredRecommendedVideos;
 
   // Controllers
   late TabController mobileTabController;
@@ -386,6 +259,19 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
     videoPlaylistController = Get.isRegistered<VideoPlaylistController>()
         ? Get.find<VideoPlaylistController>()
         : Get.put(VideoPlaylistController());
+    transcriptController = Get.isRegistered<VideoTranscriptController>()
+        ? Get.find<VideoTranscriptController>()
+        : Get.put(VideoTranscriptController());
+    recommendationsController = Get.isRegistered<VideoRecommendationsController>()
+        ? Get.find<VideoRecommendationsController>()
+        : Get.put(
+            VideoRecommendationsController(
+              getVideo: () => video,
+              getCurrentPlaylist: () => currentPlaylist.value,
+              getPlaylistVideos: () => playlistVideos,
+              getNavigatedFromTopic: () => navigatedFromTopic.value,
+            ),
+          );
 
     rxIsOffline.value = (Get.arguments?['isOffline'] as bool?) ?? false;
     if (Get.arguments?['isAudioOnly'] == true) {
@@ -456,11 +342,30 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       navigatedFromTopic.value = false;
     }
 
-    // Handle initial seek timestamp from args or query params (t=120, t=1m30s, etc.)
-    if (args?['initialPosition'] != null && args!['initialPosition'] is Duration) {
-      _initialSeekPosition = args['initialPosition'] as Duration;
-    } else {
-      final timeStr = Get.parameters['t'] ?? Get.parameters['time'] ?? Get.parameters['start'];
+    final hasClipEnd = (args?['clipEndTime'] != null) ||
+        Get.parameters.containsKey('clipEnd') ||
+        Get.parameters.containsKey('end') ||
+        (kIsWeb &&
+            (Uri.base.queryParameters.containsKey('clipEnd') ||
+                Uri.base.queryParameters.containsKey('end')));
+
+    // Handle initial seek timestamp from args (resumePosition, initialPosition), handoff registry, or query params
+    final rawResume = args?['resumePosition'] ?? args?['initialPosition'];
+    if (rawResume is Duration && rawResume > Duration.zero) {
+      _initialSeekPosition = rawResume;
+    } else if (rawResume is int && rawResume > 0) {
+      _initialSeekPosition = Duration(milliseconds: rawResume);
+    } else if (rawResume is double && rawResume > 0) {
+      _initialSeekPosition = Duration(milliseconds: rawResume.toInt());
+    } else if (!hasClipEnd) {
+      final timeStr = Get.parameters['t'] ??
+          Get.parameters['time'] ??
+          (kIsWeb
+              ? (Uri.base.queryParameters['t'] ??
+                  Uri.base.queryParameters['time'])
+              : null) ??
+          Get.parameters['start'] ??
+          (kIsWeb ? Uri.base.queryParameters['start'] : null);
       final parsedTime = DeepLinkService.parseTimestamp(timeStr);
       if (parsedTime != null) {
         _initialSeekPosition = parsedTime;
@@ -591,17 +496,31 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
         '[VideoController] 🎬 Starting in Clip Mode: ${activeClip.value?.title}',
       );
     } else {
-      final startStr = Get.parameters['start'] ?? Get.parameters['clipStart'];
-      final endStr = Get.parameters['end'] ?? Get.parameters['clipEnd'];
-      final clipTitleParam =
-          Get.parameters['clipTitle'] ?? Get.parameters['title'];
+      final startStr = Get.parameters['start'] ??
+          Get.parameters['clipStart'] ??
+          (kIsWeb
+              ? (Uri.base.queryParameters['start'] ??
+                  Uri.base.queryParameters['clipStart'])
+              : null);
+      final endStr = Get.parameters['end'] ??
+          Get.parameters['clipEnd'] ??
+          (kIsWeb
+              ? (Uri.base.queryParameters['end'] ??
+                  Uri.base.queryParameters['clipEnd'])
+              : null);
+      final clipTitleParam = Get.parameters['clipTitle'] ??
+          Get.parameters['title'] ??
+          (kIsWeb
+              ? (Uri.base.queryParameters['clipTitle'] ??
+                  Uri.base.queryParameters['title'])
+              : null);
       if (startStr != null && endStr != null) {
         final start = double.tryParse(startStr);
         final end = double.tryParse(endStr);
         if (start != null && end != null && end > start) {
           activeClip.value = VideoClip(
-            id:
-                Get.parameters['clipId'] ??
+            id: Get.parameters['clipId'] ??
+                (kIsWeb ? Uri.base.queryParameters['clipId'] : null) ??
                 'temp_${DateTime.now().millisecondsSinceEpoch}',
             videoId: video.id,
             userId: '',
@@ -622,8 +541,18 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       }
     }
 
+    if (activeClip.value != null && _initialSeekPosition == null) {
+      _initialSeekPosition = Duration(
+        milliseconds: (activeClip.value!.startTime * 1000).toInt(),
+      );
+    }
+
+    if (_initialSeekPosition == null && VideoPlaybackHandoff.hasActivePosition(video.id)) {
+      _initialSeekPosition = VideoPlaybackHandoff.peekPosition(video.id);
+    }
+
     // If we have an active handoff controller from miniplayer, avoid loading states
-    if (VideoPlaybackHandoff.isActive(video.id)) {
+    if (VideoPlaybackHandoff.isActive(video.id) || args?['isFromMiniplayer'] == true) {
       rxIsLoading.value = false;
       showThumbnail.value = false;
     }
@@ -633,6 +562,21 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
 
     // 2. Initialize heavy UI metadata asynchronously in background without blocking playback stream
     Future.microtask(_initializeAllMetadata);
+  }
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>>? _channelStream;
+  String? _lastChannelStreamId;
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> getChannelStream(String channelId) {
+    if (_channelStream != null && _lastChannelStreamId == channelId) {
+      return _channelStream!;
+    }
+    _lastChannelStreamId = channelId;
+    _channelStream = FirebaseFirestore.instance
+        .collection(FirestoreCollections.channels)
+        .doc(channelId)
+        .snapshots();
+    return _channelStream!;
   }
 
   void _setupConnectivityListener() {
@@ -743,6 +687,11 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
   /// Detect where the user came from to reach this video.
   /// Uses hierarchical TrafficSourceCategory taxonomy.
   String _detectTrafficSource() {
+    // 0. If playing in Clip Mode, attribute traffic directly to 'clip'
+    if (activeClip.value != null) {
+      return 'clip';
+    }
+
     final args = Get.arguments as Map<String, dynamic>? ?? {};
 
     // 1. Explicit source passed via navigation argument (highest priority)
@@ -778,6 +727,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
   /// Normalize legacy source keys to new taxonomy
   String _normalizeTrafficSource(String source) {
     const mapping = {
+      'clip': 'clip',
       'suggested': 'suggested',
       'search': 'search',
       'direct': 'direct',
@@ -874,58 +824,49 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
     }
 
     // 2. YouTube-style playback strategy:
-    //    - On native (iOS/Android/Desktop): Use HLS adaptive streaming for instant start
-    //    - On web: NEVER use raw original.mp4 — always wait for transcoded MP4 resolutions
-    if (!kIsWeb &&
-        video.hlsUrl.isNotEmpty &&
-        !video.hlsUrl.startsWith('gs://')) {
-      // Native: HLS adaptive streaming for instant zero-latency start
+    //    - On native (iOS/Android/Desktop): Attempt HLS adaptive streaming for instant start
+    //    - If HLS not available or fails, automatically fallback to transcoded MP4s / videoUrl / originalUrl
+    if (!kIsWeb && video.hlsUrl.isNotEmpty) {
       debugPrint('[VideoController] 🎬 Native playback: Using HLS adaptive stream');
       await initializeVideoPlayer(overrideUrl: video.hlsUrl);
 
-      // Once metadata finishes, update the quality/resolution menu reactively
-      metadataFuture.then((_) {
-        if (availableResolutions.isNotEmpty) {
-          final best = availableResolutions.first;
-          if (currentResolution.value?.url != best.url) {
-            currentResolution.value = best;
+      if (!videoError.value) {
+        // Once metadata finishes, update the quality/resolution menu reactively
+        metadataFuture.then((_) {
+          if (availableResolutions.isNotEmpty) {
+            final best = availableResolutions.first;
+            if (currentResolution.value?.url != best.url) {
+              currentResolution.value = best;
+            }
           }
-        }
-      });
+        });
+      }
     } else {
-      // Web: Wait for transcoded resolutions — never serve raw original.mp4
-      debugPrint('[VideoController] 🌐 Web playback: Waiting for transcoded resolutions...');
+      debugPrint('[VideoController] 🌐 Initializing stream from resolutions / MP4 variants...');
       await metadataFuture;
 
       if (availableResolutions.isNotEmpty) {
-        // Pick the best transcoded MP4 (non-HLS) for web browsers
         final mp4Res = availableResolutions.firstWhereOrNull(
-          (r) => r.url.isNotEmpty && !r.url.contains('.m3u8'),
+          (r) => r.url.isNotEmpty && !r.url.contains('.m3u8') && !r.url.endsWith('original.mp4') && !r.url.contains('/original/'),
         );
         final best = mp4Res ?? availableResolutions.first;
         currentResolution.value = best;
         debugPrint(
-          '[VideoController] ✅ Web: Playing ${best.label} (${best.width}x${best.height})',
+          '[VideoController] ✅ Playing ${best.label} (${best.width}x${best.height})',
         );
         await initializeVideoPlayer(overrideUrl: best.url);
+      } else if (video.hlsUrl.isNotEmpty && !video.hlsUrl.endsWith('original.mp4') && !video.hlsUrl.contains('/original/')) {
+        debugPrint('[VideoController] 🎬 Playing from hlsUrl: ${video.hlsUrl}');
+        await initializeVideoPlayer(overrideUrl: video.hlsUrl);
       } else {
-        // Last resort: try originalUrl only if no transcoded variants exist
-        if (video.originalUrl.isNotEmpty &&
-            !video.originalUrl.startsWith('gs://')) {
-          debugPrint(
-            '[VideoController] ⚠️ No transcoded resolutions. Falling back to originalUrl.',
-          );
-          await initializeVideoPlayer(overrideUrl: video.originalUrl);
-        } else {
-          debugPrint(
-            '[VideoController] ❌ No playable URL found. Video may still be processing.',
-          );
-          videoError.value = true;
-          rxErrorMessage.value =
-              'Video is still processing. Please check back later.';
-          rxIsLoading.value = false;
-          return;
-        }
+        debugPrint(
+          '[VideoController] ❌ No processed resolution stream found. Video is still processing.',
+        );
+        videoError.value = true;
+        rxErrorMessage.value =
+            'Video resolutions are still processing. Please check back later.';
+        rxIsLoading.value = false;
+        return;
       }
     }
 
@@ -974,20 +915,16 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
         final blob = html.Blob([bytes], mime);
         _offlineBlobUrl = html.Url.createObjectUrl(blob);
       } else {
-        final filePath = await getVideoFilePath(video.id);
-        if (filePath != null && File(filePath).existsSync() && (await File(filePath).length()) > 512) {
-          _offlineBlobUrl = filePath;
+        final proxyUrl = await getOfflinePlaybackUrl(video.id);
+        if (proxyUrl != null && proxyUrl.isNotEmpty) {
+          _offlineBlobUrl = proxyUrl;
         } else {
-          final bytes = await getVideoBytes(video.id);
-          if (bytes == null || bytes.length < 512) {
+          final filePath = await getVideoFilePath(video.id);
+          if (filePath != null && File(filePath).existsSync() && (await File(filePath).length()) > 512) {
+            _offlineBlobUrl = filePath;
+          } else {
             throw Exception('Offline media content not found or corrupted');
           }
-          final dir = await getOfflineDirectory();
-          final ext = isAudio ? 'mp3' : 'mp4';
-          final mediaFile = File('${dir.path}/${video.id}.$ext');
-          await mediaFile.parent.create(recursive: true);
-          await mediaFile.writeAsBytes(bytes);
-          _offlineBlobUrl = mediaFile.path;
         }
       }
 
@@ -1293,191 +1230,14 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
   }
 
   /// Proactively finds, downloads, and parses the transcript/subtitles for this video
-  /// Searches video.mediaSubtitles, VideoMediaService, Firestore root doc, and Firebase Storage probes.
-  Future<void> loadTranscriptForVideo() async {
-    final playerCtrl = TowerPlayerController.getForTagOrActive(video.id);
-
-    if (transcriptSegments.isNotEmpty && playerCtrl?.subtitleSegments.isNotEmpty == true) {
-      return;
-    }
-
-    isLoadingTranscript.value = true;
-    playerCtrl?.isLoadingSubtitles.value = true;
-    try {
-      // 1. Check existing availableSubtitles or mediaSubtitles
-      var candidateUrl = video.mediaSubtitles['en'] ??
-          (video.mediaSubtitles.isNotEmpty ? video.mediaSubtitles.values.first : null) ??
-          (video.transcriptionUrl.isNotEmpty ? video.transcriptionUrl : null) ??
-          availableSubtitles.firstOrNull?.url;
-
-      // 2. If null, fetch from localization subcollection
-      if (candidateUrl == null || candidateUrl.isEmpty) {
-        final loc = await VideoMediaService().getLocalization(video.id);
-        if (loc.subtitles.isNotEmpty) {
-          candidateUrl = loc.subtitles['en'] ?? loc.subtitles.values.first;
-        }
-      }
-
-      // 3. If still null, check root video document in Firestore
-      if (candidateUrl == null || candidateUrl.isEmpty) {
-        final snap = await FirebaseFirestore.instance
-            .collection(FirestoreCollections.videos)
-            .doc(video.id)
-            .get();
-        if (snap.exists && snap.data() != null) {
-          final data = snap.data()!;
-          final media = data['media'] as Map<String, dynamic>?;
-          candidateUrl = (media?['transcriptionUrl'] as String?) ??
-              (data['transcriptionUrl'] as String?) ??
-              (data['transcriptUrl'] as String?);
-          if (candidateUrl == null || candidateUrl.isEmpty) {
-            final subs = (media?['subtitles'] ?? data['subtitles']) as Map?;
-            if (subs != null && subs.isNotEmpty) {
-              candidateUrl = subs['en']?.toString() ?? subs.values.first?.toString();
-            }
-          }
-        }
-      }
-
-      // 4. If candidate URL found, fetch and parse
-      if (candidateUrl != null && candidateUrl.isNotEmpty) {
-        if (playerCtrl != null) {
-          await playerCtrl.fetchAndParseSubtitles(candidateUrl);
-          if (playerCtrl.subtitleSegments.isNotEmpty) {
-            transcriptSegments.assignAll(playerCtrl.subtitleSegments);
-            return;
-          }
-        }
-        final segs = await _downloadAndParseTranscript(candidateUrl);
-        if (segs.isNotEmpty) {
-          transcriptSegments.assignAll(segs);
-          playerCtrl?.subtitleSegments.assignAll(segs);
-          return;
-        }
-      }
-
-      // 5. Direct probe into Firebase Storage for pipeline-generated transcripts
-      final storage = FirebaseStorage.instance;
-      final probePaths = [
-        'subtitles/${video.id}/en.vtt',
-        'subtitles/${video.id}/en.srt',
-        'subtitles/${video.id}/transcript.json',
-        'subtitles/${video.id}/transcription.json',
-        'transcripts/${video.id}.json',
-        'transcripts/${video.id}.vtt',
-        'transcripts/${video.id}.srt',
-        'videos/${video.id}/transcript.json',
-        'videos/${video.id}/transcription.json',
-      ];
-
-      for (final p in probePaths) {
-        try {
-          final data = await storage.ref(p).getData();
-          if (data != null && data.isNotEmpty) {
-            final content = utf8.decode(data, allowMalformed: true);
-            final segs = _parseTranscriptContent(content);
-            if (segs.isNotEmpty) {
-              transcriptSegments.assignAll(segs);
-              playerCtrl?.subtitleSegments.assignAll(segs);
-              debugPrint('[VideoController] ✅ Found transcript via storage probe: $p');
-              return;
-            }
-          }
-        } catch (_) {
-          // Probe not found, continue to next
-        }
-      }
-    } catch (e) {
-      debugPrint('[VideoController] 🔥 Error loading transcript: $e');
-    } finally {
-      isLoadingTranscript.value = false;
-      playerCtrl?.isLoadingSubtitles.value = false;
-    }
-  }
-
-  Future<List<SubtitleSegment>> _downloadAndParseTranscript(String url) async {
-    try {
-      String? content;
-      try {
-        final resolvedUrl = StorageUtils.getFastDownloadUrl(url);
-        final response = await http.get(Uri.parse(resolvedUrl));
-        if (response.statusCode == 200) {
-          content = utf8.decode(response.bodyBytes, allowMalformed: true);
-        }
-      } catch (_) {}
-
-      if (content == null || content.isEmpty) {
-        Uint8List? data;
-        if (url.startsWith('gs://') ||
-            url.startsWith('https://storage.googleapis.com/') ||
-            url.startsWith('https://firebasestorage.googleapis.com/')) {
-          data = await FirebaseStorage.instance.refFromURL(url).getData();
-        } else if (url.startsWith('subtitles/') || url.startsWith('transcripts/') || url.startsWith('videos/')) {
-          data = await FirebaseStorage.instance.ref(url).getData();
-        }
-        if (data != null && data.isNotEmpty) {
-          content = utf8.decode(data, allowMalformed: true);
-        }
-      }
-
-      if (content != null && content.isNotEmpty) {
-        return _parseTranscriptContent(content);
-      }
-    } catch (e) {
-      debugPrint('[VideoController] Subtitle download error: $e');
-    }
-    return [];
-  }
-
-  List<SubtitleSegment> _parseTranscriptContent(String content) {
-    return SubtitleParser.parse(content);
-  }
+  Future<void> loadTranscriptForVideo() =>
+      transcriptController.loadTranscriptForVideo(
+        video,
+        defaultSubtitleUrl: availableSubtitles.firstOrNull?.url,
+      );
 
   /// Fetches the AI Summary from moderation.summary in the video document or credibility cache
-  Future<void> fetchSummary() async {
-    if (moderationSummary.value.isNotEmpty) return;
-    isLoadingSummary.value = true;
-    try {
-      // 1. Direct check on video.moderationSummary from Video model
-      if (video.moderationSummary.isNotEmpty) {
-        moderationSummary.value = video.moderationSummary;
-        isLoadingSummary.value = false;
-        return;
-      }
-
-      // 2. Check VideoMediaService credibility cache
-      final credibility = await VideoMediaService().getCredibility(video.id);
-      if (credibility.summary.isNotEmpty) {
-        moderationSummary.value = credibility.summary;
-        isLoadingSummary.value = false;
-        return;
-      }
-
-      // 3. Fallback: Fetch directly from videos/{videoId} document in Firestore
-      final doc = await FirebaseFirestore.instance
-          .collection(FirestoreCollections.videos)
-          .doc(video.id)
-          .get();
-      if (doc.exists && doc.data() != null) {
-        final data = doc.data()!;
-        final mod = data['moderation'] as Map<String, dynamic>?;
-        final summary = (mod != null && mod['summary'] != null && (mod['summary'] as String).isNotEmpty)
-            ? (mod['summary'] as String)
-            : ((data['summary'] as String?)?.isNotEmpty == true
-                ? (data['summary'] as String)
-                : ((mod != null && mod['explanation'] != null)
-                    ? (mod['explanation'] as String)
-                    : (data['description'] as String? ?? '')));
-        if (summary.isNotEmpty) {
-          moderationSummary.value = summary;
-        }
-      }
-    } catch (e) {
-      debugPrint('[VideoController] 🔥 Error fetching moderation summary: $e');
-    } finally {
-      isLoadingSummary.value = false;
-    }
-  }
+  Future<void> fetchSummary() => transcriptController.fetchSummary(video);
 
   Future<void> fetchAvailableAudioTracks() async {
     try {
@@ -1621,12 +1381,30 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       }
     }
 
-    // Manage thumbnail overlay & playing state
+    // Manage thumbnail overlay & playing state safely to prevent reactive rebuilds during build
     if (isPlayingRx.value != value.isPlaying) {
-      isPlayingRx.value = value.isPlaying;
+      if (WidgetsBinding.instance.schedulerPhase ==
+          SchedulerPhase.persistentCallbacks) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!isClosed && isPlayingRx.value != value.isPlaying) {
+            isPlayingRx.value = value.isPlaying;
+          }
+        });
+      } else {
+        isPlayingRx.value = value.isPlaying;
+      }
     }
     if (value.isPlaying && showThumbnail.value) {
-      showThumbnail.value = false;
+      if (WidgetsBinding.instance.schedulerPhase ==
+          SchedulerPhase.persistentCallbacks) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!isClosed && value.isPlaying && showThumbnail.value) {
+            showThumbnail.value = false;
+          }
+        });
+      } else {
+        showThumbnail.value = false;
+      }
     }
 
     // Manage stopwatch and analytics presence based on playback state
@@ -1649,6 +1427,9 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
         _watchStopwatch.stop();
         analyticsController.stopTimer();
         _flushRemainingWatchTime();
+        if (value.isInitialized) {
+          _syncWatchHistory(_watchStopwatch.elapsed.inSeconds, value.duration.inSeconds);
+        }
       }
     }
 
@@ -1712,9 +1493,19 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       _lastPingWatchSeconds = currentWatchSeconds;
     }
 
-    // 4. Update watch history periodically (every 15s - optimized for resume)
-    if (currentWatchSeconds - _lastReportedWatchTime >= _watchHistoryIntervalSeconds) {
-      _syncWatchHistory(currentWatchSeconds, totalDuration);
+    // 4. Multi-tiered resume tracking (Local GetStorage every tick + RTDB cross-device sync every 45s)
+    // Firestore is NOT touched here — it is only written once on pause, completion, or exit.
+    final currentPos = value.position.inSeconds;
+    final progressPct = totalDuration > 0
+        ? ((currentPos / totalDuration) * 100).clamp(0, 100).toDouble()
+        : 0.0;
+
+    // Fast same-device local storage (0ms, works offline, 100% free)
+    WatchHistoryService.to.saveLocalPosition(video.id, currentPos, progressPct);
+
+    // Cross-device RTDB resume sync (throttled to 45s - zero-cost operation)
+    if (currentWatchSeconds - _lastReportedWatchTime >= _crossDeviceResumeIntervalSeconds) {
+      WatchHistoryService.to.syncCrossDeviceResume(video.id, currentPos, progressPct);
       _lastReportedWatchTime = currentWatchSeconds;
     }
 
@@ -1963,7 +1754,13 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
   }
 
   void toggleAudioOnly() {
-    isAudioOnly.value = !isAudioOnly.value;
+    if (Get.isRegistered<TowerPlayerController>(tag: video.id)) {
+      Get.find<TowerPlayerController>(tag: video.id).toggleAudioOnly();
+    } else if (Get.isRegistered<TowerPlayerController>()) {
+      Get.find<TowerPlayerController>().toggleAudioOnly();
+    } else {
+      isAudioOnly.value = !isAudioOnly.value;
+    }
     debugPrint('[VideoController] Audio only mode: ${isAudioOnly.value}');
   }
 
@@ -2185,7 +1982,64 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
 
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
-        factCheckData.value = jsonDecode(response.body) as Map<String, dynamic>;
+        final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+        factCheckData.value = decoded;
+
+        try {
+          final existing = VideoMediaService.credibilityCache[video.id];
+          final parsedCred = VideoMediaCredibility.fromMap(decoded);
+          VideoMediaService.credibilityCache[video.id] = VideoMediaCredibility(
+            trustScore: parsedCred.trustScore > 0
+                ? parsedCred.trustScore
+                : (existing?.trustScore ?? video.trustScore),
+            trustLabel: parsedCred.trustLabel ??
+                existing?.trustLabel ??
+                decoded['trustLabel']?.toString() ??
+                decoded['label']?.toString(),
+            summary: parsedCred.summary.isNotEmpty
+                ? parsedCred.summary
+                : (existing?.summary ??
+                    decoded['summary']?.toString() ??
+                    decoded['viewerNote']?.toString() ??
+                    ''),
+            scoringFactors:
+                parsedCred.scoringFactors ?? existing?.scoringFactors,
+            deductions: parsedCred.deductions.isNotEmpty
+                ? parsedCred.deductions
+                : (existing?.deductions ?? const []),
+            contextualFlags: parsedCred.contextualFlags.isNotEmpty
+                ? parsedCred.contextualFlags
+                : (existing?.contextualFlags ?? const []),
+            honestyBreakdown:
+                parsedCred.honestyBreakdown ?? existing?.honestyBreakdown,
+            harmCapApplied: parsedCred.harmCapApplied ||
+                (existing?.harmCapApplied ?? false),
+            harmCapReason:
+                parsedCred.harmCapReason ?? existing?.harmCapReason,
+            confidenceNotes: parsedCred.confidenceNotes.isNotEmpty
+                ? parsedCred.confidenceNotes
+                : (existing?.confidenceNotes ?? const []),
+            diagnostics: parsedCred.diagnostics.isNotEmpty
+                ? parsedCred.diagnostics
+                : (existing?.diagnostics ?? const []),
+            factCheckStats:
+                parsedCred.factCheckStats ?? existing?.factCheckStats,
+            videoCategory:
+                parsedCred.videoCategory ?? existing?.videoCategory,
+            effectiveCategory:
+                parsedCred.effectiveCategory ?? existing?.effectiveCategory,
+            hardeningMetadata:
+                parsedCred.hardeningMetadata ?? existing?.hardeningMetadata,
+            intentToMisleadScore: (parsedCred.intentToMisleadScore != null &&
+                    parsedCred.intentToMisleadScore! > 0)
+                ? parsedCred.intentToMisleadScore
+                : (existing?.intentToMisleadScore ?? 0.0),
+            uiReport: parsedCred.uiReport ?? UIReport.fromMap(decoded),
+            factCheckUrl: rawUrl,
+          );
+        } catch (e) {
+          debugPrint('[VideoController] Note: failed caching credibility: $e');
+        }
       } else {
         throw Exception('Failed to load fact-check data');
       }
@@ -2246,327 +2100,8 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
     );
   }
 
-  Future<void> fetchRecommendations() async {
-    selectedRecommendationFilter.value = 'All';
-    isLoadingRecommendations.value = true;
-    try {
-      final videoId = video.id;
-
-      // 1. If we are in a playlist, fetch other videos from the playlist
-      var hasPlaylistVideos = false;
-      if (currentPlaylist.value != null) {
-        final playlistVideoIds = currentPlaylist.value!.videoIds
-            .where((id) => id != videoId)
-            .take(15)
-            .toList();
-
-        if (playlistVideoIds.isNotEmpty) {
-          final playlistVideos = <Video>[];
-          for (var i = 0; i < playlistVideoIds.length; i += 10) {
-            final chunk = playlistVideoIds.sublist(
-              i,
-              i + 10 > playlistVideoIds.length
-                  ? playlistVideoIds.length
-                  : i + 10,
-            );
-            final playlistVidsQuery = await FirebaseFirestore.instance
-                .collection(FirestoreCollections.videos)
-                .where(FieldPath.documentId, whereIn: chunk)
-                .get();
-
-            playlistVideos.addAll(
-              playlistVidsQuery.docs.map(Video.fromDocumentSnapshot),
-            );
-          }
-
-          // Sort them to match playlist order if possible
-          playlistVideos.sort((a, b) {
-            final indexA = currentPlaylist.value!.videoIds.indexOf(a.id);
-            final indexB = currentPlaylist.value!.videoIds.indexOf(b.id);
-            return indexA.compareTo(indexB);
-          });
-
-          recommendedVideos.value = playlistVideos;
-          moreFromChannel.value =
-              playlistVideos; // In playlist mode, they are the same
-          hasPlaylistVideos = true;
-        }
-      }
-
-      if (!hasPlaylistVideos) {
-        final isFlipped = (selectedRecommendationFilter.value == 'Flip Coin') ||
-            (Get.isRegistered<FlipCoinService>() &&
-                Get.find<FlipCoinService>().isVideoFlipped(video.id));
-
-        if (isFlipped) {
-          final candidateList = <Video>[];
-
-          // 1. If video has an explicit paired counter-video (Coin Battle pair), fetch it directly!
-          if (video.coinBattlePairVideoId != null &&
-              video.coinBattlePairVideoId!.isNotEmpty) {
-            try {
-              final pairDoc = await FirebaseFirestore.instance
-                  .collection(FirestoreCollections.videos)
-                  .doc(video.coinBattlePairVideoId)
-                  .get();
-              if (pairDoc.exists && pairDoc.data() != null) {
-                candidateList.add(Video.fromDocumentSnapshot(pairDoc));
-              }
-            } catch (e) {
-              debugPrint('Error fetching coin battle pair video: $e');
-            }
-          }
-
-          // 2. Fetch a broad pool of public candidate videos
-          try {
-            final candidatesQuery = await FirebaseFirestore.instance
-                .collection(FirestoreCollections.videos)
-                .where('status', isEqualTo: 'public')
-                .where('visibility', isEqualTo: 'public')
-                .limit(60)
-                .get();
-
-            for (final doc in candidatesQuery.docs) {
-              if (doc.id != videoId &&
-                  !candidateList.any((v) => v.id == doc.id)) {
-                candidateList.add(Video.fromDocumentSnapshot(doc));
-              }
-            }
-          } catch (e) {
-            debugPrint(
-              'Error querying candidate videos for flip recommendations: $e',
-            );
-          }
-
-          if (Get.isRegistered<TruthworldAlgorithm>()) {
-            final algorithm = Get.find<TruthworldAlgorithm>();
-            final ranked = algorithm.rankVideosForCurrentVideoOpposite(
-              video,
-              candidateList,
-            );
-            recommendedVideos.value = ranked.map((s) => s.video).toList();
-          } else {
-            recommendedVideos.value = candidateList;
-          }
-        } else {
-          // Normal recommendations logic
-          final channelId = video.channelId;
-
-          // Single efficient fetch for channel videos
-          final channelVidsQuery = await FirebaseFirestore.instance
-              .collection(FirestoreCollections.videos)
-              .where('channelId', isEqualTo: channelId)
-              .where(FieldPath.documentId, isNotEqualTo: videoId)
-              .limit(10)
-              .get();
-
-          final channelVideos = channelVidsQuery.docs
-              .map(Video.fromDocumentSnapshot)
-              .toList();
-
-          // Fill the rest with general videos
-          final generalVidsQuery = await FirebaseFirestore.instance
-              .collection(FirestoreCollections.videos)
-              .where(FieldPath.documentId, isNotEqualTo: videoId)
-              .limit(20)
-              .get();
-
-          final generalVideos = generalVidsQuery.docs
-              .map(Video.fromDocumentSnapshot)
-              .where(
-                (v) =>
-                    v.id != videoId && !channelVideos.any((cv) => cv.id == v.id),
-              )
-              .toList();
-
-          moreFromChannel.value = channelVideos;
-          final rawRecommended = {...channelVideos, ...generalVideos}.toList();
-
-          if (Get.isRegistered<TruthworldAlgorithm>()) {
-            final algorithm = Get.find<TruthworldAlgorithm>();
-            final ranked = algorithm.rankVideos(
-              rawRecommended,
-              RecommendationSurface.videoRelated,
-              diversityConfig: DiversityConfig.videoRelated,
-            );
-            final rankedList = ranked.map((s) => s.video).toList();
-            recommendedVideos.value = rankedList.isNotEmpty
-                ? rankedList
-                : rawRecommended;
-          } else {
-            recommendedVideos.value = rawRecommended;
-          }
-        }
-      }
-
-      // Fetch topics and playlists containing this video
-      await _fetchTopicsAndPlaylistsForRecommendations();
-
-      // Fetch community posts
-      try {
-        final postsSnapshot = await FirebaseFirestore.instance
-            .collection(FirestoreCollections.community)
-            .where('visibility', isEqualTo: 'Public')
-            .limit(30)
-            .get();
-        final posts = postsSnapshot.docs
-            .map((doc) => CommunityPostModel.fromMap(doc.data()))
-            .toList();
-        posts.sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
-        communityPosts.assignAll(posts.take(5));
-      } catch (e) {
-        debugPrint('Error fetching community posts for recommendations: $e');
-      }
-    } catch (e) {
-      debugPrint('Error fetching recommendations: $e');
-    } finally {
-      isLoadingRecommendations.value = false;
-    }
-  }
-
-  Future<void> _fetchTopicsAndPlaylistsForRecommendations() async {
-    try {
-      final videoId = video.id;
-
-      // Clear previous caches
-      videoTopicsList.clear();
-      videoPlaylistsList.clear();
-      topicVideosCache.clear();
-      playlistVideosCache.clear();
-
-      // --- 1. Topics ---
-      final foundTopics = <Topic>[];
-      if (video.topics.isNotEmpty) {
-        for (var i = 0; i < video.topics.length; i += 10) {
-          final chunk = video.topics.sublist(
-            i,
-            i + 10 > video.topics.length ? video.topics.length : i + 10,
-          );
-          final topicsSnapshot = await FirebaseFirestore.instance
-              .collection(FirestoreCollections.topics)
-              .where('slug', whereIn: chunk)
-              .get();
-
-          foundTopics.addAll(
-            topicsSnapshot.docs.map(Topic.fromDocumentSnapshot),
-          );
-        }
-      }
-
-      if (foundTopics.length < 3) {
-        try {
-          final publicTopicsSnapshot = await FirebaseFirestore.instance
-              .collection(FirestoreCollections.topics)
-              .limit(5)
-              .get();
-          final publicTopics = publicTopicsSnapshot.docs
-              .map(Topic.fromDocumentSnapshot)
-              .where((t) => !foundTopics.any((ft) => ft.id == t.id))
-              .toList();
-          foundTopics.addAll(publicTopics);
-        } catch (_) {}
-      }
-
-        videoTopicsList.assignAll(foundTopics);
-
-        // Fetch videos for each topic in parallel
-        final topicFutures = foundTopics.map((topic) async {
-          try {
-            final query = await FirebaseFirestore.instance
-                .collection(FirestoreCollections.videos)
-                .where('topics', arrayContains: topic.slug)
-                .where('visibility', isEqualTo: 'Public')
-                .limit(10)
-                .get();
-
-            final topicVids = query.docs
-                .map(Video.fromDocumentSnapshot)
-                .toList();
-
-            return MapEntry(topic.id, topicVids);
-          } catch (e) {
-            debugPrint('Error loading topic videos for ${topic.id}: $e');
-            return MapEntry(topic.id, <Video>[]);
-          }
-        }).toList();
-
-        final topicResults = await Future.wait(topicFutures);
-        for (final entry in topicResults) {
-          topicVideosCache[entry.key] = entry.value;
-        }
-
-      // --- 2. Playlists ---
-      final foundPlaylists = <PlaylistModel>[];
-
-      // Fetch public playlists containing this video
-      final publicPlaylistsQuery = await FirebaseFirestore.instance
-          .collection('public_playlists')
-          .where('videoIds', arrayContains: videoId)
-          .limit(5)
-          .get();
-
-      foundPlaylists.addAll(
-        publicPlaylistsQuery.docs
-            .map(PlaylistModel.fromDocumentSnapshot)
-            .toList(),
-      );
-
-      // Fetch private playlists of the user containing this video
-      final currentUserId = AuthService.to.uid;
-      if (currentUserId.isNotEmpty) {
-        final privatePlaylistsQuery = await FirebaseFirestore.instance
-            .collection(FirestoreCollections.users)
-            .doc(currentUserId)
-            .collection(FirestoreCollections.playlists)
-            .where('videoIds', arrayContains: videoId)
-            .limit(5)
-            .get();
-
-        foundPlaylists.addAll(
-          privatePlaylistsQuery.docs
-              .map(PlaylistModel.fromDocumentSnapshot)
-              .toList(),
-        );
-      }
-
-      videoPlaylistsList.assignAll(foundPlaylists);
-
-      // Fetch videos for each playlist
-      for (final playlist in foundPlaylists) {
-        if (playlist.videoIds.isNotEmpty) {
-          final playlistVids = await _fetchVideosByIds(playlist.videoIds);
-          playlistVideosCache[playlist.id] = playlistVids;
-        }
-      }
-    } catch (e) {
-      debugPrint('Error fetching topics and playlists for recommendations: $e');
-    }
-  }
-
-  Future<List<Video>> _fetchVideosByIds(List<String> ids) async {
-    if (ids.isEmpty) return [];
-    try {
-      final result = <Video>[];
-      for (var i = 0; i < ids.length; i += 10) {
-        final chunk = ids.sublist(i, i + 10 > ids.length ? ids.length : i + 10);
-        final snapshot = await FirebaseFirestore.instance
-            .collection(FirestoreCollections.videos)
-            .where(FieldPath.documentId, whereIn: chunk)
-            .get();
-        result.addAll(snapshot.docs.map(Video.fromDocumentSnapshot));
-      }
-      // Sort to match original ids list order
-      result.sort((a, b) {
-        final indexA = ids.indexOf(a.id);
-        final indexB = ids.indexOf(b.id);
-        return indexA.compareTo(indexB);
-      });
-      return result;
-    } catch (e) {
-      debugPrint('Error fetching videos by ids: $e');
-      return [];
-    }
-  }
+  Future<void> fetchRecommendations() =>
+      recommendationsController.fetchRecommendations();
 
   Future<void> _fetchFirstPlaylistVideo(String videoId) async {
     rxIsLoading.value = true;
@@ -2626,13 +2161,22 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
   Future<void> initializeVideoPlayer({String? overrideUrl}) async {
     final isAuto = isAutoSwitching.value;
 
-    if (!isAuto) {
+    final isHandoffAvailable = VideoPlaybackHandoff.isActive(video.id);
+
+    if (!isAuto && !isHandoffAvailable) {
       rxIsLoading.value = true;
-      disposePlayer();
+      // Do NOT call disposePlayer() here. Keeping old controller alive until
+      // newVpc is initialized and synced ensures a seamless warm swap with zero
+      // error flashes.
     }
 
     videoError.value = false;
-    showThumbnail.value = true;
+    if (!isHandoffAvailable) {
+      showThumbnail.value = true;
+    } else {
+      showThumbnail.value = false;
+      rxIsLoading.value = false;
+    }
 
     if (video.status == VideoStatus.rejected ||
         video.visibility == 'rejected' ||
@@ -2657,11 +2201,10 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
             currentResolution.value!.url.isNotEmpty) {
           targetUrl = currentResolution.value!.url;
         } else if (!kIsWeb &&
-            video.hlsUrl.isNotEmpty &&
-            !video.hlsUrl.startsWith('gs://')) {
+            video.hlsUrl.isNotEmpty) {
           targetUrl = video.hlsUrl;
-        } else if (kIsWeb && availableResolutions.isNotEmpty) {
-          // On web, pick the best transcoded MP4 resolution
+        } else if (availableResolutions.isNotEmpty) {
+          // Pick the best non-HLS transcoded MP4 resolution
           final mp4Res = availableResolutions.firstWhereOrNull(
             (r) => r.url.isNotEmpty && !r.url.contains('.m3u8'),
           );
@@ -2669,41 +2212,21 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
             targetUrl = mp4Res.url;
           }
         }
-        // Absolute last fallback
+        // Absolute fallbacks (check videoUrl and originalUrl)
         if (targetUrl == null || targetUrl.isEmpty) {
-          if (video.originalUrl.isNotEmpty &&
-              !video.originalUrl.startsWith('gs://')) {
+          if (video.videoUrl.isNotEmpty) {
+            targetUrl = video.videoUrl;
+          } else if (video.originalUrl.isNotEmpty) {
             targetUrl = video.originalUrl;
-          } else if (video.hlsUrl.isNotEmpty &&
-              !video.hlsUrl.startsWith('gs://')) {
+          } else if (video.hlsUrl.isNotEmpty) {
             targetUrl = video.hlsUrl;
           }
         }
       }
 
-      // Resolve gs:// and raw storage.googleapis.com references to HTTPS download URLs
-      if (targetUrl != null &&
-          (targetUrl.startsWith('gs://') ||
-              targetUrl.startsWith('https://storage.googleapis.com/') ||
-              (targetUrl.contains('firebasestorage.googleapis.com') &&
-                  !targetUrl.contains('token=')))) {
-        debugPrint(
-          '[VideoController] ⚠️ Resolving storage URL to authenticated HTTPS download URL...',
-        );
-        try {
-          targetUrl = await FirebaseStorage.instance
-              .refFromURL(targetUrl)
-              .getDownloadURL();
-          final displayUrl = targetUrl.length > 60
-              ? '${targetUrl.substring(0, 60)}...'
-              : targetUrl;
-          debugPrint(
-            '[VideoController] ✅ Resolved to: $displayUrl',
-          );
-
-        } catch (e) {
-          debugPrint('[VideoController] ❌ Failed to resolve storage URL: $e');
-        }
+      // Fast-download CDN resolution and secure authenticated resolution for storage paths
+      if (targetUrl != null && targetUrl.isNotEmpty) {
+        targetUrl = await StorageUtils.resolveUrl(targetUrl);
       }
 
       // On web, if the resolved URL is an HLS manifest and we have transcoded
@@ -2801,68 +2324,86 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       // Ensure volume is set to full unmuted playback on watch screen
       try {
         await newVpc.setVolume(1.0);
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[VideoController] setVolume error: $e');
+      }
 
       // Add listeners AFTER initialization succeeds to prevent race conditions during setup
       newVpc.addListener(_videoErrorListener);
       newVpc.addListener(videoListener);
 
-      // Immediately start playback to begin decoding and frame rendering
-      try {
-        await newVpc.play();
-      } catch (e) {
-        debugPrint('[VideoController] Note: Immediate play trigger exception: $e');
-        if (kIsWeb) {
+      // --- CLIP MODE & RESUME LOGIC (Seek BEFORE play to prevent 0:00 audio/video flash) ---
+      if (wasHandoff) {
+        // Handed off controller is already at the live playing frame!
+        // Do NOT seek backwards to WatchHistoryService or initial position.
+        debugPrint(
+          '[VideoController] ⏩ Handed off controller already at ${newVpc.value.position.inSeconds}s. Continuing seamlessly.',
+        );
+        _initialSeekPosition = null;
+        if (!newVpc.value.isPlaying) {
           try {
-            await newVpc.setVolume(0);
             await newVpc.play();
           } catch (_) {}
         }
-      }
-
-      // --- CLIP MODE & RESUME LOGIC ---
-      if (activeClip.value != null) {
-        final startMs = (activeClip.value!.startTime * 1000).toInt();
-        debugPrint(
-          '[VideoController] 🎬 Seeking player to clip start time: ${activeClip.value!.startTime}s ($startMs ms)',
-        );
-        await newVpc.seekTo(Duration(milliseconds: startMs));
-      } else if (_initialSeekPosition != null && _initialSeekPosition! > Duration.zero) {
-        debugPrint(
-          '[VideoController] ⏩ Seeking player to deep-link timestamp: ${_initialSeekPosition!.inSeconds}s',
-        );
-        await newVpc.seekTo(_initialSeekPosition!);
-        _initialSeekPosition = null; // Consume once
       } else {
-        final lastPos = WatchHistoryService.to.getLastPosition(video.id);
-        if (lastPos > 0 && lastPos < newVpc.value.duration.inSeconds - 10) {
-          // Seek to last position
-          await newVpc.seekTo(Duration(seconds: lastPos));
-
-          // Show resume snackbar
-          Get.snackbar(
-            'Resuming Video',
-            'Resumed from ${Duration(seconds: lastPos).toString().split('.').first.padLeft(8, '0').substring(3)}',
-            snackPosition: SnackPosition.BOTTOM,
-            mainButton: TextButton(
-              onPressed: () {
-                newVpc.seekTo(Duration.zero);
-                Get.back();
-              },
-              child: const Text(
-                'Start Over',
-                style: TextStyle(color: AppColors.error),
-              ),
-            ),
-            duration: const Duration(seconds: 5),
-            backgroundColor: AppColors.bgPage.withValues(alpha: 0.7),
-            colorText: AppColors.textPrimary,
+        if (activeClip.value != null) {
+          final startMs = (activeClip.value!.startTime * 1000).toInt();
+          debugPrint(
+            '[VideoController] 🎬 Seeking player to clip start time: ${activeClip.value!.startTime}s ($startMs ms)',
           );
+          await newVpc.seekTo(Duration(milliseconds: startMs));
+        } else if (_initialSeekPosition != null && _initialSeekPosition! > Duration.zero) {
+          debugPrint(
+            '[VideoController] ⏩ Seeking player to resume/start timestamp: ${_initialSeekPosition!.inSeconds}s',
+          );
+          await newVpc.seekTo(_initialSeekPosition!);
+          _initialSeekPosition = null; // Consume once
+        } else {
+          final lastPos = WatchHistoryService.to.getLastPosition(video.id);
+          if (lastPos > 0 && lastPos < newVpc.value.duration.inSeconds - 10) {
+            // Seek to last position
+            await newVpc.seekTo(Duration(seconds: lastPos));
+
+            // Show resume snackbar
+            Get.snackbar(
+              'Resuming Video',
+              'Resumed from ${Duration(seconds: lastPos).toString().split('.').first.padLeft(8, '0').substring(3)}',
+              snackPosition: SnackPosition.BOTTOM,
+              mainButton: TextButton(
+                onPressed: () {
+                  newVpc.seekTo(Duration.zero);
+                  Get.back();
+                },
+                child: const Text(
+                  'Start Over',
+                  style: TextStyle(color: AppColors.error),
+                ),
+              ),
+              duration: const Duration(seconds: 5),
+              backgroundColor: AppColors.bgPage.withValues(alpha: 0.7),
+              colorText: AppColors.textPrimary,
+            );
+          }
+        }
+
+        // Immediately start playback to begin decoding and frame rendering at target position
+        try {
+          await newVpc.play();
+        } catch (e) {
+          debugPrint('[VideoController] Note: Immediate play trigger exception: $e');
+          if (kIsWeb) {
+            try {
+              await newVpc.setVolume(0);
+              await newVpc.play();
+            } catch (eWeb) {
+              debugPrint('[VideoController] web muted autoplay fallback error: $eWeb');
+            }
+          }
         }
       }
 
       // Track initiation
-      if (!isAuto) {
+      if (!isAuto && !wasHandoff) {
         final isSub = isSubscribed.value;
         final isNotSub = !isSub;
         // Start stopwatch immediately for accurate tracking from second 0
@@ -2888,7 +2429,9 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
         } else if (Get.isRegistered<TowerPlayerController>()) {
           Get.find<TowerPlayerController>().sync(newVpc);
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[VideoController] TowerPlayer sync error: $e');
+      }
 
       final isPremium = Get.isRegistered<AuthService>() &&
           AuthService.to.isPremiumUser.value;
@@ -2944,7 +2487,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
                 const SizedBox(height: 16),
                 ElevatedButton.icon(
                   onPressed: initializeVideoPlayer,
-                  icon: const Icon(Icons.refresh),
+                  icon: const Icon(Icons.refresh, color: Colors.white),
                   label: const Text('Retry'),
                 ),
               ],
@@ -2987,12 +2530,9 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       debugPrint('[VideoController] Playback Error: $e');
       debugPrint('[VideoController] Stack trace: $stackTrace');
 
-      if (!_isRecoveringFromFormatError &&
-          (e.toString().contains('MEDIA_ERR_SRC_NOT_SUPPORTED') ||
-              e.toString().contains('Format error') ||
-              e.toString().contains('format not supported'))) {
-        debugPrint('[VideoController] Attempting format fallback from catch block...');
-        _attemptFormatFallback();
+      if (!_isRecoveringFromFormatError) {
+        debugPrint('[VideoController] 🔄 Automatic fallback triggered from catch block...');
+        await _attemptFormatFallback();
         return;
       }
 
@@ -3003,7 +2543,8 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
         rxErrorMessage.value =
             'Video stream unavailable. Please check your connection or try again.';
       } else {
-        rxErrorMessage.value = 'Video unavailable: $e';
+        rxErrorMessage.value =
+            'This video is currently unavailable. Please check your connection or try again.';
       }
     } finally {
       rxIsLoading.value = false;
@@ -3011,20 +2552,27 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
   }
 
   bool _isRecoveringFromFormatError = false;
+  bool get isRecoveringFromFormatError => _isRecoveringFromFormatError;
 
   void _videoErrorListener() {
     try {
       if (_videoPlayerController?.value.hasError ?? false) {
         final error = _videoPlayerController?.value.errorDescription ?? '';
+        final lower = error.toLowerCase();
 
-        // Ignore transient web race conditions / audio interruptions
-        if (error.contains('removed from the document') ||
-            error.contains('play() request was interrupted') ||
-            error.contains('The play() request was interrupted') ||
-            error.contains('AbortError') ||
-            error.contains('NotAllowedError')) {
+        // Ignore transient web race conditions / audio interruptions / codec resets
+        if (lower.contains('removed from the document') ||
+            lower.contains('play() request was interrupted') ||
+            lower.contains('the play() request was interrupted') ||
+            lower.contains('aborterror') ||
+            lower.contains('notallowederror') ||
+            lower.contains('media_err_aborted') ||
+            lower.contains('client returned a buffer') ||
+            lower.contains('bad_index') ||
+            lower.contains('pause()') ||
+            lower.contains('user gesture')) {
           debugPrint(
-            '[VideoController] ℹ️ Ignoring transient play() interruption (DOM lifecycle)',
+            '[VideoController] ℹ️ Ignoring transient play() interruption: $error',
           );
           return;
         }
@@ -3033,69 +2581,89 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
 
         // If this is a format/source error and we haven't already tried recovery,
         // attempt to fall back to a transcoded MP4 resolution.
-        if (!_isRecoveringFromFormatError &&
-            (error.contains('MEDIA_ERR_SRC_NOT_SUPPORTED') ||
-                error.contains('Format error') ||
-                error.contains('format not supported'))) {
+        if (!_isRecoveringFromFormatError) {
           debugPrint(
-            '[VideoController] 🔄 Format error detected — attempting MP4 fallback...',
+            '[VideoController] 🔄 Error detected — attempting seamless fallback...',
           );
           _attemptFormatFallback();
           return;
         }
 
         videoError.value = true;
-        rxErrorMessage.value = error.isNotEmpty
-            ? error
-            : 'Unknown playback error';
+        rxErrorMessage.value =
+            'This video is currently unavailable. Please check your connection or try again.';
       }
     } catch (e) {
       debugPrint('[VideoController] Error in _videoErrorListener: $e');
     }
   }
 
-  /// Tries to recover from a format error by switching to a transcoded MP4 URL.
+  /// Tries to recover from a format/source error by testing all available backup URLs.
   Future<void> _attemptFormatFallback() async {
+    if (_isRecoveringFromFormatError) return;
     _isRecoveringFromFormatError = true;
+    videoError.value = false;
+    rxIsLoading.value = true;
     try {
       // 1. If resolutions haven't been fetched yet, fetch them now
       if (availableResolutions.isEmpty) {
         await fetchAvailableResolutions();
       }
 
-      // 2. Find a non-HLS MP4 resolution
-      final mp4Res = availableResolutions.firstWhereOrNull(
-        (r) => r.url.isNotEmpty && !r.url.contains('.m3u8'),
-      );
+      final candidates = <String>[];
 
-      if (mp4Res != null) {
-        debugPrint(
-          '[VideoController] ✅ Found MP4 fallback: ${mp4Res.label} (${mp4Res.url.substring(0, 60)}...)',
-        );
-        currentResolution.value = mp4Res;
-        await initializeVideoPlayer(overrideUrl: mp4Res.url);
-        return;
+      // 2. Add all non-HLS MP4 resolutions
+      for (final res in availableResolutions) {
+        if (res.url.isNotEmpty && !res.url.contains('.m3u8') && !candidates.contains(res.url)) {
+          candidates.add(res.url);
+        }
       }
 
-      // 3. Try originalUrl as last resort (it might be MP4 even if HLS failed)
-      if (video.originalUrl.isNotEmpty &&
-          !video.originalUrl.contains('.m3u8')) {
-        debugPrint('[VideoController] ✅ Falling back to originalUrl');
-        await initializeVideoPlayer(overrideUrl: video.originalUrl);
-        return;
+      // 3. Add video model adaptive resolutions
+      for (final res in video.adaptiveResolutions) {
+        if (res.url.isNotEmpty && !res.url.contains('.m3u8') && !candidates.contains(res.url)) {
+          candidates.add(res.url);
+        }
       }
 
-      // 4. Nothing worked — show the error
-      debugPrint('[VideoController] ❌ No MP4 fallback available');
+      // 4. Add videoUrl and originalUrl
+      if (video.videoUrl.isNotEmpty && !candidates.contains(video.videoUrl)) {
+        candidates.add(video.videoUrl);
+      }
+      if (video.originalUrl.isNotEmpty && !candidates.contains(video.originalUrl)) {
+        candidates.add(video.originalUrl);
+      }
+
+      debugPrint('[VideoController] 🔄 Testing ${candidates.length} fallback candidate(s)...');
+
+      for (final candidate in candidates) {
+        try {
+          final resolvedCandidate = await StorageUtils.resolveUrl(candidate);
+          if (resolvedCandidate.isEmpty) continue;
+
+          debugPrint('[VideoController] 🧪 Testing fallback candidate: $resolvedCandidate');
+          await initializeVideoPlayer(overrideUrl: resolvedCandidate);
+          if (!videoError.value && _videoPlayerController != null && _videoPlayerController!.value.isInitialized) {
+            debugPrint('[VideoController] ✅ Playback recovered using fallback: $resolvedCandidate');
+            return;
+          }
+        } catch (e) {
+          debugPrint('[VideoController] ⚠️ Candidate failed: $e');
+        }
+      }
+
+      // If all candidates fail
+      debugPrint('[VideoController] ❌ All fallback candidates failed');
       videoError.value = true;
       rxErrorMessage.value =
-          'Video format is not supported by your browser. Please try a different browser.';
+          'This video is currently unavailable. Please check your connection or try again.';
     } catch (e) {
       debugPrint('[VideoController] ❌ Format fallback failed: $e');
       videoError.value = true;
-      rxErrorMessage.value = 'Video format is not supported by your browser.';
+      rxErrorMessage.value = 'This video is currently unavailable. Please try again.';
     } finally {
       _isRecoveringFromFormatError = false;
+      rxIsLoading.value = false;
     }
   }
 
@@ -3205,9 +2773,15 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
 
   @override
   void onClose() {
-    final currentRoute = Get.currentRoute;
+    final currentRoute = Get.currentRoute.toLowerCase();
+    final hasWatchInStack = RouteStackObserver.routeStack.isNotEmpty &&
+        (RouteStackObserver.routeStack.last.settings.name?.toLowerCase().contains('watch') ?? false);
     final isGoingToWatch =
-        currentRoute.contains('watch') || currentRoute.contains('videoscreen');
+        currentRoute.contains('watch') ||
+        currentRoute.contains('videoscreen') ||
+        hasWatchInStack ||
+        RouteStackObserver.hasRoute('/watch') ||
+        RouteStackObserver.hasRoute('/videoscreen');
 
     final shouldStartMiniplayer =
         !isGoingToWatch &&
@@ -3289,10 +2863,13 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
     disposePlayer();
     _connectivitySubscription?.cancel();
     _languageRequestsSubscription?.cancel();
-    if (_offlineBlobUrl != null) {
+    if (kIsWeb && _offlineBlobUrl != null && _offlineBlobUrl!.startsWith('blob:')) {
       try {
         html.Url.revokeObjectUrl(_offlineBlobUrl!);
       } catch (_) {}
+    }
+    if (Get.isRegistered<VideoRecommendationsController>()) {
+      Get.delete<VideoRecommendationsController>(force: true);
     }
     _watchStopwatch.stop();
     super.onClose();

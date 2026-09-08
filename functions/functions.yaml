@@ -1,59 +1,5 @@
 {
   "endpoints": {
-    "submitVideo": {
-      "availableMemoryMb": 256,
-      "timeoutSeconds": 30,
-      "minInstances": 0,
-      "maxInstances": 2,
-      "ingressSettings": null,
-      "concurrency": 100,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": 1,
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "httpsTrigger": {},
-      "entryPoint": "submitVideo"
-    },
-    "getProgressiveStatus": {
-      "availableMemoryMb": 256,
-      "timeoutSeconds": 30,
-      "minInstances": 0,
-      "maxInstances": 2,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "httpsTrigger": {},
-      "entryPoint": "getProgressiveStatus"
-    },
-    "getFinalOutput": {
-      "availableMemoryMb": 256,
-      "timeoutSeconds": 30,
-      "minInstances": 0,
-      "maxInstances": 2,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "httpsTrigger": {},
-      "entryPoint": "getFinalOutput"
-    },
     "triggerVideoAIFeatures": {
       "availableMemoryMb": 512,
       "timeoutSeconds": 300,
@@ -271,155 +217,6 @@
       },
       "entryPoint": "handleCopyrightCheck"
     },
-    "setupPipeline": {
-      "availableMemoryMb": null,
-      "timeoutSeconds": 60,
-      "minInstances": 0,
-      "maxInstances": 1,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "httpsTrigger": {},
-      "entryPoint": "setupPipeline"
-    },
-    "handleFastVerification": {
-      "availableMemoryMb": 256,
-      "timeoutSeconds": 30,
-      "minInstances": 0,
-      "maxInstances": 2,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "secretEnvironmentVariables": [
-        {
-          "key": "GEMINI_API_KEY"
-        }
-      ],
-      "labels": {},
-      "httpsTrigger": {},
-      "entryPoint": "handleFastVerification"
-    },
-    "getCreatorCostDashboard": {
-      "availableMemoryMb": 256,
-      "timeoutSeconds": 30,
-      "minInstances": 0,
-      "maxInstances": 2,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "httpsTrigger": {},
-      "entryPoint": "getCreatorCostDashboard"
-    },
-    "getSystemCostOverview": {
-      "availableMemoryMb": 256,
-      "timeoutSeconds": 60,
-      "minInstances": 0,
-      "maxInstances": 1,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "httpsTrigger": {},
-      "entryPoint": "getSystemCostOverview"
-    },
-    "getJobCostBreakdown": {
-      "availableMemoryMb": 256,
-      "timeoutSeconds": 30,
-      "minInstances": 0,
-      "maxInstances": 2,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "httpsTrigger": {},
-      "entryPoint": "getJobCostBreakdown"
-    },
-    "submitCopyrightAppeal": {
-      "availableMemoryMb": 256,
-      "timeoutSeconds": 30,
-      "minInstances": 0,
-      "maxInstances": 2,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "httpsTrigger": {},
-      "entryPoint": "submitCopyrightAppeal"
-    },
-    "resolveCopyrightAppeal": {
-      "availableMemoryMb": 256,
-      "timeoutSeconds": 30,
-      "minInstances": 0,
-      "maxInstances": 2,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "httpsTrigger": {},
-      "entryPoint": "resolveCopyrightAppeal"
-    },
-    "getCreatorCopyrightClaims": {
-      "availableMemoryMb": 256,
-      "timeoutSeconds": 30,
-      "minInstances": 0,
-      "maxInstances": 2,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "httpsTrigger": {},
-      "entryPoint": "getCreatorCopyrightClaims"
-    },
     "onVideoUploadedForResolution": {
       "platform": "gcfv2",
       "availableMemoryMb": 128,
@@ -443,42 +240,6 @@
         "retry": false
       },
       "entryPoint": "onVideoUploadedForResolution"
-    },
-    "getVideoResolutionStatus": {
-      "availableMemoryMb": 256,
-      "timeoutSeconds": 30,
-      "minInstances": 0,
-      "maxInstances": 2,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "httpsTrigger": {},
-      "entryPoint": "getVideoResolutionStatus"
-    },
-    "getResolutionProfiles": {
-      "availableMemoryMb": 256,
-      "timeoutSeconds": 10,
-      "minInstances": 0,
-      "maxInstances": 2,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "httpsTrigger": {},
-      "entryPoint": "getResolutionProfiles"
     },
     "handleResolution": {
       "availableMemoryMb": 2048,
@@ -859,24 +620,6 @@
       },
       "entryPoint": "cleanupOldEvents"
     },
-    "getCreatorStats": {
-      "availableMemoryMb": 256,
-      "timeoutSeconds": 15,
-      "minInstances": null,
-      "maxInstances": 50,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "httpsTrigger": {},
-      "entryPoint": "getCreatorStats"
-    },
     "rollupDailyStats": {
       "availableMemoryMb": 1024,
       "timeoutSeconds": 540,
@@ -898,11 +641,37 @@
       },
       "entryPoint": "rollupDailyStats"
     },
-    "createChannel": {
+    "onActiveViewerWrite": {
       "availableMemoryMb": 256,
       "timeoutSeconds": null,
       "minInstances": null,
-      "maxInstances": 10,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-southeast1"
+      ],
+      "labels": {},
+      "eventTrigger": {
+        "eventType": "google.firebase.database.ref.v1.written",
+        "eventFilters": {},
+        "eventFilterPathPatterns": {
+          "ref": "activeViewers/{videoId}/{sessionId}",
+          "instance": "*"
+        },
+        "retry": false
+      },
+      "entryPoint": "onActiveViewerWrite"
+    },
+    "cleanupStaleSessions": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": 60,
+      "minInstances": null,
+      "maxInstances": 1,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
@@ -913,11 +682,35 @@
         "asia-south1"
       ],
       "labels": {},
-      "callableTrigger": {},
-      "entryPoint": "createChannel"
+      "scheduleTrigger": {
+        "schedule": "every 10 minutes",
+        "retryConfig": {}
+      },
+      "entryPoint": "cleanupStaleSessions"
     },
-    "switchChannelType": {
-      "availableMemoryMb": 256,
+    "aggregateVideoImpressions": {
+      "availableMemoryMb": 512,
+      "timeoutSeconds": 300,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "scheduleTrigger": {
+        "schedule": "every 10 minutes",
+        "retryConfig": {}
+      },
+      "entryPoint": "aggregateVideoImpressions"
+    },
+    "moderateLiveChatUser": {
+      "availableMemoryMb": null,
       "timeoutSeconds": null,
       "minInstances": null,
       "maxInstances": 1,
@@ -932,7 +725,46 @@
       ],
       "labels": {},
       "callableTrigger": {},
-      "entryPoint": "switchChannelType"
+      "entryPoint": "moderateLiveChatUser"
+    },
+    "processSuperchat": {
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "processSuperchat"
+    },
+    "pruneLiveChatBacklogs": {
+      "availableMemoryMb": 512,
+      "timeoutSeconds": 300,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "scheduleTrigger": {
+        "schedule": "every 30 minutes",
+        "retryConfig": {}
+      },
+      "entryPoint": "pruneLiveChatBacklogs"
     },
     "onChannelCreatedSyncUser": {
       "availableMemoryMb": null,
@@ -1126,23 +958,6 @@
       "callableTrigger": {},
       "entryPoint": "markNotificationRead"
     },
-    "updateTopicNotificationSettings": {
-      "availableMemoryMb": 256,
-      "timeoutSeconds": null,
-      "minInstances": null,
-      "maxInstances": 2,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "callableTrigger": {},
-      "entryPoint": "updateTopicNotificationSettings"
-    },
     "onCommentCreated": {
       "availableMemoryMb": 256,
       "timeoutSeconds": null,
@@ -1251,34 +1066,6 @@
       },
       "entryPoint": "onUserNotificationCreated"
     },
-    "onFactCheckCompleted": {
-      "availableMemoryMb": null,
-      "timeoutSeconds": null,
-      "minInstances": null,
-      "maxInstances": 2,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "eventTrigger": {
-        "eventType": "google.cloud.firestore.document.v1.created",
-        "eventFilters": {
-          "database": "(default)",
-          "namespace": "(default)"
-        },
-        "eventFilterPathPatterns": {
-          "document": "factChecks/{jobId}"
-        },
-        "retry": false
-      },
-      "entryPoint": "onFactCheckCompleted"
-    },
     "getHomeFeed": {
       "availableMemoryMb": 512,
       "timeoutSeconds": null,
@@ -1296,24 +1083,6 @@
       "labels": {},
       "httpsTrigger": {},
       "entryPoint": "getHomeFeed"
-    },
-    "getDiscoveryModules": {
-      "availableMemoryMb": 256,
-      "timeoutSeconds": null,
-      "minInstances": null,
-      "maxInstances": 1,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "httpsTrigger": {},
-      "entryPoint": "getDiscoveryModules"
     },
     "trackActivity": {
       "availableMemoryMb": 256,
@@ -1480,117 +1249,25 @@
       },
       "entryPoint": "cleanupProcessedEvents"
     },
-    "getChannelOverview": {
-      "availableMemoryMb": 256,
-      "timeoutSeconds": null,
-      "minInstances": null,
-      "maxInstances": 50,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "callableTrigger": {},
-      "entryPoint": "getChannelOverview"
-    },
-    "getChannelViewsDetails": {
-      "availableMemoryMb": 512,
-      "timeoutSeconds": null,
-      "minInstances": null,
-      "maxInstances": 50,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "callableTrigger": {},
-      "entryPoint": "getChannelViewsDetails"
-    },
-    "getChannelWatchtimeDetails": {
-      "availableMemoryMb": 512,
-      "timeoutSeconds": null,
-      "minInstances": null,
-      "maxInstances": 50,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "callableTrigger": {},
-      "entryPoint": "getChannelWatchtimeDetails"
-    },
-    "getChannelSubscribers": {
-      "availableMemoryMb": 512,
-      "timeoutSeconds": null,
-      "minInstances": null,
-      "maxInstances": 50,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "callableTrigger": {},
-      "entryPoint": "getChannelSubscribers"
-    },
-    "getChannelRevenueDetails": {
-      "availableMemoryMb": 256,
-      "timeoutSeconds": null,
-      "minInstances": null,
-      "maxInstances": 50,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "callableTrigger": {},
-      "entryPoint": "getChannelRevenueDetails"
-    },
     "scheduledPublishing": {
       "availableMemoryMb": 512,
       "timeoutSeconds": 540,
       "minInstances": 0,
-      "maxInstances": 2,
+      "maxInstances": 1,
       "ingressSettings": null,
-      "concurrency": 10,
+      "concurrency": null,
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
-      "cpu": 1,
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "eventTrigger": {
-        "eventType": "google.cloud.pubsub.topic.v1.messagePublished",
-        "eventFilters": {
-          "topic": "scheduled-publishing"
-        },
-        "retry": false
+      "scheduleTrigger": {
+        "schedule": "every 5 minutes",
+        "retryConfig": {},
+        "timeZone": "UTC"
       },
       "entryPoint": "scheduledPublishing"
     },
@@ -1782,11 +1459,11 @@
       "httpsTrigger": {},
       "entryPoint": "triggerAdAIFeatures"
     },
-    "makeMeAdmin": {
-      "availableMemoryMb": 256,
-      "timeoutSeconds": null,
+    "generateAllVideoAdsAIFeatures": {
+      "availableMemoryMb": 1024,
+      "timeoutSeconds": 540,
       "minInstances": 0,
-      "maxInstances": 1,
+      "maxInstances": 2,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
@@ -1796,9 +1473,23 @@
       "region": [
         "asia-south1"
       ],
+      "secretEnvironmentVariables": [
+        {
+          "key": "GEMINI_API_KEY"
+        },
+        {
+          "key": "ASSEMBLYAI_KEY"
+        },
+        {
+          "key": "ELEVENLABS_API_KEY"
+        },
+        {
+          "key": "GOOGLE_TRANSLATION_API_KEY"
+        }
+      ],
       "labels": {},
       "httpsTrigger": {},
-      "entryPoint": "makeMeAdmin"
+      "entryPoint": "generateAllVideoAdsAIFeatures"
     },
     "onPublicPlaylistWritten": {
       "availableMemoryMb": null,
@@ -2006,42 +1697,6 @@
       },
       "entryPoint": "refreshBackgroundQueue"
     },
-    "submitVideoAppeal": {
-      "availableMemoryMb": 256,
-      "timeoutSeconds": 30,
-      "minInstances": null,
-      "maxInstances": 1,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "httpsTrigger": {},
-      "entryPoint": "submitVideoAppeal"
-    },
-    "resolveCopyrightOwnerAction": {
-      "availableMemoryMb": 256,
-      "timeoutSeconds": 30,
-      "minInstances": null,
-      "maxInstances": 1,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "httpsTrigger": {},
-      "entryPoint": "resolveCopyrightOwnerAction"
-    },
     "onVideoDisputeSubmitted": {
       "availableMemoryMb": 1024,
       "timeoutSeconds": 540,
@@ -2074,78 +1729,6 @@
         "retry": false
       },
       "entryPoint": "onVideoDisputeSubmitted"
-    },
-    "adminSearchContent": {
-      "availableMemoryMb": null,
-      "timeoutSeconds": null,
-      "minInstances": 0,
-      "maxInstances": 5,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "httpsTrigger": {},
-      "entryPoint": "adminSearchContent"
-    },
-    "adminBulkModerate": {
-      "availableMemoryMb": null,
-      "timeoutSeconds": null,
-      "minInstances": 0,
-      "maxInstances": 5,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "httpsTrigger": {},
-      "entryPoint": "adminBulkModerate"
-    },
-    "searchUsers": {
-      "availableMemoryMb": null,
-      "timeoutSeconds": null,
-      "minInstances": 0,
-      "maxInstances": 5,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "httpsTrigger": {},
-      "entryPoint": "searchUsers"
-    },
-    "getUserSafetyProfile": {
-      "availableMemoryMb": null,
-      "timeoutSeconds": null,
-      "minInstances": 0,
-      "maxInstances": 5,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "httpsTrigger": {},
-      "entryPoint": "getUserSafetyProfile"
     },
     "moderateUser": {
       "availableMemoryMb": null,
@@ -2183,47 +1766,29 @@
       "httpsTrigger": {},
       "entryPoint": "consolidateUserAccounts"
     },
-    "repairStuckVideoJobs": {
-      "availableMemoryMb": 512,
-      "timeoutSeconds": 300,
-      "minInstances": 0,
-      "maxInstances": 2,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "httpsTrigger": {},
-      "entryPoint": "repairStuckVideoJobs"
-    },
-    "repairIncompleteVideoDocs": {
-      "availableMemoryMb": 512,
-      "timeoutSeconds": 300,
-      "minInstances": 0,
-      "maxInstances": 2,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "httpsTrigger": {},
-      "entryPoint": "repairIncompleteVideoDocs"
-    },
-    "recommendTopicsForVideo": {
+    "createStripeCheckoutSession": {
       "availableMemoryMb": 256,
-      "timeoutSeconds": 15,
-      "minInstances": 0,
-      "maxInstances": 2,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "createStripeCheckoutSession"
+    },
+    "stripeSuccessCallback": {
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 1,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
@@ -2235,7 +1800,25 @@
       ],
       "labels": {},
       "httpsTrigger": {},
-      "entryPoint": "recommendTopicsForVideo"
+      "entryPoint": "stripeSuccessCallback"
+    },
+    "adminBulkModerate": {
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": 0,
+      "maxInstances": 5,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "httpsTrigger": {},
+      "entryPoint": "adminBulkModerate"
     }
   },
   "specVersion": "v1alpha1",

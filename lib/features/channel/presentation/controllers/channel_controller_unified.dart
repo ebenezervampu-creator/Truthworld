@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' as io;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
@@ -934,9 +935,25 @@ class ChannelController extends BaseController
       final ref = _storage.ref().child(
         'channels/$folder/$userId/$uniqueFileName',
       );
-
-      final metadata = SettableMetadata(contentType: 'image/${file.extension}');
-      final uploadTask = ref.putData(file.bytes!, metadata);
+      final metadata = SettableMetadata(
+        contentType: 'image/${file.extension}',
+        customMetadata: {'uploaderId': userId},
+      );
+      final UploadTask uploadTask;
+      if (kIsWeb) {
+        if (file.bytes == null) {
+          throw Exception('File bytes are null on Web platform');
+        }
+        uploadTask = ref.putData(file.bytes!, metadata);
+      } else {
+        if (file.path != null && io.File(file.path!).existsSync()) {
+          uploadTask = ref.putFile(io.File(file.path!), metadata);
+        } else if (file.bytes != null) {
+          uploadTask = ref.putData(file.bytes!, metadata);
+        } else {
+          throw Exception('File is missing both path and bytes');
+        }
+      }
 
       uploadTask.snapshotEvents.listen(
         (snapshot) {
@@ -952,16 +969,16 @@ class ChannelController extends BaseController
       final url = await snapshot.ref.getDownloadURL();
       return {'url': url, 'fileName': uniqueFileName};
     } on FirebaseException catch (e) {
-      debugPrint('ðŸ”¥ Firebase Storage Error: ${e.code}');
-      debugPrint('ðŸ“ Message: ${e.message}');
+      debugPrint('🔥 Firebase Storage Error: ${e.code}');
+      debugPrint('📍 Message: ${e.message}');
       if (e.code == 'permission-denied') {
         debugPrint(
-          'âš ï¸ Ensure Firebase Storage rules are configured correctly.',
+          '⚠️ Ensure Firebase Storage rules are configured correctly.',
         );
       }
       return null;
     } catch (e) {
-      debugPrint('âŒ Upload error: $e');
+      debugPrint('❌ Upload error: $e');
       return null;
     }
   }
@@ -970,7 +987,7 @@ class ChannelController extends BaseController
     try {
       final result = await FilePicker.pickFiles(
         type: FileType.image,
-        withData: true,
+        withData: kIsWeb,
       );
       if (result == null || result.files.isEmpty) return;
 
@@ -1004,9 +1021,16 @@ class ChannelController extends BaseController
       // If user cancels cropping, abort gracefully
       if (croppedFile == null && file.path != null) return;
 
-      final croppedBytes = croppedFile != null
-          ? await croppedFile.readAsBytes()
-          : file.bytes!;
+      final Uint8List croppedBytes;
+      if (croppedFile != null) {
+        croppedBytes = await croppedFile.readAsBytes();
+      } else if (file.bytes != null) {
+        croppedBytes = file.bytes!;
+      } else if (file.path != null && io.File(file.path!).existsSync()) {
+        croppedBytes = await io.File(file.path!).readAsBytes();
+      } else {
+        return _showErrorSnackbar('Unable to read image data.');
+      }
       final croppedPath = croppedFile?.path ?? file.path;
 
       final maxSize = isBanner ? maxBannerSize : maxAvatarSize;
@@ -2584,17 +2608,63 @@ class ChannelController extends BaseController
         _firestore
             .collection(FirestoreCollections.topics)
             .where('channelId', isEqualTo: channelId)
-            .limit(1)
+            .where('status', isEqualTo: 'active')
+            .limit(5)
             .get(),
       ]);
 
       hasVideos.value = results[0].docs.isNotEmpty;
       hasPlaylists.value = results[1].docs.isNotEmpty;
       hasPosts.value = results[2].docs.isNotEmpty;
-      hasTopics.value = results[3].docs.isNotEmpty;
+      hasTopics.value = results[3].docs.any((doc) {
+        final data = doc.data() as Map<String, dynamic>?;
+        final vCount = (data?['videoCount'] as num?)?.toInt() ?? 0;
+        final featVids = data?['featuredVideoIds'] as List?;
+        return vCount > 0 || (featVids != null && featVids.isNotEmpty);
+      });
     } catch (e) {
       debugPrint('Error checking channel content: $e');
     }
+  }
+
+  Stream<QuerySnapshot>? _channelPlaylistsStream;
+  String? _channelPlaylistsId;
+  Stream<QuerySnapshot> getPlaylistsStream(String channelId) {
+    if (_channelPlaylistsStream == null || _channelPlaylistsId != channelId) {
+      _channelPlaylistsId = channelId;
+      _channelPlaylistsStream = _firestore
+          .collection('public_playlists')
+          .where('channelId', isEqualTo: channelId)
+          .limit(50)
+          .snapshots();
+    }
+    return _channelPlaylistsStream!;
+  }
+
+  Stream<QuerySnapshot>? _channelTopicsStream;
+  String? _channelTopicsId;
+  Stream<QuerySnapshot> getTopicsStream(String channelId) {
+    if (_channelTopicsStream == null || _channelTopicsId != channelId) {
+      _channelTopicsId = channelId;
+      _channelTopicsStream = _firestore
+          .collection(FirestoreCollections.topics)
+          .where('channelId', isEqualTo: channelId)
+          .snapshots();
+    }
+    return _channelTopicsStream!;
+  }
+
+  Stream<QuerySnapshot>? _channelCommunityStream;
+  String? _channelCommunityId;
+  Stream<QuerySnapshot> getCommunityStream(String channelId) {
+    if (_channelCommunityStream == null || _channelCommunityId != channelId) {
+      _channelCommunityId = channelId;
+      _channelCommunityStream = _firestore
+          .collection(FirestoreCollections.community)
+          .where('channelId', isEqualTo: channelId)
+          .snapshots();
+    }
+    return _channelCommunityStream!;
   }
 
   /// Updates channel monetization tier / channel type (Standard vs Custom)

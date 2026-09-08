@@ -35,6 +35,13 @@ const FLASH_SUPPORTED = new Set([
   "ru", "sk", "es", "sv", "th", "tr", "uk", "vi",
 ]);
 
+/** Languages supported by Multilingual v2 (29 languages) */
+const MULTILINGUAL_V2_SUPPORTED = new Set([
+  "en", "ja", "zh", "de", "hi", "fr", "ko", "pt", "it", "es",
+  "id", "nl", "tr", "fil", "tl", "pl", "sv", "bg", "ro", "ar",
+  "cs", "el", "fi", "hr", "ms", "sk", "ta", "uk", "ru"
+]);
+
 const MAX_RETRIES = 3;
 
 interface VoiceSettings {
@@ -63,14 +70,20 @@ export class TTSService {
 
   /**
    * Auto-select the best model for the target language.
-   * Flash v2.5 is preferred for batch dubbing (low latency, good quality).
+   * - Flash v2.5: 32 high-speed languages
+   * - Multilingual v2: 29 core languages
+   * - Eleven v3: Flagship supporting all 74+ languages
    */
   private selectModel(language: string): string {
     const langLower = language.toLowerCase().split("-")[0]; // "en-us" → "en"
     if (FLASH_SUPPORTED.has(langLower)) {
       return TTS_MODELS.flash;
     }
-    return TTS_MODELS.multilingual_v2;
+    if (MULTILINGUAL_V2_SUPPORTED.has(langLower)) {
+      return TTS_MODELS.multilingual_v2;
+    }
+    // Flagship Eleven v3 covers the extended 74+ languages
+    return TTS_MODELS.v3;
   }
 
   async synthesize(request: TTSRequest): Promise<TTSResult> {

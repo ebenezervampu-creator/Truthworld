@@ -19,7 +19,9 @@ import * as admin from "firebase-admin";
 
 // Initialize Firebase Admin SDK first
 if (!admin.apps.length) {
-  admin.initializeApp();
+  admin.initializeApp({
+    databaseURL: "https://truthworld-1-default-rtdb.asia-southeast1.firebasedatabase.app",
+  });
 }
 admin.firestore().settings({ ignoreUndefinedProperties: true });
 
@@ -30,8 +32,7 @@ import { onDocumentUpdated, onDocumentWritten } from "firebase-functions/v2/fire
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
 import { onTaskDispatched } from "firebase-functions/v2/tasks";
 import { v4 as uuidv4 } from "uuid";
-import { requireAuth, requireAdmin } from "./utils/auth";
-import { strictLimiter } from "./utils/rate-limiter";
+import { requireAuth } from "./utils/auth";
 import { notifyUser } from "./notifications/notifications";
 import { notifyMentions } from "./notifications/triggers";
 
@@ -65,11 +66,10 @@ import { PIPELINE_CONFIG } from "./pipeline/config";
 // FEATURE 1: PIPELINE — Video Processing (10 Layers)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/**
- * ⚡ Submit video for processing — returns instantly with job ID
- *
- * CONFIG: minInstances=1 (warm), maxInstances=10, concurrency=100
- */
+/*
+ * NOTE: submitVideo, getProgressiveStatus, and getFinalOutput are bypassed in production.
+ * Video processing jobs are submitted and tracked directly via Firestore (`video_jobs`)
+ * through the Publish-Gated pipeline trigger (onVideoPublishedCreateJob).
 export const submitVideo = onRequest(
   {
     cors: true,
@@ -114,11 +114,6 @@ export const submitVideo = onRequest(
   }
 );
 
-/**
- * 📊 Get progressive job status with partial results
- *
- * CONFIG: minInstances=0, maxInstances=10
- */
 export const getProgressiveStatus = onRequest(
   {
     cors: true,
@@ -157,11 +152,6 @@ export const getProgressiveStatus = onRequest(
   }
 );
 
-/**
- * 📦 Get final aggregated output
- *
- * CONFIG: minInstances=0, maxInstances=10
- */
 export const getFinalOutput = onRequest(
   {
     cors: true,
@@ -198,6 +188,7 @@ export const getFinalOutput = onRequest(
     }
   }
 );
+*/
 
 /**
  * 🪄 Trigger On-Demand AI Features for a Video
@@ -246,14 +237,14 @@ export const triggerVideoAIFeatures = onRequest(
 
       const videoData = videoSnap.data() || {};
 
-      // Verify authorization: owner or admin
-      if (videoData.ownerId && videoData.ownerId !== userId) {
-        const userDoc = await admin.firestore().collection("users").doc(userId).get();
-        const isAdmin = userDoc.exists && userDoc.data()?.role === "admin";
-        if (!isAdmin) {
-          res.status(403).json({ error: "Unauthorized: You do not own this video" });
-          return;
-        }
+      // L-40: Verify authorization: must be video owner (ownerId, userId, or uploaderId) or admin
+      const videoOwnerId = videoData.ownerId || videoData.userId || videoData.uploaderId;
+      const isOwner = videoOwnerId === userId;
+      const isAdmin = authUser.isAdmin === true;
+
+      if (!isOwner && !isAdmin) {
+        res.status(403).json({ error: "Unauthorized: You do not own this video" });
+        return;
       }
 
       const videoUrl = videoData.videoUrl || videoData.originalUrl || "";
@@ -423,8 +414,9 @@ export const onVideoUpload = onObjectFinalized(
       const filePath = event.data.name;
       const contentType = event.data.contentType || "";
 
-      // COST GUARD: Skip non-video files immediately to avoid wasted compute
-      if (!filePath.startsWith("videos/") || !contentType.startsWith("video/")) {
+      // COST GUARD: Only process original uploads under videos/ prefix to prevent loops/spurious triggers
+      const fileName = filePath.split("/").pop() ?? "";
+      if (!filePath.startsWith("videos/") || !fileName.startsWith("original") || !contentType.startsWith("video/")) {
         return;
       }
 
@@ -694,6 +686,8 @@ export const handleCopyrightCheck = onMessagePublished(
  *
  * CONFIG: minInstances=0, maxInstances=1
  */
+/*
+ * NOTE: setupPipeline is a one-time maintenance script not needed in active deployment.
 export const setupPipeline = onRequest(
   {
     cors: false,
@@ -723,17 +717,10 @@ export const setupPipeline = onRequest(
     }
   }
 );
+*/
 
-
-
-/**
- * ⚡ Fast credibility check — returns traffic-light signal in < 5 seconds
- * 
- * Use case: browser extensions, mobile quick-check, API embeds
- * Flash model only, no grounding, max 5 claims
- * 
- * CONFIG: minInstances=0, maxInstances=20, 512MiB, 30s timeout
- */
+/*
+ * NOTE: handleFastVerification is an unintegrated tier (Flash-only credibility check).
 export const handleFastVerification = onRequest(
   {
     cors: true,
@@ -776,18 +763,16 @@ export const handleFastVerification = onRequest(
     }
   }
 );
+*/
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // FEATURE 1.5: COST GOVERNANCE — Cost Dashboard APIs
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/*
+ * NOTE: Cost dashboard endpoints are unintegrated by client applications.
 import { costEngine } from "./pipeline/services/cost-engine";
 
-/**
- * 💰 Get cost dashboard for a specific creator (monthly breakdown)
- *
- * CONFIG: minInstances=0, maxInstances=5
- */
 export const getCreatorCostDashboard = onRequest(
   {
     cors: true,
@@ -830,11 +815,6 @@ export const getCreatorCostDashboard = onRequest(
   }
 );
 
-/**
- * 📊 Get system-wide cost overview (admin only)
- *
- * CONFIG: minInstances=0, maxInstances=2
- */
 export const getSystemCostOverview = onRequest(
   {
     cors: true,
@@ -861,11 +841,6 @@ export const getSystemCostOverview = onRequest(
   }
 );
 
-/**
- * 🔍 Get per-job cost breakdown with line items
- *
- * CONFIG: minInstances=0, maxInstances=5
- */
 export const getJobCostBreakdown = onRequest(
   {
     cors: true,
@@ -919,14 +894,14 @@ export const getJobCostBreakdown = onRequest(
     }
   }
 );
+*/
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // FEATURE 1.6: COPYRIGHT PROTECTION — Appeals and Claim Management
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/**
- * 🛡️ Submit copyright appeal
- */
+/*
+ * NOTE: Copyright appeal endpoints are unintegrated by client applications.
 export const submitCopyrightAppeal = onRequest(
   {
     cors: true,
@@ -972,9 +947,6 @@ export const submitCopyrightAppeal = onRequest(
   }
 );
 
-/**
- * 🏛️ Resolve copyright appeal (Admin only)
- */
 export const resolveCopyrightAppeal = onRequest(
   {
     cors: true,
@@ -1013,9 +985,6 @@ export const resolveCopyrightAppeal = onRequest(
   }
 );
 
-/**
- * 🛡️ Get copyright claims for the current user
- */
 export const getCreatorCopyrightClaims = onRequest(
   {
     cors: true,
@@ -1059,6 +1028,7 @@ export const getCreatorCopyrightClaims = onRequest(
     }
   }
 );
+*/
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // FEATURE 2: RESOLUTION — Video Resolution Processing (≤ 1040p)
@@ -1066,8 +1036,8 @@ export const getCreatorCopyrightClaims = onRequest(
 
 export {
   onVideoUploadedForResolution,
-  getVideoResolutionStatus,
-  getResolutionProfiles,
+  // getVideoResolutionStatus, (bypassed: client reads Firestore resolution_jobs directly)
+  // getResolutionProfiles,     (bypassed: client uses hardcoded/Firestore resolution profiles)
   handleResolution,
 } from "./resolution/resolution";
 
@@ -1651,11 +1621,27 @@ export {
   trackWatchEvent,
   aggregateWatchStats,
   cleanupOldEvents,
-  getCreatorStats,
+  // getCreatorStats, (queries non-existent collection; client reads channel stats from Firestore)
 } from "./watchtime/watchtime";
 
 export { rollupDailyStats } from "./watchtime/rollup";
-export { createChannel, switchChannelType, onChannelCreatedSyncUser } from "./channels/channels";
+
+export {
+  onActiveViewerWrite,
+  cleanupStaleSessions,
+} from "./watchtime/liveViewers";
+
+export { aggregateVideoImpressions } from "./analytics/impressions";
+export {
+  moderateLiveChatUser,
+  processSuperchat,
+  pruneLiveChatBacklogs,
+} from "./livechat/liveChat";
+export {
+  // createChannel, (bypassed: client creates channel directly in Firestore channels collection)
+  // switchChannelType, (bypassed: client updates channel document directly in Firestore)
+  onChannelCreatedSyncUser,
+} from "./channels/channels";
 export { onChannelWritten, onImageVerificationWritten, moderateChannelManual } from "./channels/moderation";
 export { onTopicWritten, moderateTopicManual } from "./topics/moderation";
 
@@ -1685,7 +1671,7 @@ export {
 export {
   getNotifications,
   markNotificationRead,
-  updateTopicNotificationSettings
+  // updateTopicNotificationSettings (bypassed: client writes directly to savedTopics)
 } from "./notifications/notifications";
 
 export {
@@ -1695,11 +1681,11 @@ export {
   onUserNotificationCreated
 } from "./notifications/triggers";
 
-export { onFactCheckCompleted } from "./channels/reputation_triggers";
+// onFactCheckCompleted removed: Dead Firestore trigger on factChecks/{jobId}. Credibility pipeline invokes updateChannelReputationAndVideos directly.
 
 export {
   getHomeFeed,
-  getDiscoveryModules
+  // getDiscoveryModules (bypassed: client uses local Firestore fallback for discovery modules)
 } from "./channels/recommendations";
 
 export {
@@ -1735,6 +1721,9 @@ export {
 // ── Infrastructure: Idempotency TTL Cleanup ──────────────────────────────────
 export { cleanupProcessedEvents } from "./shared/idempotency";
 
+/*
+ * NOTE: Channel analytics endpoints are unintegrated by client applications.
+ * Client reads analytics metrics directly from Firestore channel documents.
 export {
   getChannelOverview,
   getChannelViewsDetails,
@@ -1742,6 +1731,7 @@ export {
   getChannelSubscribers,
   getChannelRevenueDetails,
 } from "./channels/analytics";
+*/
 
 export {
   scheduledPublishing,
@@ -1824,36 +1814,8 @@ export { seoServer } from "./seo/seoServer";
 export { rebuildDirtySitemapsScheduler } from "./seo/sitemap/sitemapScheduler";
 export { onVideoSeoWritten, onChannelSeoWritten } from "./seo/indexing/indexingTriggers";
 
-export { onAdCampaignWritten, triggerAdAIFeatures } from "./ads/ads";
+export { onAdCampaignWritten, triggerAdAIFeatures, generateAllVideoAdsAIFeatures } from "./ads/ads";
 
-/**
- * 🔐 Temporary Admin Claim tool
- * Trigger this endpoint to make any email account an admin for the manual verification panel.
- * Example: https://asia-south1-truthworld-1.cloudfunctions.net/makeMeAdmin?email=your-email@gmail.com
- */
-export const makeMeAdmin = onRequest(
-  {
-    cors: true,
-    region: "asia-south1",
-    minInstances: 0,
-    maxInstances: 1,
-    memory: "256MiB",
-  },
-  async (req, res) => {
-    const email = req.query.email as string;
-    if (!email) {
-      res.status(400).send("Missing 'email' query parameter.");
-      return;
-    }
-    try {
-      const user = await admin.auth().getUserByEmail(email);
-      await admin.auth().setCustomUserClaims(user.uid, { admin: true });
-      res.status(200).send(`Successfully set admin claim for ${email}. Please sign out and sign back in to refresh your token!`);
-    } catch (error) {
-      res.status(500).send(`Error: ${error}`);
-    }
-  }
-);
 
 // ─── Playlist Moderation triggers ─────────────────────────────────────────────
 export { onPublicPlaylistWritten, onPrivatePlaylistWritten } from "./moderation/playlistModeration";
@@ -1924,10 +1886,8 @@ export const refreshBackgroundQueue = onTaskDispatched(
   runSWRTask
 );
 
-/**
- * 📣 Creator Appeal Gateway Endpoint
- * Allows creators to appeal a REJECTED video to the Admin Manual Review queue
- */
+/*
+ * NOTE: submitVideoAppeal and resolveCopyrightOwnerAction are unintegrated by client applications.
 export const submitVideoAppeal = onRequest(
   { cors: true, region: "asia-south1", memory: "256MiB", timeoutSeconds: 30 },
   async (req, res) => {
@@ -1997,13 +1957,6 @@ export const submitVideoAppeal = onRequest(
   }
 );
 
-/**
- * 🛡️ Copyright Owner Action Resolution Endpoint
- * Allows original copyright owners to pick:
- * 1. YELLOW_STRIKE (Delete video & issue strike to channel)
- * 2. REDIRECT_MONETIZATION (Redirect ad revenue to original owner & resume pipeline)
- * 3. NO_OBJECTION (License video & resume pipeline)
- */
 export const resolveCopyrightOwnerAction = onRequest(
   { cors: true, region: "asia-south1", memory: "256MiB", timeoutSeconds: 30 },
   async (req, res) => {
@@ -2047,6 +2000,7 @@ export const resolveCopyrightOwnerAction = onRequest(
     }
   }
 );
+*/
 
 
 /**
@@ -2073,7 +2027,21 @@ export const onVideoDisputeSubmitted = onDocumentUpdated(
     // Trigger re-evaluation only when transitioning into pending_review
     if (afterStatus === "pending_review" && beforeStatus !== "pending_review") {
       const videoId = event.params.videoId;
-      logger.info("[DisputeTrigger] Re-evaluating credibility for disputed video", { videoId, reason: afterData.factCheckDispute.reason });
+      const disputeAttempts = Number(afterData.factCheckDispute?.disputeAttempts || 0);
+      if (disputeAttempts >= 2) {
+        logger.warn("[DisputeTrigger] Maximum dispute attempts reached for video", { videoId, disputeAttempts });
+        await admin.firestore().collection("videos").doc(videoId).set(
+          {
+            "factCheckDispute.status": "rejected_max_attempts",
+            "factCheckDispute.resolvedAt": admin.firestore.FieldValue.serverTimestamp(),
+            "factCheckDispute.rejectReason": "Maximum dispute attempts (2) reached for this video.",
+          },
+          { merge: true }
+        );
+        return;
+      }
+
+      logger.info("[DisputeTrigger] Re-evaluating credibility for disputed video", { videoId, reason: afterData.factCheckDispute.reason, disputeAttempts });
 
       try {
         const geminiKey = PIPELINE_CONFIG.GEMINI_API_KEY;
@@ -2110,6 +2078,7 @@ export const onVideoDisputeSubmitted = onDocumentUpdated(
           {
             "factCheckDispute.status": "resolved",
             "factCheckDispute.resolvedAt": admin.firestore.FieldValue.serverTimestamp(),
+            "factCheckDispute.disputeAttempts": admin.firestore.FieldValue.increment(1),
             "credibilityStatus": "re_evaluated_with_channel_sources",
           },
           { merge: true }
@@ -2128,11 +2097,21 @@ export const onVideoDisputeSubmitted = onDocumentUpdated(
 // ADMIN PORTAL
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export * from "./admin/adminSearch";
+// export * from "./admin/adminSearch"; (unintegrated)
 export * from "./admin/adminBulkModerate";
-export * from "./admin/userManagement";
-export * from "./admin/repairStuckJobs";
-export * from "./admin/repairIncompleteVideoDocs";
+export { moderateUser, consolidateUserAccounts } from "./admin/userManagement";
+// export * from "./admin/repairStuckJobs"; (one-time maintenance script)
+// export * from "./admin/repairIncompleteVideoDocs"; (one-time maintenance script)
+// export * from "./admin/cleanupMockTopicsAndPlaylists"; (one-time maintenance script)
 
-// Topic Recommendations
-export * from "./topics/recommendations";
+// Topic Recommendations (bypassed: client performs topic matching/assignment directly)
+// export * from "./topics/recommendations";
+
+// Live Chat & Superchat Moderation (already exported above on line 1637)
+// export * from "./livechat/liveChat";
+
+// Economy, Monetization & Stripe Payments
+export { createStripeCheckoutSession, stripeSuccessCallback } from "./economy/stripe";
+// export * from "./economy/revenue"; (unintegrated)
+// export * from "./economy/leaderboards"; (unintegrated)
+

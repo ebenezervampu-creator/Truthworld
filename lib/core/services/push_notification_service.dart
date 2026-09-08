@@ -177,8 +177,26 @@ class PushNotificationService extends GetxService {
     try {
       final data = message.data;
       final type = data['type'] as String?;
-      final videoId = data['videoId'] as String?;
+      var videoId = data['videoId'] as String? ??
+          data['targetVideoId'] as String? ??
+          data['video_id'] as String?;
       final actionUrl = data['actionUrl'] as String?;
+
+      // Extract video ID from actionUrl if not present in explicit data payload
+      if ((videoId == null || videoId.isEmpty) &&
+          actionUrl != null &&
+          actionUrl.isNotEmpty) {
+        final videoRegex = RegExp('/(?:video|watch|v)/([^/?#]+)');
+        final match = videoRegex.firstMatch(actionUrl);
+        if (match != null) {
+          videoId = match.group(1);
+        } else if (actionUrl.contains('v=')) {
+          final uri = Uri.tryParse(actionUrl);
+          if (uri != null && uri.queryParameters.containsKey('v')) {
+            videoId = uri.queryParameters['v'];
+          }
+        }
+      }
 
       if (type == 'perspective_flip' && videoId != null && videoId.isNotEmpty) {
         NotificationService.to.handlePerspectiveFlipNotification(
@@ -199,6 +217,12 @@ class PushNotificationService extends GetxService {
           typeLower == 'new_subscriber' ||
           typeLower == 'subscription' ||
           typeLower == 'subscribers_milestone' ||
+          typeLower == 'subscribers_milestone_v1' ||
+          typeLower == 'creator_intelligence' ||
+          typeLower == 'coach_growth_tip' ||
+          typeLower == 'coach_growth_tip_v1' ||
+          typeLower == 'analytics_alert' ||
+          typeLower == 'monetization' ||
           typeLower.contains('subscriber') ||
           typeLower.contains('follower') ||
           title.contains('subscriber') ||

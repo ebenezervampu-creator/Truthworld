@@ -1,6 +1,6 @@
 import { DOMAIN, SCHEMA_VERSION, escapeHtml, cleanJsonLd } from "../schema/schemaConfig";
 
-export const SNAPSHOT_VERSION = 4;
+export const SNAPSHOT_VERSION = 5;
 
 export interface HtmlRenderOptions {
   title: string;
@@ -52,6 +52,8 @@ export function buildSemanticSsrHtml(options: HtmlRenderOptions): string {
   }
   const image = rawImage;
   const canonicalUrl = options.url || DOMAIN;
+  const safeDurationSeconds = typeof options.durationSeconds === "number" && isFinite(options.durationSeconds)
+    ? Math.floor(options.durationSeconds) : undefined;
 
   // Build JSON-LD blocks
   let jsonLdScriptTags = "";
@@ -60,7 +62,7 @@ export function buildSemanticSsrHtml(options: HtmlRenderOptions): string {
     if (cleanedLd) {
       const blocks = Array.isArray(cleanedLd) ? cleanedLd : [cleanedLd];
       for (const block of blocks) {
-        jsonLdScriptTags += `<script type="application/ld+json">\n${JSON.stringify(block, null, 2)}\n</script>\n  `;
+        jsonLdScriptTags += `<script type="application/ld+json">\n${JSON.stringify(block, null, 2).replace(/<\//g, "<\\/")}\n</script>\n  `;
       }
     }
   }
@@ -69,12 +71,13 @@ export function buildSemanticSsrHtml(options: HtmlRenderOptions): string {
   const supportedLangs = ["en", "hi", "te", "ta", "kn"];
   let hreflangTags = "";
   for (const lang of supportedLangs) {
-    hreflangTags += `<link rel="alternate" hreflang="${lang}" href="${canonicalUrl}" />\n  `;
+    hreflangTags += `<link rel="alternate" hreflang="${lang}" href="${escapeHtml(canonicalUrl)}" />\n  `;
   }
 
   // Determine image MIME type
-  const isPng = image.toLowerCase().endsWith(".png");
-  const isWebp = image.toLowerCase().endsWith(".webp");
+  const cleanImagePath = image.split("?")[0].toLowerCase();
+  const isPng = cleanImagePath.endsWith(".png");
+  const isWebp = cleanImagePath.endsWith(".webp");
   const mimeType = isPng ? "image/png" : (isWebp ? "image/webp" : "image/jpeg");
 
   // Standard 16:9 widescreen dimensions (1280x720 for large social cards)
@@ -86,6 +89,8 @@ export function buildSemanticSsrHtml(options: HtmlRenderOptions): string {
   let videoMetaTags = "";
   if (isVideo) {
     const embed = options.embedUrl || canonicalUrl;
+    const isHls = options.videoUrl ? (options.videoUrl.includes(".m3u8") || options.videoUrl.includes("hls")) : false;
+    const streamMime = isHls ? "application/x-mpegURL" : "video/mp4";
     videoMetaTags = `
   <meta property="og:video" content="${escapeHtml(embed)}" />
   <meta property="og:video:url" content="${escapeHtml(embed)}" />
@@ -93,9 +98,9 @@ export function buildSemanticSsrHtml(options: HtmlRenderOptions): string {
   <meta property="og:video:type" content="text/html" />
   <meta property="og:video:width" content="1280" />
   <meta property="og:video:height" content="720" />
-  ${options.videoUrl ? `<meta property="og:video:stream" content="${escapeHtml(options.videoUrl)}" />\n  <meta property="og:video:type" content="video/mp4" />` : ""}
-  ${options.durationSeconds ? `<meta property="video:duration" content="${options.durationSeconds}" />` : ""}
-  ${options.uploadDate ? `<meta property="video:release_date" content="${options.uploadDate}" />` : ""}
+  ${options.videoUrl ? `<meta property="og:video:stream" content="${escapeHtml(options.videoUrl)}" />\n  <meta property="og:video:stream:type" content="${streamMime}" />` : ""}
+  ${safeDurationSeconds ? `<meta property="video:duration" content="${safeDurationSeconds}" />` : ""}
+  ${options.uploadDate ? `<meta property="video:release_date" content="${escapeHtml(options.uploadDate)}" />` : ""}
   <meta name="twitter:player" content="${escapeHtml(embed)}" />
   <meta name="twitter:player:width" content="1280" />
   <meta name="twitter:player:height" content="720" />`;
@@ -105,27 +110,27 @@ export function buildSemanticSsrHtml(options: HtmlRenderOptions): string {
   const headMetaTags = `
   <title>${escapeHtml(options.title)}</title>
   <meta name="description" content="${escapeHtml(options.description)}" />
-  <meta name="robots" content="${robotsDirective}" />
-  <meta name="googlebot" content="${robotsDirective}" />
-  <link rel="canonical" href="${canonicalUrl}" />
-  <link rel="alternate" hreflang="x-default" href="${canonicalUrl}" />
+  <meta name="robots" content="${escapeHtml(robotsDirective)}" />
+  <meta name="googlebot" content="${escapeHtml(robotsDirective)}" />
+  <link rel="canonical" href="${escapeHtml(canonicalUrl)}" />
+  <link rel="alternate" hreflang="x-default" href="${escapeHtml(canonicalUrl)}" />
   ${hreflangTags}
   <meta property="og:site_name" content="Truthworld" />
   <meta property="og:type" content="${options.type || "website"}" />
-  <meta property="og:url" content="${canonicalUrl}" />
+  <meta property="og:url" content="${escapeHtml(canonicalUrl)}" />
   <meta property="og:title" content="${escapeHtml(options.title)}" />
   <meta property="og:description" content="${escapeHtml(options.description)}" />
-  <meta property="og:image" content="${image}" />
-  <meta property="og:image:secure_url" content="${image}" />
+  <meta property="og:image" content="${escapeHtml(image)}" />
+  <meta property="og:image:secure_url" content="${escapeHtml(image)}" />
   <meta property="og:image:type" content="${mimeType}" />
   <meta property="og:image:width" content="${width}" />
   <meta property="og:image:height" content="${height}" />
   <meta property="og:image:alt" content="${escapeHtml(options.title)}" />${videoMetaTags}
-  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:card" content="${isVideo ? "player" : "summary_large_image"}" />
   <meta name="twitter:site" content="@truthworld" />
   <meta name="twitter:title" content="${escapeHtml(options.title)}" />
   <meta name="twitter:description" content="${escapeHtml(options.description)}" />
-  <meta name="twitter:image" content="${image}" />
+  <meta name="twitter:image" content="${escapeHtml(image)}" />
   <meta name="twitter:image:alt" content="${escapeHtml(options.title)}" />
   ${jsonLdScriptTags}
   `;
@@ -169,6 +174,27 @@ export function buildSemanticSsrHtml(options: HtmlRenderOptions): string {
   </section>`;
   }
 
+  // Video player above the fold for Google Video Indexing prominence
+  let videoPlayerHtml = "";
+  if (isVideo) {
+    const poster = image;
+    const mediaSource = options.videoUrl;
+    const isHls = mediaSource ? (mediaSource.includes(".m3u8") || mediaSource.includes("hls")) : false;
+    videoPlayerHtml = `
+    <div class="tw-video-player-container" style="position: relative; width: 100%; aspect-ratio: 16/9; max-width: 960px; min-width: 280px; min-height: 157px; margin: 0 auto 20px; background: #000; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.5);" itemscope itemtype="https://schema.org/VideoObject">
+      <meta itemprop="name" content="${escapeHtml(options.title)}" />
+      <meta itemprop="description" content="${escapeHtml(options.description)}" />
+      <meta itemprop="thumbnailUrl" content="${escapeHtml(poster)}" />
+      ${options.uploadDate ? `<meta itemprop="uploadDate" content="${escapeHtml(options.uploadDate)}" />` : ""}
+      ${safeDurationSeconds ? `<meta itemprop="duration" content="PT${safeDurationSeconds}S" />` : ""}
+      ${options.embedUrl ? `<meta itemprop="embedUrl" content="${escapeHtml(options.embedUrl)}" />` : ""}
+      <video controls playsinline poster="${escapeHtml(poster)}" preload="metadata" style="width: 100%; height: 100%; object-fit: contain; display: block;" itemprop="video">
+        ${mediaSource ? (isHls ? `<source src="${escapeHtml(mediaSource)}" type="application/x-mpegURL" />\n        <source src="${escapeHtml(mediaSource)}" type="video/mp4" />` : `<source src="${escapeHtml(mediaSource)}" type="video/mp4" />`) : ""}
+        <p style="padding: 20px; color: #a1a1aa; text-align: center;">Your browser does not support the video tag. Watch on <a href="${escapeHtml(canonicalUrl)}" style="color: #9B30FF;">Truthworld</a>.</p>
+      </video>
+    </div>`;
+  }
+
   const semanticBodyHtml = `
   <!-- Truthworld SEO Snapshot | Schema Version: ${SCHEMA_VERSION} | Snapshot Version: ${SNAPSHOT_VERSION} -->
   <header style="padding: 16px; background: #090011; border-bottom: 1px solid #27272a; display: flex; justify-content: space-between; align-items: center;">
@@ -180,6 +206,7 @@ export function buildSemanticSsrHtml(options: HtmlRenderOptions): string {
 
   <main style="max-width: 1000px; margin: 0 auto; padding: 16px; color: #f4f4f5; font-family: Roboto, sans-serif;">
     <article>
+      ${videoPlayerHtml}
       <h1 style="font-size: 24px; font-weight: bold; line-height: 1.3; color: #ffffff;">${escapeHtml(headingText)}</h1>
       ${authorHtml}
       <p style="margin-top: 12px; line-height: 1.5; color: #d4d4d8; font-size: 15px;">${escapeHtml(options.description)}</p>
@@ -212,6 +239,15 @@ export function buildSemanticSsrHtml(options: HtmlRenderOptions): string {
 </head>
 <body>
   ${semanticBodyHtml}
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for (var registration of registrations) {
+          registration.unregister();
+        }
+      }).catch(function() {});
+    }
+  </script>
   <!-- Flutter bootstrap -->
   <script src="flutter_bootstrap.js"></script>
 </body>

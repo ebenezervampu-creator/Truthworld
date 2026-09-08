@@ -17,7 +17,6 @@ class ContentValidator {
   static final BadWordFilter _multiLangFilter = BadWordFilter(
     languages: ['en', 'fa', 'ar', 'tr', 'de', 'fr', 'es', 'ru'],
     includeSensitiveTopics: true,
-    matchInsideWords: true,
   );
 
   static const int defaultMaxTitleLength = 100;

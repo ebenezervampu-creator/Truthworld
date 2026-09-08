@@ -31,41 +31,61 @@ class HomeDiscoveryController extends BaseController {
   final AuthService _authService = Get.find<AuthService>();
 
   static const String _kFeaturedTopicsCacheKey = 'featured_topics_cache';
+  static const String _kForYouTopicsCacheKey = 'for_you_topics_cache';
   static const String _kQualifyingCategoriesCacheKey = 'qualifying_categories_cache';
   
   final RxList<Topic> featuredTopics = <Topic>[].obs;
   final RxBool isLoadingFeaturedTopics = true.obs;
 
+  final RxList<Topic> forYouTopics = <Topic>[].obs;
+  final RxBool isLoadingForYouTopics = true.obs;
+
   final RxString selectedCategory = 'All'.obs;
   final RxString activeFilterBar = 'All'.obs;
-  final RxList<String> availableCategories = <String>['All'].obs;
+  final RxList<String> availableCategories = <String>[
+    ...getFixedCategories(isAuthenticated: false),
+  ].obs;
 
   final RxMap<String, dynamic> subscribedChannels = <String, dynamic>{}.obs;
   final RxList<Map<String, dynamic>> subscribedChannelList = <Map<String, dynamic>>[].obs;
   final RxBool isLoadingSubscriptions = false.obs;
 
-  static List<String> getFixedCategories({required bool isAuthenticated}) {
-    return [
-      'All',
-      if (isAuthenticated) 'Subscriptions',
-      'Trending',
-      'Flip Coin',
-      'New',
-      'Popular',
-      'Posts',
-    ];
+  static List<String> getFixedCategories({bool isAuthenticated = true}) {
+    if (isAuthenticated) {
+      return const [
+        'All',
+        'Subscriptions',
+        'Trending',
+        'Flip Coin',
+        'New',
+        'Popular',
+        'Posts',
+      ];
+    } else {
+      return const [
+        'All',
+        'Trending',
+        'Flip Coin',
+        'New',
+        'Popular',
+      ];
+    }
   }
 
   @override
   void onInit() {
     super.onInit();
     _loadCachedFeaturedTopics();
+    _loadCachedForYouTopics();
     _loadCachedQualifyingCategories();
     fetchFeaturedTopics();
+    fetchForYouTopics();
     addWorker(
       ever(_authService.isAuthenticated, (isAuth) {
-        if (!isAuth && selectedCategory.value == 'Subscriptions') {
-          selectCategory('All');
+        if (!isAuth) {
+          if (selectedCategory.value == 'Subscriptions' || selectedCategory.value == 'Posts') {
+            selectCategory('All');
+          }
         }
         fetchAvailableCategories();
       }),
@@ -104,10 +124,28 @@ class HomeDiscoveryController extends BaseController {
     }
   }
 
+  void _loadCachedForYouTopics() {
+    try {
+      final cachedData = _storage.read<List>(_kForYouTopicsCacheKey);
+      if (cachedData != null && forYouTopics.isEmpty) {
+        final cachedTopics = cachedData
+            .map((data) => Topic.fromMap(Map<String, dynamic>.from(data)))
+            .where((t) => t.isValidTopic && t.videoCount > 0)
+            .toList();
+        if (cachedTopics.isNotEmpty) {
+          forYouTopics.assignAll(cachedTopics);
+          isLoadingForYouTopics.value = false;
+        }
+      }
+    } catch (e) {
+      debugPrint('HomeDiscoveryController: Cached for-you topics load error: $e');
+    }
+  }
+
   void saveFeaturedTopicsToCache() {
     try {
       final dataToCache = featuredTopics
-          .where((t) => t.isValidTopic)
+          .where((t) => t.isValidTopic && t.videoCount > 0)
           .map((t) => t.toCacheMap())
           .toList();
       _storage.write(_kFeaturedTopicsCacheKey, dataToCache);
@@ -116,37 +154,86 @@ class HomeDiscoveryController extends BaseController {
     }
   }
 
+  void saveForYouTopicsToCache() {
+    try {
+      final dataToCache = forYouTopics
+          .where((t) => t.isValidTopic && t.videoCount > 0)
+          .map((t) => t.toCacheMap())
+          .toList();
+      _storage.write(_kForYouTopicsCacheKey, dataToCache);
+    } catch (e) {
+      debugPrint('HomeDiscoveryController: Cached for-you topics save error: $e');
+    }
+  }
+
   Future<void> fetchFeaturedTopics() async {
     try {
       if (featuredTopics.isEmpty) isLoadingFeaturedTopics.value = true;
-      final snapshot = await _firestore
-          .collection('topics')
-          .where('isFeatured', isEqualTo: true)
-          .limit(6)
-          .get();
       var topicsList = <Topic>[];
-      if (snapshot.docs.isNotEmpty) {
-        topicsList = snapshot.docs
-            .map(Topic.fromDocumentSnapshot)
-            .where((t) => t.isValidTopic)
-            .toList();
-      }
-      if (topicsList.isEmpty) {
-        final fallbackSnapshot = await _firestore
+
+      // Tier 1: isFeatured query
+      try {
+        final snapshot = await _firestore
             .collection('topics')
-            .orderBy('videoCount', descending: true)
-            .limit(6)
+            .where('isFeatured', isEqualTo: true)
+            .limit(10)
             .get();
-        if (fallbackSnapshot.docs.isNotEmpty) {
-          topicsList = fallbackSnapshot.docs
+        if (snapshot.docs.isNotEmpty) {
+          topicsList = snapshot.docs
               .map(Topic.fromDocumentSnapshot)
-              .where((t) => t.isValidTopic)
+              .where((t) => t.isValidTopic && t.videoCount > 0)
               .toList();
         }
+      } catch (e) {
+        debugPrint('HomeDiscoveryController: featured query error: $e');
       }
+
+      // Tier 2: videoCount order
+      if (topicsList.isEmpty) {
+        try {
+          final fallbackSnapshot = await _firestore
+              .collection('topics')
+              .where('status', isEqualTo: 'active')
+              .orderBy('videoCount', descending: true)
+              .limit(10)
+              .get();
+          if (fallbackSnapshot.docs.isNotEmpty) {
+            topicsList = fallbackSnapshot.docs
+                .map(Topic.fromDocumentSnapshot)
+                .where((t) => t.isValidTopic && t.videoCount > 0)
+                .toList();
+          }
+        } catch (e) {
+          debugPrint('HomeDiscoveryController: orderBy videoCount error: $e');
+        }
+      }
+
+      // Tier 3: General collection query
+      if (topicsList.isEmpty) {
+        try {
+          final fallbackSnapshot2 = await _firestore
+              .collection('topics')
+              .where('status', isEqualTo: 'active')
+              .limit(15)
+              .get();
+          if (fallbackSnapshot2.docs.isNotEmpty) {
+            topicsList = fallbackSnapshot2.docs
+                .map(Topic.fromDocumentSnapshot)
+                .where((t) => t.isValidTopic && t.videoCount > 0)
+                .toList();
+          }
+        } catch (e) {
+          debugPrint('HomeDiscoveryController: general fallback topics error: $e');
+        }
+      }
+
       if (topicsList.isNotEmpty) {
         featuredTopics.assignAll(topicsList);
         saveFeaturedTopicsToCache();
+        if (forYouTopics.isEmpty) {
+          forYouTopics.assignAll(topicsList);
+          saveForYouTopicsToCache();
+        }
         if (Get.isRegistered<FollowingTopicsController>()) {
           final followingCtrl = Get.find<FollowingTopicsController>();
           for (final t in topicsList) {
@@ -164,11 +251,69 @@ class HomeDiscoveryController extends BaseController {
     }
   }
 
-  void selectCategory(String category) {
-    if (category == 'Subscriptions' && !_authService.isAuthenticated.value) {
-      _authService.signInWithGoogle();
-      return;
+  Future<void> fetchForYouTopics() async {
+    try {
+      if (forYouTopics.isEmpty) isLoadingForYouTopics.value = true;
+      var topicsList = <Topic>[];
+
+      // Tier 1: Active status topics
+      try {
+        final snapshot = await _firestore
+            .collection('topics')
+            .where('status', isEqualTo: 'active')
+            .limit(20)
+            .get();
+        if (snapshot.docs.isNotEmpty) {
+          topicsList = snapshot.docs
+              .map(Topic.fromDocumentSnapshot)
+              .where((t) => t.isValidTopic && t.videoCount > 0)
+              .toList();
+        }
+      } catch (e) {
+        debugPrint('HomeDiscoveryController: fetchForYouTopics active query error: $e');
+      }
+
+      // Tier 2: General topics query
+      if (topicsList.isEmpty) {
+        try {
+          final generalSnapshot = await _firestore
+              .collection('topics')
+              .where('status', isEqualTo: 'active')
+              .limit(20)
+              .get();
+          if (generalSnapshot.docs.isNotEmpty) {
+            topicsList = generalSnapshot.docs
+                .map(Topic.fromDocumentSnapshot)
+                .where((t) => t.isValidTopic && t.videoCount > 0)
+                .toList();
+          }
+        } catch (e) {
+          debugPrint('HomeDiscoveryController: fetchForYouTopics general query error: $e');
+        }
+      }
+
+      if (topicsList.isNotEmpty) {
+        forYouTopics.assignAll(topicsList);
+        saveForYouTopicsToCache();
+        if (featuredTopics.isEmpty) {
+          featuredTopics.assignAll(topicsList.take(6).toList());
+          saveFeaturedTopicsToCache();
+        }
+      } else if (featuredTopics.isNotEmpty) {
+        forYouTopics.assignAll(featuredTopics);
+      }
+    } catch (e) {
+      debugPrint('HomeDiscoveryController: Error fetching for-you topics: $e');
+    } finally {
+      isLoadingForYouTopics.value = false;
     }
+  }
+
+  void selectCategory(String category) {
+    if (!availableCategories.contains(category)) {
+      availableCategories.add(category);
+    }
+
     if (selectedCategory.value == category) return;
     selectedCategory.value = category;
 
@@ -181,6 +326,11 @@ class HomeDiscoveryController extends BaseController {
       } else {
         flipService.isHomeFlipped.value = false;
       }
+    }
+    
+    if (category == 'Topics' || category == 'Explore Topics') {
+      if (featuredTopics.isEmpty) fetchFeaturedTopics();
+      if (forYouTopics.isEmpty) fetchForYouTopics();
     }
     
     if (Get.isRegistered<HomeNavigationController>()) {
@@ -240,7 +390,7 @@ class HomeDiscoveryController extends BaseController {
         return;
       }
       
-      final snapshot = await _firestore.collection('videos').where('status', isEqualTo: 'public').limit(50).getCacheFirst();
+      final snapshot = await _firestore.collection('videos').limit(80).getCacheFirst();
       final firestoreCounts = <String, int>{};
       for (final doc in snapshot.docs) {
         final rawCat = (doc.data()['category'] as String?)?.trim();
@@ -275,38 +425,54 @@ class HomeDiscoveryController extends BaseController {
   }
 
   List<String> _personalizedSortCategories(List<String> inputCategories) {
-    final sorted = List<String>.from(inputCategories);
-    final watchHistoryCategories = <String>[];
+    final isAuth = _authService.isAuthenticated.value;
+    final fixedHead = getFixedCategories(isAuthenticated: isAuth);
+
+    // For unsigned users: show 0 category tabs after fixed tabs
+    if (!isAuth) {
+      return List<String>.from(fixedHead);
+    }
+
+    // For signed-in users: show 2 or 3 personalized categories after Posts
+    final personalizedCandidates = <String>[];
+
     if (Get.isRegistered<UserInterestProfileService>()) {
       final profile = Get.find<UserInterestProfileService>().profile.value;
       if (profile != null && profile.categoryAffinities.isNotEmpty) {
-        final sortedEntries = profile.categoryAffinities.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+        final sortedEntries = profile.categoryAffinities.entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
         for (final entry in sortedEntries) {
           if (entry.value > 0) {
             final catName = _capitalizeCategory(entry.key);
-            if (!watchHistoryCategories.contains(catName) && catName.isNotEmpty) {
-              watchHistoryCategories.add(catName);
+            if (!fixedHead.contains(catName) &&
+                categories.contains(catName) &&
+                !personalizedCandidates.contains(catName)) {
+              personalizedCandidates.add(catName);
             }
           }
         }
-        sorted.sort((a, b) {
-          final scoreA = profile.categoryAffinities[a] ?? 0.0;
-          final scoreB = profile.categoryAffinities[b] ?? 0.0;
-          return scoreB.compareTo(scoreA);
-        });
       }
     }
-    final fixedHead = getFixedCategories(
-      isAuthenticated: _authService.isAuthenticated.value,
-    );
-    final result = <String>[...fixedHead];
-    for (final cat in watchHistoryCategories) {
-      if (!result.contains(cat) && sorted.contains(cat)) result.add(cat);
+
+    for (final cat in inputCategories) {
+      final normalized = _capitalizeCategory(cat);
+      if (!fixedHead.contains(normalized) &&
+          categories.contains(normalized) &&
+          !personalizedCandidates.contains(normalized)) {
+        personalizedCandidates.add(normalized);
+      }
     }
-    for (final cat in sorted) {
-      if (!result.contains(cat)) result.add(cat);
+
+    for (final cat in categories) {
+      if (!fixedHead.contains(cat) && !personalizedCandidates.contains(cat)) {
+        personalizedCandidates.add(cat);
+      }
     }
-    return result;
+
+    // Pick top 2 or 3 personalized categories (max 3)
+    final topPersonalized = personalizedCandidates.take(3).toList();
+
+    return [...fixedHead, ...topPersonalized];
   }
 
   void _updateCategoriesFromLoadedVideos() {

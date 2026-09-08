@@ -12,6 +12,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
+import 'package:truthworld/core/services/media_crypto_service.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
@@ -914,11 +915,35 @@ class DownloadsController extends BaseController {
       throw Exception('Stream URL is an HLS playlist rather than raw media.');
     }
 
-    // Replace final destination file and write metadata
-    if (await targetFile.exists()) {
-      await targetFile.delete();
+    // Encrypt downloaded raw media into .twenc container
+    final encryptedTargetFile = File('${dir.path}/${video.id}.twenc');
+    final tempEncryptedFile = File('${dir.path}/${video.id}.twenc.tmp');
+
+    if (await tempEncryptedFile.exists()) {
+      try {
+        await tempEncryptedFile.delete();
+      } catch (_) {}
     }
-    await tempFile.rename(targetFile.path);
+
+    await MediaCryptoService.instance.encryptFile(
+      tempFile,
+      tempEncryptedFile,
+      isAudio: offlineVideo.isAudioOnly,
+    );
+
+    if (await encryptedTargetFile.exists()) {
+      await encryptedTargetFile.delete();
+    }
+    await tempEncryptedFile.rename(encryptedTargetFile.path);
+
+    // Securely delete plaintext temp file and any legacy files
+    try {
+      await tempFile.delete();
+      if (await targetFile.exists()) {
+        await targetFile.delete();
+      }
+    } catch (_) {}
+
     await saveOfflineVideoMetadata(video.id, offlineVideo);
   }
 

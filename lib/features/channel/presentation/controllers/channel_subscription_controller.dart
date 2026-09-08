@@ -4,8 +4,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/subscriptions/presentation/controllers/subscription_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class ChannelSubscriptionController extends BaseController {
   FirebaseAuth get _auth => FirebaseAuth.instance;
@@ -44,14 +46,40 @@ class ChannelSubscriptionController extends BaseController {
         colorText: Colors.red);
   }
 
+  void _showSignInPrompt() {
+    Get.snackbar(
+      'Sign In Required',
+      'Please sign in to subscribe to channels.',
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: AppColors.bgSurface,
+      colorText: AppColors.textPrimary,
+      margin: const EdgeInsets.all(16),
+      borderRadius: 12,
+      mainButton: TextButton(
+        onPressed: AuthService.to.signInWithGoogle,
+        child: const Text(
+          'SIGN IN',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<bool> subscribeToChannel(String channelId) async {
-    final user = _auth.currentUser;
-    if (user == null) {
-      _showErrorSnackbar('You must be logged in to subscribe.');
+    if (!AuthService.to.isAuthenticated.value) {
+      _showSignInPrompt();
+      return false;
+    }
+    final uid = AuthService.to.uid;
+    if (uid.isEmpty) {
+      _showSignInPrompt();
       return false;
     }
 
-    final subDocId = '${channelId}_${user.uid}';
+    final subDocId = '${channelId}_$uid';
     final subRef = _firestore.collection(_subsCol).doc(subDocId);
     final channelRef = _firestore.collection(_channelsCol).doc(channelId);
 
@@ -63,7 +91,7 @@ class ChannelSubscriptionController extends BaseController {
         }
 
         tx.set(subRef, {
-          'userId': user.uid,
+          'userId': uid,
           'channelId': channelId,
           'subscribedAt': FieldValue.serverTimestamp(),
           'notificationsEnabled': true,
@@ -99,10 +127,11 @@ class ChannelSubscriptionController extends BaseController {
   }
 
   Future<bool> unsubscribeFromChannel(String channelId) async {
-    final user = _auth.currentUser;
-    if (user == null) return false;
+    if (!AuthService.to.isAuthenticated.value) return false;
+    final uid = AuthService.to.uid;
+    if (uid.isEmpty) return false;
 
-    final subDocId = '${channelId}_${user.uid}';
+    final subDocId = '${channelId}_$uid';
     final subRef = _firestore.collection(_subsCol).doc(subDocId);
     final channelRef = _firestore.collection(_channelsCol).doc(channelId);
 
@@ -132,6 +161,11 @@ class ChannelSubscriptionController extends BaseController {
   }
 
   Future<void> toggleSubscription(String channelId) async {
+    if (Get.isRegistered<AuthService>() && !AuthService.to.isAuthenticated.value) {
+      _showSignInPrompt();
+      return;
+    }
+
     final wasSubscribed = isSubscribed.value;
     isSubscribed.value = !wasSubscribed;
     if (_subscribedMap.containsKey(channelId)) {
@@ -168,8 +202,13 @@ class ChannelSubscriptionController extends BaseController {
   }
 
   void listenSubscription(String channelId) {
-    final user = _auth.currentUser;
-    if (user == null) {
+    if (!AuthService.to.isAuthenticated.value) {
+      isSubscribed.value = false;
+      isLoadingSubscription.value = false;
+      return;
+    }
+    final uid = AuthService.to.uid;
+    if (uid.isEmpty) {
       isSubscribed.value = false;
       isLoadingSubscription.value = false;
       return;
@@ -182,7 +221,7 @@ class ChannelSubscriptionController extends BaseController {
     isLoadingSubscription.value = true;
     _subscriptionListener?.cancel();
 
-    final subDocId = '${channelId}_${user.uid}';
+    final subDocId = '${channelId}_$uid';
     _subscriptionListener = _firestore
         .collection(_subsCol)
         .doc(subDocId)

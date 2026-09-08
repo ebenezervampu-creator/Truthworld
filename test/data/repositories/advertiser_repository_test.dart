@@ -86,6 +86,17 @@ class FakeAdvertiserRepository implements AdvertiserRepository {
   }) async {
     return Result.success(null);
   }
+
+  @override
+  Future<Result<void>> generateAllVideoAdsAIFeatures({
+    List<String> features = const ['subtitles', 'dubbing'],
+    List<String> targetLanguages = const ['te', 'hi', 'ta', 'es'],
+    String voiceStyle = 'natural',
+    String sourceLang = 'en',
+    bool forceRegenerate = false,
+  }) async {
+    return Result.success(null);
+  }
 }
 
 void main() {
@@ -137,6 +148,23 @@ void main() {
       await repository.toggleSaveAd('u1', 'ad2');
       expect(repository.mockSavedAds.length, equals(1));
       expect(repository.mockSavedAds.first['id'], equals('ad2'));
+    });
+
+    test('generateAllVideoAdsAIFeatures triggers batch AI pipeline', () async {
+      final result = await repository.generateAllVideoAdsAIFeatures(
+        features: ['subtitles', 'dubbing'],
+        targetLanguages: ['te', 'hi', 'ta', 'es'],
+      );
+      expect(result.isSuccess, isTrue);
+    });
+
+    test('triggerAdAIFeatures queues AI for single campaign', () async {
+      final result = await repository.triggerAdAIFeatures(
+        campaignId: 'c1',
+        features: ['subtitles', 'dubbing'],
+        targetLanguages: ['te', 'hi'],
+      );
+      expect(result.isSuccess, isTrue);
     });
   });
 }

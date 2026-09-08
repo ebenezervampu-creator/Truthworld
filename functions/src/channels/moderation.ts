@@ -46,6 +46,12 @@ export const onChannelWritten = onDocumentWritten(
       handleBefore !== handleAfter ||
       tagsChanged;
 
+    // COST GUARD: If document was updated and core moderated details (name, desc, handle, tags)
+    // did not change (e.g. subscriberCount, videoCount, view count increments), exit immediately.
+    if (beforeData && !detailsChanged) {
+      return;
+    }
+
     // Prevent infinite loop: if details did not change and we already moderated it
     if (!detailsChanged && (afterData.geminiApproved !== undefined || afterData.status !== "underReview")) {
       return;
@@ -100,10 +106,22 @@ export const onChannelWritten = onDocumentWritten(
 
         logger.info(`[onChannelWritten] Gemini moderation finished for ${channelId}: approved=${approved}, reason=${reason}`);
 
+        // Security Guard: Prevent suspended, banned, or deleted channels from auto-unbanning via description updates
+        const isBannedOrSuspended =
+          beforeData?.status === "suspended" ||
+          afterData?.status === "suspended" ||
+          beforeData?.status === "deleted" ||
+          afterData?.status === "deleted" ||
+          afterData?.isBanned === true;
+
+        const targetStatus = isBannedOrSuspended
+          ? (afterData.status || "suspended")
+          : (approved ? "active" : "verificationRejected");
+
         // Update channel status in Firestore (DO NOT overwrite creator-provided categories)
         await db().collection("channels").doc(channelId).update({
           geminiApproved: approved,
-          status: approved ? "active" : "verificationRejected",
+          status: targetStatus,
           moderationReason: reason,
           updatedAt: Date.now(),
         });

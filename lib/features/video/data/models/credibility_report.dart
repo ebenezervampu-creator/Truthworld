@@ -314,15 +314,32 @@ class UISource {
   });
 
   factory UISource.fromMap(Map<String, dynamic> map) {
+    final title = (map['title'] ??
+            map['author'] ??
+            map['domain'] ??
+            map['bookTitle'] ??
+            map['journalName'] ??
+            'Source Citation')
+        .toString();
+    final url = (map['url'] ?? map['directUrl'] ?? map['link'])?.toString();
+    final domain = (map['domain'] ??
+            (url != null ? Uri.tryParse(url)?.host : null))
+        ?.toString();
+    final trustLevel =
+        (map['trustLevel'] ?? map['trust'] ?? 'Medium').toString();
+    final type =
+        (map['sourceType'] ?? map['type'] ?? 'Secondary').toString();
+
     return UISource(
-      title: map['title'] ?? '',
-      url: map['url'],
-      domain: map['domain'],
-      trustLevel: map['trustLevel'] ?? 'Medium',
-      type: map['type'] ?? 'Secondary',
+      title: title,
+      url: url,
+      domain: domain,
+      trustLevel: trustLevel,
+      type: type,
       citationCount: (map['citationCount'] as num?)?.toInt() ?? 0,
-      snippet: map['snippet'],
-      retrievalProvider: map['retrievalProvider'],
+      snippet:
+          (map['snippet'] ?? map['quote'] ?? map['provenance'])?.toString(),
+      retrievalProvider: map['retrievalProvider']?.toString(),
     );
   }
   final String title;
@@ -398,15 +415,97 @@ class ClaimResult {
   });
 
   factory ClaimResult.fromMap(Map<String, dynamic> map) {
+    final rawText = (map['text'] ??
+            map['claim'] ??
+            map['statement'] ??
+            map['cleanText'] ??
+            '')
+        .toString();
+    final rawVerdict = (map['verdict'] ??
+            map['status'] ??
+            map['verificationStatus'] ??
+            'unverified')
+        .toString();
+
+    double? startVal;
+    if (map['startMs'] is num) {
+      startVal = (map['startMs'] as num).toDouble() / 1000.0;
+    } else if (map['startTimeMs'] is num) {
+      startVal = (map['startTimeMs'] as num).toDouble() / 1000.0;
+    } else if (map['start'] is num) {
+      final s = (map['start'] as num).toDouble();
+      startVal = s > 100000 ? s / 1000.0 : s;
+    } else if (map['timestampStart'] is num) {
+      final s = (map['timestampStart'] as num).toDouble();
+      startVal = s > 100000 ? s / 1000.0 : s;
+    } else if (map['startTime'] is num) {
+      final s = (map['startTime'] as num).toDouble();
+      startVal = s > 100000 ? s / 1000.0 : s;
+    }
+
+    double? endVal;
+    if (map['endMs'] is num) {
+      endVal = (map['endMs'] as num).toDouble() / 1000.0;
+    } else if (map['endTimeMs'] is num) {
+      endVal = (map['endTimeMs'] as num).toDouble() / 1000.0;
+    } else if (map['end'] is num) {
+      final e = (map['end'] as num).toDouble();
+      endVal = e > 100000 ? e / 1000.0 : e;
+    } else if (map['timestampEnd'] is num) {
+      final e = (map['timestampEnd'] as num).toDouble();
+      endVal = e > 100000 ? e / 1000.0 : e;
+    } else if (map['endTime'] is num) {
+      final e = (map['endTime'] as num).toDouble();
+      endVal = e > 100000 ? e / 1000.0 : e;
+    }
+
+    final rawSources = map['effectiveSources'] ??
+        map['richSources'] ??
+        map['sources'] ??
+        map['citations'];
+    final sourcesList = <UISource>[];
+    if (rawSources is List) {
+      for (final s in rawSources) {
+        if (s is Map) {
+          sourcesList.add(
+            UISource.fromMap(Map<String, dynamic>.from(s)),
+          );
+        } else if (s is String && s.isNotEmpty) {
+          sourcesList.add(
+            UISource(
+              title: s,
+              trustLevel: 'Medium',
+              type: 'Supporting',
+              url: s.startsWith('http') ? s : null,
+            ),
+          );
+        }
+      }
+    }
+
+    List<String>? basisList;
+    if (map['verdictBasis'] != null) {
+      basisList = List<String>.from(map['verdictBasis']);
+    } else {
+      final reason = (map['response'] ??
+              map['reasoning'] ??
+              map['whyWrong'] ??
+              map['explanation'] ??
+              map['verificationSummary'] ??
+              '')
+          .toString();
+      if (reason.isNotEmpty) {
+        basisList = [reason];
+      }
+    }
+
     return ClaimResult(
-      text: map['text'] ?? '',
-      verdict: map['verdict'] ?? '',
-      start: (map['start'] as num?)?.toDouble(),
-      end: (map['end'] as num?)?.toDouble(),
+      text: rawText,
+      verdict: rawVerdict,
+      start: startVal,
+      end: endVal,
       isLowRiskTrivia: map['isLowRiskTrivia'] as bool?,
-      effectiveSources: (map['effectiveSources'] as List? ?? [])
-          .map((s) => UISource.fromMap(Map<String, dynamic>.from(s)))
-          .toList(),
+      effectiveSources: sourcesList,
       classificationConfidence: (map['classificationConfidence'] as num?)
           ?.toDouble(),
       historicalEvidenceConfidence:
@@ -419,9 +518,7 @@ class ClaimResult {
           : null,
       claimDomain: map['claimDomain'],
       claimNature: map['claimNature'],
-      verdictBasis: map['verdictBasis'] != null
-          ? List<String>.from(map['verdictBasis'])
-          : null,
+      verdictBasis: basisList,
       evidence: (map['evidence'] as List?)
           ?.map((e) => UIEvidence.fromMap(Map<String, dynamic>.from(e)))
           .toList(),
@@ -530,25 +627,62 @@ class UIReport {
   });
 
   factory UIReport.fromMap(Map<String, dynamic> map) {
+    final summaryMap = map['summary'] is Map
+        ? Map<String, dynamic>.from(map['summary'])
+        : <String, dynamic>{};
+    if (!summaryMap.containsKey('rating') && map.containsKey('trustScore')) {
+      summaryMap['rating'] = map['trustScore'];
+    }
+    if (!summaryMap.containsKey('label') && map.containsKey('trustLabel')) {
+      summaryMap['label'] = map['trustLabel'];
+    }
+    if (!summaryMap.containsKey('confidence') && map.containsKey('confidence')) {
+      summaryMap['confidence'] = map['confidence'].toString();
+    }
+    if (!summaryMap.containsKey('analysisState') &&
+        (map.containsKey('analysisState') || map.containsKey('state'))) {
+      summaryMap['analysisState'] =
+          (map['analysisState'] ?? map['state']).toString();
+    }
+
+    final rawClaims =
+        map['keyClaims'] as List? ?? map['claims'] as List? ?? [];
+    final rawSources =
+        map['sources'] as List? ?? map['richSources'] as List? ?? [];
+    final narrative = (map['narrative'] ??
+            map['viewerNote'] ??
+            map['summary'] ??
+            map['explanation'] ??
+            '')
+        .toString();
+
     return UIReport(
-      summary: UISummary.fromMap(map['summary'] ?? {}),
-      quickVerdict: map['quickVerdict'] ?? '',
-      narrative: map['narrative'] ?? '',
-      riskNote: map['riskNote'] ?? '',
+      summary: UISummary.fromMap(summaryMap),
+      quickVerdict: (map['quickVerdict'] ?? '').toString(),
+      narrative: narrative,
+      riskNote: (map['riskNote'] ?? '').toString(),
       positiveDrivers: (map['positiveDrivers'] as List? ?? [])
           .map((d) => UIDriver.fromMap(d))
           .toList(),
       negativeDrivers: (map['negativeDrivers'] as List? ?? [])
           .map((d) => UIDriver.fromMap(d))
           .toList(),
-      sources: (map['sources'] as List? ?? [])
-          .map((s) => UISource.fromMap(s))
+      sources: rawSources
+          .map((s) => UISource.fromMap(
+                Map<String, dynamic>.from(
+                  s is Map ? s : {'title': s.toString()},
+                ),
+              ))
           .toList(),
-      conclusion: map['conclusion'] ?? '',
+      conclusion: (map['conclusion'] ?? '').toString(),
       counterSignals: List<String>.from(map['counterSignals'] ?? []),
       reviewRequestEnabled: map['reviewRequestEnabled'] ?? true,
-      keyClaims: (map['keyClaims'] as List? ?? [])
-          .map((c) => ClaimResult.fromMap(Map<String, dynamic>.from(c)))
+      keyClaims: rawClaims
+          .map((c) => ClaimResult.fromMap(
+                Map<String, dynamic>.from(
+                  c is Map ? c : {'text': c.toString()},
+                ),
+              ))
           .toList(),
     );
   }

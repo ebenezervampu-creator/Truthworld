@@ -1,8 +1,16 @@
 import * as admin from "firebase-admin";
+
+if (!admin.apps.length) {
+  admin.initializeApp({
+    databaseURL: "https://truthworld-1-default-rtdb.asia-southeast1.firebasedatabase.app",
+    storageBucket: "truthworld-1.firebasestorage.app"
+  });
+}
+
 import { onRequest } from "firebase-functions/v2/https";
 import axios from "axios";
 import { Request, Response } from "express";
-import { DOMAIN } from "./schema/schemaConfig";
+import { DOMAIN, escapeHtml, formatDate } from "./schema/schemaConfig";
 import { normalizeUrl } from "./indexing/urlNormalizer";
 import { generateBreadcrumbData } from "./render/breadcrumbRenderer";
 import { generateVideoSchema } from "./schema/videoSchema";
@@ -31,7 +39,7 @@ async function fetchIndexHtml(): Promise<string> {
   try {
     // Read index.html directly from the default hosting bucket
     // to avoid circular dependency when seoServer rewrites intercept the fetch.
-    const bucket = admin.storage().bucket();
+    const bucket = admin.storage().bucket("truthworld-1.firebasestorage.app");
     const file = bucket.file("hosting/index.html");
     const [exists] = await file.exists();
     if (exists) {
@@ -261,6 +269,7 @@ export const seoServer = onRequest(
     const startTime = Date.now();
     try {
       const path = req.path;
+      const lowerPath = path.toLowerCase();
       const host = (req.hostname || req.headers.host || "").toLowerCase();
       const canonicalUrl = normalizeUrl(host, path, req.query);
 
@@ -377,11 +386,122 @@ export const seoServer = onRequest(
       const db = admin.firestore();
       const orgSchemas = generateOrganizationSchema();
 
-      // WATCH ROUTE
-      if (path.startsWith("/watch")) {
-        let videoId = req.query.v as string;
-        if (!videoId && path.split("/").length > 2) {
-          videoId = path.split("/")[2];
+      // EMBED ROUTE (/embed/:videoId, /embed/watch?v=..., /embed?v=...)
+      if (lowerPath.startsWith("/embed")) {
+        let videoId = (req.query.v || req.query.id) as string;
+        if (!videoId) {
+          const parts = path.split("/").filter(p => p.length > 0);
+          if (parts.length >= 2 && parts[0].toLowerCase() === "embed" && parts[1].toLowerCase() !== "watch") {
+            videoId = parts[1];
+          }
+        }
+
+        if (videoId) {
+          let docData: any = null;
+          let docId = videoId;
+
+          // Lookup video
+          const docDirect = await db.collection("videos").doc(videoId).get();
+          if (docDirect.exists) {
+            docId = docDirect.id;
+            docData = docDirect.data();
+          } else {
+            const qs = await db.collection("videos").where("videoId", "==", videoId).limit(1).get();
+            if (!qs.empty) {
+              docId = qs.docs[0].id;
+              docData = qs.docs[0].data();
+            } else {
+              const qs2 = await db.collection("videos").where("id", "==", videoId).limit(1).get();
+              if (!qs2.empty) {
+                docId = qs2.docs[0].id;
+                docData = qs2.docs[0].data();
+              }
+            }
+          }
+
+          if (docData) {
+            const status = (docData.status || "").toLowerCase();
+            const visibility = (docData.visibility || "").toLowerCase();
+
+            if (status === "deleted" || visibility === "private") {
+              res.status(404).send("Video not available");
+              return;
+            }
+
+            const videoImage = await resolveVideoImage(db, docData);
+            const videoUrl = docData.hlsUrl || docData.originalUrl || docData.videoUrl || "";
+            const rawTitle = (docData.title || "Truthworld Video").trim();
+
+            const isHls = videoUrl.includes(".m3u8") || videoUrl.includes("hls");
+
+            const embedHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="referrer" content="no-referrer-when-downgrade" />
+  <title>${escapeHtml(rawTitle)} - Truthworld Player</title>
+  <meta name="robots" content="noindex, follow" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; background: #000; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+    .player-wrap { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+    video { width: 100%; height: 100%; max-height: 100%; object-fit: contain; background: #000; }
+  </style>
+  ${isHls ? `<script src="https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js"><\/script>` : ""}
+</head>
+<body>
+  <div class="player-wrap">
+    <video id="tw-player" controls playsinline ${videoImage ? `poster="${escapeHtml(videoImage)}"` : ""} preload="metadata">
+      ${videoUrl ? (isHls
+        ? `<source src="${escapeHtml(videoUrl)}" type="application/x-mpegURL" />`
+        : `<source src="${escapeHtml(videoUrl)}" type="video/mp4" />`)
+      : ""}
+      <p style="color: #fff; text-align: center;">Watch on <a href="${DOMAIN}/watch?v=${escapeHtml(docId)}" target="_blank" style="color: #9B30FF;">Truthworld</a></p>
+    </video>
+  </div>
+  ${isHls ? `<script>
+    (function() {
+      var video = document.getElementById('tw-player');
+      var src = '${escapeHtml(videoUrl)}';
+      if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = src;
+      } else if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+        var hls = new Hls();
+        hls.loadSource(src);
+        hls.attachMedia(video);
+      }
+    })();
+  <\/script>` : ""}
+</body>
+</html>`;
+
+            res.set("Content-Type", "text/html; charset=utf-8");
+            res.set("Content-Security-Policy", "default-src 'self' 'unsafe-inline' https: data: blob:; frame-ancestors *;");
+            res.set("Access-Control-Allow-Origin", "*");
+            res.set("X-Frame-Options", "ALLOWALL");
+            res.set("Cache-Control", "public, max-age=600, s-maxage=3600");
+            res.status(200).send(embedHtml);
+            return;
+          } else {
+            res.status(404).send("Video not found");
+            return;
+          }
+        } else {
+          res.status(404).send("Video not found");
+          return;
+        }
+      }
+
+      // WATCH / V / SHORTS ROUTE
+      if (lowerPath.startsWith("/watch") || lowerPath.startsWith("/v/") || lowerPath.startsWith("/shorts/")) {
+        let videoId = (req.query.v || req.query.id) as string;
+        if (!videoId) {
+          const parts = path.split("/").filter(p => p.length > 0);
+          const p0 = parts.length > 0 ? parts[0].toLowerCase() : "";
+          if (parts.length >= 2 && (p0 === "watch" || p0 === "v" || p0 === "shorts")) {
+            videoId = parts[1];
+          }
         }
         if (videoId) {
           const cacheKey = `watch_v2_${videoId}`;
@@ -433,12 +553,14 @@ export const seoServer = onRequest(
 
             let channelName = docData.channelName || "Channel";
             let channelHandle = "";
+            let channelIsBrand = false;
             if (docData.channelId) {
               const cDoc = await db.collection("channels").doc(docData.channelId).get();
               if (cDoc.exists) {
                 const cData = cDoc.data()!;
                 channelName = cData.displayName || cData.name || channelName;
                 channelHandle = cData.handle || "";
+                channelIsBrand = cData.isBrand === true || cData.creatorType === "Organization" || cData.type === "custom";
               }
             }
             const authorUrl = channelHandle 
@@ -474,7 +596,7 @@ export const seoServer = onRequest(
             }
 
             const videoImage = await resolveVideoImage(db, docData);
-            const videoSchema = generateVideoSchema({ id: docId, ...docData } as any, authorUrl, channelName);
+            const videoSchema = generateVideoSchema({ ...docData, id: docId } as any, authorUrl, channelName, channelIsBrand);
             const breadcrumbs = generateBreadcrumbData([
               { name: channelName, url: authorUrl },
               { name: rawTitle, url: canonicalUrl }
@@ -491,7 +613,7 @@ export const seoServer = onRequest(
               videoUrl: docData.hlsUrl || docData.originalUrl || docData.videoUrl,
               embedUrl: `${DOMAIN}/embed/${docId}`,
               durationSeconds: videoDurationSec,
-              uploadDate: docData.uploadedAt || docData.createdAt,
+              uploadDate: formatDate(docData.uploadedAt || docData.createdAt),
               robots: visibility === "unlisted" ? "noindex, nofollow" : "index, follow",
               jsonLd: [videoSchema, breadcrumbs.jsonLd, ...orgSchemas],
               breadcrumbHtml: breadcrumbs.html,
@@ -504,12 +626,27 @@ export const seoServer = onRequest(
             const saved = await saveSnapshot(cacheKey, finalHtml);
             sendHtmlResponse(req, res, finalHtml, saved.etag, saved.lastModified);
             return;
+          } else {
+            const notFoundHtml = buildSemanticSsrHtml({
+              title: "Video Not Found - Truthworld",
+              description: "The requested video could not be found or is no longer available on Truthworld.",
+              url: canonicalUrl,
+              type: "website",
+              robots: "noindex, follow",
+              jsonLd: orgSchemas
+            });
+            res.status(404).send(notFoundHtml);
+            return;
           }
+        } else {
+          const baseHtml = await fetchIndexHtml();
+          res.status(404).send(baseHtml);
+          return;
         }
       }
 
       // CHANNEL / HANDLE ROUTE
-      if (path.startsWith("/channel/") || path.startsWith("/@") || path.startsWith("/c/") || path.startsWith("/user/")) {
+      if (lowerPath.startsWith("/channel/") || path.startsWith("/@") || lowerPath.startsWith("/c/") || lowerPath.startsWith("/user/")) {
         let handleOrId = "";
         if (path.startsWith("/@")) {
           handleOrId = path.substring(2);
@@ -569,6 +706,7 @@ export const seoServer = onRequest(
             
             const handle = (docData.handle || "").replace(/^@/, "").trim();
             const handleWithAt = handle ? `@${handle}` : "";
+            const canonicalChannelUrl = handle ? `${DOMAIN}/@${handle}` : canonicalUrl;
 
             // Format Title cleanly avoiding redundant "Truthworld - Truthworld"
             let pageTitle: string;
@@ -602,15 +740,15 @@ export const seoServer = onRequest(
             }
 
             const channelImage = await resolveChannelImage(db, docData.id, docData);
-            const channelSchema = generateChannelSchema(docData, canonicalUrl);
+            const channelSchema = generateChannelSchema(docData, canonicalChannelUrl, channelImage);
             const breadcrumbs = generateBreadcrumbData([
-              { name: channelName, url: canonicalUrl }
+              { name: channelName, url: canonicalChannelUrl }
             ]);
 
             const finalHtml = buildSemanticSsrHtml({
               title: pageTitle,
               description: pageDescription,
-              url: canonicalUrl,
+              url: canonicalChannelUrl,
               image: channelImage,
               imageWidth: 1280,
               imageHeight: 720,
@@ -620,24 +758,35 @@ export const seoServer = onRequest(
               breadcrumbHtml: breadcrumbs.html,
               contentHeading: `${channelName}${handleWithAt ? ` (${handleWithAt})` : ""}`,
               authorName: channelName,
-              authorUrl: canonicalUrl
+              authorUrl: canonicalChannelUrl
             });
 
             const saved = await saveSnapshot(cacheKey, finalHtml);
             sendHtmlResponse(req, res, finalHtml, saved.etag, saved.lastModified);
+            return;
+          } else {
+            const notFoundHtml = buildSemanticSsrHtml({
+              title: "Channel Not Found - Truthworld",
+              description: "The requested channel could not be found or has been removed from Truthworld.",
+              url: canonicalUrl,
+              type: "website",
+              robots: "noindex, follow",
+              jsonLd: orgSchemas
+            });
+            res.status(404).send(notFoundHtml);
             return;
           }
         }
       }
 
       // TOPIC ROUTE
-      if (path.startsWith("/topic") || path.startsWith("/topics") || path.startsWith("/T/") || path.startsWith("/t/")) {
+      if (lowerPath.startsWith("/topic") || lowerPath.startsWith("/topics") || lowerPath.startsWith("/t/")) {
         let slug = (req.query.id || req.query.slug) as string;
         if (!slug) {
           const parts = path.split("/").filter(p => p.length > 0);
           if (parts.length >= 2) {
             slug = parts[1];
-          } else if (parts.length === 1 && (parts[0] !== "topic" && parts[0] !== "topics" && parts[0] !== "T" && parts[0] !== "t")) {
+          } else if (parts.length === 1 && (parts[0].toLowerCase() !== "topic" && parts[0].toLowerCase() !== "topics" && parts[0].toLowerCase() !== "t")) {
             slug = parts[0];
           }
         }
@@ -678,19 +827,58 @@ export const seoServer = onRequest(
             if (!qsHandle.empty) docData = { id: qsHandle.docs[0].id, ...(qsHandle.docs[0].data() as any) };
           }
 
-          if (docData && docData.status !== "deleted" && docData.status !== "inactive") {
+          if (docData && docData.status !== "deleted" && docData.status !== "inactive" && docData.status !== "archived" && docData.status !== "verificationRejected") {
             const rawTitle = (docData.title || docData.name || "Topic").trim();
             const cleanTitle = rawTitle.replace(/^[#Tt]\//, "").trim();
             const topVideos: any[] = [];
-            try {
-              const vSnap = await db.collection("videos")
-                .where("visibility", "==", "public")
-                .where("topics", "array-contains", docData.id)
-                .orderBy("uploadedAt", "desc")
-                .limit(10).get();
-              vSnap.forEach((d) => topVideos.push({ id: d.id, ...d.data() }));
-            } catch (err) {
-              console.error("Error fetching topic videos", err);
+            const topicKeys = [docData.slug, cleanSlug, docData.id].filter(Boolean);
+
+            for (const key of topicKeys) {
+              if (topVideos.length >= 10) break;
+              try {
+                const vSnap = await db.collection("videos")
+                  .where("topics", "array-contains", key)
+                  .orderBy("uploadedAt", "desc")
+                  .limit(15).get();
+                vSnap.forEach((d) => {
+                  const data = d.data();
+                  const vis = (data.visibility || "public").toLowerCase();
+                  const st = (data.status || "").toLowerCase();
+                  if (vis === "public" && st !== "deleted" && st !== "draft" && !topVideos.some(tv => tv.id === d.id)) {
+                    topVideos.push({ id: d.id, ...data });
+                  }
+                });
+              } catch (err) {
+                try {
+                  const fallbackSnap = await db.collection("videos")
+                    .where("topics", "array-contains", key)
+                    .limit(15).get();
+                  fallbackSnap.forEach((d) => {
+                    const data = d.data();
+                    const vis = (data.visibility || "public").toLowerCase();
+                    const st = (data.status || "").toLowerCase();
+                    if (vis === "public" && st !== "deleted" && st !== "draft" && !topVideos.some(tv => tv.id === d.id)) {
+                      topVideos.push({ id: d.id, ...data });
+                    }
+                  });
+                } catch (fallbackErr) {
+                  console.error("Error fetching topic videos fallback", fallbackErr);
+                }
+              }
+            }
+
+            // Zero-video topic guard: Do not index or serve empty topic SEO pages
+            if (topVideos.length === 0 && (Number(docData.videoCount) || 0) <= 0) {
+              const notFoundHtml = buildSemanticSsrHtml({
+                title: "Topic Not Found - Truthworld",
+                description: "The requested topic could not be found or has been removed from Truthworld.",
+                url: canonicalUrl,
+                type: "website",
+                robots: "noindex, follow",
+                jsonLd: orgSchemas
+              });
+              res.status(404).send(notFoundHtml);
+              return;
             }
 
             const rawTopicImg = docData.thumbnailUrl ||
@@ -739,12 +927,23 @@ export const seoServer = onRequest(
             const saved = await saveSnapshot(cacheKey, finalHtml);
             sendHtmlResponse(req, res, finalHtml, saved.etag, saved.lastModified);
             return;
+          } else {
+            const notFoundHtml = buildSemanticSsrHtml({
+              title: "Topic Not Found - Truthworld",
+              description: "The requested topic could not be found or has been removed from Truthworld.",
+              url: canonicalUrl,
+              type: "website",
+              robots: "noindex, follow",
+              jsonLd: orgSchemas
+            });
+            res.status(404).send(notFoundHtml);
+            return;
           }
         }
       }
 
       // PLAYLIST ROUTE
-      if (path.startsWith("/playlist")) {
+      if (lowerPath.startsWith("/playlist")) {
         let playlistId = req.query.list as string;
         if (!playlistId && path.split("/").length > 2) {
           playlistId = path.split("/")[2];
@@ -760,29 +959,29 @@ export const seoServer = onRequest(
 
           let docData: any = null;
 
-          // 1. Check public_playlists by doc ID
-          const docPub = await db.collection("public_playlists").doc(playlistId).get();
-          if (docPub.exists) {
-            docData = { id: docPub.id, ...(docPub.data() as any) };
+          // 1. Check playlists by doc ID
+          const docPriv = await db.collection("playlists").doc(playlistId).get();
+          if (docPriv.exists) {
+            docData = { id: docPriv.id, ...(docPriv.data() as any) };
           }
 
-          // 2. Check playlists by doc ID
+          // 2. Check public_playlists by doc ID
           if (!docData) {
-            const docPriv = await db.collection("playlists").doc(playlistId).get();
-            if (docPriv.exists) {
-              docData = { id: docPriv.id, ...(docPriv.data() as any) };
+            const docPub = await db.collection("public_playlists").doc(playlistId).get();
+            if (docPub.exists) {
+              docData = { id: docPub.id, ...(docPub.data() as any) };
             }
           }
 
-          // 3. Query public_playlists by playlistId field
+          // 3. Query playlists by playlistId field
           if (!docData) {
-            const qs = await db.collection("public_playlists").where("playlistId", "==", playlistId).limit(1).get();
+            const qs = await db.collection("playlists").where("playlistId", "==", playlistId).limit(1).get();
             if (!qs.empty) docData = { id: qs.docs[0].id, ...(qs.docs[0].data() as any) };
           }
 
-          // 4. Query playlists by playlistId field
+          // 4. Query public_playlists by playlistId field
           if (!docData) {
-            const qs = await db.collection("playlists").where("playlistId", "==", playlistId).limit(1).get();
+            const qs = await db.collection("public_playlists").where("playlistId", "==", playlistId).limit(1).get();
             if (!qs.empty) docData = { id: qs.docs[0].id, ...(qs.docs[0].data() as any) };
           }
 
@@ -792,15 +991,41 @@ export const seoServer = onRequest(
             if (docCp.exists) docData = { id: docCp.id, ...(docCp.data() as any) };
           }
 
-          if (docData) {
+          if (docData && docData.status !== "deleted") {
+            let videoItems: Array<{ id: string; title: string }> = [];
+            if (Array.isArray(docData.videos) && docData.videos.length > 0) {
+              videoItems = docData.videos.map((v: any) => ({
+                id: v.id || v.videoId || "",
+                title: v.title || v.name || `Video ${v.id || ""}`
+              })).filter((v: any) => v.id);
+            } else if (Array.isArray(docData.videoIds) && docData.videoIds.length > 0) {
+              const idsToFetch = docData.videoIds.slice(0, 20);
+              try {
+                const videoDocRefs = idsToFetch.map((vid: string) => db.collection("videos").doc(vid));
+                const videoDocs = await db.getAll(...videoDocRefs);
+                videoDocs.forEach((vd) => {
+                  if (vd.exists) {
+                    const vdData = vd.data()!;
+                    videoItems.push({
+                      id: vd.id,
+                      title: vdData.title || `Video ${vd.id}`
+                    });
+                  }
+                });
+              } catch (fetchErr) {
+                console.warn("Could not batch fetch playlist video titles:", fetchErr);
+                videoItems = idsToFetch.map((id: string) => ({ id, title: `Video ${id}` }));
+              }
+            }
+
             const playlistName = (docData.playlistName || docData.name || docData.title || "Playlist").trim();
             const playlistImage = await resolvePlaylistImage(db, docData.id, docData);
-            const playlistSchema = generatePlaylistSchema({ id: docData.id, ...docData }, canonicalUrl);
+            const playlistSchema = generatePlaylistSchema({ id: docData.id, ...docData, videos: videoItems }, canonicalUrl);
             const breadcrumbs = generateBreadcrumbData([
               { name: playlistName, url: canonicalUrl }
             ]);
 
-            const videoCount = docData.videoCount || (Array.isArray(docData.videos) ? docData.videos.length : (Array.isArray(docData.videoIds) ? docData.videoIds.length : 0));
+            const videoCount = docData.videoCount || (Array.isArray(docData.videos) ? docData.videos.length : (Array.isArray(docData.videoIds) ? docData.videoIds.length : videoItems.length));
             const vidStr = `${videoCount} Video${videoCount === 1 ? "" : "s"}`;
             const channelName = docData.channelName || docData.creatorName || "";
 
@@ -816,6 +1041,8 @@ export const seoServer = onRequest(
               ? `${playlistName} - ${channelName} | Truthworld`
               : `${playlistName} - Playlist | Truthworld`;
 
+            const relatedVideos = videoItems.map(v => ({ title: v.title, url: `${DOMAIN}/watch?v=${v.id}` }));
+
             const finalHtml = buildSemanticSsrHtml({
               title: pageTitle,
               description: pageDescription,
@@ -827,18 +1054,30 @@ export const seoServer = onRequest(
               robots: docData.visibility === "private" ? "noindex, nofollow" : "index, follow",
               jsonLd: [playlistSchema, breadcrumbs.jsonLd],
               breadcrumbHtml: breadcrumbs.html,
-              contentHeading: `${playlistName} Playlist`
+              contentHeading: `${playlistName} Playlist`,
+              relatedItems: relatedVideos.length > 0 ? relatedVideos : undefined
             });
 
             const saved = await saveSnapshot(cacheKey, finalHtml);
             sendHtmlResponse(req, res, finalHtml, saved.etag, saved.lastModified);
+            return;
+          } else {
+            const notFoundHtml = buildSemanticSsrHtml({
+              title: "Playlist Not Found - Truthworld",
+              description: "The requested playlist could not be found or is private on Truthworld.",
+              url: canonicalUrl,
+              type: "website",
+              robots: "noindex, follow",
+              jsonLd: orgSchemas
+            });
+            res.status(404).send(notFoundHtml);
             return;
           }
         }
       }
 
       // COMMUNITY POST ROUTE
-      if (path.startsWith("/post") || path.startsWith("/community")) {
+      if (lowerPath.startsWith("/post") || lowerPath.startsWith("/community")) {
         let postId = req.query.id as string;
         if (!postId && path.split("/").length > 2) {
           postId = path.split("/")[2];
@@ -852,9 +1091,29 @@ export const seoServer = onRequest(
             return;
           }
 
-          const doc = await db.collection("community_posts").doc(postId).get();
+          let doc = await db.collection("Community").doc(postId).get();
+          if (!doc.exists) {
+            doc = await db.collection("community_posts").doc(postId).get();
+          }
+
           if (doc.exists) {
             const data = doc.data()!;
+            const status = (data.status || "").toLowerCase();
+            const isPrivate = (data.visibility || "").toLowerCase() === "private";
+
+            if (status === "deleted" || status === "rejected") {
+              const notFoundHtml = buildSemanticSsrHtml({
+                title: "Community Post Not Found - Truthworld",
+                description: "The requested community post could not be found or has been removed from Truthworld.",
+                url: canonicalUrl,
+                type: "website",
+                robots: "noindex, follow",
+                jsonLd: orgSchemas
+              });
+              res.status(404).send(notFoundHtml);
+              return;
+            }
+
             const postTitle = data.title || (data.description ? data.description.substring(0, 80) : "Community Post");
             const authorName = data.channelName || "Channel";
             const authorUrl = data.channelId ? `${DOMAIN}/channel/${data.channelId}` : DOMAIN;
@@ -872,7 +1131,7 @@ export const seoServer = onRequest(
               url: canonicalUrl,
               image: image,
               type: "article",
-              robots: data.visibility === "Private" ? "noindex, nofollow" : "index, follow",
+              robots: isPrivate ? "noindex, nofollow" : "index, follow",
               jsonLd: [postSchema, breadcrumbs.jsonLd],
               breadcrumbHtml: breadcrumbs.html,
               contentHeading: postTitle,
@@ -883,12 +1142,23 @@ export const seoServer = onRequest(
             const saved = await saveSnapshot(cacheKey, finalHtml);
             sendHtmlResponse(req, res, finalHtml, saved.etag, saved.lastModified);
             return;
+          } else {
+            const notFoundHtml = buildSemanticSsrHtml({
+              title: "Community Post Not Found - Truthworld",
+              description: "The requested community post could not be found or has been removed from Truthworld.",
+              url: canonicalUrl,
+              type: "website",
+              robots: "noindex, follow",
+              jsonLd: orgSchemas
+            });
+            res.status(404).send(notFoundHtml);
+            return;
           }
         }
       }
 
       // SETTINGS ROUTE (Private Page - Exclude from Search Engines)
-      if (path === "/settings" || path.startsWith("/settings/")) {
+      if (lowerPath === "/settings" || lowerPath.startsWith("/settings/")) {
         res.set("X-Robots-Tag", "noindex, nofollow");
         const baseHtml = await fetchIndexHtml();
         res.status(200).send(baseHtml.replace("</head>", '<meta name="robots" content="noindex, nofollow" /></head>'));
@@ -896,7 +1166,7 @@ export const seoServer = onRequest(
       }
 
       // STUDIO ROUTE
-      if (path === "/studio" || path.startsWith("/studio/")) {
+      if (lowerPath === "/studio" || lowerPath.startsWith("/studio/")) {
         const cacheKey = `studio_page`;
         const cached = await getCachedSnapshot(cacheKey);
         if (cached) {
@@ -937,12 +1207,12 @@ export const seoServer = onRequest(
 
       // ADVERTISEMENTS / ADVERTISER ROUTE
       if (
-        path === "/advertiser" ||
-        path.startsWith("/advertiser/") ||
-        path === "/advertisements" ||
-        path.startsWith("/advertisements/") ||
-        path === "/ads" ||
-        path.startsWith("/ads/")
+        lowerPath === "/advertiser" ||
+        lowerPath.startsWith("/advertiser/") ||
+        lowerPath === "/advertisements" ||
+        lowerPath.startsWith("/advertisements/") ||
+        lowerPath === "/ads" ||
+        lowerPath.startsWith("/ads/")
       ) {
         const cacheKey = `advertisements_page`;
         const cached = await getCachedSnapshot(cacheKey);

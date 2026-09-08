@@ -40,7 +40,14 @@ class CommunityPostModel {
     // Support both 'images' array and legacy single 'image' field
     var imageList = <String>[];
     if (map['images'] != null) {
-      imageList = List<String>.from(map['images']);
+      if (map['images'] is List) {
+        imageList = (map['images'] as List)
+            .map((e) => e?.toString() ?? '')
+            .where((s) => s.isNotEmpty)
+            .toList();
+      } else if (map['images'] is String && (map['images'] as String).isNotEmpty) {
+        imageList = [map['images'] as String];
+      }
     } else if (map['image'] != null && (map['image'] as String).isNotEmpty) {
       imageList = [map['image'] as String];
     }
@@ -54,44 +61,69 @@ class CommunityPostModel {
     }
     final chName = (map['channelName'] as String?)?.trim() ?? '';
 
+    DateTime parseDate(dynamic val) {
+      if (val == null) return DateTime.now();
+      if (val is Timestamp) return val.toDate();
+      if (val is DateTime) return val;
+      if (val is int) return DateTime.fromMillisecondsSinceEpoch(val);
+      if (val is String) return DateTime.tryParse(val) ?? DateTime.now();
+      return DateTime.now();
+    }
+
+    int parseInt(dynamic val) {
+      if (val == null) return 0;
+      if (val is num) return val.toInt();
+      if (val is String) return int.tryParse(val) ?? 0;
+      return 0;
+    }
+
+    List<String> parseStringList(dynamic val) {
+      if (val == null) return [];
+      if (val is List) {
+        return val.map((e) => e?.toString() ?? '').where((s) => s.isNotEmpty).toList();
+      }
+      if (val is String && val.isNotEmpty) return [val];
+      return [];
+    }
+
+    final uploadedDate = parseDate(
+      map['uploadedAt'] ?? map['timestamp'] ?? map['createdAt'] ?? map['created_at'],
+    );
+    final scheduledDate = map['scheduledTime'] != null ? parseDate(map['scheduledTime']) : null;
+
     return CommunityPostModel(
-      id: map['id'] ?? '',
+      id: map['id']?.toString() ?? '',
       title: rawTitle,
       description: desc,
-      ownerId: map['ownerId'] ?? map['userId'] ?? '',
-      channelId: map['channelId'] ?? '',
+      ownerId: (map['ownerId'] ?? map['userId'] ?? '').toString(),
+      channelId: (map['channelId'] ?? '').toString(),
       channelName: chName.isNotEmpty ? chName : 'Truthworld Creator',
-      channelImage: map['channelImage'] ?? map['channelAvatarUrl'] ?? '',
-      selectedCategory: map['selectedCategory'] ?? 'General',
-      visibility: map['visibility'] ?? 'Public',
+      channelImage: (map['channelImage'] ?? map['channelAvatarUrl'] ?? map['avatarUrl'] ?? '').toString(),
+      selectedCategory: (map['selectedCategory'] ?? map['category'] ?? 'General').toString(),
+      visibility: (map['visibility'] ?? 'Public').toString(),
       images: imageList,
-      tags: List<String>.from(map['tags'] ?? []),
+      tags: parseStringList(map['tags']),
       poll: map['poll'] != null
-          ? PollModel.fromMap(Map<String, dynamic>.from(map['poll']))
+          ? PollModel.fromMap(Map<String, dynamic>.from(map['poll'] as Map))
           : null,
-      uploadedAt: map['uploadedAt'] != null
-          ? (map['uploadedAt'] as Timestamp).toDate()
-          : DateTime.now(),
-      scheduledTime: map['scheduledTime'] != null
-          ? (map['scheduledTime'] as Timestamp).toDate()
-          : null,
-      likes: map['likes'] ?? 0,
-      dislikes: map['dislikes'] ?? 0,
-      dislikeCount: map['dislikeCount'] ?? 0,
-      commentCount: map['commentCount'] ?? 0,
-      views: map['views'] ?? 0,
-      downloads: map['downloads'] ?? 0,
-      likedBy: List<String>.from(map['likedby'] ?? []),
-      dislikedBy: List<String>.from(map['dislikedby'] ?? []),
-      shares: List<String>.from(map['shares'] ?? []),
-      isKidFriendly: map['isKidFriendly'] ?? false,
-      processed: map['processed'] ?? false,
-      isLikeEnabled: map['isLikeEnabled'] ?? true,
-      showLikeCount: map['showLikeCount'] ?? map['showLikesCount'] ?? true,
-      isDislikeEnabled: map['isDislikeEnabled'] ?? true,
-      showDislikeCount:
-          map['showDislikeCount'] ?? map['showDislikesCount'] ?? true,
-      isCommentsEnabled: map['isCommentsEnabled'] ?? true,
+      uploadedAt: uploadedDate,
+      scheduledTime: scheduledDate,
+      likes: parseInt(map['likes']),
+      dislikes: parseInt(map['dislikes']),
+      dislikeCount: parseInt(map['dislikeCount']),
+      commentCount: parseInt(map['commentCount']),
+      views: parseInt(map['views']),
+      downloads: parseInt(map['downloads']),
+      likedBy: parseStringList(map['likedby'] ?? map['likedBy']),
+      dislikedBy: parseStringList(map['dislikedby'] ?? map['dislikedBy']),
+      shares: parseStringList(map['shares']),
+      isKidFriendly: map['isKidFriendly'] == true,
+      processed: map['processed'] == true,
+      isLikeEnabled: map['isLikeEnabled'] != false,
+      showLikeCount: map['showLikeCount'] != false && map['showLikesCount'] != false,
+      isDislikeEnabled: map['isDislikeEnabled'] != false,
+      showDislikeCount: map['showDislikeCount'] != false && map['showDislikesCount'] != false,
+      isCommentsEnabled: map['isCommentsEnabled'] != false,
     );
   }
   final String id;
@@ -129,13 +161,13 @@ class CommunityPostModel {
     final vis = visibility.trim().toLowerCase();
     final cat = selectedCategory.trim().toLowerCase();
     final t = title.trim().toLowerCase();
-    if (vis == 'draft' || cat == 'draft' || t.startsWith('uploading') || t == 'uploading...') {
+    if (vis == 'draft' || cat == 'draft' || t == 'uploading...') {
       return true;
     }
     return false;
   }
 
-  bool get isValid => !isDraft;
+  bool get isValid => id.isNotEmpty && !isDraft;
 
   Map<String, dynamic> toMap() => {
     'id': id,

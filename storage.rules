@@ -17,6 +17,15 @@ service firebase.storage {
       );
     }
 
+    // Ensure client cannot forge another user's uploaderId metadata
+    function isUploaderClaimValid() {
+      return request.resource == null ||
+        request.resource.metadata == null ||
+        !('uploaderId' in request.resource.metadata) ||
+        request.resource.metadata['uploaderId'] == null ||
+        request.resource.metadata['uploaderId'] == request.auth.uid;
+    }
+
     // Validate extension
     function isValidImage() {
       return request.resource.contentType.matches('image/.*');
@@ -39,7 +48,7 @@ service firebase.storage {
     // ================================
     match /channel_avatars/{fileName} {
       allow read: if true; // public avatars
-      allow write: if isSignedIn() && isValidImage();
+      allow write: if isSignedIn() && isValidImage() && isUploaderClaimValid() && isOwnerOrUnassigned();
       allow delete: if isOwnerOrUnassigned();
     }
 
@@ -48,7 +57,7 @@ service firebase.storage {
     // ================================
     match /channel_banners/{fileName} {
       allow read: if true;
-      allow write: if isSignedIn() && isValidImage();
+      allow write: if isSignedIn() && isValidImage() && isUploaderClaimValid() && isOwnerOrUnassigned();
       allow delete: if isOwnerOrUnassigned();
     }
 
@@ -57,7 +66,7 @@ service firebase.storage {
     // ================================
     match /community_images/{fileName} {
       allow read: if true;
-      allow write: if isSignedIn() && isValidImage();
+      allow write: if isSignedIn() && isValidImage() && isUploaderClaimValid() && isOwnerOrUnassigned();
       allow delete: if isOwnerOrUnassigned();
     }
 
@@ -66,7 +75,7 @@ service firebase.storage {
     // ================================
     match /thumbnails/{fileName} {
       allow read: if true; // or restrict to signed in users
-      allow write: if isSignedIn() && isValidImage();
+      allow write: if isSignedIn() && isValidImage() && isUploaderClaimValid() && isOwnerOrUnassigned();
       allow delete: if isOwnerOrUnassigned();
     }
 
@@ -77,11 +86,7 @@ service firebase.storage {
     // Pipeline outputs: videos/{videoId}/transcript.json, translations/, audio/, etc.
     match /videos/{videoId}/{allPaths=**} {
       allow read: if true;
-      allow write: if isSignedIn() && (
-        resource == null ||
-        request.resource.metadata['uploaderId'] == request.auth.uid ||
-        resource.metadata['uploaderId'] == request.auth.uid
-      );
+      allow write: if isSignedIn() && isUploaderClaimValid() && isOwnerOrUnassigned();
       allow delete: if isOwnerOrUnassigned();
     }
 
@@ -121,7 +126,7 @@ service firebase.storage {
     // Legacy flat video uploads (backward compat)
     match /videos/{videoName} {
       allow read: if true;
-      allow write: if isSignedIn() && isValidVideo();
+      allow write: if isSignedIn() && isValidVideo() && isUploaderClaimValid() && isOwnerOrUnassigned();
       allow delete: if isOwnerOrUnassigned();
     }
 
@@ -130,8 +135,8 @@ service firebase.storage {
     // ================================
     match /ad_campaigns_media/{allPaths=**} {
       allow read: if true;
-      allow write: if true;
-      allow delete: if true;
+      allow write: if isSignedIn() && (isValidImage() || isValidVideo()) && isUploaderClaimValid() && isOwnerOrUnassigned();
+      allow delete: if isOwnerOrUnassigned();
     }
   }
 }

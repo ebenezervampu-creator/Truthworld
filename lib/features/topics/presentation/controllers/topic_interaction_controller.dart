@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -26,6 +27,9 @@ class TopicInteractionController extends BaseController with ContentValidationMi
 
   final RxList<Comment> comments = <Comment>[].obs;
   final RxBool isLoadingComments = false.obs;
+
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _commentsSubscription;
+  String? _initializedTopicId;
 
   // Track reply list for each comment ID
   final RxMap<String, List<Reply>> repliesMap = <String, List<Reply>>{}.obs;
@@ -67,7 +71,15 @@ class TopicInteractionController extends BaseController with ContentValidationMi
   }
 
   void initializeTopic(Topic topic) {
+    if (_initializedTopicId == topic.id && _topic != null) {
+      if (topic.commentCount != commentCount.value && comments.isEmpty) {
+        commentCount.value = topic.commentCount;
+      }
+      return;
+    }
+    _initializedTopicId = topic.id;
     _topic = topic;
+
     // Set initial values
     initialDbLikeCount.value = topic.likeCount;
     commentCount.value = topic.commentCount;
@@ -248,33 +260,43 @@ class TopicInteractionController extends BaseController with ContentValidationMi
   // COMMENTS
   // ==========================
   Future<void> fetchComments(String topicId) async {
+    _commentsSubscription?.cancel();
     isLoadingComments.value = true;
     try {
-      final snap = await _firestore
+      _commentsSubscription = _firestore
           .collection(FirestoreCollections.topics)
           .doc(topicId)
           .collection('comments')
           .orderBy('createdAt', descending: true)
-          .limit(20) // CRITICAL FIX: Prevent massive fetch
-          .get();
+          .limit(50)
+          .snapshots()
+          .listen(
+        (snap) {
+          final loaded = snap.docs.map((doc) {
+            final comment = Comment.fromDocumentSnapshot(doc);
+            final interaction = userCommentInteractions[comment.id];
+            if (interaction != null) {
+              return comment.copyWith(
+                isLikedByCurrentUser: interaction['isLiked'] ?? false,
+                isDislikedByCurrentUser: interaction['isDisliked'] ?? false,
+              );
+            }
+            return comment;
+          }).toList();
 
-      comments.value = snap.docs.map((doc) {
-        final comment = Comment.fromDocumentSnapshot(doc);
-        final interaction = userCommentInteractions[comment.id];
-        if (interaction != null) {
-          return comment.copyWith(
-            isLikedByCurrentUser: interaction['isLiked'] ?? false,
-            isDislikedByCurrentUser: interaction['isDisliked'] ?? false,
-          );
-        }
-        return comment;
-      }).toList();
-
-      // CRITICAL FIX: Removed eager N+1 fetchReplies loop.
-      // Replies should only be fetched lazily when requested by the UI.
+          comments.value = loaded;
+          if (loaded.length > commentCount.value) {
+            commentCount.value = loaded.length;
+          }
+          isLoadingComments.value = false;
+        },
+        onError: (e) {
+          debugPrint('Error streaming topic comments: $e');
+          isLoadingComments.value = false;
+        },
+      );
     } catch (e) {
-      debugPrint('Error fetching comments: $e');
-    } finally {
+      debugPrint('Error setting up comments stream: $e');
       isLoadingComments.value = false;
     }
   }
@@ -1052,5 +1074,12 @@ class TopicInteractionController extends BaseController with ContentValidationMi
         colorText: AppColors.textPrimary,
       );
     }
+  }
+
+  @override
+  void onClose() {
+    _commentsSubscription?.cancel();
+    _commentsSubscription = null;
+    super.onClose();
   }
 }

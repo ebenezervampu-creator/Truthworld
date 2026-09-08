@@ -1,6 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
@@ -339,8 +338,7 @@ class _FullscreenCommentInputState extends State<FullscreenCommentInput> {
     if (text.isEmpty) return;
     _isSubmitting.value = true;
     try {
-      final currentUser = FirebaseAuth.instance.currentUser;
-      if (currentUser == null) {
+      if (!AuthService.to.isAuthenticated.value) {
         throw Exception('Please sign in to comment');
       }
       final authService = AuthService.to;
@@ -381,22 +379,28 @@ class _FullscreenCommentInputState extends State<FullscreenCommentInput> {
 
   @override
   Widget build(BuildContext context) {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) {
-      return Container(
-        padding: const EdgeInsets.all(12),
-        color: Colors.black26,
-        child: const Center(
-          child: Text(
-            'Sign in to comment',
-            style: TextStyle(color: AppColors.textTertiary, fontSize: 13),
-          ),
-        ),
-      );
-    }
-
     return Obx(() {
       final authService = AuthService.to;
+      if (!authService.isAuthenticated.value) {
+        return Container(
+          padding: const EdgeInsets.all(12),
+          color: Colors.black26,
+          child: Center(
+            child: TextButton.icon(
+              onPressed: authService.signInWithGoogle,
+              icon: const Icon(Icons.login_rounded, size: 16, color: Colors.white),
+              label: const Text(
+                'Sign in to comment',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        );
+      }
 
       final photoUrl = authService.activePhotoUrl;
 

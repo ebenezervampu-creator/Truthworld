@@ -41,6 +41,10 @@
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -85,5 +89,11 @@
 	<string>Truthworld uses the microphone to search videos by voice.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Truthworld uses speech recognition to search videos by voice.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Truthworld requires camera access to record videos, take profile pictures, and upload channel artwork.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Truthworld requires photo library access to upload videos, thumbnails, banners, and profile pictures.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Truthworld requires permission to save downloaded videos and audio clips to your photo library.</string>
 </dict>
 </plist>

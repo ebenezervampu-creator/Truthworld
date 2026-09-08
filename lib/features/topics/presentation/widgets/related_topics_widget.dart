@@ -23,6 +23,11 @@ class RelatedTopicsWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final validTopics = topics
+        .where((t) => t.isValidTopic && t.videoCount > 0)
+        .toList();
+    if (validTopics.isEmpty) return const SizedBox.shrink();
+
     return Container(
       margin: EdgeInsets.symmetric(
         horizontal: isDesktop ? 48 : (isTablet ? 32 : 16),
@@ -40,10 +45,10 @@ class RelatedTopicsWidget extends StatelessWidget {
             height: isDesktop ? 140 : (isTablet ? 120 : 100),
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              itemCount: topics.length,
+              itemCount: validTopics.length,
               physics: const BouncingScrollPhysics(),
               itemBuilder: (context, index) {
-                final topic = topics[index];
+                final topic = validTopics[index];
                 return _buildTopicCard(topic);
               },
             ),
@@ -266,7 +271,7 @@ class RelatedTopicsChips extends StatelessWidget {
       avatar: const Icon(
         Icons.topic_rounded,
         size: 18,
-        color: AppColors.brand,
+        color: Colors.white,
       ),
     );
   }

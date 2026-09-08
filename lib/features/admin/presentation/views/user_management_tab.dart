@@ -61,9 +61,7 @@ class UserManagementTab extends StatelessWidget {
                 Expanded(
                   child: TextField(
                     controller: _searchController,
-                    onChanged: (val) {
-                      controller.searchUsers(val);
-                    },
+                    onChanged: controller.searchUsers,
                     style: const TextStyle(
                       fontFamily: TWTypography.uiFamily,
                       color: AppColors.textPrimary,
@@ -643,8 +641,113 @@ class UserManagementTab extends StatelessWidget {
                 ],
               );
             }),
+
+            if (email.isNotEmpty) ...[
+              const SizedBox(height: 20),
+              Divider(color: Colors.white.withValues(alpha: 0.08)),
+              const SizedBox(height: 16),
+              const Text(
+                'Account Integrity & Consolidation',
+                style: TextStyle(
+                  fontFamily: TWTypography.brandFamily,
+                  color: AppColors.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Merge duplicate profiles created under this email and restore channel ownership.',
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Obx(() {
+                final isConsolidating = controller.isConsolidatingAccounts.value;
+                return ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF242424),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+                    ),
+                  ),
+                  onPressed: isConsolidating
+                      ? null
+                      : () => _confirmConsolidation(context, email, userId),
+                  icon: isConsolidating
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.merge_type, color: Colors.white, size: 18),
+                  label: Text(
+                    isConsolidating ? 'Consolidating...' : 'Consolidate Duplicate Accounts',
+                    style: const TextStyle(
+                      fontFamily: TWTypography.brandFamily,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                );
+              }),
+            ],
           ],
         ),
+      ),
+    );
+  }
+
+  void _confirmConsolidation(BuildContext context, String email, String primaryUid) {
+    Get.dialog(
+      AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        title: const Row(
+          children: [
+            Icon(Icons.merge_type, color: Colors.white, size: 22),
+            SizedBox(width: 8),
+            Text(
+              'Consolidate Accounts',
+              style: TextStyle(
+                fontFamily: TWTypography.brandFamily,
+                color: AppColors.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'This will search for all duplicate documents associated with "$email", merge channels and profiles into primary UID "$primaryUid", remove stale duplicates, and create an audit log. Continue?',
+          style: const TextStyle(
+            fontFamily: TWTypography.uiFamily,
+            color: AppColors.textSecondary,
+            fontSize: 13,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: Get.back,
+            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2BA640),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              Get.back();
+              controller.consolidateUserAccounts(email, primaryUid: primaryUid);
+            },
+            child: const Text('Consolidate Now'),
+          ),
+        ],
       ),
     );
   }

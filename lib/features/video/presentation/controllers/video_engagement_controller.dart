@@ -84,6 +84,7 @@ class VideoEngagementController extends BaseController {
     int defaultLikeCount,
     int defaultDislikeCount,
   ) async {
+    if (!AuthService.to.isAuthenticated.value) return;
     final userId = AuthService.to.uid;
     if (userId.isEmpty || videoId.isEmpty) return;
 
@@ -129,6 +130,7 @@ class VideoEngagementController extends BaseController {
     int defaultLikeCount,
     int defaultDislikeCount,
   ) async {
+    if (!AuthService.to.isAuthenticated.value) return;
     final userId = AuthService.to.uid;
     if (userId.isEmpty || videoId.isEmpty) return;
 

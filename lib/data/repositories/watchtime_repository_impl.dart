@@ -16,12 +16,14 @@ class WatchTimeRepositoryImpl extends BaseRepository implements WatchTimeReposit
     required int watchedSeconds,
     required int totalSeconds,
     required DateTime watchedAt,
+    String? channelId,
   }) async {
     return safeSave(
       _firestore.collection('watch_sessions').doc(),
       {
         'userId': userId,
         'videoId': videoId,
+        if (channelId != null && channelId.isNotEmpty) 'channelId': channelId,
         'watchedSeconds': watchedSeconds,
         'totalSeconds': totalSeconds,
         'watchedAt': Timestamp.fromDate(watchedAt),

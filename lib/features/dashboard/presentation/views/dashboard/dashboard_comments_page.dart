@@ -314,7 +314,7 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage>
             const SizedBox(width: 6),
             _buildFilterChip(
               'hearted',
-              'With Creator Heart ❤️',
+              'With Creator Heart',
               Icons.favorite_rounded,
             ),
 
@@ -1253,7 +1253,7 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage>
     final replyCtrl = _getReplyController(comment.id);
     final quickReplies = [
       'Thanks for watching! 🙏',
-      'Appreciate the support! ❤️',
+      'Appreciate the support! \u2764',
       'Great feedback, thank you!',
       'New video coming soon! 🚀',
     ];

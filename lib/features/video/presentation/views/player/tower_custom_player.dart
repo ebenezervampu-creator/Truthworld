@@ -7,7 +7,9 @@ import 'package:truthworld/features/video/presentation/views/player/controls/pla
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:truthworld/features/video/presentation/views/player/overlays/ad_overlay.dart';
 import 'package:truthworld/features/video/presentation/views/player/overlays/end_screen_overlay.dart';
+import 'package:truthworld/features/video/presentation/views/player/overlays/live_chat_overlay.dart';
 import 'package:truthworld/features/video/presentation/views/player/overlays/player_comments_overlay.dart';
+import 'package:truthworld/features/video/presentation/views/player/overlays/player_fact_check_overlay.dart';
 import 'package:truthworld/features/video/presentation/views/player/overlays/player_state_overlays.dart';
 import 'package:truthworld/features/video/presentation/views/player/overlays/player_transcript_overlay.dart';
 import 'package:truthworld/features/video/presentation/views/player/overlays/real_time_fact_overlay.dart';
@@ -471,15 +473,24 @@ class TowerCustomPlayer extends StatelessWidget {
                               c.isFullScreen.value;
                               c.showCommentsPopup.value;
                               c.showTranscriptPopup.value;
+                              c.showFactCheckPopup.value;
                               if (c.isShowingAd.value || c.isPiP.value) {
                                 return const SizedBox.shrink();
                               }
+
+                              final hasOverlayOpen =
+                                  c.showCommentsPopup.value ||
+                                  c.showTranscriptPopup.value ||
+                                  c.showFactCheckPopup.value;
+                              final isLayerVisible =
+                                  c.controlsVisible.value || hasOverlayOpen;
+
                               return Positioned.fill(
                                 child: AnimatedOpacity(
                                   duration: const Duration(milliseconds: 200),
-                                  opacity: c.controlsVisible.value ? 1.0 : 0.0,
+                                  opacity: isLayerVisible ? 1.0 : 0.0,
                                   child: AbsorbPointer(
-                                    absorbing: !c.controlsVisible.value,
+                                    absorbing: !isLayerVisible,
                                     child: Stack(
                                       children: [
                                         FloatingAutoPlayCommentOverlay(ctrl: c),
@@ -516,15 +527,59 @@ class TowerCustomPlayer extends StatelessWidget {
                                             }),
                                           ),
 
+                                          // Fact-Check & Credibility Overlay positioned directly in Stack
+                                          Positioned(
+                                            top: 80,
+                                            bottom: 80,
+                                            right: 20,
+                                            width: (playerWidth < 460)
+                                                ? (playerWidth - 40)
+                                                    .clamp(280.0, 390.0)
+                                                : 390,
+                                            child: Obx(() {
+                                              c.showFactCheckPopup.value;
+                                              if (!c
+                                                  .showFactCheckPopup
+                                                  .value) {
+                                                return const SizedBox.shrink();
+                                              }
+                                              return FactCheckOverlay(ctrl: c);
+                                            }),
+                                          ),
+
+                                          // Real-Time Live Chat & Superchats Overlay
+                                          Positioned(
+                                            top: 80,
+                                            bottom: 80,
+                                            right: 20,
+                                            width: (playerWidth < 460)
+                                                ? (playerWidth - 40)
+                                                    .clamp(280.0, 390.0)
+                                                : 390,
+                                            child: Obx(() {
+                                              if (!c.showLiveChat.value) {
+                                                return const SizedBox.shrink();
+                                              }
+                                              final vidId = c.videoController?.video.id ?? c.tag ?? '';
+                                              return LiveChatOverlay(
+                                                videoId: vidId,
+                                                video: c.videoController?.video,
+                                                onClose: () => c.showLiveChat.value = false,
+                                              );
+                                            }),
+                                          ),
+
                                           // Floating Vertical Actions Dock
                                           Obx(() {
-                                            final hasOverlayOpen =
+                                            final isAnyOverlayOpen =
                                                 c.showCommentsPopup.value ||
-                                                c.showTranscriptPopup.value;
+                                                c.showTranscriptPopup.value ||
+                                                c.showFactCheckPopup.value ||
+                                                c.showLiveChat.value;
                                             final isDockEnabled = c
                                                 .showFullscreenActionsDock
                                                 .value;
-                                            if (hasOverlayOpen ||
+                                            if (isAnyOverlayOpen ||
                                                 !isDockEnabled) {
                                               return const SizedBox.shrink();
                                             }

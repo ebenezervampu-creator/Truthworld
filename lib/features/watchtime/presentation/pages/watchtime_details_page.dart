@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
@@ -16,24 +17,34 @@ class WatchtimeDetailsPage extends StatelessWidget {
   final bool isDarkMode;
   final Video? video;
 
+  Future<QuerySnapshot> _fetchVideosQuery() {
+    final col = FirebaseFirestore.instance.collection(FirestoreCollections.videos);
+    if (channelId.isNotEmpty) {
+      return col.where('channelId', isEqualTo: channelId).get();
+    }
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null && uid.isNotEmpty) {
+      return col.where('ownerId', isEqualTo: uid).get();
+    }
+    return col.limit(20).get();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: isDarkMode ? AppColors.bgPage : AppColors.bgPage,
+      backgroundColor: AppColors.bgPage,
       appBar: AppBar(
-        title: const Text('Watchtime Details'),
-        backgroundColor: isDarkMode
-            ? AppColors.textPrimary
-            : AppColors.textPrimary,
-        iconTheme: IconThemeData(
-          color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+        title: const Text(
+          'Watchtime Details',
+          style: TextStyle(color: Colors.white),
+        ),
+        backgroundColor: AppColors.appBarSurface,
+        iconTheme: const IconThemeData(
+          color: Colors.white,
         ),
       ),
       body: FutureBuilder<QuerySnapshot>(
-        future: FirebaseFirestore.instance
-            .collection(FirestoreCollections.videos)
-            .where('channelId', isEqualTo: channelId)
-            .get(),
+        future: _fetchVideosQuery(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return buildShimmerVideoList();

@@ -8,6 +8,7 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/data/models/watch_later.dart';
+import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -411,15 +412,15 @@ class WatchLaterController extends BaseController {
 
   void playAll() {
     if (watchLaterVideos.isNotEmpty) {
-      Get.toNamed(
-        '/videoscreen',
-        arguments: {'video': watchLaterVideos.first},
+      MiniplayerNavigationHelper.navigateToVideoScreen(
+        video: watchLaterVideos.first,
       );
     }
   }
 
   @override
   void onClose() {
+    _subscription?.cancel();
     searchController.dispose();
     scrollController.dispose();
     super.onClose();

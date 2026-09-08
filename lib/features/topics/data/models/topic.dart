@@ -315,12 +315,26 @@ class Topic {
     if (slug.trim().isEmpty) return false;
     if (title.trim().isEmpty) return false;
     final lowerTitle = title.trim().toLowerCase();
+    final lowerSlug = slug.trim().toLowerCase();
     if (lowerTitle == 'featured topic' ||
         lowerTitle == 'topic' ||
-        lowerTitle.startsWith('untitled')) {
+        lowerTitle.startsWith('untitled') ||
+        lowerSlug == 'topic' ||
+        lowerSlug == 'featured-topic' ||
+        lowerSlug.startsWith('untitled')) {
       return false;
     }
-    if (status.trim().toLowerCase() != 'active') return false;
+    final lowerStatus = status.trim().toLowerCase();
+    if (lowerStatus == 'deleted' ||
+        lowerStatus == 'archived' ||
+        lowerStatus == 'trash' ||
+        lowerStatus == 'rejected' ||
+        lowerStatus == 'verificationrejected' ||
+        lowerStatus == 'empty_archived' ||
+        lowerStatus == 'deletion_pending') {
+      return false;
+    }
+    if (videoCount <= 0 && featuredVideoIds.isEmpty) return false;
     return true;
   }
 

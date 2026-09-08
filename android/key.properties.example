@@ -1,0 +1,10 @@
+# Production Keystore Properties Example for Truthworld
+# 1. Generate a keystore with:
+#    keytool -genkey -v -keystore android/upload-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+# 2. Copy this file to android/key.properties and replace the values below with your actual keystore credentials.
+# 3. DO NOT commit android/key.properties or android/upload-keystore.jks to Git!
+
+storePassword=YOUR_KEYSTORE_PASSWORD
+keyPassword=YOUR_KEY_PASSWORD
+keyAlias=upload
+storeFile=upload-keystore.jks

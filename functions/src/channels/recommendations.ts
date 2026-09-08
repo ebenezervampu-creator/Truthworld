@@ -1,6 +1,7 @@
 import * as admin from "firebase-admin";
 import { onRequest } from "firebase-functions/v2/https";
 import { logger } from "../pipeline/utils/logger";
+import { verifyAuth } from "../utils/auth";
 
 const db = () => admin.firestore();
 
@@ -115,7 +116,9 @@ function calculateDiscoveryScore(params: {
 export const getHomeFeed = onRequest(
   { region: "asia-south1", cors: true, memory: "512MiB" },
   async (req, res) => {
-    const userId = req.query.userId as string;
+    // L-39: Authenticate caller to resolve userId. Prevents probing other users' private watch history and saved topics.
+    const authUser = await verifyAuth(req as any);
+    const userId = authUser ? authUser.uid : null;
     const limit = Math.min(Number(req.query.limit) || 24, 60);
     const category = req.query.category as string;
     const startAfterTs = req.query.startAfter ? Number(req.query.startAfter) : null;

@@ -13,6 +13,15 @@ class GoogleOnboardingSheet extends StatefulWidget {
 
   /// Helper to display the onboarding sheet as a modal bottom sheet
   static Future<void> show(BuildContext context) async {
+    // Safety guard: Never show for unsigned, anonymous, or unauthenticated users
+    final auth = AuthService.to;
+    final currentUser = auth.user;
+    if (currentUser == null ||
+        currentUser.isAnonymous ||
+        !auth.isAuthenticated.value) {
+      return;
+    }
+
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,

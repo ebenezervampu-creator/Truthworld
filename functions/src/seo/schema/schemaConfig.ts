@@ -16,8 +16,19 @@ export interface BaseSeoMeta {
   dataType?: string;
 }
 
-export function escapeHtml(unsafe: string): string {
-  if (!unsafe) return "";
+export function escapeHtml(unsafe: any): string {
+  if (unsafe === null || unsafe === undefined) return "";
+  if (typeof unsafe !== "string") {
+    if (typeof unsafe.toDate === "function") {
+      return formatDate(unsafe);
+    }
+    return String(unsafe)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
   return unsafe
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")

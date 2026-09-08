@@ -36,8 +36,8 @@ class CommunityGuidelinesPage extends StatelessWidget {
   final bool isDashboard;
 
   final ScrollController _scrollController = ScrollController();
-  final RxList<GuidelineSection> _sections = <GuidelineSection>[].obs;
-  final RxString _introContent = ''.obs;
+  late final List<GuidelineSection> _sections;
+  late final String _introContent;
   final RxBool _hasScrolledToBottom = false.obs;
   final RxBool _guidelinesAccepted = false.obs;
 
@@ -48,7 +48,8 @@ class CommunityGuidelinesPage extends StatelessWidget {
     final matches = regex.allMatches(_guidelinesText).toList();
 
     if (matches.isEmpty) {
-      _introContent.value = _guidelinesText;
+      _introContent = _guidelinesText;
+      _sections = const [];
       return;
     }
 
@@ -77,8 +78,8 @@ class CommunityGuidelinesPage extends StatelessWidget {
       );
     }
 
-    _introContent.value = introContent;
-    _sections.value = tempSections;
+    _introContent = introContent;
+    _sections = tempSections;
   }
 
   /// Scrolls the view to the widget associated with the given GlobalKey
@@ -98,30 +99,28 @@ class CommunityGuidelinesPage extends StatelessWidget {
       color: Theme.of(context).scaffoldBackgroundColor,
       child: SizedBox(
         width: 280, // Fixed width for the nav menu
-        child: Obx(
-          () => ListView(
-            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 12),
-            children: [
-              ..._sections.map((section) {
-                return ListTile(
-                  title: Text(
-                    section.title,
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                  ),
-                  dense: true,
-                  onTap: () {
-                    _scrollToSection(section.key);
-                    if (isDrawer) {
-                      Navigator.pop(context); // Close the drawer if it's a drawer
-                    }
-                  },
-                );
-              }),
-            ],
-          ),
+        child: ListView(
+          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 12),
+          children: [
+            ..._sections.map((section) {
+              return ListTile(
+                title: Text(
+                  section.title,
+                  style: const TextStyle(fontSize: 14),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                ),
+                dense: true,
+                onTap: () {
+                  _scrollToSection(section.key);
+                  if (isDrawer) {
+                    Navigator.pop(context); // Close the drawer if it's a drawer
+                  }
+                },
+              );
+            }),
+          ],
         ),
       ),
     );
@@ -148,46 +147,47 @@ class CommunityGuidelinesPage extends StatelessWidget {
     return SingleChildScrollView(
       controller: _scrollController,
       padding: const EdgeInsets.all(24),
-      child: Obx(
-        () => Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Render the introductory text first
-            SelectableText(_introContent.value, style: bodyTextStyle),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Render the introductory text first
+          SelectableText(_introContent, style: bodyTextStyle),
+          const SizedBox(height: 24),
+          // Then render all the numbered sections
+          ..._sections.map((section) {
+            return Padding(
+              key: section.key,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SelectableText(section.title, style: headingTextStyle),
+                  const SizedBox(height: 12),
+                  SelectableText(section.content, style: bodyTextStyle),
+                ],
+              ),
+            );
+          }),
+          if (fromRejectedChannelId != null) ...[
+            const SizedBox(height: 40),
+            const Divider(thickness: 1),
             const SizedBox(height: 24),
-            // Then render all the numbered sections
-            ..._sections.map((section) {
-              return Padding(
-                key: section.key,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SelectableText(section.title, style: headingTextStyle),
-                    const SizedBox(height: 12),
-                    SelectableText(section.content, style: bodyTextStyle),
-                  ],
-                ),
-              );
-            }),
-            if (fromRejectedChannelId != null) ...[
-              const SizedBox(height: 40),
-              const Divider(thickness: 1),
-              const SizedBox(height: 24),
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
+            Material(
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(
                   color: Theme.of(
                     context,
-                  ).colorScheme.primary.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: 0.2),
-                    width: 1.5,
-                  ),
+                  ).colorScheme.primary.withValues(alpha: 0.2),
+                  width: 1.5,
                 ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -205,9 +205,8 @@ class CommunityGuidelinesPage extends StatelessWidget {
                       style: bodyTextStyle,
                     ),
                     const SizedBox(height: 20),
-                    Material(
-                      type: MaterialType.transparency,
-                      child: CheckboxListTile(
+                    Obx(
+                      () => CheckboxListTile(
                         value: _guidelinesAccepted.value,
                         onChanged: (val) {
                           _guidelinesAccepted.value = val ?? false;
@@ -225,34 +224,36 @@ class CommunityGuidelinesPage extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        ElevatedButton(
-                          onPressed: _guidelinesAccepted.value
-                              ? () {
-                                  Get.offAllNamed(
-                                    '/studio',
-                                    arguments: {
-                                      'channel': {
-                                        'id': fromRejectedChannelId,
-                                        'ownerId': ownerId,
+                        Obx(
+                          () => ElevatedButton(
+                            onPressed: _guidelinesAccepted.value
+                                ? () {
+                                    Get.offAllNamed(
+                                      '/studio',
+                                      arguments: {
+                                        'channel': {
+                                          'id': fromRejectedChannelId,
+                                          'ownerId': ownerId,
+                                        },
+                                        'tab': 6, // Customization page
                                       },
-                                      'tab': 6, // Customization page
-                                    },
-                                  );
-                                }
-                              : null,
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 16,
+                                    );
+                                  }
+                                : null,
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 16,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: const Text(
-                            'Accept & Customize Channel',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
+                            child: const Text(
+                              'Accept & Customize Channel',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ),
@@ -261,15 +262,18 @@ class CommunityGuidelinesPage extends StatelessWidget {
                   ],
                 ),
               ),
-            ],
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final args = Get.arguments as Map<String, dynamic>?;
+    final requireAgreement = args?['requireAgreement'] == true;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         // Use a breakpoint to decide which layout to show
@@ -283,9 +287,9 @@ class CommunityGuidelinesPage extends StatelessWidget {
             shadowColor: AppColors.bgPage.withValues(alpha: 0.1),
             leading: (isDashboard || isDesktop)
                 ? IconButton(
-                    icon: Icon(
+                    icon: const Icon(
                       Icons.arrow_back,
-                      color: Theme.of(context).iconTheme.color,
+                      color: Colors.white,
                     ),
                     onPressed: () {
                       if (isDashboard) {
@@ -345,69 +349,75 @@ class CommunityGuidelinesPage extends StatelessWidget {
                   ],
                 )
               : _buildContentArea(context),
-          bottomNavigationBar: Obx(() {
-            final args = Get.arguments as Map<String, dynamic>?;
-            final requireAgreement = args?['requireAgreement'] == true;
-            if (!requireAgreement) return const SizedBox.shrink();
-
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                border: Border(
-                  top: BorderSide(
-                    color: Theme.of(context).dividerColor,
-                  ),
-                ),
-              ),
-              child: SafeArea(
-                child: _hasScrolledToBottom.value
-                    ? SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            Get.back(result: true);
-                          },
-                          icon: const Icon(Icons.check_circle_outline, color: Colors.black, size: 20),
-                          label: const Text(
-                            'I Have Read & Accept Community Guidelines',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: Colors.black,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
-                      )
-                    : Container(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.arrow_downward, color: Theme.of(context).textTheme.bodySmall?.color, size: 16),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Please scroll to the bottom to accept Community Guidelines',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Theme.of(context).textTheme.bodySmall?.color,
-                              ),
-                            ),
-                          ],
+          bottomNavigationBar: !requireAgreement
+              ? null
+              : Obx(() {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      border: Border(
+                        top: BorderSide(
+                          color: Theme.of(context).dividerColor,
                         ),
                       ),
-              ),
-            );
-          }),
+                    ),
+                    child: SafeArea(
+                      child: _hasScrolledToBottom.value
+                          ? SizedBox(
+                              width: double.infinity,
+                              height: 48,
+                              child: ElevatedButton.icon(
+                                onPressed: () {
+                                  Get.back(result: true);
+                                },
+                                icon: const Icon(
+                                  Icons.check_circle_outline,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                                label: const Text(
+                                  'I Have Read & Accept Community Guidelines',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Theme.of(context).colorScheme.primary,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                              ),
+                            )
+                          : Container(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.arrow_downward,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Please scroll to the bottom to accept Community Guidelines',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Theme.of(context).textTheme.bodySmall?.color,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                    ),
+                  );
+                }),
         );
       },
     );
@@ -420,11 +430,11 @@ COMMUNITY GUIDELINES
 Last Updated: July 24, 2026
 Effective Date: July 24, 2026
 
-Welcome to Truthworld. Our mission is to foster a truthful, knowledge-centric, and productive community through open debate and verified information.
+Welcome to Truthworld, operated by TowerVSP Services (OPC) Private Limited (CIN: U63111TS2025OPC207488). Our mission is to foster a truthful, knowledge-centric, and productive community through open debate and verified information.
 
 Truthworld is an OPEN DEBATE PLATFORM. We VERIFY claims — we do not censor them. Our Credibility Engine fact-checks every claim in every video, provides source citations, and displays a credibility score alongside the video. Channels can upload debates, controversial opinions, and discuss any topic — our job is to verify, not to silence.
 
-All content uploaded to the Platform must comply with these guidelines. We moderate HOW content is delivered (it must be family-friendly), NOT what opinions are expressed. Violations of delivery standards may result in content removal, restrictions on account privileges, or permanent account termination.
+All content uploaded to the Platform must comply with these guidelines. We moderate HOW content is delivered (it must be family-friendly), NOT what opinions are expressed. Violations of delivery standards may result in content removal, restrictions on account privileges, or permanent account termination. In accordance with Indian Intermediary Guidelines, removed content and relevant logs are retained for at least 180 days for statutory compliance.
 
 1. CORE PRINCIPLES - OPEN DEBATE PLATFORM
 
@@ -565,7 +575,7 @@ To help viewers evaluate statements and maintain truthfulness, Truthworld implem
 Truthworld respects the intellectual property rights of others and expects its creators to do the same. Uploading videos containing copyrighted material without permission or authorization violates our terms.
 
 **Copyright Reporting Form & Claims:**
-To submit a copyright infringement claim, please email our designated copyright agent at ebenezervampu@towervsp.com with the following information (the "Copyright Reporting Form"):
+To submit a formal statutory copyright infringement claim, you can use our public online takedown form at `/copyright-complaint` or email our designated copyright team at copyright@truthworld.in (with copy to ebenezervampu@truthworld.in) with the following information (the "Copyright Reporting Form"):
 1. Your complete contact details (full name, email address, physical address, and phone number).
 2. A clear description of the copyrighted work you believe has been infringed.
 3. The exact URL(s) of the infringing content on Truthworld.
@@ -577,7 +587,7 @@ To submit a copyright infringement claim, please email our designated copyright 
 Upon receipt of a valid and complete copyright takedown notice:
 • **Prompt Removal:** We will promptly remove or disable access to the reported video.
 • **Uploader Notification:** We will notify the uploader of the takedown claim and explain that their video was removed.
-• **Counter-Notification:** If the uploader believes their content was removed in error (e.g., they have a license, fair use rights, or the work is public domain), they may submit a counter-notice to ebenezervampu@towervsp.com containing their contact details, video URL, good faith explanation, and consent to court jurisdiction.
+• **Counter-Notification:** If the uploader believes their content was removed in error (e.g., they have a license, fair use rights, or the work is public domain), they may submit a counter-notice to copyright@truthworld.in containing their contact details, video URL, good faith explanation, and consent to court jurisdiction.
 • **Restoration:** If a valid counter-notice is received, we will forward it to the claimant. If the claimant does not notify us of a lawsuit within 10-14 business days, we may restore the video.
 
 **Repeat Infringer Policy (Three-Strikes System):**

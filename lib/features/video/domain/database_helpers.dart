@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:idb_shim/idb_browser.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:truthworld/core/services/local_playback_proxy.dart';
+import 'package:truthworld/core/services/media_crypto_service.dart';
 import 'package:truthworld/data/models/offline.dart';
 
 // ---- Web IndexedDB Database ----
@@ -45,6 +47,9 @@ Future<void> saveOfflineVideoMetadata(
   String id,
   OfflineVideo meta,
 ) async {
+  final metaMap = meta.toJson();
+  metaMap['isEncrypted'] = true;
+
   if (kIsWeb) {
     final db = await _getWebDatabase();
     if (db == null) return;
@@ -52,15 +57,16 @@ Future<void> saveOfflineVideoMetadata(
     final store = txn.objectStore('videos');
     final existing = await store.getObject(id) as Map?;
     final bytes = existing != null ? existing['bytes'] : null;
-    await store.put({'meta': meta.toJson(), 'bytes': bytes}, id);
+    await store.put({'meta': metaMap, 'bytes': bytes}, id);
     await txn.completed;
   } else {
     final dir = await _getOfflineDir();
     final metaFile = File('${dir.path}/$id.json');
-    await metaFile.writeAsString(jsonEncode(meta.toJson()));
+    await metaFile.writeAsString(jsonEncode(metaMap));
   }
 }
 
+/// Saves media file to offline storage, encrypting it with AES-256 CTR if not already encrypted.
 Future<void> saveOfflineVideoFile(
   String id,
   File mediaFile,
@@ -71,39 +77,91 @@ Future<void> saveOfflineVideoFile(
     await saveOfflineVideoBytes(id, bytes, meta);
   } else {
     final dir = await _getOfflineDir();
-    final ext = meta.isAudioOnly ? 'mp3' : 'mp4';
-    final targetFile = File('${dir.path}/$id.$ext');
-    if (mediaFile.path != targetFile.path) {
-      if (await targetFile.exists()) {
-        await targetFile.delete();
+    final targetEncryptedFile = File('${dir.path}/$id.twenc');
+
+    // Check if the source file is already encrypted with TWENC header
+    final isSourceEncrypted = await () async {
+      try {
+        final headerBytes = await mediaFile.openRead(0, MediaCryptoService.magicHeader.length).first;
+        return MediaCryptoService.instance.isEncryptedMedia(headerBytes);
+      } catch (_) {
+        return false;
       }
-      await mediaFile.copy(targetFile.path);
+    }();
+
+    if (isSourceEncrypted) {
+      if (mediaFile.path != targetEncryptedFile.path) {
+        if (await targetEncryptedFile.exists()) {
+          await targetEncryptedFile.delete();
+        }
+        await mediaFile.copy(targetEncryptedFile.path);
+      }
+    } else {
+      // Encrypt unencrypted file into target .twenc
+      final tempEncrypted = File('${dir.path}/$id.twenc.tmp');
+      await MediaCryptoService.instance.encryptFile(
+        mediaFile,
+        tempEncrypted,
+        isAudio: meta.isAudioOnly,
+      );
+      if (await targetEncryptedFile.exists()) {
+        await targetEncryptedFile.delete();
+      }
+      await tempEncrypted.rename(targetEncryptedFile.path);
+
+      // Remove source unencrypted file if in the offline dir
+      if (mediaFile.path != targetEncryptedFile.path &&
+          mediaFile.path.startsWith(dir.path) &&
+          await mediaFile.exists()) {
+        try {
+          await mediaFile.delete();
+        } catch (_) {}
+      }
     }
+
     await saveOfflineVideoMetadata(id, meta);
   }
 }
 
+/// Saves media bytes to offline storage, encrypting them with AES-256 CTR before writing to disk/IndexedDB.
 Future<void> saveOfflineVideoBytes(
   String id,
   Uint8List bytes,
   OfflineVideo meta,
 ) async {
+  final crypto = MediaCryptoService.instance;
+  final isAlreadyEncrypted = crypto.isEncryptedMedia(bytes);
+  final encryptedBytes = isAlreadyEncrypted
+      ? bytes
+      : await crypto.encryptBytes(bytes, isAudio: meta.isAudioOnly);
+
   if (kIsWeb) {
     final db = await _getWebDatabase();
     if (db == null) return;
     final txn = db.transaction('videos', 'readwrite');
     final store = txn.objectStore('videos');
-    await store.put({'meta': meta.toJson(), 'bytes': bytes}, id);
+    final metaMap = meta.toJson();
+    metaMap['isEncrypted'] = true;
+    await store.put({'meta': metaMap, 'bytes': encryptedBytes}, id);
     await txn.completed;
   } else {
     final dir = await _getOfflineDir();
-    final ext = meta.isAudioOnly ? 'mp3' : 'mp4';
     final metaFile = File('${dir.path}/$id.json');
-    final videoFile = File('${dir.path}/$id.$ext');
+    final encryptedFile = File('${dir.path}/$id.twenc');
 
-    await metaFile.writeAsString(jsonEncode(meta.toJson()));
-    if (bytes.isNotEmpty) {
-      await videoFile.writeAsBytes(bytes);
+    final metaMap = meta.toJson();
+    metaMap['isEncrypted'] = true;
+    await metaFile.writeAsString(jsonEncode(metaMap));
+    await encryptedFile.writeAsBytes(encryptedBytes);
+
+    // Clean up any legacy unencrypted media files for this id
+    for (final ext in ['mp4', 'mp3', 'm4a', 'aac']) {
+      final legacy = File('${dir.path}/$id.$ext');
+      if (await legacy.exists()) {
+        try {
+          await legacy.delete();
+        } catch (_) {}
+      }
     }
   }
 }
@@ -140,6 +198,10 @@ Future<List<Map<String, dynamic>>> getAllVideosData() async {
 }
 
 Future<void> deleteVideo(String id) async {
+  if (!kIsWeb) {
+    LocalPlaybackProxyServer.instance.unregisterVideo(id);
+  }
+
   if (kIsWeb) {
     final db = await _getWebDatabase();
     if (db == null) return;
@@ -152,7 +214,13 @@ Future<void> deleteVideo(String id) async {
     if (await metaFile.exists()) {
       await metaFile.delete();
     }
-    for (final ext in ['mp4', 'mp3', 'm4a', 'aac']) {
+
+    final encFile = File('${dir.path}/$id.twenc');
+    if (await encFile.exists()) {
+      await encFile.delete();
+    }
+
+    for (final ext in ['mp4', 'mp3', 'm4a', 'aac', 'part', 'twenc.tmp']) {
       final mediaFile = File('${dir.path}/$id.$ext');
       if (await mediaFile.exists()) {
         await mediaFile.delete();
@@ -161,7 +229,11 @@ Future<void> deleteVideo(String id) async {
   }
 }
 
+/// Retrieves the decrypted bytes of an offline video.
+/// On Web and Native, automatically decrypts TWENC payloads before returning.
 Future<Uint8List?> getVideoBytes(String id) async {
+  Uint8List? rawBytes;
+
   if (kIsWeb) {
     final db = await _getWebDatabase();
     if (db == null) return null;
@@ -170,22 +242,80 @@ Future<Uint8List?> getVideoBytes(String id) async {
     final data = await store.getObject(id) as Map?;
     await txn.completed;
     if (data == null || data['bytes'] == null) return null;
-    return Uint8List.fromList(List<int>.from(data['bytes']));
+    rawBytes = Uint8List.fromList(List<int>.from(data['bytes']));
   } else {
     final dir = await _getOfflineDir();
-    for (final ext in ['mp4', 'mp3', 'm4a', 'aac']) {
-      final mediaFile = File('${dir.path}/$id.$ext');
-      if (await mediaFile.exists()) {
-        return mediaFile.readAsBytes();
+    final encFile = File('${dir.path}/$id.twenc');
+    if (await encFile.exists()) {
+      rawBytes = await encFile.readAsBytes();
+    } else {
+      for (final ext in ['mp4', 'mp3', 'm4a', 'aac']) {
+        final mediaFile = File('${dir.path}/$id.$ext');
+        if (await mediaFile.exists()) {
+          rawBytes = await mediaFile.readAsBytes();
+          break;
+        }
       }
     }
-    return null;
   }
+
+  if (rawBytes == null || rawBytes.isEmpty) return null;
+
+  if (MediaCryptoService.instance.isEncryptedMedia(rawBytes)) {
+    return MediaCryptoService.instance.decryptBytes(rawBytes);
+  }
+
+  return rawBytes;
 }
 
+/// Resolves a streaming loopback URL for offline video playback via LocalPlaybackProxyServer.
+/// On native platforms, serves the encrypted file on-the-fly without writing unencrypted bytes to disk.
+Future<String?> getOfflinePlaybackUrl(String id) async {
+  if (kIsWeb) return null;
+
+  final dir = await _getOfflineDir();
+  final encFile = File('${dir.path}/$id.twenc');
+
+  if (await encFile.exists() && (await encFile.length()) > MediaCryptoService.headerSize) {
+    return LocalPlaybackProxyServer.instance.serveVideo(id, encFile);
+  }
+
+  // Check for legacy unencrypted file and transparently migrate to .twenc
+  for (final ext in ['mp4', 'mp3', 'm4a', 'aac']) {
+    final legacyFile = File('${dir.path}/$id.$ext');
+    if (await legacyFile.exists() && (await legacyFile.length()) > 512) {
+      debugPrint('[database_helpers] 🔄 Migrating legacy $ext download to encrypted .twenc');
+      try {
+        final isAudio = ext == 'mp3' || ext == 'm4a' || ext == 'aac';
+        await MediaCryptoService.instance.encryptFile(
+          legacyFile,
+          encFile,
+          isAudio: isAudio,
+        );
+        await legacyFile.delete();
+        return LocalPlaybackProxyServer.instance.serveVideo(id, encFile);
+      } catch (e) {
+        debugPrint('[database_helpers] Error migrating legacy file: $e');
+        // Fallback: serve legacy directly
+        return LocalPlaybackProxyServer.instance.serveVideo(id, legacyFile);
+      }
+    }
+  }
+
+  return null;
+}
+
+/// Returns the file path of an offline video.
+/// Prefer [getOfflinePlaybackUrl] for secure on-the-fly decrypted streaming.
 Future<String?> getVideoFilePath(String id) async {
   if (kIsWeb) return null;
   final dir = await _getOfflineDir();
+
+  final encFile = File('${dir.path}/$id.twenc');
+  if (await encFile.exists()) {
+    return encFile.path;
+  }
+
   for (final ext in ['mp4', 'mp3', 'm4a', 'aac']) {
     final mediaFile = File('${dir.path}/$id.$ext');
     if (await mediaFile.exists()) {
@@ -232,6 +362,12 @@ Future<bool> hasOfflineVideo(String id) async {
     return data != null && (data['bytes'] != null || data['meta'] != null);
   } else {
     final dir = await _getOfflineDir();
+
+    final encFile = File('${dir.path}/$id.twenc');
+    if (await encFile.exists() && (await encFile.length()) > MediaCryptoService.headerSize) {
+      return true;
+    }
+
     for (final ext in ['mp4', 'mp3', 'm4a', 'aac']) {
       final mediaFile = File('${dir.path}/$id.$ext');
       if (await mediaFile.exists() && (await mediaFile.length()) > 512) {
@@ -241,4 +377,3 @@ Future<bool> hasOfflineVideo(String id) async {
     return false;
   }
 }
-

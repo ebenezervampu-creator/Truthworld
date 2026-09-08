@@ -5,7 +5,7 @@ import { logger } from "firebase-functions/v2";
 import { getVertexAI } from "../pipeline/utils/ai-client";
 import { COMMUNITY_GUIDELINES_TEXT, MODERATION_RESPONSE_SCHEMA } from "../moderation/communityGuidelinesPrompt";
 import { isAdsBypassed } from "../moderation/moderationModes";
-import { requireAuth } from "../utils/auth";
+import { requireAuth, requireAdmin } from "../utils/auth";
 import { AdPipelineService } from "./adPipeline";
 
 const db = () => admin.firestore();
@@ -60,6 +60,38 @@ export const onAdCampaignWritten = onDocumentWritten(
       ctaTargetBefore !== ctaTargetAfter ||
       midrollVideoUrlBefore !== midrollVideoUrlAfter ||
       pinnedCommentTextBefore !== pinnedCommentTextAfter;
+
+    // Check if AI features were directly requested via Firestore stages.ai (e.g. offline/fallback trigger)
+    const aiStageBefore = beforeData?.stages?.ai?.status;
+    const aiStageAfter = afterData?.stages?.ai?.status;
+    const aiRequested = aiStageAfter === "running" && aiStageBefore !== "running";
+
+    if (aiRequested) {
+      const aiConfig = afterData.stages?.ai || {};
+      const features = Array.isArray(aiConfig.features) ? aiConfig.features : ["subtitles"];
+      const targetLanguages = Array.isArray(aiConfig.targetLanguages) ? aiConfig.targetLanguages : ["hi"];
+      const voiceStyle = aiConfig.voiceStyle || "natural";
+      const sourceLang = aiConfig.sourceLang || "en";
+
+      logger.info(`[onAdCampaignWritten] Direct Firestore trigger for AI features on campaign ${campaignId}`, {
+        features,
+        targetLanguages,
+      });
+
+      try {
+        await AdPipelineService.processAdAIFeatures({
+          campaignId,
+          userId: afterData.userId || "system",
+          features,
+          targetLanguages,
+          voiceStyle,
+          sourceLang,
+        });
+      } catch (err) {
+        logger.error(`[onAdCampaignWritten] Failed processing AI features via Firestore trigger for ${campaignId}:`, err);
+      }
+      return;
+    }
 
     // If details did not change and geminiApproved is already defined, exit to avoid infinite loop
     if (!detailsChanged && (afterData.geminiApproved !== undefined || (afterData.status !== "underReview" && afterData.status !== undefined))) {
@@ -136,6 +168,29 @@ export const onAdCampaignWritten = onDocumentWritten(
           status: finalStatus,
           updatedAt: Date.now(),
         });
+
+        // Automatically trigger AI dubbing & subtitles for approved video ads if not already generated
+        const hasVideoAsset = !!(
+          afterData.videoUrl ||
+          afterData.midrollVideoUrl ||
+          (afterData.resolutions && Array.isArray(afterData.resolutions) && afterData.resolutions.length > 0)
+        );
+        const hasSubtitles = afterData.subtitles && Object.keys(afterData.subtitles).length > 0;
+        const aiStage = afterData.stages?.ai?.status;
+
+        if (approved && hasVideoAsset && !hasSubtitles && aiStage !== "running" && aiStage !== "completed") {
+          logger.info(`[onAdCampaignWritten] Auto-queueing AI dubbing and subtitles for video ad ${campaignId}`);
+          AdPipelineService.processAdAIFeatures({
+            campaignId,
+            userId: afterData.userId || "system",
+            features: ["subtitles", "dubbing"],
+            targetLanguages: ["te", "hi", "ta", "es"],
+            voiceStyle: "natural",
+            sourceLang: "en",
+          }).catch((bgErr) => {
+            logger.error(`[onAdCampaignWritten] Background auto-AI error for ${campaignId}:`, bgErr);
+          });
+        }
 
         return; // Success — exit retry loop
       } catch (err) {
@@ -221,22 +276,20 @@ export const triggerAdAIFeatures = onRequest(
         }
       }
 
-      // Run AI pipeline in background
-      AdPipelineService.processAdAIFeatures({
+      // Process AI features to completion before responding
+      await AdPipelineService.processAdAIFeatures({
         campaignId,
         userId,
         features,
         targetLanguages,
         voiceStyle,
         sourceLang,
-      }).catch((bgErr) => {
-        console.error("[triggerAdAIFeatures] Background error:", bgErr);
       });
 
       res.status(200).json({
         success: true,
         campaignId,
-        message: `AI features (${features.join(", ")}) queued for target languages: ${targetLanguages.join(", ")}`,
+        message: `AI features (${features.join(", ")}) processed successfully for target languages: ${targetLanguages.join(", ")}`,
       });
     } catch (error) {
       console.error("[triggerAdAIFeatures] Error:", error);
@@ -246,4 +299,69 @@ export const triggerAdAIFeatures = onRequest(
     }
   }
 );
+
+/**
+ * 🚀 Generate AI Features (Subtitles & Dubbing) for ALL Video Advertisements
+ *
+ * Scans all video advertisements across Truthworld and processes AI subtitles
+ * and voice dubbing in the background.
+ */
+export const generateAllVideoAdsAIFeatures = onRequest(
+  {
+    cors: true,
+    region: "asia-south1",
+    minInstances: 0,
+    maxInstances: 2,
+    timeoutSeconds: 540,
+    memory: "1GiB",
+    secrets: [
+      "GEMINI_API_KEY",
+      "ASSEMBLYAI_KEY",
+      "ELEVENLABS_API_KEY",
+      "GOOGLE_TRANSLATION_API_KEY",
+    ],
+  },
+  async (req, res) => {
+    try {
+      const adminUser = await requireAdmin(req, res);
+      if (!adminUser) return;
+
+      const {
+        features = ["subtitles", "dubbing"],
+        targetLanguages = ["te", "hi", "ta", "es"],
+        voiceStyle = "natural",
+        sourceLang = "en",
+        forceRegenerate = false,
+      } = req.body || {};
+
+      // Launch batch processing in background
+      AdPipelineService.processAllVideoAds({
+        features,
+        targetLanguages,
+        voiceStyle,
+        sourceLang,
+        forceRegenerate,
+      })
+        .then((result) => {
+          logger.info("[generateAllVideoAdsAIFeatures] Batch processing complete", result);
+        })
+        .catch((err) => {
+          logger.error("[generateAllVideoAdsAIFeatures] Batch processing error:", err);
+        });
+
+      res.status(200).json({
+        success: true,
+        message: `Batch AI dubbing & subtitles job queued for all video ads with languages: ${targetLanguages.join(", ")}`,
+        targetLanguages,
+        features,
+      });
+    } catch (error) {
+      console.error("[generateAllVideoAdsAIFeatures] Error:", error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "Internal server error",
+      });
+    }
+  }
+);
+
 

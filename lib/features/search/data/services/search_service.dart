@@ -378,6 +378,11 @@ class SearchService {
       if (data != null) {
         final vis = (data['visibility'] as String?)?.toLowerCase();
         if (vis == 'private') return;
+        final count = (data['videoCount'] as num?)?.toInt() ??
+            (data['videosCount'] as num?)?.toInt() ??
+            (data['videoIds'] as List?)?.length ??
+            0;
+        if (count <= 0) return;
       }
       if (foundIds.add(item.id)) {
         results.add(item);
@@ -478,8 +483,16 @@ class SearchService {
     final foundIds = <String>{};
     final results = <SearchResult>[];
 
-    void addResult(SearchResult item) {
+    void addResult(SearchResult item, [Map<String, dynamic>? data]) {
       if (!item.isValid) return;
+      if (data != null) {
+        final status = (data['status'] as String?)?.toLowerCase();
+        if (status != null && status != 'active') return;
+        final count = (data['videoCount'] as num?)?.toInt() ??
+            (data['featuredVideoIds'] as List?)?.length ??
+            0;
+        if (count <= 0) return;
+      }
       if (foundIds.add(item.id)) {
         results.add(item);
       }
@@ -495,7 +508,7 @@ class SearchService {
             .limit(10)
             .get();
         for (final doc in s1.docs) {
-          addResult(SearchResult.fromFirestore(doc, type: ResultType.topic));
+          addResult(SearchResult.fromFirestore(doc, type: ResultType.topic), doc.data());
         }
         if (results.isNotEmpty) break;
       }
@@ -509,7 +522,7 @@ class SearchService {
             .limit(10)
             .get();
         for (final doc in s2.docs) {
-          addResult(SearchResult.fromFirestore(doc, type: ResultType.topic));
+          addResult(SearchResult.fromFirestore(doc, type: ResultType.topic), doc.data());
         }
       }
 
@@ -521,7 +534,7 @@ class SearchService {
             .limit(10)
             .get();
         for (final doc in s3.docs) {
-          addResult(SearchResult.fromFirestore(doc, type: ResultType.topic));
+          addResult(SearchResult.fromFirestore(doc, type: ResultType.topic), doc.data());
         }
       }
 
@@ -536,7 +549,7 @@ class SearchService {
           if (title.contains(cleanQuery) ||
               desc.contains(cleanQuery) ||
               (tokens.isNotEmpty && tokens.every(title.contains))) {
-            addResult(SearchResult.fromFirestore(doc, type: ResultType.topic));
+            addResult(SearchResult.fromFirestore(doc, type: ResultType.topic), data);
           }
         }
       }
@@ -604,7 +617,7 @@ class SearchService {
     }
   }
 
-  /// Fetch recommended playlists for empty search state
+  /// Fetch recommended playlists for empty search state (only playlists with at least 1 video)
   Future<List<SearchResult>> getRecommendedPlaylists() async {
     try {
       final snapshot = await _firestore
@@ -616,10 +629,14 @@ class SearchService {
           .where((doc) {
             final data = doc.data();
             final vis = (data['visibility'] as String?)?.toLowerCase();
-            return vis == null || vis != 'private';
+            final count = (data['videoCount'] as num?)?.toInt() ??
+                (data['videosCount'] as num?)?.toInt() ??
+                (data['videoIds'] as List?)?.length ??
+                0;
+            return (vis == null || vis != 'private') && count > 0;
           })
           .map((doc) => SearchResult.fromFirestore(doc, type: ResultType.playlist))
-          .where((item) => item.isValid)
+          .where((item) => item.isValid && item.views > 0)
           .toList();
       results.sort((a, b) => b.views.compareTo(a.views));
       return results.take(15).toList();
@@ -629,7 +646,7 @@ class SearchService {
     }
   }
 
-  /// Fetch recommended topics for empty search state
+  /// Fetch recommended topics for empty search state (only active topics with at least 1 video)
   Future<List<SearchResult>> getRecommendedTopics() async {
     try {
       final snapshot = await _firestore
@@ -638,8 +655,16 @@ class SearchService {
           .get();
 
       final results = snapshot.docs
+          .where((doc) {
+            final data = doc.data();
+            final status = (data['status'] as String?)?.toLowerCase();
+            final count = (data['videoCount'] as num?)?.toInt() ??
+                (data['featuredVideoIds'] as List?)?.length ??
+                0;
+            return (status == null || status == 'active') && count > 0;
+          })
           .map((doc) => SearchResult.fromFirestore(doc, type: ResultType.topic))
-          .where((item) => item.isValid)
+          .where((item) => item.isValid && item.views > 0)
           .toList();
       results.sort((a, b) => b.views.compareTo(a.views));
       return results.take(15).toList();

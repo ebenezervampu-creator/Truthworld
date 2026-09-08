@@ -117,15 +117,40 @@ class VideoMediaCredibility {
   });
 
   factory VideoMediaCredibility.fromMap(Map<String, dynamic> data) {
+    final rawTrustScore = data['trustScore'] ??
+        data['trustIndex'] ??
+        data['score'] ??
+        data['videoRating'] ??
+        0;
+    final trustScore = (rawTrustScore is num) ? rawTrustScore.toDouble() : 0.0;
+    final trustLabel =
+        (data['trustLabel'] ?? data['label'] ?? data['state'])?.toString();
+    final summary = (data['summary'] ??
+            data['viewerNote'] ??
+            data['narrative'] ??
+            data['uiReport']?['narrative'] ??
+            '')
+        .toString();
+
+    final rawFactors = data['scoringFactors'] ?? data['factors'];
+    final scoringFactors = rawFactors != null && rawFactors is Map
+        ? ScoringFactors.fromMap(Map<String, dynamic>.from(rawFactors))
+        : null;
+
+    final rawUiReport = data['uiReport'] != null
+        ? UIReport.fromMap(Map<String, dynamic>.from(data['uiReport']))
+        : (data.containsKey('claims') ||
+                data.containsKey('viewerNote') ||
+                data.containsKey('narrative') ||
+                data.containsKey('keyClaims'))
+            ? UIReport.fromMap(data)
+            : null;
+
     return VideoMediaCredibility(
-      trustScore: (data['trustScore'] ?? 0).toDouble(),
-      trustLabel: data['trustLabel'],
-      summary: data['summary'] ?? data['uiReport']?['narrative'] ?? '',
-      scoringFactors: data['scoringFactors'] != null
-          ? ScoringFactors.fromMap(
-              Map<String, dynamic>.from(data['scoringFactors']),
-            )
-          : null,
+      trustScore: trustScore,
+      trustLabel: trustLabel,
+      summary: summary,
+      scoringFactors: scoringFactors,
       deductions: (data['deductions'] as List? ?? [])
           .map((e) => TrustDeduction.fromMap(Map<String, dynamic>.from(e)))
           .toList(),
@@ -161,9 +186,7 @@ class VideoMediaCredibility {
             )
           : null,
       intentToMisleadScore: (data['intentToMisleadScore'] ?? 0).toDouble(),
-      uiReport: data['uiReport'] != null
-          ? UIReport.fromMap(Map<String, dynamic>.from(data['uiReport']))
-          : null,
+      uiReport: rawUiReport,
       factCheckUrl: (data['media'] is Map &&
               data['media']['factCheckUrl'] != null &&
               (data['media']['factCheckUrl'] as String).isNotEmpty)

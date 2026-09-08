@@ -59,5 +59,14 @@ abstract class AdvertiserRepository {
     String voiceStyle = 'natural',
     String sourceLang = 'en',
   });
+
+  /// Trigger batch AI features (subtitles, dubbing) for ALL video ads via Cloud Functions.
+  Future<Result<void>> generateAllVideoAdsAIFeatures({
+    List<String> features = const ['subtitles', 'dubbing'],
+    List<String> targetLanguages = const ['te', 'hi', 'ta', 'es'],
+    String voiceStyle = 'natural',
+    String sourceLang = 'en',
+    bool forceRegenerate = false,
+  });
 }
 

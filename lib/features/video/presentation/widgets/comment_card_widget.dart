@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
@@ -7,6 +6,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/components/ui/animated_interaction_buttons.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -267,17 +267,36 @@ class CommentCardWidget extends StatelessWidget {
                 ),
               );
             } else if (value == 'save') {
-              final user = FirebaseAuth.instance.currentUser;
-              if (user == null) {
+              if (!AuthService.to.isAuthenticated.value) {
                 Get.snackbar(
-                  'Authentication Required',
-                  'Please sign in to save comments.',
+                  'Sign in required',
+                  'Please sign in with your Google account to save comments.',
+                  snackPosition: SnackPosition.BOTTOM,
+                  backgroundColor: AppColors.bgSurface,
+                  colorText: AppColors.textPrimary,
+                  margin: const EdgeInsets.all(16),
+                  borderRadius: 12,
+                  duration: const Duration(seconds: 4),
+                  mainButton: TextButton(
+                    onPressed: () {
+                      AuthService.to.signInWithGoogle();
+                    },
+                    child: const Text(
+                      'SIGN IN',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
                 );
                 return;
               }
+              final uid = AuthService.to.uid;
+              if (uid.isEmpty) return;
               final docRef = FirebaseFirestore.instance
                   .collection(FirestoreCollections.users)
-                  .doc(user.uid)
+                  .doc(uid)
                   .collection('savedComments')
                   .doc(comment.id);
 
@@ -533,13 +552,13 @@ class CommentCardWidget extends StatelessWidget {
                       bottom: 0,
                       child: Container(
                         decoration: const BoxDecoration(
-                          color: AppColors.textPrimary,
+                          color: AppColors.bgSurface,
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
                           Icons.person,
                           size: 10,
-                          color: AppColors.brand,
+                          color: Colors.white,
                         ),
                       ),
                     ),

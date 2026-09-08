@@ -2,7 +2,7 @@ import * as admin from "firebase-admin";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { updateVideoSearchMetadata, updateChannelSearchMetadata } from "./searchMetadata";
 import { submitIndexNow } from "./indexNowService";
-import { DOMAIN } from "../schema/schemaConfig";
+import { DOMAIN, formatDate } from "../schema/schemaConfig";
 import { generateVideoSchema } from "../schema/videoSchema";
 import { generateChannelSchema } from "../schema/channelSchema";
 import { generateOrganizationSchema } from "../schema/organizationSchema";
@@ -33,7 +33,7 @@ export const onVideoSeoWritten = onDocumentWritten(
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
-      let channelName = afterData.channelName || "Creator";
+      let channelName = afterData.channelName || "Truthworld Creator";
       let channelHandle = "";
       if (afterData.channelId) {
         const channelDoc = await db.collection("channels").doc(afterData.channelId).get();
@@ -48,19 +48,28 @@ export const onVideoSeoWritten = onDocumentWritten(
         : `${DOMAIN}/channel/${afterData.channelId}`;
 
       const watchUrl = `${DOMAIN}/watch?v=${videoId}`;
-      const videoSchema = generateVideoSchema(afterData as any, authorUrl, channelName);
+      const videoSchema = generateVideoSchema({ id: videoId, ...afterData } as any, authorUrl, channelName);
       const breadcrumbs = generateBreadcrumbData([
         { name: channelName, url: authorUrl },
         { name: afterData.title || "Video", url: watchUrl }
       ]);
       const orgSchemas = generateOrganizationSchema();
+      const videoDurationSec = afterData.durationMs 
+        ? Math.floor(afterData.durationMs / 1000) 
+        : (typeof afterData.duration === "number" ? afterData.duration : 0);
 
       const html = buildSemanticSsrHtml({
         title: `${afterData.title} - Truthworld`,
-        description: afterData.description || `Watch ${afterData.title} on Truthworld.`,
+        description: afterData.description || `Watch ${afterData.title} by ${channelName} on Truthworld.`,
         url: watchUrl,
         image: afterData.thumbnailUrl || afterData.thumbnail,
+        imageWidth: 1280,
+        imageHeight: 720,
         type: "video.other",
+        videoUrl: afterData.hlsUrl || afterData.originalUrl || afterData.videoUrl,
+        embedUrl: `${DOMAIN}/embed/${videoId}`,
+        durationSeconds: videoDurationSec,
+        uploadDate: formatDate(afterData.uploadedAt || afterData.createdAt),
         robots: "index, follow",
         jsonLd: [videoSchema, breadcrumbs.jsonLd, ...orgSchemas],
         breadcrumbHtml: breadcrumbs.html,
@@ -70,13 +79,21 @@ export const onVideoSeoWritten = onDocumentWritten(
         transcriptExcerpt: afterData.transcript || afterData.captionsText
       });
 
-      await saveSnapshot(`watch_${videoId}`, html);
+      await saveSnapshot(`watch_v2_${videoId}`, html);
       await submitIndexNow([watchUrl]);
 
       logSeoEvent({
         eventType: "ssr_render",
         path: `/watch?v=${videoId}`,
         details: "Pre-rendered HTML snapshot and notified IndexNow."
+      });
+    } else {
+      // Video is no longer public/ready — invalidate cached snapshot
+      await saveSnapshot(`watch_v2_${videoId}`, '');
+      logSeoEvent({
+        eventType: "ssr_render",
+        path: `/watch?v=${videoId}`,
+        details: `Video unpublished or not ready (visibility=${visibility}, status=${status}). Snapshot cleared.`
       });
     }
   }
@@ -127,7 +144,7 @@ export const onChannelSeoWritten = onDocumentWritten(
         authorUrl: channelUrl
       });
 
-      const cacheKey = handle ? `channel_handle_${handle.toLowerCase().replace(/^@/, "")}` : `channel_${channelId}`;
+      const cacheKey = `channel_v2_${(handle || channelId).toLowerCase().replace(/^@/, "")}`;
       await saveSnapshot(cacheKey, html);
 
       await submitIndexNow([channelUrl]);

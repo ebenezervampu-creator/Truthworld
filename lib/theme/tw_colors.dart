@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/theme/app_colors.dart';
 
 /// Custom color roles for TruthWorld.
 ///
@@ -186,10 +187,39 @@ class TWColors extends ThemeExtension<TWColors> {
       focusRing: Color.lerp(focusRing, other.focusRing, t)!,
     );
   }
+  static const TWColors defaults = TWColors(
+    brand: AppColors.brand,
+    brandContainer: AppColors.brandContainer,
+    brandVariant: AppColors.brandVariant,
+    textPrimary: AppColors.textPrimary,
+    textSecondary: AppColors.textSecondary,
+    textTertiary: AppColors.textTertiary,
+    textDisabled: AppColors.textDisabled,
+    background: AppColors.bgPage,
+    surface: AppColors.bgSurface,
+    surfaceContainer: AppColors.bgSurfaceHover,
+    surfaceContainerHigh: AppColors.bgSurfaceHigh,
+    surfaceContainerHighest: AppColors.bgElevated,
+    surfaceInput: AppColors.bgInput,
+    appBarSurface: AppColors.appBarSurface,
+    divider: AppColors.bgDivider,
+    success: AppColors.success,
+    warning: AppColors.warning,
+    error: AppColors.error,
+    info: AppColors.info,
+    successContainer: AppColors.successContainer,
+    warningContainer: AppColors.warningContainer,
+    errorContainer: AppColors.errorContainer,
+    infoContainer: AppColors.infoContainer,
+    selectedOverlay: AppColors.selectedOverlay,
+    hoverOverlay: AppColors.hoverOverlay,
+    pressedOverlay: AppColors.pressedOverlay,
+    focusRing: AppColors.focusRing,
+  );
 }
 
 /// Helper extension to easily access TruthWorld colors from [BuildContext].
 extension TWColorsExtension on BuildContext {
-  TWColors get colors => Theme.of(this).extension<TWColors>()!;
-  TWColors get twColors => Theme.of(this).extension<TWColors>()!;
+  TWColors get colors => Theme.of(this).extension<TWColors>() ?? TWColors.defaults;
+  TWColors get twColors => Theme.of(this).extension<TWColors>() ?? TWColors.defaults;
 }

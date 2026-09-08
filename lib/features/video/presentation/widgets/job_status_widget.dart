@@ -237,7 +237,7 @@ class JobStatusWidget extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(Icons.error, color: AppColors.error, size: 20),
+                const Icon(Icons.error, color: Colors.white, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -265,7 +265,7 @@ class JobStatusWidget extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.warning, color: AppColors.warning, size: 20),
+                  const Icon(Icons.warning, color: Colors.white, size: 20),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -449,7 +449,7 @@ class VerificationWidget extends StatelessWidget {
                 shape: BoxShape.circle,
                 color: AppColors.info,
               ),
-              child: const Icon(Icons.refresh, color: AppColors.info, size: 20),
+              child: const Icon(Icons.refresh, color: Colors.white, size: 20),
             ),
           ),
       ],
@@ -542,17 +542,17 @@ class VerificationWidget extends StatelessWidget {
             child: Row(
               children: [
                 if (item.hasFailed)
-                  const Icon(Icons.close, color: AppColors.error, size: 20)
+                  const Icon(Icons.close, color: Colors.white, size: 20)
                 else if (item.isComplete)
                   const Icon(
                     Icons.check_circle,
-                    color: AppColors.success,
+                    color: Colors.white,
                     size: 20,
                   )
                 else
                   const Icon(
                     Icons.schedule,
-                    color: AppColors.warning,
+                    color: Colors.white,
                     size: 20,
                   ),
                 const SizedBox(width: 12),

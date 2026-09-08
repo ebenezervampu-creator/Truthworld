@@ -1,15 +1,17 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class UserClipsController extends BaseController {
@@ -30,8 +32,12 @@ class UserClipsController extends BaseController {
   Future<void> fetchClips() async {
     rxIsLoading.value = true;
     rxErrorMessage.value = '';
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
+    if (!AuthService.to.isAuthenticated.value) {
+      rxIsLoading.value = false;
+      return;
+    }
+    final uid = AuthService.to.uid;
+    if (uid.isEmpty) {
       rxIsLoading.value = false;
       return;
     }
@@ -39,7 +45,7 @@ class UserClipsController extends BaseController {
     try {
       final snapshot = await FirebaseFirestore.instance
           .collection(FirestoreCollections.users)
-          .doc(user.uid)
+          .doc(uid)
           .collection('clips')
           .orderBy('createdAt', descending: true)
           .get();
@@ -60,13 +66,14 @@ class UserClipsController extends BaseController {
   }
 
   Future<void> deleteClip(String clipId) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    if (!AuthService.to.isAuthenticated.value) return;
+    final uid = AuthService.to.uid;
+    if (uid.isEmpty) return;
 
     try {
       await FirebaseFirestore.instance
           .collection(FirestoreCollections.users)
-          .doc(user.uid)
+          .doc(uid)
           .collection('clips')
           .doc(clipId)
           .delete();
@@ -94,7 +101,27 @@ class UserClipsController extends BaseController {
   }
 
   void playClip(VideoClip clip) {
-    Get.toNamed<void>('/watch?v=${clip.videoId}', arguments: {'clip': clip});
+    final startMs = (clip.startTime * 1000).toInt();
+    final resumePos = Duration(milliseconds: startMs);
+    VideoPlaybackHandoff.registerResumePosition(clip.videoId, resumePos);
+
+    final currentRouteName = Get.currentRoute.toLowerCase();
+    final hasWatchInStack = RouteStackObserver.routeStack.isNotEmpty &&
+        (RouteStackObserver.routeStack.last.settings.name?.toLowerCase().contains('/watch') ?? false);
+    final isCurrentlyOnWatch = currentRouteName.contains('/watch') || hasWatchInStack;
+
+    final targetUrl = '/watch?v=${clip.videoId}&start=${clip.startTime}&end=${clip.endTime}';
+    final navArgs = <String, dynamic>{
+      'clip': clip,
+      'resumePosition': resumePos,
+      'initialPosition': resumePos,
+    };
+
+    if (isCurrentlyOnWatch) {
+      Get.offNamed<void>(targetUrl, arguments: navArgs);
+    } else {
+      Get.toNamed<void>(targetUrl, arguments: navArgs);
+    }
   }
 
   List<VideoClip> get filteredClips {

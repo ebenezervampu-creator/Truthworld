@@ -39,36 +39,35 @@ void main() {
   });
 
   group('Home category tabs visibility', () {
-    test('signed-out user should NOT see Subscriptions tab after All', () {
-      final categories = HomeDiscoveryController.getFixedCategories(
-        isAuthenticated: false,
-      );
-
-      expect(categories, isNot(contains('Subscriptions')));
-      expect(categories.first, equals('All'));
-      expect(categories[1], isNot(equals('Subscriptions')));
-    });
-
-    test('signed-in user should see Subscriptions tab right after All', () {
-      final categories = HomeDiscoveryController.getFixedCategories(
-        isAuthenticated: true,
-      );
-
-      expect(categories, contains('Subscriptions'));
-      expect(categories[0], equals('All'));
-      expect(categories[1], equals('Subscriptions'));
-    });
-
-    test('Posts tab is present in fixed categories for both signed in and signed out', () {
+    test('signed-out user should only see public category tabs (All, Trending, Flip Coin, New, Popular)', () {
       final loggedOutCategories = HomeDiscoveryController.getFixedCategories(
         isAuthenticated: false,
       );
+
+      expect(loggedOutCategories, isNot(contains('Subscriptions')));
+      expect(loggedOutCategories, isNot(contains('Posts')));
+      expect(loggedOutCategories, equals(['All', 'Trending', 'Flip Coin', 'New', 'Popular']));
+    });
+
+    test('signed-in user should see Subscriptions after All, and Posts after Popular', () {
       final loggedInCategories = HomeDiscoveryController.getFixedCategories(
-        isAuthenticated: true,
+        
       );
 
-      expect(loggedOutCategories, contains('Posts'));
+      expect(loggedInCategories, contains('Subscriptions'));
       expect(loggedInCategories, contains('Posts'));
+      expect(loggedInCategories[0], equals('All'));
+      expect(loggedInCategories[1], equals('Subscriptions'));
+      expect(loggedInCategories.last, equals('Posts'));
+      expect(loggedInCategories, equals([
+        'All',
+        'Subscriptions',
+        'Trending',
+        'Flip Coin',
+        'New',
+        'Popular',
+        'Posts',
+      ]));
     });
 
     test('Flip Coin is positioned before New and has no emoji prefix', () {

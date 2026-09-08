@@ -22,6 +22,7 @@ import 'package:truthworld/core/utils/error_handler_utils.dart';
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/utils/url_strategy/url_strategy.dart';
 import 'package:truthworld/core/widgets/truthworld_splash_screen.dart';
+import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/miniplayer/presentation/widgets/miniplayer_overlay_manager.dart';
 import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
 import 'package:truthworld/firebase_options.dart';
@@ -58,15 +59,25 @@ void main() {
         try {
           // Low-latency parallel initialization of Firebase and Storage
           await Future.wait([
-            Firebase.initializeApp(
-              options: DefaultFirebaseOptions.currentPlatform,
-            ).then((_) {
+            (() async {
+              try {
+                if (Firebase.apps.isEmpty) {
+                  await Firebase.initializeApp(
+                    options: DefaultFirebaseOptions.currentPlatform,
+                  );
+                }
+              } catch (e) {
+                // If app already exists (e.g. during Web hot restart), ignore duplicate app error
+                if (e is! FirebaseException || e.code != 'duplicate-app') {
+                  rethrow;
+                }
+              }
               logger.info('Firebase initialized successfully', tag: 'Startup');
               FirebaseFirestore.instance.settings = const Settings(
                 persistenceEnabled: !kIsWeb,
                 cacheSizeBytes: 100 * 1024 * 1024,
               );
-            }),
+            })(),
             GetStorage.init().catchError((e) {
               logger.warning('GetStorage error: $e');
               return false;
@@ -79,7 +90,9 @@ void main() {
               webProvider: ReCaptchaEnterpriseProvider(
                 '6LdsItgsAAAAADh75ccO7IQFSv77Hf4DYc-5G01G',
               ),
-              androidProvider: AndroidProvider.debug,
+              androidProvider: kDebugMode
+                  ? AndroidProvider.debug
+                  : AndroidProvider.playIntegrity,
               appleProvider: kDebugMode
                   ? AppleProvider.debug
                   : AppleProvider.deviceCheck,
@@ -96,6 +109,8 @@ void main() {
           Get.put(PushNotificationService(), permanent: true);
           Get.put(UserPreferencesService(), permanent: true);
           Get.put(AdService(), permanent: true);
+          Get.put(UserSettingsController(), permanent: true);
+          Get.put(MiniplayerController(), tag: 'miniplayer', permanent: true);
 
           // Auth MUST complete before app renders auth-dependent UI
           await authService.init();
@@ -238,6 +253,11 @@ class Truthworld extends StatelessWidget {
           return path;
         }
         return '/studio';
+      }
+      final path = Uri.base.path;
+      final query = Uri.base.hasQuery ? '?${Uri.base.query}' : '';
+      if (path.isNotEmpty && path != '/') {
+        return '$path$query';
       }
     }
     return '/';

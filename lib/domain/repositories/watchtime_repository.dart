@@ -9,6 +9,7 @@ abstract class WatchTimeRepository {
     required int watchedSeconds,
     required int totalSeconds,
     required DateTime watchedAt,
+    String? channelId,
   });
 
   /// Fetch total watch time for a user in a time range.

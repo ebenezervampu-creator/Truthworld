@@ -2,6 +2,7 @@ import * as admin from "firebase-admin";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
 import { VerificationRequest } from "./types";
+import { isCallableAdmin } from "../utils/auth";
 
 const db = admin.firestore();
 
@@ -70,9 +71,9 @@ export const requestInstitutionalVerification = onCall(
 export const approveVerification = onCall(
   { region: "asia-south1", memory: "256MiB" },
   async (request) => {
-    // In production, this would be restricted to admin UIDs or roles
-    const userId = request.auth?.uid;
-    if (!userId) throw new HttpsError("unauthenticated", "Admin required.");
+    if (!isCallableAdmin(request.auth)) {
+      throw new HttpsError("permission-denied", "Admin privileges required to approve verification.");
+    }
 
     const { requestId, status, notes } = request.data;
     if (!requestId || !status) throw new HttpsError("invalid-argument", "Missing data.");

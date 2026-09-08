@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/likedvideos/presentation/controllers/likedvideos_controller.dart';
+import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -330,7 +331,7 @@ class _LikedVideoListCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: () =>
-          Get.toNamed('/watch?v=${video.id}', arguments: {'video': video}),
+          MiniplayerNavigationHelper.navigateToVideoScreen(video: video),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Row(

@@ -249,7 +249,7 @@ List<Widget> _buildAppBarActions(BuildContext context, bool isMobile) {
     _buildNotificationLogo(context),
     Obx(() {
       final isAuth = Get.isRegistered<AuthService>() &&
-          AuthService.to.currentUser.value != null;
+          AuthService.to.isAuthenticated.value;
       return !isAuth ? _buildSignInButton(context) : _buildUserMenu(context);
     }),
   ];
@@ -353,7 +353,6 @@ Future<void> _handleSignIn() async {
   } else {
     try {
       await AuthService.to.signInWithGoogle();
-      await AuthService.to.checkAndPromptOnboarding();
     } catch (e) {
       debugPrint('Sign in error: $e');
     }
@@ -550,13 +549,39 @@ PopupMenuItem<String> _buildPopupMenuItem(
 Widget _buildUserAvatar(BuildContext context, {double radius = 18}) {
   final imageUrl = AuthService.to.activePhotoUrl;
   final displayName = AuthService.to.activeDisplayName;
-  final initial = displayName.isNotEmpty
-      ? displayName.substring(0, 1).toUpperCase()
-      : (AuthService.to.user?.email?.isNotEmpty == true
-          ? AuthService.to.user!.email!.substring(0, 1).toUpperCase()
-          : 'U');
+  final email = AuthService.to.user?.email ?? '';
+  final String initial;
+  if (displayName.isNotEmpty && displayName != 'User') {
+    initial = displayName.substring(0, 1).toUpperCase();
+  } else if (email.isNotEmpty) {
+    initial = email.substring(0, 1).toUpperCase();
+  } else {
+    initial = '';
+  }
 
   final hasImage = imageUrl.isNotEmpty;
+
+  Widget buildPlaceholder() {
+    if (initial.isNotEmpty) {
+      return Center(
+        child: Text(
+          initial,
+          style: TextStyle(
+            fontSize: radius * 0.9,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+      );
+    }
+    return Center(
+      child: Icon(
+        Icons.person_rounded,
+        size: radius * 1.1,
+        color: Colors.white,
+      ),
+    );
+  }
 
   return Container(
     decoration: BoxDecoration(
@@ -577,37 +602,10 @@ Widget _buildUserAvatar(BuildContext context, {double radius = 18}) {
                 fit: BoxFit.cover,
                 memCacheWidth:
                     (radius * 2 * MediaQuery.of(context).devicePixelRatio).toInt(),
-                placeholder: (context, url) => Center(
-                  child: Text(
-                    initial,
-                    style: TextStyle(
-                      fontSize: radius * 0.9,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-                errorWidget: (context, url, error) => Center(
-                  child: Text(
-                    initial,
-                    style: TextStyle(
-                      fontSize: radius * 0.9,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
+                placeholder: (context, url) => buildPlaceholder(),
+                errorWidget: (context, url, error) => buildPlaceholder(),
               )
-            : Center(
-                child: Text(
-                  initial,
-                  style: TextStyle(
-                    fontSize: radius * 0.9,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
+            : buildPlaceholder(),
       ),
     ),
   );

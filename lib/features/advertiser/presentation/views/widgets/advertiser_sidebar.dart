@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -76,53 +77,62 @@ class AdvertiserSidebar extends StatelessWidget {
   }
 
   Widget _buildSidebarItems(BuildContext context) {
-    final items = [
-      {'icon': Icons.dashboard_outlined, 'title': 'Overview'},
-      {'icon': Icons.campaign_outlined, 'title': 'Campaigns'},
-      {'icon': Icons.add_chart_outlined, 'title': 'Create Ad'},
-      {'icon': Icons.analytics_outlined, 'title': 'Analytics'},
-      {'icon': Icons.account_balance_wallet_outlined, 'title': 'Billing'},
-      {'icon': Icons.settings_outlined, 'title': 'Settings'},
+    final icons = <IconData>[
+      Icons.dashboard_rounded,
+      Icons.campaign_rounded,
+      Icons.analytics_rounded,
+      Icons.subtitles_rounded,
+      Icons.translate_rounded,
+      Icons.account_balance_wallet_rounded,
+      Icons.groups_rounded,
+      Icons.handshake_rounded,
+      Icons.perm_media_rounded,
+      Icons.science_rounded,
+      Icons.settings_rounded,
     ];
 
-    return ListView.builder(
-      itemCount: items.length,
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemBuilder: (context, index) {
-        final item = items[index];
-        final isSelected = controller.selectedIndex.value == index;
+    return Obx(() {
+      final selected = controller.selectedIndex.value;
+      return ListView.builder(
+        itemCount: controller.tabTitles.length,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemBuilder: (context, index) {
+          final title = controller.tabTitles[index];
+          final icon = icons[index];
+          final isSelected = selected == index;
 
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-          child: ListTile(
-            leading: Icon(
-              item['icon']! as IconData,
-              color: Colors.white,
-              size: 20,
-            ),
-            title: Text(
-              item['title']! as String,
-              style: TextStyle(
-                fontFamily: TWTypography.uiFamily,
-                color: isSelected ? Colors.white : AppColors.textSecondary,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                fontSize: 14,
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+            child: ListTile(
+              leading: Icon(
+                icon,
+                color: Colors.white,
+                size: 20,
               ),
+              title: Text(
+                title,
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  color: isSelected ? Colors.white : AppColors.textSecondary,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                  fontSize: 14,
+                ),
+              ),
+              selected: isSelected,
+              selectedTileColor: AppColors.brand.withValues(alpha: 0.12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              onTap: () {
+                controller.selectedIndex.value = index;
+                if (isDrawer) {
+                  Navigator.of(context).pop();
+                }
+              },
             ),
-            selected: isSelected,
-            selectedTileColor: AppColors.brand.withValues(alpha: 0.12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            onTap: () {
-              controller.selectedIndex.value = index;
-              if (isDrawer) {
-                Navigator.of(context).pop();
-              }
-            },
-          ),
-        );
-      },
-    );
+          );
+        },
+      );
+    });
   }
 }

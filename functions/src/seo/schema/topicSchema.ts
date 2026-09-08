@@ -18,7 +18,7 @@ export function generateTopicSchema(topic: TopicData, topicUrl: string, videos: 
     name: topicTitle,
     description: descStr,
     url: topicUrl,
-    mainEntity: {
+    mainEntity: videos.length > 0 ? {
       "@type": "ItemList",
       name: topicTitle,
       numberOfItems: videos.length,
@@ -28,6 +28,11 @@ export function generateTopicSchema(topic: TopicData, topicUrl: string, videos: 
         name: v.title,
         url: `${DOMAIN}/watch?v=${v.id}`
       }))
+    } : {
+      "@type": "Thing",
+      name: topicTitle,
+      description: descStr,
+      url: topicUrl
     }
   };
 }

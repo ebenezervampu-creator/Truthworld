@@ -22,8 +22,8 @@ class PrivacyPolicyScreen extends StatelessWidget {
   final bool isDashboard;
 
   final ScrollController _scrollController = ScrollController();
-  final RxList<PolicySection> _sections = <PolicySection>[].obs;
-  final RxString _introContent = ''.obs;
+  late final List<PolicySection> _sections;
+  late final String _introContent;
 
   /// Parses the giant text string into a structured list of sections.
   /// This allows us to build the nav menu and content separately.
@@ -33,7 +33,8 @@ class PrivacyPolicyScreen extends StatelessWidget {
     final matches = regex.allMatches(_privacyPolicyText).toList();
 
     if (matches.isEmpty) {
-      _introContent.value = _privacyPolicyText;
+      _introContent = _privacyPolicyText;
+      _sections = const [];
       return;
     }
 
@@ -66,8 +67,8 @@ class PrivacyPolicyScreen extends StatelessWidget {
       );
     }
 
-    _introContent.value = introContent;
-    _sections.value = tempSections;
+    _introContent = introContent;
+    _sections = tempSections;
   }
 
   /// Scrolls the view to the widget associated with the given GlobalKey
@@ -83,12 +84,11 @@ class PrivacyPolicyScreen extends StatelessWidget {
 
   /// Builds the left-hand navigation menu
   Widget _buildNavigationMenu(BuildContext context, {bool isDrawer = false}) {
-    return Container(
-      width: 280, // Fixed width for the nav menu
-      // Use theme's scaffoldBackgroundColor or surface color for the menu
+    return Material(
       color: Theme.of(context).scaffoldBackgroundColor,
-      child: Obx(
-        () => ListView(
+      child: SizedBox(
+        width: 280, // Fixed width for the nav menu
+        child: ListView(
           padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 12),
           children: [
             ..._sections.map((section) {
@@ -129,31 +129,29 @@ class PrivacyPolicyScreen extends StatelessWidget {
     return SingleChildScrollView(
       controller: _scrollController,
       padding: const EdgeInsets.all(24),
-      child: Obx(
-        () => Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Render the introductory text first
-            SelectableText(_introContent.value, style: bodyTextStyle),
-            const SizedBox(height: 24),
-            // Then render all the numbered sections
-            ..._sections.map((section) {
-              // Each section is wrapped in a KeyedSubtree so we can scroll to it
-              return Padding(
-                key: section.key, // This key is crucial for scrolling
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SelectableText(section.title, style: headingTextStyle),
-                    const SizedBox(height: 12),
-                    SelectableText(section.content, style: bodyTextStyle),
-                  ],
-                ),
-              );
-            }),
-          ],
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Render the introductory text first
+          SelectableText(_introContent, style: bodyTextStyle),
+          const SizedBox(height: 24),
+          // Then render all the numbered sections
+          ..._sections.map((section) {
+            // Each section is wrapped in a KeyedSubtree so we can scroll to it
+            return Padding(
+              key: section.key, // This key is crucial for scrolling
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SelectableText(section.title, style: headingTextStyle),
+                  const SizedBox(height: 12),
+                  SelectableText(section.content, style: bodyTextStyle),
+                ],
+              ),
+            );
+          }),
+        ],
       ),
     );
   }
@@ -174,9 +172,9 @@ class PrivacyPolicyScreen extends StatelessWidget {
             shadowColor: AppColors.bgPage.withValues(alpha: 0.1),
             leading: (isDashboard || isDesktop)
                 ? IconButton(
-                    icon: Icon(
+                    icon: const Icon(
                       Icons.arrow_back,
-                      color: Theme.of(context).iconTheme.color,
+                      color: Colors.white,
                     ),
                     onPressed: () {
                       if (isDashboard) {
@@ -240,7 +238,7 @@ Effective Date: April 04, 2026
 
 1. INTRODUCTION
 
-Welcome to Truthworld ("we," "our," "us," or the "Platform"). We are committed to protecting your privacy and ensuring transparency about how we collect, use, store, and share your personal information.
+Welcome to Truthworld ("we," "our," "us," or the "Platform"), operated by TowerVSP Services (OPC) Private Limited (CIN: U63111TS2025OPC207488). We are committed to protecting your privacy and ensuring transparency about how we collect, use, store, and share your personal information.
 
 This Privacy Policy applies to all users and visitors of our video-sharing platform, including content creators, viewers, and anyone who interacts with our services through our website, mobile applications, and associated platforms.
 
@@ -473,13 +471,13 @@ To exercise any of these rights:
 We will respond to verified requests within 30 days (or as required by law).
 
 7. DATA RETENTION
-
+ 
 We retain your information for as long as necessary to provide our services and fulfill the purposes described in this policy:
-
-• Account Information: Retained while your account is active and for up to 90 days after deletion
-• Content: Videos remain available until you delete them; deleted content may persist in backups for up to 90 days
-• Analytics Data: Aggregated data may be retained indefinitely
-• Legal Obligations: Some data may be retained longer to comply with legal requirements
+ 
+• Account Information: Retained while your account is active and for a minimum of 180 days after deletion in compliance with Rule 3(1)(g) of the Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021.
+• Content: Videos remain available until you delete them; deleted or removed content and associated user registration records are retained for at least 180 days for statutory verification and law enforcement assistance as mandated by law.
+• Analytics Data: Aggregated and anonymized data may be retained indefinitely.
+• Legal Obligations: Some data may be retained longer when required by court orders or statutory government directives.
 
 8. COOKIES AND TRACKING TECHNOLOGIES
 
@@ -595,22 +593,30 @@ Some browsers transmit "Do Not Track" (DNT) signals. Our Platform does not curre
 
 For privacy-related questions, concerns, or rights requests, please contact us:
 
-Truthworld Privacy Team
-Email: privacy@Truthworld.com
-Support Email: ebenezervampu@Truthworld.com
+TowerVSP Services (OPC) Private Limited
+Platform: Truthworld
+Email: privacy@truthworld.in
+Grievance Email: ebenezervampu@truthworld.in / grievance@truthworld.in
+Support Email: support@truthworld.in
+Phone: +91 9390617877
 
-Mailing Address:
-Truthworld Privacy Team
-Uppal Kalan, Telangana
-India
+Registered Office:
+TowerVSP Services (OPC) Private Limited
+Ramaram, Yadadri Bhuvanagiri, Telangana - 508116, India
+
+Corporate Office:
+Telangana, India
+
+Grievance Officer (India & Global):
+Vampu Ebenezer
+Email: ebenezervampu@truthworld.in / grievance@truthworld.in
+Phone: +91 9390617877
+Support Hours: Mon – Fri, 9:00 AM – 6:00 PM IST
 
 Data Protection Officer (EU):
-dpo@Truthworld.com
+dpo@truthworld.in
 
-India Privacy Officer:
-privacy@Truthworld.com
-
-We will respond to your inquiries within 30 days.
+We will acknowledge inquiries within 24 hours and resolve them within 15 days in accordance with statutory guidelines.
 
 16. JURISDICTION-SPECIFIC NOTICES
 
@@ -622,7 +628,7 @@ Legal Basis for Processing:
 • Legitimate Interests: To improve our services and prevent fraud
 • Legal Compliance: To meet legal obligations
 
-Data Controller: Truthworld is the data controller for your personal information.
+Data Controller: TowerVSP Services (OPC) Private Limited is the data controller for your personal information.
 
 16.2 California Residents
 
@@ -642,25 +648,37 @@ We comply with the Lei Geral de Proteção de Dados (LGPD). Brazilian users have
 
 16.5 India
 
-As an Indian company, we comply with the Digital Personal Data Protection Act (DPDPA), 2023 and Information Technology Act, 2000 (as amended).
+As an Indian company, TowerVSP Services (OPC) Private Limited (operating Truthworld) complies with the Digital Personal Data Protection Act (DPDPA), 2023 and the Information Technology Act, 2000 read with the Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021 (as amended).
 
 Indian Users' Rights:
 • Right to access personal data
 • Right to correction of inaccurate data
-• Right to erasure of personal data
+• Right to erasure of personal data (subject to mandatory 180-day retention under IT Rules)
 • Right to grievance redressal
-• Right to nominate a legal representative
+• Right to nominate a legal representative (in event of death or incapacity)
 
 Data Localization: Certain categories of sensitive personal data may be stored and processed on servers located in India in compliance with applicable Indian laws.
 
-Grievance Officer:
-Name: [Grievance Officer Name]
-Email: grievance@Truthworld.com
-Response Time: We will acknowledge complaints within 24 hours and resolve within 30 days as per DPDPA requirements.
+Statutory Grievance Redressal:
+Grievance Officer: Vampu Ebenezer
+Entity: TowerVSP Services (OPC) Private Limited
+Email: ebenezervampu@truthworld.in / grievance@truthworld.in
+Customer Support: support@truthworld.in
+Phone: +91 9390617877
+Registered Office: Ramaram, Yadadri Bhuvanagiri, Telangana - 508116, India
+Support Hours: Mon – Fri, 9:00 AM – 6:00 PM IST
 
-Data Fiduciary: Truthworld acts as a Data Fiduciary under the DPDPA, 2023.
+Statutory Redressal Timelines:
+• Acknowledgment: We acknowledge all complaints and grievances within 24 hours.
+• Disposal / Resolution: We dispose of/resolve grievances within 15 days in accordance with Rule 3(2) of the Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021 (as amended).
+• Expedited Removal: Any complaint regarding prima facie non-consensual sexual content, explicit nudity, morphing, or deepfakes will be reviewed and acted upon within 24 hours under Rule 3(2)(b).
 
-Consent: By using our Services, you provide consent for the processing of your personal data as described in this Privacy Policy. You may withdraw consent at any time by contacting us.
+Grievance Appellate Committee (GAC):
+If you are dissatisfied with the order or resolution passed by our Grievance Officer, you have the statutory right under Rule 3A of the IT Rules to prefer an appeal to the Grievance Appellate Committee (GAC) set up by the Ministry of Electronics and Information Technology (MeitY), Government of India, via the online portal: https://gac.gov.in within 30 days from the date of receipt of communication from the Grievance Officer.
+
+Data Fiduciary: TowerVSP Services (OPC) Private Limited acts as the Data Fiduciary under the DPDPA, 2023.
+
+Consent: By using our Services, you provide consent for the processing of your personal data as described in this Privacy Policy. You may withdraw consent at any time by contacting our Grievance Officer.
 
 Cross-Border Transfer: If your data is transferred outside India, we ensure adequate safeguards are in place as required under Indian law.
 

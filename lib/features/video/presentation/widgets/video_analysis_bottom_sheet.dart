@@ -33,6 +33,7 @@ class VideoAnalysisBottomSheet extends StatelessWidget {
   final int initialTabIndex;
   late final VideoController videoCtrl;
   final RxSet<int> _expandedClaimIndices = <int>{}.obs;
+  final RxString _selectedClaimFilter = 'All'.obs;
 
   BuildContext get context => Get.context!;
 
@@ -164,6 +165,37 @@ class VideoAnalysisBottomSheet extends StatelessWidget {
     });
   }
 
+  int _normalizeTimestampToMs(dynamic raw) {
+    if (raw == null) return 0;
+    if (raw is String) {
+      final parsed = double.tryParse(raw);
+      if (parsed != null) {
+        return _normalizeTimestampToMs(parsed);
+      }
+      final parts = raw.split(':');
+      if (parts.length == 2) {
+        final m = double.tryParse(parts[0]) ?? 0;
+        final s = double.tryParse(parts[1]) ?? 0;
+        return ((m * 60 + s) * 1000).toInt();
+      } else if (parts.length == 3) {
+        final h = double.tryParse(parts[0]) ?? 0;
+        final m = double.tryParse(parts[1]) ?? 0;
+        final s = double.tryParse(parts[2]) ?? 0;
+        return ((h * 3600 + m * 60 + s) * 1000).toInt();
+      }
+      return 0;
+    }
+    if (raw is num) {
+      final val = raw.toDouble();
+      if (val <= 0) return 0;
+      if (val > 10000) {
+        return val.toInt();
+      }
+      return (val * 1000).toInt();
+    }
+    return 0;
+  }
+
   Widget _buildFormattedDashboard(
     Map<String, dynamic> data,
   ) {
@@ -207,6 +239,30 @@ class VideoAnalysisBottomSheet extends StatelessWidget {
     final factors =
         (data['scoringFactors'] ?? data['factors']) as Map? ?? {};
 
+    // Compute empirical claim statistics
+    var verifiedCount = 0;
+    var cautionCount = 0;
+    var falseCount = 0;
+    for (final c in claims) {
+      if (c is! Map) continue;
+      final status = (c['status'] ?? c['verificationStatus'] ?? '')
+          .toString()
+          .toLowerCase();
+      final isVerified = status == 'correct' ||
+          status == 'mostly_correct' ||
+          status == 'verified' ||
+          status == 'true' ||
+          c['isVerified'] == true;
+      final isFalse = status == 'false' || status == 'incorrect';
+      if (isVerified) {
+        verifiedCount++;
+      } else if (isFalse) {
+        falseCount++;
+      } else {
+        cautionCount++;
+      }
+    }
+
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       physics: const BouncingScrollPhysics(),
@@ -219,6 +275,10 @@ class VideoAnalysisBottomSheet extends StatelessWidget {
           trustLabel: trustLabel,
           confidenceVal: confidenceVal,
           confidenceTier: confidenceTier,
+          totalClaims: claims.length,
+          verifiedCount: verifiedCount,
+          cautionCount: cautionCount,
+          falseCount: falseCount,
         ),
         const SizedBox(height: 16),
 
@@ -242,7 +302,13 @@ class VideoAnalysisBottomSheet extends StatelessWidget {
 
         // 5. Fact-Checked Claims
         if (claims.isNotEmpty) ...[
-          _buildClaimsSection(claims, sources),
+          _buildClaimsSection(
+            claims,
+            sources,
+            verifiedCount: verifiedCount,
+            cautionCount: cautionCount,
+            falseCount: falseCount,
+          ),
           const SizedBox(height: 16),
         ],
 
@@ -262,16 +328,34 @@ class VideoAnalysisBottomSheet extends StatelessWidget {
     required String trustLabel,
     required double confidenceVal,
     required String confidenceTier,
+    required int totalClaims,
+    required int verifiedCount,
+    required int cautionCount,
+    required int falseCount,
   }) {
+    final hasScore = scoreAvailable && trustScore != null && trustScore > 0;
+    final isNotScored = !hasScore || trustLabel.toLowerCase().contains('not scored');
+
     Color stateColor;
-    if (analysisState.toUpperCase() == 'VERIFIED') {
-      stateColor = AppColors.success;
-    } else if (analysisState.toUpperCase().contains('FLAG') ||
-        analysisState.toUpperCase().contains('DISPUTE')) {
+    String badgeText;
+    if (!isNotScored) {
+      final scoreVal = trustScore > 5 ? trustScore : trustScore * 20;
+      stateColor = _getScoreColor(scoreVal);
+      badgeText = analysisState.toUpperCase();
+    } else if (falseCount > 0 && falseCount >= verifiedCount) {
       stateColor = AppColors.error;
-    } else {
+      badgeText = 'DISPUTED CONTENT';
+    } else if (cautionCount > 0 && cautionCount > verifiedCount) {
       stateColor = AppColors.warning;
+      badgeText = 'CAUTION ADVISED';
+    } else {
+      stateColor = AppColors.success;
+      badgeText = totalClaims > 0 ? 'FACT-CHECK COMPLETE' : 'VERIFIED';
     }
+
+    final headlineTitle = isNotScored
+        ? (totalClaims > 0 ? '$totalClaims Claims Evaluated' : 'Qualitative Fact-Check')
+        : trustLabel;
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -322,7 +406,7 @@ class VideoAnalysisBottomSheet extends StatelessWidget {
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
-                            analysisState.toUpperCase(),
+                            badgeText,
                             style: context.twTypography.overline.copyWith(
                               fontSize: 10,
                               fontWeight: FontWeight.w900,
@@ -331,7 +415,7 @@ class VideoAnalysisBottomSheet extends StatelessWidget {
                             ),
                           ),
                         ),
-                        if (confidenceTier.isNotEmpty) ...[
+                        if (!isNotScored && confidenceTier.isNotEmpty) ...[
                           const SizedBox(width: 8),
                           Text(
                             '${confidenceTier.toUpperCase()} CONFIDENCE',
@@ -347,7 +431,7 @@ class VideoAnalysisBottomSheet extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      trustLabel,
+                      headlineTitle,
                       style: context.twTypography.title.copyWith(
                         fontSize: 17,
                         fontWeight: FontWeight.bold,
@@ -359,7 +443,7 @@ class VideoAnalysisBottomSheet extends StatelessWidget {
               ),
 
               // Trust Score gauge badge (if score is available)
-              if (scoreAvailable && trustScore != null && trustScore > 0) ...[
+              if (hasScore) ...[
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,
@@ -399,11 +483,119 @@ class VideoAnalysisBottomSheet extends StatelessWidget {
             ],
           ),
 
-          // Confidence Progress Bar
+          // Confidence Progress Bar or Empirical Claim Breakdown Bar
           const SizedBox(height: 14),
-          _buildConfidenceBar(confidenceVal),
+          if (!isNotScored && confidenceVal > 0)
+            _buildConfidenceBar(confidenceVal)
+          else if (totalClaims > 0)
+            _buildEmpiricalClaimBar(totalClaims, verifiedCount, cautionCount, falseCount),
         ],
       ),
+    );
+  }
+
+  Widget _buildEmpiricalClaimBar(
+    int total,
+    int verified,
+    int caution,
+    int falseCount,
+  ) {
+    if (total == 0) return const SizedBox.shrink();
+    final verifiedFactor = verified / total;
+    final cautionFactor = caution / total;
+    final falseFactor = falseCount / total;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'EMPIRICAL CLAIM DISTRIBUTION',
+              style: context.twTypography.overline.copyWith(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textTertiary,
+                letterSpacing: 1.0,
+              ),
+            ),
+            Text(
+              '$verified / $total Verified',
+              style: context.twTypography.label.copyWith(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: AppColors.success,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(3),
+          child: Container(
+            height: 6,
+            width: double.infinity,
+            color: Colors.white.withValues(alpha: 0.08),
+            child: Row(
+              children: [
+                if (verifiedFactor > 0)
+                  Expanded(
+                    flex: (verifiedFactor * 1000).toInt().clamp(1, 1000),
+                    child: Container(color: AppColors.success),
+                  ),
+                if (cautionFactor > 0)
+                  Expanded(
+                    flex: (cautionFactor * 1000).toInt().clamp(1, 1000),
+                    child: Container(color: AppColors.warning),
+                  ),
+                if (falseFactor > 0)
+                  Expanded(
+                    flex: (falseFactor * 1000).toInt().clamp(1, 1000),
+                    child: Container(color: AppColors.error),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            _buildClaimLegendDot(AppColors.success, '$verified True'),
+            const SizedBox(width: 12),
+            _buildClaimLegendDot(AppColors.warning, '$caution Unconfirmed'),
+            if (falseCount > 0) ...[
+              const SizedBox(width: 12),
+              _buildClaimLegendDot(AppColors.error, '$falseCount False'),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildClaimLegendDot(Color color, String text) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          text,
+          style: context.twTypography.caption.copyWith(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textSecondary,
+          ),
+        ),
+      ],
     );
   }
 
@@ -546,125 +738,115 @@ class VideoAnalysisBottomSheet extends StatelessWidget {
             final title = (item['title'] ?? 'Chapter ${index + 1}').toString();
             final rawStart = item['start'] ?? item['startMs'] ?? item['startTime'] ?? item['startTimeMs'] ?? 0;
             final rawEnd = item['end'] ?? item['endMs'] ?? item['endTime'] ?? item['endTimeMs'] ?? 0;
-            final isSecStart = rawStart is double || (rawStart is num && rawStart % 1 != 0) || item.containsKey('startTime');
-            final isSecEnd = rawEnd is double || (rawEnd is num && rawEnd % 1 != 0) || item.containsKey('endTime');
-            final startVal = (rawStart is num) ? (isSecStart ? (rawStart * 1000).toInt() : rawStart.toInt()) : 0;
-            final endVal = (rawEnd is num) ? (isSecEnd ? (rawEnd * 1000).toInt() : rawEnd.toInt()) : 0;
+
+            final startVal = _normalizeTimestampToMs(rawStart);
+            final endVal = _normalizeTimestampToMs(rawEnd);
 
             final startDuration = Duration(milliseconds: startVal);
             final endDuration = Duration(milliseconds: endVal);
             final trustIndex = item['trustIndex'] as num?;
             final topics = (item['primaryTopics'] ?? item['topics']) as List? ?? [];
 
-            return Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppColors.bgSurface,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.bgDivider),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          '${FormatUtils.formatDuration(startDuration)} - ${FormatUtils.formatDuration(endDuration)}',
-                          style: context.twTypography.caption.copyWith(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textSecondary,
-                            fontFamily: TWTypography.uiFamily,
-                          ),
-                        ),
-                      ),
-                      const Spacer(),
-                      if (trustIndex != null) ...[
+            return InkWell(
+              onTap: () {
+                if (videoCtrl.videoPlayerController != null &&
+                    videoCtrl.videoPlayerController!.value.isInitialized) {
+                  videoCtrl.videoPlayerController!.seekTo(startDuration);
+                  videoCtrl.videoPlayerController!.play();
+                  Get.back();
+                }
+              },
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.bgSurface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.bgDivider),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
+                            horizontal: 6,
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: _getScoreColor(trustIndex > 5 ? trustIndex.toDouble() : trustIndex * 20).withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(6),
+                            color: Colors.white.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(4),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               const Icon(
-                                Icons.star_rounded,
+                                Icons.play_arrow_rounded,
                                 size: 12,
                                 color: Colors.white,
                               ),
                               const SizedBox(width: 3),
                               Text(
-                                trustIndex <= 5.0
-                                    ? trustIndex.toStringAsFixed(1)
-                                    : '${trustIndex.toInt()}%',
+                                '${FormatUtils.formatDuration(startDuration)} - ${FormatUtils.formatDuration(endDuration)}',
                                 style: context.twTypography.caption.copyWith(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.white,
+                                  color: AppColors.textSecondary,
                                   fontFamily: TWTypography.uiFamily,
                                 ),
                               ),
                             ],
                           ),
                         ),
+                        const Spacer(),
+                        if (trustIndex != null) ...[
+                          _buildChapterTrustBadge(trustIndex),
+                        ],
                       ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      title,
+                      style: context.twTypography.title.copyWith(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    if (topics.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: topics.map((t) {
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.brand.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: AppColors.brand.withValues(alpha: 0.25),
+                              ),
+                            ),
+                            child: Text(
+                              t.toString(),
+                              style: context.twTypography.caption.copyWith(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
                     ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    title,
-                    style: context.twTypography.title.copyWith(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  if (topics.isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: topics.map((t) {
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.brand.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: AppColors.brand.withValues(alpha: 0.25),
-                            ),
-                          ),
-                          child: Text(
-                            t.toString(),
-                            style: context.twTypography.caption.copyWith(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
                   ],
-                ],
+                ),
               ),
             );
           },
@@ -673,7 +855,58 @@ class VideoAnalysisBottomSheet extends StatelessWidget {
     );
   }
 
-  Widget _buildClaimsSection(List<dynamic> claims, List<dynamic> allSources) {
+  Widget _buildChapterTrustBadge(num trustIndex) {
+    final double score100;
+    final String label;
+    if (trustIndex <= 10.0) {
+      score100 = trustIndex * 10.0;
+      label = trustIndex.toStringAsFixed(1);
+    } else {
+      score100 = trustIndex.toDouble();
+      label = '${trustIndex.toInt()}%';
+    }
+    final color = _getScoreColor(score100);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 8,
+        vertical: 2,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.star_rounded,
+            size: 12,
+            color: Colors.white,
+          ),
+          const SizedBox(width: 3),
+          Text(
+            label,
+            style: context.twTypography.caption.copyWith(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+              fontFamily: TWTypography.uiFamily,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildClaimsSection(
+    List<dynamic> claims,
+    List<dynamic> allSources, {
+    int verifiedCount = 0,
+    int cautionCount = 0,
+    int falseCount = 0,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -711,18 +944,146 @@ class VideoAnalysisBottomSheet extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 10),
-        ListView.separated(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: claims.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 10),
-          itemBuilder: (context, index) {
-            final claim = claims[index];
-            if (claim is! Map) return const SizedBox.shrink();
-            return _buildClaimCard(claim, index, claims, allSources);
-          },
-        ),
+
+        // Claim Filter Tabs (All, Verified, Caution, False)
+        if (claims.length > 3) ...[
+          Obx(() {
+            final current = _selectedClaimFilter.value;
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildClaimFilterChip(
+                    'All',
+                    'All (${claims.length})',
+                    current == 'All',
+                  ),
+                  const SizedBox(width: 8),
+                  if (verifiedCount > 0) ...[
+                    _buildClaimFilterChip(
+                      'Verified',
+                      'Verified ($verifiedCount)',
+                      current == 'Verified',
+                      color: AppColors.success,
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  if (cautionCount > 0) ...[
+                    _buildClaimFilterChip(
+                      'Caution',
+                      'Caution ($cautionCount)',
+                      current == 'Caution',
+                      color: AppColors.warning,
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  if (falseCount > 0) ...[
+                    _buildClaimFilterChip(
+                      'False',
+                      'False ($falseCount)',
+                      current == 'False',
+                      color: AppColors.error,
+                    ),
+                  ],
+                ],
+              ),
+            );
+          }),
+          const SizedBox(height: 12),
+        ],
+
+        Obx(() {
+          final filter = _selectedClaimFilter.value;
+          final filteredClaims = claims.where((claim) {
+            if (claim is! Map) return false;
+            if (filter == 'All') return true;
+            final status = (claim['status'] ?? claim['verificationStatus'] ?? '')
+                .toString()
+                .toLowerCase();
+            final isVerified = status == 'correct' ||
+                status == 'mostly_correct' ||
+                status == 'verified' ||
+                status == 'true' ||
+                claim['isVerified'] == true;
+            final isFalse = status == 'false' || status == 'incorrect';
+            if (filter == 'Verified') return isVerified;
+            if (filter == 'False') return isFalse;
+            if (filter == 'Caution') return !isVerified && !isFalse;
+            return true;
+          }).toList();
+
+          if (filteredClaims.isEmpty) {
+            return Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppColors.bgSurface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.bgDivider),
+              ),
+              child: Center(
+                child: Text(
+                  'No claims found in "$filter" category.',
+                  style: context.twTypography.bodySmall.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            );
+          }
+
+          return ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: filteredClaims.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 10),
+            itemBuilder: (context, index) {
+              final claim = filteredClaims[index];
+              final originalIndex = claims.indexOf(claim);
+              return _buildClaimCard(
+                claim as Map,
+                originalIndex != -1 ? originalIndex : index,
+                claims,
+                allSources,
+              );
+            },
+          );
+        }),
       ],
+    );
+  }
+
+  Widget _buildClaimFilterChip(
+    String filterKey,
+    String label,
+    bool isSelected, {
+    Color? color,
+  }) {
+    final activeColor = color ?? AppColors.brand;
+    return InkWell(
+      onTap: () => _selectedClaimFilter.value = filterKey,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? activeColor.withValues(alpha: 0.2)
+              : Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? activeColor.withValues(alpha: 0.6)
+                : Colors.white.withValues(alpha: 0.1),
+          ),
+        ),
+        child: Text(
+          label,
+          style: context.twTypography.caption.copyWith(
+            fontSize: 11,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            color: isSelected ? Colors.white : AppColors.textSecondary,
+          ),
+        ),
+      ),
     );
   }
 
@@ -969,6 +1330,62 @@ class VideoAnalysisBottomSheet extends StatelessWidget {
                               ],
                             ),
                           ),
+                          () {
+                            final rawClaimStart = claim['start'] ??
+                                claim['startMs'] ??
+                                claim['startTime'] ??
+                                claim['startTimeMs'] ??
+                                claim['timestampStart'];
+                            final claimStartMs = _normalizeTimestampToMs(rawClaimStart);
+                            if (claimStartMs > 0) {
+                              final claimDur = Duration(milliseconds: claimStartMs);
+                              return Padding(
+                                padding: const EdgeInsets.only(left: 6),
+                                child: InkWell(
+                                  onTap: () {
+                                    if (videoCtrl.videoPlayerController != null &&
+                                        videoCtrl.videoPlayerController!.value.isInitialized) {
+                                      videoCtrl.videoPlayerController!.seekTo(claimDur);
+                                      videoCtrl.videoPlayerController!.play();
+                                      Get.back();
+                                    }
+                                  },
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(
+                                          Icons.play_arrow_rounded,
+                                          size: 11,
+                                          color: Colors.white,
+                                        ),
+                                        const SizedBox(width: 2),
+                                        Text(
+                                          FormatUtils.formatDuration(claimDur),
+                                          style: context.twTypography.caption.copyWith(
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                            fontFamily: TWTypography.uiFamily,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }
+                            return const SizedBox.shrink();
+                          }(),
                         ],
                       ),
                       const SizedBox(height: 6),

@@ -92,31 +92,27 @@ class HomeController extends BaseController {
     _setupConnectivityListener();
 
     trackSubscription(_authService.currentUser.listen((u) {
-      if (u != null) {
+      if (u != null && !u.isAnonymous) {
         _checkUserLibraryData(u.uid);
         discovery.fetchSubscribedChannels();
-        _authService.checkAndPromptOnboarding();
       } else {
         _resetLibraryData();
         discovery.subscribedChannelList.clear();
       }
     }));
 
-    trackSubscription(_authService.needsOnboarding.listen((needs) {
-      if (needs) {
-        _authService.checkAndPromptOnboarding();
-      }
-    }));
-
     final currentUid = _authService.user?.uid;
-    if (currentUid != null && currentUid.isNotEmpty) {
+    if (currentUid != null &&
+        currentUid.isNotEmpty &&
+        !(_authService.user?.isAnonymous ?? true)) {
       _checkUserLibraryData(currentUid);
-      _authService.checkAndPromptOnboarding();
     }
   }
 
   @override
   void onClose() {
+    _connectivitySubscription?.cancel();
+    _downloadsListSub?.cancel();
     _resetLibraryData();
     super.onClose();
   }
@@ -200,8 +196,6 @@ class HomeController extends BaseController {
       await _authService.signInWithGoogle();
       if (!_authService.isAuthenticated.value) {
         _showErrorWithRetry('Sign-in failed. Please try again.');
-      } else {
-        await _authService.checkAndPromptOnboarding();
       }
     } on GoogleSignInException catch (e) {
       _handleGoogleSignInError(e);
@@ -218,8 +212,6 @@ class HomeController extends BaseController {
       await _authService.retryGoogleSignIn();
       if (!_authService.isAuthenticated.value) {
         _showErrorWithRetry('Sign-in failed. Please try again.');
-      } else {
-        await _authService.checkAndPromptOnboarding();
       }
     } catch (e) {
       _showErrorWithRetry('Sign-in failed after multiple attempts.');
@@ -256,6 +248,8 @@ class HomeController extends BaseController {
   // Discovery Facade
   RxList<Topic> get featuredTopics => discovery.featuredTopics;
   RxBool get isLoadingFeaturedTopics => discovery.isLoadingFeaturedTopics;
+  RxList<Topic> get forYouTopics => discovery.forYouTopics;
+  RxBool get isLoadingForYouTopics => discovery.isLoadingForYouTopics;
   RxString get selectedCategory => discovery.selectedCategory;
   RxString get activeFilterBar => discovery.activeFilterBar;
   RxList<String> get availableCategories => discovery.availableCategories;

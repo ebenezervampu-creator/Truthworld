@@ -2,7 +2,6 @@ import 'dart:ui' as ui;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -43,6 +42,7 @@ import 'package:truthworld/features/video/presentation/controllers/comments_cont
 import 'package:truthworld/features/video/presentation/controllers/downloadcontroller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
 import 'package:truthworld/features/video/presentation/views/comments/premium_comment_input.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:truthworld/features/video/presentation/views/player/tower_custom_player.dart';
@@ -94,41 +94,29 @@ class VideoScreen extends GetView<VideoController> {
       onPopInvokedWithResult: (didPop, result) {
         // Handled by VideoController onClose to ensure unified exit logic
       },
-      child: Obx(() {
-        if (ctrl.video.id.isEmpty) {
-          return const ShimmerVideoScreen();
-        }
+      child: Scaffold(
+        backgroundColor: background,
+        // Hide appbar in fullscreen mode cleanly with local rebuild only
+        appBar: _ResponsiveAppBar(
+          controller: ctrl,
+          appBarBuilder: () => _buildAppBar(context),
+        ),
+        body: Obx(() {
+          if (ctrl.video.id.isEmpty) {
+            return const ShimmerVideoScreen();
+          }
 
-        final isFs = ctrl.isFullScreen.value;
-        return Scaffold(
-          backgroundColor: background,
-          // Hide appbar in fullscreen mode cleanly with local rebuild only
-          appBar: _ResponsiveAppBar(
-            controller: ctrl,
-            appBarBuilder: () => _buildAppBar(context),
-          ),
-          body: isFs
+          final isFs = ctrl.isFullScreen.value;
+          return isFs
               ? ColoredBox(
                   color: Colors.black,
                   child: Center(
                     child: _buildVideoPlayer(),
                   ),
                 )
-              : SafeArea(
-                  child: ResponsiveBuilder(
-                    builder: (context, device) {
-                      final isDesktop =
-                          device.isDesktop ||
-                          device.isLargeDesktop ||
-                          device.isUltraWide;
-                      return isDesktop
-                          ? _buildDesktopLayout(context)
-                          : _buildMobileLayout(context);
-                    },
-                  ),
-                ),
-        );
-      }),
+              : _NormalVideoLayout(videoScreen: this);
+        }),
+      ),
     );
   }
 
@@ -254,7 +242,6 @@ class VideoScreen extends GetView<VideoController> {
     // mounted in the widget tree so Chewie can transition to and from fullscreen smoothly.
     return SliverToBoxAdapter(
       child: Obx(() {
-        controller.isFullScreen.value;
         final ratio = controller.video.isShort
             ? 9 / 16
             : controller.vpcAspectRatio;
@@ -291,35 +278,40 @@ class VideoScreen extends GetView<VideoController> {
               alignment: Alignment.center,
               children: [
                 // YouTube Ambient Mode Glow (glow matches video thumbnail and is 30% wider)
-                if (!controller.isFullScreen.value &&
-                    controller.video.thumbnailUrl.isNotEmpty)
+                // Isolated in its own granular Obx so showThumbnail toggle does not rebuild the player!
+                if (controller.video.thumbnailUrl.isNotEmpty)
                   Positioned(
                     width: finalWidth * 1.3,
                     height: finalHeight,
                     child: IgnorePointer(
-                      child: AnimatedOpacity(
-                        duration: const Duration(milliseconds: 1000),
-                        opacity: controller.showThumbnail.value ? 0.08 : 0.18,
-                        child: Container(
-                          decoration: const BoxDecoration(),
-                          child: ClipRect(
-                            child: ImageFiltered(
-                              imageFilter: ui.ImageFilter.blur(
-                                sigmaX: 65,
-                                sigmaY: 65,
-                                tileMode: TileMode.decal,
-                              ),
-                              child: CachedNetworkImage(
-                                imageUrl: controller.video.thumbnailUrl
-                                    .replaceAll(' ', '%20'),
-                                fit: BoxFit.cover,
-                                errorWidget: (_, _, _) =>
-                                    const SizedBox.shrink(),
+                      child: Obx(() {
+                        if (controller.isFullScreen.value) {
+                          return const SizedBox.shrink();
+                        }
+                        return AnimatedOpacity(
+                          duration: const Duration(milliseconds: 1000),
+                          opacity: controller.showThumbnail.value ? 0.08 : 0.18,
+                          child: Container(
+                            decoration: const BoxDecoration(),
+                            child: ClipRect(
+                              child: ImageFiltered(
+                                imageFilter: ui.ImageFilter.blur(
+                                  sigmaX: 65,
+                                  sigmaY: 65,
+                                  tileMode: TileMode.decal,
+                                ),
+                                child: CachedNetworkImage(
+                                  imageUrl: controller.video.thumbnailUrl
+                                      .replaceAll(' ', '%20'),
+                                  fit: BoxFit.cover,
+                                  errorWidget: (_, _, _) =>
+                                      const SizedBox.shrink(),
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      ),
+                        );
+                      }),
                     ),
                   ),
 
@@ -963,11 +955,24 @@ class VideoScreen extends GetView<VideoController> {
                           const SizedBox(height: 16),
                           ElevatedButton.icon(
                             onPressed: () => controller.initializeVideoPlayer(),
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('Retry'),
+                            icon: const Icon(Icons.refresh_rounded, color: AppColors.textPrimary, size: 18),
+                            label: const Text(
+                              'Retry',
+                              style: TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.brand,
-                              foregroundColor: Colors.white,
+                              backgroundColor: AppColors.bgSurface,
+                              foregroundColor: AppColors.textPrimary,
+                              elevation: 2,
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(24),
+                                side: const BorderSide(color: AppColors.bgDivider),
+                              ),
                             ),
                           ),
                         ],
@@ -987,20 +992,20 @@ class VideoScreen extends GetView<VideoController> {
         final isPlaying = vpc != null && vpc.value.isPlaying;
 
         final isAdShowing =
-            Get.isRegistered<TowerPlayerController>(tag: controller.video.id)
-                ? Get.find<TowerPlayerController>(
-                    tag: controller.video.id,
-                  ).isShowingAd.value
-                : false;
+            Get.isRegistered<TowerPlayerController>(tag: controller.video.id) &&
+            Get.find<TowerPlayerController>(
+              tag: controller.video.id,
+            ).isShowingAd.value;
+        final isHandoff = VideoPlaybackHandoff.isActive(controller.video.id) ||
+            (Get.arguments is Map && Get.arguments['isFromMiniplayer'] == true);
         final showThumbnailOverlay =
+            !isHandoff &&
             !isAutoSwitching &&
             !controller.isAudioOnly.value &&
             !isAdShowing &&
             (!isVideoReady || (!isPlaying && controller.showThumbnail.value));
 
-        if (controller.chewieController == null ||
-            vpc == null ||
-            !isVideoReady) {
+        if (vpc == null || !isVideoReady) {
           return thumbnailWidget;
         }
 
@@ -1533,12 +1538,50 @@ class VideoScreen extends GetView<VideoController> {
 
     final clipController = Get.put(ClipController(video: controller.video));
 
-    // Attempt to get video duration for slider
+    // Check creator permission and content safety restrictions
+    final restriction = clipController.getClippingRestrictionReason();
+    if (restriction != null) {
+      Get.snackbar(
+        'Clipping Unavailable',
+        restriction,
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.bgSurface,
+        colorText: AppColors.textPrimary,
+        icon: const Icon(Icons.info_outline_rounded, color: Colors.white),
+      );
+      return;
+    }
+
+    // Attempt to get video duration and current position for slider
     final totalDuration =
         controller.videoPlayerController?.value.duration.inSeconds.toDouble() ??
-        300.0;
-    clipController.endSeconds.value = (clipController.startSeconds.value + 15.0)
-        .clamp(0, totalDuration);
+        (controller.video.durationSeconds > 0
+            ? controller.video.durationSeconds.toDouble()
+            : 300.0);
+
+    if (totalDuration < 15.0) {
+      Get.snackbar(
+        'Clipping Unavailable',
+        'This video is too short to create clips from (minimum 15 seconds required).',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.bgSurface,
+        colorText: AppColors.textPrimary,
+        icon: const Icon(Icons.info_outline_rounded, color: Colors.white),
+      );
+      return;
+    }
+
+    final currentPos =
+        controller.videoPlayerController?.value.position.inSeconds.toDouble() ??
+        0.0;
+    clipController.startSeconds.value = currentPos.clamp(0.0, (totalDuration - 5.0).clamp(0.0, totalDuration));
+    clipController.endSeconds.value =
+        (clipController.startSeconds.value + 15.0).clamp(
+          (clipController.startSeconds.value + clipController.minDuration).clamp(0.0, totalDuration),
+          totalDuration,
+        );
+    clipController.titleError.value = '';
+    clipController.clipTitle.value = '';
 
     Get.bottomSheet(
       Container(
@@ -1584,11 +1627,13 @@ class VideoScreen extends GetView<VideoController> {
 
             // --- Title Input ---
             TextField(
-              onChanged: (v) => clipController.clipTitle.value = v,
+              onChanged: clipController.onTitleChanged,
+              maxLength: 100,
               style: GoogleFonts.roboto(color: textPrimary),
               decoration: InputDecoration(
-                hintText: 'Add a title...',
+                hintText: 'Add a title (3-100 characters)...',
                 hintStyle: GoogleFonts.roboto(color: textSecondary),
+                counterStyle: GoogleFonts.roboto(color: textSecondary, fontSize: 11),
                 filled: true,
                 fillColor: AppColors.bgSurface.withValues(alpha: 0.5),
                 border: OutlineInputBorder(
@@ -1601,6 +1646,35 @@ class VideoScreen extends GetView<VideoController> {
                 ),
               ),
             ),
+            Obx(() {
+              if (clipController.titleError.value.isEmpty) {
+                return const SizedBox(height: 8);
+              }
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12, left: 4),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.error_outline_rounded,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        clipController.titleError.value,
+                        style: GoogleFonts.roboto(
+                          fontSize: 12,
+                          color: AppColors.error,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+
             // --- Clip Range Selector ---
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1618,21 +1692,23 @@ class VideoScreen extends GetView<VideoController> {
                   final duration =
                       clipController.endSeconds.value -
                       clipController.startSeconds.value;
-                  final atLimit = duration >= 30;
+                  final isOutOfBounds =
+                      duration < clipController.minDuration ||
+                      duration > clipController.maxDuration;
                   return Row(
                     children: [
                       Text(
-                        '${duration.toInt()}s',
+                        '${duration.toStringAsFixed(1)}s',
                         style: GoogleFonts.roboto(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
-                          color: atLimit
+                          color: isOutOfBounds
                               ? AppColors.error
                               : AppColors.textPrimary,
                         ),
                       ),
                       Text(
-                        ' / 30s max',
+                        ' (${clipController.minDuration.toInt()}s min - ${clipController.maxDuration.toInt()}s max)',
                         style: GoogleFonts.roboto(
                           fontSize: 11,
                           color: AppColors.textSecondary,
@@ -1653,7 +1729,7 @@ class VideoScreen extends GetView<VideoController> {
                       clipController.startSeconds.value,
                       clipController.endSeconds.value,
                     ),
-                    max: totalDuration,
+                    max: totalDuration > 0 ? totalDuration : 300.0,
                     activeColor: AppColors.brand,
                     inactiveColor: AppColors.bgDivider.withValues(alpha: 0.1),
                     labels: RangeLabels(
@@ -1669,15 +1745,30 @@ class VideoScreen extends GetView<VideoController> {
                       ),
                     ),
                     onChanged: (values) {
-                      // Enforce max 30s
-                      if (values.end - values.start <= 30.0) {
-                        clipController.updateStart(values.start);
-                        clipController.updateEnd(values.end);
-                        // Preview the start
-                        controller.videoPlayerController?.seekTo(
-                          Duration(seconds: values.start.toInt()),
-                        );
+                      var start = values.start;
+                      var end = values.end;
+                      final span = end - start;
+                      if (span < clipController.minDuration) {
+                        if ((start - clipController.startSeconds.value).abs() >
+                            (end - clipController.endSeconds.value).abs()) {
+                          start = (end - clipController.minDuration).clamp(0.0, totalDuration);
+                        } else {
+                          end = (start + clipController.minDuration).clamp(0.0, totalDuration);
+                        }
                       }
+                      if (end - start > clipController.maxDuration) {
+                        if ((start - clipController.startSeconds.value).abs() >
+                            (end - clipController.endSeconds.value).abs()) {
+                          end = (start + clipController.maxDuration).clamp(0.0, totalDuration);
+                        } else {
+                          start = (end - clipController.maxDuration).clamp(0.0, totalDuration);
+                        }
+                      }
+                      clipController.updateStart(start);
+                      clipController.updateEnd(end);
+                      controller.videoPlayerController?.seekTo(
+                        Duration(seconds: clipController.startSeconds.value.toInt()),
+                      );
                     },
                   ),
                   Padding(
@@ -1906,7 +1997,7 @@ class VideoScreen extends GetView<VideoController> {
   }
 
   Widget _buildModernActionButtons(BuildContext context) {
-    final isUserSignedIn = FirebaseAuth.instance.currentUser != null;
+    final isUserSignedIn = AuthService.to.isAuthenticated.value;
     final mediaQuery = MediaQuery.of(context);
     final isDesktop = mediaQuery.size.width > 1050;
 
@@ -1937,13 +2028,24 @@ class VideoScreen extends GetView<VideoController> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            '⚔️ COIN BATTLE LINKED DEBATE',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 11,
-                            ),
+                          const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.sports_kabaddi,
+                                size: 14,
+                                color: Colors.white,
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'COIN BATTLE LINKED DEBATE',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
                           ),
                           Text(
                             'Stance: ${controller.video.coinBattleStance ?? "Opposing Viewpoint"}',
@@ -2022,6 +2124,14 @@ class VideoScreen extends GetView<VideoController> {
                           controller.videoPlayerController?.value.position,
                     );
                   },
+                ),
+                const SizedBox(width: 8),
+
+                // Clip
+                _buildModernCapsuleButton(
+                  icon: Icons.content_cut_rounded,
+                  label: 'Clip',
+                  onTap: () => _showClipDialog(context),
                 ),
                 const SizedBox(width: 8),
 
@@ -2115,164 +2225,265 @@ class VideoScreen extends GetView<VideoController> {
       );
     }
 
-    // Desktop Layout: Single row with scrollable action buttons on left and channel info on right
-    return Row(
+    // Desktop Layout: Single row with channel info on left and scrollable action buttons on right
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Scrollable Action Buttons (left side)
-        Expanded(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            child: Row(
-              children: [
-                // Like & Dislike Group
-                _buildModernLikeDislikeGroup(),
-                const SizedBox(width: 8),
-
-                // Insights & Media details button (icon only, before comments)
-                _buildModernCapsuleButton(
-                  icon: Icons.verified_user_outlined,
-                  label: '',
-                  onTap: () => _showAnalysisBottomSheet(context),
+        // ⚔️ COIN BATTLE LINKED VIDEO BANNER
+        if (controller.video.coinBattlePairVideoId != null &&
+            controller.video.coinBattlePairVideoId!.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF4A148C), Color(0xFF880E4F)],
                 ),
-                const SizedBox(width: 8),
-
-                // Comment (icon only)
-                if (_isMobilePlatform(context)) ...[
-                  _buildModernCapsuleButton(
-                    icon: Icons.comment_rounded,
-                    label: '',
-                    onTap: () {
-                      _showCommentsBottomSheet(context);
-                    },
-                  ),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.swap_horiz_rounded, color: Colors.white),
                   const SizedBox(width: 8),
-                ],
-
-                // Share
-                _buildModernCapsuleButton(
-                  icon: Icons.share_rounded,
-                  label: 'Share',
-                  onTap: () {
-                    _mainController.shareVideo(
-                      controller.video.id,
-                      controller.video.title,
-                      thumbnailUrl: controller.video.thumbnailUrl,
-                      channelName: controller.video.channelName,
-                      durationMs: controller.video.durationValue.inMilliseconds,
-                      currentPosition:
-                          controller.videoPlayerController?.value.position,
-                    );
-                  },
-                ),
-                const SizedBox(width: 8),
-
-                // Rating / Watch Later
-                Obx(() {
-                  controller.rxVideo.value;
-                  _playlistController?.playlists.length;
-                  final isInWatchLater =
-                      _playlistController?.isInWatchLater(
-                        controller.video.id,
-                      ) ??
-                      false;
-                  return _buildModernCapsuleButton(
-                    icon: isInWatchLater
-                        ? Icons.watch_later
-                        : Icons.watch_later_outlined,
-                    label: 'Watch Later',
-                    onTap: () {
-                      if (!isUserSignedIn) return _showSignInPrompt();
-                      showModernizedPlaylistDialog(
-                        context: context,
-                        videoId: controller.video.id,
-                      );
-                    },
-                  );
-                }),
-                const SizedBox(width: 8),
-
-                // Save
-                Obx(() {
-                  if (controller.isDownloading.value) {
-                    final progress = (controller.downloadProgress.value * 100)
-                        .toInt();
-                    return Material(
-                      color: AppColors.bgSurface,
-                      borderRadius: BorderRadius.circular(24),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        child: Row(
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: primary,
-                              ),
+                            Icon(
+                              Icons.sports_kabaddi,
+                              size: 14,
+                              color: Colors.white,
                             ),
-                            const SizedBox(width: 8),
+                            SizedBox(width: 4),
                             Text(
-                              'Saving $progress%',
-                              style: GoogleFonts.roboto(
-                                fontSize: 13,
+                              'COIN BATTLE LINKED DEBATE',
+                              style: TextStyle(
+                                color: Colors.white,
                                 fontWeight: FontWeight.bold,
-                                color: primary,
+                                fontSize: 11,
                               ),
                             ),
                           ],
                         ),
+                        Text(
+                          'Stance: ${controller.video.coinBattleStance ?? "Opposing Viewpoint"}',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      Get.toNamed(
+                        '/video/${controller.video.coinBattlePairVideoId}',
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
                       ),
-                    );
-                  }
-                  return _buildModernCapsuleButton(
-                    icon: Icons.download_rounded,
-                    label: 'Download',
-                    onTap: () =>
-                        _showDownloadQualityDialog(context, isUserSignedIn),
-                  );
-                }),
-                const SizedBox(width: 8),
-
-                // Membership / Join
-                _buildModernCapsuleButton(
-                  icon: Icons.workspace_premium_outlined,
-                  label: 'Membership',
-                  onTap: () =>
-                      _showChannelMembershipModal(context, isUserSignedIn),
-                ),
-                const SizedBox(width: 8),
-
-                // More
-                _buildModernMoreButton(context),
-              ],
+                    ),
+                    child: const Text('View Debate'),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
 
-        // Channel Section - fixed at the right corner
-        _buildChannelSectionForActionRow(),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Channel Section - on the left
+            _buildChannelSectionForActionRow(),
+
+            const SizedBox(width: 16),
+
+            // Scrollable Action Buttons - on the right
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    child: ConstrainedBox(
+                      constraints:
+                          BoxConstraints(minWidth: constraints.maxWidth),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Like & Dislike Group
+                          _buildModernLikeDislikeGroup(),
+                          const SizedBox(width: 8),
+
+                          // Insights & Media details button (icon only, before comments)
+                          _buildModernCapsuleButton(
+                            icon: Icons.verified_user_outlined,
+                            label: '',
+                            onTap: () => _showAnalysisBottomSheet(context),
+                          ),
+                          const SizedBox(width: 8),
+
+                          // Comment (icon only)
+                          if (_isMobilePlatform(context)) ...[
+                            _buildModernCapsuleButton(
+                              icon: Icons.comment_rounded,
+                              label: '',
+                              onTap: () {
+                                _showCommentsBottomSheet(context);
+                              },
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+
+                          // Share
+                          _buildModernCapsuleButton(
+                            icon: Icons.share_rounded,
+                            label: 'Share',
+                            onTap: () {
+                              _mainController.shareVideo(
+                                controller.video.id,
+                                controller.video.title,
+                                thumbnailUrl: controller.video.thumbnailUrl,
+                                channelName: controller.video.channelName,
+                                durationMs: controller
+                                    .video.durationValue.inMilliseconds,
+                                currentPosition: controller
+                                    .videoPlayerController?.value.position,
+                              );
+                            },
+                          ),
+                          const SizedBox(width: 8),
+
+                          // Clip
+                          _buildModernCapsuleButton(
+                            icon: Icons.content_cut_rounded,
+                            label: 'Clip',
+                            onTap: () => _showClipDialog(context),
+                          ),
+                          const SizedBox(width: 8),
+
+                          // Rating / Watch Later
+                          Obx(() {
+                            controller.rxVideo.value;
+                            _playlistController?.playlists.length;
+                            final isInWatchLater =
+                                _playlistController?.isInWatchLater(
+                                  controller.video.id,
+                                ) ??
+                                false;
+                            return _buildModernCapsuleButton(
+                              icon: isInWatchLater
+                                  ? Icons.watch_later
+                                  : Icons.watch_later_outlined,
+                              label: 'Watch Later',
+                              onTap: () {
+                                if (!isUserSignedIn) return _showSignInPrompt();
+                                showModernizedPlaylistDialog(
+                                  context: context,
+                                  videoId: controller.video.id,
+                                );
+                              },
+                            );
+                          }),
+                          const SizedBox(width: 8),
+
+                          // Save
+                          Obx(() {
+                            if (controller.isDownloading.value) {
+                              final progress =
+                                  (controller.downloadProgress.value * 100)
+                                      .toInt();
+                              return Material(
+                                color: AppColors.bgSurface,
+                                borderRadius: BorderRadius.circular(24),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: primary,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Saving $progress%',
+                                        style: GoogleFonts.roboto(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: primary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }
+                            return _buildModernCapsuleButton(
+                              icon: Icons.download_rounded,
+                              label: 'Download',
+                              onTap: () => _showDownloadQualityDialog(
+                                context,
+                                isUserSignedIn,
+                              ),
+                            );
+                          }),
+                          const SizedBox(width: 8),
+
+                          // Membership / Join
+                          _buildModernCapsuleButton(
+                            icon: Icons.workspace_premium_outlined,
+                            label: 'Membership',
+                            onTap: () => _showChannelMembershipModal(
+                              context,
+                              isUserSignedIn,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+
+                          // More
+                          _buildModernMoreButton(context),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }
 
   Widget _buildChannelSectionForActionRowMobile() {
-    final isUserSignedIn = FirebaseAuth.instance.currentUser != null;
+    final isUserSignedIn = AuthService.to.isAuthenticated.value;
 
     if (controller.video.channelId.isEmpty) {
       return const SizedBox.shrink();
     }
 
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection(FirestoreCollections.channels)
-          .doc(controller.video.channelId)
-          .snapshots(),
+      stream: controller.getChannelStream(controller.video.channelId),
       builder: (context, snapshot) {
         if (!snapshot.hasData || !snapshot.data!.exists) {
           return const SizedBox.shrink();
@@ -2482,17 +2693,14 @@ class VideoScreen extends GetView<VideoController> {
   }
 
   Widget _buildChannelSectionForActionRow() {
-    final isUserSignedIn = FirebaseAuth.instance.currentUser != null;
+    final isUserSignedIn = AuthService.to.isAuthenticated.value;
 
     if (controller.video.channelId.isEmpty) {
       return const SizedBox.shrink();
     }
 
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection(FirestoreCollections.channels)
-          .doc(controller.video.channelId)
-          .snapshots(),
+      stream: controller.getChannelStream(controller.video.channelId),
       builder: (context, snapshot) {
         if (!snapshot.hasData || !snapshot.data!.exists) {
           return const SizedBox.shrink();
@@ -2501,7 +2709,7 @@ class VideoScreen extends GetView<VideoController> {
         final channel = Channel.fromDocumentSnapshot(snapshot.data!);
 
         return Container(
-          padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+          padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
             color: Colors.transparent,
             borderRadius: BorderRadius.circular(12),
@@ -2570,12 +2778,17 @@ class VideoScreen extends GetView<VideoController> {
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              channel.channelName,
-                              style: GoogleFonts.roboto(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14,
-                                color: Colors.white,
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 180),
+                              child: Text(
+                                channel.channelName,
+                                style: GoogleFonts.roboto(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14,
+                                  color: Colors.white,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                             if (channel.isVerified) ...[
@@ -3174,8 +3387,12 @@ class VideoScreen extends GetView<VideoController> {
     String channelId,
     String channelName,
   ) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
+    if (!AuthService.to.isAuthenticated.value) {
+      _showSignInPrompt();
+      return;
+    }
+    final uid = AuthService.to.uid;
+    if (uid.isEmpty) return;
 
     Navigator.pop(context);
     try {
@@ -3213,7 +3430,7 @@ class VideoScreen extends GetView<VideoController> {
   }
 
   Widget _buildModernLikeDislikeGroup() {
-    final isUserSignedIn = FirebaseAuth.instance.currentUser != null;
+    final isUserSignedIn = AuthService.to.isAuthenticated.value;
 
     return Container(
       decoration: BoxDecoration(
@@ -3523,7 +3740,6 @@ class VideoScreen extends GetView<VideoController> {
     final commentsController = Get.isRegistered<CommentsController>(tag: tag)
         ? Get.find<CommentsController>(tag: tag)
         : Get.put(CommentsController(video: controller.video), tag: tag);
-    final currentUser = FirebaseAuth.instance.currentUser;
 
     return [
       SliverToBoxAdapter(
@@ -3621,9 +3837,8 @@ class VideoScreen extends GetView<VideoController> {
                 ],
               ),
               const SizedBox(height: 16),
-              if (currentUser != null)
-                PremiumCommentInput(
-                  key: ValueKey('main_comment_input_${controller.video.id}'),
+              PremiumCommentInput(
+                key: ValueKey('main_comment_input_${controller.video.id}'),
                   videoId: controller.video.id,
                   onSubmit: (text, postAsChannel, channelId) async {
                     try {
@@ -3671,19 +3886,6 @@ class VideoScreen extends GetView<VideoController> {
                     }
                   },
                   onCancel: () {},
-                )
-              else
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  margin: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: cardBackground,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    'Sign in to comment',
-                    style: GoogleFonts.roboto(color: textSecondary),
-                  ),
                 ),
             ],
           ),
@@ -3772,19 +3974,22 @@ class VideoScreen extends GetView<VideoController> {
     final commentsController = Get.isRegistered<CommentsController>(tag: tag)
         ? Get.find<CommentsController>(tag: tag)
         : Get.put(CommentsController(video: controller.video), tag: tag);
-    final currentUser = FirebaseAuth.instance.currentUser;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.75,
-          minChildSize: 0.5,
-          maxChildSize: 0.95,
-          expand: false,
-          builder: (context, scrollController) {
+      builder: (bottomSheetContext) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(bottomSheetContext).viewInsets.bottom,
+          ),
+          child: DraggableScrollableSheet(
+            initialChildSize: 0.75,
+            minChildSize: 0.5,
+            maxChildSize: 0.95,
+            expand: false,
+            builder: (context, scrollController) {
             return Container(
               decoration: const BoxDecoration(
                 color: Color(0xFF0F0F0F),
@@ -3911,69 +4116,57 @@ class VideoScreen extends GetView<VideoController> {
                       );
                     }),
                   ),
-                  Padding(
-                    padding: EdgeInsets.only(
-                      bottom: MediaQuery.of(context).viewInsets.bottom,
+                  SafeArea(
+                    top: false,
+                    child: PremiumCommentInput(
+                      key: ValueKey(
+                        'popup_comment_input_${controller.video.id}',
+                      ),
+                      videoId: controller.video.id,
+                      onSubmit: (text, postAsChannel, channelId) async {
+                        try {
+                          final authService = AuthService.to;
+                          final hasChannel = authService.hasChannel.value;
+                          final channel = authService.userChannel;
+
+                          final shouldPostAsChannel =
+                              postAsChannel || hasChannel;
+                          final targetChannelId = shouldPostAsChannel
+                              ? (channelId ?? channel?.id)
+                              : null;
+                          final targetChannelName = shouldPostAsChannel
+                              ? (channel?.handle.isNotEmpty ?? false
+                                    ? channel?.handle
+                                    : channel?.name)
+                              : null;
+                          final targetChannelAvatar = shouldPostAsChannel
+                              ? channel?.avatarUrl
+                              : null;
+                          final targetUserAvatar =
+                              AuthService.to.activePhotoUrl;
+
+                          await commentsController.submitComment(
+                            text: text,
+                            channelId: targetChannelId,
+                            channelName: targetChannelName,
+                            channelProfilePicUrl: targetChannelAvatar,
+                            userProfilePicUrl: targetUserAvatar,
+                          );
+                        } catch (e) {
+                          debugPrint('Failed to submit comment: $e');
+                        }
+                      },
+                      onCancel: () {},
                     ),
-                    child: currentUser != null
-                        ? PremiumCommentInput(
-                            key: ValueKey(
-                              'popup_comment_input_${controller.video.id}',
-                            ),
-                            videoId: controller.video.id,
-                            onSubmit: (text, postAsChannel, channelId) async {
-                              try {
-                                final authService = AuthService.to;
-                                final hasChannel = authService.hasChannel.value;
-                                final channel = authService.userChannel;
-
-                                final shouldPostAsChannel =
-                                    postAsChannel || hasChannel;
-                                final targetChannelId = shouldPostAsChannel
-                                    ? (channelId ?? channel?.id)
-                                    : null;
-                                final targetChannelName = shouldPostAsChannel
-                                    ? (channel?.handle.isNotEmpty ?? false
-                                          ? channel?.handle
-                                          : channel?.name)
-                                    : null;
-                                final targetChannelAvatar = shouldPostAsChannel
-                                    ? channel?.avatarUrl
-                                    : null;
-                                final targetUserAvatar =
-                                    AuthService.to.activePhotoUrl;
-
-                                await commentsController.submitComment(
-                                  text: text,
-                                  channelId: targetChannelId,
-                                  channelName: targetChannelName,
-                                  channelProfilePicUrl: targetChannelAvatar,
-                                  userProfilePicUrl: targetUserAvatar,
-                                );
-                              } catch (e) {
-                                debugPrint('Failed to submit comment: $e');
-                              }
-                            },
-                            onCancel: () {},
-                          )
-                        : Container(
-                            padding: const EdgeInsets.all(16),
-                            width: double.infinity,
-                            color: Colors.black26,
-                            child: Text(
-                              'Sign in to comment',
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.roboto(color: textSecondary),
-                            ),
-                          ),
                   ),
                 ],
               ),
             );
           },
-        );
-      },
-    );
+        ),
+      );
+    },
+  );
   }
 
   Widget _buildDescriptionBox(BuildContext context) {
@@ -4439,59 +4632,10 @@ class VideoScreen extends GetView<VideoController> {
             itemCount: segments.length,
             itemBuilder: (context, index) {
               final seg = segments[index];
-              final currentPos = playerCtrl?.vv.position ?? Duration.zero;
-              final isActive = currentPos >= seg.start && currentPos <= seg.end;
-              return InkWell(
-                onTap: () {
-                  final activeCtrl = TowerPlayerController.getForTagOrActive(controller.video.id);
-                  activeCtrl?.seekTo(seg.start);
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isActive
-                              ? AppColors.brand.withValues(alpha: 0.3)
-                              : Colors.white.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          FormatUtils.formatDuration(seg.start),
-                          style: GoogleFonts.robotoMono(
-                            color: isActive
-                                ? AppColors.brand
-                                : Colors.white70,
-                            fontSize: 12,
-                            fontWeight: isActive
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          seg.text,
-                          style: GoogleFonts.roboto(
-                            color: isActive ? Colors.white : Colors.white70,
-                            fontSize: 13,
-                            fontWeight: isActive
-                                ? FontWeight.w600
-                                : FontWeight.normal,
-                            height: 1.3,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              return _TranscriptSegmentTile(
+                seg: seg,
+                playerCtrl: playerCtrl,
+                videoId: controller.video.id,
               );
             },
           ),
@@ -4510,13 +4654,102 @@ class VideoScreen extends GetView<VideoController> {
   }
 
   void _showSignInPrompt() {
-    Get.snackbar('Sign in required', 'Please sign in to proceed');
+    Get.snackbar(
+      'Sign In Required',
+      'Please sign in to proceed',
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: AppColors.bgSurface,
+      colorText: AppColors.textPrimary,
+      margin: const EdgeInsets.all(16),
+      borderRadius: 12,
+      mainButton: TextButton(
+        onPressed: () => AuthService.to.signInWithGoogle(),
+        child: const Text(
+          'SIGN IN',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
   }
 
   String _formatViews(int views) {
     if (views >= 1000000) return '${(views / 1000000).toStringAsFixed(1)}M';
     if (views >= 1000) return '${(views / 1000).toStringAsFixed(1)}K';
     return views.toString();
+  }
+}
+
+class _TranscriptSegmentTile extends StatelessWidget {
+  final SubtitleSegment seg;
+  final TowerPlayerController? playerCtrl;
+  final String videoId;
+
+  const _TranscriptSegmentTile({
+    required this.seg,
+    required this.playerCtrl,
+    required this.videoId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final isActive = playerCtrl?.activeSubtitleSegment.value == seg;
+      return InkWell(
+        onTap: () {
+          final activeCtrl = TowerPlayerController.getForTagOrActive(videoId);
+          activeCtrl?.seekTo(seg.start);
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 6,
+                  vertical: 2,
+                ),
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? AppColors.brand.withValues(alpha: 0.3)
+                      : Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  FormatUtils.formatDuration(seg.start),
+                  style: GoogleFonts.robotoMono(
+                    color: isActive
+                        ? AppColors.brand
+                        : Colors.white70,
+                    fontSize: 12,
+                    fontWeight: isActive
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  seg.text,
+                  style: GoogleFonts.roboto(
+                    color: isActive ? Colors.white : Colors.white70,
+                    fontSize: 13,
+                    fontWeight: isActive
+                        ? FontWeight.w600
+                        : FontWeight.normal,
+                    height: 1.3,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    });
   }
 }
 
@@ -4675,6 +4908,28 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
     super.dispose();
   }
 
+  void _showSignInPrompt() {
+    Get.snackbar(
+      'Sign In Required',
+      'Please sign in to proceed',
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: AppColors.bgSurface,
+      colorText: AppColors.textPrimary,
+      margin: const EdgeInsets.all(16),
+      borderRadius: 12,
+      mainButton: TextButton(
+        onPressed: () => AuthService.to.signInWithGoogle(),
+        child: const Text(
+          'SIGN IN',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _submitReply() async {
     final text = replyController.text.trim();
     if (text.isEmpty) return;
@@ -4682,9 +4937,8 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
     final commentId = widget.comment.id;
     if (commentId.isEmpty) return;
 
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      Get.snackbar('Sign in required', 'Please sign in to reply');
+    if (!AuthService.to.isAuthenticated.value) {
+      _showSignInPrompt();
       return;
     }
 
@@ -4730,17 +4984,16 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
   }
 
   Future<void> _toggleSaveVideoComment(Comment comment, String videoId) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      Get.snackbar(
-        'Authentication Required',
-        'Please sign in to save comments.',
-      );
+    if (!AuthService.to.isAuthenticated.value) {
+      _showSignInPrompt();
       return;
     }
+    final uid = AuthService.to.uid;
+    if (uid.isEmpty) return;
+
     final docRef = FirebaseFirestore.instance
         .collection(FirestoreCollections.users)
-        .doc(user.uid)
+        .doc(uid)
         .collection('savedComments')
         .doc(comment.id);
 
@@ -4802,17 +5055,15 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
   }
 
   Future<void> _toggleSaveReply(Reply reply, String videoId) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      Get.snackbar(
-        'Authentication Required',
-        'Please sign in to save comments.',
-      );
+    if (!AuthService.to.isAuthenticated.value) {
+      _showSignInPrompt();
       return;
     }
+    final uid = AuthService.to.uid;
+    if (uid.isEmpty) return;
     final docRef = FirebaseFirestore.instance
         .collection(FirestoreCollections.users)
-        .doc(user.uid)
+        .doc(uid)
         .collection('savedComments')
         .doc(reply.id);
 
@@ -4862,8 +5113,8 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
     Comment comment,
     CommentsController commentsController,
   ) {
-    final user = FirebaseAuth.instance.currentUser;
-    final isOwner = user != null && user.uid == comment.userId;
+    final isOwner = AuthService.to.isAuthenticated.value &&
+        AuthService.to.uid == comment.userId;
 
     showModalBottomSheet(
       context: context,
@@ -4977,8 +5228,8 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
     String commentId,
     CommentsController commentsController,
   ) {
-    final user = FirebaseAuth.instance.currentUser;
-    final isOwner = user != null && user.uid == reply.userId;
+    final isOwner = AuthService.to.isAuthenticated.value &&
+        AuthService.to.uid == reply.userId;
 
     showModalBottomSheet(
       context: context,
@@ -6093,6 +6344,28 @@ class _ResponsiveAppBar extends StatelessWidget implements PreferredSizeWidget {
   }
 }
 
+class _NormalVideoLayout extends StatelessWidget {
+  const _NormalVideoLayout({required this.videoScreen});
+  final VideoScreen videoScreen;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: ResponsiveBuilder(
+        builder: (context, device) {
+          final isDesktop =
+              device.isDesktop ||
+              device.isLargeDesktop ||
+              device.isUltraWide;
+          return isDesktop
+              ? videoScreen._buildDesktopLayout(context)
+              : videoScreen._buildMobileLayout(context);
+        },
+      ),
+    );
+  }
+}
+
 // ==========================================================================
 // ROTATING PLAYLIST AVATAR WIDGET
 // ==========================================================================
@@ -6815,7 +7088,6 @@ class TopicVideosBottomSheet extends StatelessWidget {
               final activeFilter = _selectedFilter.value;
               final controller = _videoController;
               final currentVideoId = controller?.video.id;
-              final isPlaying = controller?.isPlayingRx.value ?? false;
 
               if (loading) {
                 return const Center(
@@ -6870,12 +7142,18 @@ class TopicVideosBottomSheet extends StatelessWidget {
                               borderRadius: BorderRadius.circular(8),
                               child: Stack(
                                 children: [
-                                  Image.network(
-                                    video.thumbnailUrl,
+                                  CachedNetworkImage(
+                                    imageUrl: video.thumbnailUrl,
                                     width: 120,
                                     height: 68,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, _, _) => Container(
+                                    memCacheWidth: 240,
+                                    placeholder: (_, _) => Container(
+                                      width: 120,
+                                      height: 68,
+                                      color: Colors.grey[900],
+                                    ),
+                                    errorWidget: (_, _, _) => Container(
                                       width: 120,
                                       height: 68,
                                       color: Colors.grey[900],
@@ -6941,12 +7219,12 @@ class TopicVideosBottomSheet extends StatelessWidget {
                                       ),
                                       if (isCurrent) ...[
                                         const SizedBox(width: 6),
-                                        PlayingAudioWaveAnimation(
-                                          isPlaying: isPlaying,
+                                        Obx(() => PlayingAudioWaveAnimation(
+                                          isPlaying: controller?.isPlayingRx.value ?? false,
                                           height: 12,
                                           barWidth: 2,
                                           color: const Color(0xFF3B82F6),
-                                        ),
+                                        )),
                                       ],
                                     ],
                                   ),

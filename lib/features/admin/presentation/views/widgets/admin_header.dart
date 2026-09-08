@@ -30,6 +30,7 @@ class AdminHeader extends StatelessWidget implements PreferredSizeWidget {
       'Ad Reports',
       'Alerts Configuration',
       'Help & Support',
+      'Team Members & Access',
     ];
 
     return AppBar(

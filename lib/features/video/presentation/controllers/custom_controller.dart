@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/features/video/presentation/widgets/full_screen_helper.dart';
@@ -112,12 +113,22 @@ class CustomController extends BaseController {
   Future<double> _estimateNetworkSpeedMbps(String testUrl) async {
     try {
       final stopwatch = Stopwatch()..start();
-      final request = await html.HttpRequest.request(testUrl, method: 'HEAD');
+      var contentLength = 0;
+      if (kIsWeb) {
+        final request = await html.HttpRequest.request(testUrl, method: 'HEAD');
+        contentLength =
+            int.tryParse(request.getResponseHeader('content-length') ?? '0') ??
+                0;
+      } else {
+        final response = await http
+            .head(Uri.parse(testUrl))
+            .timeout(const Duration(seconds: 4));
+        contentLength =
+            int.tryParse(response.headers['content-length'] ?? '0') ?? 0;
+      }
       stopwatch.stop();
 
       // estimate content length and time
-      final contentLength =
-          int.tryParse(request.getResponseHeader('content-length') ?? '0') ?? 0;
       final seconds = stopwatch.elapsedMilliseconds / 1000.0;
       if (seconds == 0) return 0.0;
 
@@ -214,7 +225,8 @@ class CustomController extends BaseController {
   }
 
   void handleFullScreenChange() {
-    final currentFullScreenState = html.document.fullscreenElement != null;
+    final currentFullScreenState =
+        kIsWeb ? (html.document.fullscreenElement != null) : isFullScreen.value;
     if (isFullScreen.value != currentFullScreenState) {
       isFullScreen.value = currentFullScreenState;
       if (isFullScreen.value) {
@@ -969,9 +981,12 @@ class MyCustomControls extends StatefulWidget {
 }
 
 class _MyCustomControlsState extends State<MyCustomControls> {
+  late final FocusNode _focusNode;
+
   @override
   void initState() {
     super.initState();
+    _focusNode = FocusNode();
     if (!Get.isRegistered<CustomController>(tag: 'video_${widget.videoId}')) {
       Get.put(
         CustomController(),
@@ -1009,6 +1024,7 @@ class _MyCustomControlsState extends State<MyCustomControls> {
 
   @override
   void dispose() {
+    _focusNode.dispose();
     if (Get.isRegistered<CustomController>(tag: 'video_${widget.videoId}')) {
       final controller = Get.find<CustomController>(
         tag: 'video_${widget.videoId}',
@@ -1025,7 +1041,7 @@ class _MyCustomControlsState extends State<MyCustomControls> {
       tag: 'video_${widget.videoId}',
     );
     return KeyboardListener(
-      focusNode: FocusNode(),
+      focusNode: _focusNode,
       autofocus: true,
       onKeyEvent: controller.handleKeyEvent,
       child: Obx(() {

@@ -64,12 +64,11 @@ class CreatePlaylistController extends BaseController {
     try {
       final result = await FilePicker.pickFiles(
         type: FileType.image,
-        withData: true,
       );
 
       if (result != null && result.files.isNotEmpty) {
         final file = result.files.first;
-        customImageBytes.value = file.bytes;
+        customImageBytes.value = file.bytes ?? await file.xFile.readAsBytes();
         customImageName.value = file.name;
         useCustomThumbnail.value = true;
       }

@@ -543,7 +543,9 @@ class SubscriptionController extends BaseController {
       for (final doc in docs) {
         try {
           final topic = Topic.fromDocumentSnapshot(doc);
-          topics.add(topic);
+          if (topic.isValidTopic && topic.videoCount > 0) {
+            topics.add(topic);
+          }
         } on Object catch (e) {
           debugPrint('Error parsing topic doc ${doc.id}: $e');
         }

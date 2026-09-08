@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' as io;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
@@ -8,6 +9,7 @@ import 'package:flutter_video_info/flutter_video_info.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:idb_shim/idb_browser.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart'
     as app_exceptions;
@@ -171,7 +173,7 @@ class AppStateController extends BaseController {
       final result =
           await FilePicker.pickFiles(
             type: FileType.image,
-            withData: true,
+            withData: kIsWeb,
           ).timeout(
             _filePickerTimeout,
             onTimeout: () => throw const app_exceptions.TimeoutException(
@@ -216,7 +218,7 @@ class AppStateController extends BaseController {
       final result =
           await FilePicker.pickFiles(
             type: FileType.video,
-            withData: true,
+            withData: kIsWeb,
           ).timeout(
             _filePickerTimeout,
             onTimeout: () => throw const app_exceptions.TimeoutException(
@@ -225,19 +227,24 @@ class AppStateController extends BaseController {
           );
 
       if (result != null && result.files.isNotEmpty) {
-        pickedVideo.value = result.files.first;
+        final file = result.files.first;
+        pickedVideo.value = file;
 
-        if (result.files.first.bytes != null) {
+        final hasData = kIsWeb
+            ? file.bytes != null
+            : (file.path != null && file.path!.isNotEmpty);
+
+        if (hasData) {
           showSuccess('Video selected successfully');
 
           if (kDebugMode) {
             debugPrint(
-              'MainController: Video picked - ${result.files.first.name}',
+              'MainController: Video picked - ${file.name}',
             );
           }
         } else {
           throw const app_exceptions.ValidationException(
-            message: 'Failed to load video bytes',
+            message: 'Failed to load video file',
           );
         }
       } else {
@@ -263,19 +270,25 @@ class AppStateController extends BaseController {
   /// Download video to device
   Future<void> downloadVideoToDevice(Uint8List bytes, String fileName) async {
     try {
-      final blob = html.Blob([bytes], 'video/mp4');
-      final url = html.Url.createObjectUrlFromBlob(blob);
+      if (kIsWeb) {
+        final blob = html.Blob([bytes], 'video/mp4');
+        final url = html.Url.createObjectUrlFromBlob(blob);
 
-      html.AnchorElement(href: url)
-        ..setAttribute('download', fileName)
-        ..click();
+        html.AnchorElement(href: url)
+          ..setAttribute('download', fileName)
+          ..click();
 
-      html.Url.revokeObjectUrl(url);
+        html.Url.revokeObjectUrl(url);
+      } else {
+        final dir = await getApplicationDocumentsDirectory();
+        final file = io.File('${dir.path}/$fileName');
+        await file.writeAsBytes(bytes);
+      }
 
-      showSuccess('Download started');
+      showSuccess('Download completed');
 
       if (kDebugMode) {
-        debugPrint('MainController: Download started for $fileName');
+        debugPrint('MainController: Download completed for $fileName');
       }
     } catch (e) {
       if (kDebugMode) {

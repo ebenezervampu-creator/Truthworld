@@ -10,10 +10,13 @@ import 'package:truthworld/theme/app_theme.dart';
 /// - Smooth count transition via TweenAnimationBuilder
 /// - Dark gradient card matching the app's aesthetic
 class LiveViewerWidget extends StatefulWidget {
-  const LiveViewerWidget({super.key, this.videoId});
+  const LiveViewerWidget({super.key, this.videoId, this.isCompact = false});
 
   /// Pass a videoId for per-video count, or null for global count.
   final String? videoId;
+
+  /// Whether to render as a compact inline badge (e.g. for video headers).
+  final bool isCompact;
 
   @override
   State<LiveViewerWidget> createState() => _LiveViewerWidgetState();
@@ -48,6 +51,57 @@ class _LiveViewerWidgetState extends State<LiveViewerWidget>
       stream: VideoPresenceService.to.getLiveViewerCountStream(widget.videoId),
       builder: (context, snapshot) {
         final count = snapshot.data ?? 0;
+
+        if (widget.isCompact) {
+          if (count <= 0) return const SizedBox.shrink();
+
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE94560).withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: const Color(0xFFE94560).withValues(alpha: 0.35),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedBuilder(
+                  animation: _pulseAnimation,
+                  builder: (context, child) {
+                    return Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFFE94560),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(
+                              0xFFE94560,
+                            ).withValues(alpha: _pulseAnimation.value * 0.6),
+                            blurRadius: 4 * _pulseAnimation.value,
+                            spreadRadius: 1 * _pulseAnimation.value,
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  '$count live',
+                  style: const TextStyle(
+                    color: Color(0xFFE94560),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
 
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),

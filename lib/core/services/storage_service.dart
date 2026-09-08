@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/feedback/feedback_service.dart';
@@ -33,10 +34,16 @@ class StorageService extends GetxService {
       DialogService.loading(message: 'Uploading file...');
 
       final ref = _storage.ref().child(path);
+      final currentUid = FirebaseAuth.instance.currentUser?.uid;
 
       final uploadTask = ref.putData(
         Uint8List.fromList(bytes),
-        SettableMetadata(contentType: mimeType ?? 'application/octet-stream'),
+        SettableMetadata(
+          contentType: mimeType ?? 'application/octet-stream',
+          customMetadata: {
+            'uploaderId': ?currentUid,
+          },
+        ),
       );
 
       uploadTask.snapshotEvents.listen(

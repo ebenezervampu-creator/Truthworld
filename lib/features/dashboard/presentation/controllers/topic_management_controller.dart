@@ -99,9 +99,13 @@ class TopicManagementController extends BaseController {
       );
       await _ensureStorageAuthReady();
       final ref = _storage.ref().child('thumbnails/topics/$fileName');
+      final currentUid = FirebaseAuth.instance.currentUser?.uid;
       final metadata = SettableMetadata(
         contentType: 'image/jpeg',
-        customMetadata: {'uploaded': DateTime.now().toString()},
+        customMetadata: {
+          'uploaderId': ?currentUid,
+          'uploaded': DateTime.now().toString(),
+        },
       );
       final uploadTask = ref.putData(bytes, metadata);
       await uploadTask.timeout(const Duration(seconds: 20));
@@ -123,8 +127,13 @@ class TopicManagementController extends BaseController {
         .snapshots()
         .map(
           (snapshot) {
-            final topics =
-                snapshot.docs.map(Topic.fromDocumentSnapshot).toList();
+            final topics = snapshot.docs
+                .map(Topic.fromDocumentSnapshot)
+                .where((t) =>
+                    t.status != 'deletion_pending' &&
+                    t.status != 'archived' &&
+                    t.status != 'empty_archived')
+                .toList();
             topics.sort((a, b) => b.createdAt.compareTo(a.createdAt));
             return topics;
           },
@@ -276,6 +285,7 @@ class TopicManagementController extends BaseController {
         visibilityType: visibilityType,
         accessCode: accessCode,
         videoCount: selectedVideoIds.length,
+        featuredVideoIds: selectedVideoIds,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
         status: 'underReview',
@@ -341,6 +351,16 @@ class TopicManagementController extends BaseController {
     String? thumbnailUrl,
   }) async {
     try {
+      if (selectedVideoIds.isEmpty) {
+        AppSnackbar.show(
+          'Video Required',
+          'A topic must contain at least 1 video.',
+          backgroundColor: AppColors.error,
+          colorText: AppColors.textPrimary,
+        );
+        throw Exception('A topic must contain at least 1 video');
+      }
+
       final updatedTopic = topic.copyWith(
         title: title,
         description: description,
@@ -351,6 +371,7 @@ class TopicManagementController extends BaseController {
             ? accessCode
             : null,
         videoCount: selectedVideoIds.length,
+        featuredVideoIds: selectedVideoIds,
         updatedAt: DateTime.now(),
       );
 

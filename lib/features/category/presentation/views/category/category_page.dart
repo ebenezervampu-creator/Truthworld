@@ -9,6 +9,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/components/ui/video_card.dart' as app_video_card;
 import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/features/category/presentation/controllers/category_controller.dart';
+import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -242,20 +243,15 @@ class _CategoryPageState extends State<CategoryPage>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _fadeAnimation,
-      builder: (context, child) {
-        return FadeTransition(
-          opacity: _fadeAnimation,
-          child: SlideTransition(
-            position: _slideAnimation,
-            child: ScaleTransition(
-              scale: _scaleAnimation,
-              child: _buildResponsiveLayout(context),
-            ),
-          ),
-        );
-      },
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: SlideTransition(
+        position: _slideAnimation,
+        child: ScaleTransition(
+          scale: _scaleAnimation,
+          child: _buildResponsiveLayout(context),
+        ),
+      ),
     );
   }
 
@@ -374,14 +370,15 @@ class _CategoryPageState extends State<CategoryPage>
               scale: 0.8 + (0.2 * _heroAnimation.value),
               child: Opacity(
                 opacity: _heroAnimation.value,
-                child: _buildHeroSection(
-                  context,
-                  isDesktop: isDesktop,
-                  isTablet: isTablet,
-                ),
+                child: child,
               ),
             );
           },
+          child: _buildHeroSection(
+            context,
+            isDesktop: isDesktop,
+            isTablet: isTablet,
+          ),
         ),
       ),
     );
@@ -788,7 +785,7 @@ class _CategoryPageState extends State<CategoryPage>
         child: InkWell(
           onTap: () {
             HapticFeedback.lightImpact();
-            Get.toNamed('/watch?v=${video.id}', arguments: {'video': video});
+            MiniplayerNavigationHelper.navigateToVideoScreen(video: video);
           },
           borderRadius: BorderRadius.circular(16),
           child: Container(

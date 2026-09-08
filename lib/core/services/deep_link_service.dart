@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
@@ -531,10 +532,14 @@ class DeepLinkService {
         _handlePostNavigation(parsed, replace: replace);
 
       case TruthworldUrlType.studio:
-        if (replace) {
-          Get.offNamed<void>('/studio');
+        if (!kIsWeb) {
+          StudioLauncher.openStudio();
         } else {
-          Get.toNamed<void>('/studio');
+          if (replace) {
+            Get.offNamed<void>('/studio');
+          } else {
+            Get.toNamed<void>('/studio');
+          }
         }
 
       case TruthworldUrlType.admin:
@@ -564,7 +569,8 @@ class DeepLinkService {
       case TruthworldUrlType.external:
       case TruthworldUrlType.unknown:
         final uri = Uri.tryParse(clean);
-        if (uri != null) {
+        // L-41: Block dangerous schemes (e.g. javascript:, file:, data:)
+        if (uri != null && (uri.isScheme('https') || uri.isScheme('http'))) {
           try {
             if (await canLaunchUrl(uri)) {
               await launchUrl(uri, mode: LaunchMode.externalApplication);

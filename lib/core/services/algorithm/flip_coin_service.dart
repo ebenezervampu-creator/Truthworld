@@ -558,9 +558,9 @@ class FlipCoinService extends GetxService {
       contrastScore += 0.4;
     }
 
-    contrastScore += (matchedCounterparts.length * 0.5);
-    contrastScore += (matchedConcepts.length * 0.5);
-    contrastScore += (matchedClaims.length * 0.4);
+    contrastScore += matchedCounterparts.length * 0.5;
+    contrastScore += matchedConcepts.length * 0.5;
+    contrastScore += matchedClaims.length * 0.4;
 
     if (currentVideo.category == candidateVideo.category && !isSameChannel && contrastScore > 0) {
       contrastScore += 0.2;
@@ -608,7 +608,6 @@ class FlipCoinService extends GetxService {
       matchedCounterparts: matchedCounterparts,
       matchedConcepts: matchedConcepts,
       matchedClaims: matchedClaims,
-      isDirectDebatePair: false,
       isOpposingStance: isOpposingStance,
     );
   }

@@ -164,6 +164,8 @@ class MockAd {
     required this.skippable,
     required this.duration,
     this.isSponsorBumper = false,
+    this.subtitles,
+    this.audioTracks,
   });
   final String videoUrl;
   final String title;
@@ -172,6 +174,8 @@ class MockAd {
   final bool skippable;
   final Duration duration;
   final bool isSponsorBumper;
+  final Map<String, String>? subtitles;
+  final Map<String, String>? audioTracks;
 }
 
 class LanguageRequest {

@@ -87,8 +87,12 @@ class MainActivity : FlutterActivity() {
                 android.util.Log.e("MainActivity", "Failed to resolve google_app_id dynamically: ${e.message}", e)
             }
 
-            // 3. Fallback pre-calculated keys
-            prefsKeys.add("com.google.firebase.appcheck.debug.store.W0RFRkFVTFRd+MTo3NjgyNjYxMDIyNjM6YW5kcm9pZDplNWM5OGRkM2ZiNmM2Nzg4MTQzYWYy")
+            // 3. Fallback pre-calculated keys for all flavors
+            prefsKeys.add("com.google.firebase.appcheck.debug.store.W0RFRkFVTFRd+MTo3NjgyNjYxMDIyNjM6YW5kcm9pZDowZDMzYTAyNDJmMjEwNmFjMTQzYWYy") // app
+            prefsKeys.add("com.google.firebase.appcheck.debug.store.W0RFRkFVTFRd+MTo3NjgyNjYxMDIyNjM6YW5kcm9pZDpjMDc2YTE0NTU1MjBmNWNkMTQzYWYy") // studio
+            prefsKeys.add("com.google.firebase.appcheck.debug.store.W0RFRkFVTFRd+MTo3NjgyNjYxMDIyNjM6YW5kcm9pZDplOTg5NTIwM2VmMTcyZWM2MTQzYWYy") // admin
+            prefsKeys.add("com.google.firebase.appcheck.debug.store.W0RFRkFVTFRd+MTo3NjgyNjYxMDIyNjM6YW5kcm9pZDo5NjVkOThlMjQ0MjI1ZGM0MTQzYWYy") // advertiser
+            prefsKeys.add("com.google.firebase.appcheck.debug.store.W0RFRkFVTFRd+MTo3NjgyNjYxMDIyNjM6YW5kcm9pZDplNWM5OGRkM2ZiNmM2Nzg4MTQzYWYy") // example
             prefsKeys.add("com.google.firebase.appcheck.debug.store.[DEFAULT]")
             prefsKeys.add("com.google.firebase.appcheck.debug.store.truthworld-1")
 

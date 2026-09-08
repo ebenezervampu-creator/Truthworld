@@ -43,25 +43,7 @@ class _AdMediaWidgetState extends State<AdMediaWidget> {
   final RxBool _isInitialized = false.obs;
   final RxBool _isLoading = false.obs;
 
-  String? get _effectiveVideoUrl {
-    final v = widget.ad.videoUrl;
-    if (v != null && v.trim().isNotEmpty && !v.trim().startsWith('blob:')) {
-      return v.trim();
-    }
-    final mid = widget.ad.midrollVideoUrl;
-    if (mid != null && mid.trim().isNotEmpty && !mid.trim().startsWith('blob:')) {
-      return mid.trim();
-    }
-    if (widget.ad.resolutions != null && widget.ad.resolutions!.isNotEmpty) {
-      for (final res in widget.ad.resolutions!) {
-        final u = res['url'] as String?;
-        if (u != null && u.trim().isNotEmpty && !u.trim().startsWith('blob:')) {
-          return u.trim();
-        }
-      }
-    }
-    return null;
-  }
+  String? get _effectiveVideoUrl => widget.ad.effectiveVideoUrl;
 
   @override
   void initState() {
@@ -398,7 +380,7 @@ class HomepageAdCard extends StatelessWidget {
               color: Colors.transparent,
               borderRadius: AppTheme.radius.circularLg,
               child: InkWell(
-                onTap: () => AdService.to.launchCtaUrl(ad),
+                onTap: () => AdService.to.handleAdTap(ad),
                 borderRadius: AppTheme.radius.circularLg,
                 splashColor: AppTheme.colors.primary.withValues(alpha: 0.2),
                 child: Column(
@@ -419,8 +401,7 @@ class HomepageAdCard extends StatelessWidget {
                               ad: ad,
                               isHovered: controller.isHovered,
                             ),
-                            if (ad.imageUrl.isEmpty &&
-                                (ad.videoUrl == null || ad.videoUrl!.isEmpty))
+                            if (ad.imageUrl.isEmpty && !ad.hasVideo)
                               () {
                                 final isLightBg =
                                     ad.gradientColors.first.computeLuminance() >
@@ -820,7 +801,7 @@ class ScrollAdCard extends StatelessWidget {
               color: Colors.transparent,
               borderRadius: AppTheme.radius.circularLg,
               child: InkWell(
-                onTap: () => AdService.to.launchCtaUrl(ad),
+                onTap: () => AdService.to.handleAdTap(ad),
                 borderRadius: AppTheme.radius.circularLg,
                 splashColor: AppTheme.colors.primary.withValues(alpha: 0.2),
                 child: Padding(
@@ -1348,19 +1329,23 @@ void showSponsorDiscussionModal({
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (context) {
-      return DraggableScrollableSheet(
-        initialChildSize: 0.85,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        expand: false,
-        builder: (context, scrollController) {
-          return Container(
-            decoration: const BoxDecoration(
-              color: Color(0xFF161616),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            child: Column(
+    builder: (bottomSheetContext) {
+      return Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(bottomSheetContext).viewInsets.bottom,
+        ),
+        child: DraggableScrollableSheet(
+          initialChildSize: 0.85,
+          minChildSize: 0.5,
+          maxChildSize: 0.95,
+          expand: false,
+          builder: (context, scrollController) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Color(0xFF161616),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Column(
               children: [
                 Container(
                   width: 40,
@@ -1565,105 +1550,109 @@ void showSponsorDiscussionModal({
                     ],
                   ),
                 ),
-                Container(
-                  padding: EdgeInsets.only(
-                    left: 16,
-                    right: 16,
-                    top: 10,
-                    bottom: MediaQuery.of(context).viewInsets.bottom + 12,
-                  ),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF161616),
-                    border: Border(
-                      top: BorderSide(color: Colors.white12),
+                SafeArea(
+                  top: false,
+                  child: Container(
+                    padding: const EdgeInsets.only(
+                      left: 16,
+                      right: 16,
+                      top: 10,
+                      bottom: 12,
                     ),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: replyController,
-                          style: GoogleFonts.roboto(color: Colors.white, fontSize: 14),
-                          decoration: InputDecoration(
-                            hintText: 'Reply to ${ad.advertiser.isNotEmpty ? ad.advertiser : "sponsor"}...',
-                            hintStyle: GoogleFonts.roboto(color: AppColors.textDisabled, fontSize: 13),
-                            filled: true,
-                            fillColor: const Color(0xFF242424),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(24),
-                              borderSide: BorderSide.none,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF161616),
+                      border: Border(
+                        top: BorderSide(color: Colors.white12),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: replyController,
+                            style: GoogleFonts.roboto(color: Colors.white, fontSize: 14),
+                            decoration: InputDecoration(
+                              hintText: 'Reply to ${ad.advertiser.isNotEmpty ? ad.advertiser : "sponsor"}...',
+                              hintStyle: GoogleFonts.roboto(color: AppColors.textDisabled, fontSize: 13),
+                              filled: true,
+                              fillColor: const Color(0xFF242424),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(24),
+                                borderSide: BorderSide.none,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Obx(() {
-                        return IconButton(
-                          onPressed: isSubmitting.value
-                              ? null
-                              : () async {
-                                  final text = replyController.text.trim();
-                                  if (text.isEmpty) return;
+                        const SizedBox(width: 8),
+                        Obx(() {
+                          return IconButton(
+                            onPressed: isSubmitting.value
+                                ? null
+                                : () async {
+                                    final text = replyController.text.trim();
+                                    if (text.isEmpty) return;
 
-                                  isSubmitting.value = true;
-                                  try {
-                                    final authService = Get.isRegistered<AuthService>()
-                                        ? AuthService.to
-                                        : null;
-                                    final currentUid = FirebaseAuth.instance.currentUser?.uid ?? 'anon';
-                                    final userName = authService?.activeDisplayName ?? 'User';
-                                    final userPic = authService?.activePhotoUrl ?? '';
-                                    final channel = authService?.userChannel;
+                                    isSubmitting.value = true;
+                                    try {
+                                      final authService = Get.isRegistered<AuthService>()
+                                          ? AuthService.to
+                                          : null;
+                                      final currentUid = FirebaseAuth.instance.currentUser?.uid ?? 'anon';
+                                      final userName = authService?.activeDisplayName ?? 'User';
+                                      final userPic = authService?.activePhotoUrl ?? '';
+                                      final channel = authService?.userChannel;
 
-                                    await CommentService().addReply(
-                                      videoId: videoId,
-                                      commentId: sponsorCommentId,
-                                      userId: currentUid,
-                                      userName: userName,
-                                      userProfilePicUrl: userPic,
-                                      text: text,
-                                      channelId: channel?.id ?? currentUid,
-                                      channelName: channel?.name,
-                                      channelProfilePicUrl: channel?.avatarUrl,
-                                    );
+                                      await CommentService().addReply(
+                                        videoId: videoId,
+                                        commentId: sponsorCommentId,
+                                        userId: currentUid,
+                                        userName: userName,
+                                        userProfilePicUrl: userPic,
+                                        text: text,
+                                        channelId: channel?.id ?? currentUid,
+                                        channelName: channel?.name,
+                                        channelProfilePicUrl: channel?.avatarUrl,
+                                      );
 
-                                    replyController.clear();
-                                  } catch (err) {
-                                    AppSnackbar.show(
-                                      'Reply Error',
-                                      'Could not post reply: $err',
-                                      backgroundColor: AppColors.error,
-                                      colorText: Colors.white,
-                                    );
-                                  } finally {
-                                    isSubmitting.value = false;
-                                  }
-                                },
-                          icon: isSubmitting.value
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
+                                      replyController.clear();
+                                    } catch (err) {
+                                      AppSnackbar.show(
+                                        'Reply Error',
+                                        'Could not post reply: $err',
+                                        backgroundColor: AppColors.error,
+                                        colorText: Colors.white,
+                                      );
+                                    } finally {
+                                      isSubmitting.value = false;
+                                    }
+                                  },
+                            icon: isSubmitting.value
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.send_rounded,
                                     color: Colors.white,
+                                    size: 20,
                                   ),
-                                )
-                              : const Icon(
-                                  Icons.send_rounded,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                        );
-                      }),
-                    ],
+                          );
+                        }),
+                      ],
+                    ),
                   ),
                 ),
               ],
             ),
           );
         },
-      );
-    },
-  );
+      ),
+    );
+  },
+);
 }

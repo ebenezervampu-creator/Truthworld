@@ -50,13 +50,15 @@ export const getLeaderboard = onRequest(
         .limit(limit * 2) // Fetch more to allow re-ranking by weighted score
         .get();
 
-      const channels = snap.docs.map((doc: admin.firestore.QueryDocumentSnapshot) => {
-        const data = doc.data() as ChannelV2;
-        return {
-          ...data,
-          discoveryScore: calculateRankScore(data)
-        };
-      });
+      const channels = snap.docs
+        .map((doc: admin.firestore.QueryDocumentSnapshot) => {
+          const data = doc.data() as ChannelV2;
+          return {
+            ...data,
+            discoveryScore: calculateRankScore(data)
+          };
+        })
+        .filter((c: any) => c.status !== "suspended" && c.status !== "banned" && c.status !== "deleted");
 
       // Re-rank by weighted discovery score
       const ranked = channels
@@ -83,7 +85,7 @@ export const getLeaderboard = onRequest(
 );
 
 /**
- * Ã°Å¸â€œË† GET RISING CREATORS (HTTPS)
+ * 📈 GET RISING CREATORS (HTTPS)
  * Focuses on creators with high trend30d.
  */
 export const getRisingCreators = onRequest(
@@ -95,21 +97,34 @@ export const getRisingCreators = onRequest(
       const snap = await db().collection("channels")
         .where("reputation.trend30d", ">", 0)
         .orderBy("reputation.trend30d", "desc")
-        .limit(limit)
+        .limit(limit * 2)
         .get();
 
-      const creators = snap.docs.map((doc: admin.firestore.QueryDocumentSnapshot) => {
-        const data = doc.data() as ChannelV2;
-        return {
-          id: data.id,
-          name: data.displayName,
-          slug: data.handle,
-          avatarUrl: data.profile.photoUrl,
-          channelRating: data.reputation.channelRating ?? data.reputation.avgTrustIndex,
-          trend: data.reputation.trend30d,
-          SUBSCRIBERS: data.stats.subscriberCount
-        };
-      });
+      const creators = snap.docs
+        .map((doc: admin.firestore.QueryDocumentSnapshot) => {
+          const data = doc.data() as ChannelV2;
+          return {
+            id: data.id,
+            status: (data as any).status,
+            name: data.displayName,
+            slug: data.handle,
+            avatarUrl: data.profile.photoUrl,
+            channelRating: data.reputation.channelRating ?? data.reputation.avgTrustIndex,
+            trend: data.reputation.trend30d,
+            subscribers: data.stats.subscriberCount
+          };
+        })
+        .filter(c => c.status !== "suspended" && c.status !== "banned" && c.status !== "deleted")
+        .slice(0, limit)
+        .map(c => ({
+          id: c.id,
+          name: c.name,
+          slug: c.slug,
+          avatarUrl: c.avatarUrl,
+          channelRating: c.channelRating,
+          trend: c.trend,
+          subscribers: c.subscribers
+        }));
 
       res.status(200).json({ creators });
     } catch (err) {

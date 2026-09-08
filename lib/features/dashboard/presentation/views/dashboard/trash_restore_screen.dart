@@ -156,6 +156,33 @@ class TrashRestoreController extends BaseController {
       } else if (type == 'Video') {
         updateFields['status'] = 'ready';
       } else if (type == 'Topic') {
+        final docSnap = await docRef.get();
+        final topicData = docSnap.data() as Map<String, dynamic>? ?? {};
+        final vCount = (topicData['videoCount'] as num?)?.toInt() ?? 0;
+        final featVids = topicData['featuredVideoIds'] as List? ?? [];
+        final slug = (topicData['slug'] as String? ?? '').trim();
+
+        if (vCount <= 0 && featVids.isEmpty) {
+          final existingVideos = await FirebaseFirestore.instance
+              .collection(FirestoreCollections.videos)
+              .where('topics', arrayContains: slug)
+              .limit(1)
+              .get();
+
+          if (existingVideos.docs.isEmpty) {
+            Get.back();
+            AppSnackbar.show(
+              'Restoration Blocked',
+              'Cannot restore this topic because it contains 0 videos. Topics must contain at least 1 video.',
+              backgroundColor: AppColors.error,
+              colorText: AppColors.textPrimary,
+              snackPosition: SnackPosition.BOTTOM,
+            );
+            return;
+          } else {
+            updateFields['videoCount'] = existingVideos.docs.length;
+          }
+        }
         updateFields['status'] = 'active';
         updateFields['visibilityType'] = 'public';
       } else if (type == 'Playlist') {
@@ -222,35 +249,49 @@ class TrashRestoreScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Row(
                 children: [
-                  Text(
-                    'Trash & Restoration',
-                    style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                      color: isDarkMode
-                          ? AppColors.textPrimary
-                          : Colors.black,
+                  if (Navigator.canPop(context)) ...[
+                    IconButton(
+                      icon: const Icon(
+                        Icons.arrow_back_rounded,
+                        color: Colors.white,
+                      ),
+                      onPressed: () => Navigator.of(context).pop(),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Deleted channels, videos, topics, and playlists are retained for 30 days before permanent deletion.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: isDarkMode
-                          ? AppColors.textSecondary
-                          : Colors.black,
-                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Trash & Restoration',
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                          color: isDarkMode
+                              ? AppColors.textPrimary
+                              : Colors.black,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Deleted channels, videos, topics, and playlists are retained for 30 days before permanent deletion.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: isDarkMode
+                              ? AppColors.textSecondary
+                              : Colors.black,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
               IconButton(
                 icon: const Icon(
                   Icons.refresh_rounded,
-                  color: AppColors.textSecondary,
+                  color: Colors.white,
                 ),
                 onPressed: controller.loadTrashItems,
                 tooltip: 'Refresh Trash Bin',
@@ -342,7 +383,7 @@ class TrashRestoreScreen extends StatelessWidget {
             child: const Icon(
               Icons.delete_outline_rounded,
               size: 72,
-              color: AppColors.textDisabled,
+              color: Colors.white,
             ),
           ),
           const SizedBox(height: 20),
@@ -421,12 +462,12 @@ class TrashRestoreScreen extends StatelessWidget {
                               Container(color: AppColors.bgDivider),
                           errorWidget: (context, url, error) => ColoredBox(
                             color: typeColor.withValues(alpha: 0.1),
-                            child: Icon(typeIcon, color: typeColor, size: 24),
+                            child: Icon(typeIcon, color: Colors.white, size: 24),
                           ),
                         )
                       : ColoredBox(
                           color: typeColor.withValues(alpha: 0.1),
-                          child: Icon(typeIcon, color: typeColor, size: 24),
+                          child: Icon(typeIcon, color: Colors.white, size: 24),
                         ),
                 ),
               ),
@@ -499,7 +540,11 @@ class TrashRestoreScreen extends StatelessWidget {
 
               // Restore Button
               TextButton.icon(
-                icon: const Icon(Icons.restore_rounded, size: 18),
+                icon: const Icon(
+                  Icons.restore_rounded,
+                  size: 18,
+                  color: Colors.white,
+                ),
                 label: const Text('Restore'),
                 style: TextButton.styleFrom(
                   foregroundColor: const Color(0xFF818CF8),

@@ -32,7 +32,7 @@ linter:
     join_return_with_assignment: false
     avoid_multiple_declarations_per_line: false
     use_is_even_rather_than_modulo: false
-    cancel_subscriptions: false
+    cancel_subscriptions: true
     constant_identifier_names: false
     prefer_int_literals: false
     use_late_for_private_fields_and_variables: false

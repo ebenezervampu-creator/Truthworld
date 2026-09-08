@@ -10,7 +10,9 @@
  */
 
 import * as admin from "firebase-admin";
+import axios from "axios";
 import { v4 as uuidv4 } from "uuid";
+import { PIPELINE_CONFIG } from "../pipeline/config";
 import { translationService } from "../pipeline/services/translation";
 import { ttsService } from "../pipeline/services/tts";
 import { costEngine } from "../pipeline/services/cost-engine";
@@ -42,7 +44,9 @@ export class AdPipelineService {
   static parseVtt(vttContent: string): CueItem[] {
     if (!vttContent || !vttContent.trim()) return [];
 
-    const lines = vttContent.split("\n");
+    // Strip UTF-8 BOM, normalize CRLF to LF
+    const normalized = vttContent.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    const lines = normalized.split("\n");
     const cues: CueItem[] = [];
     let pendingStart = "";
     let pendingEnd = "";
@@ -61,9 +65,15 @@ export class AdPipelineService {
           pendingText.length = 0;
         }
         const parts = trimmed.split("-->");
-        pendingStart = parts[0].trim();
-        pendingEnd = parts[1] ? parts[1].trim() : "00:00:05.000";
+        pendingStart = parts[0].trim().split(/\s+/)[0];
+        // Strip any cue settings (e.g. line:0 position:50%) from end timestamp
+        const rawEnd = parts[1] ? parts[1].trim() : "00:00:05.000";
+        pendingEnd = rawEnd.split(/\s+/)[0] || "00:00:05.000";
       } else if (trimmed.length > 0 && !trimmed.startsWith("WEBVTT") && !trimmed.startsWith("NOTE")) {
+        // IMPORTANT: Ignore any header metadata lines that appear before the first cue timestamp
+        if (!pendingStart) {
+          continue;
+        }
         // Exclude numerical cue identifiers if preceding timestamp
         if (/^\d+$/.test(trimmed) && pendingText.length === 0) {
           continue;
@@ -143,6 +153,108 @@ export class AdPipelineService {
   }
 
   /**
+   * Resolve an accessible public/signed URL for audio/video processing.
+   */
+  static async getAccessibleUrl(url: string): Promise<string> {
+    if (!url) return "";
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+      return url;
+    }
+    if (url.startsWith("gs://")) {
+      try {
+        const parts = url.replace("gs://", "").split("/");
+        const bucketName = parts[0];
+        const filePath = parts.slice(1).join("/");
+        const bucket = admin.storage().bucket(bucketName);
+        const file = bucket.file(filePath);
+        const [signedUrl] = await file.getSignedUrl({
+          action: "read",
+          expires: Date.now() + 1000 * 60 * 60, // 1 hour
+        });
+        return signedUrl;
+      } catch (err) {
+        logger.warn("[AdPipeline] Could not get signed URL for gs:// path", { url, error: err });
+        return url;
+      }
+    }
+    return url;
+  }
+
+  /**
+   * Transcribe speech from a video URL using AssemblyAI.
+   * Returns a WebVTT formatted string or null if failed, empty, or unconfigured.
+   */
+  static async transcribeVideoAudio(videoUrl: string): Promise<string | null> {
+    try {
+      const apiKey = PIPELINE_CONFIG.ASSEMBLYAI_KEY || process.env.ASSEMBLYAI_KEY;
+      if (!apiKey) {
+        logger.info("[AdPipeline] ASSEMBLYAI_KEY not configured, skipping STT");
+        return null;
+      }
+
+      const accessibleUrl = await this.getAccessibleUrl(videoUrl);
+      if (!accessibleUrl) return null;
+
+      const headers = {
+        authorization: apiKey,
+        "content-type": "application/json",
+      };
+
+      logger.info("[AdPipeline] Submitting video to AssemblyAI for speech transcription...", { videoUrl });
+      const submitResp = await axios.post(
+        "https://api.assemblyai.com/v2/transcript",
+        {
+          audio_url: accessibleUrl,
+          punctuate: true,
+          format_text: true,
+        },
+        { headers, timeout: 20000 }
+      );
+
+      const transcriptId = submitResp.data?.id;
+      if (!transcriptId) return null;
+
+      // Poll for completion (up to 30 attempts, 2.5s interval = 75s max for short video ads)
+      for (let attempt = 0; attempt < 30; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 2500));
+        const pollResp = await axios.get(
+          `https://api.assemblyai.com/v2/transcript/${transcriptId}`,
+          { headers, timeout: 15000 }
+        );
+
+        const status = pollResp.data?.status;
+        if (status === "completed") {
+          // Fetch native VTT from AssemblyAI
+          const vttResp = await axios.get(
+            `https://api.assemblyai.com/v2/transcript/${transcriptId}/vtt`,
+            { headers, timeout: 15000 }
+          );
+          const vtt = vttResp.data;
+          if (typeof vtt === "string" && vtt.includes("-->")) {
+            logger.info("[AdPipeline] Successfully transcribed video speech to native VTT", {
+              transcriptId,
+              vttLength: vtt.length,
+            });
+            return vtt;
+          }
+          break;
+        } else if (status === "error") {
+          logger.warn("[AdPipeline] AssemblyAI transcript returned error status", {
+            error: pollResp.data?.error,
+          });
+          break;
+        }
+      }
+      return null;
+    } catch (err) {
+      logger.warn("[AdPipeline] Audio transcription non-fatal failure, falling back to default cues", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return null;
+    }
+  }
+
+  /**
    * Main entry point for processing advertiser AI features.
    */
   static async processAdAIFeatures(req: AdAIFeaturesRequest): Promise<void> {
@@ -194,9 +306,36 @@ export class AdPipelineService {
         sourceCues = this.parseVtt(sourceVtt);
       }
 
+      // If no source cues exist yet, transcribe video audio via AssemblyAI
+      if (sourceCues.length === 0) {
+        const videoUrlToTranscribe = adData.videoUrl || adData.midrollVideoUrl;
+        if (videoUrlToTranscribe) {
+          await adDocRef.set(
+            {
+              stages: {
+                ai: {
+                  currentStage: "Transcribing speech from video ad...",
+                  updatedAt: Date.now(),
+                },
+              },
+            },
+            { merge: true }
+          );
+
+          const transcribedVtt = await this.transcribeVideoAudio(videoUrlToTranscribe);
+          if (transcribedVtt && transcribedVtt.trim()) {
+            sourceCues = this.parseVtt(transcribedVtt);
+            if (sourceCues.length > 0) {
+              existingSubtitles[sourceLang] = transcribedVtt;
+            }
+          }
+        }
+      }
+
+      // If still no cues (silent video, fallback, or no transcript), use structured campaign metadata cues
       if (sourceCues.length === 0) {
         sourceCues = this.generateDefaultCues(adData);
-        // Save English baseline VTT
+        // Save baseline VTT
         const defaultSourceVtt = this.formatVtt(sourceCues);
         existingSubtitles[sourceLang] = defaultSourceVtt;
       }
@@ -217,9 +356,13 @@ export class AdPipelineService {
 
           await adDocRef.set(
             {
-              "stages.ai.progress": progressPercent,
-              "stages.ai.currentStage": `Translating subtitles to ${lang.toUpperCase()}...`,
-              "stages.ai.updatedAt": Date.now(),
+              stages: {
+                ai: {
+                  progress: progressPercent,
+                  currentStage: `Translating subtitles to ${lang.toUpperCase()}...`,
+                  updatedAt: Date.now(),
+                },
+              },
             },
             { merge: true }
           );
@@ -229,16 +372,37 @@ export class AdPipelineService {
             continue;
           }
 
-          // Translate each cue
+          // Translate cues in batch for speed, consistency, and fallback
           const translatedCues: CueItem[] = [];
-          for (const cue of sourceCues) {
-            const translatedText = await translationService.translateText(cue.text, sourceLang, lang);
-            translatedCues.push({
-              id: cue.id,
-              startTime: cue.startTime,
-              endTime: cue.endTime,
-              text: translatedText || cue.text,
+          try {
+            const batchResult = await translationService.translateSegments(
+              campaignId,
+              sourceCues.map((c) => ({ start: 0, end: 0, text: c.text })),
+              sourceLang,
+              lang,
+              { model: "dynamic" }
+            );
+
+            sourceCues.forEach((cue, idx) => {
+              const text = batchResult.segments[idx]?.translated || cue.text;
+              translatedCues.push({
+                id: cue.id,
+                startTime: cue.startTime,
+                endTime: cue.endTime,
+                text,
+              });
             });
+          } catch (batchErr) {
+            logger.warn(`[AdPipeline] Batch segment translation fallback to individual translation for ${lang}`, { error: batchErr });
+            for (const cue of sourceCues) {
+              const translatedText = await translationService.translateText(cue.text, sourceLang, lang);
+              translatedCues.push({
+                id: cue.id,
+                startTime: cue.startTime,
+                endTime: cue.endTime,
+                text: translatedText || cue.text,
+              });
+            }
           }
 
           const translatedVtt = this.formatVtt(translatedCues);
@@ -275,9 +439,13 @@ export class AdPipelineService {
 
           await adDocRef.set(
             {
-              "stages.ai.progress": progressPercent,
-              "stages.ai.currentStage": `Synthesizing AI audio dub in ${lang.toUpperCase()}...`,
-              "stages.ai.updatedAt": Date.now(),
+              stages: {
+                ai: {
+                  progress: progressPercent,
+                  currentStage: `Synthesizing AI audio dub in ${lang.toUpperCase()}...`,
+                  updatedAt: Date.now(),
+                },
+              },
             },
             { merge: true }
           );
@@ -375,5 +543,87 @@ export class AdPipelineService {
 
       throw err;
     }
+  }
+
+  /**
+   * Batch process AI dubbing and subtitles for all video ads in Truthworld.
+   * Scans ad_campaigns for video assets and processes them.
+   */
+  static async processAllVideoAds(options: {
+    targetLanguages?: string[];
+    features?: string[];
+    voiceStyle?: string;
+    sourceLang?: string;
+    forceRegenerate?: boolean;
+  } = {}): Promise<{
+    totalFound: number;
+    processedCount: number;
+    skippedCount: number;
+    campaignIds: string[];
+  }> {
+    const {
+      targetLanguages = ["te", "hi", "ta", "es"],
+      features = ["subtitles", "dubbing"],
+      voiceStyle = "natural",
+      sourceLang = "en",
+      forceRegenerate = false,
+    } = options;
+
+    const snapshot = await db().collection("ad_campaigns").get();
+    const videoAds: { id: string; data: any }[] = [];
+
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      const hasVideo = !!(
+        data.videoUrl ||
+        data.midrollVideoUrl ||
+        (data.resolutions && Array.isArray(data.resolutions) && data.resolutions.length > 0)
+      );
+
+      if (!hasVideo) continue;
+
+      // Skip already processed video ads unless forceRegenerate is true
+      if (!forceRegenerate) {
+        const subs = data.subtitles || {};
+        const dubs = data.audioTracks || {};
+        const wantSubs = features.includes("subtitles");
+        const wantDubs = features.includes("dubbing");
+
+        const hasAllSubs = !wantSubs || targetLanguages.every((l) => !!subs[normalizeLanguageCode(l)]);
+        const hasAllDubs = !wantDubs || targetLanguages.every((l) => !!dubs[normalizeLanguageCode(l)]);
+
+        if (hasAllSubs && hasAllDubs) {
+          continue;
+        }
+      }
+
+      videoAds.push({ id: doc.id, data });
+    }
+
+    logger.info(`[AdPipeline] Found ${videoAds.length} video ads to process for AI dubbing/subtitles. (Total docs: ${snapshot.size})`);
+
+    const campaignIds: string[] = [];
+    for (const item of videoAds) {
+      campaignIds.push(item.id);
+      try {
+        await this.processAdAIFeatures({
+          campaignId: item.id,
+          userId: item.data.userId || "system",
+          features,
+          targetLanguages,
+          voiceStyle,
+          sourceLang,
+        });
+      } catch (err) {
+        logger.error(`[AdPipeline] Error processing video ad ${item.id} in batch:`, err);
+      }
+    }
+
+    return {
+      totalFound: snapshot.size,
+      processedCount: campaignIds.length,
+      skippedCount: snapshot.size - campaignIds.length,
+      campaignIds,
+    };
   }
 }

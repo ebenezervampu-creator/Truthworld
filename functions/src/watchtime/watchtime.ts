@@ -187,6 +187,23 @@ export const trackWatchEvent = onRequest(
         return;
       }
 
+      // L-33: Override client-supplied userId with verified auth token
+      // Prevents view count inflation by spoofing another user's ID
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith("Bearer ")) {
+        try {
+          const token = authHeader.split("Bearer ")[1];
+          const decoded = await admin.auth().verifyIdToken(token);
+          body.userId = decoded.uid; // Trust server-verified UID only
+        } catch {
+          // Invalid token — treat as anonymous
+          body.userId = "anonymous";
+        }
+      } else if (body.userId !== "anonymous") {
+        // No auth header but claimed a userId — reject the claim
+        body.userId = "anonymous";
+      }
+
       // ——— Ignore pings that haven't reached 3 s yet ———
       if (body.eventType === "watch_ping" && position < 3) {
         res.status(200).send({ success: true, skipped: true });

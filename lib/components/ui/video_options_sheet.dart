@@ -376,12 +376,16 @@ class VideoOptionsSheet extends StatelessWidget {
 
   void _showReportDialog(BuildContext context) {
     final reasons = [
-      'Sexual content',
-      'Violent or repulsive content',
-      'Hateful or abusive content',
-      'Harassment or bullying',
-      'Harmful or dangerous acts',
-      'Spam or misleading',
+      'Copyright or Intellectual Property Infringement',
+      'Non-consensual sexual content or deepfakes (24h Expedited Review)',
+      'Hate speech, harassment, or cyberbullying',
+      'Violence, graphic content, or dangerous acts',
+      'Child safety or exploitation',
+      'Impersonation, defamation, or privacy invasion',
+      'Misinformation, scams, or fraud',
+      'Threat to national security, sovereignty, or public order',
+      'Sexual or explicit adult content',
+      'Spam or misleading content',
     ];
 
     final selectedReason = RxnString();
@@ -404,28 +408,109 @@ class VideoOptionsSheet extends StatelessWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: reasons.map((reason) {
-                return RadioListTile<String>(
-                  title: Text(
-                    reason,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 15,
+            content: SizedBox(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Select the category that best describes the issue under our Community Guidelines & Intermediary Policy:',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 13,
+                      ),
                     ),
-                  ),
-                  value: reason,
-                  // ignore: deprecated_member_use
-                  groupValue: selectedReason.value,
-                  activeColor: AppColors.brand,
-                  // ignore: deprecated_member_use
-                  onChanged: (val) {
-                    selectedReason.value = val;
-                  },
-                  contentPadding: EdgeInsets.zero,
-                );
-              }).toList(),
+                    const SizedBox(height: 12),
+                    ...reasons.map((reason) {
+                      return RadioListTile<String>(
+                        title: Text(
+                          reason,
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 14,
+                          ),
+                        ),
+                        value: reason,
+                        // ignore: deprecated_member_use
+                        groupValue: selectedReason.value,
+                        activeColor: AppColors.brand,
+                        // ignore: deprecated_member_use
+                        onChanged: (val) {
+                          selectedReason.value = val;
+                        },
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                      );
+                    }),
+                    if (selectedReason.value ==
+                        'Copyright or Intellectual Property Infringement') ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.1),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Are you the copyright owner or authorized agent?',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'For formal statutory takedowns under DMCA and Indian Copyright Act, you can submit our official notice form.',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            InkWell(
+                              onTap: () {
+                                Navigator.of(context).pop();
+                                Get.toNamed('/copyright-complaint', arguments: {
+                                  'videoId': video.id,
+                                  'videoTitle': video.title,
+                                });
+                              },
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'Open Official Copyright Takedown Form',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF3B82F6),
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  SizedBox(width: 4),
+                                  Icon(
+                                    Icons.arrow_forward,
+                                    color: Colors.white,
+                                    size: 14,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ),
             actions: [
               TextButton(

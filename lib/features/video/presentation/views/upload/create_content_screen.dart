@@ -1,19 +1,15 @@
 import 'dart:io' as io;
-import 'dart:ui';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:intl/intl.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
-import 'package:truthworld/core/services/image_cropper_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/core/widgets/app_logo.dart';
@@ -32,7 +28,6 @@ import 'package:truthworld/features/topics/presentation/widgets/create_topic_dia
 import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_controller.dart';
-import 'package:truthworld/features/video/presentation/views/upload/ai_features_selector.dart';
 import 'package:truthworld/features/video/presentation/views/upload/models/upload_type.dart';
 import 'package:truthworld/features/video/presentation/views/upload/widgets/topic_selection_bottom_sheet.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -232,7 +227,6 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     final isTagsClean = rawTags.isEmpty ||
         ContentValidator.validateTags(
           rawTags,
-          maxTags: ContentValidator.defaultMaxTags,
         ).isValid;
 
     final isValid = isTitleClean && isDescClean && isTagsClean;
@@ -673,128 +667,6 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     );
   }
 
-  Widget _buildVerticalStepper(bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'STEPS',
-            style: context.themeTypography.label.copyWith(
-              color: isDark ? AppColors.textTertiary : const Color(0xFF9CA3AF),
-              letterSpacing: 1,
-            ),
-          ),
-          const SizedBox(height: 16),
-          ..._buildStepItems(isDark),
-        ],
-      ),
-    );
-  }
-
-  List<Widget> _buildStepItems(bool isDark) {
-    final steps = [
-      {'icon': Icons.cloud_upload_rounded, 'label': 'Upload Media'},
-      {'icon': Icons.edit_rounded, 'label': 'Add Details'},
-      {'icon': Icons.tune_rounded, 'label': 'Settings'},
-      {'icon': Icons.rocket_launch_rounded, 'label': 'Publish'},
-    ];
-
-    return List.generate(steps.length, (index) {
-      return Obx(() {
-        final isActive = index == _uploadController.uploadStage.value;
-        final isCompleted = index < _uploadController.uploadStage.value;
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(10),
-              onTap: () {
-                _uploadController.setUploadStage(index);
-
-                _pageController.animateToPage(
-                  index,
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                );
-
-                HapticFeedback.lightImpact();
-              },
-              // Disable on desktop/tablet (no PageView there)
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        gradient: isActive || isCompleted
-                            ? const LinearGradient(
-                                colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-                              )
-                            : null,
-                        color: isActive || isCompleted
-                            ? null
-                            : isDark
-                            ? const Color(0xFF21262D)
-                            : const Color(0xFFE5E7EB),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        isCompleted
-                            ? Icons.check_rounded
-                            : steps[index]['icon']! as IconData,
-                        size: 16,
-                        color: isActive || isCompleted
-                            ? AppColors.textPrimary
-                            : isDark
-                            ? AppColors.textTertiary
-                            : const Color(0xFF9CA3AF),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        steps[index]['label']! as String,
-                        style: context.themeTypography.bodySmall.copyWith(
-                          color: isActive
-                              ? (isDark
-                                    ? AppColors.textPrimary
-                                    : const Color(0xFF0F172A))
-                              : isCompleted
-                              ? (isDark
-                                    ? AppColors.textSecondary
-                                    : AppColors.textSecondary)
-                              : (isDark
-                                    ? AppColors.textTertiary
-                                    : const Color(0xFF9CA3AF)),
-                        ),
-                      ),
-                    ),
-                    Icon(
-                      isActive
-                          ? Icons.arrow_forward_ios_rounded
-                          : Icons.chevron_right_rounded,
-                      size: 12,
-                      color: isActive
-                          ? const Color(0xFF6366F1)
-                          : (isDark
-                                ? AppColors.textDisabled
-                                : const Color(0xFFD1D5DB)),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      });
-    });
-  }
-
   Widget _buildChannelSelector(bool isDark) {
     return Obx(() {
       // Show loading state
@@ -1219,9 +1091,13 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                         fit: StackFit.expand,
                         children: [
                           Image(
-                            image: kIsWeb
+                            image: (kIsWeb && image.bytes != null)
                                 ? MemoryImage(image.bytes!) as ImageProvider
-                                : FileImage(io.File(image.path!)),
+                                : (image.path != null
+                                    ? FileImage(io.File(image.path!))
+                                    : (image.bytes != null
+                                        ? MemoryImage(image.bytes!)
+                                        : const AssetImage('assets/images/logo.png') as ImageProvider)),
                             fit: BoxFit.cover,
                           ),
                           // Duration badge
@@ -2246,9 +2122,13 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               decoration: BoxDecoration(
                 image: DecorationImage(
                   fit: BoxFit.cover,
-                  image: kIsWeb
+                  image: (kIsWeb && file.bytes != null)
                       ? MemoryImage(file.bytes!) as ImageProvider
-                      : FileImage(io.File(file.path!)),
+                      : (file.path != null
+                          ? FileImage(io.File(file.path!))
+                          : (file.bytes != null
+                              ? MemoryImage(file.bytes!)
+                              : const AssetImage('assets/images/logo.png') as ImageProvider)),
                 ),
               ),
             ),
@@ -2388,6 +2268,113 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     );
   }
 
+  Widget _buildEnhancedTextField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required IconData icon,
+    required bool isDark,
+    int maxLines = 1,
+    int? maxLength,
+    String? Function(String?)? validator,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 10),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, size: 14, color: const Color(0xFF3B82F6)),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                label,
+                style: context.themeTypography.title.copyWith(
+                  color: isDark
+                      ? AppColors.textPrimary
+                      : const Color(0xFF111827),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(14)),
+          child: TextFormField(
+            controller: controller,
+            maxLines: maxLines,
+            maxLength: maxLength,
+            validator: validator,
+            style: context.themeTypography.body.copyWith(
+              color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
+              height: 1.5,
+            ),
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: context.themeTypography.body.copyWith(
+                color: isDark
+                    ? AppColors.textTertiary
+                    : const Color(0xFF9CA3AF),
+              ),
+              filled: true,
+              fillColor: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(
+                  color: isDark
+                      ? const Color(0xFF30363D)
+                      : const Color(0xFFE5E7EB),
+                  width: 1.5,
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(
+                  color: isDark
+                      ? const Color(0xFF30363D)
+                      : const Color(0xFFE5E7EB),
+                  width: 1.5,
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(
+                  color: Color(0xFF3B82F6),
+                  width: 2,
+                ),
+              ),
+              errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(
+                  color: Color(0xFFEF4444),
+                  width: 1.5,
+                ),
+              ),
+              focusedErrorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(
+                  color: Color(0xFFEF4444),
+                  width: 2,
+                ),
+              ),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 18,
+                vertical: maxLines > 1 ? 16 : 14,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildCommunityPublishSection(bool isDark) {
     return Obx(() {
       final isUploading = _uploadController.isUploading.value;
@@ -2474,7 +2461,6 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     final isTagsValid = rawTags.isEmpty ||
         ContentValidator.validateTags(
           rawTags,
-          maxTags: ContentValidator.defaultMaxTags,
         ).isValid;
 
     final hasCategory = selectedCategory.isNotEmpty;
@@ -2485,6 +2471,8 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     final isDailyLimitValid = !(selectedChannel != null &&
         selectedChannel.channelType == ChannelType.standard &&
         _uploadController.isDailyLimitReached.value);
+    final isCopyrightConfirmed =
+        _uploadController.hasConfirmedCopyrightDeclaration.value;
 
     final result = hasVideo &&
         hasThumbnail &&
@@ -2495,7 +2483,8 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         isTagsValid &&
         hasCategory &&
         isThumbnailApproved &&
-        isDailyLimitValid;
+        isDailyLimitValid &&
+        isCopyrightConfirmed;
 
     return result;
   }
@@ -2838,6 +2827,17 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         return;
       }
 
+      if (!_uploadController.hasConfirmedCopyrightDeclaration.value) {
+        Get.snackbar(
+          'Copyright Declaration Required',
+          'Please confirm and check the copyright ownership declaration before publishing your video.',
+          backgroundColor: const Color(0xFFEF4444),
+          colorText: AppColors.textPrimary,
+          duration: const Duration(seconds: 4),
+        );
+        return;
+      }
+
       final rawTitle = _titleController.text.trim();
       final rawDesc = _descriptionController.text.trim();
       final rawTags = _tagsController.text
@@ -2886,7 +2886,6 @@ class _CreateContentScreenState extends State<CreateContentScreen>
       if (rawTags.isNotEmpty) {
         final tagsValidation = ContentValidator.validateTags(
           rawTags,
-          maxTags: ContentValidator.defaultMaxTags,
         );
         if (!tagsValidation.isValid) {
           Get.snackbar(
@@ -3456,9 +3455,15 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                                   const SizedBox(height: 20),
                                   _buildSection9Topic(context),
                                   const SizedBox(height: 20),
-                                  _buildSection10AIFeatures(context),
+                                   _buildSection10AIFeatures(context),
+                                  const SizedBox(height: 20),
+                                  _buildSection11CopyrightDeclaration(context),
                                 ],
                               ),
+                            if (isWide) ...[
+                              const SizedBox(height: 24),
+                              _buildSection11CopyrightDeclaration(context),
+                            ],
                             const SizedBox(height: 32),
                             if (isWide) _buildPlaylistStyleFooterActions(context),
                           ],
@@ -3550,7 +3555,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         Row(
           children: [
             IconButton(
-              onPressed: () => Get.back(),
+              onPressed: Get.back,
               icon: const Icon(Icons.arrow_back, color: Colors.white),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
@@ -3877,7 +3882,6 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               final validation = rawTags.isNotEmpty
                   ? ContentValidator.validateTags(
                       rawTags,
-                      maxTags: ContentValidator.defaultMaxTags,
                     )
                   : null;
               final hasError = validation != null && !validation.isValid;
@@ -4346,16 +4350,20 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               ),
             ),
             const SizedBox(height: 16),
-            if (pickedImage != null && pickedImage.path != null && pickedImage.path!.isNotEmpty)
+            if (pickedImage != null && ((kIsWeb && pickedImage.bytes != null) || (pickedImage.path != null && pickedImage.path!.isNotEmpty) || pickedImage.bytes != null))
               Container(
                 margin: const EdgeInsets.only(bottom: 12),
                 child: AspectRatio(
                   aspectRatio: 16 / 9,
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: kIsWeb
+                    child: (kIsWeb && pickedImage.bytes != null)
                         ? Image.memory(pickedImage.bytes!, fit: BoxFit.cover)
-                        : Image.file(io.File(pickedImage.path!), fit: BoxFit.cover),
+                        : (pickedImage.path != null
+                            ? Image.file(io.File(pickedImage.path!), fit: BoxFit.cover)
+                            : (pickedImage.bytes != null
+                                ? Image.memory(pickedImage.bytes!, fit: BoxFit.cover)
+                                : const SizedBox.shrink())),
                   ),
                 ),
               )
@@ -4369,9 +4377,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                     child: CachedNetworkImage(
                       imageUrl: thumbnailUrl,
                       fit: BoxFit.cover,
-                      errorWidget: (ctx, url, err) => Container(
-                        color: const Color(0xFF0F0F11),
-                        child: const Icon(Icons.image, color: Colors.white, size: 32),
+                      errorWidget: (ctx, url, err) => const ColoredBox(
+                        color: Color(0xFF0F0F11),
+                        child: Icon(Icons.image, color: Colors.white, size: 32),
                       ),
                     ),
                   ),
@@ -5266,6 +5274,164 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     });
   }
 
+  // Section 11: Creator Copyright & Rights Declaration
+  Widget _buildSection11CopyrightDeclaration(BuildContext context) {
+    return Obx(() {
+      final isConfirmed = _uploadController.hasConfirmedCopyrightDeclaration.value;
+
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: isConfirmed
+              ? const Color(0xFF10B981).withValues(alpha: 0.08)
+              : const Color(0xFF161618),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isConfirmed
+                ? const Color(0xFF10B981).withValues(alpha: 0.4)
+                : Colors.white.withValues(alpha: 0.12),
+            width: isConfirmed ? 1.5 : 1.0,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isConfirmed
+                        ? const Color(0xFF10B981).withValues(alpha: 0.2)
+                        : Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.verified_user_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '11. Creator Copyright & Rights Declaration',
+                        style: context.themeTypography.title.copyWith(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Mandatory statutory confirmation before publishing',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            InkWell(
+              onTap: () {
+                _uploadController.hasConfirmedCopyrightDeclaration.value =
+                    !_uploadController.hasConfirmedCopyrightDeclaration.value;
+              },
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F0F11),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isConfirmed
+                        ? const Color(0xFF10B981).withValues(alpha: 0.3)
+                        : Colors.white.withValues(alpha: 0.08),
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Checkbox(
+                      value: isConfirmed,
+                      onChanged: (val) {
+                        _uploadController.hasConfirmedCopyrightDeclaration.value =
+                            val ?? false;
+                      },
+                      activeColor: const Color(0xFF10B981),
+                      checkColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: RichText(
+                          text: TextSpan(
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Colors.white,
+                              height: 1.5,
+                            ),
+                            children: [
+                              const TextSpan(
+                                text:
+                                    "I confirm and declare that I own all rights to this video or have obtained all necessary statutory licenses, permissions, and authorizations to publish it. This video does not infringe upon any third-party copyright, trademark, privacy, or proprietary rights, and strictly complies with Truthworld's ",
+                              ),
+                              WidgetSpan(
+                                child: InkWell(
+                                  onTap: () => Get.toNamed('/terms'),
+                                  child: const Text(
+                                    'Terms of Service',
+                                    style: TextStyle(
+                                      color: Color(0xFF3B82F6),
+                                      fontWeight: FontWeight.w600,
+                                      decoration: TextDecoration.underline,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const TextSpan(text: ' and '),
+                              WidgetSpan(
+                                child: InkWell(
+                                  onTap: () => Get.toNamed('/community-guidelines'),
+                                  child: const Text(
+                                    'Community Guidelines',
+                                    style: TextStyle(
+                                      color: Color(0xFF3B82F6),
+                                      fontWeight: FontWeight.w600,
+                                      decoration: TextDecoration.underline,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const TextSpan(text: '.'),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
   // Footer Actions for Desktop matching Create Playlist
   Widget _buildPlaylistStyleFooterActions(BuildContext context) {
     return Obx(() {
@@ -5276,7 +5442,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           OutlinedButton(
-            onPressed: () => Get.back(),
+            onPressed: Get.back,
             style: OutlinedButton.styleFrom(
               foregroundColor: Colors.white,
               side: BorderSide(
@@ -5306,7 +5472,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           ),
           const SizedBox(width: 12),
           ElevatedButton(
-            onPressed: canPublish ? () => _handleVideoUpload() : null,
+            onPressed: canPublish ? _handleVideoUpload : null,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: Colors.black,
@@ -5351,7 +5517,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           width: double.infinity,
           height: 48,
           child: ElevatedButton(
-            onPressed: canPublish ? () => _handleVideoUpload() : null,
+            onPressed: canPublish ? _handleVideoUpload : null,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: Colors.black,
@@ -5394,2135 +5560,6 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         ),
       ),
     );
-  }
-
-  // Step 1: Media Selection
-  Widget _buildStep1MediaSelection(bool isDark) {
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: EdgeInsets.all(responsivePadding),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildStepHeader(
-            isDark: isDark,
-            title: 'Upload Your Media',
-            subtitle: 'Select video file and thumbnail',
-            icon: Icons.cloud_upload_rounded,
-            color: const Color(0xFF3B82F6),
-          ),
-          const SizedBox(height: 14),
-          _buildEnhancedThumbnailUpload(isDark),
-          const SizedBox(height: 32),
-          _buildEnhancedVideoUpload(isDark),
-          const SizedBox(height: 24),
-          const SizedBox(height: 32),
-          _buildStepNavigation(isDark: isDark, nextLabel: 'Add Details'),
-        ],
-      ),
-    );
-  }
-
-  // Step 2: Basic Information
-  Widget _buildStep2BasicInfo(bool isDark) {
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: EdgeInsets.all(responsivePadding),
-      child: Form(
-        key: _videoDetailsFormKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildStepHeader(
-              isDark: isDark,
-              title: 'Video Details',
-              subtitle: 'Tell viewers about your content',
-              icon: Icons.edit_rounded,
-              color: const Color(0xFF10B981),
-            ),
-            const SizedBox(height: 32),
-            _buildEnhancedTextField(
-              controller: _titleController,
-              label: 'Title',
-              hint: 'Add a title that describes your video',
-              icon: Icons.title_rounded,
-              isDark: isDark,
-              maxLength: 100,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Title is required';
-                }
-                if (value.length < 5) {
-                  return 'Title must be at least 5 characters long';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 20),
-            _buildEnhancedTextField(
-              controller: _descriptionController,
-              label: 'Description',
-              hint: 'Tell viewers about your video',
-              icon: Icons.description_rounded,
-              isDark: isDark,
-              maxLines: 6,
-              maxLength: 5000,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Description is required';
-                }
-                if (value.length < 10) {
-                  return 'Description must be at least 10 characters long';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 20),
-            _buildVideoCategoryDropdown(isDark),
-            const SizedBox(height: 20),
-            _buildEnhancedTextField(
-              controller: _tagsController,
-              label: 'Tags (Max 5)',
-              hint: 'Add tags separated by commas (max 5 tags)',
-              icon: Icons.tag_rounded,
-              isDark: isDark,
-              maxLength: 500,
-            ),
-            const SizedBox(height: 32),
-            _buildStepNavigation(
-              isDark: isDark,
-              nextLabel: 'Advanced Settings',
-              showBack: true,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildVideoCategoryDropdown(bool isDark) {
-    return Obx(() {
-      final currentCategory = _uploadController.selectedCategory.value;
-      final categories = _uploadController.videoCategories;
-
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                'Category',
-                style: AppTextStyles.labelMedium.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: isDark
-                      ? const Color(0xFFE6EDF3)
-                      : AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(width: 4),
-              const Text(
-                '*',
-                style: TextStyle(
-                  color: Color(0xFFEF4444),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          DropdownButtonFormField<String>(
-            value: categories.contains(currentCategory)
-                ? currentCategory
-                : categories.first,
-            decoration: InputDecoration(
-              hintText: 'Select video category',
-              prefixIcon: const Icon(
-                Icons.category_rounded,
-                size: 20,
-                color: AppColors.textPrimary,
-              ),
-              filled: true,
-              fillColor: isDark ? const Color(0xFF161B22) : AppColors.bgInput,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(
-                  color: isDark
-                      ? const Color(0xFF30363D)
-                      : const Color(0xFFE5E7EB),
-                ),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(
-                  color: isDark
-                      ? const Color(0xFF30363D)
-                      : const Color(0xFFE5E7EB),
-                ),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: const BorderSide(
-                  color: Color(0xFF10B981),
-                  width: 2,
-                ),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 16,
-              ),
-            ),
-            dropdownColor: isDark
-                ? const Color(0xFF161B22)
-                : AppColors.bgSurface,
-            icon: const Icon(
-              Icons.keyboard_arrow_down_rounded,
-              color: AppColors.textPrimary,
-            ),
-            style: AppTextStyles.bodyMedium.copyWith(
-              fontSize: 14,
-              color: AppColors.textPrimary,
-            ),
-            items: categories.map((cat) {
-              final isNoFactCheck = !_uploadController
-                  .isFactCheckNeededForCategory(cat);
-              return DropdownMenuItem<String>(
-                value: cat,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      cat,
-                      style: TextStyle(
-                        color: isDark ? Colors.white : AppColors.textPrimary,
-                        fontSize: 14,
-                      ),
-                    ),
-                    if (isNoFactCheck) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF6B7280).withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: const Color(
-                              0xFF6B7280,
-                            ).withValues(alpha: 0.4),
-                          ),
-                        ),
-                        child: Text(
-                          'No Fact-Check',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: isDark
-                                ? Colors.white70
-                                : AppColors.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              );
-            }).toList(),
-            onChanged: (value) {
-              if (value != null) {
-                _uploadController.selectCategory(value);
-                HapticFeedback.lightImpact();
-              }
-            },
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please select a category';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 6),
-          Obx(() {
-            final cat = _uploadController.selectedCategory.value;
-            final isNoFactCheck = !_uploadController
-                .isFactCheckNeededForCategory(cat);
-            if (isNoFactCheck) {
-              return Text(
-                'Note: Fact-checking is not needed for $cat content.',
-                style: AppTextStyles.caption.copyWith(
-                  color: const Color(0xFF9CA3AF),
-                  fontSize: 12,
-                ),
-              );
-            }
-            return const SizedBox.shrink();
-          }),
-        ],
-      );
-    });
-  }
-
-  // Step 3: Advanced Settings
-  Widget _buildStep3AdvancedSettings(bool isDark) {
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: EdgeInsets.all(responsivePadding),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildStepHeader(
-            isDark: isDark,
-            title: 'Advanced Settings',
-            subtitle: 'Configure visibility and additional options',
-            icon: Icons.tune_rounded,
-            color: const Color(0xFF8B5CF6),
-          ),
-          // ── AI Features Selection ──
-          AIFeaturesSelector(
-            transcriptEnabled: _uploadController.aiTranscriptEnabled,
-            generateSubtitles: _uploadController.aiGenerateSubtitles,
-            generateDubbing: _uploadController.aiGenerateDubbing,
-            diarizationEnabled: _uploadController.aiDiarizationEnabled,
-            summaryEnabled: _uploadController.aiSummaryEnabled,
-            autoChaptersEnabled: _uploadController.aiChaptersEnabled,
-            selectedLanguages: _uploadController.aiTranslationLanguages,
-            ttsEnabled: _uploadController.aiTTSEnabled,
-            ttsVoiceType: _uploadController.aiTTSVoiceType,
-            factCheckEnabled: _uploadController.aiFactCheckEnabled,
-            voiceSample: _uploadController.voiceSampleFile,
-            selectedCategory: _uploadController.selectedCategory,
-            providedSources: _uploadController.providedSources,
-            onAddSource: _uploadController.addProvidedSource,
-            onRemoveSource: _uploadController.removeProvidedSource,
-            isPremiumUser:
-                _uploadController.selectedChannel.value?.monetizationTier ==
-                    MonetizationTier.premium ||
-                _uploadController.selectedChannel.value?.monetizationTier ==
-                    MonetizationTier.pro,
-            onPickVoiceSample: _uploadController.pickVoiceSample,
-          ),
-          const SizedBox(height: 32),
-          _buildVisibilitySettings(isDark),
-          const SizedBox(height: 24),
-          _buildAudienceSettings(isDark),
-          const SizedBox(height: 24),
-          _buildScheduleSettings(isDark),
-          const SizedBox(height: 24),
-          _buildPlaylistSelection(isDark),
-          const SizedBox(height: 24),
-          _buildTopicSelection(isDark),
-          const SizedBox(height: 32),
-          _buildStepNavigation(
-            isDark: isDark,
-            nextLabel: 'Review & Publish',
-            showBack: true,
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Step 4: Review & Publish
-  Widget _buildStep4PublishReview(bool isDark) {
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: EdgeInsets.all(responsivePadding),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildStepHeader(
-            isDark: isDark,
-            title: 'Review & Publish',
-            subtitle: 'Final check before publishing your video',
-            icon: Icons.preview_rounded,
-            color: const Color(0xFFEF4444),
-          ),
-          const SizedBox(height: 32),
-          _buildChannelSelectionSection(isDark),
-          const SizedBox(height: 24),
-          _buildPublishPreview(isDark),
-          const SizedBox(height: 32),
-          _buildFinalPublishSection(isDark),
-          const SizedBox(height: 24),
-          _buildStepNavigation(
-            isDark: isDark,
-            showBack: true,
-            customAction: _buildPublishActionRow(isDark),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStepHeader({
-    required bool isDark,
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required Color color,
-  }) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 600),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, child) {
-        return Transform.scale(
-          scale: 0.95 + (0.05 * value),
-          child: Opacity(
-            opacity: value,
-            child: Container(
-              padding: const EdgeInsets.all(28),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    color.withValues(alpha: 0.15),
-                    color.withValues(alpha: 0.08),
-                    color.withValues(alpha: 0.03),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  width: 2,
-                  color: color.withValues(alpha: 0.3),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.15),
-                    blurRadius: 24,
-                    offset: const Offset(0, 8),
-                    spreadRadius: -4,
-                  ),
-                  BoxShadow(
-                    color: isDark
-                        ? AppColors.bgPage.withValues(alpha: 0.3)
-                        : AppColors.textPrimary,
-                    blurRadius: 16,
-                    offset: const Offset(0, -4),
-                    spreadRadius: -4,
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [color, color.withValues(alpha: 0.7)],
-                      ),
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: color.withValues(alpha: 0.4),
-                          blurRadius: 16,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Icon(icon, size: 32, color: AppColors.textPrimary),
-                  ),
-                  const SizedBox(width: 24),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: context.themeTypography.headline.copyWith(
-                            color: isDark
-                                ? AppColors.textPrimary
-                                : const Color(0xFF111827),
-                            height: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          subtitle,
-                          style: context.themeTypography.body.copyWith(
-                            color: isDark
-                                ? AppColors.textSecondary
-                                : const Color(0xFF6B7280),
-                            fontWeight: FontWeight.w500,
-                            height: 1.4,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: color.withValues(alpha: 0.3)),
-                    ),
-                    child: Text(
-                      'Step ${_uploadController.uploadStage.value + 1}/$_totalSteps',
-                      style: AppTextStyles.labelMedium.copyWith(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: color,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildEnhancedVideoUpload(bool isDark) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.videocam_rounded,
-                size: 20,
-                color: Color(0xFF3B82F6),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Video File',
-                    style: context.themeTypography.headline.copyWith(
-                      color: isDark
-                          ? AppColors.textPrimary
-                          : const Color(0xFF111827),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Select your video file to upload',
-                    style: context.themeTypography.bodySmall.copyWith(
-                      color: isDark
-                          ? AppColors.textSecondary
-                          : const Color(0xFF6B7280),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Obx(() {
-          final hasVideo = _uploadController.pickedVideo.value != null;
-          final isUploading = _uploadController.isUploading.value;
-
-          return InkWell(
-            onTap: isUploading
-                ? null
-                : () {
-                    _uploadController.pickVideo();
-                    HapticFeedback.mediumImpact();
-                  },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              height: isMobile ? 220 : 280,
-              decoration: BoxDecoration(
-                gradient: hasVideo
-                    ? null
-                    : LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          if (isDark)
-                            const Color(0xFF1F2937)
-                          else
-                            const Color(0xFFF9FAFB),
-                          if (isDark)
-                            const Color(0xFF161B22)
-                          else
-                            AppColors.textPrimary,
-                        ],
-                      ),
-                color: hasVideo
-                    ? (isDark ? const Color(0xFF161B22) : AppColors.textPrimary)
-                    : null,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: hasVideo
-                      ? const Color(0xFF3B82F6).withValues(alpha: 0.5)
-                      : isDark
-                      ? const Color(0xFF30363D)
-                      : const Color(0xFFE5E7EB),
-                  width: hasVideo ? 3 : 2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: hasVideo
-                        ? const Color(0xFF3B82F6).withValues(alpha: 0.2)
-                        : AppColors.bgPage.withValues(alpha: 0.05),
-                    blurRadius: hasVideo ? 28 : 20,
-                    offset: const Offset(0, 8),
-                    spreadRadius: hasVideo ? 2 : 0,
-                  ),
-                ],
-              ),
-              child: hasVideo
-                  ? _buildVideoPreviewEnhanced(isDark)
-                  : _buildVideoUploadPlaceholder(isDark),
-            ),
-          );
-        }),
-      ],
-    );
-  }
-
-  Widget _buildVideoPreviewEnhanced(bool isDark) {
-    return Obx(() {
-      final controller = _uploadController.videoPlayerController;
-      final isUploading = _uploadController.isUploading.value;
-      final progress = _uploadController.uploadProgress.value;
-
-      return Stack(
-        children: [
-          // Video Player
-          if (controller != null && controller.value.isInitialized)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(18),
-              child: InkWell(
-                onTap: () {
-                  if (controller.value.isPlaying) {
-                    controller.pause();
-                  } else {
-                    controller.play();
-                  }
-                  HapticFeedback.lightImpact();
-                },
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    SizedBox.expand(
-                      child: FittedBox(
-                        fit: BoxFit.cover,
-                        child: SizedBox(
-                          width: controller.value.size.width,
-                          height: controller.value.size.height,
-                          child: MobileFriendlyVideoPlayer(
-                            controller: controller,
-                            looping: true,
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (!controller.value.isPlaying)
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: AppColors.bgPage.withValues(alpha: 0.7),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.play_arrow_rounded,
-                          size: 32,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-
-          // Upload Progress Overlay
-          if (isUploading)
-            Container(
-              decoration: BoxDecoration(
-                color: AppColors.bgPage.withValues(alpha: 0.8),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    SizedBox(
-                      width: 60,
-                      height: 60,
-                      child: CircularProgressIndicator(
-                        value: progress,
-                        strokeWidth: 4,
-                        valueColor: const AlwaysStoppedAnimation<Color>(
-                          Color(0xFF3B82F6),
-                        ),
-                        backgroundColor: AppColors.textPrimary.withValues(
-                          alpha: 0.3,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Uploading Video...',
-                      style: context.themeTypography.title.copyWith(
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '${(progress * 100).toInt()}%',
-                      style: context.themeTypography.body.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-          // Success Indicator
-          if (_uploadController.isProcessing.value &&
-              !_uploadController.isUploading.value)
-            Positioned(
-              top: 16,
-              right: 16,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF10B981),
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF10B981).withValues(alpha: 0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.check_circle_rounded,
-                      size: 16,
-                      color: AppColors.textPrimary,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Uploaded',
-                      style: context.themeTypography.bodySmall.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-          // File Info
-          if (!isUploading)
-            Positioned(
-              bottom: 16,
-              left: 16,
-              right: 16,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.bgPage.withValues(alpha: 0.7),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.videocam_rounded,
-                      size: 16,
-                      color: AppColors.textPrimary,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _uploadController.pickedVideo.value?.name ?? 'Video',
-                        style: context.themeTypography.bodySmall.copyWith(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-        ],
-      );
-    });
-  }
-
-  Widget _buildVideoUploadPlaceholder(bool isDark) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(
-            Icons.cloud_upload_rounded,
-            size: 48,
-            color: Color(0xFF3B82F6),
-          ),
-        ),
-        const SizedBox(height: 20),
-        Text(
-          'Upload Video',
-          style: context.themeTypography.headline.copyWith(
-            color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Drag and drop or click to browse',
-          style: context.themeTypography.body.copyWith(
-            color: isDark ? AppColors.textSecondary : const Color(0xFF6B7280),
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'MP4, MOV, AVI • Max 500MB • Up to 20 minutes',
-          style: context.themeTypography.bodySmall.copyWith(
-            color: isDark ? AppColors.textTertiary : const Color(0xFF9CA3AF),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEnhancedThumbnailUpload(bool isDark) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFF10B981).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.image_rounded,
-                size: 20,
-                color: Color(0xFF10B981),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Thumbnail',
-                    style: context.themeTypography.headline.copyWith(
-                      color: isDark
-                          ? AppColors.textPrimary
-                          : const Color(0xFF111827),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Upload an eye-catching thumbnail image',
-                    style: context.themeTypography.bodySmall.copyWith(
-                      color: isDark
-                          ? AppColors.textSecondary
-                          : const Color(0xFF6B7280),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Obx(() {
-          final hasImage = _uploadController.pickedImage.value != null;
-          final isUploading = _uploadController.isUploading.value;
-
-          return Center(
-            child: SizedBox(
-              height: isMobile ? 320 : 360,
-              child: AspectRatio(
-                aspectRatio: 16 / 9,
-                child: InkWell(
-                  onTap: isUploading
-                      ? null
-                      : () {
-                          _uploadController.pickImage(forCommunity: false);
-                          HapticFeedback.mediumImpact();
-                        },
-                  borderRadius: BorderRadius.circular(16),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    decoration: BoxDecoration(
-                      gradient: hasImage
-                          ? null
-                          : LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                if (isDark)
-                                  const Color(0xFF1F2937)
-                                else
-                                  const Color(0xFFF9FAFB),
-                                if (isDark)
-                                  const Color(0xFF161B22)
-                                else
-                                  AppColors.textPrimary,
-                              ],
-                            ),
-                      color: hasImage
-                          ? (isDark ? const Color(0xFF161B22) : AppColors.textPrimary)
-                          : null,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: isDark
-                            ? const Color(0xFF30363D)
-                            : const Color(0xFFE5E7EB),
-                        width: 1.5,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.bgPage.withValues(alpha: 0.12),
-                          blurRadius: 16,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: hasImage
-                        ? _buildThumbnailPreview(isDark)
-                        : _buildThumbnailPlaceholder(isDark),
-                  ),
-                ),
-              ),
-            ),
-          );
-        }),
-      ],
-    );
-  }
-
-  Widget _buildThumbnailPreview(bool isDark) {
-    return Obx(() {
-      final file = _uploadController.pickedImage.value!;
-
-      return Stack(
-        fit: StackFit.expand,
-        children: [
-          // Full-bleed responsive 9:16 Thumbnail Image
-          ClipRRect(
-            borderRadius: BorderRadius.circular(15),
-            child: kIsWeb
-                ? Image.memory(
-                    file.bytes!,
-                    fit: BoxFit.cover,
-                    filterQuality: FilterQuality.high,
-                  )
-                : Image.file(
-                    io.File(file.path!),
-                    fit: BoxFit.cover,
-                    filterQuality: FilterQuality.high,
-                  ),
-          ),
-
-          // Gradient overlay for action button contrast
-          ClipRRect(
-            borderRadius: BorderRadius.circular(15),
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withValues(alpha: 0.6),
-                    Colors.transparent,
-                    Colors.black.withValues(alpha: 0.5),
-                  ],
-                  stops: const [0.0, 0.35, 1.0],
-                ),
-              ),
-            ),
-          ),
-
-          // Top Left: Moderation Status Indicator
-          Positioned(
-            top: 12,
-            left: 12,
-            child: _buildModerationStatusChip(),
-          ),
-
-          // Top Right: Quick Action Controls (Re-crop, Change, Remove)
-          Positioned(
-            top: 12,
-            right: 12,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Crop / Re-crop Button
-                if (!kIsWeb && file.path != null)
-                  Material(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(8),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(8),
-                      onTap: () async {
-                        try {
-                          final cropped =
-                              await ImageCropperService.cropVideoThumbnail(
-                            imagePath: file.path!,
-                            context: context,
-                          );
-                          if (cropped != null) {
-                            final bytes = await cropped.readAsBytes();
-                            _uploadController.pickedImage.value = PlatformFile(
-                              name: file.name,
-                              size: bytes.length,
-                              path: cropped.path,
-                              bytes: bytes,
-                            );
-                          }
-                        } catch (e) {
-                          debugPrint('Crop error: $e');
-                        }
-                      },
-                      child: const Padding(
-                        padding: EdgeInsets.all(8),
-                        child: Icon(
-                          Icons.crop_rounded,
-                          color: Colors.white, // Rule: Icons must be white
-                          size: 16,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                if (!kIsWeb && file.path != null) const SizedBox(width: 6),
-
-                // Change Image Button
-                Material(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(8),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(8),
-                    onTap: () {
-                      _uploadController.pickImage(forCommunity: false);
-                    },
-                    child: const Padding(
-                      padding: EdgeInsets.all(8),
-                      child: Icon(
-                        Icons.edit_rounded,
-                        color: Colors.white, // Rule: Icons must be white
-                        size: 16,
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(width: 6),
-
-                // Remove Image Button
-                Material(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(8),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(8),
-                    onTap: () {
-                      _uploadController.pickedImage.value = null;
-                      _uploadController.thumbnailUrl.value = '';
-                    },
-                    child: const Padding(
-                      padding: EdgeInsets.all(8),
-                      child: Icon(
-                        Icons.close_rounded,
-                        color: Colors.white, // Rule: Icons must be white
-                        size: 16,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      );
-    });
-  }
-
-  /// Helper function to get image dimensions
-  Future<Size> _getImageSize(PlatformFile file) async {
-    if (kIsWeb) {
-      final bytes = file.bytes!;
-      final codec = await instantiateImageCodec(bytes);
-      final frame = await codec.getNextFrame();
-      return Size(frame.image.width.toDouble(), frame.image.height.toDouble());
-    } else {
-      final decodedImage = await decodeImageFromList(
-        await io.File(file.path!).readAsBytes(),
-      );
-      return Size(
-        decodedImage.width.toDouble(),
-        decodedImage.height.toDouble(),
-      );
-    }
-  }
-
-  Widget _buildThumbnailPlaceholder(bool isDark) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: isDark
-                ? const Color(0xFF262C36)
-                : const Color(0xFFE5E7EB),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(
-            Icons.add_photo_alternate_rounded,
-            size: 32,
-            color: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          'Add Thumbnail',
-          style: context.themeTypography.title.copyWith(
-            color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            'JPEG, PNG • 9:16 ratio recommended',
-            textAlign: TextAlign.center,
-            style: context.themeTypography.bodySmall.copyWith(
-              color: isDark ? AppColors.textSecondary : const Color(0xFF6B7280),
-              fontSize: 11,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEnhancedTextField({
-    required TextEditingController controller,
-    required String label,
-    required String hint,
-    required IconData icon,
-    required bool isDark,
-    int maxLines = 1,
-    int? maxLength,
-    String? Function(String?)? validator,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 10),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, size: 14, color: const Color(0xFF3B82F6)),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                label,
-                style: context.themeTypography.title.copyWith(
-                  color: isDark
-                      ? AppColors.textPrimary
-                      : const Color(0xFF111827),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Container(
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(14)),
-          child: TextFormField(
-            controller: controller,
-            maxLines: maxLines,
-            maxLength: maxLength,
-            validator: validator,
-            style: context.themeTypography.body.copyWith(
-              color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
-              height: 1.5,
-            ),
-            decoration: InputDecoration(
-              hintText: hint,
-              hintStyle: context.themeTypography.body.copyWith(
-                color: isDark
-                    ? AppColors.textPrimary.withValues(alpha: 0.3)
-                    : const Color(0xFF9CA3AF),
-              ),
-              filled: true,
-              fillColor: isDark
-                  ? const Color(0xFF161B22)
-                  : const Color(0xFFF9FAFB),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide(
-                  color: isDark
-                      ? const Color(0xFF30363D)
-                      : const Color(0xFFE5E7EB),
-                  width: 1.5,
-                ),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide(
-                  color: isDark
-                      ? const Color(0xFF30363D)
-                      : const Color(0xFFE5E7EB),
-                  width: 1.5,
-                ),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(
-                  color: Color(0xFF6366F1),
-                  width: 2,
-                ),
-              ),
-              errorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(
-                  color: Color(0xFFEF4444),
-                  width: 1.5,
-                ),
-              ),
-              focusedErrorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(
-                  color: Color(0xFFEF4444),
-                  width: 2,
-                ),
-              ),
-              contentPadding: EdgeInsets.symmetric(
-                horizontal: 18,
-                vertical: maxLines > 1 ? 16 : 14,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildVisibilitySettings(bool isDark) {
-    return Obx(() {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Visibility',
-            style: AppTextStyles.titleMedium.copyWith(
-              color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
-            ),
-          ),
-          const SizedBox(height: 12),
-          ...['Public', 'Private', 'Members', 'SubscribersOnly'].map((
-            visibility,
-          ) {
-            final isSelected =
-                _uploadController.selectedVisibility.value == visibility;
-            return Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: InkWell(
-                onTap: () {
-                  _uploadController.selectedVisibility.value = visibility;
-                  HapticFeedback.lightImpact();
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? AppColors.brand.withValues(alpha: 0.1)
-                        : AppColors.bgSurface,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isSelected ? AppColors.brand : AppColors.bgDivider,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _getVisibilityIcon(visibility),
-                        size: 20,
-                        color: isSelected
-                            ? AppColors.brand
-                            : AppColors.textTertiary,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              visibility,
-                              style: AppTextStyles.bodyMedium.copyWith(
-                                fontWeight: FontWeight.w500,
-                                color: isSelected
-                                    ? AppColors.brand
-                                    : AppColors.textPrimary,
-                              ),
-                            ),
-                            Text(
-                              _getVisibilityDescription(visibility),
-                              style: AppTextStyles.caption.copyWith(
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (isSelected)
-                        const Icon(
-                          Icons.check_circle_rounded,
-                          size: 20,
-                          color: Color(0xFF3B82F6),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }),
-        ],
-      );
-    });
-  }
-
-  Widget _buildAudienceSettings(bool isDark) {
-    return Obx(() {
-      return Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB),
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF10B981).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.child_care_rounded,
-                size: 20,
-                color: Color(0xFF10B981),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Made for kids',
-                    style: context.themeTypography.body.copyWith(
-                      color: isDark
-                          ? AppColors.textPrimary
-                          : const Color(0xFF111827),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Content designed for viewers under 13',
-                    style: context.themeTypography.bodySmall.copyWith(
-                      color: isDark
-                          ? AppColors.textSecondary
-                          : const Color(0xFF6B7280),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Switch(
-              value: _uploadController.isKidFriendly.value,
-              onChanged: (value) {
-                _uploadController.isKidFriendly.value = value;
-                HapticFeedback.lightImpact();
-              },
-              activeThumbColor: const Color(0xFF10B981),
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ],
-        ),
-      );
-    });
-  }
-
-  Widget _buildScheduleSettings(bool isDark) {
-    return Obx(() {
-      return Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.schedule_rounded,
-                    size: 20,
-                    color: Color(0xFF8B5CF6),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Schedule for later',
-                        style: context.themeTypography.body.copyWith(
-                          color: isDark
-                              ? AppColors.textPrimary
-                              : const Color(0xFF111827),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Publish automatically at a specific time',
-                        style: context.themeTypography.bodySmall.copyWith(
-                          color: isDark
-                              ? AppColors.textSecondary
-                              : const Color(0xFF6B7280),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Switch(
-                  value: _uploadController.isScheduled.value,
-                  onChanged: (value) {
-                    _uploadController.isScheduled.value = value;
-                    if (value) {
-                      _selectScheduleDateTime();
-                    }
-                    HapticFeedback.lightImpact();
-                  },
-                  activeThumbColor: const Color(0xFF8B5CF6),
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              ],
-            ),
-            if (_uploadController.isScheduled.value) ...[
-              const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: const Color(0xFF8B5CF6).withValues(alpha: 0.2),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.calendar_today_rounded,
-                      size: 16,
-                      color: Color(0xFF8B5CF6),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Scheduled: ${DateFormat("MMM d, yyyy 'at' h:mm a").format(_uploadController.scheduledDate.value)}',
-                        style: context.themeTypography.bodySmall.copyWith(
-                          fontWeight: FontWeight.w500,
-                          color: const Color(0xFF8B5CF6),
-                        ),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: _selectScheduleDateTime,
-                      child: Text(
-                        'Change',
-                        style: context.themeTypography.bodySmall.copyWith(
-                          fontWeight: FontWeight.w500,
-                          color: const Color(0xFF8B5CF6),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
-      );
-    });
-  }
-
-  Widget _buildPlaylistSelection(bool isDark) {
-    return Obx(() {
-      final playlists = _playlistController.publicPlaylists.toList();
-
-      if (playlists.isEmpty) {
-        return _buildNoPublicPlaylistsMessage(isDark);
-      }
-
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                'Add to Public Playlist',
-                style: context.themeTypography.body.copyWith(
-                  color: isDark
-                      ? AppColors.textPrimary
-                      : const Color(0xFF111827),
-                ),
-              ),
-              const Spacer(),
-              IconButton(
-                onPressed: () async {
-                  _playlistController.refreshPlaylistsTick();
-                  await _playlistController.refreshPublicPlaylists();
-                  Get.snackbar(
-                    'Refreshing',
-                    'Loading public playlists...',
-                    snackPosition: SnackPosition.BOTTOM,
-                    duration: const Duration(seconds: 1),
-                  );
-                },
-                icon: const Icon(Icons.refresh_rounded, size: 18),
-                style: IconButton.styleFrom(
-                  foregroundColor: isDark
-                      ? AppColors.textSecondary
-                      : AppColors.textSecondary,
-                  padding: const EdgeInsets.all(8),
-                ),
-                tooltip: 'Refresh public playlists',
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          _buildPlaylistDropdownFromModels(playlists, isDark),
-        ],
-      );
-    });
-  }
-
-  Widget _buildNoPublicPlaylistsMessage(bool isDark) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB),
-        ),
-      ),
-      child: Column(
-        children: [
-          Icon(
-            Icons.public_rounded,
-            size: 32,
-            color: isDark ? AppColors.textTertiary : const Color(0xFF9CA3AF),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'No public playlists',
-            style: context.themeTypography.body.copyWith(
-              color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Public playlists will appear here',
-            style: context.themeTypography.bodySmall.copyWith(
-              color: isDark ? AppColors.textSecondary : const Color(0xFF6B7280),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    _playlistController.refreshPlaylistsTick();
-                    _playlistController.refreshPublicPlaylists();
-                  },
-                  icon: const Icon(Icons.refresh_rounded, size: 16),
-                  label: const Text('Refresh'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: isDark
-                        ? AppColors.textSecondary
-                        : AppColors.textSecondary,
-                    side: BorderSide(
-                      color: isDark
-                          ? const Color(0xFF30363D)
-                          : const Color(0xFFE5E7EB),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () => _showCreatePublicPlaylistDialog(isDark),
-                  icon: const Icon(Icons.add_rounded, size: 16),
-                  label: const Text('Create'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF3B82F6),
-                    foregroundColor: AppColors.textPrimary,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showCreatePublicPlaylistDialog(bool isDark) {
-    final nameController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: isDark
-            ? const Color(0xFF161B22)
-            : AppColors.textPrimary,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          'Create Public Playlist',
-          style: context.themeTypography.headline.copyWith(
-            color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Playlist Name',
-              style: context.themeTypography.label.copyWith(
-                color: isDark
-                    ? AppColors.textSecondary
-                    : AppColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: nameController,
-              autofocus: true,
-              style: context.themeTypography.body.copyWith(
-                color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
-              ),
-              decoration: InputDecoration(
-                hintText: 'Enter playlist name',
-                hintStyle: context.themeTypography.body.copyWith(
-                  color: isDark
-                      ? AppColors.textTertiary
-                      : const Color(0xFF9CA3AF),
-                ),
-                filled: true,
-                fillColor: isDark
-                    ? const Color(0xFF0D1117)
-                    : const Color(0xFFF3F4F6),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: context.themeTypography.body.copyWith(
-                color: isDark
-                    ? AppColors.textSecondary
-                    : AppColors.textSecondary,
-              ),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final name = nameController.text.trim();
-              if (name.isNotEmpty) {
-                // Create as public playlist
-                final playlist = await _playlistController.createPlayList(
-                  name,
-                  isPublic: true,
-                  videoIds: _uploadController.currentVideoId != null
-                      ? [_uploadController.currentVideoId!]
-                      : [],
-                );
-
-                if (playlist != null) {
-                  // Select the newly created playlist
-                  _uploadController.selectPlaylist(playlist.id);
-                  // Refresh public playlists list
-                  _playlistController.refreshPublicPlaylists();
-                }
-                if (!context.mounted) return;
-                Navigator.pop(context);
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF3B82F6),
-              foregroundColor: AppColors.textPrimary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: Text(
-              'Create',
-              style: context.themeTypography.button,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPlaylistDropdownFromModels(
-    List<PlaylistModel> playlists,
-    bool isDark,
-  ) {
-    return Obx(() {
-      final currentPlaylistId = _uploadController.selectedPlaylist.value;
-
-      final items = playlists.map((playlist) {
-        return DropdownMenuItem<String>(
-          key: ValueKey('playlist_${playlist.id}'),
-          value: playlist.id,
-          child: Text(playlist.playlistName, overflow: TextOverflow.ellipsis),
-        );
-      }).toList();
-
-      items.insert(
-        0,
-        const DropdownMenuItem<String>(
-          value: '',
-          child: Text("None (don't add to playlist)"),
-        ),
-      );
-
-      items.add(
-        const DropdownMenuItem<String>(
-          value: 'create_new',
-          child: Row(
-            children: [
-              Icon(Icons.add_rounded, size: 16, color: Color(0xFF3B82F6)),
-              SizedBox(width: 8),
-              Text(
-                'Create new playlist',
-                style: TextStyle(
-                  color: Color(0xFF3B82F6),
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-
-      return DropdownButtonFormField<String>(
-        key: ValueKey(
-          'playlist_dropdown_${playlists.length}_$currentPlaylistId',
-        ),
-        initialValue: items.any((item) => item.value == currentPlaylistId)
-            ? currentPlaylistId
-            : '',
-        decoration: InputDecoration(
-          hintText: 'Select playlist',
-          prefixIcon: const Icon(
-            Icons.playlist_play_rounded,
-            size: 20,
-            color: Color(0xFF3B82F6),
-          ),
-          filled: true,
-          fillColor: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(
-              color: isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB),
-            ),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(
-              color: isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB),
-            ),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2),
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 16,
-          ),
-        ),
-        dropdownColor: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
-        style: context.themeTypography.body.copyWith(
-          color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
-        ),
-        items: items,
-        onChanged: (value) {
-          if (value == 'create_new') {
-            showCreatePlaylistModal(isDark);
-          } else {
-            _uploadController.selectPlaylist(value ?? '');
-            HapticFeedback.lightImpact();
-          }
-        },
-      );
-    });
-  }
-
-  Widget _buildTopicSelection(bool isDark) {
-    return Obx(() {
-      final selectedSlug = _uploadController.selectedTopicId.value;
-      final hasDraft = _uploadController.newTopicData.isNotEmpty;
-      final topics = _uploadController.availableTopics;
-
-      Topic? selectedTopic;
-      if (selectedSlug.isNotEmpty && selectedSlug != 'new_topic_draft') {
-        for (final t in topics) {
-          if (t.slug == selectedSlug) {
-            selectedTopic = t;
-            break;
-          }
-        }
-      }
-
-      final draftTitle = hasDraft
-          ? (_uploadController.newTopicData['title'] as String? ?? 'New Draft')
-          : '';
-
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                'Add to Topic',
-                style: context.themeTypography.title.copyWith(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: isDark
-                      ? AppColors.textPrimary
-                      : const Color(0xFF111827),
-                ),
-              ),
-              const Spacer(),
-              if (_uploadController.isTopicsLoading.value)
-                const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              else
-                TextButton.icon(
-                  onPressed: () => _showCreateTopicModal(isDark),
-                  icon: const Icon(Icons.add_rounded, size: 16),
-                  label: const Text('+ New Topic'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: const Color(0xFF3B82F6),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 8),
-
-          // Selected Topic Trigger Card
-          InkWell(
-            onTap: () => TopicSelectionBottomSheet.show(
-              context,
-              _uploadController,
-              onCreateNewTopic: _showCreateTopicModal,
-            ),
-            borderRadius: BorderRadius.circular(16),
-            child: Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: (selectedTopic != null || hasDraft)
-                      ? const Color(0xFF3B82F6)
-                      : (isDark
-                            ? const Color(0xFF30363D)
-                            : const Color(0xFFE5E7EB)),
-                  width: (selectedTopic != null || hasDraft) ? 1.5 : 1.0,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.bgPage.withValues(alpha: 0.04),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  // Topic Thumbnail or Icon
-                  if (hasDraft)
-                    Container(
-                      width: 46,
-                      height: 46,
-                      decoration: BoxDecoration(
-                        color: AppColors.brand.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.edit_document,
-                        color: Colors.white,
-                        size: 22,
-                      ),
-                    )
-                  else if (selectedTopic != null)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        width: 46,
-                        height: 46,
-                        color: isDark
-                            ? const Color(0xFF21262D)
-                            : const Color(0xFFE5E7EB),
-                        child:
-                            (selectedTopic.thumbnailUrl ??
-                                        selectedTopic.coverImage) !=
-                                    null &&
-                                (selectedTopic.thumbnailUrl ??
-                                        selectedTopic.coverImage)!
-                                    .isNotEmpty
-                            ? Image.network(
-                                (selectedTopic.thumbnailUrl ??
-                                    selectedTopic.coverImage)!,
-                                width: 46,
-                                height: 46,
-                                fit: BoxFit.cover,
-                              )
-                            : ColoredBox(
-                                color: const Color(
-                                  0xFF3B82F6,
-                                ).withValues(alpha: 0.15),
-                                child: const Icon(
-                                  Icons.topic_rounded,
-                                  color: Colors.white,
-                                  size: 22,
-                                ),
-                              ),
-                      ),
-                    )
-                  else
-                    Container(
-                      width: 46,
-                      height: 46,
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? const Color(0xFF21262D)
-                            : const Color(0xFFF3F4F6),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.topic_rounded,
-                        color: Colors.white,
-                        size: 22,
-                      ),
-                    ),
-
-                  const SizedBox(width: 14),
-
-                  // Info
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (hasDraft) ...[
-                          Text(
-                            'Draft: $draftTitle',
-                            style: AppTextStyles.bodyMedium.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.brandHover,
-                            ),
-                          ),
-                          Text(
-                            'Will be created upon upload',
-                            style: AppTextStyles.caption.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ] else if (selectedTopic != null) ...[
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  selectedTopic.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: AppTextStyles.bodyMedium.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                ),
-                              ),
-                              if (selectedTopic.visibilityType ==
-                                  TopicVisibilityType.private)
-                                const Icon(
-                                  Icons.lock_rounded,
-                                  size: 14,
-                                  color: Colors.white,
-                                )
-                              else if (selectedTopic.visibilityType ==
-                                  TopicVisibilityType.channelOnly)
-                                const Icon(
-                                  Icons.group_rounded,
-                                  size: 14,
-                                  color: Colors.white,
-                                )
-                              else
-                                const Icon(
-                                  Icons.public_rounded,
-                                  size: 14,
-                                  color: Colors.white,
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              Text(
-                                '${FormatUtils.formatCount(selectedTopic.followerCount)} followers • ${FormatUtils.formatCount(selectedTopic.videoCount)} videos',
-                                style: AppTextStyles.caption.copyWith(
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ] else ...[
-                          Text(
-                            'Select Topic knowledge hub',
-                            style: AppTextStyles.bodyMedium.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Tap to search and select a topic or create new',
-                            style: AppTextStyles.caption.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(width: 10),
-
-                  // Action Chevron / Clear button
-                  if (selectedTopic != null || hasDraft)
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded, size: 18),
-                      onPressed: () {
-                        _uploadController.selectTopic('');
-                        _uploadController.newTopicData.clear();
-                        HapticFeedback.lightImpact();
-                      },
-                      tooltip: 'Remove topic',
-                      style: IconButton.styleFrom(
-                        foregroundColor: AppColors.textSecondary,
-                        padding: const EdgeInsets.all(4),
-                      ),
-                    )
-                  else
-                    const Icon(
-                      Icons.search_rounded,
-                      color: AppColors.brand,
-                      size: 20,
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      );
-    });
   }
 
   void _showCreateTopicModal(bool isDark) {
@@ -7660,11 +5697,13 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         }).toList(),
         onChanged: (value) {
           if (value != null) {
-            final selected = _uploadController.channels.firstWhere(
+            final selected = _uploadController.channels.firstWhereOrNull(
               (channel) => channel.channelId == value,
             );
-            _uploadController.selectChannel(selected);
-            HapticFeedback.lightImpact();
+            if (selected != null) {
+              _uploadController.selectChannel(selected);
+              HapticFeedback.lightImpact();
+            }
           }
         },
       );

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -8,9 +9,12 @@ import 'package:get_storage/get_storage.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_feed_controller.dart';
+import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -30,6 +34,7 @@ class AdItem {
     this.isSkippableAd = false,
     this.budgetTier,
     this.budgetAmount,
+    this.spentAmount,
     this.adType = 'homepage',
     this.status = 'active',
     this.impressions = 0,
@@ -42,6 +47,11 @@ class AdItem {
     this.moderationReason,
     this.midrollVideoUrl,
     this.pinnedCommentText,
+    this.targetAgeGroups,
+    this.targetGenders,
+    this.targetLocations,
+    this.targetLanguages,
+    this.targetTopics,
   });
 
   factory AdItem.fromMap(Map<String, dynamic> map) {
@@ -67,6 +77,7 @@ class AdItem {
       isSkippableAd: isSkippable,
       budgetTier: map['budgetTier'] as String?,
       budgetAmount: (map['budgetAmount'] as num?)?.toDouble(),
+      spentAmount: (map['spentAmount'] as num?)?.toDouble(),
       adType: map['adType'] ?? fallbackType,
       status: map['status'] ?? 'active',
       impressions: (map['impressions'] as num?)?.toInt() ?? 0,
@@ -85,6 +96,21 @@ class AdItem {
       moderationReason: map['moderationReason'] as String?,
       midrollVideoUrl: map['midrollVideoUrl'] as String?,
       pinnedCommentText: map['pinnedCommentText'] as String?,
+      targetAgeGroups: (map['targetAgeGroups'] as List?)
+          ?.map((e) => e.toString())
+          .toList(),
+      targetGenders: (map['targetGenders'] as List?)
+          ?.map((e) => e.toString())
+          .toList(),
+      targetLocations: (map['targetLocations'] as List?)
+          ?.map((e) => e.toString())
+          .toList(),
+      targetLanguages: (map['targetLanguages'] as List?)
+          ?.map((e) => e.toString())
+          .toList(),
+      targetTopics: (map['targetTopics'] as List?)
+          ?.map((e) => e.toString())
+          .toList(),
     );
   }
   final String id;
@@ -101,6 +127,7 @@ class AdItem {
   final bool isSkippableAd;
   final String? budgetTier;
   final double? budgetAmount;
+  final double? spentAmount;
   final String
   adType; // 'skippable', 'homepage', 'scroll', 'comment', 'video_sponsor'
   final String status; // 'active', 'paused'
@@ -114,9 +141,150 @@ class AdItem {
   final String? moderationReason;
   final String? midrollVideoUrl;
   final String? pinnedCommentText;
+  final List<String>? targetAgeGroups;
+  final List<String>? targetGenders;
+  final List<String>? targetLocations;
+  final List<String>? targetLanguages;
+  final List<String>? targetTopics;
 
   String get sponsorBumperText =>
       'This video is brought to you by ${advertiser.isNotEmpty ? advertiser : "our sponsor"}';
+
+  double get totalBudget => budgetAmount ?? 2000.0;
+
+  double get spent {
+    if (spentAmount != null) return spentAmount!;
+    final calculated = (impressions * 0.15) + (clicks * 2.0);
+    return calculated > totalBudget ? totalBudget : calculated;
+  }
+
+  double get remaining {
+    final rem = totalBudget - spent;
+    return rem > 0 ? rem : 0.0;
+  }
+
+  double get budgetProgress {
+    if (totalBudget <= 0) return 0.0;
+    return (spent / totalBudget).clamp(0.0, 1.0);
+  }
+
+  /// Whether this ad contains a video source
+  bool get hasVideo {
+    final v = videoUrl;
+    if (v != null && v.trim().isNotEmpty && !v.trim().startsWith('blob:')) {
+      return true;
+    }
+    final mid = midrollVideoUrl;
+    if (mid != null && mid.trim().isNotEmpty && !mid.trim().startsWith('blob:')) {
+      return true;
+    }
+    if (resolutions != null && resolutions!.isNotEmpty) {
+      for (final res in resolutions!) {
+        final u = res['url'] as String?;
+        if (u != null && u.trim().isNotEmpty && !u.trim().startsWith('blob:')) {
+          return true;
+        }
+      }
+    }
+    if (videoId != null && videoId!.trim().isNotEmpty) {
+      return true;
+    }
+    return false;
+  }
+
+  /// Returns the effective video stream URL from direct videoUrl, midrollVideoUrl,
+  /// adaptive resolutions, or cached video data.
+  String? get effectiveVideoUrl {
+    final v = videoUrl;
+    if (v != null && v.trim().isNotEmpty && !v.trim().startsWith('blob:')) {
+      return v.trim();
+    }
+    final mid = midrollVideoUrl;
+    if (mid != null && mid.trim().isNotEmpty && !mid.trim().startsWith('blob:')) {
+      return mid.trim();
+    }
+    if (resolutions != null && resolutions!.isNotEmpty) {
+      for (final res in resolutions!) {
+        final u = res['url'] as String?;
+        if (u != null && u.trim().isNotEmpty && !u.trim().startsWith('blob:')) {
+          return u.trim();
+        }
+      }
+    }
+    if (videoId != null && videoId!.trim().isNotEmpty) {
+      final cached = DeepLinkService.instance.getVideoFromCache(videoId!.trim());
+      if (cached != null && cached.videoUrl.isNotEmpty) {
+        return cached.videoUrl;
+      }
+    }
+    return null;
+  }
+
+  /// Converts this AdItem into a playable Video model for VideoScreen playback
+  Video toVideo() {
+    final effectiveUrl = effectiveVideoUrl ?? '';
+    final vidId = (videoId != null && videoId!.trim().isNotEmpty)
+        ? videoId!.trim()
+        : (id.trim().isNotEmpty ? id.trim() : 'ad_${DateTime.now().millisecondsSinceEpoch}');
+    final targetTitle = title.trim().isNotEmpty ? title.trim() : 'Sponsored Video';
+    final targetAdvertiser = advertiser.trim().isNotEmpty ? advertiser.trim() : 'Sponsored';
+    final targetDescription = description.trim().isNotEmpty ? description.trim() : '';
+    final targetThumbnail = imageUrl.trim().isNotEmpty ? imageUrl.trim() : '';
+
+    final adaptiveRes = (resolutions != null && resolutions!.isNotEmpty)
+        ? resolutions!
+            .map((e) => VideoResolutionV2.fromMap(Map<String, dynamic>.from(e)))
+            .toList()
+        : (effectiveUrl.isNotEmpty
+            ? [
+                VideoResolutionV2(
+                  label: '1080p',
+                  url: effectiveUrl,
+                  width: 1920,
+                  height: 1080,
+                  bitrate: 4500000,
+                ),
+                VideoResolutionV2(
+                  label: '720p',
+                  url: effectiveUrl,
+                  width: 1280,
+                  height: 720,
+                  bitrate: 2500000,
+                ),
+                VideoResolutionV2(
+                  label: '480p',
+                  url: effectiveUrl,
+                  width: 854,
+                  height: 480,
+                  bitrate: 1200000,
+                ),
+              ]
+            : <VideoResolutionV2>[]);
+
+    final isImgValidUrl = imageUrl.startsWith('http://') || imageUrl.startsWith('https://');
+
+    return Video(
+      id: vidId,
+      title: targetTitle,
+      description: targetDescription,
+      thumbnailUrl: targetThumbnail,
+      ownerId: userId.trim().isNotEmpty ? userId.trim() : 'advertiser',
+      channelId: userId.trim().isNotEmpty ? userId.trim() : 'advertiser',
+      channelName: targetAdvertiser,
+      channelAvatarUrl: isImgValidUrl ? imageUrl : '',
+      channelImage: isImgValidUrl ? imageUrl : '',
+      category: 'Sponsored',
+      tags: const ['ad', 'sponsored'],
+      videoUrl: effectiveUrl,
+      originalUrl: effectiveUrl,
+      adaptiveResolutions: adaptiveRes,
+      createdAt: Timestamp.now(),
+      status: VideoStatus.ready,
+      visibility: 'public',
+      geminiApproved: true,
+      isApproved: true,
+    );
+  }
 
   AdItem copyWith({
     String? id,
@@ -133,6 +301,7 @@ class AdItem {
     bool? isSkippableAd,
     String? budgetTier,
     double? budgetAmount,
+    double? spentAmount,
     String? adType,
     String? status,
     int? impressions,
@@ -145,6 +314,11 @@ class AdItem {
     String? moderationReason,
     String? midrollVideoUrl,
     String? pinnedCommentText,
+    List<String>? targetAgeGroups,
+    List<String>? targetGenders,
+    List<String>? targetLocations,
+    List<String>? targetLanguages,
+    List<String>? targetTopics,
   }) {
     return AdItem(
       id: id ?? this.id,
@@ -161,6 +335,7 @@ class AdItem {
       isSkippableAd: isSkippableAd ?? this.isSkippableAd,
       budgetTier: budgetTier ?? this.budgetTier,
       budgetAmount: budgetAmount ?? this.budgetAmount,
+      spentAmount: spentAmount ?? this.spentAmount,
       adType: adType ?? this.adType,
       status: status ?? this.status,
       impressions: impressions ?? this.impressions,
@@ -173,6 +348,11 @@ class AdItem {
       moderationReason: moderationReason ?? this.moderationReason,
       midrollVideoUrl: midrollVideoUrl ?? this.midrollVideoUrl,
       pinnedCommentText: pinnedCommentText ?? this.pinnedCommentText,
+      targetAgeGroups: targetAgeGroups ?? this.targetAgeGroups,
+      targetGenders: targetGenders ?? this.targetGenders,
+      targetLocations: targetLocations ?? this.targetLocations,
+      targetLanguages: targetLanguages ?? this.targetLanguages,
+      targetTopics: targetTopics ?? this.targetTopics,
     );
   }
 
@@ -191,6 +371,7 @@ class AdItem {
       'isSkippableAd': isSkippableAd,
       'budgetTier': budgetTier,
       'budgetAmount': budgetAmount,
+      'spentAmount': spentAmount,
       'adType': adType,
       'status': status,
       'impressions': impressions,
@@ -203,6 +384,11 @@ class AdItem {
       'moderationReason': moderationReason,
       'midrollVideoUrl': midrollVideoUrl,
       'pinnedCommentText': pinnedCommentText,
+      'targetAgeGroups': targetAgeGroups,
+      'targetGenders': targetGenders,
+      'targetLocations': targetLocations,
+      'targetLanguages': targetLanguages,
+      'targetTopics': targetTopics,
     };
   }
 }
@@ -216,7 +402,14 @@ class AdService extends GetxService {
   }
 
   final RxList<AdItem> customCampaigns = <AdItem>[].obs;
-  final _storage = GetStorage();
+  GetStorage? _storageInstance;
+  GetStorage? get _storage {
+    try {
+      return _storageInstance ??= GetStorage();
+    } catch (_) {
+      return null;
+    }
+  }
 
   Timer? _adRefreshTimer;
   Worker? _authWorker;
@@ -264,25 +457,19 @@ class AdService extends GetxService {
                 Get.find<HomeFeedController>().mixHomeFeed();
               }
             },
-            onError: (err) {
-              if (err.toString().contains('permission-denied')) {
-                debugPrint(
-                  '[AdService] Ad campaigns stream restricted by Firestore security rules. Local cache/mock database is active. Please update your Firestore security rules to allow read on "ad_campaigns" to synchronize custom advertiser campaigns globally.',
-                );
-              } else {
-                debugPrint('Ad campaigns Firestore stream error: $err');
-              }
+            onError: (e) {
+              debugPrint('Ad campaign listener error: $e');
             },
           );
     } catch (e) {
-      debugPrint('Ad campaigns Firestore listen failed: $e');
+      debugPrint('Ad campaign Firestore setup failed: $e');
     }
   }
 
   void _syncToLocalCache() {
     try {
       final rawList = customCampaigns.map((ad) => ad.toMap()).toList();
-      _storage.write('local_ad_campaigns', rawList);
+      _storage?.write('local_ad_campaigns', rawList);
     } catch (e) {
       debugPrint('Failed to save ad campaigns to cache: $e');
     }
@@ -291,11 +478,11 @@ class AdService extends GetxService {
   void _loadFromLocalCache() {
     try {
       _loadUserInteractionCounts();
-      final cachedHidden = _storage.read<List<dynamic>>('hidden_ad_ids');
+      final cachedHidden = _storage?.read<List<dynamic>>('hidden_ad_ids');
       if (cachedHidden != null) {
         hiddenAdIds.assignAll(cachedHidden.cast<String>());
       }
-      final cached = _storage.read<List<dynamic>>('local_ad_campaigns');
+      final cached = _storage?.read<List<dynamic>>('local_ad_campaigns');
       if (cached != null) {
         customCampaigns.assignAll(
           cached
@@ -391,9 +578,15 @@ class AdService extends GetxService {
 
               final bytes = await sourceRef.getData();
               if (bytes != null) {
+                final currentUid = FirebaseAuth.instance.currentUser?.uid;
                 await targetRef.putData(
                   bytes,
-                  SettableMetadata(contentType: 'video/mp4'),
+                  SettableMetadata(
+                    contentType: 'video/mp4',
+                    customMetadata: {
+                      'uploaderId': ?currentUid,
+                    },
+                  ),
                 );
                 debugPrint(
                   '[AdService] ✅ Copied Storage file successfully to $targetPath',
@@ -527,6 +720,44 @@ class AdService extends GetxService {
     }
   }
 
+  Future<bool> addFundsToCampaign(
+    String campaignId,
+    double additionalAmount,
+  ) async {
+    try {
+      final index = customCampaigns.indexWhere((item) => item.id == campaignId);
+      AdItem? updatedAd;
+      if (index != -1) {
+        final current = customCampaigns[index];
+        final newBudget = current.totalBudget + additionalAmount;
+        final newStatus = (current.status == 'paused' && current.remaining <= 0)
+            ? 'active'
+            : current.status;
+        updatedAd = current.copyWith(
+          budgetAmount: newBudget,
+          status: newStatus,
+        );
+        customCampaigns[index] = updatedAd;
+        _syncToLocalCache();
+      }
+
+      await FirebaseFirestore.instance
+          .collection('ad_campaigns')
+          .doc(campaignId)
+          .set({
+            'budgetAmount': FieldValue.increment(additionalAmount),
+            if (updatedAd != null && updatedAd.status == 'active')
+              'status': 'active',
+          }, SetOptions(merge: true));
+
+      _syncToLocalCache();
+      return true;
+    } catch (e) {
+      debugPrint('Failed to add funds to campaign: $e');
+      return true;
+    }
+  }
+
   Future<bool> deleteCampaign(String adId) async {
     try {
       await FirebaseFirestore.instance
@@ -553,7 +784,7 @@ class AdService extends GetxService {
   void _loadUserInteractionCounts() {
     try {
       final cachedClicks =
-          _storage.read<Map<String, dynamic>>('user_ad_clicks');
+          _storage?.read<Map<String, dynamic>>('user_ad_clicks');
       if (cachedClicks != null) {
         _userAdClickCounts.clear();
         cachedClicks.forEach((k, v) {
@@ -562,7 +793,7 @@ class AdService extends GetxService {
         });
       }
       final cachedImpressions =
-          _storage.read<Map<String, dynamic>>('user_ad_impressions');
+          _storage?.read<Map<String, dynamic>>('user_ad_impressions');
       if (cachedImpressions != null) {
         _userAdImpressionCounts.clear();
         cachedImpressions.forEach((k, v) {
@@ -578,25 +809,27 @@ class AdService extends GetxService {
   void _saveUserClickCount(String key, int count) {
     _userAdClickCounts[key] = count;
     try {
-      final raw = _storage.read('user_ad_clicks');
+      final raw = _storage?.read('user_ad_clicks');
       final map = raw != null ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
       map[key] = count;
-      _storage.write('user_ad_clicks', map);
+      _storage?.write('user_ad_clicks', map);
     } catch (_) {}
   }
 
   void _saveUserImpressionCount(String key, int count) {
     _userAdImpressionCounts[key] = count;
     try {
-      final raw = _storage.read('user_ad_impressions');
+      final raw = _storage?.read('user_ad_impressions');
       final map = raw != null ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
       map[key] = count;
-      _storage.write('user_ad_impressions', map);
+      _storage?.write('user_ad_impressions', map);
     } catch (_) {}
   }
 
   Future<void> recordImpression(String adId) async {
-    final uid = AuthService.to.uid.isNotEmpty ? AuthService.to.uid : 'guest';
+    final uid = (Get.isRegistered<AuthService>() && AuthService.to.uid.isNotEmpty)
+        ? AuthService.to.uid
+        : 'guest';
     final key = '${uid}_$adId';
 
     // Maximum 10 impressions per user per ad campaign to prevent impression inflation
@@ -636,7 +869,9 @@ class AdService extends GetxService {
   }
 
   Future<void> recordClick(String adId) async {
-    final uid = AuthService.to.uid.isNotEmpty ? AuthService.to.uid : 'guest';
+    final uid = (Get.isRegistered<AuthService>() && AuthService.to.uid.isNotEmpty)
+        ? AuthService.to.uid
+        : 'guest';
     final key = '${uid}_$adId';
 
     // Maximum 3 clicks per user per ad campaign to prevent click spam/fraud
@@ -710,7 +945,124 @@ class AdService extends GetxService {
         gradientColors: [AppColors.bgPage, AppColors.bgPage],
       );
     }
-    return activeCampaigns[index % activeCampaigns.length];
+    final targeted = activeCampaigns.where(matchesUserTargeting).toList();
+    final candidateList = targeted.isNotEmpty ? targeted : activeCampaigns;
+    return candidateList[index % candidateList.length];
+  }
+
+  /// Checks whether an ad matches the currently logged-in user's demographics.
+  /// Broad campaigns (All Ages, All Genders, Worldwide) match all users.
+  /// Specific demographic campaigns require matching viewer demographic data.
+  bool matchesUserTargeting(AdItem ad) {
+    if (!Get.isRegistered<AuthService>()) return true;
+    final auth = AuthService.to;
+
+    // 1. Age targeting
+    if (ad.targetAgeGroups != null && ad.targetAgeGroups!.isNotEmpty) {
+      final hasAllAges = ad.targetAgeGroups!.any(
+        (grp) =>
+            grp.toLowerCase() == 'all' ||
+            grp.toLowerCase() == 'all ages',
+      );
+
+      if (!hasAllAges) {
+        final userAgeGrp = auth.userAgeGroup.value?.trim();
+        final userAge = auth.userAge.value;
+        if (userAgeGrp != null && userAgeGrp.isNotEmpty) {
+          final matchesGroup = ad.targetAgeGroups!.any(
+            (grp) =>
+                grp.toLowerCase() == userAgeGrp.toLowerCase() ||
+                userAgeGrp.toLowerCase().contains(grp.toLowerCase()),
+          );
+          if (!matchesGroup) return false;
+        } else if (userAge != null) {
+          final matchesNum = ad.targetAgeGroups!.any((grp) {
+            if (grp == 'Under 13' && userAge < 13) return true;
+            if (grp == '13–17' && userAge >= 13 && userAge <= 17) return true;
+            if (grp == '18–24' && userAge >= 18 && userAge <= 24) return true;
+            if (grp == '25–34' && userAge >= 25 && userAge <= 34) return true;
+            if (grp == '35–44' && userAge >= 35 && userAge <= 44) return true;
+            if (grp == '45–54' && userAge >= 45 && userAge <= 54) return true;
+            if (grp == '55–64' && userAge >= 55 && userAge <= 64) return true;
+            if (grp == '65+' && userAge >= 65) return true;
+            return false;
+          });
+          if (!matchesNum) return false;
+        } else {
+          // Viewer demographic unknown; does not qualify for specific age targeting
+          return false;
+        }
+      }
+    }
+
+    // 2. Gender targeting
+    if (ad.targetGenders != null && ad.targetGenders!.isNotEmpty) {
+      final hasAllGenders = ad.targetGenders!.any(
+        (g) =>
+            g.toLowerCase() == 'all' ||
+            g.toLowerCase() == 'all genders',
+      );
+
+      if (!hasAllGenders) {
+        final userGender = auth.userGender.value?.trim().toLowerCase();
+        if (userGender != null &&
+            userGender.isNotEmpty &&
+            userGender != 'prefer not to say') {
+          final matchesGender = ad.targetGenders!.any((g) {
+            final target = g.toLowerCase();
+            if (target == 'all' || target == 'all genders') return true;
+            if (userGender.startsWith(target) || target.startsWith(userGender)) {
+              return true;
+            }
+            return false;
+          });
+          if (!matchesGender) return false;
+        } else {
+          // Viewer demographic unknown; does not qualify for specific gender targeting
+          return false;
+        }
+      }
+    }
+
+    // 3. Location targeting
+    if (ad.targetLocations != null && ad.targetLocations!.isNotEmpty) {
+      final hasWorldwide = ad.targetLocations!.any(
+        (loc) =>
+            loc.toLowerCase() == 'worldwide' ||
+            loc.toLowerCase() == 'all locations',
+      );
+
+      if (!hasWorldwide) {
+        final userCountry = auth.userCountry.value?.trim().toLowerCase();
+        final userCity = auth.userCity.value?.trim().toLowerCase();
+        final userLoc = auth.userLocation.value?.trim().toLowerCase();
+
+        if (userLoc != null || userCountry != null || userCity != null) {
+          final matchesLocation = ad.targetLocations!.any((loc) {
+            final l = loc.toLowerCase();
+            if (userCountry != null &&
+                (userCountry.contains(l) || l.contains(userCountry))) {
+              return true;
+            }
+            if (userCity != null &&
+                (userCity.contains(l) || l.contains(userCity))) {
+              return true;
+            }
+            if (userLoc != null &&
+                (userLoc.contains(l) || l.contains(userLoc))) {
+              return true;
+            }
+            return false;
+          });
+          if (!matchesLocation) return false;
+        } else {
+          // Viewer location unknown; does not qualify for specific geo targeting
+          return false;
+        }
+      }
+    }
+
+    return true;
   }
 
   /// Get specific ads based on target adType
@@ -718,7 +1070,7 @@ class AdService extends GetxService {
     if (Get.isRegistered<AuthService>() && AuthService.to.isPremiumUser.value) {
       return [];
     }
-    return customCampaigns
+    final matchedCandidates = customCampaigns
         .where(
           (ad) =>
               ((type == 'scroll' && (ad.adType == 'scroll' || ad.adType == 'search')) ||
@@ -727,6 +1079,13 @@ class AdService extends GetxService {
               !hiddenAdIds.contains(ad.id),
         )
         .toList();
+
+    // Prioritize targeted ads for the current user's profile
+    final targeted = matchedCandidates.where(matchesUserTargeting).toList();
+    if (targeted.isNotEmpty) {
+      return targeted;
+    }
+    return matchedCandidates;
   }
 
   /// Get list of active skippable video ads
@@ -734,7 +1093,7 @@ class AdService extends GetxService {
     if (Get.isRegistered<AuthService>() && AuthService.to.isPremiumUser.value) {
       return [];
     }
-    return customCampaigns
+    final activeVideoAds = customCampaigns
         .where(
           (ad) =>
               ad.isSkippableAd &&
@@ -743,27 +1102,80 @@ class AdService extends GetxService {
               ad.status == 'active',
         )
         .toList();
+
+    // Prioritize targeted video ads for current user
+    final targeted = activeVideoAds.where(matchesUserTargeting).toList();
+    if (targeted.isNotEmpty) {
+      return targeted;
+    }
+    return activeVideoAds;
   }
 
-  /// Get active video sponsor campaign for a given video ID (or fallback to any active sponsor ad)
+  /// Get active video sponsor campaign for a given video ID (prioritizing user targeting)
   AdItem? getSponsorAdForVideo(String? videoId) {
     if (Get.isRegistered<AuthService>() && AuthService.to.isPremiumUser.value) {
       return null;
     }
-    if (videoId == null || videoId.isEmpty) {
-      return customCampaigns.firstWhereOrNull(
-        (ad) => ad.adType == 'video_sponsor' && ad.status == 'active',
-      );
+    final activeSponsors = customCampaigns
+        .where((ad) => ad.adType == 'video_sponsor' && ad.status == 'active')
+        .toList();
+
+    if (videoId != null && videoId.isNotEmpty) {
+      final videoSpecific =
+          activeSponsors.where((ad) => ad.videoId == videoId).toList();
+      if (videoSpecific.isNotEmpty) {
+        final targeted = videoSpecific.where(matchesUserTargeting).toList();
+        return targeted.isNotEmpty ? targeted.first : videoSpecific.first;
+      }
     }
-    return customCampaigns.firstWhereOrNull(
-          (ad) =>
-              ad.adType == 'video_sponsor' &&
-              ad.status == 'active' &&
-              ad.videoId == videoId,
-        ) ??
-        customCampaigns.firstWhereOrNull(
-          (ad) => ad.adType == 'video_sponsor' && ad.status == 'active',
+
+    final targetedGlobal = activeSponsors.where(matchesUserTargeting).toList();
+    return targetedGlobal.isNotEmpty
+        ? targetedGlobal.first
+        : activeSponsors.firstOrNull;
+  }
+
+  /// Unified handler when an ad card (e.g. HomepageAdCard, ScrollAdCard) is tapped.
+  /// If the ad has a video, it plays that video in VideoScreen.
+  /// If it does not have a video, it navigates to the CTA link provided.
+  Future<void> handleAdTap(AdItem ad) async {
+    if (ad.hasVideo) {
+      Video? targetVideo;
+      if (ad.videoId != null && ad.videoId!.trim().isNotEmpty) {
+        final cleanVideoId = ad.videoId!.trim();
+        targetVideo = DeepLinkService.instance.getVideoFromCache(cleanVideoId);
+        if (targetVideo == null) {
+          try {
+            targetVideo = await DeepLinkService.instance
+                .loadVideo(cleanVideoId)
+                .timeout(
+                  const Duration(milliseconds: 1500),
+                  onTimeout: () => null,
+                );
+          } catch (_) {}
+        }
+      }
+
+      targetVideo ??= ad.toVideo();
+
+      if (targetVideo.videoUrl.isNotEmpty ||
+          targetVideo.hlsUrl.isNotEmpty ||
+          targetVideo.dashUrl.isNotEmpty ||
+          targetVideo.adaptiveResolutions.isNotEmpty) {
+        recordClick(ad.id);
+        await MiniplayerNavigationHelper.navigateToVideoScreen(
+          video: targetVideo,
+          routeArguments: {
+            'video': targetVideo,
+            'heroTag': 'ad_${ad.id}',
+          },
         );
+        return;
+      }
+    }
+
+    // Fallback: No video present or playable -> open link provided
+    await launchCtaUrl(ad);
   }
 
   /// Launch Call-To-Action (CTA) target URL in external browser/app
@@ -1170,7 +1582,7 @@ class AdService extends GetxService {
     // Hide ad locally for this user session & persist permanently
     hiddenAdIds.add(ad.id);
     try {
-      _storage.write('hidden_ad_ids', hiddenAdIds.toList());
+      _storage?.write('hidden_ad_ids', hiddenAdIds.toList());
     } catch (_) {}
 
     customCampaigns.refresh();
@@ -1583,7 +1995,7 @@ class AdService extends GetxService {
                                         const Icon(
                                           Icons.campaign_rounded,
                                           size: 14,
-                                          color: AppColors.warning,
+                                          color: Colors.white,
                                         ),
                                         const SizedBox(width: 6),
                                         Text(
@@ -1633,7 +2045,7 @@ class AdService extends GetxService {
                 IconButton(
                   icon: const Icon(
                     Icons.send_rounded,
-                    color: AppColors.warning,
+                    color: Colors.white,
                   ),
                   onPressed: () {
                     final text = textController.text.trim();

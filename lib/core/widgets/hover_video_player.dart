@@ -1,10 +1,10 @@
 import 'dart:async';
 
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/video_card.dart';
+import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -120,22 +120,42 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
       return;
     }
 
-    // Prefer videoUrl on Web since HLS (.m3u8) is not natively supported by Chrome/Firefox.
-    // On other platforms, prefer hlsUrl if available, falling back to videoUrl.
-    const preferVideoUrl = kIsWeb;
-
     var playUrl = '';
-    if (preferVideoUrl) {
-      playUrl = widget.video.videoUrl.isNotEmpty
-          ? widget.video.videoUrl
-          : widget.video.hlsUrl;
-    } else {
-      playUrl = widget.video.hlsUrl.isNotEmpty
-          ? widget.video.hlsUrl
-          : widget.video.videoUrl;
+
+    // 1. Pick from adaptiveResolutions
+    if (widget.video.adaptiveResolutions.isNotEmpty) {
+      final validResolutions = widget.video.adaptiveResolutions.where((r) {
+        final u = r.url.trim().toLowerCase();
+        final l = r.label.toLowerCase();
+        return u.isNotEmpty &&
+            !l.contains('audio') &&
+            !u.contains('/audio') &&
+            !u.endsWith('original.mp4') &&
+            !u.contains('/original/') &&
+            (!kIsWeb || !u.contains('.m3u8'));
+      }).toList();
+
+      if (validResolutions.isNotEmpty) {
+        final lowest = validResolutions.reduce(
+          (a, b) => a.bitrate < b.bitrate ? a : b,
+        );
+        playUrl = lowest.url;
+      }
     }
 
-    if (playUrl.isEmpty) return;
+    // 2. Fallback to hlsUrl (if non-web or supported)
+    if (playUrl.isEmpty &&
+        widget.video.hlsUrl.isNotEmpty &&
+        !widget.video.hlsUrl.endsWith('original.mp4') &&
+        !widget.video.hlsUrl.contains('/original/')) {
+      playUrl = widget.video.hlsUrl;
+    }
+
+    if (playUrl.isEmpty) {
+      _isLoading.value = false;
+      _isHovered.value = false;
+      return;
+    }
 
     _isLoading.value = true;
     _isMuted.value = true;
@@ -146,42 +166,14 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
       debugPrint(
         '[HoverVideoPlayer] Error initializing preview player with primary URL ($playUrl): $e',
       );
-
-      // Fallback: If we tried HLS and it failed, try the standard video URL if available
-      final isHls = playUrl.contains('.m3u8') || playUrl == widget.video.hlsUrl;
-      if (isHls &&
-          widget.video.videoUrl.isNotEmpty &&
-          widget.video.videoUrl != playUrl) {
-        debugPrint(
-          '[HoverVideoPlayer] Falling back to standard video URL: ${widget.video.videoUrl}',
-        );
-        try {
-          await _attemptInitWithUrl(widget.video.videoUrl);
-          return; // Success on fallback
-        } catch (fallbackError) {
-          debugPrint(
-            '[HoverVideoPlayer] Fallback URL also failed: $fallbackError',
-          );
-        }
-      }
-
       _isLoading.value = false;
       _isInitialized.value = false;
     }
   }
 
   Future<void> _attemptInitWithUrl(String url) async {
-    var resolvedUrl = url;
-    if (resolvedUrl.startsWith('gs://') ||
-        resolvedUrl.startsWith('https://storage.googleapis.com/') ||
-        (resolvedUrl.contains('firebasestorage.googleapis.com') &&
-            !resolvedUrl.contains('token='))) {
-      try {
-        resolvedUrl = await FirebaseStorage.instance
-            .refFromURL(resolvedUrl)
-            .getDownloadURL();
-      } catch (_) {}
-    }
+    final resolvedUrl = await StorageUtils.resolveUrl(url);
+    if (resolvedUrl.isEmpty) throw Exception('Empty URL');
 
     final controller = VideoPlayerController.networkUrl(
       Uri.parse(resolvedUrl),
@@ -237,15 +229,30 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
 
   void _handleTap() {
     final controller = _controller.value;
-    if (controller != null && _isInitialized.value && !kIsWeb) {
-      VideoPlaybackHandoff.registerActiveController(
-        widget.video.id,
-        controller,
-      );
+    Duration? resumePos;
+
+    if (controller != null && _isInitialized.value) {
+      final pos = controller.value.position;
+      if (pos > Duration.zero) {
+        resumePos = pos;
+        VideoPlaybackHandoff.registerResumePosition(widget.video.id, pos);
+      }
+      if (!kIsWeb) {
+        VideoPlaybackHandoff.registerActiveController(
+          widget.video.id,
+          controller,
+          position: pos,
+        );
+      } else {
+        // On web, dispose local preview controller to free up DOM elements
+        try {
+          controller.dispose();
+        } catch (_) {}
+      }
       _controller.value = null;
       _isInitialized.value = false;
       _isLoading.value = false;
-    } else if (!kIsWeb) {
+    } else {
       VideoPlaybackHandoff.prewarmVideo(widget.video);
     }
 
@@ -254,9 +261,12 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
     } else {
       MiniplayerNavigationHelper.navigateToVideoScreen(
         video: widget.video,
+        resumePosition: resumePos,
         routeArguments: {
           'video': widget.video,
           'heroTag': 'hover_${widget.video.id}',
+          if (resumePos != null) 'resumePosition': resumePos,
+          if (resumePos != null) 'initialPosition': resumePos,
         },
       );
     }

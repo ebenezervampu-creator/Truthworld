@@ -8,6 +8,7 @@ import 'package:truthworld/components/ui/community_post_card.dart';
 import 'package:truthworld/components/ui/playlist_card.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/components/ui/video_card.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/data/models/subscription_content.dart';
 import 'package:truthworld/features/subscriptions/presentation/controllers/subscription_controller.dart';
 import 'package:truthworld/features/topics/presentation/widgets/topic_card_widget.dart';
@@ -319,7 +320,6 @@ class SubscriptionsPage extends StatelessWidget {
       case ContentType.communityPost:
         return CommunityPostCard(
           post: content.communityPost!,
-          isFullWidth: false,
         );
       case ContentType.topic:
         return TopicCardWidget(
@@ -362,66 +362,140 @@ class SubscriptionsPage extends StatelessWidget {
   }
 
   Widget _buildErrorState() {
+    final isUnauthenticated = controller.currentUserId == null ||
+        !AuthService.to.isAuthenticated.value;
+
     return SliverFillRemaining(
       child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.error_outline,
-              size: 48,
-              color: AppColors.textPrimary,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              controller.errorMessage,
-              style: const TextStyle(color: AppColors.textSecondary),
-            ),
-            TextButton(
-              onPressed: controller.refresh,
-              child: const Text(
-                'Try Again',
-                style: TextStyle(color: AppColors.brand),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.subscriptions_outlined,
+                size: 56,
+                color: Colors.white,
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              Text(
+                isUnauthenticated
+                    ? "Don't miss new videos"
+                    : (controller.errorMessage.isNotEmpty
+                        ? controller.errorMessage
+                        : 'Something went wrong'),
+                textAlign: TextAlign.center,
+                style: GoogleFonts.roboto(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                isUnauthenticated
+                    ? 'Sign in to see updates from your favorite channels'
+                    : 'Please try again later',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.roboto(
+                  fontSize: 14,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 24),
+              if (isUnauthenticated)
+                ElevatedButton.icon(
+                  onPressed: () => AuthService.to.signInWithGoogle(),
+                  icon: const Icon(Icons.account_circle_outlined, color: Colors.white),
+                  label: const Text('Sign in'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.brand,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                  ),
+                )
+              else
+                TextButton(
+                  onPressed: controller.refresh,
+                  child: const Text(
+                    'Try Again',
+                    style: TextStyle(color: AppColors.brand),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildEmptyState() {
+    final hasNoSubs = controller.subscribedChannels.isEmpty;
+
     return SliverFillRemaining(
       child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.subscriptions_outlined,
-              size: 48,
-              color: AppColors.textPrimary,
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'No content found for the selected filters',
-              style: TextStyle(color: AppColors.textSecondary),
-            ),
-            TextButton(
-              onPressed: () {
-                controller.selectedContentFilter.value = ContentFilter.all.name;
-                controller.selectedDurationFilter.value =
-                    DurationFilter.all.name;
-                controller.selectedSortFilter.value = SortFilter.trending.name;
-                controller.selectedDateRangeFilter.value =
-                    DateRangeFilter.all.name;
-                controller.applyFilters();
-              },
-              child: const Text(
-                'Clear Filters',
-                style: TextStyle(color: AppColors.brand),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.subscriptions_outlined,
+                size: 56,
+                color: Colors.white,
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              Text(
+                hasNoSubs ? 'No subscriptions yet' : 'No content found',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.roboto(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                hasNoSubs
+                    ? 'Channels you subscribe to will show up here'
+                    : 'Try changing your filter settings to see more content',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.roboto(
+                  fontSize: 14,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 24),
+              if (hasNoSubs)
+                ElevatedButton(
+                  onPressed: () => Get.toNamed('/discover'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.brand,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                  ),
+                  child: const Text('Discover Channels'),
+                )
+              else
+                TextButton(
+                  onPressed: () {
+                    controller.selectedContentFilter.value = ContentFilter.all.name;
+                    controller.selectedDurationFilter.value =
+                        DurationFilter.all.name;
+                    controller.selectedSortFilter.value = SortFilter.trending.name;
+                    controller.selectedDateRangeFilter.value =
+                        DateRangeFilter.all.name;
+                    controller.applyFilters();
+                  },
+                  child: const Text(
+                    'Clear Filters',
+                    style: TextStyle(color: AppColors.brand),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );

@@ -70,14 +70,25 @@ class Avatar extends StatelessWidget {
   }
 
   Widget _buildPlaceholder() {
-    return Center(
-      child: Text(
-        placeholderText ?? '?',
-        style: GoogleFonts.roboto(
-          color: Colors.white,
-          fontSize: radius * 0.8,
-          fontWeight: FontWeight.bold,
+    if (placeholderText != null &&
+        placeholderText!.isNotEmpty &&
+        placeholderText != '?') {
+      return Center(
+        child: Text(
+          placeholderText!,
+          style: GoogleFonts.roboto(
+            color: Colors.white,
+            fontSize: radius * 0.8,
+            fontWeight: FontWeight.bold,
+          ),
         ),
+      );
+    }
+    return Center(
+      child: Icon(
+        Icons.person_rounded,
+        size: radius * 1.1,
+        color: Colors.white,
       ),
     );
   }

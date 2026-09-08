@@ -464,15 +464,25 @@ export const onVideoDeleted = onDocumentDeleted(
     for (const slug of allTopicSlugs) {
       const topicsSnap = await db.collection("topics").where("slug", "==", slug).get();
       for (const topicDoc of topicsSnap.docs) {
-        await topicDoc.ref.update({
-          videoCount: admin.firestore.FieldValue.increment(-1)
-        }).catch(err => console.error(`[VideoCascade] Error decrementing topic videoCount (slug query):`, err));
+        const currentCount = Number(topicDoc.data()?.videoCount) || 0;
+        const newCount = Math.max(0, currentCount - 1);
+        const updatePayload: Record<string, any> = { videoCount: newCount };
+        if (newCount <= 0) {
+          updatePayload.status = "archived";
+          updatePayload.moderationReason = "Topic has no remaining videos and was automatically archived.";
+        }
+        await topicDoc.ref.update(updatePayload).catch(err => console.error(`[VideoCascade] Error decrementing topic videoCount (slug query):`, err));
       }
       const directTopicDoc = await db.collection("topics").doc(slug).get();
       if (directTopicDoc.exists) {
-        await directTopicDoc.ref.update({
-          videoCount: admin.firestore.FieldValue.increment(-1)
-        }).catch(err => console.error(`[VideoCascade] Error decrementing topic videoCount (direct ID):`, err));
+        const currentCount = Number(directTopicDoc.data()?.videoCount) || 0;
+        const newCount = Math.max(0, currentCount - 1);
+        const updatePayload: Record<string, any> = { videoCount: newCount };
+        if (newCount <= 0) {
+          updatePayload.status = "archived";
+          updatePayload.moderationReason = "Topic has no remaining videos and was automatically archived.";
+        }
+        await directTopicDoc.ref.update(updatePayload).catch(err => console.error(`[VideoCascade] Error decrementing topic videoCount (direct ID):`, err));
       }
     }
 
@@ -697,6 +707,46 @@ export const scheduledDelayedDeletions = onSchedule(
       await playlistDoc.ref.delete().catch(err => {
         console.error(`[ScheduledDeletions] Error deleting private playlist doc ${playlistDoc.id}:`, err);
       });
+    }
+
+    // 7. Zero-Video Active Topics Auto-Archive Sweep
+    try {
+      const activeTopicsSnap = await db.collection("topics")
+        .where("status", "==", "active")
+        .where("videoCount", "<=", 0)
+        .get();
+
+      console.log(`[ScheduledDeletions] Found ${activeTopicsSnap.size} active topics with videoCount <= 0`);
+      for (const topicDoc of activeTopicsSnap.docs) {
+        const topicData = topicDoc.data();
+        const featVideos = topicData.featuredVideoIds || [];
+        const slug = (topicData.slug || "").trim();
+
+        if (featVideos.length === 0) {
+          // Double check if any actual video is associated
+          const vSnap = await db.collection("videos")
+            .where("topics", "array-contains", slug)
+            .limit(1)
+            .get();
+
+          if (vSnap.empty) {
+            console.log(`[ScheduledDeletions] Auto-archiving 0-video active topic: ${topicDoc.id} (${slug})`);
+            await topicDoc.ref.update({
+              status: "archived",
+              archiveReason: "Auto-archived: topic has 0 videos",
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+          } else {
+            // Fix the desynced counter
+            await topicDoc.ref.update({
+              videoCount: 1,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+          }
+        }
+      }
+    } catch (sweepErr) {
+      console.error("[ScheduledDeletions] Error running zero-video topic sweep:", sweepErr);
     }
   }
 );

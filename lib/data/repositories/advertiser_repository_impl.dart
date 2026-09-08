@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'package:truthworld/core/base/base_repository.dart';
+import 'package:truthworld/core/config/app_config.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/network/result.dart';
 import 'package:truthworld/domain/repositories/advertiser_repository.dart';
@@ -135,9 +136,12 @@ class AdvertiserRepositoryImpl extends BaseRepository implements AdvertiserRepos
     String adId,
     Map<String, String> subtitles,
   ) async {
-    return safeUpdate(
-      _firestore.collection(FirestoreCollections.ads).doc(adId).collection('subtitles').doc('metadata'),
-      subtitles,
+    return safeSet(
+      _firestore.collection('ad_campaigns').doc(adId),
+      {
+        'subtitles': subtitles,
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
     );
   }
 
@@ -146,9 +150,12 @@ class AdvertiserRepositoryImpl extends BaseRepository implements AdvertiserRepos
     String adId,
     Map<String, String> audioTracks,
   ) async {
-    return safeUpdate(
-      _firestore.collection(FirestoreCollections.ads).doc(adId).collection('audio_tracks').doc('metadata'),
-      audioTracks,
+    return safeSet(
+      _firestore.collection('ad_campaigns').doc(adId),
+      {
+        'audioTracks': audioTracks,
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
     );
   }
 
@@ -165,7 +172,7 @@ class AdvertiserRepositoryImpl extends BaseRepository implements AdvertiserRepos
       final token = currentUser != null ? await currentUser.getIdToken() : null;
 
       final url = Uri.parse(
-        'https://asia-south1-truthworld-1.cloudfunctions.net/triggerAdAIFeatures',
+        '${AppConfig.cloudFunctionsBaseUrl}/triggerAdAIFeatures',
       );
 
       final response = await http.post(
@@ -202,6 +209,81 @@ class AdvertiserRepositoryImpl extends BaseRepository implements AdvertiserRepos
         },
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+    });
+  }
+
+  @override
+  Future<Result<void>> generateAllVideoAdsAIFeatures({
+    List<String> features = const ['subtitles', 'dubbing'],
+    List<String> targetLanguages = const ['te', 'hi', 'ta', 'es'],
+    String voiceStyle = 'natural',
+    String sourceLang = 'en',
+    bool forceRegenerate = false,
+  }) async {
+    return safeFetch(() async {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      final token = currentUser != null ? await currentUser.getIdToken() : null;
+
+      final url = Uri.parse(
+        '${AppConfig.cloudFunctionsBaseUrl}/generateAllVideoAdsAIFeatures',
+      );
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'features': features,
+          'targetLanguages': targetLanguages,
+          'voiceStyle': voiceStyle,
+          'sourceLang': sourceLang,
+          'forceRegenerate': forceRegenerate,
+        }),
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return;
+      }
+
+      // If HTTP call fails, query video ads in Firestore directly and mark stages.ai
+      final snapshot = await _firestore.collection('ad_campaigns').get();
+      final batch = _firestore.batch();
+      var count = 0;
+
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        final hasVideo = data['videoUrl'] != null ||
+            data['midrollVideoUrl'] != null ||
+            (data['resolutions'] is List && (data['resolutions'] as List).isNotEmpty);
+        if (hasVideo) {
+          batch.set(
+            doc.reference,
+            {
+              'stages': {
+                'ai': {
+                  'status': 'running',
+                  'progress': 10,
+                  'currentStage': 'Batch queued for AI generation...',
+                  'features': features,
+                  'targetLanguages': targetLanguages,
+                  'voiceStyle': voiceStyle,
+                  'updatedAt': DateTime.now().millisecondsSinceEpoch,
+                },
+              },
+              'updatedAt': FieldValue.serverTimestamp(),
+            },
+            SetOptions(merge: true),
+          );
+          count++;
+          if (count >= 400) break; // Firestore batch limit safety
+        }
+      }
+
+      if (count > 0) {
+        await batch.commit();
+      }
     });
   }
 }

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/features/video/presentation/controllers/adaptive_birate_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/adaptive_bitrate_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/controls/player_controls.dart';

@@ -6,6 +6,7 @@ import 'package:chewie/chewie.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
@@ -24,7 +25,7 @@ import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
-import 'package:truthworld/features/video/presentation/controllers/adaptive_birate_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/adaptive_bitrate_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/audio_only_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/playback_source.dart';
@@ -45,15 +46,21 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
   bool get isClosed => _isClosed;
 
   bool get _isTransientDomError {
-    final err = (videoPlayerController.value.errorDescription ?? '') +
-        ' ' +
-        errorDescription.value;
+    final err =
+        '${videoPlayerController.value.errorDescription ?? ''} ${errorDescription.value}'.toLowerCase();
     return err.contains('removed from the document') ||
         err.contains('play() request was interrupted') ||
-        err.contains('The play() request was interrupted') ||
-        err.contains('AbortError') ||
-        err.contains('NotAllowedError');
+        err.contains('the play() request was interrupted') ||
+        err.contains('aborterror') ||
+        err.contains('notallowederror') ||
+        err.contains('media_err_aborted') ||
+        err.contains('client returned a buffer') ||
+        err.contains('bad_index') ||
+        err.contains('pause()') ||
+        err.contains('user gesture');
   }
+
+  Timer? _errorDebounceTimer;
 
   TowerPlayerController({required this.videoPlayerController, this.tag}) {
     try {
@@ -61,8 +68,7 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
       isInitialized.value = videoPlayerController.value.isInitialized;
       aspectRatio.value = videoPlayerController.value.aspectRatio;
       isPlaying.value = videoPlayerController.value.isPlaying;
-      hasError.value =
-          videoPlayerController.value.hasError && !_isTransientDomError;
+      hasError.value = false;
       errorDescription.value =
           videoPlayerController.value.errorDescription ?? '';
     } catch (_) {
@@ -142,7 +148,10 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
   void _initChewieController() {
     if (chewieController != null) {
       try {
-        chewieController!.pause();
+        // Only pause if the underlying controller changed so continuous playback isn't halted
+        if (chewieController!.videoPlayerController != videoPlayerController) {
+          chewieController!.pause();
+        }
       } catch (_) {}
       try {
         chewieController!.dispose();
@@ -290,6 +299,17 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
   final RxBool progressBarHovered = false.obs; // desktop hover
   final RxBool showCommentsPopup = false.obs;
   final RxBool showTranscriptPopup = false.obs;
+  final RxBool showFactCheckPopup = false.obs;
+  final RxBool showLiveChat = false.obs;
+
+  void toggleLiveChat() {
+    showLiveChat.toggle();
+    if (showLiveChat.value) {
+      showCommentsPopup.value = false;
+      showTranscriptPopup.value = false;
+      showFactCheckPopup.value = false;
+    }
+  }
   final RxBool isCommentsAutoPlay = false.obs;
   final RxBool isTranscriptAutoPlay = false.obs;
   final Rxn<Comment> currentAutoPlayComment = Rxn<Comment>();
@@ -335,11 +355,81 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
     } catch (_) {}
   }
 
+  final RxBool isFactCheckAutoPlay = true.obs;
+
   void toggleTranscriptAutoPlay() {
     isTranscriptAutoPlay.toggle();
     if (isTranscriptAutoPlay.value) {
       showTranscriptPopup.value = false;
       subtitlesEnabled.value = true;
+    }
+  }
+
+  void toggleFactCheckAutoPlay() {
+    isFactCheckAutoPlay.toggle();
+    if (isFactCheckAutoPlay.value) {
+      showFactOverlay.value = true;
+      if (!vv.isPlaying) {
+        videoPlayerController.play();
+      }
+      showToast('Fact-check live sync enabled');
+    } else {
+      showToast('Fact-check live sync paused');
+    }
+  }
+
+  List<ClaimResult> get availableClaims {
+    final claims = videoController?.video.uiReport?.keyClaims;
+    if (claims != null && claims.isNotEmpty) return claims;
+    final rawClaims = videoController?.factCheckData['claims'] ??
+        videoController?.factCheckData['uiReport']?['keyClaims'];
+    if (rawClaims is List && rawClaims.isNotEmpty) {
+      return rawClaims
+          .map((c) => ClaimResult.fromMap(
+                Map<String, dynamic>.from(
+                  c is Map ? c : {'text': c.toString()},
+                ),
+              ))
+          .toList();
+    }
+    return const [];
+  }
+
+  void playClaim(ClaimResult claim) {
+    if (claim.start != null) {
+      seekTo(Duration(seconds: claim.start!.toInt()));
+      videoPlayerController.play();
+      showFactOverlay.value = true;
+      activeClaim.value = claim;
+      showToast('Playing claim: ${claim.verdict.replaceAll("_", " ")}');
+    }
+  }
+
+  void playNextClaim() {
+    final claims = availableClaims;
+    if (claims.isEmpty) return;
+    final posSec = vv.position.inMilliseconds / 1000.0;
+    for (final claim in claims) {
+      if (claim.start != null && claim.start! > posSec + 1.0) {
+        playClaim(claim);
+        return;
+      }
+    }
+    if (claims.first.start != null) {
+      playClaim(claims.first);
+    }
+  }
+
+  void playPreviousClaim() {
+    final claims = availableClaims;
+    if (claims.isEmpty) return;
+    final posSec = vv.position.inMilliseconds / 1000.0;
+    for (var i = claims.length - 1; i >= 0; i--) {
+      final claim = claims[i];
+      if (claim.start != null && claim.start! < posSec - 2.0) {
+        playClaim(claim);
+        return;
+      }
     }
   }
 
@@ -351,6 +441,12 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
   final RxBool adCanSkip = false.obs;
   VideoPlayerController? adPlayerController;
   VideoPlayerController? _audioTrackController;
+  VideoPlayerController? _adAudioTrackController;
+  final RxString currentAdSubtitle = ''.obs;
+  final RxList<SubtitleSegment> adSubtitleSegments = <SubtitleSegment>[].obs;
+  final RxBool isAdSubtitlesEnabled = true.obs;
+  final RxString activeAdSubtitleLang = 'en'.obs;
+  final RxString activeAdAudioLang = 'original'.obs;
   bool _preRollPlayed = false;
   bool _midRollPlayed = false;
   bool _sponsorMidRollPlayed = false;
@@ -425,14 +521,9 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
   final RxBool isAudioOnly = false.obs;
   AudioOnlyService? _audioService;
   VideoPlaybackSource? _videoPlaybackSource;
-  AudioPlaybackSource? _audioPlaybackSource;
   bool _isSwitchingModes = false;
 
   PlaybackSource get activePlayback {
-    if (playbackMode.value == PlaybackMode.audio &&
-        _audioPlaybackSource != null) {
-      return _audioPlaybackSource!;
-    }
     // Auto-heal if videoController has a newer or updated controller
     try {
       final vc = videoController;
@@ -453,11 +544,13 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
   final RxList<SubtitleSegment> subtitleSegments = <SubtitleSegment>[].obs;
   final RxBool isLoadingSubtitles = false.obs;
   final RxString currentSubtitle = ''.obs;
+  final Rx<SubtitleSegment?> activeSubtitleSegment = Rx<SubtitleSegment?>(null);
   Timer? _subtitleSyncTimer;
 
   void _syncActiveSubtitle() {
-    if (_isClosed || !subtitlesEnabled.value || subtitleSegments.isEmpty) {
+    if (_isClosed || subtitleSegments.isEmpty) {
       if (currentSubtitle.value.isNotEmpty) currentSubtitle.value = '';
+      if (activeSubtitleSegment.value != null) activeSubtitleSegment.value = null;
       return;
     }
     final pos = activePlayback.position;
@@ -465,6 +558,9 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
     final text = seg?.text ?? '';
     if (currentSubtitle.value != text) {
       currentSubtitle.value = text;
+    }
+    if (activeSubtitleSegment.value != seg) {
+      activeSubtitleSegment.value = seg;
     }
   }
 
@@ -697,16 +793,21 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
             AdService.to.getSkippableVideoAds().isNotEmpty);
     if (hasInitialAds && !_preRollPlayed) {
       _preRollPlayed = true;
-      if (videoPlayerController.value.isPlaying) {
-        try {
-          videoPlayerController.pause();
-        } catch (_) {}
-      }
-      if (initialSponsorAd != null) {
-        _startSponsorAd(initialSponsorAd, isPreRoll: true);
-      } else {
-        _startAd(isPreRoll: true);
-      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (isClosed) return;
+        if (videoPlayerController.value.isPlaying) {
+          try {
+            videoPlayerController.pause();
+          } catch (e) {
+            debugPrint('[TowerPlayer] pause pre-roll error: $e');
+          }
+        }
+        if (initialSponsorAd != null) {
+          _startSponsorAd(initialSponsorAd, isPreRoll: true);
+        } else {
+          _startAd(isPreRoll: true);
+        }
+      });
     }
 
     // Load global media preferences
@@ -719,7 +820,16 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
 
     // Apply preferred playback speed
     if (playbackSpeed.value != 1.0) {
-      videoPlayerController.setPlaybackSpeed(playbackSpeed.value);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!isClosed &&
+            (videoPlayerController.value.playbackSpeed - playbackSpeed.value).abs() > 0.001) {
+          try {
+            videoPlayerController.setPlaybackSpeed(playbackSpeed.value);
+          } catch (e) {
+            debugPrint('[TowerPlayer] setPlaybackSpeed error: $e');
+          }
+        }
+      });
     }
 
     if (shouldAudioOnly) {
@@ -740,7 +850,9 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
             if (vc != null) {
               vc.isFullScreen.value = isFs;
             }
-          } catch (_) {}
+          } catch (e) {
+            debugPrint('[TowerPlayer] web fullscreen sync error: $e');
+          }
           onInteraction();
         }
       });
@@ -770,8 +882,8 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
     if (!Get.isRegistered<AdaptiveBitrateController>(tag: tag)) {
       Get.put(abr, tag: tag);
     }
+    var ladder = List<ResolutionTier>.from(ResolutionTier.defaultLadder);
 
-    var ladder = ResolutionTier.defaultLadder;
     try {
       if (Get.isRegistered<VideoController>(tag: tag)) {
         final vc = Get.find<VideoController>(tag: tag);
@@ -781,29 +893,40 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
               .toList();
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[TowerPlayer] _initABR resolution ladder lookup: $e');
+    }
 
     abr.initialize(ladder: ladder, vpc: videoPlayerController);
     abr.isAdPlaying = () => isShowingAd.value;
 
     abr.onTierChanged = (tierIndex, isManual) {
-      try {
-        if (!Get.isRegistered<VideoController>(tag: tag)) return;
-        final vc = Get.find<VideoController>(tag: tag);
-        if (vc.isSwitchingResolution.value) return;
-        if (tierIndex >= 0 && tierIndex < abr.resolutionLadder.length) {
-          final tier = abr.resolutionLadder[tierIndex];
-          final match = vc.availableResolutions.firstWhereOrNull(
-            (r) => r.height == tier.height,
-          );
-          if (match != null &&
-              (vc.currentResolution.value?.url != match.url ||
-                  vc.currentResolution.value?.label != match.label)) {
-            vc.setResolution(match, isManual: isManual);
+      void applyTierChange() {
+        try {
+          if (!Get.isRegistered<VideoController>(tag: tag)) return;
+          final vc = Get.find<VideoController>(tag: tag);
+          if (vc.isSwitchingResolution.value) return;
+          if (tierIndex >= 0 && tierIndex < abr.resolutionLadder.length) {
+            final tier = abr.resolutionLadder[tierIndex];
+            final match = vc.availableResolutions.firstWhereOrNull(
+              (r) => r.height == tier.height,
+            );
+            if (match != null &&
+                (vc.currentResolution.value?.url != match.url ||
+                    vc.currentResolution.value?.label != match.label)) {
+              vc.setResolution(match, isManual: isManual);
+            }
           }
+        } catch (e) {
+          debugPrint('[TowerPlayer] ABR tier change error: $e');
         }
-      } catch (e) {
-        debugPrint('[TowerPlayer] ABR tier change error: $e');
+      }
+
+      if (WidgetsBinding.instance.schedulerPhase ==
+          SchedulerPhase.persistentCallbacks) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => applyTierChange());
+      } else {
+        applyTierChange();
       }
     };
 
@@ -814,10 +937,14 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
         final pb = UserSettingsController.to.playback.value;
         final isWifi = !Get.isRegistered<ConnectivityService>() ||
             ConnectivityService.to.isWifi;
-        final targetQualityStr = isWifi ? pb.wifiQuality : pb.cellularQuality;
-        if (targetQualityStr.contains('1080p')) {
+        final targetQualityStr =
+            isWifi ? pb.wifiQuality : pb.cellularQuality;
+
+        if (targetQualityStr.contains('1080') ||
+            targetQualityStr.contains('High')) {
           pref = '1080p';
-        } else if (targetQualityStr.contains('720p')) {
+        } else if (targetQualityStr.contains('720') ||
+            targetQualityStr.contains('Medium')) {
           pref = '720p';
         } else if (targetQualityStr.contains('480p') ||
             targetQualityStr.contains('Data Saver')) {
@@ -855,7 +982,6 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
       onPrevious: playPrevious,
       onEnded: _onTrackEnded,
     );
-    _audioPlaybackSource = AudioPlaybackSource(_audioService!);
   }
 
   void _attachVideoListener() {
@@ -863,30 +989,31 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
     sleepTimerService.setActivePlayback(activePlayback);
     videoPlayerController.addListener(_onVpcUpdate);
 
-    // Apply Volume Normalization (Stable Volume)
-    if (Get.isRegistered<UserSettingsController>()) {
-      final mode =
-          UserSettingsController.to.playback.value.volumeNormalizationMode;
-      var volumeScale = 1.0;
-      switch (mode) {
-        case 'Light':
-          volumeScale = 0.90;
-        case 'Standard':
-          volumeScale = 0.80;
-        case 'Aggressive':
-          volumeScale = 0.70;
-        case 'Off':
-        default:
-          volumeScale = 1.0;
-      }
+    // Apply Volume Normalization (Stable Volume) post-frame to prevent reactive rebuilds during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (isClosed) return;
       try {
-        videoPlayerController.setVolume(volumeScale);
+        var volumeScale = 1.0;
+        if (Get.isRegistered<UserSettingsController>()) {
+          final mode =
+              UserSettingsController.to.playback.value.volumeNormalizationMode;
+          switch (mode) {
+            case 'Light':
+              volumeScale = 0.90;
+            case 'Standard':
+              volumeScale = 0.80;
+            case 'Aggressive':
+              volumeScale = 0.70;
+            case 'Off':
+            default:
+              volumeScale = 1.0;
+          }
+        }
+        if ((videoPlayerController.value.volume - volumeScale).abs() > 0.001) {
+          videoPlayerController.setVolume(volumeScale);
+        }
       } catch (_) {}
-    } else {
-      try {
-        videoPlayerController.setVolume(1.0);
-      } catch (_) {}
-    }
+    });
   }
 
   // ── VPC listener — optimised ──────────────────────────────
@@ -911,8 +1038,31 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
         _updateAutoPip(val.isPlaying);
       }
       final isErr = val.hasError && !_isTransientDomError;
-      if (hasError.value != isErr) {
-        hasError.value = isErr;
+      if (isErr) {
+        var isSuppressed = false;
+        try {
+          final vc = videoController;
+          if (vc != null &&
+              (vc.isAutoSwitching.value || vc.isRecoveringFromFormatError)) {
+            isSuppressed = true;
+          }
+        } catch (_) {}
+
+        if (!isSuppressed) {
+          _errorDebounceTimer?.cancel();
+          _errorDebounceTimer = Timer(const Duration(milliseconds: 800), () {
+            if (!_isClosed &&
+                videoPlayerController.value.hasError &&
+                !_isTransientDomError) {
+              hasError.value = true;
+            }
+          });
+        }
+      } else {
+        _errorDebounceTimer?.cancel();
+        if (hasError.value) {
+          hasError.value = false;
+        }
       }
       if (errorDescription.value != (val.errorDescription ?? '')) {
         errorDescription.value = val.errorDescription ?? '';
@@ -1041,17 +1191,16 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
       // Real-time claim calculation
       ClaimResult? nextActiveClaim;
       try {
-        if (Get.isRegistered<VideoController>(tag: tag)) {
-          final vc = Get.find<VideoController>(tag: tag);
-          final uiReport = vc.video.uiReport;
-          if (uiReport != null && uiReport.keyClaims.isNotEmpty) {
-            final posSec = val.position.inMilliseconds / 1000.0;
-            for (final claim in uiReport.keyClaims) {
-              if (claim.start != null && claim.end != null) {
-                if (posSec >= claim.start! && posSec <= claim.end!) {
-                  nextActiveClaim = claim;
-                  break;
-                }
+        final claims = availableClaims;
+        if (claims.isNotEmpty) {
+          final posSec = val.position.inMilliseconds / 1000.0;
+          for (final claim in claims) {
+            if (claim.start != null) {
+              final s = claim.start!;
+              final e = claim.end ?? (s + 8.0);
+              if (posSec >= s && posSec <= e) {
+                nextActiveClaim = claim;
+                break;
               }
             }
           }
@@ -1168,17 +1317,24 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
         SystemChrome.setPreferredOrientations(DeviceOrientation.values);
       }
     }
+    _errorDebounceTimer?.cancel();
     _singleTapTimer?.cancel();
     focusNode.dispose();
     try {
       videoPlayerController.removeListener(_onVpcUpdate);
     } catch (_) {}
+    if (_isBackgroundAudioActive) {
+      _audioService?.deactivateBackgroundPlayback();
+      _isBackgroundAudioActive = false;
+    }
     abr.onClose();
     if (!kIsWeb) {
       _pipChannel.setMethodCallHandler(null);
     }
     super.onClose();
   }
+
+  bool _isBackgroundAudioActive = false;
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -1190,14 +1346,78 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
           if (videoPlayerController.value.isPlaying) {
             videoPlayerController.pause();
           }
+        } else if ((mode == 'Always On' || mode == 'Headphones Only') && !isPiP.value) {
+          _handleEnterBackground();
         }
       }
+    } else if (state == AppLifecycleState.resumed) {
+      _handleExitBackground();
     }
+  }
+
+  Future<void> _handleEnterBackground() async {
+    if (!videoPlayerController.value.isPlaying) return;
+    final vc = videoController;
+    if (vc == null) return;
+
+    _isBackgroundAudioActive = true;
+    final currentPos = videoPlayerController.value.position;
+
+    // Pause video player so the video surface is detached cleanly
+    await videoPlayerController.pause();
+
+    _initAudioService();
+    if (_audioService != null) {
+      final mediaUrl = _resolveBackgroundMediaUrl(vc);
+
+      if (mediaUrl.isNotEmpty) {
+        await _audioService!.activateBackgroundPlayback(
+          mediaUrl: mediaUrl,
+          title: vc.video.title,
+          artworkUrl: vc.video.thumbnailUrl,
+          startPosition: currentPos,
+        );
+      }
+    }
+  }
+
+  Future<void> _handleExitBackground() async {
+    if (!_isBackgroundAudioActive) return;
+    _isBackgroundAudioActive = false;
+
+    if (_audioService != null && _audioService!.isActive.value) {
+      final resumedPos = _audioService!.currentPosition;
+      final wasPlaying = _audioService!.isPlaying.value;
+
+      _audioService!.deactivateBackgroundPlayback();
+
+      await videoPlayerController.seekTo(resumedPos);
+      if (wasPlaying) {
+        await videoPlayerController.play();
+      }
+    }
+  }
+
+  String _resolveBackgroundMediaUrl(VideoController vc) {
+    if (vc.isOffline && vc.offlineBlobUrl != null && vc.offlineBlobUrl!.isNotEmpty) {
+      return vc.offlineBlobUrl!;
+    }
+    if (vc.currentResolution.value?.url.isNotEmpty == true) {
+      return vc.currentResolution.value!.url;
+    }
+    if (vc.video.hlsUrl.isNotEmpty) {
+      return vc.video.hlsUrl;
+    }
+    if (vc.video.videoUrl.isNotEmpty) {
+      return vc.video.videoUrl;
+    }
+    return vc.video.originalUrl;
   }
 
   // ── Controller sync ──────────────────────────────────────
 
   void sync(VideoPlayerController vpc) {
+    _errorDebounceTimer?.cancel();
     if (videoPlayerController == vpc && _videoPlaybackSource != null) return;
     try {
       videoPlayerController.removeListener(_onVpcUpdate);
@@ -1222,9 +1442,9 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
       _rxValue.value = vpc.value;
       isInitialized.value = vpc.value.isInitialized;
       aspectRatio.value = vpc.value.aspectRatio;
-      isPlaying.value = isShowingAd.value ? false : vpc.value.isPlaying;
-      hasError.value = vpc.value.hasError && !_isTransientDomError;
-      errorDescription.value = vpc.value.errorDescription ?? '';
+      isPlaying.value = !isShowingAd.value && vpc.value.isPlaying;
+      hasError.value = false;
+      errorDescription.value = '';
       if (tag != null && Get.isRegistered<VideoController>(tag: tag)) {
         isAudioOnly.value =
             Get.find<VideoController>(tag: tag).isAudioOnly.value;
@@ -1387,7 +1607,8 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
           !settingsOpen.value &&
           !isDragging.value &&
           !showCommentsPopup.value &&
-          !showTranscriptPopup.value) {
+          !showTranscriptPopup.value &&
+          !showFactCheckPopup.value) {
         controlsVisible.value = false;
       }
     });
@@ -1454,6 +1675,16 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
     }
   }
 
+  void toggleControls() {
+    if (controlsVisible.value) {
+      _timers.cancel('hide');
+      controlsVisible.value = false;
+    } else {
+      controlsVisible.value = true;
+      startHideTimer();
+    }
+  }
+
   /// YouTube behaviour: single tap = toggle controls on Mobile, Play/Pause on Desktop.
   void onTap(bool isDesktop) {
     focusNode.requestFocus();
@@ -1467,13 +1698,7 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
     if (!isTouch && isDesktop) {
       togglePlayPause();
     } else {
-      if (controlsVisible.value) {
-        _timers.cancel('hide');
-        controlsVisible.value = false;
-      } else {
-        controlsVisible.value = true;
-        startHideTimer();
-      }
+      toggleControls();
     }
   }
 
@@ -1803,59 +2028,41 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
       if (playbackMode.value == PlaybackMode.audio || isAudioOnly.value) {
         // ── Audio -> Video atomic handoff ───────────────────────────
         playbackMode.value = PlaybackMode.switchingToVideo;
-        var targetPos = Duration.zero;
 
-        if (kIsWeb && _audioService != null) {
-          targetPos = _audioService!.deactivate();
-        } else {
-          targetPos = videoPlayerController.value.position;
+        if (!videoPlayerController.value.isPlaying) {
+          await videoPlayerController.play();
         }
 
-        if (targetPos > Duration.zero) {
-          await videoPlayerController.seekTo(targetPos);
-        }
-
-        await videoPlayerController.play();
         playbackMode.value = PlaybackMode.video;
         isAudioOnly.value = false;
         TowerPlayerController.globalAudioOnly = false;
+        try {
+          if (Get.isRegistered<VideoController>(tag: tag)) {
+            Get.find<VideoController>(tag: tag).isAudioOnly.value = false;
+          } else if (Get.isRegistered<VideoController>()) {
+            Get.find<VideoController>().isAudioOnly.value = false;
+          }
+        } catch (_) {}
         _trackAnalytics(PlayerEvent('audio_only_off'));
       } else {
         // ── Video -> Audio atomic handoff ───────────────────────────
         playbackMode.value = PlaybackMode.switchingToAudio;
-        final currentPos = videoPlayerController.value.position;
-        final isCurrentlyPlaying = videoPlayerController.value.isPlaying;
 
-        if (kIsWeb) {
-          final targetUrl = videoUrl ?? videoPlayerController.dataSource;
-          var finalTitle = title;
-          var finalArtwork = artworkUrl;
-          try {
-            if (Get.isRegistered<VideoController>(tag: tag)) {
-              final vc = Get.find<VideoController>(tag: tag);
-              finalTitle ??= vc.video.title;
-              finalArtwork ??= vc.video.thumbnailUrl;
-            }
-          } catch (_) {}
-
-          await _audioService?.activateAudioOnly(
-            videoUrl: targetUrl,
-            title: finalTitle ?? 'Streaming Audio',
-            artworkUrl: finalArtwork ?? '',
-            startPosition: currentPos,
-          );
-
-          await videoPlayerController.pause();
-        } else {
-          // Native platforms keep VideoPlayerController active offstage
-          if (isCurrentlyPlaying && !videoPlayerController.value.isPlaying) {
-            await videoPlayerController.play();
-          }
+        // VideoPlayerController continues uninterrupted offstage
+        if (!videoPlayerController.value.isPlaying) {
+          await videoPlayerController.play();
         }
 
         playbackMode.value = PlaybackMode.audio;
         isAudioOnly.value = true;
         TowerPlayerController.globalAudioOnly = true;
+        try {
+          if (Get.isRegistered<VideoController>(tag: tag)) {
+            Get.find<VideoController>(tag: tag).isAudioOnly.value = true;
+          } else if (Get.isRegistered<VideoController>()) {
+            Get.find<VideoController>().isAudioOnly.value = true;
+          }
+        } catch (_) {}
         _trackAnalytics(PlayerEvent('audio_only_on'));
       }
     } catch (e) {
@@ -2098,6 +2305,12 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
     focusNode.requestFocus();
     final nextState = !isFullScreen.value;
     isFullScreen.value = nextState;
+    if (!nextState) {
+      showCommentsPopup.value = false;
+      showTranscriptPopup.value = false;
+      showFactCheckPopup.value = false;
+      showLiveChat.value = false;
+    }
 
     // Sync with videoController if registered
     try {
@@ -2609,6 +2822,8 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
       clickUrl: selectedAd.ctaTarget,
       skippable: selectedAd.isSkippableAd,
       duration: const Duration(seconds: 15),
+      subtitles: selectedAd.subtitles,
+      audioTracks: selectedAd.audioTracks,
     );
 
     currentAd.value = ad;
@@ -2623,6 +2838,7 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
       await apc.initialize();
       apc.addListener(_onAdVpcUpdate);
       await apc.play();
+      _setupAdSubtitlesAndDubbing(ad);
       update();
     } catch (e) {
       debugPrint(
@@ -2673,6 +2889,8 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
       skippable: !isPreRoll, // 5s bumper intro is non-skippable, mid-roll is skippable
       duration: isPreRoll ? const Duration(seconds: 5) : const Duration(seconds: 15),
       isSponsorBumper: isPreRoll,
+      subtitles: sponsorAd.subtitles,
+      audioTracks: sponsorAd.audioTracks,
     );
 
     currentAd.value = ad;
@@ -2687,12 +2905,129 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
       await apc.initialize();
       apc.addListener(_onAdVpcUpdate);
       await apc.play();
+      _setupAdSubtitlesAndDubbing(ad);
       update();
     } catch (e) {
       debugPrint(
         '[TowerPlayer] Sponsor Ad initialization failed: $e. Skipping ad.',
       );
       _finishAd();
+    }
+  }
+
+  void _setupAdSubtitlesAndDubbing(MockAd ad) {
+    currentAdSubtitle.value = '';
+    adSubtitleSegments.clear();
+
+    final subs = ad.subtitles;
+    if (subs != null && subs.isNotEmpty) {
+      String? matchedLang;
+      if (subs.containsKey(activeSubLang.value)) {
+        matchedLang = activeSubLang.value;
+      } else if (subs.containsKey('en')) {
+        matchedLang = 'en';
+      } else if (subs.isNotEmpty) {
+        matchedLang = subs.keys.first;
+      }
+
+      if (matchedLang != null && subs[matchedLang] != null) {
+        activeAdSubtitleLang.value = matchedLang;
+        final rawContent = subs[matchedLang]!;
+        final segs = SubtitleParser.parse(rawContent);
+        adSubtitleSegments.assignAll(segs);
+      }
+    }
+
+    _disposeAdAudioTrack();
+    final dubs = ad.audioTracks;
+    if (dubs != null && dubs.isNotEmpty) {
+      final targetLang = activeAudioLang.value.toLowerCase();
+      String? matchedDubUrl;
+      for (final entry in dubs.entries) {
+        if (entry.key.toLowerCase() == targetLang || targetLang.contains(entry.key.toLowerCase())) {
+          matchedDubUrl = entry.value;
+          activeAdAudioLang.value = entry.key;
+          break;
+        }
+      }
+
+      if (matchedDubUrl != null && matchedDubUrl.isNotEmpty) {
+        _initializeAdAudioDub(matchedDubUrl);
+      } else {
+        activeAdAudioLang.value = 'original';
+      }
+    } else {
+      activeAdAudioLang.value = 'original';
+    }
+  }
+
+  void _initializeAdAudioDub(String url) {
+    try {
+      final apc = adPlayerController;
+      if (apc != null) {
+        apc.setVolume(0);
+      }
+      _adAudioTrackController = VideoPlayerController.networkUrl(Uri.parse(url));
+      _adAudioTrackController!.initialize().then((_) {
+        if (_adAudioTrackController == null || _isFinishingAd) return;
+        _adAudioTrackController!.setVolume(isMuted.value ? 0.0 : volume.value);
+        if (apc != null && apc.value.isPlaying) {
+          _adAudioTrackController!.play();
+        }
+      }).catchError((e) {
+        debugPrint('[TowerPlayer] Ad audio dub init error: $e');
+        apc?.setVolume(isMuted.value ? 0.0 : volume.value);
+      });
+    } catch (e) {
+      debugPrint('[TowerPlayer] Failed to init ad audio track: $e');
+    }
+  }
+
+  void _disposeAdAudioTrack() {
+    if (_adAudioTrackController != null) {
+      try {
+        _adAudioTrackController!.dispose();
+      } catch (_) {}
+      _adAudioTrackController = null;
+    }
+  }
+
+  void setAdSubtitleLanguage(String langCode) {
+    activeAdSubtitleLang.value = langCode;
+    final subs = currentAd.value?.subtitles;
+    if (subs != null && subs.containsKey(langCode)) {
+      final content = subs[langCode]!;
+      final segs = SubtitleParser.parse(content);
+      adSubtitleSegments.assignAll(segs);
+      if (adPlayerController != null) {
+        final pos = adPlayerController!.value.position;
+        final seg = SubtitleParser.findActiveSubtitle(adSubtitleSegments, pos);
+        currentAdSubtitle.value = seg?.text ?? '';
+      }
+    }
+  }
+
+  void toggleAdSubtitles() {
+    isAdSubtitlesEnabled.value = !isAdSubtitlesEnabled.value;
+    if (!isAdSubtitlesEnabled.value) {
+      currentAdSubtitle.value = '';
+    }
+  }
+
+  void setAdAudioLanguage(String langCode) {
+    activeAdAudioLang.value = langCode;
+    _disposeAdAudioTrack();
+    final apc = adPlayerController;
+    if (langCode == 'original' || currentAd.value?.audioTracks == null) {
+      apc?.setVolume(isMuted.value ? 0.0 : volume.value);
+      return;
+    }
+
+    final dubUrl = currentAd.value?.audioTracks?[langCode];
+    if (dubUrl != null && dubUrl.isNotEmpty) {
+      _initializeAdAudioDub(dubUrl);
+    } else {
+      apc?.setVolume(isMuted.value ? 0.0 : volume.value);
     }
   }
 
@@ -2730,6 +3065,28 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
       skipCountdown.value = 0;
     }
 
+    // Sync Ad Subtitle text with current playback timestamp
+    if (isAdSubtitlesEnabled.value && adSubtitleSegments.isNotEmpty) {
+      final seg = SubtitleParser.findActiveSubtitle(adSubtitleSegments, pos);
+      currentAdSubtitle.value = seg?.text ?? '';
+    } else {
+      currentAdSubtitle.value = '';
+    }
+
+    // Sync Ad Dubbed Audio position and playback state
+    if (_adAudioTrackController != null && _adAudioTrackController!.value.isInitialized) {
+      final audioPos = _adAudioTrackController!.value.position;
+      final diff = (audioPos.inMilliseconds - pos.inMilliseconds).abs();
+      if (diff > 350) {
+        _adAudioTrackController!.seekTo(pos);
+      }
+      if (val.isPlaying && !_adAudioTrackController!.value.isPlaying) {
+        _adAudioTrackController!.play();
+      } else if (!val.isPlaying && _adAudioTrackController!.value.isPlaying) {
+        _adAudioTrackController!.pause();
+      }
+    }
+
     if (pos >= effectiveDur && effectiveDur > Duration.zero) {
       _finishAd();
     }
@@ -2744,6 +3101,10 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
   Future<void> _finishAd() async {
     if (_isFinishingAd) return;
     _isFinishingAd = true;
+
+    _disposeAdAudioTrack();
+    currentAdSubtitle.value = '';
+    adSubtitleSegments.clear();
 
     final apc = adPlayerController;
     adPlayerController = null;

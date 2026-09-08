@@ -189,7 +189,7 @@ class _TermsAndConditionsWidgetState extends State<TermsAndConditionsWidget> {
                 children: [
                   const Icon(
                     Icons.description_outlined,
-                    color: AppColors.brand,
+                    color: Colors.white,
                   ),
                   const SizedBox(width: 12),
                   const Text(

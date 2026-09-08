@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -11,15 +12,19 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/config/app_config.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/utils/download_helper.dart';
+import 'package:truthworld/core/utils/storage_utils.dart';
+import 'package:truthworld/core/utils/subtitle_parser.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_media.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
+import 'package:video_player/video_player.dart';
 
 /// Internal Cue Representation for visual preview and editing
 class SubtitleCue {
@@ -77,6 +82,35 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
   final RxBool hasUnsavedChanges = false.obs;
   final RxBool isUploadingFile = false.obs;
 
+  // Video Player Preview & Sync
+  VideoPlayerController? videoPlayerController;
+  final RxBool isVideoPlayerInitialized = false.obs;
+  final RxBool isVideoPlaying = false.obs;
+  final Rx<Duration> currentVideoPosition = Duration.zero.obs;
+  final Rx<Duration> videoDuration = Duration.zero.obs;
+  final RxBool showVideoPreview = false.obs;
+  final RxInt activeCueIndex = (-1).obs;
+
+  // Truthworld AI Generation & Status
+  final RxBool isGeneratingAI = false.obs;
+  final RxInt aiJobProgress = 0.obs;
+  final RxString aiJobStatus = ''.obs;
+  StreamSubscription<DocumentSnapshot>? _aiJobSubscription;
+
+  // Cues Search & Filtering
+  final RxString searchQueryInCues = ''.obs;
+  List<SubtitleCue> get filteredCues {
+    if (searchQueryInCues.value.trim().isEmpty) {
+      return currentCues;
+    }
+    final q = searchQueryInCues.value.toLowerCase().trim();
+    return currentCues.where((c) {
+      return c.text.toLowerCase().contains(q) ||
+          c.startTime.contains(q) ||
+          c.endTime.contains(q);
+    }).toList();
+  }
+
   // Language requests states
   final RxList<LanguageRequest> languageRequests = <LanguageRequest>[].obs;
   final RxBool isLoadingRequests = false.obs;
@@ -95,6 +129,8 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
     _videosSubscription?.cancel();
     _channelVideosSubscription?.cancel();
     _requestsSubscription?.cancel();
+    _aiJobSubscription?.cancel();
+    _disposeVideoPlayer();
     super.onClose();
   }
 
@@ -262,6 +298,7 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
     hasUnsavedChanges.value = false;
     _requestsSubscription?.cancel();
     if (video == null) {
+      _disposeVideoPlayer();
       availableLanguages.clear();
       selectedLanguage.value = '';
       currentCues.clear();
@@ -298,7 +335,6 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
     }
 
     // Add pending translation languages from video.languages (full names → convert to code)
-    // These are requested but not yet generated (no URL in mediaSubtitles yet)
     final langNameToCode = <String, String>{
       'tamil': 'ta',
       'hindi': 'hi',
@@ -321,7 +357,8 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
     };
 
     for (final langName in video.languages) {
-      final code = langNameToCode[langName.toLowerCase()] ?? langName.toLowerCase();
+      final code =
+          langNameToCode[langName.toLowerCase()] ?? langName.toLowerCase();
       if (!orderedLangs.contains(code) && !orderedLangs.contains(langName)) {
         orderedLangs.add(code);
       }
@@ -334,11 +371,164 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
     } else {
       availableLanguages.value = orderedLangs;
       // Select 'en' by default, or the first available
-      final defaultLang = orderedLangs.contains('en') ? 'en' : orderedLangs.first;
+      final defaultLang =
+          orderedLangs.contains('en') ? 'en' : orderedLangs.first;
       selectedLanguage.value = defaultLang;
       _parseCuesForLanguage(defaultLang, subs[defaultLang]);
     }
     selectedVideo.refresh();
+    _initVideoPlayer(video);
+  }
+
+  Future<void> _initVideoPlayer(Video video) async {
+    try {
+      isVideoPlayerInitialized.value = false;
+      _disposeVideoPlayer();
+
+      var playUrl = '';
+
+      // 1. Check adaptiveResolutions on video model for valid processed resolution streams
+      if (video.adaptiveResolutions.isNotEmpty) {
+        final valid = video.adaptiveResolutions.where((r) {
+          final u = r.url.trim().toLowerCase();
+          final l = r.label.toLowerCase();
+          return u.isNotEmpty &&
+              !l.contains('audio') &&
+              !u.contains('/audio') &&
+              !u.endsWith('original.mp4') &&
+              !u.contains('/original/');
+        }).toList();
+
+        if (valid.isNotEmpty) {
+          // Select preferred resolution for studio subtitle player (720p/480p or first available)
+          final preferred = valid.firstWhereOrNull((r) => r.height == 720 || r.label == '720p') ??
+              valid.firstWhereOrNull((r) => r.height == 480 || r.label == '480p') ??
+              valid.first;
+          playUrl = preferred.url;
+        }
+      }
+
+      // 2. Check HLS stream
+      if (playUrl.isEmpty && video.hlsUrl.isNotEmpty && !video.hlsUrl.endsWith('original.mp4')) {
+        playUrl = video.hlsUrl;
+      }
+
+      // 3. Fallback to fetching streaming resolutions via VideoMediaService if model lacks resolutions
+      if (playUrl.isEmpty && video.id.isNotEmpty) {
+        try {
+          final streaming = await VideoMediaService().getStreaming(video.id);
+          if (streaming.adaptiveResolutions.isNotEmpty) {
+            final valid = streaming.adaptiveResolutions.where((r) {
+              final u = r.url.trim().toLowerCase();
+              final l = r.label.toLowerCase();
+              return u.isNotEmpty &&
+                  !l.contains('audio') &&
+                  !u.contains('/audio') &&
+                  !u.endsWith('original.mp4') &&
+                  !u.contains('/original/');
+            }).toList();
+            if (valid.isNotEmpty) {
+              playUrl = valid.first.url;
+            }
+          }
+          if (playUrl.isEmpty && streaming.hlsUrl.isNotEmpty && !streaming.hlsUrl.endsWith('original.mp4')) {
+            playUrl = streaming.hlsUrl;
+          }
+        } catch (e) {
+          logger.warning('Could not fetch streaming data for subtitles preview: $e', tag: _tag);
+        }
+      }
+
+      if (playUrl.isEmpty) {
+        logger.warning('No processed resolution stream found for video: ${video.id}. Raw video playback is disabled.', tag: _tag);
+        isVideoPlayerInitialized.value = false;
+        return;
+      }
+
+      playUrl = await StorageUtils.resolveUrl(playUrl);
+      if (playUrl.isEmpty) return;
+
+      final controller = VideoPlayerController.networkUrl(
+        Uri.parse(playUrl),
+        videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+      );
+      await controller.initialize();
+      videoPlayerController = controller;
+      videoDuration.value = controller.value.duration;
+      isVideoPlayerInitialized.value = true;
+      controller.addListener(_onVideoPlayerUpdate);
+    } catch (e) {
+      logger.error('Error initializing video preview player',
+          error: e, tag: _tag);
+      isVideoPlayerInitialized.value = false;
+    }
+  }
+
+  void _disposeVideoPlayer() {
+    videoPlayerController?.removeListener(_onVideoPlayerUpdate);
+    videoPlayerController?.dispose();
+    videoPlayerController = null;
+    isVideoPlayerInitialized.value = false;
+    isVideoPlaying.value = false;
+    currentVideoPosition.value = Duration.zero;
+    videoDuration.value = Duration.zero;
+    activeCueIndex.value = -1;
+  }
+
+  void _onVideoPlayerUpdate() {
+    if (videoPlayerController == null ||
+        !videoPlayerController!.value.isInitialized) {
+      return;
+    }
+    currentVideoPosition.value = videoPlayerController!.value.position;
+    isVideoPlaying.value = videoPlayerController!.value.isPlaying;
+    _updateActiveCueIndex(videoPlayerController!.value.position);
+  }
+
+  void _updateActiveCueIndex(Duration position) {
+    if (currentCues.isEmpty) {
+      activeCueIndex.value = -1;
+      return;
+    }
+    final posMs = position.inMilliseconds;
+    for (var i = 0; i < currentCues.length; i++) {
+      final cue = currentCues[i];
+      final startMs =
+          SubtitleParser.parseTimeDuration(cue.startTime).inMilliseconds;
+      final endMs =
+          SubtitleParser.parseTimeDuration(cue.endTime).inMilliseconds;
+      if (posMs >= startMs && posMs <= endMs) {
+        if (activeCueIndex.value != i) {
+          activeCueIndex.value = i;
+        }
+        return;
+      }
+    }
+    activeCueIndex.value = -1;
+  }
+
+  Future<void> seekTo(Duration position) async {
+    if (videoPlayerController != null && isVideoPlayerInitialized.value) {
+      await videoPlayerController!.seekTo(position);
+    }
+  }
+
+  Future<void> seekToCue(int index) async {
+    if (index < 0 || index >= currentCues.length) return;
+    final cue = currentCues[index];
+    final dur = SubtitleParser.parseTimeDuration(cue.startTime);
+    await seekTo(dur);
+  }
+
+  Future<void> togglePlayPause() async {
+    if (videoPlayerController == null || !isVideoPlayerInitialized.value) return;
+    if (videoPlayerController!.value.isPlaying) {
+      await videoPlayerController!.pause();
+      isVideoPlaying.value = false;
+    } else {
+      await videoPlayerController!.play();
+      isVideoPlaying.value = true;
+    }
   }
 
   void _listenToLanguageRequests(String videoId) {
@@ -437,81 +627,53 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
       }
     }
 
-    // Process retrieved file buffer (either downloaded payload or embedded file buffer)
-    if (contentToParse.contains('-->')) {
-      final lines = contentToParse.split('\n');
-      final cues = <SubtitleCue>[];
-      SubtitleCue? pendingCue;
-
-      for (final line in lines) {
-        if (line.contains('-->')) {
-          if (pendingCue != null) {
-            cues.add(pendingCue);
-          }
-          final parts = line.split('-->');
-          pendingCue = SubtitleCue(
-            id: UniqueKey().toString(),
-            startTime: parts[0].trim(),
-            endTime: parts.length > 1 ? parts[1].trim() : '00:00:05.000',
-            text: '',
-          );
-        } else if (line.trim().isNotEmpty &&
-            !line.startsWith('WEBVTT') &&
-            pendingCue != null) {
-          pendingCue.text = pendingCue.text.isEmpty
-              ? line.trim()
-              : '${pendingCue.text}\n${line.trim()}';
-        }
-      }
-      if (pendingCue != null) {
-        cues.add(pendingCue);
-      }
-
-      if (cues.isNotEmpty) {
-        currentCues.value = cues;
-        setViewState(ViewState.success);
-        return;
-      }
-    } else {
-      // It's a plain text segment layout or raw strings! Let's generate clean 4-second timestamp window slices dynamically.
-      final lines = contentToParse
-          .split('\n')
-          .where((l) => l.trim().isNotEmpty)
-          .toList();
-      final cues = <SubtitleCue>[];
-      var startSec = 1;
-      for (var i = 0; i < lines.length; i++) {
-        final sStr = "00:00:${startSec.toString().padLeft(2, '0')}.000";
-        final eStr = "00:00:${(startSec + 4).toString().padLeft(2, '0')}.000";
-        cues.add(
-          SubtitleCue(
-            id: UniqueKey().toString(),
-            startTime: sStr,
-            endTime: eStr,
-            text: lines[i].trim(),
-          ),
+    // Parse using comprehensive SubtitleParser (handles JSON, WebVTT tags, SRT, plain text)
+    final segments = SubtitleParser.parse(contentToParse);
+    if (segments.isNotEmpty) {
+      currentCues.value = segments.map((seg) {
+        return SubtitleCue(
+          id: UniqueKey().toString(),
+          startTime: formatDurationToTimecode(seg.start),
+          endTime: formatDurationToTimecode(seg.end),
+          text: seg.text,
         );
-        startSec += 5;
-      }
-      if (cues.isNotEmpty) {
-        currentCues.value = cues;
-        setViewState(ViewState.success);
-        return;
-      }
+      }).toList();
+      setViewState(ViewState.success);
+      return;
     }
 
     currentCues.clear();
     setViewState(ViewState.success);
   }
 
-  void addLanguageTrack(String langCode) {
+  static String formatDurationToTimecode(Duration duration) {
+    final h = duration.inHours.toString().padLeft(2, '0');
+    final m = (duration.inMinutes % 60).toString().padLeft(2, '0');
+    final s = (duration.inSeconds % 60).toString().padLeft(2, '0');
+    final ms = (duration.inMilliseconds % 1000).toString().padLeft(3, '0');
+    return '$h:$m:$s.$ms';
+  }
+
+  void addLanguageTrack(String langCode, {bool copyCuesFromCurrent = false}) {
     if (availableLanguages.contains(langCode)) {
       switchLanguage(langCode);
       return;
     }
     availableLanguages.add(langCode);
     selectedLanguage.value = langCode;
-    currentCues.clear();
+    if (copyCuesFromCurrent && currentCues.isNotEmpty) {
+      currentCues.value = currentCues
+          .map((c) => SubtitleCue(
+                id: UniqueKey().toString(),
+                startTime: c.startTime,
+                endTime: c.endTime,
+                text: c.text,
+              ))
+          .toList();
+      hasUnsavedChanges.value = true;
+    } else {
+      currentCues.clear();
+    }
     showSuccess('Added new track for ${getLanguageName(langCode)}');
   }
 
@@ -535,11 +697,364 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
         endTime: _shiftTimeString(
           lastEndTime,
           4000,
-        ), // automatically calculate realistic consecutive gap
+        ),
         text: 'New Subtitle Segment',
       ),
     );
     hasUnsavedChanges.value = true;
+  }
+
+  void addCueAtCurrentTime() {
+    final curPos = currentVideoPosition.value;
+    final startStr = formatDurationToTimecode(curPos);
+    final endStr = formatDurationToTimecode(curPos + const Duration(seconds: 4));
+    currentCues.add(
+      SubtitleCue(
+        id: UniqueKey().toString(),
+        startTime: startStr,
+        endTime: endStr,
+        text: 'New Subtitle Segment',
+      ),
+    );
+    sortCuesChronologically();
+    hasUnsavedChanges.value = true;
+  }
+
+  void setStartToCurrentTime(int index) {
+    if (index < 0 || index >= currentCues.length) return;
+    currentCues[index].startTime =
+        formatDurationToTimecode(currentVideoPosition.value);
+    hasUnsavedChanges.value = true;
+    currentCues.refresh();
+  }
+
+  void setEndToCurrentTime(int index) {
+    if (index < 0 || index >= currentCues.length) return;
+    currentCues[index].endTime =
+        formatDurationToTimecode(currentVideoPosition.value);
+    hasUnsavedChanges.value = true;
+    currentCues.refresh();
+  }
+
+  void duplicateCue(int index) {
+    if (index < 0 || index >= currentCues.length) return;
+    final original = currentCues[index];
+    final shiftedStart = _shiftTimeString(original.endTime, 100);
+    final shiftedEnd = _shiftTimeString(shiftedStart, 3000);
+    currentCues.insert(
+      index + 1,
+      SubtitleCue(
+        id: UniqueKey().toString(),
+        startTime: shiftedStart,
+        endTime: shiftedEnd,
+        text: original.text,
+      ),
+    );
+    hasUnsavedChanges.value = true;
+  }
+
+  void clearAllCues() {
+    currentCues.clear();
+    hasUnsavedChanges.value = true;
+    showSuccess(
+        'Cleared all cues in ${getLanguageName(selectedLanguage.value)} track');
+  }
+
+  void sortCuesChronologically() {
+    currentCues.sort((a, b) {
+      final aMs = SubtitleParser.parseTimeDuration(a.startTime).inMilliseconds;
+      final bMs = SubtitleParser.parseTimeDuration(b.startTime).inMilliseconds;
+      return aMs.compareTo(bMs);
+    });
+    currentCues.refresh();
+  }
+
+  void shiftAllCues(int offsetMs) {
+    if (currentCues.isEmpty) return;
+    for (var i = 0; i < currentCues.length; i++) {
+      final cue = currentCues[i];
+      cue.startTime = _shiftTimeString(cue.startTime, offsetMs);
+      cue.endTime = _shiftTimeString(cue.endTime, offsetMs);
+    }
+    hasUnsavedChanges.value = true;
+    currentCues.refresh();
+    showSuccess(
+      'Shifted all cues by ${offsetMs >= 0 ? "+$offsetMs" : "$offsetMs"}ms',
+    );
+  }
+
+  int replaceTextInCues(String findText, String replaceWith) {
+    if (findText.isEmpty) return 0;
+    var count = 0;
+    for (var i = 0; i < currentCues.length; i++) {
+      if (currentCues[i].text.contains(findText)) {
+        currentCues[i].text =
+            currentCues[i].text.replaceAll(findText, replaceWith);
+        count++;
+      }
+    }
+    if (count > 0) {
+      hasUnsavedChanges.value = true;
+      currentCues.refresh();
+      showSuccess('Replaced $count occurrences of "$findText"');
+    } else {
+      showError('No occurrences found for "$findText"');
+    }
+    return count;
+  }
+
+  Future<void> deleteLanguageTrack(String langCode) async {
+    final video = selectedVideo.value;
+    if (video == null) return;
+    try {
+      final updatedSubs = Map<String, String>.from(video.mediaSubtitles);
+      updatedSubs.remove(langCode);
+      availableLanguages.remove(langCode);
+
+      // Save to media/localization subcollection
+      await _firestore
+          .collection(FirestoreCollections.videos)
+          .doc(video.id)
+          .collection('media')
+          .doc('localization')
+          .set({
+            'subtitles': updatedSubs,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+
+      // Update root subtitles field
+      await _firestore
+          .collection(FirestoreCollections.videos)
+          .doc(video.id)
+          .update({
+            'subtitles': updatedSubs,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+
+      // Update cache
+      VideoMediaService.localizationCache[video.id] = VideoMediaLocalization(
+        subtitles: updatedSubs,
+        dubbedVideos: video.dubbedVideos,
+        audioTracks: video.audioTracks,
+      );
+
+      if (selectedLanguage.value == langCode) {
+        if (availableLanguages.isNotEmpty) {
+          switchLanguage(availableLanguages.first);
+        } else {
+          selectedLanguage.value = '';
+          currentCues.clear();
+        }
+      }
+      selectedVideo.refresh();
+      showSuccess('Removed ${getLanguageName(langCode)} track');
+    } catch (e) {
+      showError('Failed to remove track: $e');
+    }
+  }
+
+  Future<void> triggerSubtitlesGeneration({
+    required List<String> targetLanguages,
+    String priorityMode = 'accuracy',
+  }) async {
+    final video = selectedVideo.value;
+    if (video == null) {
+      showError('No video selected.');
+      return;
+    }
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      showError('You must be signed in to generate subtitles.');
+      return;
+    }
+
+    isGeneratingAI.value = true;
+    aiJobProgress.value = 10;
+    aiJobStatus.value = 'Initiating Truthworld AI subtitle generation...';
+
+    try {
+      final token = await currentUser.getIdToken();
+      final url = Uri.parse(
+        '${AppConfig.cloudFunctionsBaseUrl}/triggerVideoAIFeatures',
+      );
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'videoId': video.id,
+          'features': ['subtitles'],
+          'targetLanguages': targetLanguages,
+          'priorityMode': priorityMode,
+          'autoChapters': false,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        showSuccess(
+          'Truthworld AI has started generating subtitles for ${targetLanguages.join(", ").toUpperCase()}!',
+        );
+        _listenToAIJob(video.id, targetLanguages);
+      } else {
+        // Fallback: update Firestore document directly
+        await _firestore.collection('video_jobs').doc(video.id).set({
+          'jobId': video.id,
+          'videoId': video.id,
+          'userId': currentUser.uid,
+          'channelId':
+              channelId.value.isNotEmpty ? channelId.value : currentUser.uid,
+          'videoUrl': video.videoUrl,
+          'fileName': video.title,
+          'status': 'processing',
+          'updatedAt': DateTime.now().millisecondsSinceEpoch,
+          'executionPlan': {
+            'jobId': video.id,
+            'languages': targetLanguages,
+            'generateSubtitles': true,
+            'genLangSubs': true,
+            'enablePath2': true,
+            'priorityMode': priorityMode,
+          },
+          'stages': {
+            'onDemandAI': {
+              'status': 'running',
+              'progress': 15,
+              'requestedFeatures': ['subtitles'],
+              'requestedLanguages': targetLanguages,
+              'startedAt': DateTime.now().millisecondsSinceEpoch,
+            },
+          },
+        }, SetOptions(merge: true));
+
+        showSuccess(
+          'AI subtitle job queued for ${targetLanguages.join(", ").toUpperCase()}!',
+        );
+        _listenToAIJob(video.id, targetLanguages);
+      }
+    } catch (e) {
+      logger.error('Error triggering AI subtitles', error: e, tag: _tag);
+      showError('Failed to start AI generation: $e');
+      isGeneratingAI.value = false;
+    }
+  }
+
+  void _listenToAIJob(String videoId, List<String> targetLanguages) {
+    _aiJobSubscription?.cancel();
+    _aiJobSubscription = _firestore
+        .collection('video_jobs')
+        .doc(videoId)
+        .snapshots()
+        .listen((snapshot) {
+      if (!snapshot.exists || snapshot.data() == null) return;
+      final data = snapshot.data()!;
+      final stages = (data['stages'] as Map<String, dynamic>?) ?? {};
+      final onDemand = stages['onDemandAI'] as Map<String, dynamic>?;
+
+      if (onDemand != null) {
+        final status = (onDemand['status'] as String?)?.toLowerCase();
+        final progress = (onDemand['progress'] as num?)?.toInt() ?? 25;
+        aiJobProgress.value = progress;
+
+        if (status == 'running') {
+          isGeneratingAI.value = true;
+          aiJobStatus.value = 'Generating subtitles ($progress%)...';
+        } else if (status == 'completed') {
+          isGeneratingAI.value = false;
+          aiJobProgress.value = 100;
+          aiJobStatus.value = 'Subtitles generated successfully!';
+          showSuccess(
+            'Subtitles ready for ${targetLanguages.join(", ").toUpperCase()}!',
+          );
+          _aiJobSubscription?.cancel();
+          _refreshSelectedVideoLocalization();
+        } else if (status == 'failed') {
+          isGeneratingAI.value = false;
+          aiJobStatus.value = 'AI generation encountered an issue.';
+          _aiJobSubscription?.cancel();
+        }
+      } else {
+        final transcription = stages['transcription'] as Map<String, dynamic>?;
+        if (transcription?['status'] == 'completed') {
+          aiJobProgress.value = 60;
+          aiJobStatus.value = 'Transcribing complete. Aligning subtitles...';
+        }
+      }
+    });
+  }
+
+  Future<void> _refreshSelectedVideoLocalization() async {
+    final video = selectedVideo.value;
+    if (video == null) return;
+    final doc = await _firestore
+        .collection(FirestoreCollections.videos)
+        .doc(video.id)
+        .get();
+    if (doc.exists) {
+      final updatedVideo = Video.fromDocumentSnapshot(doc);
+      selectedVideo.value = updatedVideo;
+      await selectVideo(updatedVideo);
+    }
+  }
+
+  Future<void> importSubtitleFile({
+    bool replaceCurrentTrack = true,
+    String? asNewLanguageCode,
+  }) async {
+    try {
+      final result = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['vtt', 'srt', 'txt', 'json'],
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty) return;
+      final file = result.files.first;
+      String content;
+      if (kIsWeb || file.bytes != null) {
+        content = utf8.decode(file.bytes!);
+      } else if (file.path != null) {
+        content = await File(file.path!).readAsString();
+      } else {
+        showError('Unable to read subtitle file content.');
+        return;
+      }
+
+      final segments = SubtitleParser.parse(content);
+      if (segments.isEmpty) {
+        showError('No valid subtitle cues found in selected file.');
+        return;
+      }
+
+      final newCues = segments.map((seg) {
+        return SubtitleCue(
+          id: UniqueKey().toString(),
+          startTime: formatDurationToTimecode(seg.start),
+          endTime: formatDurationToTimecode(seg.end),
+          text: seg.text,
+        );
+      }).toList();
+
+      if (asNewLanguageCode != null && asNewLanguageCode.isNotEmpty) {
+        if (!availableLanguages.contains(asNewLanguageCode)) {
+          availableLanguages.add(asNewLanguageCode);
+        }
+        selectedLanguage.value = asNewLanguageCode;
+        currentCues.value = newCues;
+      } else if (replaceCurrentTrack) {
+        currentCues.value = newCues;
+      } else {
+        currentCues.addAll(newCues);
+        sortCuesChronologically();
+      }
+
+      hasUnsavedChanges.value = true;
+      showSuccess('Successfully imported ${newCues.length} subtitle cues!');
+    } catch (e) {
+      logger.error('Error importing subtitle file', error: e, tag: _tag);
+      showError('Failed to parse subtitle file: $e');
+    }
   }
 
   void deleteCue(int index) {
@@ -667,11 +1182,13 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
                 .refFromURL(rawSub)
                 .getDownloadURL();
           } catch (e) {
-            logger.error('Failed resolving gs:// subtitle URL', error: e, tag: _tag);
+            logger.error('Failed resolving gs:// subtitle URL',
+                error: e, tag: _tag);
           }
         }
         DownloadHelper.downloadFromUrl(downloadUrl, fileName);
-        showSuccess('Downloading SRT file for ${getLanguageName(targetLang)}...');
+        showSuccess(
+            'Downloading SRT file for ${getLanguageName(targetLang)}...');
       } else {
         final srtContent = _convertTextToSrt(rawSub);
         DownloadHelper.downloadText(
@@ -715,6 +1232,113 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
       mimeType: 'text/vtt',
     );
     showSuccess('Downloaded WebVTT subtitles: $fileName');
+  }
+
+  void downloadTxtTranscript({String? langCode}) {
+    final targetLang = langCode ?? selectedLanguage.value;
+    if (targetLang.isEmpty || currentCues.isEmpty) {
+      showError('No subtitle segments available to download.');
+      return;
+    }
+    final video = selectedVideo.value;
+    final titleRaw = video?.title ?? 'subtitles';
+    final videoTitle = titleRaw
+        .replaceAll(RegExp(r'[^\w\s\-]'), '')
+        .trim()
+        .replaceAll(' ', '_');
+    final fileName = '${videoTitle}_$targetLang.txt';
+
+    final buffer = StringBuffer();
+    for (final cue in currentCues) {
+      if (cue.text.trim().isNotEmpty) {
+        buffer.writeln(cue.text.trim());
+      }
+    }
+
+    DownloadHelper.downloadText(
+      buffer.toString(),
+      fileName,
+    );
+    showSuccess('Downloaded text transcript: $fileName');
+  }
+
+  void downloadJsonTrack({String? langCode}) {
+    final targetLang = langCode ?? selectedLanguage.value;
+    if (targetLang.isEmpty || currentCues.isEmpty) {
+      showError('No subtitle segments available to download.');
+      return;
+    }
+    final video = selectedVideo.value;
+    final titleRaw = video?.title ?? 'subtitles';
+    final videoTitle = titleRaw
+        .replaceAll(RegExp(r'[^\w\s\-]'), '')
+        .trim()
+        .replaceAll(' ', '_');
+    final fileName = '${videoTitle}_$targetLang.json';
+
+    final jsonList = currentCues
+        .map((c) => {
+              'start': c.startTime,
+              'end': c.endTime,
+              'text': c.text,
+            })
+        .toList();
+
+    DownloadHelper.downloadText(
+      const JsonEncoder.withIndent('  ').convert(jsonList),
+      fileName,
+      mimeType: 'application/json',
+    );
+    showSuccess('Downloaded JSON subtitles: $fileName');
+  }
+
+  void toggleVideoPreview() {
+    showVideoPreview.toggle();
+  }
+
+  void setCueSearchQuery(String query) {
+    searchQueryInCues.value = query;
+  }
+
+  void copyToClipboard([String format = 'txt']) {
+    if (currentCues.isEmpty) {
+      showError('No subtitle segments available.');
+      return;
+    }
+    String content;
+    if (format == 'srt') {
+      content = _compileSrtContent(currentCues);
+    } else if (format == 'txt') {
+      content = currentCues
+          .map((c) => c.text.trim())
+          .where((t) => t.isNotEmpty)
+          .join('\n');
+    } else {
+      final buffer = StringBuffer();
+      buffer.writeln('WEBVTT\n');
+      for (final cue in currentCues) {
+        buffer.writeln('${cue.startTime} --> ${cue.endTime}');
+        buffer.writeln(cue.text);
+        buffer.writeln();
+      }
+      content = buffer.toString();
+    }
+    Clipboard.setData(ClipboardData(text: content));
+    showSuccess('Copied ${format.toUpperCase()} to clipboard!');
+  }
+
+  Future<void> downloadAllTracks() async {
+    final video = selectedVideo.value;
+    if (video == null || availableLanguages.isEmpty) {
+      showError('No subtitle tracks available.');
+      return;
+    }
+    for (final lang in availableLanguages) {
+      await downloadSrtTrack(langCode: lang);
+    }
+    showSuccess(
+      'Downloaded all (${availableLanguages.length}) subtitle tracks as SRT!',
+    );
   }
 
   String _compileSrtContent(List<SubtitleCue> cues) {
@@ -812,9 +1436,15 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
         final storagePath = 'subtitles/$jobId/$lang.vtt';
         final storageRef = FirebaseStorage.instance.ref().child(storagePath);
         final vttBytes = vttContent.codeUnits;
+        final currentUid = FirebaseAuth.instance.currentUser?.uid;
         await storageRef.putData(
           Uint8List.fromList(vttBytes),
-          SettableMetadata(contentType: 'text/vtt'),
+          SettableMetadata(
+            contentType: 'text/vtt',
+            customMetadata: {
+              'uploaderId': ?currentUid,
+            },
+          ),
         );
 
         // Get a gs:// URL (consistent with how pipeline saves subtitles)
@@ -918,7 +1548,13 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
           'videos/${video.id}/subtitles/${sanitizedTitle}_${DateTime.now().millisecondsSinceEpoch}.$extension';
       final storageRef = FirebaseStorage.instance.ref().child(storagePath);
 
-      final metadata = SettableMetadata(contentType: 'text/vtt');
+      final currentUid = FirebaseAuth.instance.currentUser?.uid;
+      final metadata = SettableMetadata(
+        contentType: 'text/vtt',
+        customMetadata: {
+          'uploaderId': ?currentUid,
+        },
+      );
 
       // Use putData for both platforms using read bytes
       final uploadTask = storageRef.putData(fileBytes, metadata);

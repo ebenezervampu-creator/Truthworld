@@ -866,7 +866,7 @@ class _CopyrightScreenState extends State<CopyrightScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+            const Icon(Icons.error_outline, size: 48, color: Colors.white),
             const SizedBox(height: 16),
             Text(
               'Failed to load copyright data',

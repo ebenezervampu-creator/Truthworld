@@ -183,6 +183,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
   @override
   void onClose() {
     unawaited(_videosSubscription?.cancel());
+    unawaited(_channelVideosSubscription?.cancel());
     unawaited(_requestsSubscription?.cancel());
     super.onClose();
   }
@@ -677,9 +678,11 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
         'videos/${video.id}/tracks/$fileName',
       );
 
+      final currentUid = FirebaseAuth.instance.currentUser?.uid;
       final metadata = SettableMetadata(
         contentType: type == 'Audio' ? 'audio/$extension' : 'video/$extension',
         customMetadata: {
+          'uploaderId': ?currentUid,
           'title': title,
           'langCode': langCode,
           'type': type,
@@ -815,6 +818,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
     final total = items.length;
 
     try {
+      final currentUid = FirebaseAuth.instance.currentUser?.uid;
       final cachedLoc = VideoMediaService.localizationCache[video.id];
       final updatedCommentaryMap = Map<String, Map<String, String>>.from(
         cachedLoc?.commentaryVideos ?? {},
@@ -850,6 +854,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
         final metadata = SettableMetadata(
           contentType: item.type == 'Audio' ? 'audio/$ext' : 'video/$ext',
           customMetadata: {
+            'uploaderId': ?currentUid,
             'title': item.title,
             'role': item.role,
             'langCode': item.langCode,
@@ -1027,9 +1032,15 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
         'videos/${video.id}/tracks/$fileName',
       );
 
+      final currentUid = FirebaseAuth.instance.currentUser?.uid;
       final uploadTask = storageRef.putData(
         fileBytes,
-        SettableMetadata(contentType: 'audio/$ext'),
+        SettableMetadata(
+          contentType: 'audio/$ext',
+          customMetadata: {
+            'uploaderId': ?currentUid,
+          },
+        ),
       );
 
       uploadTask.snapshotEvents.listen((snapshot) {

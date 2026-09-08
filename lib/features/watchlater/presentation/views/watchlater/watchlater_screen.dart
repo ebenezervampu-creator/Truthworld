@@ -5,6 +5,7 @@ import 'package:truthworld/components/ui/video_options_sheet.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
+import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/watchlater/presentation/controllers/watchlater_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -440,7 +441,7 @@ class _WatchLaterListCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: () {
-        Get.toNamed('/watch?v=${video.id}', arguments: {'video': video});
+        MiniplayerNavigationHelper.navigateToVideoScreen(video: video);
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

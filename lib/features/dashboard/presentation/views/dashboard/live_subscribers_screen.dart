@@ -5,16 +5,24 @@ import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashb
 import 'package:truthworld/theme/app_colors.dart';
 
 class LiveSubscribersScreen extends StatelessWidget {
-  const LiveSubscribersScreen({required this.isDarkMode, super.key});
+  const LiveSubscribersScreen({
+    required this.isDarkMode,
+    this.channelId,
+    super.key,
+  });
   final bool isDarkMode;
+  final String? channelId;
 
   @override
   Widget build(BuildContext context) {
-    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final effectiveId = (channelId != null && channelId!.isNotEmpty)
+        ? channelId!
+        : (FirebaseAuth.instance.currentUser?.uid ?? '');
+
     final controller = Get.isRegistered<DashboardController>()
         ? Get.find<DashboardController>()
-        : (uid.isNotEmpty
-              ? Get.put(DashboardController(channelId: uid))
+        : (effectiveId.isNotEmpty
+              ? Get.put(DashboardController(channelId: effectiveId))
               : null);
 
     return Scaffold(
@@ -68,7 +76,7 @@ class LiveSubscribersScreen extends StatelessWidget {
                         ),
                         SizedBox(width: 8),
                         Text(
-                          'LIVE COUNT',
+                          'UPDATING LIVE',
                           style: TextStyle(
                             color: AppColors.brand,
                             fontWeight: FontWeight.bold,
@@ -82,18 +90,25 @@ class LiveSubscribersScreen extends StatelessWidget {
                   const SizedBox(height: 48),
                   Obx(() {
                     final rawSubs =
-                        controller.channelStats['rawSubscribers'] ??
+                        controller.channelStats['rawSubscribers'] as int? ??
                         controller.currentChannel.value?.subscriberCount ??
                         0;
-                    return Text(
-                      '$rawSubs',
-                      style: const TextStyle(
-                        fontSize: 110,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                        height: 1,
-                        letterSpacing: -2,
-                      ),
+                    return TweenAnimationBuilder<int>(
+                      tween: IntTween(begin: 0, end: rawSubs),
+                      duration: const Duration(milliseconds: 800),
+                      curve: Curves.easeOutCubic,
+                      builder: (context, value, child) {
+                        return Text(
+                          '$value',
+                          style: const TextStyle(
+                            fontSize: 110,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                            height: 1,
+                            letterSpacing: -2,
+                          ),
+                        );
+                      },
                     );
                   }),
                   const SizedBox(height: 16),

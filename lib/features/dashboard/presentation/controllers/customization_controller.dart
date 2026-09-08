@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -327,9 +328,13 @@ class CustomizationController extends BaseController with ContentValidationMixin
   Future<String?> _uploadImage(Uint8List bytes, String path) async {
     try {
       final ref = _storage.ref().child(path);
+      final currentUid = FirebaseAuth.instance.currentUser?.uid;
       final metadata = SettableMetadata(
         contentType: 'image/jpeg',
-        customMetadata: {'uploaded': DateTime.now().toString()},
+        customMetadata: {
+          'uploaderId': ?currentUid,
+          'uploaded': DateTime.now().toString(),
+        },
       );
       await ref.putData(bytes, metadata);
       return await ref.getDownloadURL();

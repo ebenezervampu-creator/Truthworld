@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/features/video/presentation/controllers/adaptive_birate_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/adaptive_bitrate_controller.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -85,7 +85,7 @@ void main() {
 
       // A 10 Mbps connection (10000 kbps) with 80% safety factor (8000 kbps)
       // easily satisfies 1080p (5400 kbps <= 8000 kbps)
-      final effectiveBw = 10000 * 0.8;
+      const effectiveBw = 10000 * 0.8;
       var bestTierIndex = 0;
       for (var i = ladder.length - 1; i >= 0; i--) {
         if (effectiveBw >= ladder[i].minBandwidth) {

@@ -63,9 +63,12 @@ class UserAvatar extends StatelessWidget {
       }
     } catch (_) {}
 
-    final initial = effectiveDisplayName?.isNotEmpty ?? false
-        ? effectiveDisplayName![0].toUpperCase()
-        : 'U';
+    final initial = (effectiveDisplayName != null &&
+            effectiveDisplayName.isNotEmpty &&
+            effectiveDisplayName != 'User' &&
+            effectiveDisplayName != 'Anonymous User')
+        ? effectiveDisplayName[0].toUpperCase()
+        : '';
 
     return Container(
       width: radius * 2,
@@ -112,14 +115,23 @@ class UserAvatar extends StatelessWidget {
   }
 
   Widget _buildPlaceholder(String initial, Color textColor, double fontSize) {
-    return Center(
-      child: Text(
-        initial,
-        style: TextStyle(
-          color: textColor,
-          fontWeight: FontWeight.bold,
-          fontSize: fontSize,
+    if (initial.isNotEmpty) {
+      return Center(
+        child: Text(
+          initial,
+          style: TextStyle(
+            color: textColor,
+            fontWeight: FontWeight.bold,
+            fontSize: fontSize,
+          ),
         ),
+      );
+    }
+    return Center(
+      child: Icon(
+        Icons.person_rounded,
+        size: fontSize * 1.3,
+        color: Colors.white,
       ),
     );
   }

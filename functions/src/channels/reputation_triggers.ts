@@ -1,5 +1,4 @@
 import * as admin from "firebase-admin";
-import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { logger } from "firebase-functions/v2";
 
 const db = admin.firestore();
@@ -96,22 +95,3 @@ export async function updateChannelReputationAndVideos(jobId: string, trustScore
   }
 }
 
-/**
- * 📊 TRIGGER: ON FACT CHECK COMPLETED (Legacy Firestore listener fallback)
- */
-export const onFactCheckCompleted = onDocumentCreated(
-  {
-    document: "factChecks/{jobId}",
-    region: "asia-south1",
-    maxInstances: 2,
-  },
-  async (event) => {
-    const data = event.data?.data();
-    if (!data || data.status === "failed") return;
-
-    const jobId = event.params.jobId;
-    const trustScore = data.trustScore ?? data.trustIndex ?? 0;
-
-    await updateChannelReputationAndVideos(jobId, trustScore);
-  }
-);

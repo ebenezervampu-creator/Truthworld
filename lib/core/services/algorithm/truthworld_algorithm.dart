@@ -475,9 +475,12 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
 
   /// Score and rank topics for explore
   List<Topic> rankTopics(List<Topic> topicsList) {
-    if (_profile == null || topicsList.isEmpty) return topicsList;
+    final validTopics = topicsList
+        .where((t) => t.isValidTopic && t.videoCount > 0)
+        .toList();
+    if (_profile == null || validTopics.isEmpty) return validTopics;
 
-    final scored = topicsList.map((t) {
+    final scored = validTopics.map((t) {
       var score =
           (t.followerCount * 0.4) +
           (t.videoCount * 0.2) +

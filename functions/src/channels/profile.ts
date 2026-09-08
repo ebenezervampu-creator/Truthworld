@@ -96,6 +96,12 @@ export const getPublicChannelProfile = onRequest(
       }
 
       const data = channelSnap.data() as ChannelV2;
+      const status = (data as any).status;
+
+      if (status === "suspended" || status === "banned" || status === "deleted") {
+        res.status(403).json({ error: "This channel has been suspended or is unavailable." });
+        return;
+      }
 
       // 3. Strip private fields & prepare public response
       const publicProfile = {
@@ -131,7 +137,11 @@ export const getPublicChannelProfile = onRequest(
 export const migrateChannelsToV2 = onCall(
   { region: "asia-south1", memory: "512MiB" },
   async (request) => {
-    // TODO: Add strict admin check
+    const callerUid = request.auth?.uid;
+    const isAdmin = request.auth?.token?.admin === true;
+    if (!callerUid || !isAdmin) {
+      throw new HttpsError("permission-denied", "Only platform administrators can perform batch migrations.");
+    }
     const isDryRun = request.data?.dryRun !== false;
 
     const snap = await db().collection("channels").get();

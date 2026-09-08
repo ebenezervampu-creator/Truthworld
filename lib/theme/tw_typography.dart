@@ -21,6 +21,7 @@ class TWTypography extends ThemeExtension<TWTypography> {
     return TWTypography(
       logo: TextStyle(
         fontFamily: brandFamily,
+        fontFamilyFallback: fallbackFamilies,
         fontSize: 24,
         fontWeight: FontWeight.bold,
         color: textColor,
@@ -28,6 +29,7 @@ class TWTypography extends ThemeExtension<TWTypography> {
       ),
       hero: TextStyle(
         fontFamily: brandFamily,
+        fontFamilyFallback: fallbackFamilies,
         fontSize: 36,
         fontWeight: FontWeight.bold,
         color: textColor,
@@ -35,54 +37,63 @@ class TWTypography extends ThemeExtension<TWTypography> {
       ),
       display: TextStyle(
         fontFamily: brandFamily,
+        fontFamilyFallback: fallbackFamilies,
         fontSize: 28,
         fontWeight: FontWeight.bold,
         color: textColor,
       ),
       headline: TextStyle(
         fontFamily: uiFamily,
+        fontFamilyFallback: fallbackFamilies,
         fontSize: 20,
         fontWeight: FontWeight.bold,
         color: textColor,
       ),
       title: TextStyle(
         fontFamily: uiFamily,
+        fontFamilyFallback: fallbackFamilies,
         fontSize: 16,
         fontWeight: FontWeight.w600,
         color: textColor,
       ),
       body: TextStyle(
         fontFamily: uiFamily,
+        fontFamilyFallback: fallbackFamilies,
         fontSize: 14,
         fontWeight: FontWeight.normal,
         color: textColor,
       ),
       bodySmall: TextStyle(
         fontFamily: uiFamily,
+        fontFamilyFallback: fallbackFamilies,
         fontSize: 12,
         fontWeight: FontWeight.normal,
         color: textColor.withValues(alpha: 0.7),
       ),
       label: TextStyle(
         fontFamily: uiFamily,
+        fontFamilyFallback: fallbackFamilies,
         fontSize: 12,
         fontWeight: FontWeight.w500,
         color: textColor,
       ),
       caption: TextStyle(
         fontFamily: uiFamily,
+        fontFamilyFallback: fallbackFamilies,
         fontSize: 11,
         fontWeight: FontWeight.normal,
         color: textColor.withValues(alpha: 0.54),
       ),
       button: TextStyle(
         fontFamily: uiFamily,
+        fontFamilyFallback: fallbackFamilies,
         fontSize: 14,
         fontWeight: FontWeight.w500,
         color: textColor,
       ),
       overline: TextStyle(
         fontFamily: uiFamily,
+        fontFamilyFallback: fallbackFamilies,
         fontSize: 10,
         fontWeight: FontWeight.w500,
         color: textColor.withValues(alpha: 0.6),
@@ -92,6 +103,12 @@ class TWTypography extends ThemeExtension<TWTypography> {
   }
   static const String brandFamily = 'TruthWorld Sans';
   static const String uiFamily = 'Roboto';
+  static const List<String> fallbackFamilies = [
+    'Noto Sans',
+    'Roboto',
+    'TruthWorld Sans',
+    'sans-serif',
+  ];
 
   final TextStyle logo;
   final TextStyle hero;

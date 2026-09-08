@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
+import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:truthworld/features/video/presentation/views/player/panels/player_settings_panels.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -264,12 +265,12 @@ class AdOverlay extends StatelessWidget {
                 ),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [AppColors.warning, AppColors.warning],
+                    colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
                   ),
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.bgPage.withValues(alpha: 0.3),
+                      color: Colors.black.withValues(alpha: 0.3),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -280,14 +281,14 @@ class AdOverlay extends StatelessWidget {
                   children: [
                     Icon(
                       Icons.workspace_premium_rounded,
-                      color: AppColors.bgPage,
+                      color: Colors.white,
                       size: 16,
                     ),
                     SizedBox(width: 6),
                     Text(
-                      'Try Show Premium',
+                      'Try Truthworld Premium',
                       style: TextStyle(
-                        color: AppColors.bgPage,
+                        color: Colors.white,
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
                       ),
@@ -297,8 +298,179 @@ class AdOverlay extends StatelessWidget {
               ),
             ),
           ),
+          // ── Active Ad Subtitles Text Overlay ───────────────────────
+          if (ctrl.isAdSubtitlesEnabled.value &&
+              ctrl.currentAdSubtitle.value.isNotEmpty)
+            Positioned(
+              left: 32,
+              right: 32,
+              bottom: 84,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.8),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                  ),
+                  child: Text(
+                    ctrl.currentAdSubtitle.value,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      shadows: [
+                        Shadow(blurRadius: 3, offset: Offset(1, 1)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+          // ── Ad AI Tools (Subtitles & Dubbing Controls - Top Left) ───
+          Positioned(
+            left: 16,
+            top: 16,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (ad.subtitles != null && ad.subtitles!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: _buildAdSubtitlesButton(context, ad),
+                  ),
+                if (ad.audioTracks != null && ad.audioTracks!.isNotEmpty)
+                  _buildAdDubbingButton(context, ad),
+              ],
+            ),
+          ),
         ],
       );
     });
+  }
+
+  Widget _buildAdSubtitlesButton(BuildContext context, MockAd ad) {
+    final subs = ad.subtitles ?? {};
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.bgPage.withValues(alpha: 0.8),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.bgDivider),
+      ),
+      child: PopupMenuButton<String>(
+        tooltip: 'Ad Subtitles',
+        color: const Color(0xFF1E1E1E),
+        icon: Icon(
+          ctrl.isAdSubtitlesEnabled.value
+              ? Icons.closed_caption_rounded
+              : Icons.closed_caption_disabled_rounded,
+          color: Colors.white,
+          size: 18,
+        ),
+        onSelected: (lang) {
+          if (lang == 'toggle') {
+            ctrl.toggleAdSubtitles();
+          } else {
+            ctrl.isAdSubtitlesEnabled.value = true;
+            ctrl.setAdSubtitleLanguage(lang);
+          }
+        },
+        itemBuilder: (context) => [
+          PopupMenuItem<String>(
+            value: 'toggle',
+            child: Row(
+              children: [
+                Icon(
+                  ctrl.isAdSubtitlesEnabled.value
+                      ? Icons.check_box_rounded
+                      : Icons.check_box_outline_blank_rounded,
+                  color: Colors.white,
+                  size: 16,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  ctrl.isAdSubtitlesEnabled.value
+                      ? 'Disable Subtitles'
+                      : 'Enable Subtitles',
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          const PopupMenuDivider(),
+          for (final entry in subs.entries)
+            PopupMenuItem<String>(
+              value: entry.key,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    entry.key.toUpperCase(),
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                  ),
+                  if (ctrl.activeAdSubtitleLang.value == entry.key &&
+                      ctrl.isAdSubtitlesEnabled.value)
+                    const Icon(Icons.check, color: Colors.white, size: 16),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdDubbingButton(BuildContext context, MockAd ad) {
+    final dubs = ad.audioTracks ?? {};
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.bgPage.withValues(alpha: 0.8),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.bgDivider),
+      ),
+      child: PopupMenuButton<String>(
+        tooltip: 'Ad Voice Dubbing',
+        color: const Color(0xFF1E1E1E),
+        icon: const Icon(
+          Icons.record_voice_over_rounded,
+          color: Colors.white,
+          size: 18,
+        ),
+        onSelected: ctrl.setAdAudioLanguage,
+        itemBuilder: (context) => [
+          PopupMenuItem<String>(
+            value: 'original',
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Original Audio',
+                    style: TextStyle(color: Colors.white, fontSize: 13)),
+                if (ctrl.activeAdAudioLang.value == 'original')
+                  const Icon(Icons.check, color: Colors.white, size: 16),
+              ],
+            ),
+          ),
+          for (final entry in dubs.entries)
+            PopupMenuItem<String>(
+              value: entry.key,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Dubbed: ${entry.key.toUpperCase()}',
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                  ),
+                  if (ctrl.activeAdAudioLang.value == entry.key)
+                    const Icon(Icons.check, color: Colors.white, size: 16),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }

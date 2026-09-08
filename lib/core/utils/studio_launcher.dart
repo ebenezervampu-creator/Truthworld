@@ -100,7 +100,7 @@ class StudioLauncher {
         if (launched) return;
       }
 
-      // 5. App is not installed -> Fallback: Open in external web browser
+      // 5. Standalone Studio App is not installed -> Open in external web browser
       final webUri = Uri.parse(studioWebUrlProduction);
       final launchedWeb = await launchUrl(
         webUri,

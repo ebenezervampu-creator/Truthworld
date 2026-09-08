@@ -46,15 +46,44 @@ class DefaultFirebaseOptions {
     messagingSenderId: '768266102263',
     projectId: 'truthworld-1',
     authDomain: 'truthworld-1.firebaseapp.com',
+    databaseURL: 'https://truthworld-1-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'truthworld-1.firebasestorage.app',
     measurementId: 'G-2EV456S275',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyC6PeXkaMYu9_KDV9ypWlLMJBp8BbKrR50',
-    appId: '1:768266102263:android:e5c98dd3fb6c6788143af2',
+    appId: '1:768266102263:android:0d33a0242f2106ac143af2', // com.truthworld.app
     messagingSenderId: '768266102263',
     projectId: 'truthworld-1',
+    databaseURL: 'https://truthworld-1-default-rtdb.asia-southeast1.firebasedatabase.app',
+    storageBucket: 'truthworld-1.firebasestorage.app',
+  );
+
+  static const FirebaseOptions androidStudio = FirebaseOptions(
+    apiKey: 'AIzaSyC6PeXkaMYu9_KDV9ypWlLMJBp8BbKrR50',
+    appId: '1:768266102263:android:c076a1455520f5cd143af2', // com.truthworld.studio
+    messagingSenderId: '768266102263',
+    projectId: 'truthworld-1',
+    databaseURL: 'https://truthworld-1-default-rtdb.asia-southeast1.firebasedatabase.app',
+    storageBucket: 'truthworld-1.firebasestorage.app',
+  );
+
+  static const FirebaseOptions androidAdmin = FirebaseOptions(
+    apiKey: 'AIzaSyC6PeXkaMYu9_KDV9ypWlLMJBp8BbKrR50',
+    appId: '1:768266102263:android:e9895203ef172ec6143af2', // com.truthworld.admin
+    messagingSenderId: '768266102263',
+    projectId: 'truthworld-1',
+    databaseURL: 'https://truthworld-1-default-rtdb.asia-southeast1.firebasedatabase.app',
+    storageBucket: 'truthworld-1.firebasestorage.app',
+  );
+
+  static const FirebaseOptions androidAdvertiser = FirebaseOptions(
+    apiKey: 'AIzaSyC6PeXkaMYu9_KDV9ypWlLMJBp8BbKrR50',
+    appId: '1:768266102263:android:965d98e244225dc4143af2', // com.truthworld.advertiser
+    messagingSenderId: '768266102263',
+    projectId: 'truthworld-1',
+    databaseURL: 'https://truthworld-1-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'truthworld-1.firebasestorage.app',
   );
 
@@ -63,6 +92,7 @@ class DefaultFirebaseOptions {
     appId: '1:768266102263:ios:f5b76b12ba9d4024143af2',
     messagingSenderId: '768266102263',
     projectId: 'truthworld-1',
+    databaseURL: 'https://truthworld-1-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'truthworld-1.firebasestorage.app',
     iosBundleId: 'com.truthworld.app',
   );
@@ -72,6 +102,7 @@ class DefaultFirebaseOptions {
     appId: '1:768266102263:ios:f5b76b12ba9d4024143af2',
     messagingSenderId: '768266102263',
     projectId: 'truthworld-1',
+    databaseURL: 'https://truthworld-1-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'truthworld-1.firebasestorage.app',
     iosBundleId: 'com.truthworld.app',
   );
@@ -82,6 +113,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '768266102263',
     projectId: 'truthworld-1',
     authDomain: 'truthworld-1.firebaseapp.com',
+    databaseURL: 'https://truthworld-1-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'truthworld-1.firebasestorage.app',
     measurementId: 'G-W1RKKN8F3C',
   );

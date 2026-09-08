@@ -39,24 +39,57 @@ class DraftsScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: AppTheme.colors.background,
-      body: DefaultTabController(
-        length: 2,
-        child: Column(
-          children: [
-            ColoredBox(
-              color: AppTheme.colors.background,
-              child: const TabBar(
-                indicatorColor: AppColors.brand,
-                labelColor: AppColors.textPrimary,
-                unselectedLabelColor: AppColors.textSecondary,
-                tabs: [
-                  Tab(
-                    icon: Icon(
-                      Icons.video_library_rounded,
-                      color: AppColors.textPrimary,
+      body: SafeArea(
+        child: DefaultTabController(
+          length: 2,
+          child: Column(
+            children: [
+              Container(
+                color: AppTheme.colors.background,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    if (Navigator.canPop(context)) ...[
+                      IconButton(
+                        icon: const Icon(
+                          Icons.arrow_back_rounded,
+                          color: Colors.white,
+                        ),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    const Icon(
+                      Icons.drafts_rounded,
+                      color: Colors.white,
+                      size: 22,
                     ),
-                    text: 'Video Drafts',
-                  ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Drafts Manager',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              ColoredBox(
+                color: AppTheme.colors.background,
+                child: const TabBar(
+                  indicatorColor: AppColors.brand,
+                  labelColor: AppColors.textPrimary,
+                  unselectedLabelColor: AppColors.textSecondary,
+                  tabs: [
+                    Tab(
+                      icon: Icon(
+                        Icons.video_library_rounded,
+                        color: AppColors.textPrimary,
+                      ),
+                      text: 'Video Drafts',
+                    ),
                   Tab(
                     icon: Icon(
                       Icons.article_rounded,
@@ -78,8 +111,9 @@ class DraftsScreen extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildDraftsTab(
     BuildContext context,

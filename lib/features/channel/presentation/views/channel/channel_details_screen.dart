@@ -11,13 +11,14 @@ import 'package:truthworld/components/ui/animated_interaction_buttons.dart';
 import 'package:truthworld/components/ui/community_post_card.dart';
 import 'package:truthworld/components/ui/video_options_sheet.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
-import 'package:truthworld/core/services/deep_link_service.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
+import 'package:truthworld/features/channel/presentation/views/channel/widgets/channel_membership_join_sheet.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
@@ -89,7 +90,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
       Get.put(ChannelController());
     }
     final args = Get.arguments;
-    final Channel? targetChannel =
+    final targetChannel =
         channel ??
         (args != null && args is Map && args['channel'] is Channel ? args['channel'] as Channel : null);
 
@@ -113,14 +114,9 @@ class ChannelDetailsPage extends GetView<ChannelController> {
         return const ShimmerChannelDetailsScreen();
       }
 
-      return AnimatedBuilder(
-        animation: controller.pageFadeAnimation,
-        builder: (context, child) {
-          return FadeTransition(
-            opacity: controller.pageFadeAnimation,
-            child: _buildResponsiveLayout(context, currentChannel),
-          );
-        },
+      return FadeTransition(
+        opacity: controller.pageFadeAnimation,
+        child: _buildResponsiveLayout(context, currentChannel),
       );
     });
   }
@@ -776,8 +772,8 @@ class ChannelDetailsPage extends GetView<ChannelController> {
             notificationsEnabled: notificationsEnabled,
             notificationOption: notificationOption,
             onNotificationTap: () => _showNotificationsDialog(context, channel),
-            onPressed: FirebaseAuth.instance.currentUser == null
-                ? () {}
+            onPressed: !AuthService.to.isAuthenticated.value
+                ? () => AuthService.to.signInWithGoogle()
                 : () async {
                     if (isSubscribed) {
                       _showNotificationsDialog(context, channel);
@@ -789,6 +785,50 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                   },
           );
         }),
+        const SizedBox(width: 8),
+        // Join Channel Membership Button
+        Container(
+          height: 36,
+          decoration: BoxDecoration(
+            color: ytSurfaceLight,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: ytTextPrimary.withValues(alpha: 0.3),
+            ),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => ChannelMembershipJoinSheet.show(
+                context,
+                channelId: channel.channelId,
+                channel: channel,
+              ),
+              borderRadius: BorderRadius.circular(18),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.stars_rounded,
+                      color: ytTextPrimary,
+                      size: 18,
+                    ),
+                    SizedBox(width: 6),
+                    Text(
+                      'Join',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: ytTextPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
         const SizedBox(width: 8),
         Container(
           height: 36,
@@ -1011,11 +1051,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     bool isTablet = false,
   }) {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('public_playlists')
-          .where('channelId', isEqualTo: channel.channelId)
-          .limit(50)
-          .snapshots(),
+      stream: controller.getPlaylistsStream(channel.channelId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return _buildShimmerGrid(isDesktop: isDesktop, isTablet: isTablet);
@@ -1069,10 +1105,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     final isMobile = !isDesktop && !isTablet;
 
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection(FirestoreCollections.topics)
-          .where('channelId', isEqualTo: channel.channelId)
-          .snapshots(),
+      stream: controller.getTopicsStream(channel.channelId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return _buildHorizontalVideoSkeleton(isMobile);
@@ -1094,6 +1127,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
         final topics = snapshot.data!.docs
             .map(Topic.fromDocumentSnapshot)
             .where((topic) {
+              if (!topic.isValidTopic || topic.videoCount <= 0) return false;
               if (isOwner) return true;
               if (topic.visibilityType == TopicVisibilityType.public) return true;
               if (topic.visibilityType == TopicVisibilityType.channelOnly && isSubscribed) return true;
@@ -1752,12 +1786,8 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     final currentUser = FirebaseAuth.instance.currentUser;
     final isSubscribed = controller.isSubscribed.value;
     final isOwner = currentUser != null && currentUser.uid == channel.ownerId;
-    final query = FirebaseFirestore.instance
-        .collection(FirestoreCollections.community)
-        .where('channelId', isEqualTo: channel.channelId);
-
     return StreamBuilder<QuerySnapshot>(
-      stream: query.snapshots(),
+      stream: controller.getCommunityStream(channel.channelId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return _buildShimmerGrid(isDesktop: isDesktop, isTablet: isTablet);
@@ -2073,17 +2103,14 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     bool isTablet = false,
   }) {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('public_playlists')
-          .where('channelId', isEqualTo: channel.channelId)
-          .limit(5)
-          .snapshots(),
+      stream: controller.getPlaylistsStream(channel.channelId),
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return const SizedBox.shrink();
         }
 
         final playlists = snapshot.data!.docs
+            .take(5)
             .map(PlaylistModel.fromDocumentSnapshot)
             .where((p) => p.thumbnailUrl.trim().isNotEmpty)
             .toList();

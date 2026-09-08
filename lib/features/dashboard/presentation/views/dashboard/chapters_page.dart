@@ -325,6 +325,18 @@ class ChaptersPage extends StatelessWidget {
         children: [
           Row(
             children: [
+              if (Navigator.canPop(context)) ...[
+                IconButton(
+                  icon: const Icon(
+                    Icons.arrow_back_rounded,
+                    color: Colors.white,
+                  ),
+                  onPressed: () => Navigator.of(context).pop(),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+                const SizedBox(width: 8),
+              ],
               const Icon(
                 Icons.bookmarks_rounded,
                 color: Colors.white,
@@ -514,7 +526,7 @@ class ChaptersPage extends StatelessWidget {
                       child: const Icon(
                         Icons.video_file_rounded,
                         size: 20,
-                        color: AppColors.textSecondary,
+                        color: Colors.white,
                       ),
                     ),
                   ),
@@ -639,7 +651,7 @@ class ChaptersPage extends StatelessWidget {
             child: const Icon(
               Icons.bookmarks_outlined,
               size: 64,
-              color: AppColors.brand,
+              color: Colors.white,
             ),
           ),
           const SizedBox(height: 24),
@@ -1397,7 +1409,7 @@ class ChaptersPage extends StatelessWidget {
               index == -1
                   ? Icons.add_circle_outline_rounded
                   : Icons.edit_note_rounded,
-              color: AppColors.brand,
+              color: Colors.white,
             ),
             const SizedBox(width: 12),
             Text(

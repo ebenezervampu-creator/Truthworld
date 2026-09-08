@@ -11,10 +11,15 @@ class SearchCache {
   final Map<String, List<SearchResult>> _cache = {};
   final List<String> _accessOrder = [];
 
+  int _totalHits = 0;
+  int _totalRequests = 0;
+
   /// Get cached results (if exist)
   List<SearchResult>? get(String query) {
+    _totalRequests++;
     final normalized = query.toLowerCase().trim();
     if (_cache.containsKey(normalized)) {
+      _totalHits++;
       _updateAccessOrder(normalized);
       return _cache[normalized];
     }
@@ -44,19 +49,22 @@ class SearchCache {
   void clear() {
     _cache.clear();
     _accessOrder.clear();
+    _totalHits = 0;
+    _totalRequests = 0;
   }
 
   /// Get cache statistics
   Map<String, dynamic> getStats() => {
     'size': _cache.length,
     'maxSize': maxCacheSize,
+    'totalRequests': _totalRequests,
+    'totalHits': _totalHits,
     'hitRate': _calculateHitRate(),
   };
 
   double _calculateHitRate() {
-    // Placeholder for hit rate calculation
-    // In production, track hits/misses in controller
-    return 0;
+    if (_totalRequests == 0) return 0;
+    return _totalHits / _totalRequests;
   }
 
   /// Returns true if query is cached

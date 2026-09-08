@@ -4,9 +4,12 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/config/app_config.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -25,7 +28,7 @@ class AdminController extends BaseController {
   @override
   bool get isLoading => rxIsLoading.value || super.isLoading;
   final RxBool isAuthChecking = false.obs;
-  final RxBool isAdmin = true.obs;
+  final RxBool isAdmin = false.obs;
   final RxString currentTab = 'dashboard'.obs;
   final RxInt selectedTabIndex = 0.obs;
   final RxBool isActionSubmitting = false.obs;
@@ -127,8 +130,96 @@ class AdminController extends BaseController {
   final RxString feedbackFilterStatus = 'All'.obs;
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // FEATURE: Security & Anti-Abuse
+  // FEATURE: Security, Owner & Team Access Management
   // ═══════════════════════════════════════════════════════════════════════════
+  static const String ownerEmail = String.fromEnvironment(
+    'ADMIN_OWNER_EMAIL',
+    defaultValue: 'admin@truthworld.com',
+  );
+  static const List<String> authorizedOwnerEmails = [
+    String.fromEnvironment('ADMIN_OWNER_EMAIL', defaultValue: 'admin@truthworld.com'),
+    String.fromEnvironment('ADMIN_SECONDARY_EMAIL', defaultValue: 'support@truthworld.com'),
+  ];
+  /// List of all 8 standard admin roles with their allowed tabs and descriptions
+  static const List<Map<String, dynamic>> availableRoles = [
+    {
+      'name': 'Super Admin',
+      'description': 'Full unrestricted master access to all tabs, queues, actions, and team management.',
+      'tabs': [
+        'dashboard',
+        'videos',
+        'topics',
+        'images',
+        'channels',
+        'reports',
+        'logs',
+        'users',
+        'team',
+        'ads',
+        'ad_reports',
+        'analytics',
+        'appeals',
+        'feedbacks',
+        'alerts',
+        'security',
+        'help',
+      ],
+    },
+    {
+      'name': 'Content Moderator',
+      'description': 'Review and approve/reject Video Queue, Topics Queue, Image Posts, and Channel reviews.',
+      'tabs': ['dashboard', 'videos', 'topics', 'images', 'channels'],
+    },
+    {
+      'name': 'Trust & Safety Reviewer',
+      'description': 'Process user-submitted Video Reports, User Appeals, and community Feedbacks.',
+      'tabs': ['reports', 'appeals', 'feedbacks'],
+    },
+    {
+      'name': 'User Manager',
+      'description': 'Inspect registered user accounts, manage bans, suspensions, and safety profiles.',
+      'tabs': ['users'],
+    },
+    {
+      'name': 'Advertising Manager',
+      'description': 'Review and moderate Advertiser Campaigns and dispute Reports.',
+      'tabs': ['ads', 'ad_reports'],
+    },
+    {
+      'name': 'Audit & Compliance Officer',
+      'description': 'Review Quarantined Audit Logs, Security Lockdowns, and System Alerts.',
+      'tabs': ['logs', 'security', 'alerts'],
+    },
+    {
+      'name': 'Analytics & Performance',
+      'description': 'View platform Analytics and Overview health dashboard metrics.',
+      'tabs': ['dashboard', 'analytics'],
+    },
+    {
+      'name': 'Team Manager',
+      'description': 'Manage team members, create credentials, and assign access roles.',
+      'tabs': ['team'],
+    },
+  ];
+
+  static const List<String> allRoleNames = [
+    'Super Admin',
+    'Content Moderator',
+    'Trust & Safety Reviewer',
+    'User Manager',
+    'Advertising Manager',
+    'Audit & Compliance Officer',
+    'Analytics & Performance',
+    'Team Manager',
+  ];
+
+  final RxList<Map<String, dynamic>> adminMembers = <Map<String, dynamic>>[].obs;
+  final RxBool isLoadingMembers = false.obs;
+  final RxString currentAdminEmail = ''.obs;
+  final RxString currentAdminRole = 'Super Admin'.obs;
+  final RxList<String> currentAdminRoles = <String>[].obs;
+  StreamSubscription<QuerySnapshot>? _adminMembersSub;
+
   final RxMap<String, dynamic> securityMetrics = <String, dynamic>{}.obs;
   final RxList<Map<String, dynamic>> anomalyAlerts =
       <Map<String, dynamic>>[].obs;
@@ -136,6 +227,9 @@ class AdminController extends BaseController {
       <Map<String, dynamic>>[].obs;
   final RxBool isLockdownMode = false.obs;
   final RxBool isLoadingSecurity = false.obs;
+  final RxInt perUserUploadRateLimit = 50.obs;
+  final RxInt globalUploadRateLimit = 5000.obs;
+  final RxBool isSavingRateLimits = false.obs;
 
   // ═══════════════════════════════════════════════════════════════════════════
   // FEATURE: Moderation Modes (Direct Admin Approval vs Google Cloud Vision)
@@ -163,6 +257,7 @@ class AdminController extends BaseController {
   StreamSubscription<QuerySnapshot>? _playlistsThumbnailsSub;
   StreamSubscription<QuerySnapshot>? _verificationQueueSub;
   StreamSubscription<QuerySnapshot>? _logsSub;
+  StreamSubscription<QuerySnapshot>? _actionsLogSub;
   StreamSubscription<QuerySnapshot>? _channelsSub;
   StreamSubscription<QuerySnapshot>? _reportsSub;
   StreamSubscription<QuerySnapshot>? _videoReportsSub;
@@ -178,35 +273,321 @@ class AdminController extends BaseController {
   List<Map<String, dynamic>> _rawReportsDocs = [];
   List<Map<String, dynamic>> _rawVideoReportsDocs = [];
   List<Map<String, dynamic>> _rawVideoReportsAltDocs = [];
+  List<Map<String, dynamic>> _rawActionLogs = [];
+  List<Map<String, dynamic>> _rawRejectedImageLogs = [];
   int _appealsRetryCount = 0;
+
+  /// Filtered queues taking search query and category into account
+  List<Map<String, dynamic>> get filteredVideos {
+    final q = searchQuery.value.trim().toLowerCase();
+    final cat = filterCategory.value.trim().toLowerCase();
+    final tab = videoFilterTab.value.toLowerCase();
+    return videos.where((v) {
+      if (tab == 'pending' && !isVideoPending(v)) return false;
+      if (tab == 'approved' && !isVideoApproved(v)) return false;
+      if (tab == 'rejected' && !isVideoRejected(v)) return false;
+      if (cat.isNotEmpty && cat != 'all') {
+        final itemCat = (v['category'] ?? '').toString().toLowerCase();
+        if (itemCat != cat) return false;
+      }
+      if (q.isNotEmpty) {
+        final title = (v['title'] ?? '').toString().toLowerCase();
+        final id = (v['id'] ?? '').toString().toLowerCase();
+        final user = (v['userId'] ?? v['creatorId'] ?? '').toString().toLowerCase();
+        if (!title.contains(q) && !id.contains(q) && !user.contains(q)) return false;
+      }
+      return true;
+    }).toList();
+  }
+
+  List<Map<String, dynamic>> get filteredChannels {
+    final q = searchQuery.value.trim().toLowerCase();
+    final tab = channelFilterTab.value.toLowerCase();
+    return channels.where((c) {
+      if (tab == 'pending' && !isChannelPending(c)) return false;
+      if (tab == 'approved' && !isChannelApproved(c)) return false;
+      if (tab == 'rejected' && !isChannelRejected(c)) return false;
+      if (q.isNotEmpty) {
+        final name = (c['name'] ?? c['displayName'] ?? c['channelName'] ?? '').toString().toLowerCase();
+        final id = (c['id'] ?? '').toString().toLowerCase();
+        final handle = (c['handle'] ?? '').toString().toLowerCase();
+        if (!name.contains(q) && !id.contains(q) && !handle.contains(q)) return false;
+      }
+      return true;
+    }).toList();
+  }
+
+  List<Map<String, dynamic>> get filteredTopics {
+    final q = searchQuery.value.trim().toLowerCase();
+    final tab = topicFilterTab.value.toLowerCase();
+    return topics.where((t) {
+      if (tab == 'pending' && !isTopicPending(t)) return false;
+      if (tab == 'approved' && !isTopicApproved(t)) return false;
+      if (tab == 'rejected' && !isTopicRejected(t)) return false;
+      if (q.isNotEmpty) {
+        final title = (t['title'] ?? t['name'] ?? '').toString().toLowerCase();
+        final id = (t['id'] ?? '').toString().toLowerCase();
+        if (!title.contains(q) && !id.contains(q)) return false;
+      }
+      return true;
+    }).toList();
+  }
+
+  List<Map<String, dynamic>> get filteredImages {
+    final q = searchQuery.value.trim().toLowerCase();
+    final tab = imageFilterTab.value.toLowerCase();
+    return images.where((img) {
+      if (tab == 'pending' && !isImagePostPending(img)) return false;
+      if (tab == 'approved' && !isImagePostApproved(img)) return false;
+      if (tab == 'rejected' && !isImagePostRejected(img)) return false;
+      if (q.isNotEmpty) {
+        final cat = (img['category'] ?? '').toString().toLowerCase();
+        final id = (img['id'] ?? '').toString().toLowerCase();
+        final reason = (img['reason'] ?? '').toString().toLowerCase();
+        if (!cat.contains(q) && !id.contains(q) && !reason.contains(q)) return false;
+      }
+      return true;
+    }).toList();
+  }
+
+  List<Map<String, dynamic>> get filteredReports {
+    final q = searchQuery.value.trim().toLowerCase();
+    final tab = reportFilterTab.value.toLowerCase();
+    return reports.where((r) {
+      if (tab == 'pending' && !isReportPending(r)) return false;
+      if (tab == 'resolved' && !isReportResolved(r)) return false;
+      if (q.isNotEmpty) {
+        final reason = (r['reason'] ?? r['reportReason'] ?? '').toString().toLowerCase();
+        final id = (r['id'] ?? '').toString().toLowerCase();
+        final vId = (r['videoId'] ?? '').toString().toLowerCase();
+        if (!reason.contains(q) && !id.contains(q) && !vId.contains(q)) return false;
+      }
+      return true;
+    }).toList();
+  }
 
   @override
   void onInit() {
     super.onInit();
-    isAdmin.value = FirebaseAuth.instance.currentUser != null;
+    _restoreAdminSession();
+    _listenToAdminMembers();
+    _ensureDefaultAdminSeeded();
+
+    final user = FirebaseAuth.instance.currentUser;
+    final email = user?.email?.toLowerCase();
+    final isInitialOwner = email != null && authorizedOwnerEmails.contains(email);
+    if (isInitialOwner) {
+      isAdmin.value = true;
+      if (currentAdminEmail.value.isEmpty) {
+        currentAdminEmail.value = email;
+      }
+    }
     isAuthChecking.value = false;
 
-    _authSub = FirebaseAuth.instance.idTokenChanges().listen((user) {
-      if (user != null) {
-        isAdmin.value = true;
-        _startSubscriptions();
-        _navigateToDashboardIfOnLogin();
-      } else {
-        isAdmin.value = false;
+    _authSub = FirebaseAuth.instance.idTokenChanges().listen((authUser) async {
+      if (authUser != null) {
+        final authEmail = authUser.email?.toLowerCase() ?? '';
+        final isOwner = authorizedOwnerEmails.contains(authEmail);
+        try {
+          final token = await authUser.getIdTokenResult(true);
+          final hasAdminClaim = token.claims?['admin'] == true;
+          if (isOwner || hasAdminClaim) {
+            isAdmin.value = true;
+            if (currentAdminEmail.value.isEmpty) {
+              currentAdminEmail.value = authEmail;
+            }
+            _startSubscriptions();
+            _navigateToDashboardIfOnLogin();
+          }
+        } catch (_) {
+          if (isOwner) {
+            isAdmin.value = true;
+            if (currentAdminEmail.value.isEmpty) {
+              currentAdminEmail.value = authEmail;
+            }
+            _startSubscriptions();
+            _navigateToDashboardIfOnLogin();
+          }
+        }
       }
     });
     if (_authSub != null) trackSubscription(_authSub!);
 
-    // Always start real-time queue subscriptions so data is available on dashboard
-    _startSubscriptions();
-
-    if (FirebaseAuth.instance.currentUser != null) {
+    if (isAdmin.value) {
       _navigateToDashboardIfOnLogin();
     }
   }
 
+  /// Checks whether a given tab ID is allowed for the currently logged in administrator
+  bool isTabAllowed(String tabId) {
+    if (!isAdmin.value) return false;
+
+    // Help tab is universally accessible to any logged-in administrator
+    if (tabId == 'help') return true;
+
+    final email = currentAdminEmail.value.toLowerCase();
+    // Primary authorized owners always have full access to everything
+    if (authorizedOwnerEmails.contains(email)) return true;
+
+    // Check if roles include Super Admin
+    if (currentAdminRoles.any((r) => r.toLowerCase().contains('super') || r.toLowerCase().contains('owner'))) {
+      return true;
+    }
+    if (currentAdminRole.value.toLowerCase().contains('super') || currentAdminRole.value.toLowerCase().contains('owner')) {
+      return true;
+    }
+
+    final allowed = getAllowedTabs();
+    return allowed.contains(tabId);
+  }
+
+  /// Returns the set of all tab IDs allowed for the current administrator
+  Set<String> getAllowedTabs() {
+    final email = currentAdminEmail.value.toLowerCase();
+    if (authorizedOwnerEmails.contains(email)) {
+      return {
+        'dashboard', 'videos', 'topics', 'images', 'channels', 'reports', 'logs',
+        'users', 'team', 'ads', 'ad_reports', 'analytics', 'appeals', 'feedbacks',
+        'alerts', 'security', 'help'
+      };
+    }
+
+    if (currentAdminRoles.any((r) => r.toLowerCase().contains('super') || r.toLowerCase().contains('owner')) ||
+        currentAdminRole.value.toLowerCase().contains('super') ||
+        currentAdminRole.value.toLowerCase().contains('owner')) {
+      return {
+        'dashboard', 'videos', 'topics', 'images', 'channels', 'reports', 'logs',
+        'users', 'team', 'ads', 'ad_reports', 'analytics', 'appeals', 'feedbacks',
+        'alerts', 'security', 'help'
+      };
+    }
+
+    final allowed = <String>{'help'};
+
+    void addTabsForRole(String roleStr) {
+      final r = roleStr.toLowerCase().trim();
+      if (r.contains('super') || r.contains('owner')) {
+        allowed.addAll([
+          'dashboard', 'videos', 'topics', 'images', 'channels', 'reports', 'logs',
+          'users', 'team', 'ads', 'ad_reports', 'analytics', 'appeals', 'feedbacks',
+          'alerts', 'security', 'help'
+        ]);
+        return;
+      }
+      if (r.contains('content') || r.contains('moderator') || r.contains('queue')) {
+        allowed.addAll(['dashboard', 'videos', 'topics', 'images', 'channels']);
+      }
+      if (r.contains('trust') || r.contains('safety') || r.contains('support') || r.contains('appeal')) {
+        allowed.addAll(['reports', 'appeals', 'feedbacks']);
+      }
+      if (r.contains('user')) {
+        allowed.add('users');
+      }
+      if (r.contains('ad') || r.contains('campaign')) {
+        allowed.addAll(['ads', 'ad_reports']);
+      }
+      if (r.contains('audit') || r.contains('compliance') || r.contains('security') || r.contains('alert')) {
+        allowed.addAll(['logs', 'security', 'alerts']);
+      }
+      if (r.contains('analytics') || r.contains('performance')) {
+        allowed.addAll(['dashboard', 'analytics']);
+      }
+      if (r.contains('team')) {
+        allowed.add('team');
+      }
+    }
+
+    currentAdminRoles.forEach(addTabsForRole);
+    if (currentAdminRole.value.isNotEmpty) {
+      addTabsForRole(currentAdminRole.value);
+    }
+
+    if (allowed.isEmpty) {
+      allowed.add('dashboard');
+    }
+    return allowed;
+  }
+
+  void _restoreAdminSession() {
+    try {
+      final storage = GetStorage();
+      final session = storage.read<Map<dynamic, dynamic>>('truthworld_admin_session');
+      if (session != null && session['email'] != null) {
+        final email = session['email'].toString();
+        final role = (session['role'] ?? 'Super Admin').toString();
+        final rawRoles = session['roles'];
+        var rolesList = <String>[];
+        if (rawRoles is List) {
+          rolesList = rawRoles.map((e) => e.toString()).toList();
+        } else if (role.isNotEmpty) {
+          rolesList = role.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+        }
+        if (rolesList.isEmpty) rolesList = [role];
+
+        isAdmin.value = true;
+        currentAdminEmail.value = email;
+        currentAdminRole.value = role;
+        currentAdminRoles.assignAll(rolesList);
+        _startSubscriptions();
+      }
+    } catch (e) {
+      debugPrint('Error restoring admin session: $e');
+    }
+  }
+
+  void _listenToAdminMembers() {
+    if (_adminMembersSub == null) {
+      _adminMembersSub = FirebaseFirestore.instance
+          .collection('admin_members')
+          .snapshots()
+          .listen((snapshot) {
+        final list = snapshot.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+        adminMembers.assignAll(list);
+
+        // Real-time synchronization of current administrator's assigned roles
+        if (currentAdminEmail.value.isNotEmpty) {
+          final clean = currentAdminEmail.value.toLowerCase();
+          final me = list.firstWhereOrNull((m) => (m['email'] ?? '').toString().toLowerCase() == clean);
+          if (me != null) {
+            final roleStr = (me['role'] ?? '').toString();
+            if (roleStr.isNotEmpty) currentAdminRole.value = roleStr;
+            final rawRoles = me['roles'];
+            if (rawRoles is List && rawRoles.isNotEmpty) {
+              currentAdminRoles.assignAll(rawRoles.map((e) => e.toString()).toList());
+            } else if (roleStr.isNotEmpty) {
+              currentAdminRoles.assignAll(roleStr.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList());
+            }
+          }
+        }
+      }, onError: (err) {
+        debugPrint('admin_members stream notice: $err');
+      });
+      if (_adminMembersSub != null) trackSubscription(_adminMembersSub!);
+    }
+  }
+
+  Future<void> _ensureDefaultAdminSeeded() async {
+    try {
+      final docRef = FirebaseFirestore.instance.collection('admin_members').doc('ebenezervampy@towervsp.com');
+      final snap = await docRef.get();
+      if (!snap.exists) {
+        await docRef.set({
+          'email': 'ebenezervampy@towervsp.com',
+          'password': '12345',
+          'name': 'Ebenezer Vampu',
+          'role': 'Owner / Super Admin',
+          'status': 'active',
+          'createdAt': FieldValue.serverTimestamp(),
+          'permissions': ['all'],
+        }, SetOptions(merge: true));
+      }
+    } catch (e) {
+      debugPrint('Default admin seed notice: $e');
+    }
+  }
+
   void ensureSubscriptionsStarted() {
-    if (_videosSub == null || videos.isEmpty) {
+    if (isAdmin.value && (_videosSub == null || videos.isEmpty)) {
       _startSubscriptions();
     }
   }
@@ -347,18 +728,20 @@ class AdminController extends BaseController {
   final TextEditingController passwordController = TextEditingController();
   final RxBool needsPasswordSetup = false.obs;
 
-  /// Signs in using email and password
-  Future<void> signInWithEmailAndPassword({
+  /// Authenticates using the TruthWorld Admin Security Protocol.
+  /// Validates against Firestore `admin_members` (including default ebenezervampy@towervsp.com / 12345),
+  /// with Firebase Auth fallback and persistent session caching.
+  Future<void> signInWithAdminProtocol({
     String? emailInput,
     String? passwordInput,
   }) async {
-    final email = (emailInput ?? emailController.text).trim();
+    final email = (emailInput ?? emailController.text).trim().toLowerCase();
     final password = (passwordInput ?? passwordController.text).trim();
 
     if (email.isEmpty || password.isEmpty) {
       Get.snackbar(
         'Input Error',
-        'Please enter both email and password.',
+        'Please enter both administrator email and password.',
         backgroundColor: const Color(0xFFCF6679),
         colorText: AppColors.textPrimary,
         snackPosition: SnackPosition.BOTTOM,
@@ -368,15 +751,144 @@ class AdminController extends BaseController {
 
     rxIsLoading.value = true;
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-      Get.offAllNamed('/admin/dashboard');
+      final isDefaultCreds = (email == 'ebenezervampy@towervsp.com' ||
+              email == 'ebenezervampu@towervsp.com') &&
+          password == '12345';
+
+      Map<String, dynamic>? matchedMember;
+
+      // 1. Query admin_members collection in Firestore
+      try {
+        final docSnap = await FirebaseFirestore.instance
+            .collection('admin_members')
+            .doc(email)
+            .get();
+
+        if (docSnap.exists && docSnap.data() != null) {
+          matchedMember = {'id': docSnap.id, ...docSnap.data()!};
+        } else {
+          final qSnap = await FirebaseFirestore.instance
+              .collection('admin_members')
+              .where('email', isEqualTo: email)
+              .limit(1)
+              .get();
+          if (qSnap.docs.isNotEmpty) {
+            matchedMember = {'id': qSnap.docs.first.id, ...qSnap.docs.first.data()};
+          }
+        }
+      } catch (firestoreErr) {
+        debugPrint('Firestore admin_members query notice: $firestoreErr');
+      }
+
+      var isAuthorized = false;
+      var memberRole = 'Super Admin';
+
+      if (matchedMember != null) {
+        final storedPass = matchedMember['password']?.toString() ?? '';
+        final status = (matchedMember['status'] ?? 'active').toString().toLowerCase();
+
+        if (status == 'suspended') {
+          Get.snackbar(
+            'Access Denied',
+            'This administrator account has been suspended by the team.',
+            backgroundColor: const Color(0xFFCF6679),
+            colorText: Colors.white,
+            snackPosition: SnackPosition.BOTTOM,
+          );
+          rxIsLoading.value = false;
+          return;
+        }
+
+        if (storedPass == password || (isDefaultCreds && storedPass.isEmpty)) {
+          isAuthorized = true;
+          memberRole = matchedMember['role']?.toString() ?? 'Admin';
+        }
+      } else if (isDefaultCreds) {
+        isAuthorized = true;
+        memberRole = 'Owner / Super Admin';
+        unawaited(_ensureDefaultAdminSeeded());
+      }
+
+      // 2. Fallback: Firebase Auth email & password (if password length >= 6)
+      if (!isAuthorized && password.length >= 6) {
+        try {
+          final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
+            email: email,
+            password: password,
+          );
+          final user = cred.user;
+          if (user != null) {
+            final isOwner = authorizedOwnerEmails.contains(email);
+            final tokenResult = await user.getIdTokenResult(true);
+            final hasClaim = tokenResult.claims?['admin'] == true;
+            if (isOwner || hasClaim) {
+              isAuthorized = true;
+              memberRole = isOwner ? 'Owner / Super Admin' : 'Admin';
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (isAuthorized) {
+        final rawRoles = matchedMember?['roles'];
+        var rolesList = <String>[];
+        if (rawRoles is List && rawRoles.isNotEmpty) {
+          rolesList = rawRoles.map((e) => e.toString()).toList();
+        } else if (memberRole.isNotEmpty) {
+          rolesList = memberRole.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+        }
+        if (rolesList.isEmpty) rolesList = [memberRole];
+
+        isAdmin.value = true;
+        currentAdminEmail.value = email;
+        currentAdminRole.value = memberRole;
+        currentAdminRoles.assignAll(rolesList);
+
+        // Persist session to GetStorage
+        try {
+          final storage = GetStorage();
+          storage.write('truthworld_admin_session', {
+            'email': email,
+            'role': memberRole,
+            'roles': rolesList,
+            'loginAt': DateTime.now().millisecondsSinceEpoch,
+          });
+        } catch (_) {}
+
+        // Update last login in Firestore asynchronously
+        unawaited(
+          FirebaseFirestore.instance
+              .collection('admin_members')
+              .doc(email)
+              .set({
+            'lastLoginAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true)).catchError((_) {}),
+        );
+
+        _startSubscriptions();
+        Get.offAllNamed('/admin/dashboard');
+
+        Get.snackbar(
+          'Authentication Successful',
+          'Logged into TruthWorld Admin Console as $email ($memberRole)',
+          backgroundColor: const Color(0xFF2BA640),
+          colorText: AppColors.textPrimary,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      } else {
+        Get.snackbar(
+          'Access Denied',
+          'Invalid administrator credentials. Only authorized TruthWorld team members can enter.',
+          backgroundColor: const Color(0xFFCF6679),
+          colorText: Colors.white,
+          snackPosition: SnackPosition.BOTTOM,
+          duration: const Duration(seconds: 4),
+        );
+      }
     } catch (e) {
-      debugPrint('Admin Email Sign In failed: $e');
+      debugPrint('Admin Protocol Login failed: $e');
       Get.snackbar(
-        'Authentication Failed',
+        'Authentication Error',
         e.toString().replaceAll(RegExp(r'\[.*?\]\s*'), ''),
         backgroundColor: const Color(0xFFCF6679),
         colorText: AppColors.textPrimary,
@@ -387,11 +899,302 @@ class AdminController extends BaseController {
     }
   }
 
-  /// Directly enables admin console and starts data streams
+  /// Alias for [signInWithAdminProtocol] to preserve compatibility
+  Future<void> signInWithEmailAndPassword({
+    String? emailInput,
+    String? passwordInput,
+  }) =>
+      signInWithAdminProtocol(
+        emailInput: emailInput,
+        passwordInput: passwordInput,
+      );
+
+  /// Changes the password for the current logged in administrator
+  Future<bool> changeAdminPassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final email = currentAdminEmail.value.isNotEmpty
+        ? currentAdminEmail.value
+        : (FirebaseAuth.instance.currentUser?.email ?? 'ebenezervampy@towervsp.com');
+
+    if (newPassword.trim().isEmpty) {
+      Get.snackbar(
+        'Input Error',
+        'New password cannot be empty.',
+        backgroundColor: const Color(0xFFCF6679),
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return false;
+    }
+
+    rxIsLoading.value = true;
+    try {
+      final cleanEmail = email.trim().toLowerCase();
+      final docRef = FirebaseFirestore.instance.collection('admin_members').doc(cleanEmail);
+      final snap = await docRef.get();
+
+      if (snap.exists) {
+        final storedPass = snap.data()?['password']?.toString() ?? '';
+        if (storedPass.isNotEmpty && storedPass != currentPassword.trim()) {
+          Get.snackbar(
+            'Verification Failed',
+            'The current password you entered is incorrect.',
+            backgroundColor: const Color(0xFFCF6679),
+            colorText: Colors.white,
+            snackPosition: SnackPosition.BOTTOM,
+          );
+          rxIsLoading.value = false;
+          return false;
+        }
+      }
+
+      // Update password in Firestore admin_members
+      await docRef.set({
+        'email': cleanEmail,
+        'password': newPassword.trim(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // Also update Firebase Auth password if currentUser is logged in
+      if (newPassword.trim().length >= 6 && FirebaseAuth.instance.currentUser != null) {
+        try {
+          await FirebaseAuth.instance.currentUser!.updatePassword(newPassword.trim());
+        } catch (authPassErr) {
+          debugPrint('Firebase Auth password update notice: $authPassErr');
+        }
+      }
+
+      Get.snackbar(
+        'Password Changed',
+        'Administrator password successfully updated! Use your new password on next login.',
+        backgroundColor: const Color(0xFF2BA640),
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 4),
+      );
+      return true;
+    } catch (e) {
+      debugPrint('Change admin password error: $e');
+      Get.snackbar(
+        'Error',
+        'Could not change password: $e',
+        backgroundColor: const Color(0xFFCF6679),
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return false;
+    } finally {
+      rxIsLoading.value = false;
+    }
+  }
+
+  /// Adds a new team member with email, password, and assigned roles
+  Future<bool> addTeamMember({
+    required String email,
+    required String password,
+    String role = 'Content Moderator',
+    List<String>? roles,
+    String? name,
+  }) async {
+    final cleanEmail = email.trim().toLowerCase();
+    final cleanPassword = password.trim();
+
+    if (cleanEmail.isEmpty || cleanPassword.isEmpty) {
+      Get.snackbar(
+        'Input Error',
+        'Please enter both member email and password.',
+        backgroundColor: const Color(0xFFCF6679),
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return false;
+    }
+
+    final finalRoles = (roles != null && roles.isNotEmpty)
+        ? roles
+        : (role.isNotEmpty
+            ? role.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList()
+            : ['Content Moderator']);
+    final finalRole = finalRoles.contains('Super Admin')
+        ? 'Super Admin'
+        : (finalRoles.isNotEmpty ? finalRoles.join(', ') : role);
+
+    try {
+      final docRef = FirebaseFirestore.instance.collection('admin_members').doc(cleanEmail);
+      await docRef.set({
+        'email': cleanEmail,
+        'password': cleanPassword,
+        'role': finalRole,
+        'roles': finalRoles,
+        'name': (name != null && name.trim().isNotEmpty) ? name.trim() : cleanEmail.split('@').first,
+        'status': 'active',
+        'createdAt': FieldValue.serverTimestamp(),
+        'createdBy': currentAdminEmail.value.isNotEmpty ? currentAdminEmail.value : 'Super Admin',
+      }, SetOptions(merge: true));
+
+      Get.snackbar(
+        'Team Member Added',
+        'Successfully added $cleanEmail with ${finalRoles.length} assigned role(s).',
+        backgroundColor: const Color(0xFF2BA640),
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return true;
+    } catch (e) {
+      debugPrint('Add team member error: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to add team member: $e',
+        backgroundColor: const Color(0xFFCF6679),
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return false;
+    }
+  }
+
+  /// Updates an existing team member's role, roles list, password, or status
+  Future<bool> updateTeamMember({
+    required String email,
+    required Map<String, dynamic> updates,
+    List<String>? roles,
+  }) async {
+    try {
+      final cleanEmail = email.trim().toLowerCase();
+      final dataToUpdate = Map<String, dynamic>.from(updates);
+      if (roles != null && roles.isNotEmpty) {
+        dataToUpdate['roles'] = roles;
+        dataToUpdate['role'] = roles.contains('Super Admin')
+            ? 'Super Admin'
+            : roles.join(', ');
+      }
+      await FirebaseFirestore.instance
+          .collection('admin_members')
+          .doc(cleanEmail)
+          .set({
+        ...dataToUpdate,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      Get.snackbar(
+        'Member Updated',
+        'Details for $cleanEmail have been updated.',
+        backgroundColor: const Color(0xFF2BA640),
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return true;
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to update member: $e',
+        backgroundColor: const Color(0xFFCF6679),
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return false;
+    }
+  }
+
+  /// Removes a team member's admin access
+  Future<bool> deleteTeamMember(String email) async {
+    final cleanEmail = email.trim().toLowerCase();
+    if (cleanEmail == 'ebenezervampy@towervsp.com' || cleanEmail == 'ebenezervampu@towervsp.com') {
+      Get.snackbar(
+        'Action Denied',
+        'Primary Owner account cannot be removed.',
+        backgroundColor: const Color(0xFFCF6679),
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return false;
+    }
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('admin_members')
+          .doc(cleanEmail)
+          .delete();
+
+      Get.snackbar(
+        'Member Removed',
+        '$cleanEmail has been removed from the Admin Team.',
+        backgroundColor: const Color(0xFF2BA640),
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return true;
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to remove member: $e',
+        backgroundColor: const Color(0xFFCF6679),
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return false;
+    }
+  }
+
+  /// Formats member credentials and copies to clipboard for sharing
+  void copyMemberCredentials({
+    required String email,
+    required String password,
+    String? role,
+  }) {
+    final text = '''
+TruthWorld Admin Portal Credentials
+-----------------------------------
+Email: $email
+Password: $password
+Role: ${role ?? 'Admin / Moderator'}
+Portal URL: https://truthworld.in/admin
+-----------------------------------
+Keep these credentials secure. Change password after initial sign in.
+''';
+    Clipboard.setData(ClipboardData(text: text));
+    Get.snackbar(
+      'Credentials Copied',
+      'Email and password copied to clipboard. Ready to share with team member!',
+      backgroundColor: const Color(0xFF2BA640),
+      colorText: Colors.white,
+      snackPosition: SnackPosition.BOTTOM,
+      duration: const Duration(seconds: 4),
+    );
+  }
+
+  /// Directly verifies admin console claims and starts data streams
   Future<void> checkAdminClaims() async {
-    isAdmin.value = true;
-    isAuthChecking.value = false;
-    _startSubscriptions();
+    isAuthChecking.value = true;
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        isAdmin.value = false;
+        return;
+      }
+      final isOwner = user.email?.toLowerCase() == ownerEmail;
+      final tokenResult = await user.getIdTokenResult(true);
+      final hasClaim = tokenResult.claims?['admin'] == true;
+      if (isOwner || hasClaim) {
+        isAdmin.value = true;
+        _startSubscriptions();
+      } else {
+        isAdmin.value = false;
+        Get.snackbar(
+          'Access Denied',
+          'Account does not have administrator privileges.',
+          backgroundColor: const Color(0xFFCF6679),
+          colorText: Colors.white,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      }
+    } catch (e) {
+      debugPrint('checkAdminClaims error: $e');
+    } finally {
+      isAuthChecking.value = false;
+    }
   }
 
   /// Checks if the owner account needs initial admin password setup
@@ -601,6 +1404,8 @@ class AdminController extends BaseController {
       _stopSubscriptions();
     }
 
+    _listenToAdminMembers();
+
     // 0. Monitor moderation modes config (admin_settings/moderation_modes)
     if (_modesSub == null) {
       _modesSub = FirebaseFirestore.instance
@@ -785,7 +1590,7 @@ class AdminController extends BaseController {
       if (_playlistsThumbnailsSub != null) trackSubscription(_playlistsThumbnailsSub!);
     }
 
-    // 3. Monitor rejection / audit logs
+    // 3. Monitor rejection / audit logs and administrative actions
     if (_logsSub == null) {
       _logsSub = FirebaseFirestore.instance
           .collection('rejected_images_log')
@@ -796,15 +1601,33 @@ class AdminController extends BaseController {
               final list = snapshot.docs.map((doc) {
                 return {'id': doc.id, ...doc.data()};
               }).toList();
-              if (list.isNotEmpty || auditLogs.isEmpty) {
-                auditLogs.assignAll(list);
-              }
+              _combineAuditLogs(rejectedImages: list);
             },
             onError: (e) {
               debugPrint('AdminController Audit Log Stream Error: $e');
             },
           );
       if (_logsSub != null) trackSubscription(_logsSub!);
+    }
+
+    if (_actionsLogSub == null) {
+      _actionsLogSub = FirebaseFirestore.instance
+          .collection('admin_actions_log')
+          .orderBy('timestamp', descending: true)
+          .limit(50)
+          .snapshots()
+          .listen(
+            (snapshot) {
+              final list = snapshot.docs.map((doc) {
+                return {'id': doc.id, ...doc.data()};
+              }).toList();
+              _combineAuditLogs(actions: list);
+            },
+            onError: (e) {
+              debugPrint('AdminController Actions Log Stream Error: $e');
+            },
+          );
+      if (_actionsLogSub != null) trackSubscription(_actionsLogSub!);
     }
 
     // 4. Monitor channels collection
@@ -1273,7 +2096,7 @@ class AdminController extends BaseController {
           final idToken = await user.getIdToken();
           await http.post(
             Uri.parse(
-              'https://asia-south1-truthworld-1.cloudfunctions.net/setModerationModesManual',
+              '${AppConfig.cloudFunctionsBaseUrl}/setModerationModesManual',
             ),
             headers: {
               'Content-Type': 'application/json',
@@ -1354,7 +2177,7 @@ class AdminController extends BaseController {
           final idToken = await user.getIdToken();
           await http.post(
             Uri.parse(
-              'https://asia-south1-truthworld-1.cloudfunctions.net/setModerationModesManual',
+              '${AppConfig.cloudFunctionsBaseUrl}/setModerationModesManual',
             ),
             headers: {
               'Content-Type': 'application/json',
@@ -1464,6 +2287,57 @@ class AdminController extends BaseController {
     totalReports.value = combined.length;
   }
 
+  void _combineAuditLogs({
+    List<Map<String, dynamic>>? rejectedImages,
+    List<Map<String, dynamic>>? actions,
+  }) {
+    if (rejectedImages != null) _rawRejectedImageLogs = rejectedImages;
+    if (actions != null) _rawActionLogs = actions;
+
+    final combined = <Map<String, dynamic>>[];
+
+    for (final raw in _rawRejectedImageLogs) {
+      final item = Map<String, dynamic>.from(raw);
+      item['logType'] = 'rejected_image';
+      item['displayType'] = 'Image Quarantine';
+      item['action'] = item['action'] ?? 'Quarantine Image';
+      item['actor'] = item['actor'] ?? item['adminEmail'] ?? 'Automated / Admin';
+      item['target'] = item['originalPath'] ?? item['quarantinePath'] ?? item['userId'] ?? 'Image';
+      item['timestamp'] = item['rejectedAt'] ?? item['timestamp'] ?? item['createdAt'];
+      combined.add(item);
+    }
+
+    for (final raw in _rawActionLogs) {
+      final item = Map<String, dynamic>.from(raw);
+      item['logType'] = 'admin_action';
+      item['displayType'] = 'Admin Action';
+      item['action'] = (item['action'] ?? 'Admin Action').toString().replaceAll('_', ' ').toUpperCase();
+      item['actor'] = item['adminEmail'] ?? item['adminId'] ?? 'Admin';
+      item['target'] = item['userId'] ?? item['targetId'] ?? item['videoId'] ?? (item['itemCount'] != null ? '${item['itemCount']} items' : 'System');
+      item['timestamp'] = item['timestamp'] ?? item['createdAt'];
+      combined.add(item);
+    }
+
+    combined.sort((a, b) {
+      final timeA = a['timestamp'] ?? a['rejectedAt'] ?? a['createdAt'];
+      final timeB = b['timestamp'] ?? b['rejectedAt'] ?? b['createdAt'];
+      if (timeA == null && timeB == null) return 0;
+      if (timeA == null) return 1;
+      if (timeB == null) return -1;
+      final dtA = timeA is Timestamp
+          ? timeA.toDate()
+          : (DateTime.tryParse(timeA.toString()) ??
+                DateTime.fromMillisecondsSinceEpoch(0));
+      final dtB = timeB is Timestamp
+          ? timeB.toDate()
+          : (DateTime.tryParse(timeB.toString()) ??
+                DateTime.fromMillisecondsSinceEpoch(0));
+      return dtB.compareTo(dtA);
+    });
+
+    auditLogs.assignAll(combined);
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // STATUS CLASSIFICATION HELPERS
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1560,6 +2434,9 @@ class AdminController extends BaseController {
         c['geminiApproved'] == true ||
         c['status'] == null;
   }
+
+  /// Checks if a channel is approved (alias for isChannelActive)
+  bool isChannelApproved(Map<String, dynamic> c) => isChannelActive(c);
 
   /// Checks if a channel verification was rejected or banned
   bool isChannelRejected(Map<String, dynamic> c) {
@@ -1709,28 +2586,48 @@ class AdminController extends BaseController {
   void _stopSubscriptions() {
     // Relying on trackSubscription for lifecycle management.
     // However, if we need to manually stop them during logout, we can still do it.
+    if (_authSub != null) unawaited(_authSub!.cancel());
+    if (_modesSub != null) unawaited(_modesSub!.cancel());
     if (_videosSub != null) unawaited(_videosSub!.cancel());
     if (_topicsSub != null) unawaited(_topicsSub!.cancel());
     if (_imagesSub != null) unawaited(_imagesSub!.cancel());
     if (_communitySub != null) unawaited(_communitySub!.cancel());
     if (_playlistsThumbnailsSub != null) unawaited(_playlistsThumbnailsSub!.cancel());
+    if (_verificationQueueSub != null) unawaited(_verificationQueueSub!.cancel());
     if (_logsSub != null) unawaited(_logsSub!.cancel());
+    if (_actionsLogSub != null) unawaited(_actionsLogSub!.cancel());
     if (_channelsSub != null) unawaited(_channelsSub!.cancel());
     if (_reportsSub != null) unawaited(_reportsSub!.cancel());
+    if (_videoReportsSub != null) unawaited(_videoReportsSub!.cancel());
+    if (_altVideoReportsSub != null) unawaited(_altVideoReportsSub!.cancel());
     if (_appealsSub != null) unawaited(_appealsSub!.cancel());
     if (_adsSub != null) unawaited(_adsSub!.cancel());
     if (_usersSub != null) unawaited(_usersSub!.cancel());
+    if (_adminMembersSub != null) unawaited(_adminMembersSub!.cancel());
+    _authSub = null;
+    _modesSub = null;
     _videosSub = null;
     _topicsSub = null;
     _imagesSub = null;
     _communitySub = null;
     _playlistsThumbnailsSub = null;
+    _verificationQueueSub = null;
     _logsSub = null;
+    _actionsLogSub = null;
     _channelsSub = null;
     _reportsSub = null;
+    _videoReportsSub = null;
+    _altVideoReportsSub = null;
     _appealsSub = null;
     _adsSub = null;
     _usersSub = null;
+    _adminMembersSub = null;
+  }
+
+  @override
+  void onClose() {
+    _stopSubscriptions();
+    super.onClose();
   }
 
   /// Initiates Google Sign In
@@ -1766,6 +2663,17 @@ class AdminController extends BaseController {
       selectedImage.value = null;
       selectedChannel.value = null;
       selectedReport.value = null;
+
+      try {
+        final storage = GetStorage();
+        storage.remove('truthworld_admin_session');
+      } catch (_) {}
+
+      isAdmin.value = false;
+      currentAdminEmail.value = '';
+      currentAdminRole.value = 'Super Admin';
+
+      _stopSubscriptions();
       await AuthService.to.signOut();
       Get.offAllNamed('/admin/login');
     } catch (e) {
@@ -1845,7 +2753,7 @@ class AdminController extends BaseController {
               final idToken = await user.getIdToken();
               await http.post(
                 Uri.parse(
-                  'https://asia-south1-truthworld-1.cloudfunctions.net/moderateVideoManual',
+                  '${AppConfig.cloudFunctionsBaseUrl}/moderateVideoManual',
                 ),
                 headers: {
                   'Content-Type': 'application/json',
@@ -1997,7 +2905,7 @@ class AdminController extends BaseController {
         final idToken = await user.getIdToken();
         final response = await http.post(
           Uri.parse(
-            'https://asia-south1-truthworld-1.cloudfunctions.net/moderateImageManual',
+            '${AppConfig.cloudFunctionsBaseUrl}/moderateImageManual',
           ),
           headers: {
             'Content-Type': 'application/json',
@@ -2114,13 +3022,30 @@ class AdminController extends BaseController {
   ) async {
     isActionSubmitting.value = true;
     try {
+      final tIdx = topics.indexWhere((t) => t['id'] == topicId);
+      if (action == 'approve') {
+        final currentTopicMap = tIdx != -1 ? topics[tIdx] : null;
+        final vCount = (currentTopicMap?['videoCount'] as num?)?.toInt() ?? 0;
+        final featVids = currentTopicMap?['featuredVideoIds'] as List? ?? [];
+        if (vCount <= 0 && featVids.isEmpty) {
+          Get.snackbar(
+            'Cannot Approve',
+            'This topic contains 0 videos and cannot be published or approved.',
+            backgroundColor: AppColors.error,
+            colorText: AppColors.textPrimary,
+            snackPosition: SnackPosition.BOTTOM,
+          );
+          isActionSubmitting.value = false;
+          return false;
+        }
+      }
+
       final user = FirebaseAuth.instance.currentUser;
       final status = action == 'approve' ? 'active' : 'verificationRejected';
       final isApproved = action == 'approve';
       final adminUid = user?.uid ?? 'admin';
 
       // 0ms Optimistic UI update
-      final tIdx = topics.indexWhere((t) => t['id'] == topicId);
       if (tIdx != -1) {
         final item = Map<String, dynamic>.from(topics[tIdx]);
         item['status'] = status;
@@ -2161,7 +3086,7 @@ class AdminController extends BaseController {
               final idToken = await user.getIdToken();
               await http.post(
                 Uri.parse(
-                  'https://asia-south1-truthworld-1.cloudfunctions.net/moderateTopicManual',
+                  '${AppConfig.cloudFunctionsBaseUrl}/moderateTopicManual',
                 ),
                 headers: {
                   'Content-Type': 'application/json',
@@ -2269,6 +3194,79 @@ class AdminController extends BaseController {
     }
   }
 
+  final RxBool isGeneratingAllVideoAdsAI = false.obs;
+
+  /// Trigger batch AI dubbing and subtitles generation for ALL video ads across Truthworld
+  Future<void> generateAllVideoAdsAI({
+    List<String> features = const ['subtitles', 'dubbing'],
+    List<String> targetLanguages = const ['te', 'hi', 'ta', 'es'],
+    String voiceStyle = 'natural',
+    bool forceRegenerate = false,
+  }) async {
+    if (isGeneratingAllVideoAdsAI.value) return;
+    isGeneratingAllVideoAdsAI.value = true;
+
+    try {
+      Get.snackbar(
+        'Queueing AI Pipeline',
+        'Initiating AI dubbing and subtitles generation for all video ads...',
+        backgroundColor: const Color(0xFF2BA640),
+        colorText: AppColors.textPrimary,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+
+      final currentUser = FirebaseAuth.instance.currentUser;
+      final token = currentUser != null ? await currentUser.getIdToken() : null;
+
+      final url = Uri.parse(
+        '${AppConfig.cloudFunctionsBaseUrl}/generateAllVideoAdsAIFeatures',
+      );
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'features': features,
+          'targetLanguages': targetLanguages,
+          'voiceStyle': voiceStyle,
+          'forceRegenerate': forceRegenerate,
+        }),
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        Get.snackbar(
+          'Batch AI Started',
+          'Dubbing & subtitles are generating for all video ads in the background.',
+          backgroundColor: const Color(0xFF2BA640),
+          colorText: AppColors.textPrimary,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      } else {
+        Get.snackbar(
+          'Notice',
+          'Batch AI job queued in background.',
+          backgroundColor: const Color(0xFF2BA640),
+          colorText: AppColors.textPrimary,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      }
+    } catch (e) {
+      debugPrint('Error triggering batch AI generation: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to start batch AI generation: $e',
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } finally {
+      isGeneratingAllVideoAdsAI.value = false;
+    }
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // FEATURE: Search & Bulk Moderation Methods
   // ═══════════════════════════════════════════════════════════════════════════
@@ -2287,7 +3285,9 @@ class AdminController extends BaseController {
 
   /// Selects all items in the current view
   void selectAllItems(List<Map<String, dynamic>> items) {
-    selectedItemIds.assignAll(items.map((e) => e['id'] as String));
+    selectedItemIds.assignAll(
+      items.map((e) => (e['id'] ?? '').toString()).where((id) => id.isNotEmpty),
+    );
   }
 
   /// Executes bulk moderation action on selected items
@@ -2305,7 +3305,7 @@ class AdminController extends BaseController {
 
       final response = await http.post(
         Uri.parse(
-          'https://asia-south1-truthworld-1.cloudfunctions.net/adminBulkModerate',
+          '${AppConfig.cloudFunctionsBaseUrl}/adminBulkModerate',
         ),
         headers: {
           'Content-Type': 'application/json',
@@ -2691,21 +3691,50 @@ class AdminController extends BaseController {
         updates['accountStatus'] = 'DELETED';
       }
 
-      // 1. Direct Firestore Update
-      await db.collection(FirestoreCollections.users).doc(userId).set(updates, SetOptions(merge: true));
-
-      // 2. Log Action
+      // 1. Authoritative Backend Moderation via Cloud Function
+      var backendSuccess = false;
       try {
-        await db.collection('admin_actions_log').add({
-          'adminId': adminId,
-          'adminEmail': adminEmail,
-          'userId': userId,
-          'action': normalizedAction,
-          'reason': reason,
-          'durationDays': durationDays,
-          'timestamp': FieldValue.serverTimestamp(),
-        });
-      } catch (_) {}
+        final token = currentUser != null ? await currentUser.getIdToken() : null;
+        final url = Uri.parse('${AppConfig.cloudFunctionsBaseUrl}/moderateUser');
+        final response = await http.post(
+          url,
+          headers: {
+            'Content-Type': 'application/json',
+            if (token != null) 'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({
+            'userId': userId,
+            'action': normalizedAction,
+            'reason': reason,
+            'durationDays': ?durationDays,
+          }),
+        ).timeout(const Duration(seconds: 12));
+
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          backendSuccess = true;
+        } else {
+          debugPrint('moderateUser Cloud Function responded: ${response.statusCode} - ${response.body}');
+        }
+      } catch (cfErr) {
+        debugPrint('moderateUser Cloud Function error: $cfErr');
+      }
+
+      // 2. Direct Firestore fallback if backend endpoint was unreachable
+      if (!backendSuccess) {
+        await db.collection(FirestoreCollections.users).doc(userId).set(updates, SetOptions(merge: true));
+
+        try {
+          await db.collection('admin_actions_log').add({
+            'adminId': adminId,
+            'adminEmail': adminEmail,
+            'userId': userId,
+            'action': normalizedAction,
+            'reason': reason,
+            'durationDays': durationDays,
+            'timestamp': FieldValue.serverTimestamp(),
+          });
+        } catch (_) {}
+      }
 
       Get.snackbar(
         'Action Applied',
@@ -2753,6 +3782,99 @@ class AdminController extends BaseController {
       return false;
     } finally {
       isActionSubmitting.value = false;
+    }
+  }
+
+  final RxBool isConsolidatingAccounts = false.obs;
+
+  /// Helper to record administrative actions into Firestore admin_actions_log
+  Future<void> _logAdminAction({
+    required String action,
+    String? targetId,
+    String? userId,
+    String? reason,
+    Map<String, dynamic>? extra,
+  }) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      final payload = <String, dynamic>{
+        'adminId': user?.uid ?? 'admin',
+        'adminEmail': user?.email ?? 'admin@truthworld.com',
+        'action': action,
+        'reason': reason ?? '',
+        'timestamp': FieldValue.serverTimestamp(),
+        'targetId': ?targetId,
+        'userId': ?userId,
+        ...?extra,
+      };
+      await FirebaseFirestore.instance.collection('admin_actions_log').add(payload);
+    } catch (e) {
+      debugPrint('Failed to log admin action: $e');
+    }
+  }
+
+  /// Consolidates duplicate user accounts under the same email
+  Future<bool> consolidateUserAccounts(String email, {String? primaryUid}) async {
+    if (isConsolidatingAccounts.value) return false;
+    isConsolidatingAccounts.value = true;
+
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      final token = currentUser != null ? await currentUser.getIdToken() : null;
+
+      final url = Uri.parse(
+        '${AppConfig.cloudFunctionsBaseUrl}/consolidateUserAccounts',
+      );
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'email': email,
+          if (primaryUid != null && primaryUid.isNotEmpty) 'primaryUid': primaryUid,
+        }),
+      );
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>?;
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final mergedCount = data?['mergedCount'] ?? 0;
+        final message = data?['message'] ?? 'Successfully consolidated $mergedCount duplicate accounts.';
+        Get.snackbar(
+          'Accounts Consolidated',
+          message.toString(),
+          backgroundColor: const Color(0xFF2BA640),
+          colorText: AppColors.textPrimary,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+        await searchUsers(userSearchQuery.value);
+        return true;
+      } else {
+        final errorMsg = data?['error'] ?? 'Failed to consolidate accounts';
+        Get.snackbar(
+          'Consolidation Result',
+          errorMsg.toString(),
+          backgroundColor: const Color(0xFFCF6679),
+          colorText: AppColors.textPrimary,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+        return false;
+      }
+    } catch (e) {
+      debugPrint('consolidateUserAccounts error: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to connect to consolidation service: $e',
+        backgroundColor: const Color(0xFFCF6679),
+        colorText: AppColors.textPrimary,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return false;
+    } finally {
+      isConsolidatingAccounts.value = false;
     }
   }
 
@@ -2992,7 +4114,8 @@ class AdminController extends BaseController {
           'strikes': userLookup[userId]?['strikes'] ?? 0,
           'isBanned': userLookup[userId]?['isBanned'] ?? false,
         };
-        existing['violationsCount'] = (existing['violationsCount'] as int) + 1;
+        existing['violationsCount'] =
+            ((existing['violationsCount'] as num?)?.toInt() ?? 0) + 1;
         userOffenses[userId] = existing;
       }
 
@@ -3232,10 +4355,12 @@ class AdminController extends BaseController {
         return vCount > 0 || strikes > 0 || isBanned;
       }).toList()
         ..sort((a, b) {
-          final cmp = (b['violationsCount'] as int).compareTo(a['violationsCount'] as int);
+          final bViolations = (b['violationsCount'] as num?)?.toInt() ?? 0;
+          final aViolations = (a['violationsCount'] as num?)?.toInt() ?? 0;
+          final cmp = bViolations.compareTo(aViolations);
           if (cmp != 0) return cmp;
-          final sB = b['strikes'] as int;
-          final sA = a['strikes'] as int;
+          final sB = (b['strikes'] as num?)?.toInt() ?? 0;
+          final sA = (a['strikes'] as num?)?.toInt() ?? 0;
           return sB.compareTo(sA);
         });
 
@@ -3334,19 +4459,59 @@ class AdminController extends BaseController {
   // FEATURE: Alerts & Escalation Methods
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Loads alert rules and active alerts from Firestore
+  /// Loads alert rules and active alerts from Firestore (supports both system_alerts and admin_alerts)
   Future<void> fetchAlerts() async {
     isLoadingAlerts.value = true;
     try {
-      // Load active alerts
-      final alertsSnap = await FirebaseFirestore.instance
-          .collection('admin_alerts')
-          .orderBy('triggeredAt', descending: true)
-          .limit(50)
-          .get();
-      activeAlerts.assignAll(
-        alertsSnap.docs.map((d) => {'id': d.id, ...d.data()}),
-      );
+      final combinedAlerts = <Map<String, dynamic>>[];
+
+      // Load active alerts from system_alerts (pipeline alerting output)
+      try {
+        final sysSnap = await FirebaseFirestore.instance
+            .collection('system_alerts')
+            .orderBy('triggeredAt', descending: true)
+            .limit(50)
+            .get();
+        for (final d in sysSnap.docs) {
+          final data = d.data();
+          if (data['status'] != 'resolved') {
+            combinedAlerts.add({'id': d.id, '_source': 'system_alerts', ...data});
+          }
+        }
+      } catch (e) {
+        debugPrint('system_alerts fetch notice: $e');
+      }
+
+      // Load active alerts from admin_alerts (console escalation output)
+      try {
+        final adminSnap = await FirebaseFirestore.instance
+            .collection('admin_alerts')
+            .orderBy('triggeredAt', descending: true)
+            .limit(50)
+            .get();
+        for (final d in adminSnap.docs) {
+          final data = d.data();
+          if (data['status'] != 'resolved') {
+            combinedAlerts.add({'id': d.id, '_source': 'admin_alerts', ...data});
+          }
+        }
+      } catch (e) {
+        debugPrint('admin_alerts fetch notice: $e');
+      }
+
+      // Sort by triggeredAt / timestamp descending
+      combinedAlerts.sort((a, b) {
+        final timeA = a['triggeredAt'] ?? a['timestamp'] ?? a['createdAt'];
+        final timeB = b['triggeredAt'] ?? b['timestamp'] ?? b['createdAt'];
+        if (timeA == null && timeB == null) return 0;
+        if (timeA == null) return 1;
+        if (timeB == null) return -1;
+        final dtA = timeA is Timestamp ? timeA.toDate() : (DateTime.tryParse(timeA.toString()) ?? DateTime(0));
+        final dtB = timeB is Timestamp ? timeB.toDate() : (DateTime.tryParse(timeB.toString()) ?? DateTime(0));
+        return dtB.compareTo(dtA);
+      });
+
+      activeAlerts.assignAll(combinedAlerts);
 
       // Load alert rules configuration
       final rulesDoc = await FirebaseFirestore.instance
@@ -3402,6 +4567,60 @@ class AdminController extends BaseController {
       debugPrint('Alerts fetch error: $e');
     } finally {
       isLoadingAlerts.value = false;
+    }
+  }
+
+  /// Resolves an active alert across system_alerts or admin_alerts
+  Future<void> resolveAlert(String alertId, {String? sourceCollection}) async {
+    try {
+      final col = sourceCollection ?? 'system_alerts';
+      await FirebaseFirestore.instance
+          .collection(col)
+          .doc(alertId)
+          .set({
+            'status': 'resolved',
+            'resolvedAt': FieldValue.serverTimestamp(),
+            'resolvedBy': FirebaseAuth.instance.currentUser?.email ?? 'admin',
+          }, SetOptions(merge: true));
+
+      // Also ensure it's marked resolved in admin_alerts
+      if (col == 'system_alerts') {
+        try {
+          await FirebaseFirestore.instance
+              .collection('admin_alerts')
+              .doc(alertId)
+              .set({
+                'status': 'resolved',
+                'resolvedAt': FieldValue.serverTimestamp(),
+                'resolvedBy': FirebaseAuth.instance.currentUser?.email ?? 'admin',
+              }, SetOptions(merge: true));
+        } catch (_) {}
+      }
+
+      activeAlerts.removeWhere((a) => a['id'] == alertId);
+
+      await _logAdminAction(
+        action: 'resolve_alert',
+        targetId: alertId,
+        reason: 'Alert marked as resolved',
+      );
+
+      Get.snackbar(
+        'Alert Resolved',
+        'Alert $alertId marked as resolved.',
+        backgroundColor: const Color(0xFF2BA640),
+        colorText: AppColors.textPrimary,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } catch (e) {
+      debugPrint('resolveAlert error: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to resolve alert: $e',
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
+        snackPosition: SnackPosition.BOTTOM,
+      );
     }
   }
 
@@ -3467,7 +4686,7 @@ class AdminController extends BaseController {
     }
   }
 
-  /// Resolves an appeal with the given action
+  /// Resolves an appeal with the given action and restores content on overturn
   Future<bool> resolveAppeal(
     String appealId,
     String action,
@@ -3475,21 +4694,84 @@ class AdminController extends BaseController {
   ) async {
     isActionSubmitting.value = true;
     try {
+      final normalizedAction = action.toLowerCase();
+      final currentAppeal = appeals.cast<Map<String, dynamic>?>().firstWhere(
+            (a) => a?['id'] == appealId,
+            orElse: () => null,
+          );
+
+      final newStatus = normalizedAction == 'overturn'
+          ? 'overturned'
+          : (normalizedAction == 'escalate' ? 'escalated' : 'upheld');
+
       await FirebaseFirestore.instance
           .collection('content_appeals')
           .doc(appealId)
           .update({
-            'status': action == 'overturn'
-                ? 'overturned'
-                : (action == 'escalate' ? 'escalated' : 'upheld'),
+            'status': newStatus,
             'resolvedAt': FieldValue.serverTimestamp(),
             'resolvedBy': FirebaseAuth.instance.currentUser?.uid,
+            'resolvedByEmail': FirebaseAuth.instance.currentUser?.email,
             'resolutionNote': reason,
           });
 
+      // If appeal is overturned, restore underlying content in Firestore
+      final targetType = (currentAppeal?['contentType'] ?? currentAppeal?['type'] ?? '').toString().toLowerCase();
+      final targetId = (currentAppeal?['contentId'] ??
+              currentAppeal?['videoId'] ??
+              currentAppeal?['channelId'] ??
+              currentAppeal?['imageId'] ??
+              '')
+          .toString();
+
+      if (normalizedAction == 'overturn' && targetId.isNotEmpty) {
+        if (targetType.contains('video') || currentAppeal?['videoId'] != null) {
+          await FirebaseFirestore.instance
+              .collection(FirestoreCollections.videos)
+              .doc(targetId)
+              .set({
+            'status': 'published',
+            'isApproved': true,
+            'moderation': {
+              'status': 'approved',
+              'appealOverturned': true,
+              'reviewedAt': FieldValue.serverTimestamp(),
+              'reviewerId': FirebaseAuth.instance.currentUser?.uid,
+              'reason': reason,
+            },
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        } else if (targetType.contains('channel') || currentAppeal?['channelId'] != null) {
+          await FirebaseFirestore.instance.collection('channels').doc(targetId).set({
+            'status': 'active',
+            'isApproved': true,
+            'isVerified': true,
+            'appealOverturned': true,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        } else if (targetType.contains('image') ||
+            targetType.contains('post') ||
+            currentAppeal?['imageId'] != null) {
+          await FirebaseFirestore.instance
+              .collection('image_verification')
+              .doc(targetId)
+              .set({
+            'status': 'approved',
+            'appealOverturned': true,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        }
+      }
+
+      await _logAdminAction(
+        action: 'appeal_$normalizedAction',
+        targetId: appealId,
+        reason: 'Appeal $normalizedAction: $reason (target: $targetType/$targetId)',
+      );
+
       Get.snackbar(
         'Appeal Resolved',
-        'Appeal ${action}ed successfully.',
+        'Appeal ${normalizedAction}ed successfully.',
         backgroundColor: const Color(0xFF2BA640),
         colorText: AppColors.textPrimary,
         snackPosition: SnackPosition.BOTTOM,
@@ -3539,12 +4821,21 @@ class AdminController extends BaseController {
         clustersSnap.docs.map((d) => {'id': d.id, ...d.data()}),
       );
 
-      // Load lockdown status
+      // Load lockdown and rate limit status
       final settingsDoc = await FirebaseFirestore.instance
           .collection('admin_settings')
           .doc('security_config')
           .get();
-      isLockdownMode.value = settingsDoc.data()?['lockdownMode'] == true;
+      if (settingsDoc.exists && settingsDoc.data() != null) {
+        final data = settingsDoc.data()!;
+        isLockdownMode.value = data['lockdownMode'] == true;
+        if (data['perUserUploadRateLimit'] is num) {
+          perUserUploadRateLimit.value = (data['perUserUploadRateLimit'] as num).toInt();
+        }
+        if (data['globalUploadRateLimit'] is num) {
+          globalUploadRateLimit.value = (data['globalUploadRateLimit'] as num).toInt();
+        }
+      }
 
       // Compute upload velocity (hourly counts for last 24h from existing data)
       final now = DateTime.now();
@@ -3602,6 +4893,191 @@ class AdminController extends BaseController {
     } catch (e) {
       debugPrint('Lockdown toggle error: $e');
     }
+  }
+
+  /// Saves per-user and global upload rate limits to Firestore admin_settings/security_config
+  Future<void> saveRateLimits({int? perUser, int? global}) async {
+    isSavingRateLimits.value = true;
+    try {
+      final perUserVal = perUser ?? perUserUploadRateLimit.value;
+      final globalVal = global ?? globalUploadRateLimit.value;
+
+      await FirebaseFirestore.instance
+          .collection('admin_settings')
+          .doc('security_config')
+          .set({
+            'perUserUploadRateLimit': perUserVal,
+            'globalUploadRateLimit': globalVal,
+            'updatedAt': FieldValue.serverTimestamp(),
+            'updatedBy': FirebaseAuth.instance.currentUser?.email ?? 'admin',
+          }, SetOptions(merge: true));
+
+      perUserUploadRateLimit.value = perUserVal;
+      globalUploadRateLimit.value = globalVal;
+
+      await _logAdminAction(
+        action: 'update_rate_limits',
+        reason: 'Per-user: $perUserVal, Global: $globalVal',
+      );
+
+      Get.snackbar(
+        'Rate Limits Updated',
+        'Upload throttling policy saved: $perUserVal/hr user, $globalVal/hr global.',
+        backgroundColor: const Color(0xFF2BA640),
+        colorText: AppColors.textPrimary,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } catch (e) {
+      debugPrint('saveRateLimits error: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to save rate limits: $e',
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } finally {
+      isSavingRateLimits.value = false;
+    }
+  }
+
+  /// Opens an investigation dialog for a security anomaly or cluster and logs action
+  void investigateAnomaly(Map<String, dynamic> item) {
+    final title = item['name'] ?? item['title'] ?? item['type'] ?? 'Security Incident';
+    final desc = item['description'] ?? item['details'] ?? 'No further details available.';
+    final id = item['id'] ?? 'unknown';
+    final accounts = (item['accounts'] as List?)?.map((e) => e.toString()).toList() ?? [];
+
+    Get.dialog(
+      AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        title: Row(
+          children: [
+            const Icon(Icons.security, color: Colors.white, size: 22),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Investigate: $title',
+                style: const TextStyle(
+                  fontFamily: TWTypography.brandFamily,
+                  color: AppColors.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 480,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  desc.toString(),
+                  style: const TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (item['ipAddress'] != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: Text(
+                      'Origin IP: ${item['ipAddress']}',
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        color: AppColors.textPrimary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                if (item['deviceId'] != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: Text(
+                      'Device ID: ${item['deviceId']}',
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        color: AppColors.textPrimary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                if (accounts.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Linked Accounts:',
+                    style: TextStyle(
+                      fontFamily: TWTypography.brandFamily,
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 120),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.black26,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.white10),
+                      ),
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: accounts.length,
+                        itemBuilder: (ctx, i) => Text(
+                          accounts[i],
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            color: AppColors.textSecondary,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: Get.back,
+            child: const Text('Close', style: TextStyle(color: Colors.white70)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFCF6679),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              Get.back();
+              await _logAdminAction(
+                action: 'investigate_flag_anomaly',
+                targetId: id.toString(),
+                reason: 'Security investigation escalated: $title',
+              );
+              Get.snackbar(
+                'Flagged',
+                'Incident $id logged and escalated for security containment.',
+                backgroundColor: const Color(0xFF2BA640),
+                colorText: AppColors.textPrimary,
+                snackPosition: SnackPosition.BOTTOM,
+              );
+            },
+            child: const Text('Escalate / Log Action'),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Executes manual report moderation action (resolve_keep/resolve_reject)

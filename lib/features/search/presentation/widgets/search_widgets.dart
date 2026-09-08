@@ -1,7 +1,9 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
 import 'package:truthworld/features/search/data/models/search_result.dart';
 import 'package:truthworld/features/search/presentation/controllers/search_controller.dart'
@@ -78,10 +80,12 @@ class FollowButton extends StatelessWidget {
   const FollowButton({
     required this.topicId,
     required this.topicTitle,
+    this.videoCount = 0,
     super.key,
   });
   final String topicId;
   final String topicTitle;
+  final int videoCount;
 
   @override
   Widget build(BuildContext context) {
@@ -104,6 +108,32 @@ class FollowButton extends StatelessWidget {
             );
             return;
           }
+
+          var finalCount = videoCount;
+          if (finalCount <= 0 && !isFollowing) {
+            try {
+              final doc = await FirebaseFirestore.instance
+                  .collection(FirestoreCollections.topics)
+                  .doc(topicId)
+                  .get();
+              if (doc.exists) {
+                final data = doc.data();
+                finalCount = (data?['videoCount'] as num?)?.toInt() ??
+                    (data?['featuredVideoIds'] as List?)?.length ??
+                    0;
+              }
+            } catch (_) {}
+          }
+
+          if (finalCount <= 0 && !isFollowing) {
+            Get.snackbar(
+              'Unavailable',
+              'This topic has no videos.',
+              snackPosition: SnackPosition.BOTTOM,
+            );
+            return;
+          }
+
           final slug = topicTitle.toLowerCase().replaceAll(' ', '-');
           final topic = Topic(
             id: topicId,
@@ -113,6 +143,7 @@ class FollowButton extends StatelessWidget {
             handleLowercase: slug.toLowerCase(),
             description: '',
             category: 'General',
+            videoCount: finalCount > 0 ? finalCount : 1,
             createdAt: DateTime.now(),
             updatedAt: DateTime.now(),
           );
@@ -545,6 +576,9 @@ class SearchResultCard extends StatelessWidget {
   }
 
   Widget _buildTopicCard(BuildContext context) {
+    if (result.views <= 0) {
+      return const SizedBox.shrink();
+    }
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -663,6 +697,7 @@ class SearchResultCard extends StatelessWidget {
             FollowButton(
               topicId: result.id,
               topicTitle: result.title,
+              videoCount: result.views,
             ),
           ],
         ),
@@ -1012,12 +1047,12 @@ class SearchBar extends StatefulWidget {
 class _SearchBarState extends State<SearchBar> {
   final FocusNode _focusNode = FocusNode();
   final RxBool _isFocused = false.obs;
-  final RxInt _textLength = 0.obs;
+  final RxBool _hasText = false.obs;
 
   @override
   void initState() {
     super.initState();
-    _textLength.value = widget.controller.text.length;
+    _hasText.value = widget.controller.text.isNotEmpty;
     widget.controller.addListener(_handleTextChanged);
     _focusNode.addListener(_handleFocusChange);
   }
@@ -1031,7 +1066,10 @@ class _SearchBarState extends State<SearchBar> {
   }
 
   void _handleTextChanged() {
-    _textLength.value = widget.controller.text.length;
+    final hasText = widget.controller.text.isNotEmpty;
+    if (_hasText.value != hasText) {
+      _hasText.value = hasText;
+    }
   }
 
   void _handleFocusChange() {
@@ -1041,6 +1079,90 @@ class _SearchBarState extends State<SearchBar> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    final textField = TextField(
+      controller: widget.controller,
+      focusNode: _focusNode,
+      onChanged: widget.onChanged,
+      onSubmitted: (_) => widget.onSearchSubmitted(),
+      autofocus: true,
+      textInputAction: TextInputAction.search,
+      style: TextStyle(
+        color: theme.colorScheme.onSurface,
+        fontSize: 14,
+        fontWeight: FontWeight.w400,
+      ),
+      cursorColor: AppColors.brand,
+      decoration: InputDecoration(
+        hintText: widget.hintText,
+        hintStyle: TextStyle(
+          color: theme.colorScheme.onSurfaceVariant,
+          fontSize: 14,
+        ),
+        prefixIcon: widget.isLoading
+            ? Container(
+                width: 20,
+                height: 20,
+                margin: const EdgeInsets.all(12),
+                child: const CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.brand,
+                ),
+              )
+            : IconButton(
+                icon: const Icon(
+                  Icons.search_rounded,
+                  color: AppColors.textPrimary,
+                  size: 20,
+                ),
+                onPressed: widget.onSearchSubmitted,
+              ),
+        suffixIcon: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Obx(() {
+              if (!_hasText.value) return const SizedBox.shrink();
+              return IconButton(
+                icon: const Icon(
+                  Icons.clear_rounded,
+                  color: AppColors.textPrimary,
+                  size: 18,
+                ),
+                onPressed: () {
+                  widget.controller.clear();
+                  _hasText.value = false;
+                  widget.onClear();
+                },
+              );
+            }),
+            IconButton(
+              icon: const Icon(
+                Icons.mic_rounded,
+                color: AppColors.textPrimary,
+                size: 20,
+              ),
+              onPressed: () {
+                Get.dialog(
+                  VoiceSearchDialog(
+                    onSearch: (query) {
+                      widget.controller.text = query;
+                      widget.onChanged(query);
+                      widget.onSearchSubmitted();
+                    },
+                  ),
+                  useSafeArea: false,
+                );
+              },
+            ),
+          ],
+        ),
+        border: InputBorder.none,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
+      ),
+    );
 
     return Obx(
       () => Container(
@@ -1054,87 +1176,7 @@ class _SearchBarState extends State<SearchBar> {
                 : AppColors.bgSurfaceContainerHighest,
           ),
         ),
-        child: TextField(
-          controller: widget.controller,
-          focusNode: _focusNode,
-          onChanged: widget.onChanged,
-          onSubmitted: (_) => widget.onSearchSubmitted(),
-          autofocus: true,
-          textInputAction: TextInputAction.search,
-          style: TextStyle(
-            color: theme.colorScheme.onSurface,
-            fontSize: 14,
-            fontWeight: FontWeight.w400,
-          ),
-          cursorColor: AppColors.brand,
-          decoration: InputDecoration(
-            hintText: widget.hintText,
-            hintStyle: TextStyle(
-              color: theme.colorScheme.onSurfaceVariant,
-              fontSize: 14,
-            ),
-            prefixIcon: widget.isLoading
-                ? Container(
-                    width: 20,
-                    height: 20,
-                    margin: const EdgeInsets.all(12),
-                    child: const CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppColors.brand,
-                    ),
-                  )
-                : IconButton(
-                    icon: const Icon(
-                      Icons.search_rounded,
-                      color: AppColors.textPrimary,
-                      size: 20,
-                    ),
-                    onPressed: widget.onSearchSubmitted,
-                  ),
-            suffixIcon: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (_textLength.value > 0)
-                  IconButton(
-                    icon: const Icon(
-                      Icons.clear_rounded,
-                      color: AppColors.textPrimary,
-                      size: 18,
-                    ),
-                    onPressed: () {
-                      widget.controller.clear();
-                      _textLength.value = 0;
-                      widget.onClear();
-                    },
-                  ),
-                IconButton(
-                  icon: const Icon(
-                    Icons.mic_rounded,
-                    color: AppColors.textPrimary,
-                    size: 20,
-                  ),
-                  onPressed: () {
-                    Get.dialog(
-                      VoiceSearchDialog(
-                        onSearch: (query) {
-                          widget.controller.text = query;
-                          widget.onChanged(query);
-                          widget.onSearchSubmitted();
-                        },
-                      ),
-                      useSafeArea: false,
-                    );
-                  },
-                ),
-              ],
-            ),
-            border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
-            ),
-          ),
-        ),
+        child: textField,
       ),
     );
   }

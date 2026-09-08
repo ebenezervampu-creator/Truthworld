@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
@@ -66,14 +65,28 @@ class ReplyInputController extends BaseController with ContentValidationMixin {
 
     isSending.value = true;
 
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
+    if (!AuthService.to.isAuthenticated.value) {
       Get.snackbar(
-        'Error',
-        'Please sign in to reply.',
+        'Sign in required',
+        'Please sign in with your Google account to reply.',
         snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.error,
+        backgroundColor: AppColors.bgSurface,
         colorText: AppColors.textPrimary,
+        margin: const EdgeInsets.all(16),
+        borderRadius: 12,
+        duration: const Duration(seconds: 4),
+        mainButton: TextButton(
+          onPressed: () {
+            AuthService.to.signInWithGoogle();
+          },
+          child: const Text(
+            'SIGN IN',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
       );
       isSending.value = false;
       return;
@@ -81,13 +94,18 @@ class ReplyInputController extends BaseController with ContentValidationMixin {
 
     try {
       final authService = AuthService.to;
+      final uid = authService.uid;
+      if (uid.isEmpty) {
+        isSending.value = false;
+        return;
+      }
       final finalUserName = authService.activeDisplayName;
       final finalUserProfilePicUrl = authService.activePhotoUrl;
 
       await _mainController.addReply(
         videoId: videoId,
         commentId: commentId,
-        userId: user.uid,
+        userId: uid,
         userName: finalUserName,
         userProfilePicUrl: finalUserProfilePicUrl,
         text: replyText.value.trim(),

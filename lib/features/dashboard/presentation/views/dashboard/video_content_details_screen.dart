@@ -4,6 +4,8 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:truthworld/core/utils/watch_time_formatter.dart';
 import 'package:truthworld/features/analytics/presentation/pages/watch_time_page.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/chapters_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/chapters_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/edit_videoscreen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/widgets/video_pipeline_status.dart';
@@ -183,86 +185,111 @@ class VideoContentDetailsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // Action Row: Watch Video, Analytics & Edit Video
-            Row(
+            // Action Row: Watch Video, Analytics, Chapters & Edit Video
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.brand,
-                      foregroundColor: AppColors.textPrimary,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.brand,
+                    foregroundColor: AppColors.textPrimary,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    icon: const Icon(Icons.play_arrow_rounded, size: 20),
-                    label: Text(
-                      'Watch',
-                      style: AppTextStyles.buttonText.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    onPressed: () {
-                      MiniplayerNavigationHelper.navigateToVideoScreen(
-                        video: video,
-                      );
-                    },
                   ),
+                  icon: const Icon(Icons.play_arrow_rounded, size: 20, color: Colors.white),
+                  label: Text(
+                    'Watch',
+                    style: AppTextStyles.buttonText.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  onPressed: () {
+                    MiniplayerNavigationHelper.navigateToVideoScreen(
+                      video: video,
+                    );
+                  },
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.textPrimary,
-                      side: const BorderSide(color: AppColors.bgDivider),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.textPrimary,
+                    side: const BorderSide(color: AppColors.bgDivider),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    icon: const Icon(Icons.analytics_outlined, size: 18),
-                    label: Text(
-                      'Analytics',
-                      style: AppTextStyles.buttonText.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    onPressed: () {
-                      Get.to<dynamic>(
-                        () => const WatchTimePage(),
-                        arguments: {
-                          'channelId': video.channelId,
-                          'videoId': video.id,
-                          'videoTitle': video.title,
-                        },
-                      );
-                    },
                   ),
+                  icon: const Icon(Icons.analytics_outlined, size: 18, color: Colors.white),
+                  label: Text(
+                    'Analytics',
+                    style: AppTextStyles.buttonText.copyWith(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  onPressed: () {
+                    Get.to<dynamic>(
+                      () => const WatchTimePage(),
+                      arguments: {
+                        'channelId': video.channelId,
+                        'videoId': video.id,
+                        'videoTitle': video.title,
+                      },
+                    );
+                  },
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.textPrimary,
-                      side: const BorderSide(color: AppColors.bgDivider),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.textPrimary,
+                    side: const BorderSide(color: AppColors.bgDivider),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    icon: const Icon(Icons.edit_outlined, size: 18),
-                    label: Text(
-                      'Edit',
-                      style: AppTextStyles.buttonText.copyWith(
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    onPressed: () {
-                      Get.to<dynamic>(() => EditVideoScreen(video: video));
-                    },
                   ),
+                  icon: const Icon(Icons.view_timeline_rounded, size: 18, color: Colors.white),
+                  label: Text(
+                    'Chapters',
+                    style: AppTextStyles.buttonText.copyWith(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  onPressed: () {
+                    final chaptersCtrl = Get.isRegistered<ChaptersController>()
+                        ? Get.find<ChaptersController>()
+                        : Get.put(ChaptersController());
+                    chaptersCtrl.setChannelContext(video.channelId);
+                    chaptersCtrl.selectVideo(video);
+                    Get.to<dynamic>(
+                      () => ChaptersPage(
+                        channelId: video.channelId,
+                        isDarkMode: isDarkMode,
+                      ),
+                    );
+                  },
+                ),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.textPrimary,
+                    side: const BorderSide(color: AppColors.bgDivider),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  icon: const Icon(Icons.edit_outlined, size: 18, color: Colors.white),
+                  label: Text(
+                    'Edit',
+                    style: AppTextStyles.buttonText.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  onPressed: () {
+                    Get.to<dynamic>(() => EditVideoScreen(video: video));
+                  },
                 ),
               ],
             ),

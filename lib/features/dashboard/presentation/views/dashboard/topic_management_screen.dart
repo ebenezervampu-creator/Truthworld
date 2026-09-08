@@ -13,7 +13,6 @@ import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/widgets/create_topic_dialog.dart';
 import 'package:truthworld/features/topics/presentation/widgets/topic_card_widget.dart';
 import 'package:truthworld/features/topics/presentation/widgets/topic_popup_menu.dart';
-import 'package:truthworld/features/video/presentation/views/upload/widgets/topic_selection_bottom_sheet.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Redesigned Topics Tab in Studio
@@ -67,23 +66,6 @@ class TopicManagementScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F0F0F),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showCreateTopicDialog(context, controller),
-        icon: const Icon(Icons.add_rounded, color: Colors.black),
-        label: const Text(
-          'Create Topic',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
-            fontSize: 13,
-          ),
-        ),
-        backgroundColor: Colors.white,
-        elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
-      ),
       body: CustomScrollView(
         slivers: [
           // Studio Header & Summary Metrics Bar
@@ -125,78 +107,37 @@ class TopicManagementScreen extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 14),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: OutlinedButton.icon(
-                                    onPressed: () {
-                                      TopicSelectionBottomSheet.showPopupDialog(
-                                        context,
-                                        controller,
-                                        onCreateNewTopic: (isDark) =>
-                                            _showCreateTopicDialog(context, controller),
-                                      );
-                                    },
-                                    icon: const Icon(
-                                      Icons.topic_rounded,
-                                      size: 16,
-                                      color: Colors.white,
-                                    ),
-                                    label: const Text(
-                                      'Save Video',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    style: OutlinedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF18181B),
-                                      foregroundColor: Colors.white,
-                                      side: const BorderSide(color: Color(0xFF27272A)),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 12,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                    ),
-                                  ),
+                            ElevatedButton.icon(
+                              onPressed: () =>
+                                  _showCreateTopicDialog(context, controller),
+                              icon: const Icon(
+                                Icons.add_rounded,
+                                size: 18,
+                                color: Colors.white,
+                              ),
+                              label: const Text(
+                                'New Topic',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
                                 ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: ElevatedButton.icon(
-                                    onPressed: () =>
-                                        _showCreateTopicDialog(context, controller),
-                                    icon: const Icon(
-                                      Icons.add_rounded,
-                                      size: 18,
-                                      color: Colors.black,
-                                    ),
-                                    label: const Text(
-                                      'New Topic',
-                                      style: TextStyle(
-                                        color: Colors.black,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.white,
-                                      foregroundColor: Colors.black,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 14,
-                                        vertical: 12,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      elevation: 0,
-                                    ),
-                                  ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF27272A),
+                                foregroundColor: Colors.white,
+                                side: const BorderSide(
+                                  color: Color(0xFF3F3F46),
                                 ),
-                              ],
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                elevation: 0,
+                              ),
                             ),
                           ],
                         );
@@ -230,74 +171,37 @@ class TopicManagementScreen extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 16),
-                          Row(
-                            children: [
-                              OutlinedButton.icon(
-                                onPressed: () {
-                                  TopicSelectionBottomSheet.showPopupDialog(
-                                    context,
-                                    controller,
-                                    onCreateNewTopic: (isDark) =>
-                                        _showCreateTopicDialog(context, controller),
-                                  );
-                                },
-                                icon: const Icon(
-                                  Icons.topic_rounded,
-                                  size: 18,
-                                  color: Colors.white,
-                                ),
-                                label: const Text(
-                                  'Save Video to Topic',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                style: OutlinedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF18181B),
-                                  foregroundColor: Colors.white,
-                                  side: const BorderSide(color: Color(0xFF27272A)),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
+                          ElevatedButton.icon(
+                            onPressed: () =>
+                                _showCreateTopicDialog(context, controller),
+                            icon: const Icon(
+                              Icons.add_rounded,
+                              size: 18,
+                              color: Colors.white,
+                            ),
+                            label: const Text(
+                              'New Topic',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
                               ),
-                              const SizedBox(width: 10),
-                              ElevatedButton.icon(
-                                onPressed: () =>
-                                    _showCreateTopicDialog(context, controller),
-                                icon: const Icon(
-                                  Icons.add_rounded,
-                                  size: 18,
-                                  color: Colors.black,
-                                ),
-                                label: const Text(
-                                  'New Topic',
-                                  style: TextStyle(
-                                    color: Colors.black,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white,
-                                  foregroundColor: Colors.black,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 18,
-                                    vertical: 12,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  elevation: 0,
-                                ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF27272A),
+                              foregroundColor: Colors.white,
+                              side: const BorderSide(
+                                color: Color(0xFF3F3F46),
                               ),
-                            ],
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 12,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              elevation: 0,
+                            ),
                           ),
                         ],
                       );
@@ -638,31 +542,6 @@ class TopicManagementScreen extends StatelessWidget {
                 fontSize: 13,
                 color: AppColors.textSecondary,
                 height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () => _showCreateTopicDialog(context, controller),
-              icon: const Icon(Icons.add_rounded, size: 18, color: Colors.black),
-              label: const Text(
-                'Create Topic',
-                style: TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: Colors.black,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 14,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                elevation: 0,
               ),
             ),
           ],

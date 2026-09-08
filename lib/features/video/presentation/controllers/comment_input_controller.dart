@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
@@ -50,6 +49,11 @@ class CommentInputController extends BaseController with ContentValidationMixin 
       return;
     }
 
+    if (!AuthService.to.isAuthenticated.value) {
+      showWarning('Please sign in to post a comment');
+      return;
+    }
+
     final validation = await validateContent(commentController.text, fieldName: 'Comment');
     if (!validation.isValid) {
       showWarning(validation.message);
@@ -58,15 +62,15 @@ class CommentInputController extends BaseController with ContentValidationMixin 
 
     await safeExecute(() async {
       isSubmitting.value = true;
-      final user = FirebaseAuth.instance.currentUser!;
-
       final authService = AuthService.to;
+      final uid = authService.uid;
+      if (uid.isEmpty) return;
       final finalUserName = authService.activeDisplayName;
       final finalUserProfilePicUrl = authService.activePhotoUrl;
 
       await _mainController.addComment(
         videoId: videoId,
-        userId: user.uid,
+        userId: uid,
         userName: finalUserName,
         userProfilePicUrl: finalUserProfilePicUrl,
         text: commentController.text,

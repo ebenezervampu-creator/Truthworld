@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/config/app_config.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart'
     as app_exceptions;
@@ -211,40 +212,66 @@ class AppNavigationController extends BaseController {
       final timestampMs = DateTime.now().millisecondsSinceEpoch;
       final eventId = '${sessionId}_${position}_${eventType}_$timestampMs';
 
-      // URL for Gen 2 (Asia South 1): https://<service-name>-<hash>-<region-code>.a.run.app
-      final response = await http
-          .post(
-            Uri.parse('https://trackwatchevent-prcqnsipmq-el.a.run.app'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'videoId': videoId,
-              'channelId': channelId ?? '',
-              'userId': userId ?? 'anonymous',
-              'sessionId': sessionId,
-              'eventId': eventId,
-              'eventType': eventType,
-              'position': position,
-              'duration': duration,
-              'watchTimeSecondsDelta': watchTimeSecondsDelta ?? 0,
-              'isSubscriber': isSubscriber,
-              'isNotSubscriber': isNotSubscriber,
-              'trafficSource': trafficSource,
-              // Anti-fraud / dedup fields
-              'idempotencyKey': eventId,
-              'viewerHash': viewerHash, // Privacy-safe anonymous identity
-              'dedupKey':
-                  dedupKey, // Server creates qualified_views/{dedupKey} via tx
-            }),
-          )
-          .timeout(const Duration(seconds: 10));
+      final payload = jsonEncode({
+        'videoId': videoId,
+        'channelId': channelId ?? '',
+        'userId': userId ?? 'anonymous',
+        'sessionId': sessionId,
+        'eventId': eventId,
+        'eventType': eventType,
+        'position': position,
+        'duration': duration,
+        'watchTimeSecondsDelta': watchTimeSecondsDelta ?? 0,
+        'isSubscriber': isSubscriber,
+        'isNotSubscriber': isNotSubscriber,
+        'trafficSource': trafficSource,
+        // Anti-fraud / dedup fields
+        'idempotencyKey': eventId,
+        'viewerHash': viewerHash, // Privacy-safe anonymous identity
+        'dedupKey':
+            dedupKey, // Server creates qualified_views/{dedupKey} via tx
+      });
+      final headers = {'Content-Type': 'application/json'};
+
+      // Try direct Cloud Run service first, with fallback to Cloud Functions endpoint
+      http.Response response;
+      try {
+        response = await http
+            .post(
+              Uri.parse('https://trackwatchevent-prcqnsipmq-el.a.run.app'),
+              headers: headers,
+              body: payload,
+            )
+            .timeout(const Duration(seconds: 5));
+      } catch (_) {
+        response = await http
+            .post(
+              Uri.parse('${AppConfig.cloudFunctionsBaseUrl}/trackWatchEvent'),
+              headers: headers,
+              body: payload,
+            )
+            .timeout(const Duration(seconds: 10));
+      }
 
       if (response.statusCode != 200) {
-        if (kDebugMode) {
-          debugPrint(
-            'MainController: trackWatchEvent failed (${response.statusCode}): ${response.body}',
-          );
+        // Retry via Cloud Functions endpoint if direct Cloud Run returned non-200
+        final fallbackResponse = await http
+            .post(
+              Uri.parse('${AppConfig.cloudFunctionsBaseUrl}/trackWatchEvent'),
+              headers: headers,
+              body: payload,
+            )
+            .timeout(const Duration(seconds: 5));
+
+        if (fallbackResponse.statusCode != 200) {
+          if (kDebugMode) {
+            debugPrint(
+              'MainController: trackWatchEvent failed (${fallbackResponse.statusCode}): ${fallbackResponse.body}',
+            );
+          }
+          return false;
         }
-        return false;
+        return true;
       }
       return true;
     } on http.ClientException catch (e) {

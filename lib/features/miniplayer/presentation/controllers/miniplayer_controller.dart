@@ -10,11 +10,11 @@ import 'package:http/http.dart' as http;
 import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
-import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/core/utils/subtitle_parser.dart';
 import 'package:truthworld/features/miniplayer/data/models/miniplayer_model.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/data/services/video_media_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
@@ -166,59 +166,97 @@ class MiniplayerController extends BaseController
       targetUrl = overrideUrl;
     }
 
-    if (kIsWeb) {
-      // On web, avoid .m3u8 HLS if MP4 resolutions are available
-      if (targetUrl == null || targetUrl.isEmpty || targetUrl.contains('.m3u8')) {
-        final mp4Res = video.adaptiveResolutions.firstWhereOrNull(
-          (r) => !r.url.contains('.m3u8') && r.url.isNotEmpty,
+    final validAdaptive = video.adaptiveResolutions.where((r) {
+      final u = r.url.trim().toLowerCase();
+      final l = r.label.toLowerCase();
+      return u.isNotEmpty &&
+          !l.contains('audio') &&
+          !u.contains('/audio');
+    }).toList();
+
+    final nonOriginalAdaptive = validAdaptive.where((r) {
+      final u = r.url.toLowerCase();
+      return !u.endsWith('original.mp4') && !u.contains('/original/');
+    }).toList();
+
+    final preferredAdaptive = nonOriginalAdaptive.isNotEmpty
+        ? nonOriginalAdaptive
+        : validAdaptive;
+
+    if (targetUrl == null || targetUrl.isEmpty) {
+      if (kIsWeb) {
+        // On web, avoid .m3u8 HLS if MP4 resolutions are available
+        final mp4Res = preferredAdaptive.firstWhereOrNull(
+          (r) => !r.url.contains('.m3u8'),
         );
         if (mp4Res != null) {
           targetUrl = mp4Res.url;
-        } else if (video.originalUrl.isNotEmpty &&
-            !video.originalUrl.contains('.m3u8')) {
-          targetUrl = video.originalUrl;
-        } else if (video.videoUrl.isNotEmpty &&
-            !video.videoUrl.contains('.m3u8')) {
-          targetUrl = video.videoUrl;
-        }
-      }
-    } else {
-      // On native, prefer HLS or adaptive resolutions
-      if (targetUrl == null || targetUrl.isEmpty) {
-        if (video.hlsUrl.isNotEmpty && !video.hlsUrl.startsWith('gs://')) {
+        } else if (video.hlsUrl.isNotEmpty &&
+            !video.hlsUrl.endsWith('original.mp4') &&
+            !video.hlsUrl.contains('/original/')) {
           targetUrl = video.hlsUrl;
-        } else if (video.adaptiveResolutions.isNotEmpty) {
-          targetUrl = video.adaptiveResolutions.first.url;
-        } else if (video.originalUrl.isNotEmpty) {
-          targetUrl = video.originalUrl;
-        } else if (video.videoUrl.isNotEmpty) {
-          targetUrl = video.videoUrl;
+        }
+      } else {
+        // On native, prefer HLS or adaptive resolutions
+        if (video.hlsUrl.isNotEmpty &&
+            !video.hlsUrl.startsWith('gs://') &&
+            !video.hlsUrl.endsWith('original.mp4') &&
+            !video.hlsUrl.contains('/original/')) {
+          targetUrl = video.hlsUrl;
+        } else if (preferredAdaptive.isNotEmpty) {
+          targetUrl = preferredAdaptive.first.url;
         }
       }
     }
 
-    // Absolute fallback
-    if (targetUrl == null || targetUrl.isEmpty) {
-      targetUrl = video.videoUrl.isNotEmpty ? video.videoUrl : video.originalUrl;
-    }
-
-    // Fast-download CDN resolution for storage paths
-    if (targetUrl.isNotEmpty) {
-      final fast = StorageUtils.getFastDownloadUrl(targetUrl);
-      if (fast.isNotEmpty) targetUrl = fast;
-    }
-
-    // Resolve gs:// or unauthenticated storage paths via FirebaseStorage if still un-resolved
-    if (targetUrl.startsWith('gs://') ||
-        (targetUrl.startsWith('https://storage.googleapis.com/') &&
-            !targetUrl.contains('token='))) {
+    // Fallback: Query VideoMediaService for streaming resolutions if model lacks them
+    if ((targetUrl == null || targetUrl.isEmpty) && video.id.isNotEmpty) {
       try {
-        targetUrl = await FirebaseStorage.instance
-            .refFromURL(targetUrl)
-            .getDownloadURL();
-      } catch (e) {
-        debugPrint('[MiniplayerController] Storage resolution error: $e');
+        final streaming = await VideoMediaService().getStreaming(video.id);
+        final streamingValid = streaming.adaptiveResolutions.where((r) {
+          final u = r.url.trim().toLowerCase();
+          final l = r.label.toLowerCase();
+          return u.isNotEmpty &&
+              !l.contains('audio') &&
+              !u.contains('/audio');
+        }).toList();
+
+        final streamingNonOriginal = streamingValid.where((r) {
+          final u = r.url.toLowerCase();
+          return !u.endsWith('original.mp4') && !u.contains('/original/');
+        }).toList();
+
+        final preferredStreaming = streamingNonOriginal.isNotEmpty
+            ? streamingNonOriginal
+            : streamingValid;
+
+        if (streamingValid.isNotEmpty) {
+          final mp4Res = kIsWeb
+              ? preferredStreaming.firstWhereOrNull((r) => !r.url.contains('.m3u8'))
+              : null;
+          targetUrl = mp4Res?.url ?? preferredStreaming.first.url;
+        } else if (streaming.hlsUrl.isNotEmpty &&
+            !streaming.hlsUrl.endsWith('original.mp4') &&
+            !streaming.hlsUrl.contains('/original/')) {
+          targetUrl = streaming.hlsUrl;
+        }
+      } catch (_) {}
+    }
+
+    // Absolute fallback: check video.videoUrl, video.originalUrl, or video.hlsUrl
+    if (targetUrl == null || targetUrl.isEmpty) {
+      if (video.videoUrl.isNotEmpty) {
+        targetUrl = video.videoUrl;
+      } else if (video.originalUrl.isNotEmpty) {
+        targetUrl = video.originalUrl;
+      } else if (video.hlsUrl.isNotEmpty) {
+        targetUrl = video.hlsUrl;
       }
+    }
+
+    // Fast-download CDN and authenticated resolution for storage paths
+    if (targetUrl != null && targetUrl.isNotEmpty) {
+      targetUrl = await StorageUtils.resolveUrl(targetUrl);
     }
 
     return targetUrl ?? '';
@@ -722,35 +760,54 @@ class MiniplayerController extends BaseController
   void openFullScreen() {
     final video = currentVideo.value;
     if (video == null) return;
-    final pos = currentPosition.value;
+
+    // Capture the most accurate live position available from hardware or periodic tracker
+    var pos = currentPosition.value;
+    if (_vpc != null && _vpc!.value.isInitialized && _vpc!.value.position > Duration.zero) {
+      pos = _vpc!.value.position;
+    }
 
     mode.value = MiniplayerMode.transitioning;
 
-    // Register active controller for handoff BEFORE navigating (native only)
+    // Register active controller & live timestamp for handoff BEFORE navigating
     if (_vpc != null && !kIsWeb) {
       try {
         _vpc!.removeListener(_vpcListener);
       } catch (_) {}
-      VideoPlaybackHandoff.registerActiveController(video.id, _vpc!);
-      // Set to null so dismiss() / _disposeVideoControllers() won't dispose it!
+      VideoPlaybackHandoff.registerActiveController(video.id, _vpc!, position: pos);
+      // Set to null so dismiss() won't dispose it while handing over!
       _vpc = null;
+    } else {
+      // On web or when controller is null, ensure exact resume position is registered
+      VideoPlaybackHandoff.registerResumePosition(video.id, pos);
     }
 
-    if (RouteStackObserver.hasRoute('/watch')) {
-      Get.until((route) => route.settings.name?.contains('/watch') ?? false);
-    } else {
-      // Navigate first, then dismiss so the miniplayer doesn't flash
+    final args = <String, dynamic>{
+      'video': video,
+      'resumePosition': pos.inMilliseconds,
+      'initialPosition': pos,
+      'isFromMiniplayer': true,
+    };
+
+    final currentRoute = Get.currentRoute.toLowerCase();
+    final isCurrentlyOnWatch =
+        currentRoute.contains('/watch') && currentRoute.contains(video.id);
+
+    if (!isCurrentlyOnWatch) {
       Get.toNamed(
         '/watch?v=${video.id}',
-        arguments: {
-          'video': video,
-          'resumePosition': pos.inMilliseconds,
-        },
+        arguments: args,
+        preventDuplicates: false,
       );
     }
 
-    // Short delay to let the navigation start before disposing
-    Future.delayed(const Duration(milliseconds: 100), dismiss);
+    // Give navigation transition 600ms to complete smoothly before cleaning up transitioning state.
+    // VideoScreen's postFrameCallback will also call dismiss() once mounted.
+    Future.delayed(const Duration(milliseconds: 600), () {
+      if (!_isClosed && mode.value == MiniplayerMode.transitioning) {
+        dismiss();
+      }
+    });
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

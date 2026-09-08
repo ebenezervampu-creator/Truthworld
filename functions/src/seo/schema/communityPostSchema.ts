@@ -12,7 +12,9 @@ export interface CommunityPostSchemaData {
   likes?: number;
   commentCount?: number;
   views?: number;
+  timestamp?: any;
   uploadedAt?: any;
+  updatedAt?: any;
   createdAt?: any;
 }
 
@@ -20,7 +22,8 @@ export function generateCommunityPostSchema(data: CommunityPostSchemaData, canon
   const postTitle = data.title || (data.description ? data.description.substring(0, 80) : "Community Post");
   const authorName = data.channelName || "Channel";
   const authorUrl = data.channelId ? `${DOMAIN}/channel/${data.channelId}` : DOMAIN;
-  const postDate = formatDate(data.uploadedAt || data.createdAt);
+  const postDate = formatDate(data.uploadedAt || data.timestamp || data.createdAt);
+  const modDate = formatDate(data.updatedAt || data.uploadedAt || data.timestamp || data.createdAt);
 
   const images: string[] = [];
   if (data.images && Array.isArray(data.images)) {
@@ -36,7 +39,7 @@ export function generateCommunityPostSchema(data: CommunityPostSchemaData, canon
     "articleBody": data.description || postTitle,
     "url": canonicalUrl,
     "datePublished": postDate,
-    "dateModified": postDate,
+    "dateModified": modDate,
     "image": images.length > 0 ? images : undefined,
     "author": {
       "@type": "Person",
@@ -48,7 +51,10 @@ export function generateCommunityPostSchema(data: CommunityPostSchemaData, canon
       "@type": "Organization",
       "name": "Truthworld",
       "url": DOMAIN,
-      "logo": `${DOMAIN}/icons/Icon-192.png`
+      "logo": {
+        "@type": "ImageObject",
+        "url": `${DOMAIN}/icons/Icon-192.png`
+      }
     },
     "interactionStatistic": [
       {

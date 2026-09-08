@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -106,86 +106,81 @@ class _AboutPageState extends State<AboutPage> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _fadeAnimation,
-      builder: (context, child) {
-        return FadeTransition(
-          opacity: _fadeAnimation,
-          child: SlideTransition(
-            position: _slideAnimation,
-            child: ScaleTransition(
-              scale: _scaleAnimation,
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final isDesktop = constraints.maxWidth >= kDesktopBreakpoint;
-                  final isTablet =
-                      constraints.maxWidth >= kMobileBreakpoint &&
-                      constraints.maxWidth < kDesktopBreakpoint;
-                  final isMobile = constraints.maxWidth < kMobileBreakpoint;
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: SlideTransition(
+        position: _slideAnimation,
+        child: ScaleTransition(
+          scale: _scaleAnimation,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isDesktop = constraints.maxWidth >= kDesktopBreakpoint;
+              final isTablet =
+                  constraints.maxWidth >= kMobileBreakpoint &&
+                  constraints.maxWidth < kDesktopBreakpoint;
+              final isMobile = constraints.maxWidth < kMobileBreakpoint;
 
-                  return Scaffold(
-                    backgroundColor: bgColor,
-                    appBar: !widget.isDashboard
-                        ? _buildModernAppBar(context, isTablet: isTablet)
-                        : null,
-                    body: SafeArea(
-                      child: SingleChildScrollView(
-                        physics: const BouncingScrollPhysics(),
-                        child: Column(
-                          children: [
-                            _buildHeroSection(
-                              context,
-                              isDesktop: isDesktop,
-                              isTablet: isTablet,
-                              isMobile: isMobile,
-                            ),
-                            _buildPlatformPillars(
-                              isDesktop: isDesktop,
-                              isTablet: isTablet,
-                              isMobile: isMobile,
-                            ),
-                            _buildVerificationPipeline(
-                              isDesktop: isDesktop,
-                              isTablet: isTablet,
-                              isMobile: isMobile,
-                            ),
-                            _buildMonetizationModel(
-                              isDesktop: isDesktop,
-                              isTablet: isTablet,
-                              isMobile: isMobile,
-                            ),
-                            _buildLeadershipSection(
-                              isDesktop: isDesktop,
-                              isTablet: isTablet,
-                              isMobile: isMobile,
-                            ),
-                            _buildCorporateAndGrievance(
-                              isDesktop: isDesktop,
-                              isTablet: isTablet,
-                              isMobile: isMobile,
-                            ),
-                            _buildCTASection(
-                              isDesktop: isDesktop,
-                              isTablet: isTablet,
-                              isMobile: isMobile,
-                            ),
-                            _buildFooter(
-                              context,
-                              isDesktop: isDesktop,
-                              isTablet: isTablet,
-                              isMobile: isMobile,
-                            ),
-                          ],
+              return Scaffold(
+                backgroundColor: bgColor,
+                appBar: !widget.isDashboard
+                    ? _buildModernAppBar(context, isTablet: isTablet)
+                    : null,
+                body: SafeArea(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Column(
+                      children: [
+                        _buildHeroSection(
+                          context,
+                          isDesktop: isDesktop,
+                          isTablet: isTablet,
+                          isMobile: isMobile,
                         ),
-                      ),
+                        _buildPlatformPillars(
+                          isDesktop: isDesktop,
+                          isTablet: isTablet,
+                          isMobile: isMobile,
+                        ),
+                        _buildVerificationPipeline(
+                          isDesktop: isDesktop,
+                          isTablet: isTablet,
+                          isMobile: isMobile,
+                        ),
+                        _buildMonetizationModel(
+                          isDesktop: isDesktop,
+                          isTablet: isTablet,
+                          isMobile: isMobile,
+                        ),
+                        _buildLeadershipSection(
+                          isDesktop: isDesktop,
+                          isTablet: isTablet,
+                          isMobile: isMobile,
+                        ),
+                        _buildCorporateAndGrievance(
+                          isDesktop: isDesktop,
+                          isTablet: isTablet,
+                          isMobile: isMobile,
+                        ),
+                        _buildCTASection(
+                          isDesktop: isDesktop,
+                          isTablet: isTablet,
+                          isMobile: isMobile,
+                        ),
+                        _buildFooter(
+                          context,
+                          isDesktop: isDesktop,
+                          isTablet: isTablet,
+                          isMobile: isMobile,
+                        ),
+                      ],
                     ),
-                  );
-                },
-              ),
-            ),
+                  ),
+                ),
+              );
+            },
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -925,7 +920,7 @@ class _AboutPageState extends State<AboutPage> with TickerProviderStateMixin {
                 ),
                 const SizedBox(height: 18),
                 const Text(
-                  'Vampu Ebenezer is the founder and managing director of Truthworld Services (OPC) Private Limited. Leading platform engineering, AI verification architectures, and scalable media streaming pipelines, he established Truthworld to create a transparent, reliable, and globally accessible video distribution ecosystem.',
+                  'Vampu Ebenezer is the founder and managing director of TowerVSP Services (OPC) Private Limited. Leading platform engineering, AI verification architectures, and scalable media streaming pipelines, he established Truthworld to create a transparent, reliable, and globally accessible video distribution ecosystem.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 14,
@@ -1000,7 +995,7 @@ class _AboutPageState extends State<AboutPage> with TickerProviderStateMixin {
           ),
         ),
         const SizedBox(height: 18),
-        _infoRow('Legal Entity', 'TRUTHWORLD SERVICES (OPC) PRIVATE LIMITED'),
+        _infoRow('Legal Entity', 'TOWERVSP SERVICES (OPC) PRIVATE LIMITED'),
         _infoRow('CIN', 'U63111TS2025OPC207488'),
         _infoRow('Incorporation Date', 'December 10, 2025'),
         _infoRow('RoC Jurisdiction', 'RoC Hyderabad, Telangana, India'),
@@ -1233,7 +1228,7 @@ class _AboutPageState extends State<AboutPage> with TickerProviderStateMixin {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               const Text(
-                'TRUTHWORLD SERVICES (OPC) PRIVATE LIMITED',
+                'TOWERVSP SERVICES (OPC) PRIVATE LIMITED',
                 style: TextStyle(
                   color: primaryText,
                   fontWeight: FontWeight.bold,
@@ -1244,6 +1239,7 @@ class _AboutPageState extends State<AboutPage> with TickerProviderStateMixin {
               _footerLink('ebenezervampu@truthworld.in', () => _sendEmail('ebenezervampu@truthworld.in')),
               _footerLink('Terms of Service', () => Get.toNamed('/terms')),
               _footerLink('Privacy Policy', () => Get.toNamed('/privacy')),
+              _footerLink('Copyright & DMCA', () => Get.toNamed('/copyright-complaint')),
               _footerLink('LinkedIn', () => _launchUrl('https://www.linkedin.com/in/ebenezer-vampu-10b9883a9/')),
               _footerLink('X', () => _launchUrl('https://x.com/ebenezervampu1')),
               _footerLink('+91 9390617877', () => _callPhone('+919390617877')),
@@ -1251,7 +1247,7 @@ class _AboutPageState extends State<AboutPage> with TickerProviderStateMixin {
           ),
           const SizedBox(height: 24),
           const Text(
-            '© 2026 Truthworld Services (OPC) Private Limited. All rights reserved. Built for the future of trusted video publishing.',
+            '© 2026 TowerVSP Services (OPC) Private Limited. All rights reserved. Built for the future of trusted video publishing.',
             style: TextStyle(color: secondaryText, fontSize: 12),
           ),
         ],

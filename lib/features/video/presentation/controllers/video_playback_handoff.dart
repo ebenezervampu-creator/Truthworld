@@ -65,18 +65,26 @@ class VideoPlaybackHandoff {
     }
   }
 
-  /// Register an active controller for a given video ID.
+  static final Map<String, Duration> _activePositions = <String, Duration>{};
+
+  /// Register an active controller for a given video ID with optional playback position.
   static void registerActiveController(
     String videoId,
-    VideoPlayerController controller,
-  ) {
-    // On web: skip handoff completely. Flutter Web binds each VideoPlayerController
-    // to an HtmlElementView in the DOM; transferring it across routes causes
-    // "The play() request was interrupted because the media was removed from the document."
+    VideoPlayerController controller, {
+    Duration? position,
+  }) {
+    final pos = position ?? (controller.value.isInitialized ? controller.value.position : Duration.zero);
+    if (pos > Duration.zero) {
+      _activePositions[videoId] = pos;
+    }
+
+    // On web: skip physical controller handoff because Flutter Web binds each
+    // VideoPlayerController to an HtmlElementView in the DOM. However, the exact
+    // position is still preserved above in `_activePositions` for zero-offset resume.
     if (kIsWeb) return;
 
     debugPrint(
-      '[VideoPlaybackHandoff] Registered controller for video: $videoId',
+      '[VideoPlaybackHandoff] Registered controller for video: $videoId at pos: ${pos.inSeconds}s',
     );
 
     // Clean up any previously registered controller that was never claimed
@@ -92,6 +100,31 @@ class VideoPlaybackHandoff {
 
     _activeController = controller;
     _activeVideoId = videoId;
+  }
+
+  /// Register an exact resume timestamp without a controller (useful for Web or warm swaps).
+  static void registerResumePosition(String videoId, Duration position) {
+    if (position > Duration.zero) {
+      _activePositions[videoId] = position;
+      debugPrint(
+        '[VideoPlaybackHandoff] Registered resume position for video: $videoId (${position.inSeconds}s)',
+      );
+    }
+  }
+
+  /// Retrieve and clear the active resume position for a video ID.
+  static Duration? retrievePosition(String videoId) {
+    return _activePositions.remove(videoId);
+  }
+
+  /// Inspect the active resume position for a video ID without clearing it.
+  static Duration? peekPosition(String videoId) {
+    return _activePositions[videoId];
+  }
+
+  /// Check if an active resume position is stored for this video.
+  static bool hasActivePosition(String videoId) {
+    return _activePositions.containsKey(videoId);
   }
 
   /// Retrieve the active controller for a video ID, clearing it from the registry.
@@ -125,12 +158,14 @@ class VideoPlaybackHandoff {
 
   /// Check if the active controller for a video ID is still in the handoff (not claimed yet).
   static bool isActive(String videoId) {
+    if (_activePositions.containsKey(videoId)) return true;
     if (kIsWeb) return false;
     return _activeVideoId == videoId && _activeController != null;
   }
 
   /// Clear/dispose the active controller for a video ID if it hasn't been claimed yet.
   static void clear(String videoId) {
+    _activePositions.remove(videoId);
     if (kIsWeb) return;
     if (_activeVideoId == videoId && _activeController != null) {
       debugPrint(
@@ -146,5 +181,26 @@ class VideoPlaybackHandoff {
       _activeController = null;
       _activeVideoId = null;
     }
+  }
+
+  // ── Global Playback Coordination & Decoupling ─────────────────────────────
+  static final List<VoidCallback> _pauseAllListeners = <VoidCallback>[];
+  static void registerPauseListener(VoidCallback listener) => _pauseAllListeners.add(listener);
+  static void unregisterPauseListener(VoidCallback listener) => _pauseAllListeners.remove(listener);
+
+  /// Pause all active video players across the entire application.
+  static void pauseAllActivePlayers() {
+    for (final listener in List<VoidCallback>.from(_pauseAllListeners)) {
+      try {
+        listener();
+      } catch (_) {}
+    }
+  }
+
+  static void Function(String? tag, VideoPlayerController? controller)? onSyncController;
+
+  /// Sync active overlay player controller without hardcoded type coupling.
+  static void syncActivePlayer(String? tag, VideoPlayerController? controller) {
+    onSyncController?.call(tag, controller);
   }
 }

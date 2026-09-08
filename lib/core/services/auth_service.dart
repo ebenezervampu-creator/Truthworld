@@ -33,8 +33,11 @@ class AuthService extends GetxService {
 
   final RxBool _isAuthenticated = false.obs;
   RxBool get isAuthenticated => _isAuthenticated;
+  bool get isUserSignedIn => _isAuthenticated.value;
 
-  String get uid => _user.value?.uid ?? '';
+  String get uid => (_isAuthenticated.value && _user.value != null && !_user.value!.isAnonymous)
+      ? _user.value!.uid
+      : '';
 
   final RxBool _hasChannel = false.obs;
   RxBool get hasChannel => _hasChannel;
@@ -126,14 +129,20 @@ class AuthService extends GetxService {
     if (hasChannel.value && userChannel != null) {
       return userChannel!.name;
     }
-    return user?.displayName ?? 'User';
+    if (user != null && !user!.isAnonymous && user!.displayName?.isNotEmpty == true) {
+      return user!.displayName!;
+    }
+    return 'User';
   }
 
   String get activePhotoUrl {
     if (hasChannel.value && userChannel != null) {
       return userChannel!.avatarUrl;
     }
-    return user?.photoURL ?? '';
+    if (user != null && !user!.isAnonymous && user!.photoURL?.isNotEmpty == true) {
+      return user!.photoURL!;
+    }
+    return '';
   }
 
   String get activeHandle {
@@ -142,7 +151,10 @@ class AuthService extends GetxService {
       return handle.startsWith('@') ? handle : '@$handle';
     }
     final email = user?.email ?? '';
-    return email.isNotEmpty ? "@${email.split('@')[0]}" : '@user';
+    if (user != null && !user!.isAnonymous && email.isNotEmpty) {
+      return "@${email.split('@')[0]}";
+    }
+    return '@user';
   }
 
   /// ✅ SAFE async initialization (no Firebase calls before this)
@@ -193,6 +205,15 @@ class AuthService extends GetxService {
       debugPrint('AuthService: GoogleSignIn.initialize() error: $e');
     }
 
+    // Purge any lingering anonymous session so guests are never treated as having an account
+    try {
+      if (_auth.currentUser != null && _auth.currentUser!.isAnonymous) {
+        await _auth.signOut();
+      }
+    } catch (e) {
+      debugPrint('AuthService: error purging anonymous user: $e');
+    }
+
     _user.bindStream(_auth.authStateChanges());
     ever(_user, _handleAuthChanged);
 
@@ -200,13 +221,28 @@ class AuthService extends GetxService {
   }
 
   void _handleAuthChanged(User? u) {
-    _isAuthenticated.value = u != null;
-    _updateChannelSubscription(u);
-    _updateUserDocSubscription(u);
-    if (u != null) {
+    if (u != null && u.isAnonymous) {
+      // Unsigned guests must not hold an anonymous user session
+      _isAuthenticated.value = false;
+      _updateChannelSubscription(null);
+      _updateUserDocSubscription(null);
+      needsOnboarding.value = false;
+      _auth.signOut().catchError((e) {
+        debugPrint('AuthService: signOut anonymous error: $e');
+      });
+      return;
+    }
+
+    final isRealUser = u != null && !u.isAnonymous;
+    _isAuthenticated.value = isRealUser;
+    _updateChannelSubscription(isRealUser ? u : null);
+    _updateUserDocSubscription(isRealUser ? u : null);
+    if (isRealUser) {
       _syncUserToFirestore(u).then((_) {
         PushNotificationService.to.registerToken(u.uid);
       });
+    } else {
+      needsOnboarding.value = false;
     }
   }
 
@@ -367,6 +403,7 @@ class AuthService extends GetxService {
       userCity.value = null;
       userState.value = null;
       userCountry.value = null;
+      needsOnboarding.value = false;
       return;
     }
     _userDocSubscription = FirebaseFirestore.instance
@@ -442,7 +479,7 @@ class AuthService extends GetxService {
               userCity.value = null;
               userState.value = null;
               userCountry.value = null;
-              needsOnboarding.value = true;
+              needsOnboarding.value = false;
             }
           },
           onError: (e) {
@@ -667,6 +704,7 @@ class AuthService extends GetxService {
       // Ensure the state is updated anyway
       _user.value = null;
       _isAuthenticated.value = false;
+      needsOnboarding.value = false;
       rethrow;
     }
   }
@@ -707,6 +745,7 @@ class AuthService extends GetxService {
       // 3. Clear local state
       _user.value = null;
       _isAuthenticated.value = false;
+      needsOnboarding.value = false;
     }
   }
 
@@ -716,6 +755,7 @@ class AuthService extends GetxService {
 
   /// ✅ Synchronizes user data to Firestore 'users' collection
   Future<void> _syncUserToFirestore(User user) async {
+    if (user.isAnonymous) return;
     // Avoid duplicate simultaneous/rapid syncs during auth state startup bursts
     if (_isSyncingUser && _lastSyncedUid == user.uid) {
       debugPrint('AuthService: [SYNC] Sync already in progress for UID: ${user.uid}. Skipping duplicate.');
@@ -851,12 +891,6 @@ class AuthService extends GetxService {
                 docData['birthdate'].toString().isNotEmpty);
         needsOnboarding.value = !hasCompletedOnboarding;
 
-        if (!hasCompletedOnboarding) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            checkAndPromptOnboarding();
-          });
-        }
-
         final currentUser = UserModel.fromFirebaseUser(user).copyWith(
           metadata: metadata,
           age: _lastGooglePeopleData?['age'],
@@ -898,9 +932,6 @@ class AuthService extends GetxService {
           SetOptions(merge: true),
         );
         debugPrint('AuthService: [SYNC] ✅ Idempotent fallback successful');
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          checkAndPromptOnboarding();
-        });
       } catch (fallbackError) {
         debugPrint(
           'AuthService: [SYNC] ❌ CRITICAL: Fallback also failed: $fallbackError',
@@ -955,37 +986,26 @@ class AuthService extends GetxService {
 
   bool _isOnboardingPromptShowing = false;
 
-  /// Prompts onboarding sheet if the user needs to complete Date of Birth / Gender details
+  /// Prompts onboarding sheet if a newly signed-in user needs to complete Date of Birth / Gender details
   Future<void> checkAndPromptOnboarding([BuildContext? context]) async {
     if (_isOnboardingPromptShowing) return;
+
+    // Safety guard: Never show for unsigned, guest, or anonymous users
+    final currentUser = _auth.currentUser;
+    if (currentUser == null ||
+        currentUser.isAnonymous ||
+        !_isAuthenticated.value) {
+      needsOnboarding.value = false;
+      return;
+    }
+
+    // Only prompt if onboarding is actually flagged as needed (new signed user)
+    if (!needsOnboarding.value) return;
+
     final ctx = context ?? Get.context;
     if (ctx == null) return;
 
-    final currentUser = _auth.currentUser;
-    if (currentUser == null) return;
-
-    // If needsOnboarding has not been determined or is false, query Firestore doc
-    if (!needsOnboarding.value) {
-      try {
-        final doc = await FirebaseFirestore.instance
-            .collection(FirestoreCollections.users)
-            .doc(currentUser.uid)
-            .get();
-        if (doc.exists) {
-          final data = doc.data() ?? {};
-          final hasCompleted = data['hasCompletedOnboarding'] as bool? ??
-              (data['birthdate'] != null &&
-                  data['birthdate'].toString().isNotEmpty);
-          needsOnboarding.value = !hasCompleted;
-        } else {
-          needsOnboarding.value = true;
-        }
-      } catch (e) {
-        debugPrint('AuthService: Error checking onboarding status: $e');
-      }
-    }
-
-    if (needsOnboarding.value && ctx.mounted && !_isOnboardingPromptShowing) {
+    if (ctx.mounted && !_isOnboardingPromptShowing) {
       _isOnboardingPromptShowing = true;
       try {
         await GoogleOnboardingSheet.show(ctx);

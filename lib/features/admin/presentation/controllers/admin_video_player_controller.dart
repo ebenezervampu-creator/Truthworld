@@ -140,49 +140,48 @@ class AdminVideoPlayerController extends BaseController {
 
   List<String> _extractCandidateUrls() {
     final candidates = <String>[];
-    if (url.trim().isNotEmpty) {
-      candidates.add(url.trim());
-    }
     if (videoData != null) {
-      for (final key in [
-        'originalUrl',
-        'videoUrl',
-        'mediaUrl',
-        'url',
-        'downloadUrl',
-        'processedUrl',
-        'rawUrl',
-        'hlsUrl',
-        'dashUrl',
-        'storagePath',
-        'storageUri',
-        'videoPath',
-        'filePath',
-        'gcsPath',
-        'gcsUri',
-      ]) {
-        final val = videoData![key];
-        if (val is String && val.trim().isNotEmpty && !candidates.contains(val.trim())) {
-          candidates.add(val.trim());
-        }
-      }
       if (videoData!['adaptiveResolutions'] is List) {
         for (final res in (videoData!['adaptiveResolutions'] as List)) {
           if (res is Map && res['url'] is String && (res['url'] as String).trim().isNotEmpty) {
             final u = (res['url'] as String).trim();
-            if (!candidates.contains(u)) candidates.add(u);
+            final label = res['label']?.toString().toLowerCase() ?? '';
+            if (!label.contains('audio') &&
+                !u.toLowerCase().contains('/audio') &&
+                !u.toLowerCase().endsWith('original.mp4') &&
+                !u.toLowerCase().contains('/original/') &&
+                !candidates.contains(u)) {
+              candidates.add(u);
+            }
           }
+        }
+      }
+      if (videoData!['hlsUrl'] is String && (videoData!['hlsUrl'] as String).trim().isNotEmpty) {
+        final u = (videoData!['hlsUrl'] as String).trim();
+        if (!u.toLowerCase().endsWith('original.mp4') && !u.toLowerCase().contains('/original/') && !candidates.contains(u)) {
+          candidates.add(u);
         }
       }
       if (videoData!['resolutions'] is Map) {
         final resMap = videoData!['resolutions'] as Map;
         for (final val in resMap.values) {
-          if (val is String && val.trim().isNotEmpty && !candidates.contains(val.trim())) {
-            candidates.add(val.trim());
+          if (val is String && val.trim().isNotEmpty) {
+            final u = val.trim();
+            if (!u.toLowerCase().endsWith('original.mp4') && !u.toLowerCase().contains('/original/') && !candidates.contains(u)) {
+              candidates.add(u);
+            }
           }
         }
       }
     }
+
+    if (url.trim().isNotEmpty &&
+        !url.trim().toLowerCase().endsWith('original.mp4') &&
+        !url.trim().toLowerCase().contains('/original/') &&
+        !candidates.contains(url.trim())) {
+      candidates.add(url.trim());
+    }
+
     return candidates;
   }
 

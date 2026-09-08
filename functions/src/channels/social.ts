@@ -1,6 +1,7 @@
 import * as admin from "firebase-admin";
 import { onCall, HttpsError, onRequest } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
+import { requireAuth } from "../utils/auth";
 
 const db = () => admin.firestore();
 
@@ -16,6 +17,13 @@ export const followChannel = onCall(
 
     const { channelId } = request.data;
     if (!channelId) throw new HttpsError("invalid-argument", "Missing channelId.");
+
+    // L-31: Prevent self-follow to block subscriber count inflation
+    const channelSnap = await db().collection("channels").doc(channelId).get();
+    if (!channelSnap.exists) throw new HttpsError("not-found", "Channel not found.");
+    if (channelSnap.data()?.ownerId === userId) {
+      throw new HttpsError("invalid-argument", "You cannot follow your own channel.");
+    }
 
     const subscriberRef = db().collection("channel_subscribers").doc(`${channelId}_${userId}`);
     const channelRef = db().collection("channels").doc(channelId);
@@ -103,11 +111,10 @@ export const unfollowChannel = onCall(
 export const getFollowingFeed = onRequest(
   { region: "asia-south1", cors: true, memory: "512MiB" },
   async (req, res) => {
-    const userId = req.query.userId as string; // Ideally from session
-    if (!userId) {
-      res.status(400).json({ error: "Missing userId" });
-      return;
-    }
+    // L-32: Authenticate the caller instead of trusting client-supplied userId
+    const authUser = await requireAuth(req, res);
+    if (!authUser) return;
+    const userId = authUser.uid;
 
     try {
       // 1. Get followed channel IDs

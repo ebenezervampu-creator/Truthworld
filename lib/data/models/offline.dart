@@ -14,6 +14,7 @@ class OfflineVideo {
     this.videoBytes,
     this.isAudioOnly = false,
     this.quality,
+    this.isEncrypted = true,
   });
   final String id;
   final String title;
@@ -25,6 +26,7 @@ class OfflineVideo {
   final Uint8List? videoBytes;
   final bool isAudioOnly;
   final String? quality;
+  final bool isEncrypted;
 
   OfflineVideo copyWith({
     String? id,
@@ -37,6 +39,7 @@ class OfflineVideo {
     Uint8List? videoBytes,
     bool? isAudioOnly,
     String? quality,
+    bool? isEncrypted,
   }) {
     return OfflineVideo(
       id: id ?? this.id,
@@ -49,6 +52,7 @@ class OfflineVideo {
       videoBytes: videoBytes ?? this.videoBytes,
       isAudioOnly: isAudioOnly ?? this.isAudioOnly,
       quality: quality ?? this.quality,
+      isEncrypted: isEncrypted ?? this.isEncrypted,
     );
   }
 
@@ -62,6 +66,7 @@ class OfflineVideo {
     'downloadedAt': downloadedAt.toIso8601String(),
     'isAudioOnly': isAudioOnly,
     if (quality != null) 'quality': quality,
+    'isEncrypted': isEncrypted,
   };
 
   static OfflineVideo fromJson(Map<String, dynamic> json) => OfflineVideo(
@@ -76,5 +81,6 @@ class OfflineVideo {
         : DateTime.now(),
     isAudioOnly: json['isAudioOnly'] as bool? ?? false,
     quality: json['quality'] as String?,
+    isEncrypted: json['isEncrypted'] as bool? ?? true,
   );
 }

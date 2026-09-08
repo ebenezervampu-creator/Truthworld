@@ -68,51 +68,57 @@ class _FloatingCard extends StatelessWidget {
         2.0; // Account for top/bottom borders
     final cardSize = Size(width, height);
 
-    return Obx(() {
-      final pos = controller.effectiveOffset(cardSize, screenSize);
-      return Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Positioned(
+    final cardContent = SizedBox(
+      width: width,
+      height: height,
+      child: FocusableActionDetector(
+        shortcuts: <ShortcutActivator, Intent>{
+          LogicalKeySet(LogicalKeyboardKey.keyI): const _ExpandIntent(),
+          LogicalKeySet(LogicalKeyboardKey.escape):
+              const _DismissIntent(),
+        },
+        actions: <Type, Action<Intent>>{
+          _ExpandIntent: CallbackAction<_ExpandIntent>(
+            onInvoke: (_) {
+              controller.openFullScreen();
+              return null;
+            },
+          ),
+          _DismissIntent: CallbackAction<_DismissIntent>(
+            onInvoke: (_) {
+              controller.dismiss();
+              return null;
+            },
+          ),
+        },
+        child: MouseRegion(
+          cursor: SystemMouseCursors.grab,
+          onEnter: (_) => controller.setHovering(true),
+          onExit: (_) => controller.setHovering(false),
+          child: _CardBody(
+            controller: controller,
+            cardSize: cardSize,
+            screenSize: screenSize,
+          ),
+        ),
+      ),
+    );
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Obx(() {
+          final pos = controller.effectiveOffset(cardSize, screenSize);
+          return Positioned(
             left: pos.dx,
             top: pos.dy,
             width: width,
             height: height,
-            child: FocusableActionDetector(
-              shortcuts: <ShortcutActivator, Intent>{
-                LogicalKeySet(LogicalKeyboardKey.keyI): const _ExpandIntent(),
-                LogicalKeySet(LogicalKeyboardKey.escape):
-                    const _DismissIntent(),
-              },
-              actions: <Type, Action<Intent>>{
-                _ExpandIntent: CallbackAction<_ExpandIntent>(
-                  onInvoke: (_) {
-                    controller.openFullScreen();
-                    return null;
-                  },
-                ),
-                _DismissIntent: CallbackAction<_DismissIntent>(
-                  onInvoke: (_) {
-                    controller.dismiss();
-                    return null;
-                  },
-                ),
-              },
-              child: MouseRegion(
-                cursor: SystemMouseCursors.grab,
-                onEnter: (_) => controller.setHovering(true),
-                onExit: (_) => controller.setHovering(false),
-                child: _CardBody(
-                  controller: controller,
-                  cardSize: cardSize,
-                  screenSize: screenSize,
-                ),
-              ),
-            ),
-          ),
-        ],
-      );
-    });
+            child: cardContent,
+          );
+        }),
+      ],
+    );
   }
 }
 

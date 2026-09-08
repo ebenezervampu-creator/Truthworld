@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:truthworld/core/services/video_visibility_policy.dart';
 
 /// Standardized query builder for constructing Firestore queries with visibility policy.
 class VideoQueryBuilder {
@@ -16,13 +15,7 @@ class VideoQueryBuilder {
     String orderByField = 'uploadedAt',
     bool descending = true,
   }) {
-    Query query = firestore
-        .collection(collectionName)
-        .where('status', isEqualTo: VideoVisibilityPolicy.publicStatus.name)
-        .where(
-          'visibility',
-          isEqualTo: VideoVisibilityPolicy.publicVisibilityString,
-        );
+    Query query = firestore.collection(collectionName);
 
     final isSpecialCategory = category == null ||
         category.isEmpty ||
@@ -51,6 +44,36 @@ class VideoQueryBuilder {
     }
 
     query = query.orderBy(orderByField, descending: descending);
+
+    if (startAfter != null) {
+      query = query.startAfterDocument(startAfter);
+    }
+
+    if (limit != null && limit > 0) {
+      query = query.limit(limit);
+    }
+
+    return query;
+  }
+
+  /// Construct category query with optional orderBy (for when composite index is present)
+  /// or without orderBy (for single-field automatic index compatibility).
+  static Query categoryVideos(
+    FirebaseFirestore firestore, {
+    required String category,
+    int? limit,
+    DocumentSnapshot? startAfter,
+    bool withOrderBy = true,
+    String orderByField = 'uploadedAt',
+    bool descending = true,
+  }) {
+    Query query = firestore
+        .collection(collectionName)
+        .where('category', isEqualTo: category);
+
+    if (withOrderBy) {
+      query = query.orderBy(orderByField, descending: descending);
+    }
 
     if (startAfter != null) {
       query = query.startAfterDocument(startAfter);

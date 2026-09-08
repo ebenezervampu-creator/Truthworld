@@ -36,8 +36,8 @@ class TermsAndConditionsPage extends StatelessWidget {
   final bool isDashboard;
 
   final ScrollController _scrollController = ScrollController();
-  final RxList<PolicySection> _sections = <PolicySection>[].obs;
-  final RxString _introContent = ''.obs;
+  late final List<PolicySection> _sections;
+  late final String _introContent;
   final RxBool _hasScrolledToBottom = false.obs;
 
   /// Parses the giant text string into a structured list of sections.
@@ -47,7 +47,8 @@ class TermsAndConditionsPage extends StatelessWidget {
     final matches = regex.allMatches(_termsText).toList();
 
     if (matches.isEmpty) {
-      _introContent.value = _termsText;
+      _introContent = _termsText;
+      _sections = const [];
       return;
     }
 
@@ -76,8 +77,8 @@ class TermsAndConditionsPage extends StatelessWidget {
       );
     }
 
-    _introContent.value = introContent;
-    _sections.value = tempSections;
+    _introContent = introContent;
+    _sections = tempSections;
   }
 
   /// Scrolls the view to the widget associated with the given GlobalKey
@@ -93,29 +94,27 @@ class TermsAndConditionsPage extends StatelessWidget {
 
   /// Builds the left-hand navigation menu
   Widget _buildNavigationMenu(BuildContext context, {bool isDrawer = false}) {
-    return Container(
-      width: 280, // Fixed width for the nav menu
-      child: Obx(
-        () => ListView(
+    return Material(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: SizedBox(
+        width: 280, // Fixed width for the nav menu
+        child: ListView(
           padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 12),
           children: [
             ..._sections.map((section) {
-              return Material(
-                color: Theme.of(context).scaffoldBackgroundColor,
-                child: ListTile(
-                  title: Text(
-                    section.title,
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                  dense: true,
-                  onTap: () {
-                    _scrollToSection(section.key);
-                    if (isDrawer) {
-                      Navigator.pop(context); // Close the drawer if it's a drawer
-                    }
-                  },
+              return ListTile(
+                title: Text(
+                  section.title,
+                  style: const TextStyle(fontSize: 14),
                 ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                dense: true,
+                onTap: () {
+                  _scrollToSection(section.key);
+                  if (isDrawer) {
+                    Navigator.pop(context); // Close the drawer if it's a drawer
+                  }
+                },
               );
             }),
           ],
@@ -140,37 +139,38 @@ class TermsAndConditionsPage extends StatelessWidget {
     return SingleChildScrollView(
       controller: _scrollController,
       padding: const EdgeInsets.all(24),
-      child: Obx(
-        () => Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Render the introductory text first
-            SelectableText(_introContent.value, style: bodyTextStyle),
-            const SizedBox(height: 24),
-            // Then render all the numbered sections
-            ..._sections.map((section) {
-              // Each section is wrapped in a KeyedSubtree so we can scroll to it
-              return Padding(
-                key: section.key, // This key is crucial for scrolling
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SelectableText(section.title, style: headingTextStyle),
-                    const SizedBox(height: 12),
-                    SelectableText(section.content, style: bodyTextStyle),
-                  ],
-                ),
-              );
-            }),
-          ],
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Render the introductory text first
+          SelectableText(_introContent, style: bodyTextStyle),
+          const SizedBox(height: 24),
+          // Then render all the numbered sections
+          ..._sections.map((section) {
+            // Each section is wrapped in a KeyedSubtree so we can scroll to it
+            return Padding(
+              key: section.key, // This key is crucial for scrolling
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SelectableText(section.title, style: headingTextStyle),
+                  const SizedBox(height: 12),
+                  SelectableText(section.content, style: bodyTextStyle),
+                ],
+              ),
+            );
+          }),
+        ],
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final args = Get.arguments as Map<String, dynamic>?;
+    final requireAgreement = args?['requireAgreement'] == true;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         // Use a breakpoint to decide which layout to show
@@ -185,9 +185,9 @@ class TermsAndConditionsPage extends StatelessWidget {
             shadowColor: AppColors.bgPage.withValues(alpha: 0.1),
             leading: (isDashboard || isDesktop)
                 ? IconButton(
-                    icon: Icon(
+                    icon: const Icon(
                       Icons.arrow_back,
-                      color: Theme.of(context).iconTheme.color,
+                      color: Colors.white,
                     ),
                     onPressed: () {
                       if (isDashboard) {
@@ -238,69 +238,75 @@ class TermsAndConditionsPage extends StatelessWidget {
                   ],
                 )
               : _buildContentArea(context), // Mobile Layout (just content)
-          bottomNavigationBar: Obx(() {
-            final args = Get.arguments as Map<String, dynamic>?;
-            final requireAgreement = args?['requireAgreement'] == true;
-            if (!requireAgreement) return const SizedBox.shrink();
-
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                border: Border(
-                  top: BorderSide(
-                    color: Theme.of(context).dividerColor,
-                  ),
-                ),
-              ),
-              child: SafeArea(
-                child: _hasScrolledToBottom.value
-                    ? SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            Get.back(result: true);
-                          },
-                          icon: const Icon(Icons.check_circle_outline, color: Colors.black, size: 20),
-                          label: const Text(
-                            'I Have Read & Accept Terms and Conditions',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: Colors.black,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
-                      )
-                    : Container(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.arrow_downward, color: Theme.of(context).textTheme.bodySmall?.color, size: 16),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Please scroll to the bottom to accept Terms and Conditions',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Theme.of(context).textTheme.bodySmall?.color,
-                              ),
-                            ),
-                          ],
+          bottomNavigationBar: !requireAgreement
+              ? null
+              : Obx(() {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      border: Border(
+                        top: BorderSide(
+                          color: Theme.of(context).dividerColor,
                         ),
                       ),
-              ),
-            );
-          }),
+                    ),
+                    child: SafeArea(
+                      child: _hasScrolledToBottom.value
+                          ? SizedBox(
+                              width: double.infinity,
+                              height: 48,
+                              child: ElevatedButton.icon(
+                                onPressed: () {
+                                  Get.back(result: true);
+                                },
+                                icon: const Icon(
+                                  Icons.check_circle_outline,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                                label: const Text(
+                                  'I Have Read & Accept Terms and Conditions',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Theme.of(context).colorScheme.primary,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                              ),
+                            )
+                          : Container(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.arrow_downward,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Please scroll to the bottom to accept Terms and Conditions',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Theme.of(context).textTheme.bodySmall?.color,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                    ),
+                  );
+                }),
         );
       },
     );
@@ -315,7 +321,7 @@ Effective Date: April 04, 2026
 
 1. INTRODUCTION AND ACCEPTANCE OF TERMS
 
-Welcome to Truthworld ("we," "our," "us," or the "Platform"). These Terms and Conditions ("Terms," "Terms of Service," or "Agreement") constitute a legally binding agreement between you ("you," "your," or "User") and Truthworld governing your access to and use of our video-sharing platform, including our website, mobile applications, and all related services (collectively, the "Services").
+Welcome to Truthworld ("we," "our," "us," or the "Platform"), operated by TowerVSP Services (OPC) Private Limited (CIN: U63111TS2025OPC207488). These Terms and Conditions ("Terms," "Terms of Service," or "Agreement") constitute a legally binding agreement between you ("you," "your," or "User") and TowerVSP Services (OPC) Private Limited governing your access to and use of our video-sharing platform, including our website, mobile applications, and all related services (collectively, the "Services").
 
 By accessing, browsing, or using any part of our Services, you acknowledge that you have read, understood, and agree to be bound by these Terms, our Privacy Policy, and our Community Guidelines. If you do not agree to these Terms, you must not access or use our Services.
 
@@ -399,7 +405,7 @@ This license allows us to:
 
 **License Termination:**
 - The license terminates when you delete Your Content from our Platform
-- Backup copies may remain in our systems for up to 90 days
+- Backup copies and associated user logs are retained for a minimum of 180 days in compliance with Rule 3(1)(g) of the Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021
 - Content shared by other users may continue to exist
 
 3.2 Content Representations and Warranties
@@ -556,27 +562,30 @@ Are owned by Truthworld and protected by copyright, trademark, and other intelle
 **Limited License to Users:**
 We grant you a limited, non-exclusive, non-transferable, revocable license to access and use our Services for personal, non-commercial purposes, subject to these Terms.
 
-5.2 Copyright Policy and DMCA Compliance
+5.2 Copyright Policy and DMCA / Indian Copyright Act Compliance
 
-We respect intellectual property rights and comply with the Digital Millennium Copyright Act (DMCA) and Indian Copyright Act, 1957.
+We respect intellectual property rights and strictly comply with the Indian Copyright Act, 1957 (and Copyright Rules, 2013) as well as the Digital Millennium Copyright Act (DMCA).
 
 **Copyright Infringement Reporting:**
-If you believe your copyright has been infringed:
-1. Submit a notice to: copyright@Truthworld.com
-2. Include:
-- Description of the copyrighted work
-- URL of the infringing content
-- Your contact information
-- Good faith statement of unauthorized use
-- Statement of accuracy and authority
-- Physical or electronic signature
+If you are a copyright owner or authorized agent and believe that content hosted on Truthworld infringes your intellectual property:
+1. **Online Takedown Form:** You can submit an official statutory takedown request directly via our public Copyright Infringement Form at `/copyright-complaint`.
+2. **Email Notice:** Alternatively, submit a formal written notice to: copyright@truthworld.in
+3. Required notice contents:
+- Clear description of the copyrighted work claimed to be infringed
+- Exact URL(s) of the infringing content on Truthworld
+- Your complete contact details (name, address, phone, email)
+- A statement that you have a good faith belief that the disputed use is not authorized by the copyright owner, its agent, or the law
+- A statement, made under penalty of perjury, that the information in your notice is accurate and that you are the copyright owner or authorized to act on their behalf
+- Physical or electronic signature of the copyright owner or authorized agent
 
 **Counter-Notification:**
-If your content was removed due to a copyright claim, you may submit a counter-notification if you believe the removal was in error.
+If your content was removed due to a copyright claim, you may submit a counter-notification if you believe the removal was in error (e.g. licensed content, public domain, or fair use).
 
 **Repeat Infringer Policy:**
-- Accounts with multiple copyright violations may be terminated
-- Three strikes may result in permanent account closure
+- Truthworld enforces a strict Three-Strikes repeat infringer policy
+- Valid copyright infringement strikes are recorded against violating accounts
+- Accumulating three active strikes will result in permanent account termination and permanent banning from the platform
+- Resolved strikes or strikes older than 90 days without subsequent violations expire in accordance with platform policy
 
 5.3 Trademark Policy
 
@@ -632,12 +641,16 @@ Your use of our Services is governed by our Privacy Policy, which is incorporate
 - We collect personal information as described in our Privacy Policy
 - We protect your data with industry-standard security measures
 - You have rights to access, correct, and delete your data
-- We comply with GDPR, CCPA, DPDPA, and other privacy laws
+- We comply with GDPR, CCPA, DPDPA, and other applicable privacy laws
 
-**For Indian Users:**
-- We comply with the Digital Personal Data Protection Act (DPDPA), 2023
-- Grievance Officer contact: grievance@Truthworld.com
-- We respond to complaints within 24 hours
+**For Indian Users (IT Rules, 2021 & DPDPA, 2023 Compliance):**
+- Corporate Operator: TowerVSP Services (OPC) Private Limited
+- Statutory Grievance Officer: Vampu Ebenezer
+- Email: ebenezervampu@truthworld.in / grievance@truthworld.in
+- Phone: +91 9390617877
+- Statutory Timelines: All grievances are acknowledged within 24 hours and resolved within 15 days (pursuant to Rule 3(2) of the Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021 as amended)
+- Expedited Review (Rule 3(2)(b)): Complaints relating to non-consensual sexual content, explicit nudity, morphing, or deepfakes will be acted upon within 24 hours
+- Grievance Appellate Committee (GAC): If you are aggrieved by any decision of the Grievance Officer, you may appeal to the Grievance Appellate Committee (GAC) via https://gac.gov.in within 30 days
 
 Please review our Privacy Policy for complete details.
 
@@ -731,9 +744,9 @@ You may terminate your account at any time by:
 - Contacting support at: ebenezervampu@Truthworld.com
 
 **Upon Account Deletion:**
-- Your public content may be removed (subject to our retention policies)
-- Backup copies may persist for up to 90 days
-- Some information may be retained as required by law
+- Your public content may be removed (subject to statutory retention requirements)
+- User registration data, account access logs, and removed content are retained for a minimum of 180 days in compliance with Rule 3(1)(g) of the Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021
+- Some information may be retained longer as required by court order or applicable law
 
 11.2 Termination by Us
 
@@ -849,46 +862,56 @@ We are not liable for delays or failures due to circumstances beyond our reasona
 These Terms are written in English. Translations may be provided for convenience, but the English version governs in case of conflicts.
 
 14.7 Notices
-
+ 
 **To You:**
 Notices will be sent to your registered email address or posted on the Platform.
-
+ 
 **To Us:**
 Notices should be sent to:
-Truthworld Legal Team
-Email: legal@Truthworld.com
-Address: Uppal Kalan, Telangana, India
-
+TowerVSP Services (OPC) Private Limited
+Truthworld Legal Department
+Email: legal@truthworld.in
+Registered Office: Ramaram, Yadadri Bhuvanagiri, Telangana - 508116, India
+Corporate Office: Telangana, India
+ 
 15. CONTACT INFORMATION
-
+ 
 For questions, concerns, or support regarding these Terms:
-
-**General Inquiries:**
-Email: ebenezervampu@Truthworld.com
-Support: support@Truthworld.com
-
-**Legal Matters:**
-Email: legal@Truthworld.com
-
+ 
+**Corporate Entity:**
+TowerVSP Services (OPC) Private Limited
+(Operating Truthworld)
+CIN: U63111TS2025OPC207488
+Registered Office: Ramaram, Yadadri Bhuvanagiri, Telangana - 508116, India
+ 
+**General Inquiries & Support:**
+Email: support@truthworld.in
+Phone: +91 9390617877
+Support Hours: Mon – Fri, 9:00 AM – 6:00 PM IST
+ 
+**Legal & Corporate Matters:**
+Email: legal@truthworld.in
+ 
 **Privacy Concerns:**
-Email: privacy@Truthworld.com
-
-**Copyright Issues:**
-Email: copyright@Truthworld.com
-
-**Indian Grievance Officer (DPDPA Compliance):**
-Email: grievance@Truthworld.com
-Response Time: 24 hours acknowledgment, 30 days resolution
-
-**Mailing Address:**
-Truthworld
-Uppal Kalan, Telangana
-India
-
+Email: privacy@truthworld.in
+ 
+**Copyright Claims & DMCA Takedown Requests:**
+Online Form: /copyright-complaint
+Email: copyright@truthworld.in
+ 
+**Statutory Grievance Officer (IT Rules, 2021 & DPDPA, 2023 Compliance):**
+Grievance Officer: Vampu Ebenezer
+Email: ebenezervampu@truthworld.in / grievance@truthworld.in
+Phone: +91 9390617877
+Address: TowerVSP Services (OPC) Private Limited, Ramaram, Yadadri Bhuvanagiri, Telangana - 508116, India
+Response Timeline: Acknowledgment within 24 hours; Disposal within 15 days
+Expedited Review: Non-consensual sexual/nudity content acted upon within 24 hours
+Grievance Appellate Committee: Appealable to GAC at https://gac.gov.in within 30 days
+ 
 ---
-
+ 
 BY USING Truthworld, YOU ACKNOWLEDGE THAT YOU HAVE READ, UNDERSTOOD, AND AGREE TO BE BOUND BY THESE TERMS AND CONDITIONS.
-
+ 
 Thank you for being part of the Truthworld community!
 """;
 }

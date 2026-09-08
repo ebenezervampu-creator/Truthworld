@@ -228,6 +228,8 @@ class AppealsTab extends StatelessWidget {
     final confidence = appeal['aiConfidence'] != null ? '${(appeal['aiConfidence'] * 100).toInt()}%' : 'N/A';
     final statement = appeal['appealReason'] ?? appeal['reason'] ?? appeal['statement'] ?? 'No statement provided.';
     final status = (appeal['status'] as String? ?? 'pending').toUpperCase();
+    final targetType = (appeal['contentType'] ?? appeal['type'] ?? 'Content').toString().toUpperCase();
+    final targetId = (appeal['contentId'] ?? appeal['videoId'] ?? appeal['channelId'] ?? appeal['imageId'] ?? 'N/A').toString();
 
     return Container(
       decoration: BoxDecoration(
@@ -286,8 +288,8 @@ class AppealsTab extends StatelessWidget {
                         children: [
                           Expanded(
                             child: _buildCard(
-                              'Original Content & AI Analysis',
-                              'Category: $category\nAI Confidence: $confidence',
+                              'Target Resource & AI Analysis',
+                              'Target Type: $targetType\nTarget ID: $targetId\nCategory: $category\nAI Confidence: $confidence',
                             ),
                           ),
                           const SizedBox(width: 16),
@@ -302,8 +304,8 @@ class AppealsTab extends StatelessWidget {
                     : Column(
                         children: [
                           _buildCard(
-                            'Original Content & AI Analysis',
-                            'Category: $category\nAI Confidence: $confidence',
+                            'Target Resource & AI Analysis',
+                            'Target Type: $targetType\nTarget ID: $targetId\nCategory: $category\nAI Confidence: $confidence',
                           ),
                           const SizedBox(height: 16),
                           _buildCard(
@@ -314,7 +316,32 @@ class AppealsTab extends StatelessWidget {
                       );
               },
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.white, size: 18),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Note: Overturning this appeal automatically restores and publishes the underlying item in the production database.',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
             const Text(
               'Resolution Reason',
               style: TextStyle(
@@ -351,69 +378,80 @@ class AppealsTab extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.error,
-                  ),
-                  onPressed: () {
-                    controller.resolveAppeal(
-                      appealId,
-                      'uphold',
-                      _reasonController.text.trim(),
-                    );
-                  },
-                  child: const Text(
-                    'Uphold Rejection',
-                    style: TextStyle(
-                      fontFamily: TWTypography.brandFamily,
-                      color: AppColors.textPrimary,
+            Obx(() {
+              final isSubmitting = controller.isActionSubmitting.value;
+              return Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.error,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: isSubmitting
+                        ? null
+                        : () {
+                            controller.resolveAppeal(
+                              appealId,
+                              'uphold',
+                              _reasonController.text.trim(),
+                            );
+                          },
+                    child: const Text(
+                      'Uphold Rejection',
+                      style: TextStyle(
+                        fontFamily: TWTypography.brandFamily,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
                   ),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                  ),
-                  onPressed: () {
-                    controller.resolveAppeal(
-                      appealId,
-                      'overturn',
-                      _reasonController.text.trim(),
-                    );
-                  },
-                  child: const Text(
-                    'Overturn (Restore)',
-                    style: TextStyle(
-                      fontFamily: TWTypography.brandFamily,
-                      color: AppColors.textPrimary,
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: isSubmitting
+                        ? null
+                        : () {
+                            controller.resolveAppeal(
+                              appealId,
+                              'overturn',
+                              _reasonController.text.trim(),
+                            );
+                          },
+                    child: const Text(
+                      'Overturn & Restore',
+                      style: TextStyle(
+                        fontFamily: TWTypography.brandFamily,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
                   ),
-                ),
-                OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.orange,
-                    side: const BorderSide(color: Colors.orange),
-                  ),
-                  onPressed: () {
-                    controller.resolveAppeal(
-                      appealId,
-                      'escalate',
-                      _reasonController.text.trim(),
-                    );
-                  },
-                  child: const Text(
-                    'Escalate to Senior',
-                    style: TextStyle(
-                      fontFamily: TWTypography.brandFamily,
+                  OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.orange,
+                      side: const BorderSide(color: Colors.orange),
+                    ),
+                    onPressed: isSubmitting
+                        ? null
+                        : () {
+                            controller.resolveAppeal(
+                              appealId,
+                              'escalate',
+                              _reasonController.text.trim(),
+                            );
+                          },
+                    child: const Text(
+                      'Escalate to Senior',
+                      style: TextStyle(
+                        fontFamily: TWTypography.brandFamily,
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              );
+            }),
           ],
         ),
       ),

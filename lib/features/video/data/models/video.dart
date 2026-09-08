@@ -92,6 +92,7 @@ class Video {
     this.isShort = false,
     this.isKidFriendly = false,
     this.enableComments = true,
+    this.allowClipping = true,
     this.isMonetized = false,
     this.allowRatings = false,
     this.showLikeCount = true,
@@ -365,6 +366,9 @@ class Video {
       isShort: data['isShort'] ?? false,
       isKidFriendly: data['isKidFriendly'] ?? false,
       enableComments: data['enableComments'] ?? true,
+      allowClipping: data['allowClipping'] as bool? ??
+          data['allowClips'] as bool? ??
+          true,
       isMonetized: data['isMonetized'] ?? false,
       mediaSubtitles:
           data['media'] != null && data['media']['subtitles'] != null
@@ -557,6 +561,7 @@ class Video {
 
   // Flags
   final bool enableComments;
+  final bool allowClipping;
   final bool isMonetized;
   final bool allowRatings;
   final bool showLikeCount;
@@ -827,6 +832,7 @@ class Video {
       'isShort': isShort,
       'isKidFriendly': isKidFriendly,
       'enableComments': enableComments,
+      'allowClipping': allowClipping,
       'isMonetized': isMonetized,
       'allowRatings': allowRatings,
       'showLikeCount': showLikeCount,

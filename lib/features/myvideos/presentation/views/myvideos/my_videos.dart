@@ -7,6 +7,7 @@ import 'package:truthworld/core/utils/watch_time_formatter.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:truthworld/features/analytics/presentation/pages/watch_time_page.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
+import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/myvideos/presentation/controllers/my_videos_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -363,7 +364,7 @@ class _MyVideoListCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: () {
-        Get.toNamed('/watch?v=${video.id}', arguments: {'video': video});
+        MiniplayerNavigationHelper.navigateToVideoScreen(video: video);
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

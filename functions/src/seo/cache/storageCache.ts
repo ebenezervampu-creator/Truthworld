@@ -19,6 +19,14 @@ export function computeEtag(content: string): string {
   return `"sha256-${hash.substring(0, 32)}"`;
 }
 
+function getStorageBucket() {
+  try {
+    return admin.storage().bucket("truthworld-1.firebasestorage.app");
+  } catch (_) {
+    return admin.storage().bucket();
+  }
+}
+
 export async function getCachedSnapshot(
   cacheKey: string
 ): Promise<{ html: string; etag: string; lastModified: string } | null> {
@@ -34,7 +42,7 @@ export async function getCachedSnapshot(
 
   // 2. Check L2 Firebase Storage Bucket
   try {
-    const bucket = admin.storage().bucket();
+    const bucket = getStorageBucket();
     const filePath = `seo/snapshots/${cacheKey}.html`;
     const manifestPath = `seo/manifests/${cacheKey}.json`;
 
@@ -89,7 +97,7 @@ export async function saveSnapshot(
   const manifestPath = `seo/manifests/${cacheKey}.json`;
 
   try {
-    const bucket = admin.storage().bucket();
+    const bucket = getStorageBucket();
 
     // 1. Save HTML Snapshot
     const file = bucket.file(filePath);

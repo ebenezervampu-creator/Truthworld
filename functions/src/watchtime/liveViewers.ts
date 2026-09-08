@@ -4,16 +4,16 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { logger } from "firebase-functions/v2";
 
 const REGION = "asia-south1";
-const STALE_THRESHOLD_MS = 15_000; // 15 seconds
+const STALE_THRESHOLD_MS = 60_000; // 60 seconds buffer
 
 /**
- * RTDB Trigger: Updates concurrent viewer count when a session is written/deleted.
+ * RTDB Trigger: Updates concurrent viewer count when a session is created or deleted.
  * Triggered on /activeViewers/{videoId}/{sessionId}
  */
 export const onActiveViewerWrite = onValueWritten(
   {
     ref: "/activeViewers/{videoId}/{sessionId}",
-    region: REGION,
+    region: "asia-southeast1", // Must match RTDB instance region
     memory: "256MiB",
   },
   async (event) => {
@@ -22,7 +22,17 @@ export const onActiveViewerWrite = onValueWritten(
     const rtdb = admin.database();
 
     try {
-      // Check if the session data is stale
+      const beforeExists = event.data.before.exists();
+      const afterExists = event.data.after.exists();
+
+      // COST & SCALE GUARD: Heartbeat updates occur every 8s per viewer.
+      // If the session existed before and still exists after, viewer count is unchanged.
+      // Exit immediately to prevent O(N^2) Cloud Function executions and bandwidth exhaustion.
+      if (beforeExists && afterExists) {
+        return;
+      }
+
+      // Check if the session data is stale on delete/cleanup
       const afterData = event.data.after.val();
       if (afterData && afterData.updatedAt) {
         const updatedAt = typeof afterData.updatedAt === "number" ? afterData.updatedAt : Date.now();
@@ -34,22 +44,12 @@ export const onActiveViewerWrite = onValueWritten(
         }
       }
 
-      // Count active sessions for this video
+      // Count active sessions for this specific video only
       const viewersSnap = await rtdb.ref(`activeViewers/${videoId}`).once("value");
       const count = viewersSnap.numChildren();
 
       // Update per-video concurrent count
       await rtdb.ref(`liveStats/${videoId}/concurrentCount`).set(count);
-
-      // Update global concurrent count
-      const allViewersSnap = await rtdb.ref("activeViewers").once("value");
-      let globalCount = 0;
-      if (allViewersSnap.exists()) {
-        allViewersSnap.forEach((videoSnap) => {
-          globalCount += videoSnap.numChildren();
-        });
-      }
-      await rtdb.ref("liveStats/global/concurrentCount").set(globalCount);
     } catch (err) {
       logger.error("onActiveViewerWrite error", { videoId, sessionId, error: String(err) });
     }
@@ -58,11 +58,11 @@ export const onActiveViewerWrite = onValueWritten(
 
 /**
  * Scheduled: Cleans up stale RTDB sessions + expired viewDedup entries.
- * Runs every 1 minute.
+ * Runs every 10 minutes (optimized from 1m to save 90% execution invocations).
  */
 export const cleanupStaleSessions = onSchedule(
   {
-    schedule: "every 1 minutes",
+    schedule: "every 10 minutes",
     region: REGION,
     timeoutSeconds: 60,
     memory: "256MiB",
@@ -131,55 +131,3 @@ export const cleanupStaleSessions = onSchedule(
   }
 );
 
-/**
- * Scheduled: Aggregates live watch-time from RTDB into Firestore.
- * Runs every 1 minute.
- */
-export const aggregateLiveWatchTime = onSchedule(
-  {
-    schedule: "every 1 minutes",
-    region: REGION,
-    timeoutSeconds: 60,
-    memory: "256MiB",
-  },
-  async () => {
-    logger.info("aggregateLiveWatchTime: start");
-    const rtdb = admin.database();
-    const db = admin.firestore();
-
-    try {
-      const snap = await rtdb.ref("activeViewers").once("value");
-      if (!snap.exists()) return;
-
-      const batch = db.batch();
-      let ops = 0;
-
-      snap.forEach((videoSnap) => {
-        const videoId = videoSnap.key;
-        if (!videoId) return;
-
-        let totalLiveSeconds = 0;
-        videoSnap.forEach((sessionSnap) => {
-          const data = sessionSnap.val();
-          if (data?.watchedSeconds) {
-            totalLiveSeconds += Number(data.watchedSeconds);
-          }
-        });
-
-        if (ops < 490) {
-          batch.set(
-            db.collection("videos").doc(videoId),
-            { stats: { liveWatchSeconds: totalLiveSeconds } },
-            { merge: true }
-          );
-          ops++;
-        }
-      });
-
-      if (ops > 0) await batch.commit();
-      logger.info(`aggregateLiveWatchTime: updated ${ops} videos`);
-    } catch (err) {
-      logger.error("aggregateLiveWatchTime error", err);
-    }
-  }
-);

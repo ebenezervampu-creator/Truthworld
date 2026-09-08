@@ -5,6 +5,7 @@ import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
+import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/downloadcontroller.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -479,13 +480,15 @@ class _DownloadVideoListCard extends StatelessWidget {
                         Icon(
                           video.isAudioOnly
                               ? Icons.headphones_rounded
-                              : Icons.download_done,
+                              : Icons.lock_outline_rounded,
                           color: AppColors.textPrimary,
                           size: 12,
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          video.isAudioOnly ? 'AUDIO' : 'OFFLINE',
+                          video.isAudioOnly
+                              ? 'ENCRYPTED AUDIO'
+                              : 'ENCRYPTED OFFLINE',
                           style: const TextStyle(
                             color: AppColors.textPrimary,
                             fontSize: 9,
@@ -539,12 +542,22 @@ class _DownloadVideoListCard extends StatelessWidget {
                       color: AppColors.textSecondary,
                     ),
                   ),
-                  Text(
-                    'Downloaded ${controller.formatTimeAgo(video.downloadedAt)}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                    ),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.enhanced_encryption_outlined,
+                        color: AppColors.textPrimary,
+                        size: 13,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'AES-256 Encrypted • ${controller.formatTimeAgo(video.downloadedAt)}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -609,7 +622,7 @@ class _DownloadVideoListCard extends StatelessWidget {
           color: (color ?? AppColors.brand).withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(icon, color: color ?? AppColors.textSecondary, size: 20),
+        child: Icon(icon, color: AppColors.textPrimary, size: 20),
       ),
       title: Text(
         label,
@@ -694,10 +707,7 @@ class _RecommendedDownloadCard extends StatelessWidget {
             return;
           }
         }
-        Get.toNamed(
-          '/watch?v=${video.id}',
-          arguments: {'video': video},
-        );
+        MiniplayerNavigationHelper.navigateToVideoScreen(video: video);
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),

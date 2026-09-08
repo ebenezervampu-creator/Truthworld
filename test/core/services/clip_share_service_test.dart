@@ -48,5 +48,23 @@ void main() {
       expect(caption, contains('▶️ Watch full video on Truthworld:'));
       expect(caption, contains(clipUrl));
     });
+
+    testWidgets('generateTikTokWatermarkImage creates valid PNG watermark file', (tester) async {
+      await tester.runAsync(() async {
+        final file = await ClipShareService.generateTikTokWatermarkImage(
+          channelName: 'TruthCreator',
+          customBrand: 'Truthworld',
+        );
+
+        expect(file, isNotNull);
+        expect(await file.exists(), isTrue);
+        expect(await file.length(), greaterThan(100));
+
+        // Clean up
+        if (await file.exists()) {
+          await file.delete();
+        }
+      });
+    });
   });
 }

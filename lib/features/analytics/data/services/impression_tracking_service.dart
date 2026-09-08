@@ -1,10 +1,11 @@
 import 'dart:async';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/core/utils/firebase_rtdb_helper.dart';
 
 /// Tracks thumbnail impressions for true CTR calculation.
 ///
@@ -15,14 +16,17 @@ import 'package:truthworld/core/services/logger_service.dart';
 ///   2. Visible for >= 1 second (prevents scroll-through inflations)
 ///   3. Same thumbnail is only counted once per user session
 ///
-/// Impressions are batched and flushed every 30 seconds to minimize writes.
+/// Optimized Architecture:
+/// - In-memory client aggregation per video during 30s scroll windows.
+/// - Atomic delta increments pushed to RTDB `/pendingImpressions/{videoId}`.
+/// - Zero Firestore document writes on client (scheduled Cloud Function rolls up to Firestore).
 class ImpressionTrackingService extends GetxService {
   static const String _tag = 'ImpressionTrackingService';
   static const int _batchFlushInterval = 30; // seconds
   static const int _minVisibleDurationMs = 1000; // 1 second
   static const double _minVisibleFraction = 0.5; // 50% visible
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseDatabase _database = getSafeFirebaseDatabase();
 
   /// Batch buffer of impressions waiting to be flushed
   final List<_ImpressionEvent> _batch = [];
@@ -37,7 +41,7 @@ class ImpressionTrackingService extends GetxService {
   void onInit() {
     super.onInit();
     _startBatchFlushTimer();
-    logger.info('Impression Tracking Service initialized', tag: _tag);
+    logger.info('Impression Tracking Service initialized (RTDB Pipeline)', tag: _tag);
   }
 
   @override
@@ -65,9 +69,10 @@ class ImpressionTrackingService extends GetxService {
   void recordImpression({
     required String videoId,
     required String channelId,
-    String?
-    source, // Where in the UI: home_feed, search_results, suggested, etc.
+    String? source, // Where in the UI: home_feed, search_results, suggested, etc.
   }) {
+    if (videoId.isEmpty) return;
+
     // Deduplicate within session
     final dedupKey = '${videoId}_${source ?? 'unknown'}';
     if (_seenThisSession.contains(dedupKey)) return;
@@ -112,7 +117,7 @@ class ImpressionTrackingService extends GetxService {
   }
 
   // ===========================================================================
-  // BATCH FLUSH
+  // BATCH FLUSH TO RTDB (Zero Firestore writes)
   // ===========================================================================
 
   void _startBatchFlushTimer() {
@@ -122,8 +127,8 @@ class ImpressionTrackingService extends GetxService {
     );
   }
 
-  /// Flush batched impressions to Firestore.
-  /// Uses a single batch write for cost efficiency.
+  /// Flush batched impressions to RTDB.
+  /// Aggregates counts per video in-memory and pushes atomic ServerValue.increment deltas.
   Future<void> _flushBatch() async {
     if (_batch.isEmpty) return;
 
@@ -131,46 +136,32 @@ class ImpressionTrackingService extends GetxService {
     _batch.clear();
 
     try {
-      final batch = _firestore.batch();
-
-      // Group by video for daily impression counter increment
+      // 1. Group impressions by video in memory
       final videoImpressionCounts = <String, int>{};
-      final channelImpressionCounts = <String, int>{};
-
       for (final event in toFlush) {
         videoImpressionCounts[event.videoId] =
             (videoImpressionCounts[event.videoId] ?? 0) + 1;
-        channelImpressionCounts[event.channelId] =
-            (channelImpressionCounts[event.channelId] ?? 0) + 1;
       }
 
-      // Increment impression counters on video documents
+      // 2. Perform atomic multi-path update in RTDB
+      final updates = <String, dynamic>{};
       for (final entry in videoImpressionCounts.entries) {
-        final videoRef = _firestore
-            .collection(FirestoreCollections.videos)
-            .doc(entry.key);
-        batch.update(videoRef, {
-          'impressionCount': FieldValue.increment(entry.value),
-        });
+        updates['pendingImpressions/${entry.key}/count'] =
+            ServerValue.increment(entry.value);
+        updates['pendingImpressions/${entry.key}/updatedAt'] =
+            ServerValue.timestamp;
       }
 
-      // Write individual impression events for detailed analytics
-      // (optional: can be disabled for cost at scale)
-      for (final event in toFlush) {
-        final ref = _firestore.collection('impressions_raw').doc();
-        batch.set(ref, event.toMap());
-      }
-
-      await batch.commit();
+      await _database.ref().update(updates);
 
       logger.info(
-        'Flushed ${toFlush.length} impressions for ${videoImpressionCounts.length} videos',
+        'Flushed ${toFlush.length} impressions for ${videoImpressionCounts.length} videos to RTDB',
         tag: _tag,
       );
     } catch (e) {
       // Put back failed events for retry
       _batch.insertAll(0, toFlush);
-      logger.warning('Failed to flush impressions, will retry: $e', tag: _tag);
+      debugPrint('[$_tag] Failed to flush impressions to RTDB, will retry: $e');
     }
   }
 }
@@ -192,14 +183,6 @@ class _ImpressionEvent {
   final String source;
   final DateTime timestamp;
   final String? userId;
-
-  Map<String, dynamic> toMap() => {
-    'videoId': videoId,
-    'channelId': channelId,
-    'source': source,
-    'timestamp': Timestamp.fromDate(timestamp),
-    'userId': userId,
-  };
 }
 
 // =============================================================================

@@ -901,7 +901,7 @@ class SettingsScreen extends StatelessWidget {
 
   Widget _buildAccountStatusTile(BuildContext context) {
     return ListTile(
-      leading: const Icon(Icons.no_accounts_outlined, color: AppColors.warning),
+      leading: const Icon(Icons.no_accounts_outlined, color: Colors.white),
       title: const Text(
         'Account Deactivation & Status',
         style: TextStyle(fontSize: 16, color: AppColors.textPrimary),
@@ -2085,7 +2085,7 @@ class SettingsScreen extends StatelessWidget {
               ),
             ),
             ListTile(
-              leading: const Icon(Icons.delete_outline, color: AppColors.error),
+              leading: const Icon(Icons.delete_outline, color: Colors.white),
               title: const Text(
                 'Clear All Search History',
                 style: TextStyle(color: AppColors.error),
@@ -2446,7 +2446,7 @@ class SettingsScreen extends StatelessWidget {
   Widget _buildResetSettingsTile(BuildContext context) {
     final ctrl = UserSettingsController.to;
     return ListTile(
-      leading: const Icon(Icons.restart_alt_outlined, color: AppColors.error),
+      leading: const Icon(Icons.restart_alt_outlined, color: Colors.white),
       title: const Text(
         'Reset Settings to Defaults',
         style: TextStyle(fontSize: 16, color: AppColors.error),
@@ -2455,7 +2455,7 @@ class SettingsScreen extends StatelessWidget {
         'Reset playback, downloads, digital wellbeing or factory reset',
         style: TextStyle(fontSize: 13, color: context.colors.textSecondary),
       ),
-      trailing: const Icon(Icons.chevron_right, color: AppColors.error),
+      trailing: const Icon(Icons.chevron_right, color: Colors.white),
       onTap: () => _showResetOptionsDialog(context, ctrl),
     );
   }

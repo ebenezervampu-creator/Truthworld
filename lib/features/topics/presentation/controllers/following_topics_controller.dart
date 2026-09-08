@@ -92,8 +92,12 @@ class FollowingTopicsController extends BaseController {
         if (t.slug.isNotEmpty) followerCounts[t.slug] = t.followerCount;
       }
 
-      followedTopics.value = uniqueTopicsMap.values.toList();
-      favoriteTopics.value = results[1];
+      followedTopics.value = uniqueTopicsMap.values
+          .where((t) => t.isValidTopic && t.videoCount > 0)
+          .toList();
+      favoriteTopics.value = results[1]
+          .where((t) => t.isValidTopic && t.videoCount > 0)
+          .toList();
 
       if (followedTopics.isNotEmpty) {
         if (selectedTopic.value == null ||
@@ -208,6 +212,12 @@ class FollowingTopicsController extends BaseController {
     final topicId = topic.id;
     final topicSlug = topic.slug;
     final wasFollowed = isTopicFollowed(topicId);
+
+    if (!wasFollowed && (!topic.isValidTopic || topic.videoCount <= 0)) {
+      SnackbarService.error(message: 'Cannot follow an inactive or empty topic.');
+      return;
+    }
+
     final previousCount = getFollowerCount(topic);
     final nextCount = (previousCount + (wasFollowed ? -1 : 1)).clamp(0, 999999999);
 

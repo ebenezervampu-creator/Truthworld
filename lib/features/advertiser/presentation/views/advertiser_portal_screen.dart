@@ -2,6 +2,7 @@ import 'dart:io' as io;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +14,12 @@ import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
+import 'package:truthworld/features/advertiser/presentation/views/tabs/ab_testing_tab_view.dart';
+import 'package:truthworld/features/advertiser/presentation/views/tabs/audience_tab_view.dart';
+import 'package:truthworld/features/advertiser/presentation/views/tabs/billing_tab_view.dart';
+import 'package:truthworld/features/advertiser/presentation/views/tabs/brand_settings_tab_view.dart';
+import 'package:truthworld/features/advertiser/presentation/views/tabs/creative_assets_tab_view.dart';
+import 'package:truthworld/features/advertiser/presentation/views/tabs/sponsorships_tab_view.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:video_player/video_player.dart';
@@ -181,6 +188,12 @@ class AdvertiserPortalScreen extends StatelessWidget {
       Icons.analytics_rounded,
       Icons.subtitles_rounded,
       Icons.translate_rounded,
+      Icons.account_balance_wallet_rounded,
+      Icons.groups_rounded,
+      Icons.handshake_rounded,
+      Icons.perm_media_rounded,
+      Icons.science_rounded,
+      Icons.settings_rounded,
     ];
 
     return ListView(
@@ -240,6 +253,18 @@ class AdvertiserPortalScreen extends StatelessWidget {
         return _buildSubtitlesTab(context, controller);
       case 4:
         return _buildAudioDubsTab(context, controller);
+      case 5:
+        return BillingTabView(controller: controller);
+      case 6:
+        return AudienceTabView(controller: controller);
+      case 7:
+        return SponsorshipsTabView(controller: controller);
+      case 8:
+        return CreativeAssetsTabView(controller: controller);
+      case 9:
+        return AbTestingTabView(controller: controller);
+      case 10:
+        return BrandSettingsTabView(controller: controller);
       default:
         return _buildDashboardTab(context, controller);
     }
@@ -721,7 +746,13 @@ class AdvertiserPortalScreen extends StatelessWidget {
   ) {
     return Obx(() {
       final skippableCampaigns = AdService.to.customCampaigns
-          .where((ad) => ad.userId == AuthService.to.uid && ad.isSkippableAd)
+          .where((ad) =>
+              ad.userId == AuthService.to.uid &&
+              (ad.isSkippableAd ||
+                  (ad.videoUrl != null && ad.videoUrl!.isNotEmpty) ||
+                  (ad.midrollVideoUrl != null &&
+                      ad.midrollVideoUrl!.isNotEmpty) ||
+                  (ad.resolutions != null && ad.resolutions!.isNotEmpty)))
           .toList();
 
       return LayoutBuilder(
@@ -792,16 +823,69 @@ class AdvertiserPortalScreen extends StatelessWidget {
         children: [
           const Padding(
             padding: EdgeInsets.all(16),
-            child: Text(
-              'Select Video Ad to Translate',
-              style: TextStyle(
-                fontFamily: TWTypography.brandFamily,
-                fontSize: 16,
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    'Select Video Ad to Translate',
+                    style: TextStyle(
+                      fontFamily: TWTypography.brandFamily,
+                      fontSize: 16,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: SizedBox(
+              width: double.infinity,
+              child: Obx(
+                () => OutlinedButton.icon(
+                  onPressed: controller.isGeneratingAllVideoAdsAI.value
+                      ? null
+                      : () => controller.generateAllVideoAdsAI(),
+                  icon: controller.isGeneratingAllVideoAdsAI.value
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Icon(
+                          Icons.auto_awesome,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                  label: Text(
+                    controller.isGeneratingAllVideoAdsAI.value
+                        ? 'Queueing Batch AI...'
+                        : 'Generate AI for All Video Ads',
+                    style: const TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFF3F3F46)),
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
+          const SizedBox(height: 8),
           const Divider(color: Color(0xFF27272A), height: 1),
           Expanded(
             child: campaigns.isEmpty
@@ -955,39 +1039,76 @@ class AdvertiserPortalScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              ElevatedButton.icon(
-                onPressed: controller.isSavingSubtitles.value
-                    ? null
-                    : () => controller.saveSubtitlesForAd(),
-                icon: controller.isSavingSubtitles.value
-                    ? const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation(Colors.black),
-                        ),
-                      )
-                    : const Icon(Icons.save_rounded, color: Colors.black, size: 16),
-                label: Text(
-                  controller.isSavingSubtitles.value
-                      ? 'Saving...'
-                      : 'Save Track',
-                  style: const TextStyle(
-                    fontFamily: TWTypography.uiFamily,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                    color: Colors.black,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: controller.isUploadingSubtitles.value
+                        ? null
+                        : () => _showUploadSubtitlesDialog(controller),
+                    icon: controller.isUploadingSubtitles.value
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation(Colors.white),
+                            ),
+                          )
+                        : const Icon(Icons.upload_file_rounded, color: Colors.white, size: 16),
+                    label: const Text(
+                      'Upload Subtitles',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: Colors.white,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Color(0xFF3F3F46)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
                   ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: Colors.black,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: controller.isSavingSubtitles.value
+                        ? null
+                        : () => controller.saveSubtitlesForAd(),
+                    icon: controller.isSavingSubtitles.value
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation(Colors.black),
+                            ),
+                          )
+                        : const Icon(Icons.save_rounded, color: Colors.black, size: 16),
+                    label: Text(
+                      controller.isSavingSubtitles.value
+                          ? 'Saving...'
+                          : 'Save Track',
+                      style: const TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: Colors.black,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      elevation: 0,
+                    ),
                   ),
-                  elevation: 0,
-                ),
+                ],
               ),
             ],
           ),
@@ -1480,13 +1601,215 @@ class AdvertiserPortalScreen extends StatelessWidget {
     );
   }
 
+  void _showUploadSubtitlesDialog(AdvertiserPortalController controller) {
+    final selectedLang = (controller.selectedLanguageForSubtitles.value.isNotEmpty
+            ? controller.selectedLanguageForSubtitles.value
+            : 'en')
+        .obs;
+    final selectedFile = Rxn<PlatformFile>();
+
+    Get.dialog(
+      Obx(
+        () => AlertDialog(
+          backgroundColor: const Color(0xFF161618),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: Color(0xFF27272A)),
+          ),
+          title: const Text(
+            'Upload Custom Subtitles',
+            style: TextStyle(
+              fontFamily: TWTypography.brandFamily,
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Directly upload subtitle files (.vtt, .srt, .txt) from your device for this ad. Please select the target language first.',
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Target Language',
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF121212),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF27272A)),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: selectedLang.value,
+                    dropdownColor: const Color(0xFF161618),
+                    iconEnabledColor: Colors.white,
+                    isExpanded: true,
+                    items: [
+                      for (final lang in controller.supportedLanguages)
+                        DropdownMenuItem(
+                          value: lang['code'],
+                          child: Text(
+                            lang['name']!,
+                            style: const TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) {
+                        selectedLang.value = val;
+                      }
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Subtitle File (.vtt, .srt, .txt)',
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 6),
+              InkWell(
+                onTap: () async {
+                  final result = await FilePicker.pickFiles(
+                    type: FileType.custom,
+                    allowedExtensions: ['vtt', 'srt', 'txt'],
+                    withData: true,
+                  );
+                  if (result != null && result.files.isNotEmpty) {
+                    selectedFile.value = result.files.first;
+                  }
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF121212),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: selectedFile.value != null
+                          ? const Color(0xFF10B981)
+                          : const Color(0xFF27272A),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        selectedFile.value != null
+                            ? Icons.check_circle_outline_rounded
+                            : Icons.file_upload_outlined,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          selectedFile.value != null
+                              ? '${selectedFile.value!.name} (${(selectedFile.value!.size / 1024).toStringAsFixed(1)} KB)'
+                              : 'Choose file from device...',
+                          style: TextStyle(
+                            fontFamily: TWTypography.uiFamily,
+                            color: selectedFile.value != null
+                                ? Colors.white
+                                : AppColors.textSecondary,
+                            fontSize: 13,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: Get.back,
+              child: const Text(
+                'Cancel',
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: selectedFile.value == null || controller.isUploadingSubtitles.value
+                  ? null
+                  : () async {
+                      Get.back();
+                      await controller.uploadDirectSubtitles(
+                        langCode: selectedLang.value,
+                        file: selectedFile.value!,
+                      );
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
+                disabledBackgroundColor: const Color(0xFF27272A),
+                disabledForegroundColor: AppColors.textSecondary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                elevation: 0,
+              ),
+              child: Text(
+                controller.isUploadingSubtitles.value
+                    ? 'Importing...'
+                    : 'Import & Save',
+                style: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildAudioDubsTab(
     BuildContext context,
     AdvertiserPortalController controller,
   ) {
     return Obx(() {
       final skippableCampaigns = AdService.to.customCampaigns
-          .where((ad) => ad.userId == AuthService.to.uid && ad.isSkippableAd)
+          .where((ad) =>
+              ad.userId == AuthService.to.uid &&
+              (ad.isSkippableAd ||
+                  (ad.videoUrl != null && ad.videoUrl!.isNotEmpty) ||
+                  (ad.midrollVideoUrl != null &&
+                      ad.midrollVideoUrl!.isNotEmpty) ||
+                  (ad.resolutions != null && ad.resolutions!.isNotEmpty)))
           .toList();
 
       return LayoutBuilder(
@@ -1557,16 +1880,69 @@ class AdvertiserPortalScreen extends StatelessWidget {
         children: [
           const Padding(
             padding: EdgeInsets.all(16),
-            child: Text(
-              'Select Video Ad to Dub',
-              style: TextStyle(
-                fontFamily: TWTypography.brandFamily,
-                fontSize: 16,
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    'Select Video Ad to Dub',
+                    style: TextStyle(
+                      fontFamily: TWTypography.brandFamily,
+                      fontSize: 16,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: SizedBox(
+              width: double.infinity,
+              child: Obx(
+                () => OutlinedButton.icon(
+                  onPressed: controller.isGeneratingAllVideoAdsAI.value
+                      ? null
+                      : () => controller.generateAllVideoAdsAI(),
+                  icon: controller.isGeneratingAllVideoAdsAI.value
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Icon(
+                          Icons.auto_awesome,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                  label: Text(
+                    controller.isGeneratingAllVideoAdsAI.value
+                        ? 'Queueing Batch AI...'
+                        : 'Generate AI for All Video Ads',
+                    style: const TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFF3F3F46)),
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
+          const SizedBox(height: 8),
           const Divider(color: Color(0xFF27272A), height: 1),
           Expanded(
             child: campaigns.isEmpty
@@ -1717,28 +2093,67 @@ class AdvertiserPortalScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              ElevatedButton.icon(
-                onPressed: controller.isTranslatingAudio.value
-                    ? null
-                    : () => _showRequestAudioDubDialog(controller),
-                icon: const Icon(Icons.translate_rounded, color: Colors.black, size: 16),
-                label: const Text(
-                  'Request Voice Dub',
-                  style: TextStyle(
-                    fontFamily: TWTypography.uiFamily,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                    color: Colors.black,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: (controller.isTranslatingAudio.value ||
+                            controller.isUploadingAudioTrack.value)
+                        ? null
+                        : () => _showUploadAudioTrackDialog(controller),
+                    icon: controller.isUploadingAudioTrack.value
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation(Colors.white),
+                            ),
+                          )
+                        : const Icon(Icons.upload_file_rounded, color: Colors.white, size: 16),
+                    label: const Text(
+                      'Upload Audio Track',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: Colors.white,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Color(0xFF3F3F46)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
                   ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: Colors.black,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: (controller.isTranslatingAudio.value ||
+                            controller.isUploadingAudioTrack.value)
+                        ? null
+                        : () => _showRequestAudioDubDialog(controller),
+                    icon: const Icon(Icons.translate_rounded, color: Colors.black, size: 16),
+                    label: const Text(
+                      'Request Voice Dub',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: Colors.black,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      elevation: 0,
+                    ),
                   ),
-                  elevation: 0,
-                ),
+                ],
               ),
             ],
           ),
@@ -1747,6 +2162,11 @@ class AdvertiserPortalScreen extends StatelessWidget {
             _buildPipelineProgressCard(
               controller.audioStatusText.value,
               controller.audioProgress.value,
+            )
+          else if (controller.isUploadingAudioTrack.value)
+            _buildPipelineProgressCard(
+              'Uploading direct audio track from device...',
+              controller.audioUploadProgress.value,
             )
           else ...[
             const Text(
@@ -1924,7 +2344,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                     iconEnabledColor: Colors.white,
                     isExpanded: true,
                     items: [
-                      for (final lang in controller.supportedLanguages)
+                      for (final lang in controller.supportedAudioLanguages)
                         if (lang['code'] != 'en')
                           DropdownMenuItem(
                             value: lang['code'],
@@ -2044,6 +2464,200 @@ class AdvertiserPortalScreen extends StatelessWidget {
                   fontFamily: TWTypography.uiFamily,
                   fontWeight: FontWeight.bold,
                   color: Colors.black,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showUploadAudioTrackDialog(AdvertiserPortalController controller) {
+    final selectedLang = 'hi'.obs;
+    final selectedFile = Rxn<PlatformFile>();
+
+    Get.dialog(
+      Obx(
+        () => AlertDialog(
+          backgroundColor: const Color(0xFF161618),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: Color(0xFF27272A)),
+          ),
+          title: const Text(
+            'Upload Custom Audio Track',
+            style: TextStyle(
+              fontFamily: TWTypography.brandFamily,
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Upload custom recorded audio (.mp3, .wav, .m4a, .aac) from your device for this ad. Please select the language first.',
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Target Language',
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF121212),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF27272A)),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: selectedLang.value,
+                    dropdownColor: const Color(0xFF161618),
+                    iconEnabledColor: Colors.white,
+                    isExpanded: true,
+                    items: [
+                      for (final lang in controller.supportedAudioLanguages)
+                        if (lang['code'] != 'en')
+                          DropdownMenuItem(
+                            value: lang['code'],
+                            child: Text(
+                              lang['name']!,
+                              style: const TextStyle(
+                                fontFamily: TWTypography.uiFamily,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) {
+                        selectedLang.value = val;
+                      }
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Audio File (.mp3, .wav, .m4a, .aac)',
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 6),
+              InkWell(
+                onTap: () async {
+                  final result = await FilePicker.pickFiles(
+                    type: FileType.custom,
+                    allowedExtensions: ['mp3', 'wav', 'm4a', 'aac'],
+                    withData: true,
+                  );
+                  if (result != null && result.files.isNotEmpty) {
+                    selectedFile.value = result.files.first;
+                  }
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF121212),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: selectedFile.value != null
+                          ? const Color(0xFF10B981)
+                          : const Color(0xFF27272A),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        selectedFile.value != null
+                            ? Icons.check_circle_outline_rounded
+                            : Icons.file_upload_outlined,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          selectedFile.value != null
+                              ? '${selectedFile.value!.name} (${(selectedFile.value!.size / (1024 * 1024)).toStringAsFixed(2)} MB)'
+                              : 'Choose audio file from device...',
+                          style: TextStyle(
+                            fontFamily: TWTypography.uiFamily,
+                            color: selectedFile.value != null
+                                ? Colors.white
+                                : AppColors.textSecondary,
+                            fontSize: 13,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: Get.back,
+              child: const Text(
+                'Cancel',
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: selectedFile.value == null || controller.isUploadingAudioTrack.value
+                  ? null
+                  : () async {
+                      Get.back();
+                      await controller.uploadDirectAudioTrack(
+                        langCode: selectedLang.value,
+                        file: selectedFile.value!,
+                      );
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
+                disabledBackgroundColor: const Color(0xFF27272A),
+                disabledForegroundColor: AppColors.textSecondary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                elevation: 0,
+              ),
+              child: Text(
+                controller.isUploadingAudioTrack.value
+                    ? 'Uploading...'
+                    : 'Upload & Save',
+                style: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
                 ),
               ),
             ),
@@ -2432,9 +3046,13 @@ class AdvertiserPortalScreen extends StatelessWidget {
   ) {
     final isSkippable = campaign.isSkippableAd;
     final budgetStr = campaign.budgetTier ?? 'Starter';
-    final amountStr = campaign.budgetAmount != null
-        ? '₹${campaign.budgetAmount!.toStringAsFixed(0)}'
-        : '₹2,000';
+    final totalBudget = campaign.totalBudget;
+    final spent = campaign.spent;
+    final remaining = campaign.remaining;
+    final progress = campaign.budgetProgress;
+    final isBudgetExhausted = remaining <= 0;
+    final amountStr =
+        '₹${totalBudget.toStringAsFixed(totalBudget == totalBudget.roundToDouble() ? 0 : 2)}';
     final isPaused = campaign.status == 'paused';
 
     return Container(
@@ -2548,32 +3166,88 @@ class AdvertiserPortalScreen extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(
-                    amountStr,
-                    style: const TextStyle(
-                      fontFamily: TWTypography.brandFamily,
-                      fontSize: 16,
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        amountStr,
+                        style: const TextStyle(
+                          fontFamily: TWTypography.brandFamily,
+                          fontSize: 16,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF18181B),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: const Color(0xFF27272A)),
+                        ),
+                        child: Text(
+                          budgetStr,
+                          style: const TextStyle(
+                            fontFamily: TWTypography.uiFamily,
+                            color: AppColors.textSecondary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  Text(
-                    budgetStr,
-                    style: const TextStyle(
-                      fontFamily: TWTypography.uiFamily,
-                      color: AppColors.textSecondary,
-                      fontSize: 11,
-                    ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Spent: ₹${spent.toStringAsFixed(spent == spent.roundToDouble() ? 0 : 2)}',
+                        style: const TextStyle(
+                          fontFamily: TWTypography.uiFamily,
+                          color: AppColors.textSecondary,
+                          fontSize: 11,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        width: 3,
+                        height: 3,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Rem: ₹${remaining.toStringAsFixed(remaining == remaining.roundToDouble() ? 0 : 2)}',
+                        style: TextStyle(
+                          fontFamily: TWTypography.uiFamily,
+                          color: isBudgetExhausted
+                              ? const Color(0xFFEF4444)
+                              : const Color(0xFF10B981),
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 6),
                   Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
                         width: 8,
                         height: 8,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: campaign.status == 'paused'
+                          color: isBudgetExhausted
+                              ? const Color(0xFFEF4444)
+                              : campaign.status == 'paused'
                               ? AppColors.textSecondary
                               : campaign.status == 'underReview'
                               ? const Color(0xFFF59E0B)
@@ -2584,7 +3258,9 @@ class AdvertiserPortalScreen extends StatelessWidget {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        campaign.status == 'paused'
+                        isBudgetExhausted
+                            ? 'Exhausted'
+                            : campaign.status == 'paused'
                             ? 'Paused'
                             : campaign.status == 'underReview'
                             ? 'Under Review'
@@ -2595,7 +3271,9 @@ class AdvertiserPortalScreen extends StatelessWidget {
                           fontFamily: TWTypography.uiFamily,
                           fontWeight: FontWeight.bold,
                           fontSize: 11,
-                          color: campaign.status == 'paused'
+                          color: isBudgetExhausted
+                              ? const Color(0xFFEF4444)
+                              : campaign.status == 'paused'
                               ? AppColors.textSecondary
                               : campaign.status == 'underReview'
                               ? const Color(0xFFF59E0B)
@@ -2706,6 +3384,42 @@ class AdvertiserPortalScreen extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       InkWell(
+                        onTap: () => _showAddMoneyModal(context, controller, campaign),
+                        borderRadius: BorderRadius.circular(4),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF18181B),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: const Color(0xFF27272A)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.add_rounded,
+                                color: Colors.white,
+                                size: 14,
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'Add Money',
+                                style: TextStyle(
+                                  fontFamily: TWTypography.uiFamily,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      InkWell(
                         onTap: () => AdService.to.toggleCampaignStatus(campaign.id),
                         borderRadius: BorderRadius.circular(4),
                         child: Container(
@@ -2798,6 +3512,186 @@ class AdvertiserPortalScreen extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF111113),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFF222225)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(
+                          Icons.account_balance_wallet_outlined,
+                          color: Colors.white,
+                          size: 14,
+                        ),
+                        SizedBox(width: 6),
+                        Text(
+                          'Campaign Budget & Spending',
+                          style: TextStyle(
+                            fontFamily: TWTypography.brandFamily,
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      '${(progress * 100).toStringAsFixed(1)}% spent',
+                      style: const TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(2),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    backgroundColor: const Color(0xFF27272A),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      isBudgetExhausted
+                          ? const Color(0xFFEF4444)
+                          : const Color(0xFF10B981),
+                    ),
+                    minHeight: 4,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildFinancialMetric(
+                        label: 'Total Paid',
+                        value:
+                            '₹${totalBudget.toStringAsFixed(totalBudget == totalBudget.roundToDouble() ? 0 : 2)}',
+                        valueColor: Colors.white,
+                      ),
+                    ),
+                    Container(width: 1, height: 24, color: const Color(0xFF27272A)),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 12),
+                        child: _buildFinancialMetric(
+                          label: 'Spent',
+                          value: '₹${spent.toStringAsFixed(2)}',
+                          valueColor: const Color(0xFFF59E0B),
+                        ),
+                      ),
+                    ),
+                    Container(width: 1, height: 24, color: const Color(0xFF27272A)),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 12),
+                        child: _buildFinancialMetric(
+                          label: 'Remaining',
+                          value: '₹${remaining.toStringAsFixed(2)}',
+                          valueColor: isBudgetExhausted
+                              ? const Color(0xFFEF4444)
+                              : const Color(0xFF10B981),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      onPressed: () =>
+                          _showAddMoneyModal(context, controller, campaign),
+                      icon: const Icon(
+                        Icons.add_rounded,
+                        color: Colors.white,
+                        size: 14,
+                      ),
+                      label: const Text(
+                        'Add Money',
+                        style: TextStyle(
+                          fontFamily: TWTypography.uiFamily,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                          color: Colors.white,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: Color(0xFF3F3F46)),
+                        backgroundColor: const Color(0xFF1F1F23),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        minimumSize: const Size(0, 30),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          if (isBudgetExhausted) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF450A0A),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.35),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.warning_amber_rounded,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Budget exhausted! Add more money to keep this campaign active and reaching viewers.',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        color: Color(0xFFFCA5A5),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  InkWell(
+                    onTap: () =>
+                        _showAddMoneyModal(context, controller, campaign),
+                    child: const Text(
+                      'Add Funds',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           if (campaign.status == 'verification_rejected') ...[
             const SizedBox(height: 12),
             Container(
@@ -2849,6 +3743,800 @@ class AdvertiserPortalScreen extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildFinancialMetric({
+    required String label,
+    required String value,
+    required Color valueColor,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontFamily: TWTypography.uiFamily,
+            color: AppColors.textSecondary,
+            fontSize: 10,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: TextStyle(
+            fontFamily: TWTypography.brandFamily,
+            color: valueColor,
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMiniStat(String label, String value, {bool highlight = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontFamily: TWTypography.uiFamily,
+            color: AppColors.textSecondary,
+            fontSize: 10,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: TextStyle(
+            fontFamily: TWTypography.brandFamily,
+            color: highlight ? const Color(0xFF10B981) : Colors.white,
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAddMoneyProcessing({
+    required int progressStep,
+    required bool isSuccess,
+    required AdItem campaign,
+    required double amountAdded,
+    required String errorMessage,
+  }) {
+    if (isSuccess) {
+      final newBudget = campaign.totalBudget + amountAdded;
+      final newRemaining = campaign.remaining + amountAdded;
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 20),
+          Container(
+            width: 56,
+            height: 56,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: Color(0xFF065F46),
+            ),
+            child: const Center(
+              child: Icon(
+                Icons.check_rounded,
+                color: Colors.white,
+                size: 32,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Funds Added Successfully!',
+            style: TextStyle(
+              fontFamily: TWTypography.brandFamily,
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '₹${amountAdded.toStringAsFixed(0)} has been credited to "${campaign.title}".',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              color: AppColors.textSecondary,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF18181B),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFF27272A)),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'New Total Budget',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                    Text(
+                      '₹${newBudget.toStringAsFixed(0)}',
+                      style: const TextStyle(
+                        fontFamily: TWTypography.brandFamily,
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'New Remaining Balance',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                    Text(
+                      '₹${newRemaining.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontFamily: TWTypography.brandFamily,
+                        color: Color(0xFF10B981),
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: Get.back,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.black,
+              minimumSize: const Size(double.infinity, 44),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              elevation: 0,
+            ),
+            child: const Text(
+              'Done',
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                color: Colors.black,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+      );
+    }
+
+    var stepText = 'Validating payment card details...';
+    if (progressStep == 2) stepText = 'Processing transaction with bank...';
+    if (progressStep == 3) stepText = 'Crediting funds to campaign budget...';
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(height: 30),
+        const CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+        ),
+        const SizedBox(height: 24),
+        Text(
+          stepText,
+          style: const TextStyle(
+            fontFamily: TWTypography.uiFamily,
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Please do not close this window',
+          style: TextStyle(
+            fontFamily: TWTypography.uiFamily,
+            color: AppColors.textSecondary,
+            fontSize: 12,
+          ),
+        ),
+        const SizedBox(height: 30),
+      ],
+    );
+  }
+
+  void _showAddMoneyModal(
+    BuildContext context,
+    AdvertiserPortalController controller,
+    AdItem campaign,
+  ) {
+    final selectedOption = 1000.0.obs;
+    final isCustom = false.obs;
+    final customAmountController = TextEditingController();
+    final cardNumberController = TextEditingController(text: '4242 4242 4242 4242');
+    final cardExpiryController = TextEditingController(text: '12/28');
+    final cardCvcController = TextEditingController(text: '123');
+
+    final progressStep = 0.obs;
+    final isSuccess = false.obs;
+    final errorMessage = ''.obs;
+
+    final presetOptions = [
+      {
+        'amount': 500.0,
+        'label': 'Basic Boost',
+        'impressions': '~2,500 views',
+      },
+      {
+        'amount': 1000.0,
+        'label': 'Popular Choice',
+        'impressions': '~5,000 views',
+      },
+      {
+        'amount': 2000.0,
+        'label': 'Growth Pack',
+        'impressions': '~12,000 views',
+      },
+      {
+        'amount': 5000.0,
+        'label': 'Supercharge',
+        'impressions': '~35,000 views',
+      },
+    ];
+
+    Get.dialog(
+      Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: Container(
+          width: 480,
+          constraints: const BoxConstraints(maxHeight: 680),
+          decoration: BoxDecoration(
+            color: const Color(0xFF161618),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFF27272A)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 16, 14),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF27272A),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.account_balance_wallet_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Add Funds to Campaign',
+                            style: TextStyle(
+                              fontFamily: TWTypography.brandFamily,
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Top up balance to keep your campaign running',
+                            style: TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      onPressed: Get.back,
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(color: Color(0xFF27272A), height: 1),
+              // Body
+              Flexible(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.all(20),
+                  child: Obx(() {
+                    if (progressStep.value > 0) {
+                      return _buildAddMoneyProcessing(
+                        progressStep: progressStep.value,
+                        isSuccess: isSuccess.value,
+                        campaign: campaign,
+                        amountAdded: isCustom.value
+                            ? (double.tryParse(customAmountController.text.trim()) ?? 0.0)
+                            : selectedOption.value,
+                        errorMessage: errorMessage.value,
+                      );
+                    }
+
+                    final activeAmount = isCustom.value
+                        ? (double.tryParse(customAmountController.text.trim()) ?? 0.0)
+                        : selectedOption.value;
+                    final currentBudget = campaign.totalBudget;
+                    final newBudget = currentBudget + activeAmount;
+                    final newRemaining = campaign.remaining + activeAmount;
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Campaign Summary Card
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1E1E22),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFF2E2E34)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                campaign.title,
+                                style: const TextStyle(
+                                  fontFamily: TWTypography.brandFamily,
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  _buildMiniStat(
+                                    'Current Budget',
+                                    '₹${currentBudget.toStringAsFixed(0)}',
+                                  ),
+                                  _buildMiniStat(
+                                    'Spent',
+                                    '₹${campaign.spent.toStringAsFixed(2)}',
+                                  ),
+                                  _buildMiniStat(
+                                    'Remaining',
+                                    '₹${campaign.remaining.toStringAsFixed(2)}',
+                                    highlight: true,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        const Text(
+                          'Select Top-Up Amount',
+                          style: TextStyle(
+                            fontFamily: TWTypography.brandFamily,
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        // Preset Options Grid
+                        GridView.count(
+                          crossAxisCount: 2,
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                          childAspectRatio: 2.3,
+                          children: presetOptions.map((opt) {
+                            final amount = (opt['amount'] as num?)?.toDouble() ?? 0.0;
+                            final isSelected =
+                                !isCustom.value && selectedOption.value == amount;
+                            return InkWell(
+                              onTap: () {
+                                isCustom.value = false;
+                                selectedOption.value = amount;
+                              },
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? const Color(0xFF27272A)
+                                      : const Color(0xFF18181B),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? Colors.white
+                                        : const Color(0xFF2E2E34),
+                                    width: isSelected ? 1.5 : 1,
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          '₹${amount.toStringAsFixed(0)}',
+                                          style: const TextStyle(
+                                            fontFamily: TWTypography.brandFamily,
+                                            color: Colors.white,
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        if (isSelected)
+                                          const Icon(
+                                            Icons.check_circle_rounded,
+                                            color: Colors.white,
+                                            size: 14,
+                                          ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      opt['label']! as String,
+                                      style: const TextStyle(
+                                        fontFamily: TWTypography.uiFamily,
+                                        color: AppColors.textSecondary,
+                                        fontSize: 10,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 10),
+                        // Custom Amount Row
+                        InkWell(
+                          onTap: () => isCustom.value = true,
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isCustom.value
+                                  ? const Color(0xFF27272A)
+                                  : const Color(0xFF18181B),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: isCustom.value
+                                    ? Colors.white
+                                    : const Color(0xFF2E2E34),
+                                width: isCustom.value ? 1.5 : 1,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.edit_note_rounded,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 10),
+                                const Text(
+                                  'Custom Amount',
+                                  style: TextStyle(
+                                    fontFamily: TWTypography.uiFamily,
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                if (isCustom.value)
+                                  Expanded(
+                                    child: TextField(
+                                      controller: customAmountController,
+                                      keyboardType: TextInputType.number,
+                                      style: const TextStyle(
+                                        fontFamily: TWTypography.brandFamily,
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                      ),
+                                      decoration: const InputDecoration(
+                                        prefixText: '₹ ',
+                                        prefixStyle: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        hintText: 'Min ₹100',
+                                        hintStyle: TextStyle(
+                                          color: AppColors.textSecondary,
+                                          fontSize: 12,
+                                        ),
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 8,
+                                        ),
+                                        border: OutlineInputBorder(
+                                          borderSide:
+                                              BorderSide(color: Color(0xFF3F3F46)),
+                                        ),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderSide:
+                                              BorderSide(color: Color(0xFF3F3F46)),
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderSide:
+                                              BorderSide(color: Colors.white),
+                                        ),
+                                      ),
+                                      onChanged: (_) => isCustom.refresh(),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        // Calculation Preview
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF18181B),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFF27272A)),
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'Top-Up Amount',
+                                    style: TextStyle(
+                                      fontFamily: TWTypography.uiFamily,
+                                      color: AppColors.textSecondary,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  Text(
+                                    '+₹${activeAmount.toStringAsFixed(0)}',
+                                    style: const TextStyle(
+                                      fontFamily: TWTypography.brandFamily,
+                                      color: Colors.white,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'New Total Budget',
+                                    style: TextStyle(
+                                      fontFamily: TWTypography.uiFamily,
+                                      color: AppColors.textSecondary,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  Text(
+                                    '₹${newBudget.toStringAsFixed(0)}',
+                                    style: const TextStyle(
+                                      fontFamily: TWTypography.brandFamily,
+                                      color: Colors.white,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'New Remaining Balance',
+                                    style: TextStyle(
+                                      fontFamily: TWTypography.uiFamily,
+                                      color: AppColors.textSecondary,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  Text(
+                                    '₹${newRemaining.toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      fontFamily: TWTypography.brandFamily,
+                                      color: Color(0xFF10B981),
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        // Payment Card Details
+                        const Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Payment Card (Stripe)',
+                              style: TextStyle(
+                                fontFamily: TWTypography.brandFamily,
+                                fontSize: 13,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Icon(
+                              Icons.lock_outline_rounded,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        _buildInputField(
+                          'Card Number',
+                          cardNumberController,
+                          '4242 4242 4242 4242',
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildInputField(
+                                'Expiry Date',
+                                cardExpiryController,
+                                'MM/YY',
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _buildInputField(
+                                'CVC',
+                                cardCvcController,
+                                '123',
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        ElevatedButton(
+                          onPressed: activeAmount < 100
+                              ? null
+                              : () {
+                                  progressStep.value = 1;
+                                  Future.delayed(
+                                    const Duration(milliseconds: 500),
+                                    () {
+                                      progressStep.value = 2;
+                                      Future.delayed(
+                                        const Duration(milliseconds: 500),
+                                        () {
+                                          progressStep.value = 3;
+                                          Future.delayed(
+                                            const Duration(milliseconds: 500),
+                                            () async {
+                                              final success = await AdService.to
+                                                  .addFundsToCampaign(
+                                                    campaign.id,
+                                                    activeAmount,
+                                                  );
+                                              if (success) {
+                                                isSuccess.value = true;
+                                                progressStep.value = 4;
+                                                AppSnackbar.show(
+                                                  'Funds Added',
+                                                  '₹${activeAmount.toStringAsFixed(0)} added to "${campaign.title}". New budget: ₹${newBudget.toStringAsFixed(0)}',
+                                                  backgroundColor:
+                                                      AppColors.success,
+                                                  colorText:
+                                                      AppColors.textPrimary,
+                                                );
+                                              } else {
+                                                errorMessage.value =
+                                                    'Failed to process top-up transaction.';
+                                                progressStep.value = 0;
+                                                AppSnackbar.show(
+                                                  'Payment Error',
+                                                  'Unable to add funds. Please try again.',
+                                                  backgroundColor:
+                                                      AppColors.error,
+                                                  colorText:
+                                                      AppColors.textPrimary,
+                                                );
+                                              }
+                                            },
+                                          );
+                                        },
+                                      );
+                                    },
+                                  );
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: Colors.black,
+                            minimumSize: const Size(double.infinity, 46),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: Text(
+                            activeAmount < 100
+                                ? 'Enter Valid Amount (Min ₹100)'
+                                : 'Pay ₹${activeAmount.toStringAsFixed(0)} & Add Funds',
+                            style: const TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  }),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -3158,6 +4846,93 @@ class AdvertiserPortalScreen extends StatelessWidget {
     final bannerUploadProgress = 0.0.obs;
     final bannerUploadStatus = ''.obs;
 
+    // Audience & Targeting State
+    final targetAllAges = (existingCampaign?.targetAgeGroups == null ||
+            existingCampaign!.targetAgeGroups!.isEmpty).obs;
+    final selectedAgeGroups = <String>[
+      if (existingCampaign?.targetAgeGroups != null)
+        ...existingCampaign!.targetAgeGroups!,
+    ].obs;
+
+    final targetAllGenders = (existingCampaign?.targetGenders == null ||
+            existingCampaign!.targetGenders!.isEmpty).obs;
+    final selectedGenders = <String>[
+      if (existingCampaign?.targetGenders != null)
+        ...existingCampaign!.targetGenders!,
+    ].obs;
+
+    final targetWorldwide = (existingCampaign?.targetLocations == null ||
+            existingCampaign!.targetLocations!.isEmpty ||
+            existingCampaign.targetLocations!.contains('Worldwide')).obs;
+    final selectedLocations = <String>[
+      if (existingCampaign?.targetLocations != null)
+        ...existingCampaign!.targetLocations!.where((l) => l != 'Worldwide'),
+    ].obs;
+    final customLocationController = TextEditingController();
+
+    final targetAllLanguages = (existingCampaign?.targetLanguages == null ||
+            existingCampaign!.targetLanguages!.isEmpty).obs;
+    final selectedLanguages = <String>[
+      if (existingCampaign?.targetLanguages != null)
+        ...existingCampaign!.targetLanguages!,
+    ].obs;
+
+    final targetAllTopics = (existingCampaign?.targetTopics == null ||
+            existingCampaign!.targetTopics!.isEmpty).obs;
+    final selectedTopics = <String>[
+      if (existingCampaign?.targetTopics != null)
+        ...existingCampaign!.targetTopics!,
+    ].obs;
+
+    const availableAgeGroups = [
+      'Under 13',
+      '13–17',
+      '18–24',
+      '25–34',
+      '35–44',
+      '45–54',
+      '55–64',
+      '65+',
+    ];
+
+    const availableGenders = [
+      'Male',
+      'Female',
+      'Non-binary / Other',
+    ];
+
+    const popularLocations = [
+      'India',
+      'United States',
+      'United Kingdom',
+      'Canada',
+      'Australia',
+      'Germany',
+      'United Arab Emirates',
+      'Singapore',
+    ];
+
+    const availableLanguages = [
+      {'code': 'en', 'name': 'English'},
+      {'code': 'hi', 'name': 'Hindi'},
+      {'code': 'es', 'name': 'Spanish'},
+      {'code': 'fr', 'name': 'French'},
+      {'code': 'de', 'name': 'German'},
+      {'code': 'ta', 'name': 'Tamil'},
+      {'code': 'te', 'name': 'Telugu'},
+    ];
+
+    const availableTopics = [
+      'Technology & AI',
+      'News & Politics',
+      'Entertainment & Cinema',
+      'Education & Knowledge',
+      'Business & Finance',
+      'Gaming & Esports',
+      'Lifestyle & Fitness',
+      'Music & Arts',
+    ];
+
     final gradientOptions = <List<Color>>[
       [const Color(0xFF8B5CF6), const Color(0xFFEC4899)],
       [const Color(0xFFEF4444), const Color(0xFFF59E0B)],
@@ -3288,11 +5063,21 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             const SizedBox(width: 8),
                             _buildStepTab(
                               stepIndex: 3,
-                              title: '3. Budget & Launch',
-                              icon: Icons.rocket_launch_rounded,
+                              title: '3. Target Audience',
+                              icon: Icons.people_alt_rounded,
                               currentStep: currentStep.value,
                               onTap: () {
                                 currentStep.value = 3;
+                              },
+                            ),
+                            const SizedBox(width: 8),
+                            _buildStepTab(
+                              stepIndex: 4,
+                              title: '4. Budget & Launch',
+                              icon: Icons.rocket_launch_rounded,
+                              currentStep: currentStep.value,
+                              onTap: () {
+                                currentStep.value = 4;
                               },
                             ),
                           ],
@@ -3787,10 +5572,673 @@ class AdvertiserPortalScreen extends StatelessWidget {
                         );
                       }
 
-                      // STEP 3: Budget & Launch
+                      // STEP 3: Target Audience & Demographics
+                      if (currentStep.value == 3) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            buildRejectionBanner(),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Target Audience & Demographics',
+                                      style: TextStyle(
+                                        fontFamily: TWTypography.brandFamily,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    SizedBox(height: 2),
+                                    Text(
+                                      'Define who sees your ad based on age groups, gender, geography, and interests.',
+                                      style: TextStyle(
+                                        fontFamily: TWTypography.uiFamily,
+                                        color: AppColors.textSecondary,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                // Estimated Reach Counter
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF18181B),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: const Color(0xFF27272A),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.track_changes_rounded,
+                                        color: Colors.white,
+                                        size: 16,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          const Text(
+                                            'Estimated Reach',
+                                            style: TextStyle(
+                                              fontFamily: TWTypography.uiFamily,
+                                              color: AppColors.textTertiary,
+                                              fontSize: 10,
+                                            ),
+                                          ),
+                                          Text(
+                                            (targetAllAges.value &&
+                                                    targetAllGenders.value &&
+                                                    targetWorldwide.value)
+                                                ? '250K+ Viewers'
+                                                : '${(50 + (selectedAgeGroups.length * 15) + (selectedLocations.length * 20)).clamp(20, 240)}K Viewers',
+                                            style: const TextStyle(
+                                              fontFamily:
+                                                  TWTypography.brandFamily,
+                                              color: Colors.white,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+
+                            // 1. AGE GROUPS SECTION
+                            _buildAudienceSectionCard(
+                              title: 'Audience Age Groups',
+                              subtitle:
+                                  'Select specific age brackets or reach all ages across Truthworld.',
+                              icon: Icons.calendar_today_rounded,
+                              isAllSelected: targetAllAges.value,
+                              allSelectedLabel: 'All Ages (Broad Reach)',
+                              onToggleAll: (val) {
+                                targetAllAges.value = val;
+                                if (val) {
+                                  selectedAgeGroups.clear();
+                                }
+                              },
+                              content: targetAllAges.value
+                                  ? const SizedBox.shrink()
+                                  : Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: availableAgeGroups
+                                          .map((ageGrp) {
+                                        final isSelected =
+                                            selectedAgeGroups.contains(ageGrp);
+                                        return FilterChip(
+                                          label: Text(
+                                            ageGrp,
+                                            style: TextStyle(
+                                              fontFamily: TWTypography.uiFamily,
+                                              fontSize: 12,
+                                              fontWeight: isSelected
+                                                  ? FontWeight.bold
+                                                  : FontWeight.normal,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                          selected: isSelected,
+                                          showCheckmark: isSelected,
+                                          checkmarkColor: Colors.white,
+                                          selectedColor: AppColors.brand,
+                                          backgroundColor:
+                                              const Color(0xFF18181B),
+                                          side: BorderSide(
+                                            color: isSelected
+                                                ? AppColors.brand
+                                                : const Color(0xFF27272A),
+                                          ),
+                                          onSelected: (selected) {
+                                            if (selected) {
+                                              selectedAgeGroups.add(ageGrp);
+                                            } else {
+                                              selectedAgeGroups.remove(ageGrp);
+                                            }
+                                          },
+                                        );
+                                      }).toList(),
+                                    ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // 2. GENDER SECTION
+                            _buildAudienceSectionCard(
+                              title: 'Gender Demographics',
+                              subtitle:
+                                  'Target viewers based on user-specified gender identity.',
+                              icon: Icons.wc_rounded,
+                              isAllSelected: targetAllGenders.value,
+                              allSelectedLabel: 'All Genders (Recommended)',
+                              onToggleAll: (val) {
+                                targetAllGenders.value = val;
+                                if (val) {
+                                  selectedGenders.clear();
+                                }
+                              },
+                              content: targetAllGenders.value
+                                  ? const SizedBox.shrink()
+                                  : Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: availableGenders.map((gender) {
+                                        final isSelected =
+                                            selectedGenders.contains(gender);
+                                        return FilterChip(
+                                          label: Text(
+                                            gender,
+                                            style: TextStyle(
+                                              fontFamily: TWTypography.uiFamily,
+                                              fontSize: 12,
+                                              fontWeight: isSelected
+                                                  ? FontWeight.bold
+                                                  : FontWeight.normal,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                          selected: isSelected,
+                                          showCheckmark: isSelected,
+                                          checkmarkColor: Colors.white,
+                                          selectedColor: AppColors.brand,
+                                          backgroundColor:
+                                              const Color(0xFF18181B),
+                                          side: BorderSide(
+                                            color: isSelected
+                                                ? AppColors.brand
+                                                : const Color(0xFF27272A),
+                                          ),
+                                          onSelected: (selected) {
+                                            if (selected) {
+                                              selectedGenders.add(gender);
+                                            } else {
+                                              selectedGenders.remove(gender);
+                                            }
+                                          },
+                                        );
+                                      }).toList(),
+                                    ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // 3. LOCATION & GEOGRAPHY SECTION
+                            _buildAudienceSectionCard(
+                              title: 'Locations & Geography',
+                              subtitle:
+                                  'Target global audiences or specific countries and cities.',
+                              icon: Icons.public_rounded,
+                              isAllSelected: targetWorldwide.value,
+                              allSelectedLabel: 'Worldwide / All Locations',
+                              onToggleAll: (val) {
+                                targetWorldwide.value = val;
+                                if (val) {
+                                  selectedLocations.clear();
+                                }
+                              },
+                              content: targetWorldwide.value
+                                  ? const SizedBox.shrink()
+                                  : Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Popular Countries:',
+                                          style: TextStyle(
+                                            fontFamily: TWTypography.uiFamily,
+                                            color: AppColors.textSecondary,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Wrap(
+                                          spacing: 8,
+                                          runSpacing: 8,
+                                          children: popularLocations.map((loc) {
+                                            final isSelected =
+                                                selectedLocations.contains(loc);
+                                            return FilterChip(
+                                              label: Text(
+                                                loc,
+                                                style: TextStyle(
+                                                  fontFamily:
+                                                      TWTypography.uiFamily,
+                                                  fontSize: 12,
+                                                  fontWeight: isSelected
+                                                      ? FontWeight.bold
+                                                      : FontWeight.normal,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                              selected: isSelected,
+                                              showCheckmark: isSelected,
+                                              checkmarkColor: Colors.white,
+                                              selectedColor: AppColors.brand,
+                                              backgroundColor:
+                                                  const Color(0xFF18181B),
+                                              side: BorderSide(
+                                                color: isSelected
+                                                    ? AppColors.brand
+                                                    : const Color(0xFF27272A),
+                                              ),
+                                              onSelected: (selected) {
+                                                if (selected) {
+                                                  selectedLocations.add(loc);
+                                                } else {
+                                                  selectedLocations.remove(loc);
+                                                }
+                                              },
+                                            );
+                                          }).toList(),
+                                        ),
+                                        const SizedBox(height: 14),
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: TextField(
+                                                controller:
+                                                    customLocationController,
+                                                style: const TextStyle(
+                                                  fontFamily:
+                                                      TWTypography.uiFamily,
+                                                  color: Colors.white,
+                                                  fontSize: 13,
+                                                ),
+                                                decoration: InputDecoration(
+                                                  hintText:
+                                                      'Enter city, state or country...',
+                                                  hintStyle: const TextStyle(
+                                                    color:
+                                                        AppColors.textTertiary,
+                                                    fontSize: 12,
+                                                  ),
+                                                  isDense: true,
+                                                  contentPadding:
+                                                      const EdgeInsets
+                                                          .symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 10,
+                                                  ),
+                                                  filled: true,
+                                                  fillColor:
+                                                      const Color(0xFF18181B),
+                                                  border: OutlineInputBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            8),
+                                                    borderSide: const BorderSide(
+                                                      color: Color(0xFF27272A),
+                                                    ),
+                                                  ),
+                                                  enabledBorder:
+                                                      OutlineInputBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            8),
+                                                    borderSide: const BorderSide(
+                                                      color: Color(0xFF27272A),
+                                                    ),
+                                                  ),
+                                                ),
+                                                onSubmitted: (val) {
+                                                  final trimmed = val.trim();
+                                                  if (trimmed.isNotEmpty &&
+                                                      !selectedLocations
+                                                          .contains(trimmed)) {
+                                                    selectedLocations
+                                                        .add(trimmed);
+                                                    customLocationController
+                                                        .clear();
+                                                  }
+                                                },
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            ElevatedButton.icon(
+                                              onPressed: () {
+                                                final trimmed =
+                                                    customLocationController
+                                                        .text
+                                                        .trim();
+                                                if (trimmed.isNotEmpty &&
+                                                    !selectedLocations
+                                                        .contains(trimmed)) {
+                                                  selectedLocations
+                                                      .add(trimmed);
+                                                  customLocationController
+                                                      .clear();
+                                                }
+                                              },
+                                              icon: const Icon(
+                                                Icons.add_rounded,
+                                                color: Colors.white,
+                                                size: 16,
+                                              ),
+                                              label: const Text(
+                                                'Add',
+                                                style: TextStyle(
+                                                  fontFamily:
+                                                      TWTypography.uiFamily,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor:
+                                                    const Color(0xFF27272A),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                  horizontal: 14,
+                                                  vertical: 10,
+                                                ),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        if (selectedLocations.isNotEmpty) ...[
+                                          const SizedBox(height: 10),
+                                          Wrap(
+                                            spacing: 6,
+                                            runSpacing: 6,
+                                            children: selectedLocations
+                                                .map((loc) {
+                                              return Chip(
+                                                label: Text(
+                                                  loc,
+                                                  style: const TextStyle(
+                                                    fontFamily:
+                                                        TWTypography.uiFamily,
+                                                    fontSize: 11,
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                                deleteIcon: const Icon(
+                                                  Icons.close_rounded,
+                                                  color: Colors.white,
+                                                  size: 14,
+                                                ),
+                                                onDeleted: () =>
+                                                    selectedLocations
+                                                        .remove(loc),
+                                                backgroundColor:
+                                                    const Color(0xFF27272A),
+                                                padding:
+                                                    const EdgeInsets.all(4),
+                                                materialTapTargetSize:
+                                                    MaterialTapTargetSize
+                                                        .shrinkWrap,
+                                              );
+                                            }).toList(),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // 4. LANGUAGES SECTION
+                            _buildAudienceSectionCard(
+                              title: 'Target Languages',
+                              subtitle:
+                                  'Serve ads to viewers who speak specific languages.',
+                              icon: Icons.translate_rounded,
+                              isAllSelected: targetAllLanguages.value,
+                              allSelectedLabel: 'All Languages',
+                              onToggleAll: (val) {
+                                targetAllLanguages.value = val;
+                                if (val) {
+                                  selectedLanguages.clear();
+                                }
+                              },
+                              content: targetAllLanguages.value
+                                  ? const SizedBox.shrink()
+                                  : Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: availableLanguages
+                                          .map((lang) {
+                                        final code = lang['code']!;
+                                        final name = lang['name']!;
+                                        final isSelected =
+                                            selectedLanguages.contains(code);
+                                        return FilterChip(
+                                          label: Text(
+                                            name,
+                                            style: TextStyle(
+                                              fontFamily: TWTypography.uiFamily,
+                                              fontSize: 12,
+                                              fontWeight: isSelected
+                                                  ? FontWeight.bold
+                                                  : FontWeight.normal,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                          selected: isSelected,
+                                          showCheckmark: isSelected,
+                                          checkmarkColor: Colors.white,
+                                          selectedColor: AppColors.brand,
+                                          backgroundColor:
+                                              const Color(0xFF18181B),
+                                          side: BorderSide(
+                                            color: isSelected
+                                                ? AppColors.brand
+                                                : const Color(0xFF27272A),
+                                          ),
+                                          onSelected: (selected) {
+                                            if (selected) {
+                                              selectedLanguages.add(code);
+                                            } else {
+                                              selectedLanguages.remove(code);
+                                            }
+                                          },
+                                        );
+                                      }).toList(),
+                                    ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // 5. TOPIC INTERESTS SECTION
+                            _buildAudienceSectionCard(
+                              title: 'Topic & Category Interests',
+                              subtitle:
+                                  'Align your campaign with specific video categories and genres.',
+                              icon: Icons.tag_rounded,
+                              isAllSelected: targetAllTopics.value,
+                              allSelectedLabel: 'All Categories & Topics',
+                              onToggleAll: (val) {
+                                targetAllTopics.value = val;
+                                if (val) {
+                                  selectedTopics.clear();
+                                }
+                              },
+                              content: targetAllTopics.value
+                                  ? const SizedBox.shrink()
+                                  : Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: availableTopics
+                                          .map((topic) {
+                                        final isSelected =
+                                            selectedTopics.contains(topic);
+                                        return FilterChip(
+                                          label: Text(
+                                            topic,
+                                            style: TextStyle(
+                                              fontFamily: TWTypography.uiFamily,
+                                              fontSize: 12,
+                                              fontWeight: isSelected
+                                                  ? FontWeight.bold
+                                                  : FontWeight.normal,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                          selected: isSelected,
+                                          showCheckmark: isSelected,
+                                          checkmarkColor: Colors.white,
+                                          selectedColor: AppColors.brand,
+                                          backgroundColor:
+                                              const Color(0xFF18181B),
+                                          side: BorderSide(
+                                            color: isSelected
+                                                ? AppColors.brand
+                                                : const Color(0xFF27272A),
+                                          ),
+                                          onSelected: (selected) {
+                                            if (selected) {
+                                              selectedTopics.add(topic);
+                                            } else {
+                                              selectedTopics.remove(topic);
+                                            }
+                                          },
+                                        );
+                                      }).toList(),
+                                    ),
+                            ),
+                          ],
+                        );
+                      }
+
+                      // STEP 4: Budget & Launch
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // Audience Summary Review Card
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 20),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF18181B),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: const Color(0xFF27272A),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(6),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white
+                                                .withValues(alpha: 0.08),
+                                            borderRadius:
+                                                BorderRadius.circular(6),
+                                          ),
+                                          child: const Icon(
+                                            Icons.people_alt_rounded,
+                                            color: Colors.white,
+                                            size: 16,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        const Text(
+                                          'Target Audience Overview',
+                                          style: TextStyle(
+                                            fontFamily:
+                                                TWTypography.brandFamily,
+                                            color: Colors.white,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    TextButton.icon(
+                                      onPressed: () => currentStep.value = 3,
+                                      icon: const Icon(
+                                        Icons.edit_rounded,
+                                        color: Colors.white,
+                                        size: 14,
+                                      ),
+                                      label: const Text(
+                                        'Edit Targeting',
+                                        style: TextStyle(
+                                          fontFamily: TWTypography.uiFamily,
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      style: TextButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        minimumSize: Size.zero,
+                                        tapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    _buildAudienceBadge(
+                                      icon: Icons.calendar_today_rounded,
+                                      label: targetAllAges.value
+                                          ? 'All Ages'
+                                          : 'Ages: ${selectedAgeGroups.join(', ')}',
+                                    ),
+                                    _buildAudienceBadge(
+                                      icon: Icons.wc_rounded,
+                                      label: targetAllGenders.value
+                                          ? 'All Genders'
+                                          : 'Gender: ${selectedGenders.join(', ')}',
+                                    ),
+                                    _buildAudienceBadge(
+                                      icon: Icons.public_rounded,
+                                      label: targetWorldwide.value
+                                          ? 'Worldwide'
+                                          : 'Locations: ${selectedLocations.join(', ')}',
+                                    ),
+                                    if (!targetAllLanguages.value &&
+                                        selectedLanguages.isNotEmpty)
+                                      _buildAudienceBadge(
+                                        icon: Icons.translate_rounded,
+                                        label:
+                                            'Languages: ${selectedLanguages.join(', ')}',
+                                      ),
+                                    if (!targetAllTopics.value &&
+                                        selectedTopics.isNotEmpty)
+                                      _buildAudienceBadge(
+                                        icon: Icons.tag_rounded,
+                                        label:
+                                            'Topics: ${selectedTopics.join(', ')}',
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
                           const Text(
                             'Select Campaign Budget & Delivery Plan',
                             style: TextStyle(
@@ -3940,7 +6388,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             elevation: 0,
                           ),
                         ),
-                        if (currentStep.value < 3)
+                        if (currentStep.value < 4)
                           ElevatedButton.icon(
                             onPressed: () {
                               if (currentStep.value == 2) {
@@ -3970,6 +6418,38 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                   AppSnackbar.show(
                                     'Image Required',
                                     'Scroll Ads require an Image Banner creative. Please pick or select an image file.',
+                                    backgroundColor: AppColors.error,
+                                    colorText: AppColors.textPrimary,
+                                  );
+                                  return;
+                                }
+                              }
+                              if (currentStep.value == 3) {
+                                if (!targetAllAges.value &&
+                                    selectedAgeGroups.isEmpty) {
+                                  AppSnackbar.show(
+                                    'Targeting Required',
+                                    'Please select at least one age bracket or toggle "All Ages".',
+                                    backgroundColor: AppColors.error,
+                                    colorText: AppColors.textPrimary,
+                                  );
+                                  return;
+                                }
+                                if (!targetAllGenders.value &&
+                                    selectedGenders.isEmpty) {
+                                  AppSnackbar.show(
+                                    'Targeting Required',
+                                    'Please select at least one gender or toggle "All Genders".',
+                                    backgroundColor: AppColors.error,
+                                    colorText: AppColors.textPrimary,
+                                  );
+                                  return;
+                                }
+                                if (!targetWorldwide.value &&
+                                    selectedLocations.isEmpty) {
+                                  AppSnackbar.show(
+                                    'Targeting Required',
+                                    'Please add at least one location or toggle "Worldwide".',
                                     backgroundColor: AppColors.error,
                                     colorText: AppColors.textPrimary,
                                   );
@@ -4098,6 +6578,21 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                 pinnedCommentText: adFormat.value == 'video_sponsor'
                                     ? pinnedCommentController.text.trim()
                                     : null,
+                                targetAgeGroups: targetAllAges.value
+                                    ? null
+                                    : selectedAgeGroups.toList(),
+                                targetGenders: targetAllGenders.value
+                                    ? null
+                                    : selectedGenders.toList(),
+                                targetLocations: targetWorldwide.value
+                                    ? ['Worldwide']
+                                    : selectedLocations.toList(),
+                                targetLanguages: targetAllLanguages.value
+                                    ? null
+                                    : selectedLanguages.toList(),
+                                targetTopics: targetAllTopics.value
+                                    ? null
+                                    : selectedTopics.toList(),
                                 existingCampaign: existingCampaign,
                               );
                             },
@@ -4200,6 +6695,130 @@ class AdvertiserPortalScreen extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildAudienceSectionCard({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool isAllSelected,
+    required String allSelectedLabel,
+    required ValueChanged<bool> onToggleAll,
+    required Widget content,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF18181B),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF27272A)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  icon,
+                  color: Colors.white,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontFamily: TWTypography.brandFamily,
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              FilterChip(
+                label: Text(
+                  allSelectedLabel,
+                  style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontSize: 11,
+                    fontWeight: isAllSelected ? FontWeight.bold : FontWeight.normal,
+                    color: Colors.white,
+                  ),
+                ),
+                selected: isAllSelected,
+                showCheckmark: isAllSelected,
+                checkmarkColor: Colors.white,
+                selectedColor: AppColors.brand,
+                backgroundColor: const Color(0xFF27272A),
+                side: BorderSide(
+                  color: isAllSelected ? AppColors.brand : const Color(0xFF3F3F46),
+                ),
+                onSelected: onToggleAll,
+              ),
+            ],
+          ),
+          if (!isAllSelected) ...[
+            const Divider(color: Color(0xFF27272A), height: 24),
+            content,
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAudienceBadge({
+    required IconData icon,
+    required String label,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF27272A),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: const Color(0xFF3F3F46)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            color: Colors.white,
+            size: 14,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -5115,6 +7734,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
       try {
         final storageRef = FirebaseStorage.instance.ref().child(storagePath);
         UploadTask uploadTask;
+        final currentUid = FirebaseAuth.instance.currentUser?.uid;
 
         if (kIsWeb) {
           if (pickedFile.bytes == null) {
@@ -5122,7 +7742,12 @@ class AdvertiserPortalScreen extends StatelessWidget {
           }
           uploadTask = storageRef.putData(
             pickedFile.bytes!,
-            SettableMetadata(contentType: mimeType),
+            SettableMetadata(
+              contentType: mimeType,
+              customMetadata: {
+                'uploaderId': ?currentUid,
+              },
+            ),
           );
         } else {
           if (pickedFile.path == null || pickedFile.path!.isEmpty) {
@@ -5131,7 +7756,12 @@ class AdvertiserPortalScreen extends StatelessWidget {
           final ioFile = io.File(pickedFile.path!);
           uploadTask = storageRef.putFile(
             ioFile,
-            SettableMetadata(contentType: mimeType),
+            SettableMetadata(
+              contentType: mimeType,
+              customMetadata: {
+                'uploaderId': ?currentUid,
+              },
+            ),
           );
         }
 
@@ -5399,6 +8029,11 @@ class AdvertiserPortalScreen extends StatelessWidget {
     String? videoId,
     String? midrollVideoUrl,
     String? pinnedCommentText,
+    List<String>? targetAgeGroups,
+    List<String>? targetGenders,
+    List<String>? targetLocations,
+    List<String>? targetLanguages,
+    List<String>? targetTopics,
     AdItem? existingCampaign,
   }) {
     final cardNumber = TextEditingController(text: '4242 4242 4242 4242');
@@ -5412,6 +8047,24 @@ class AdvertiserPortalScreen extends StatelessWidget {
     if (budgetTier == 'startup') cost = 500;
     if (budgetTier == 'growth') cost = 5000;
     if (budgetTier == 'enterprise') cost = 15000;
+
+    final audienceParts = <String>[];
+    if (targetAgeGroups != null && targetAgeGroups.isNotEmpty) {
+      audienceParts.add('Ages: ${targetAgeGroups.join(', ')}');
+    } else {
+      audienceParts.add('All Ages');
+    }
+    if (targetGenders != null && targetGenders.isNotEmpty) {
+      audienceParts.add('Gender: ${targetGenders.join(', ')}');
+    } else {
+      audienceParts.add('All Genders');
+    }
+    if (targetLocations != null && targetLocations.isNotEmpty) {
+      audienceParts.add(targetLocations.join(', '));
+    } else {
+      audienceParts.add('Worldwide');
+    }
+    final audienceSummaryText = audienceParts.join(' • ');
 
     Get.dialog(
       Dialog(
@@ -5553,7 +8206,56 @@ class AdvertiserPortalScreen extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 12),
+                  // Audience Summary Pill in Checkout
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF18181B),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFF27272A)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.people_alt_rounded,
+                          color: Colors.white,
+                          size: 15,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Audience Targeting',
+                                style: TextStyle(
+                                  fontFamily: TWTypography.uiFamily,
+                                  color: AppColors.textTertiary,
+                                  fontSize: 9,
+                                ),
+                              ),
+                              Text(
+                                audienceSummaryText,
+                                style: const TextStyle(
+                                  fontFamily: TWTypography.uiFamily,
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   _buildInputField(
                     'Card Number',
                     cardNumber,
@@ -5575,15 +8277,23 @@ class AdvertiserPortalScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 24),
                   ElevatedButton(
-                    onPressed: () {
-                      progressStep.value = 1;
-                      Future.delayed(const Duration(milliseconds: 600), () {
-                        progressStep.value = 2;
-                        Future.delayed(const Duration(milliseconds: 600), () {
-                          progressStep.value = 3;
-                          Future.delayed(
-                            const Duration(milliseconds: 600),
-                            () async {
+                    onPressed: progressStep.value > 0
+                        ? null
+                        : () async {
+                            try {
+                              progressStep.value = 1;
+                              await Future.delayed(
+                                const Duration(milliseconds: 600),
+                              );
+                              progressStep.value = 2;
+                              await Future.delayed(
+                                const Duration(milliseconds: 600),
+                              );
+                              progressStep.value = 3;
+                              await Future.delayed(
+                                const Duration(milliseconds: 600),
+                              );
+
                               if (existingCampaign != null) {
                                 final ad = existingCampaign.copyWith(
                                   advertiser: brand,
@@ -5593,7 +8303,8 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                   ctaText: ctaText,
                                   ctaTarget: ctaTarget,
                                   gradientColors:
-                                      gradient ?? existingCampaign.gradientColors,
+                                      gradient ??
+                                      existingCampaign.gradientColors,
                                   isSkippableAd: isSkippable,
                                   videoUrl: videoUrl,
                                   budgetTier: budgetTier.toUpperCase(),
@@ -5605,6 +8316,11 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                       : existingCampaign.videoId,
                                   midrollVideoUrl: midrollVideoUrl,
                                   pinnedCommentText: pinnedCommentText,
+                                  targetAgeGroups: targetAgeGroups,
+                                  targetGenders: targetGenders,
+                                  targetLocations: targetLocations,
+                                  targetLanguages: targetLanguages,
+                                  targetTopics: targetTopics,
                                 );
 
                                 final success =
@@ -5624,8 +8340,13 @@ class AdvertiserPortalScreen extends StatelessWidget {
                               }
 
                               final ad = AdItem(
-                                id: 'camp_${DateTime.now().millisecondsSinceEpoch}',
-                                userId: AuthService.to.uid,
+                                id:
+                                    'camp_${DateTime.now().millisecondsSinceEpoch}',
+                                userId:
+                                    (Get.isRegistered<AuthService>() &&
+                                            AuthService.to.uid.isNotEmpty)
+                                        ? AuthService.to.uid
+                                        : 'advertiser',
                                 advertiser: brand,
                                 title: title,
                                 description: description,
@@ -5647,6 +8368,11 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                 videoId: videoId,
                                 midrollVideoUrl: midrollVideoUrl,
                                 pinnedCommentText: pinnedCommentText,
+                                targetAgeGroups: targetAgeGroups,
+                                targetGenders: targetGenders,
+                                targetLocations: targetLocations,
+                                targetLanguages: targetLanguages,
+                                targetTopics: targetTopics,
                               );
 
                               final success = await AdService.to.createCampaign(
@@ -5663,11 +8389,16 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                   colorText: AppColors.textPrimary,
                                 );
                               }
-                            },
-                          );
-                        });
-                      });
-                    },
+                            } catch (e) {
+                              progressStep.value = 0;
+                              AppSnackbar.show(
+                                'Checkout Error',
+                                'An unexpected error occurred: $e',
+                                backgroundColor: AppColors.error,
+                                colorText: AppColors.textPrimary,
+                              );
+                            }
+                          },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
                       foregroundColor: Colors.black,

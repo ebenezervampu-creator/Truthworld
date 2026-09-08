@@ -66,6 +66,8 @@ class TWRadius extends ThemeExtension<TWRadius> {
 }
 
 extension TWRadiusExtension on BuildContext {
-  TWRadius get radius => Theme.of(this).extension<TWRadius>()!;
-  TWRadius get twRadius => Theme.of(this).extension<TWRadius>()!;
+  TWRadius get radius =>
+      Theme.of(this).extension<TWRadius>() ?? TWRadius.defaults();
+  TWRadius get twRadius =>
+      Theme.of(this).extension<TWRadius>() ?? TWRadius.defaults();
 }

@@ -3,10 +3,13 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+
+import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
+import 'package:video_player/video_player.dart';
 
 class SubtitlesPage extends StatelessWidget {
   const SubtitlesPage({
@@ -38,20 +41,15 @@ class SubtitlesPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
     final bgColor = isDarkMode ? AppColors.bgPage : AppColors.bgPage;
-    final surfaceColor = isDarkMode
-        ? AppColors.bgSurface
-        : AppColors.textPrimary;
-    final textColor = isDarkMode
-        ? AppColors.textPrimary
-        : Colors.black;
-    final textSecondaryColor = isDarkMode
-        ? AppColors.textSecondary
-        : Colors.black;
-    final borderColor = isDarkMode
-        ? AppColors.bgDivider
-        : AppColors.bgDivider;
+    final surfaceColor =
+        isDarkMode ? AppColors.bgSurface : AppColors.textPrimary;
+    final textColor =
+        isDarkMode ? AppColors.textPrimary : Colors.black;
+    final textSecondaryColor =
+        isDarkMode ? AppColors.textSecondary : Colors.black87;
+    final borderColor =
+        isDarkMode ? AppColors.bgDivider : AppColors.bgDivider;
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -74,7 +72,7 @@ class SubtitlesPage extends StatelessWidget {
                   const Icon(
                     Icons.error_outline_rounded,
                     size: 64,
-                    color: AppColors.error,
+                    color: Colors.white,
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -92,13 +90,13 @@ class SubtitlesPage extends StatelessWidget {
                   ElevatedButton(
                     onPressed: () => controller.onInit(),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.brand,
-                      foregroundColor: Colors.black,
+                      backgroundColor: const Color(0xFF2563EB),
+                      foregroundColor: Colors.white,
                     ),
                     child: Text(
                       'Retry',
                       style: AppTextStyles.buttonText.copyWith(
-                        color: Colors.black,
+                        color: Colors.white,
                       ),
                     ),
                   ),
@@ -115,10 +113,10 @@ class SubtitlesPage extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.subtitles_off_rounded,
                     size: 80,
-                    color: textSecondaryColor.withValues(alpha: 0.5),
+                    color: Colors.white,
                   ),
                   const SizedBox(height: 20),
                   Text(
@@ -161,9 +159,9 @@ class SubtitlesPage extends StatelessWidget {
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // DESKTOP & TABLET SPLIT-SCREEN LAYOUT
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ===========================================================================
+  // DESKTOP & TABLET LAYOUT
+  // ===========================================================================
 
   Widget _buildDesktopLayout(
     Color surfaceColor,
@@ -231,9 +229,9 @@ class SubtitlesPage extends StatelessWidget {
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ===========================================================================
   // MOBILE SINGLE-VIEW LAYOUT
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ===========================================================================
 
   Widget _buildMobileLayout(
     Color surfaceColor,
@@ -267,7 +265,6 @@ class SubtitlesPage extends StatelessWidget {
           )
         : Column(
             children: [
-              // Back banner to return to video list
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
@@ -309,9 +306,9 @@ class SubtitlesPage extends StatelessWidget {
           );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // COMPONENTS
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ===========================================================================
+  // LEFT COLUMN COMPONENTS
+  // ===========================================================================
 
   Widget _buildSearchHeader(
     Color surfaceColor,
@@ -331,7 +328,7 @@ class SubtitlesPage extends StatelessWidget {
             children: [
               const Icon(
                 Icons.subtitles_rounded,
-                color: AppColors.brand,
+                color: Colors.white,
                 size: 22,
               ),
               const SizedBox(width: 8),
@@ -368,12 +365,10 @@ class SubtitlesPage extends StatelessWidget {
                       ? AppColors.textSecondary
                       : const Color(0xFF94A3B8),
                 ),
-                prefixIcon: Icon(
+                prefixIcon: const Icon(
                   Icons.search_rounded,
                   size: 18,
-                  color: isDarkMode
-                      ? AppColors.textSecondary
-                      : const Color(0xFF94A3B8),
+                  color: Colors.white,
                 ),
                 border: InputBorder.none,
                 enabledBorder: InputBorder.none,
@@ -441,7 +436,7 @@ class SubtitlesPage extends StatelessWidget {
                       child: const Icon(
                         Icons.video_file_rounded,
                         size: 20,
-                        color: AppColors.textSecondary,
+                        color: Colors.white,
                       ),
                     ),
                   ),
@@ -481,9 +476,8 @@ class SubtitlesPage extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: AppTextStyles.titleMedium.copyWith(
                       fontSize: 14,
-                      fontWeight: isSelected
-                          ? FontWeight.bold
-                          : FontWeight.w500,
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.w500,
                       color: isSelected ? AppColors.brand : textColor,
                     ),
                   ),
@@ -514,12 +508,10 @@ class SubtitlesPage extends StatelessWidget {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
+                            const Icon(
                               Icons.translate_rounded,
                               size: 10,
-                              color: trackCount > 0
-                                  ? const Color(0xFF10B981)
-                                  : textSecondaryColor,
+                              color: Colors.white,
                             ),
                             const SizedBox(width: 3),
                             Text(
@@ -546,7 +538,10 @@ class SubtitlesPage extends StatelessWidget {
     );
   }
 
-  Widget _buildEmptySelectionState(Color textColor, Color textSecondaryColor) {
+  Widget _buildEmptySelectionState(
+    Color textColor,
+    Color textSecondaryColor,
+  ) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -562,7 +557,7 @@ class SubtitlesPage extends StatelessWidget {
               child: const Icon(
                 Icons.touch_app_rounded,
                 size: 64,
-                color: AppColors.brand,
+                color: Colors.white,
               ),
             ),
             const SizedBox(height: 24),
@@ -576,7 +571,7 @@ class SubtitlesPage extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Choose a video from the sidebar menu to view existing translation tracks, add new localized cue timings, and sync directly to your video streams.',
+              'Choose a video from the sidebar to manage subtitle tracks, generate multi-language captions with Truthworld AI, and sync with the video timeline.',
               textAlign: TextAlign.center,
               style: AppTextStyles.bodyMedium.copyWith(
                 fontSize: 14,
@@ -590,6 +585,10 @@ class SubtitlesPage extends StatelessWidget {
     );
   }
 
+  // ===========================================================================
+  // SUBTITLE WORKSPACE (MAIN WORK AREA)
+  // ===========================================================================
+
   Widget _buildSubtitleWorkspace(
     Color surfaceColor,
     Color textColor,
@@ -600,269 +599,30 @@ class SubtitlesPage extends StatelessWidget {
 
     return Column(
       children: [
-        // Workspace Top Bar: Responsive Header Layout
-        Container(
-          padding: EdgeInsets.all(isMobile ? 12 : 16),
-          decoration: BoxDecoration(
-            color: surfaceColor,
-            border: Border(bottom: BorderSide(color: borderColor)),
-          ),
-          child: isMobile
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: CachedNetworkImage(
-                            imageUrl: video.thumbnailUrl,
-                            width: 44,
-                            height: 28,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Subtitles & Multi-Language Audio Tracks',
-                            style: AppTextStyles.caption.copyWith(
-                              fontSize: 12,
-                              color: textSecondaryColor,
-                            ),
-                          ),
-                        ),
-                        Obx(() {
-                          if (!controller.hasUnsavedChanges.value) {
-                            return const SizedBox.shrink();
-                          }
-                          return Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(
-                                0xFFF59E0B,
-                              ).withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                color: const Color(
-                                  0xFFF59E0B,
-                                ).withValues(alpha: 0.3),
-                              ),
-                            ),
-                            child: Text(
-                              'Unsaved',
-                              style: AppTextStyles.badge.copyWith(
-                                fontSize: 10,
-                                color: const Color(0xFFF59E0B),
-                              ),
-                            ),
-                          );
-                        }),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          _buildRequestsButton(),
-                          const SizedBox(width: 8),
-                          _buildExportButton(textColor, borderColor),
-                          const SizedBox(width: 8),
-                          _buildSaveButton(),
-                        ],
-                      ),
-                    ),
-                  ],
-                )
-              : Row(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: CachedNetworkImage(
-                        imageUrl: video.thumbnailUrl,
-                        width: 50,
-                        height: 30,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  video.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: AppTextStyles.titleMedium.copyWith(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: textColor,
-                                  ),
-                                ),
-                              ),
-                              Obx(() {
-                                if (!controller.hasUnsavedChanges.value) {
-                                  return const SizedBox.shrink();
-                                }
-                                return Container(
-                                  margin: const EdgeInsets.only(
-                                    left: 8,
-                                    right: 8,
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(
-                                      0xFFF59E0B,
-                                    ).withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: Border.all(
-                                      color: const Color(
-                                        0xFFF59E0B,
-                                      ).withValues(alpha: 0.3),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'Unsaved',
-                                    style: AppTextStyles.badge.copyWith(
-                                      fontSize: 10,
-                                      color: const Color(0xFFF59E0B),
-                                    ),
-                                  ),
-                                );
-                              }),
-                            ],
-                          ),
-                          Text(
-                            'Subtitles & Multi-Language Audio Tracks',
-                            style: AppTextStyles.caption.copyWith(
-                              fontSize: 12,
-                              color: textSecondaryColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    _buildRequestsButton(),
-                    const SizedBox(width: 8),
-                    _buildDownloadSrtButton(textColor, borderColor),
-                    const SizedBox(width: 8),
-                    _buildExportButton(textColor, borderColor),
-                    const SizedBox(width: 8),
-                    _buildSaveButton(),
-                  ],
-                ),
+        // 1. Top Action Bar
+        _buildWorkspaceTopBar(
+          video: video,
+          surfaceColor: surfaceColor,
+          textColor: textColor,
+          textSecondaryColor: textSecondaryColor,
+          borderColor: borderColor,
         ),
 
-        // Language Track Selector Ribbon
-        Container(
-          height: 52,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: isDarkMode
-                ? const Color(0xFF141414)
-                : AppColors.bgDivider,
-            border: Border(bottom: BorderSide(color: borderColor)),
-          ),
-          child: Row(
-            children: [
-              Text(
-                'Tracks:',
-                style: AppTextStyles.labelMedium.copyWith(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: textSecondaryColor,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Obx(() {
-                  return ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: controller.availableLanguages.length,
-                    itemBuilder: (context, index) {
-                      final code = controller.availableLanguages[index];
-                      final isSelected =
-                          controller.selectedLanguage.value == code;
-                      final langName = controller.getLanguageName(code);
-                      // Show pending indicator if this language has no subtitle URL yet
-                      final subs = controller.selectedVideo.value?.mediaSubtitles ?? {};
-                      final hasSub = subs.containsKey(code) && (subs[code]?.isNotEmpty ?? false);
-                      final isPending = !hasSub;
+        // 2. Truthworld AI Live Generation Progress Banner
+        _buildAiProgressBanner(surfaceColor, borderColor),
 
-                      return Padding(
-                        padding: const EdgeInsets.only(
-                          right: 8,
-                          top: 8,
-                          bottom: 8,
-                        ),
-                        child: ChoiceChip(
-                          label: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                langName,
-                                style: AppTextStyles.labelMedium.copyWith(
-                                  color: isSelected ? Colors.black : textColor,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              if (isPending && !isSelected) ...[
-                                const SizedBox(width: 4),
-                                const Icon(
-                                  Icons.hourglass_empty_rounded,
-                                  size: 11,
-                                  color: AppColors.textTertiary,
-                                ),
-                              ],
-                            ],
-                          ),
-                          selected: isSelected,
-                          onSelected: (selected) {
-                            if (selected) controller.switchLanguage(code);
-                          },
-                          selectedColor: AppColors.brand,
-                          backgroundColor: surfaceColor,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            side: BorderSide(
-                              color: isSelected
-                                  ? AppColors.brand
-                                  : isPending
-                                      ? AppColors.textTertiary.withValues(alpha: 0.5)
-                                      : borderColor,
-                            ),
-                          ),
-                          showCheckmark: false,
-                        ),
-                      );
-                    },
-                  );
-                }),
-              ),
-              IconButton(
-                icon: const Icon(Icons.add_circle_outline_rounded),
-                color: AppColors.brand,
-                tooltip: 'Add Language Track',
-                onPressed: _showAddLanguageDialog,
-              ),
-            ],
-          ),
+        // 3. Synchronized Video Player Preview & Overlay
+        _buildVideoPlayerPreview(surfaceColor, borderColor, textColor),
+
+        // 4. Language Track Selector Ribbon
+        _buildLanguageRibbon(
+          surfaceColor: surfaceColor,
+          textColor: textColor,
+          textSecondaryColor: textSecondaryColor,
+          borderColor: borderColor,
         ),
 
-        // Main Editor Timeline & Cue List
+        // 5. Main Editor & Requests Panel (Split / Tabbed)
         Expanded(
           child: isMobile
               ? Obx(() {
@@ -910,16 +670,294 @@ class SubtitlesPage extends StatelessWidget {
     );
   }
 
+  // ===========================================================================
+  // 1. WORKSPACE TOP BAR
+  // ===========================================================================
+
+  Widget _buildWorkspaceTopBar({
+    required Video video,
+    required Color surfaceColor,
+    required Color textColor,
+    required Color textSecondaryColor,
+    required Color borderColor,
+  }) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: isMobile ? 10 : 12,
+      ),
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        border: Border(bottom: BorderSide(color: borderColor)),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: CachedNetworkImage(
+              imageUrl: video.thumbnailUrl,
+              width: 48,
+              height: 30,
+              fit: BoxFit.cover,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        video.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.titleMedium.copyWith(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: textColor,
+                        ),
+                      ),
+                    ),
+                    Obx(() {
+                      if (!controller.hasUnsavedChanges.value) {
+                        return const SizedBox.shrink();
+                      }
+                      return Container(
+                        margin: const EdgeInsets.only(left: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Text(
+                          'Unsaved',
+                          style: AppTextStyles.badge.copyWith(
+                            fontSize: 10,
+                            color: const Color(0xFFF59E0B),
+                          ),
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+                Text(
+                  'Multi-Language Subtitles & Timed Transcripts',
+                  style: AppTextStyles.caption.copyWith(
+                    fontSize: 11,
+                    color: textSecondaryColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+
+          // Actions Row
+          Flexible(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Generate with Truthworld AI Button
+                  ElevatedButton.icon(
+                    onPressed: () => _showGenerateAIModal(Get.context!),
+                    icon: const Icon(
+                      Icons.auto_awesome_rounded,
+                      size: 15,
+                      color: Colors.white,
+                    ),
+                    label: Text(
+                      'Generate with AI',
+                      style: AppTextStyles.buttonText.copyWith(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF8B5CF6),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+
+                  // Import Subtitle File Button
+                  OutlinedButton.icon(
+                    onPressed: () => controller.importSubtitleFile(),
+                    icon: const Icon(
+                      Icons.upload_file_rounded,
+                      size: 15,
+                      color: Colors.white,
+                    ),
+                    label: Text(
+                      'Import',
+                      style: AppTextStyles.buttonText.copyWith(
+                        fontSize: 12,
+                        color: textColor,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: textColor,
+                      side: BorderSide(color: borderColor),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 6,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+
+                  // Download Dropdown Menu
+                  _buildDownloadDropdownMenu(textColor, borderColor),
+                  const SizedBox(width: 6),
+
+                  // Viewer Requests Toggle Button
+                  _buildRequestsButton(),
+                  const SizedBox(width: 6),
+
+                  // Save Changes Button
+                  _buildSaveButton(),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDownloadDropdownMenu(Color textColor, Color borderColor) {
+    return PopupMenuButton<String>(
+      tooltip: 'Download Subtitles in Various Formats',
+      onSelected: (val) {
+        switch (val) {
+          case 'srt':
+            controller.downloadSrtTrack();
+          case 'vtt':
+            controller.downloadVttTrack();
+          case 'txt':
+            controller.downloadTxtTranscript();
+          case 'json':
+            controller.downloadJsonTrack();
+          case 'clipboard':
+            controller.copyToClipboard();
+          case 'all':
+            controller.downloadAllTracks();
+        }
+      },
+      itemBuilder: (context) => [
+        const PopupMenuItem<String>(
+          value: 'srt',
+          child: Row(
+            children: [
+              Icon(Icons.subtitles_rounded, size: 16, color: Colors.white),
+              SizedBox(width: 10),
+              Text('SubRip Subtitle (.srt)', style: TextStyle(fontSize: 13)),
+            ],
+          ),
+        ),
+        const PopupMenuItem<String>(
+          value: 'vtt',
+          child: Row(
+            children: [
+              Icon(Icons.video_settings_rounded, size: 16, color: Colors.white),
+              SizedBox(width: 10),
+              Text('WebVTT Subtitle (.vtt)', style: TextStyle(fontSize: 13)),
+            ],
+          ),
+        ),
+        const PopupMenuItem<String>(
+          value: 'txt',
+          child: Row(
+            children: [
+              Icon(Icons.description_outlined, size: 16, color: Colors.white),
+              SizedBox(width: 10),
+              Text('Plain Text Transcript (.txt)', style: TextStyle(fontSize: 13)),
+            ],
+          ),
+        ),
+        const PopupMenuItem<String>(
+          value: 'json',
+          child: Row(
+            children: [
+              Icon(Icons.data_object_rounded, size: 16, color: Colors.white),
+              SizedBox(width: 10),
+              Text('Timed Segments JSON (.json)', style: TextStyle(fontSize: 13)),
+            ],
+          ),
+        ),
+        const PopupMenuDivider(),
+        const PopupMenuItem<String>(
+          value: 'clipboard',
+          child: Row(
+            children: [
+              Icon(Icons.copy_all_rounded, size: 16, color: Colors.white),
+              SizedBox(width: 10),
+              Text('Copy Transcript to Clipboard', style: TextStyle(fontSize: 13)),
+            ],
+          ),
+        ),
+        const PopupMenuItem<String>(
+          value: 'all',
+          child: Row(
+            children: [
+              Icon(Icons.archive_outlined, size: 16, color: Colors.white),
+              SizedBox(width: 10),
+              Text('Download All Tracks (ZIP)', style: TextStyle(fontSize: 13)),
+            ],
+          ),
+        ),
+      ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          border: Border.all(color: borderColor),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.download_rounded, size: 15, color: Colors.white),
+            const SizedBox(width: 5),
+            Text(
+              'Download',
+              style: AppTextStyles.buttonText.copyWith(
+                fontSize: 12,
+                color: textColor,
+              ),
+            ),
+            const SizedBox(width: 3),
+            const Icon(Icons.arrow_drop_down_rounded, size: 16, color: Colors.white),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildRequestsButton() {
     return Obx(() {
-      final hasReqs = controller.languageRequests
+      final reqs = controller.languageRequests
           .where((r) => r.type == 'subtitle')
-          .isNotEmpty;
+          .toList();
       final showRequests = controller.showRequestsPanel.value;
       return Badge(
-        isLabelVisible: hasReqs && !showRequests,
+        isLabelVisible: reqs.isNotEmpty && !showRequests,
         label: Text(
-          '${controller.languageRequests.where((r) => r.type == 'subtitle').length}',
+          '${reqs.length}',
           style: const TextStyle(
             color: Colors.black,
             fontWeight: FontWeight.bold,
@@ -930,23 +968,19 @@ class SubtitlesPage extends StatelessWidget {
           onPressed: () => controller.toggleRequestsPanel(),
           icon: Icon(
             showRequests ? Icons.close_rounded : Icons.mark_chat_unread_rounded,
-            size: 16,
-            color: showRequests ? AppColors.error : AppColors.brand,
+            size: 15,
+            color: Colors.white,
           ),
           label: Text(
             showRequests ? 'Close Requests' : 'Viewer Requests',
             style: AppTextStyles.buttonText.copyWith(
               fontSize: 12,
-              color: showRequests ? AppColors.error : AppColors.brand,
+              color: Colors.white,
             ),
           ),
           style: OutlinedButton.styleFrom(
-            foregroundColor: showRequests ? AppColors.error : AppColors.brand,
-            side: BorderSide(
-              color: showRequests
-                  ? AppColors.error.withValues(alpha: 0.5)
-                  : AppColors.brand.withValues(alpha: 0.5),
-            ),
+            foregroundColor: Colors.white,
+            side: const BorderSide(color: AppColors.bgDivider),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           ),
         ),
@@ -954,82 +988,579 @@ class SubtitlesPage extends StatelessWidget {
     });
   }
 
-  Widget _buildDownloadSrtButton(Color textColor, Color borderColor) {
-    return ElevatedButton.icon(
-      onPressed: () => controller.downloadSrtTrack(),
-      icon: const Icon(Icons.download_rounded, size: 16, color: Colors.black),
-      label: Text(
-        'Download SRT',
-        style: AppTextStyles.buttonText.copyWith(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: Colors.black,
-        ),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.brand,
-        foregroundColor: Colors.black,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      ),
-    );
-  }
-
-  Widget _buildExportButton(Color textColor, Color borderColor) {
-    return OutlinedButton.icon(
-      onPressed: () => controller.downloadVttTrack(),
-      icon: const Icon(
-        Icons.file_download_outlined,
-        size: 16,
-        color: AppColors.textPrimary,
-      ),
-      label: Text(
-        'Download VTT',
-        style: AppTextStyles.buttonText.copyWith(
-          fontSize: 12,
-          color: textColor,
-        ),
-      ),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: textColor,
-        side: BorderSide(color: borderColor),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      ),
-    );
-  }
-
   Widget _buildSaveButton() {
     return Obx(() {
+      final hasChanges = controller.hasUnsavedChanges.value;
+      final saving = controller.isSaving.value;
+
       return ElevatedButton.icon(
-        onPressed: controller.isSaving.value
+        onPressed: (!hasChanges || saving)
             ? null
             : () => controller.saveCurrentSubtitles(),
-        icon: controller.isSaving.value
+        icon: saving
             ? const SizedBox(
                 width: 14,
                 height: 14,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    AppColors.textPrimary,
-                  ),
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                 ),
               )
-            : const Icon(Icons.save_rounded, size: 16),
+            : const Icon(Icons.save_rounded, size: 15, color: Colors.white),
         label: Text(
-          controller.isSaving.value ? 'Saving...' : 'Save Changes',
+          saving ? 'Saving...' : 'Save Changes',
           style: AppTextStyles.buttonText.copyWith(
             fontSize: 12,
-            color: AppColors.textPrimary,
+            color: Colors.white,
           ),
         ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.brand,
-          foregroundColor: AppColors.textPrimary,
+          backgroundColor: const Color(0xFF10B981),
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: isDarkMode
+              ? const Color(0xFF2A2A2A)
+              : const Color(0xFFCBD5E1),
+          disabledForegroundColor:
+              isDarkMode ? Colors.white38 : Colors.black38,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         ),
       );
     });
   }
+
+  // ===========================================================================
+  // 2. TRUTHWORLD AI PROGRESS BANNER
+  // ===========================================================================
+
+  Widget _buildAiProgressBanner(Color surfaceColor, Color borderColor) {
+    return Obx(() {
+      if (!controller.isGeneratingAI.value) return const SizedBox.shrink();
+
+      final progress = controller.aiJobProgress.value;
+      final status = controller.aiJobStatus.value.isNotEmpty
+          ? controller.aiJobStatus.value
+          : 'Processing video audio & preparing subtitle tracks...';
+
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF2E1065), Color(0xFF1E1B4B)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: const Color(0xFF8B5CF6).withValues(alpha: 0.5),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.auto_awesome_rounded,
+                  size: 18,
+                  color: Colors.white,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Truthworld AI Subtitle Generation in Progress',
+                    style: AppTextStyles.titleMedium.copyWith(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                Text(
+                  '$progress%',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFA78BFA),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              status,
+              style: AppTextStyles.caption.copyWith(
+                fontSize: 12,
+                color: const Color(0xFFDDD6FE),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: progress > 0 ? (progress / 100.0).clamp(0.0, 1.0) : null,
+                backgroundColor: Colors.white.withValues(alpha: 0.1),
+                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFA78BFA)),
+                minHeight: 6,
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  // ===========================================================================
+  // 3. SYNCHRONIZED VIDEO PLAYER PREVIEW & OVERLAY
+  // ===========================================================================
+
+  Widget _buildVideoPlayerPreview(
+    Color surfaceColor,
+    Color borderColor,
+    Color textColor,
+  ) {
+    return Obx(() {
+      final isExpanded = controller.showVideoPreview.value;
+
+      return Container(
+        decoration: BoxDecoration(
+          color: surfaceColor,
+          border: Border(bottom: BorderSide(color: borderColor)),
+        ),
+        child: Column(
+          children: [
+            // Collapse / Expand Toggle Bar
+            InkWell(
+              onTap: () => controller.toggleVideoPreview(),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.play_circle_filled_rounded,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Video Player & Real-time Subtitle Sync Preview',
+                      style: AppTextStyles.labelMedium.copyWith(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                      ),
+                    ),
+                    const Spacer(),
+                    Icon(
+                      isExpanded
+                          ? Icons.keyboard_arrow_up_rounded
+                          : Icons.keyboard_arrow_down_rounded,
+                      size: 20,
+                      color: Colors.white,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            if (isExpanded) ...[
+              Divider(height: 1, color: borderColor),
+              Container(
+                padding: const EdgeInsets.all(12),
+                color: isDarkMode
+                    ? const Color(0xFF0F0F0F)
+                    : const Color(0xFF0F172A),
+                child: Column(
+                  children: [
+                    // Video Viewport with Live Subtitle Overlay
+                    Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          maxHeight: 220,
+                          maxWidth: 420,
+                        ),
+                        child: AspectRatio(
+                          aspectRatio: 16 / 9,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.black,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                if (controller.isVideoPlayerInitialized.value &&
+                                    controller.videoPlayerController != null)
+                                  VideoPlayer(controller.videoPlayerController!)
+                                else
+                                  Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(
+                                        Icons.video_library_rounded,
+                                        size: 44,
+                                        color: Colors.white,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Synchronized Video Preview',
+                                        style: AppTextStyles.caption.copyWith(
+                                          color: Colors.white70,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+
+                                // Subtitle Overlay Box
+                                Obx(() {
+                                  final activeIdx =
+                                      controller.activeCueIndex.value;
+                                  if (activeIdx >= 0 &&
+                                      activeIdx < controller.currentCues.length) {
+                                    final text =
+                                        controller.currentCues[activeIdx].text;
+                                    if (text.trim().isNotEmpty) {
+                                      return Positioned(
+                                        bottom: 12,
+                                        left: 16,
+                                        right: 16,
+                                        child: Center(
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 4,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.black
+                                                  .withValues(alpha: 0.8),
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                            ),
+                                            child: Text(
+                                              text,
+                                              textAlign: TextAlign.center,
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                                shadows: [
+                                                  Shadow(
+                                                    blurRadius: 4,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  }
+                                  return const SizedBox.shrink();
+                                }),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Video Scrubber & Playhead Controls
+                    _buildVideoControlsBar(),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _buildVideoControlsBar() {
+    return Obx(() {
+      final pos = controller.currentVideoPosition.value;
+      final dur = controller.videoDuration.value;
+      final isPlaying = controller.isVideoPlaying.value;
+
+      final posMs = pos.inMilliseconds.toDouble();
+      final durMs = dur.inMilliseconds > 0 ? dur.inMilliseconds.toDouble() : 1.0;
+      final clampedPos = posMs.clamp(0.0, durMs);
+
+      return Column(
+        children: [
+          // Scrubber Slider
+          SliderTheme(
+            data: SliderThemeData(
+              trackHeight: 3,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+              activeTrackColor: AppColors.brand,
+              inactiveTrackColor: Colors.white.withValues(alpha: 0.2),
+              thumbColor: Colors.white,
+            ),
+            child: Slider(
+              value: clampedPos,
+              max: durMs,
+              onChanged: (val) {
+                controller.seekTo(Duration(milliseconds: val.toInt()));
+              },
+            ),
+          ),
+
+          // Action Buttons Bar
+          Row(
+            children: [
+              // Play/Pause
+              IconButton(
+                onPressed: () => controller.togglePlayPause(),
+                icon: Icon(
+                  isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  size: 20,
+                  color: Colors.white,
+                ),
+                tooltip: isPlaying ? 'Pause' : 'Play',
+              ),
+
+              // Skip -5s
+              IconButton(
+                onPressed: () {
+                  final target = pos - const Duration(seconds: 5);
+                  controller.seekTo(
+                    target < Duration.zero ? Duration.zero : target,
+                  );
+                },
+                icon: const Icon(
+                  Icons.replay_5_rounded,
+                  size: 18,
+                  color: Colors.white,
+                ),
+                tooltip: 'Rewind 5s',
+              ),
+
+              // Skip +5s
+              IconButton(
+                onPressed: () {
+                  final target = pos + const Duration(seconds: 5);
+                  controller.seekTo(
+                    target > dur ? dur : target,
+                  );
+                },
+                icon: const Icon(
+                  Icons.forward_5_rounded,
+                  size: 18,
+                  color: Colors.white,
+                ),
+                tooltip: 'Forward 5s',
+              ),
+
+              const SizedBox(width: 8),
+
+              // Timecode display
+              Text(
+                '${SubtitlesController.formatDurationToTimecode(pos).split('.').first} / ${SubtitlesController.formatDurationToTimecode(dur).split('.').first}',
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  color: Colors.white70,
+                ),
+              ),
+
+              const Spacer(),
+
+              // Add Cue at Current Playhead
+              OutlinedButton.icon(
+                onPressed: () => controller.addCueAtCurrentTime(),
+                icon: const Icon(
+                  Icons.add_circle_outline_rounded,
+                  size: 14,
+                  color: Colors.white,
+                ),
+                label: const Text(
+                  '+ Cue at Playhead',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.3),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    });
+  }
+
+  // ===========================================================================
+  // 4. LANGUAGE TRACK SELECTOR RIBBON
+  // ===========================================================================
+
+  Widget _buildLanguageRibbon({
+    required Color surfaceColor,
+    required Color textColor,
+    required Color textSecondaryColor,
+    required Color borderColor,
+  }) {
+    return Container(
+      height: 52,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: isDarkMode
+            ? const Color(0xFF141414)
+            : AppColors.bgDivider,
+        border: Border(bottom: BorderSide(color: borderColor)),
+      ),
+      child: Row(
+        children: [
+          Text(
+            'Tracks:',
+            style: AppTextStyles.labelMedium.copyWith(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: textSecondaryColor,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Obx(() {
+              return ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: controller.availableLanguages.length,
+                itemBuilder: (context, index) {
+                  final code = controller.availableLanguages[index];
+                  final isSelected =
+                      controller.selectedLanguage.value == code;
+                  final langName = controller.getLanguageName(code);
+                  final subs =
+                      controller.selectedVideo.value?.mediaSubtitles ?? {};
+                  final hasSub = subs.containsKey(code) &&
+                      (subs[code]?.isNotEmpty ?? false);
+                  final isPending = !hasSub;
+
+                  return Padding(
+                    padding: const EdgeInsets.only(
+                      right: 8,
+                      top: 8,
+                      bottom: 8,
+                    ),
+                    child: ChoiceChip(
+                      label: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            langName,
+                            style: AppTextStyles.labelMedium.copyWith(
+                              color: isSelected ? Colors.black : textColor,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          if (isPending && !isSelected) ...[
+                            const SizedBox(width: 4),
+                            const Icon(
+                              Icons.hourglass_empty_rounded,
+                              size: 11,
+                              color: Colors.white,
+                            ),
+                          ],
+                        ],
+                      ),
+                      selected: isSelected,
+                      onSelected: (selected) {
+                        if (selected) controller.switchLanguage(code);
+                      },
+                      selectedColor: AppColors.brand,
+                      backgroundColor: surfaceColor,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(
+                          color: isSelected
+                              ? AppColors.brand
+                              : isPending
+                                  ? AppColors.textTertiary.withValues(alpha: 0.5)
+                                  : borderColor,
+                        ),
+                      ),
+                      showCheckmark: false,
+                    ),
+                  );
+                },
+              );
+            }),
+          ),
+          // Delete Language Track Option (if more than 1)
+          Obx(() {
+            if (controller.availableLanguages.length <= 1) {
+              return const SizedBox.shrink();
+            }
+            return IconButton(
+              icon: const Icon(Icons.remove_circle_outline_rounded),
+              color: Colors.white,
+              tooltip: 'Delete Current Language Track',
+              onPressed: () {
+                final currentLang = controller.selectedLanguage.value;
+                Get.dialog<void>(
+                  AlertDialog(
+                    title: const Text('Delete Language Track'),
+                    content: Text(
+                      'Are you sure you want to remove the "${controller.getLanguageName(currentLang)}" subtitle track?',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Get.back<void>(),
+                        child: const Text('Cancel'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () {
+                          Get.back<void>();
+                          controller.deleteLanguageTrack(currentLang);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.error,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Delete'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          }),
+          IconButton(
+            icon: const Icon(Icons.add_circle_outline_rounded),
+            color: Colors.white,
+            tooltip: 'Add Language Track',
+            onPressed: _showAddLanguageDialog,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // 5. MAIN CUES EDITOR & TOOLBAR
+  // ===========================================================================
 
   Widget _buildMainCuesEditor(
     Color surfaceColor,
@@ -1037,89 +1568,151 @@ class SubtitlesPage extends StatelessWidget {
     Color textSecondaryColor,
     Color borderColor,
   ) {
-    return Obx(() {
-      if (controller.currentCues.isEmpty) {
-        return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+    return Column(
+      children: [
+        // Cues Toolbar (Search, Find & Replace, Shift Timings, Sort, Clear)
+        _buildCuesToolbar(surfaceColor, textColor, borderColor),
+
+        // Cues Header Row
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          color: surfaceColor.withValues(alpha: 0.4),
+          child: Row(
             children: [
-              Icon(
-                Icons.format_quote_rounded,
-                size: 48,
-                color: textSecondaryColor.withValues(alpha: 0.5),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'No Subtitle Cues Defined',
-                style: AppTextStyles.titleMedium.copyWith(
-                  fontSize: 16,
-                  color: textSecondaryColor,
-                ),
-              ),
-              const SizedBox(height: 16),
-              OutlinedButton.icon(
-                onPressed: () => controller.addNewCue(),
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: Text(
-                  'Add First Cue',
-                  style: AppTextStyles.buttonText.copyWith(
-                    color: AppColors.brand,
+              SizedBox(
+                width: isMobile ? 140 : 180,
+                child: Text(
+                  'Timing Interval',
+                  style: AppTextStyles.labelMedium.copyWith(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: textSecondaryColor,
                   ),
                 ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.brand,
-                  side: const BorderSide(color: AppColors.brand),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  'Subtitle Text Cue',
+                  style: AppTextStyles.labelMedium.copyWith(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: textSecondaryColor,
+                  ),
                 ),
               ),
+              const SizedBox(width: 70),
             ],
           ),
-        );
-      }
+        ),
+        Divider(height: 1, color: borderColor),
 
-      return Column(
-        children: [
-          // Header Table column row
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            color: surfaceColor.withValues(alpha: 0.4),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: isMobile ? 140 : 180,
-                  child: Text(
-                    'Timing Interval',
-                    style: AppTextStyles.labelMedium.copyWith(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: textSecondaryColor,
+        // Cues List / Scrollable Empty State
+        Expanded(
+          child: Obx(() {
+            final cues = controller.filteredCues;
+            if (cues.isEmpty) {
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: ConstrainedBox(
+                      constraints:
+                          BoxConstraints(minHeight: constraints.maxHeight),
+                      child: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 16,
+                            horizontal: 16,
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.format_quote_rounded,
+                                size: 44,
+                                color: Colors.white,
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                controller.searchQueryInCues.value.isNotEmpty
+                                    ? 'No subtitles match "${controller.searchQueryInCues.value}"'
+                                    : 'No Subtitle Cues Defined',
+                                style: AppTextStyles.titleMedium.copyWith(
+                                  fontSize: 15,
+                                  color: textSecondaryColor,
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              Wrap(
+                                alignment: WrapAlignment.center,
+                                spacing: 10,
+                                runSpacing: 8,
+                                children: [
+                                  OutlinedButton.icon(
+                                    onPressed: () => controller.addNewCue(),
+                                    icon: const Icon(
+                                      Icons.add_rounded,
+                                      size: 16,
+                                      color: Colors.white,
+                                    ),
+                                    label: Text(
+                                      'Add First Cue',
+                                      style: AppTextStyles.buttonText.copyWith(
+                                        color: textColor,
+                                      ),
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: textColor,
+                                      side: BorderSide(color: borderColor),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 6,
+                                      ),
+                                    ),
+                                  ),
+                                  ElevatedButton.icon(
+                                    onPressed: () =>
+                                        controller.addCueAtCurrentTime(),
+                                    icon: const Icon(
+                                      Icons.play_circle_outline_rounded,
+                                      size: 16,
+                                      color: Colors.white,
+                                    ),
+                                    label: Text(
+                                      'Add at Playhead',
+                                      style: AppTextStyles.buttonText.copyWith(
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF2563EB),
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 6,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Text(
-                    'Subtitle Text Cue',
-                    style: AppTextStyles.labelMedium.copyWith(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: textSecondaryColor,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 40),
-              ],
-            ),
-          ),
-          Divider(height: 1, color: borderColor),
+                  );
+                },
+              );
+            }
 
-          // Cues List
-          Expanded(
-            child: ListView.separated(
+            return ListView.separated(
               padding: const EdgeInsets.all(12),
-              itemCount: controller.currentCues.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 10),
+              itemCount: cues.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 8),
               itemBuilder: (context, index) {
-                final cue = controller.currentCues[index];
+                final cue = cues[index];
                 return _buildCueCardItem(
                   cue,
                   index,
@@ -1129,40 +1722,172 @@ class SubtitlesPage extends StatelessWidget {
                   borderColor,
                 );
               },
-            ),
-          ),
+            );
+          }),
+        ),
 
-          // Workspace Bottom Actions
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: surfaceColor,
-              border: Border(top: BorderSide(color: borderColor)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: () => controller.addNewCue(),
-                  icon: const Icon(Icons.add_rounded, size: 18),
-                  label: Text(
-                    'Add Subtitle Segment',
-                    style: AppTextStyles.buttonText.copyWith(
-                      color: AppColors.brand,
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.brand,
-                    side: const BorderSide(color: AppColors.brand),
+        // Workspace Bottom Add Bar
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: surfaceColor,
+            border: Border(top: BorderSide(color: borderColor)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => controller.addNewCue(),
+                icon: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
+                label: Text(
+                  'Add Subtitle Segment',
+                  style: AppTextStyles.buttonText.copyWith(
+                    color: textColor,
                   ),
                 ),
-              ],
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: textColor,
+                  side: BorderSide(color: borderColor),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              ElevatedButton.icon(
+                onPressed: () => controller.addCueAtCurrentTime(),
+                icon: const Icon(Icons.timer_rounded, size: 16, color: Colors.white),
+                label: Text(
+                  'Add at Playhead',
+                  style: AppTextStyles.buttonText.copyWith(
+                    color: Colors.white,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ===========================================================================
+  // CUES TOOLBAR
+  // ===========================================================================
+
+  Widget _buildCuesToolbar(
+    Color surfaceColor,
+    Color textColor,
+    Color borderColor,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        border: Border(bottom: BorderSide(color: borderColor)),
+      ),
+      child: Row(
+        children: [
+          // Filter Search Bar
+          Expanded(
+            child: SizedBox(
+              height: 36,
+              child: TextField(
+                style: TextStyle(fontSize: 13, color: textColor),
+                decoration: InputDecoration(
+                  hintText: 'Search within subtitles...',
+                  hintStyle: const TextStyle(fontSize: 12, color: Colors.white54),
+                  prefixIcon: const Icon(
+                    Icons.search_rounded,
+                    size: 16,
+                    color: Colors.white,
+                  ),
+                  contentPadding: EdgeInsets.zero,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    borderSide: BorderSide(color: borderColor),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    borderSide: BorderSide(color: borderColor),
+                  ),
+                ),
+                onChanged: (v) => controller.setCueSearchQuery(v),
+              ),
             ),
           ),
+          const SizedBox(width: 8),
+
+          // Find & Replace
+          IconButton(
+            icon: const Icon(Icons.find_replace_rounded, size: 18, color: Colors.white),
+            tooltip: 'Find & Replace Text',
+            onPressed: () => _showFindReplaceDialog(Get.context!),
+          ),
+
+          // Shift Timings
+          IconButton(
+            icon: const Icon(Icons.timelapse_rounded, size: 18, color: Colors.white),
+            tooltip: 'Shift All Timings',
+            onPressed: () => _showShiftTimingsDialog(Get.context!),
+          ),
+
+          // Sort Chronologically
+          IconButton(
+            icon: const Icon(Icons.sort_rounded, size: 18, color: Colors.white),
+            tooltip: 'Sort Chronologically',
+            onPressed: () => controller.sortCuesChronologically(),
+          ),
+
+          // Clear Cues
+          IconButton(
+            icon: const Icon(Icons.delete_sweep_rounded, size: 18, color: Colors.white),
+            tooltip: 'Clear All Cues in Current Track',
+            onPressed: () {
+              Get.dialog<void>(
+                AlertDialog(
+                  title: const Text('Clear All Subtitles?'),
+                  content: const Text(
+                    'Are you sure you want to clear all subtitle segments in this language track? This action cannot be undone unless you reload without saving.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Get.back<void>(),
+                      child: const Text('Cancel'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () {
+                        Get.back<void>();
+                        controller.clearAllCues();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.error,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Clear All'),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
         ],
-      );
-    });
+      ),
+    );
   }
+
+  // ===========================================================================
+  // CUE CARD ITEM (SYNCHRONIZED WITH VIDEO)
+  // ===========================================================================
 
   Widget _buildCueCardItem(
     SubtitleCue cue,
@@ -1172,111 +1897,83 @@ class SubtitlesPage extends StatelessWidget {
     Color textSecondaryColor,
     Color borderColor,
   ) {
-    if (isMobile) {
-      return Container(
-        padding: const EdgeInsets.all(12),
+    return Obx(() {
+      final isActive = controller.activeCueIndex.value == index;
+
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: surfaceColor,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: borderColor),
+          color: isActive
+              ? const Color(0xFF2563EB).withValues(alpha: 0.12)
+              : surfaceColor,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isActive ? const Color(0xFF2563EB) : borderColor,
+            width: isActive ? 1.5 : 1.0,
+          ),
         ),
-        child: Column(
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            // Timing Steppers & Playhead sync
+            _buildTimingBadge(
+              cue,
+              index,
+              textColor,
+              textSecondaryColor,
+            ),
+            const SizedBox(width: 12),
+
+            // Subtitle Text Field
+            Expanded(
+              child: TextFormField(
+                key: ValueKey(
+                  '${controller.selectedLanguage.value}_${cue.id}_$index',
+                ),
+                initialValue: cue.text,
+                maxLines: null,
+                style: AppTextStyles.bodyMedium.copyWith(
+                  fontSize: 14,
+                  color: textColor,
+                  height: 1.3,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Enter subtitle segment text...',
+                  hintStyle: AppTextStyles.bodySmall.copyWith(
+                    color: textSecondaryColor,
+                  ),
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.zero,
+                  fillColor: Colors.transparent,
+                ),
+                onChanged: (val) => controller.updateCueText(index, val),
+              ),
+            ),
+            const SizedBox(width: 8),
+
+            // Actions: Duplicate & Delete
+            Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                _buildTimingBadge(cue, index, textColor, textSecondaryColor),
                 IconButton(
-                  icon: const Icon(Icons.delete_outline_rounded, size: 20),
-                  color: textSecondaryColor.withValues(alpha: 0.7),
+                  icon: const Icon(Icons.content_copy_rounded, size: 16),
+                  color: Colors.white,
+                  tooltip: 'Duplicate Cue',
+                  onPressed: () => controller.duplicateCue(index),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                  color: Colors.white,
+                  tooltip: 'Delete Cue',
                   onPressed: () => controller.deleteCue(index),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            TextFormField(
-              key: ValueKey(
-                '${controller.selectedLanguage.value}_${cue.id}_$index',
-              ),
-              initialValue: cue.text,
-              maxLines: null,
-              style: AppTextStyles.bodyMedium.copyWith(
-                fontSize: 14,
-                color: textColor,
-                height: 1.3,
-              ),
-              decoration: InputDecoration(
-                hintText: 'Enter subtitle text...',
-                hintStyle: AppTextStyles.bodySmall.copyWith(
-                  color: textSecondaryColor,
-                ),
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                contentPadding: EdgeInsets.zero,
-                fillColor: Colors.transparent,
-              ),
-              onChanged: (val) => controller.updateCueText(index, val),
-            ),
           ],
         ),
       );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: surfaceColor,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: borderColor),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.bgPage.withValues(alpha: 0.03),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildTimingBadge(cue, index, textColor, textSecondaryColor),
-          const SizedBox(width: 16),
-          Expanded(
-            child: TextFormField(
-              key: ValueKey(
-                '${controller.selectedLanguage.value}_${cue.id}_$index',
-              ),
-              initialValue: cue.text,
-              maxLines: null,
-              style: AppTextStyles.bodyMedium.copyWith(
-                fontSize: 14,
-                color: textColor,
-                height: 1.3,
-              ),
-              decoration: InputDecoration(
-                hintText: 'Enter subtitle text...',
-                hintStyle: AppTextStyles.bodySmall.copyWith(
-                  color: textSecondaryColor,
-                ),
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                contentPadding: EdgeInsets.zero,
-                fillColor: Colors.transparent,
-              ),
-              onChanged: (val) => controller.updateCueText(index, val),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline_rounded),
-            color: textSecondaryColor.withValues(alpha: 0.6),
-            onPressed: () => controller.deleteCue(index),
-          ),
-        ],
-      ),
-    );
+    });
   }
 
   Widget _buildTimingBadge(
@@ -1286,8 +1983,8 @@ class SubtitlesPage extends StatelessWidget {
     Color textSecondaryColor,
   ) {
     return Container(
-      width: 175,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      width: 180,
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
       decoration: BoxDecoration(
         color: isDarkMode
             ? const Color(0xFF242424)
@@ -1296,53 +1993,69 @@ class SubtitlesPage extends StatelessWidget {
       ),
       child: Column(
         children: [
+          // Start Time row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               InkWell(
                 onTap: () =>
                     controller.shiftCueTiming(index, shiftMilliseconds: -500),
-                child: Icon(
+                child: const Icon(
                   Icons.remove_circle_outline,
                   size: 14,
-                  color: textSecondaryColor,
+                  color: Colors.white,
                 ),
               ),
-              Row(
-                children: [
-                  const Icon(
-                    Icons.timer_outlined,
-                    size: 12,
-                    color: Colors.white,
+              Tooltip(
+                message: 'Seek Video to Cue',
+                child: InkWell(
+                  onTap: () => controller.seekToCue(index),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.timer_outlined,
+                        size: 11,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        cue.startTime.split('.').first,
+                        style: AppTextStyles.labelMedium.copyWith(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: textColor,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 4),
-                  Text(
-                    cue.startTime.split('.').first,
-                    style: AppTextStyles.labelMedium.copyWith(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: textColor,
-                    ),
-                  ),
-                ],
+                ),
               ),
               InkWell(
                 onTap: () => controller.shiftCueTiming(index),
-                child: Icon(
+                child: const Icon(
                   Icons.add_circle_outline,
                   size: 14,
-                  color: textSecondaryColor,
+                  color: Colors.white,
                 ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.my_location_rounded, size: 12),
+                color: Colors.white,
+                tooltip: 'Set Start to Video Playhead',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                onPressed: () => controller.setStartToCurrentTime(index),
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          Icon(
+          const SizedBox(height: 2),
+          const Icon(
             Icons.arrow_downward_rounded,
-            size: 12,
-            color: textSecondaryColor,
+            size: 10,
+            color: Colors.white,
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
+          // End Time row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -1352,27 +2065,35 @@ class SubtitlesPage extends StatelessWidget {
                   isStart: false,
                   shiftMilliseconds: -500,
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.remove_circle_outline,
                   size: 14,
-                  color: textSecondaryColor,
+                  color: Colors.white,
                 ),
               ),
               Text(
                 cue.endTime.split('.').first,
                 style: AppTextStyles.labelMedium.copyWith(
-                  fontSize: 12,
+                  fontSize: 11,
                   fontWeight: FontWeight.bold,
                   color: textSecondaryColor,
                 ),
               ),
               InkWell(
                 onTap: () => controller.shiftCueTiming(index, isStart: false),
-                child: Icon(
+                child: const Icon(
                   Icons.add_circle_outline,
                   size: 14,
-                  color: textSecondaryColor,
+                  color: Colors.white,
                 ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.my_location_rounded, size: 12),
+                color: Colors.white,
+                tooltip: 'Set End to Video Playhead',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                onPressed: () => controller.setEndToCurrentTime(index),
               ),
             ],
           ),
@@ -1380,6 +2101,10 @@ class SubtitlesPage extends StatelessWidget {
       ),
     );
   }
+
+  // ===========================================================================
+  // REQUESTS PANEL
+  // ===========================================================================
 
   Widget _buildRequestsPanel(
     Color surfaceColor,
@@ -1402,7 +2127,7 @@ class SubtitlesPage extends StatelessWidget {
               children: [
                 const Icon(
                   Icons.mark_chat_unread_rounded,
-                  color: AppColors.brand,
+                  color: Colors.white,
                   size: 20,
                 ),
                 const SizedBox(width: 8),
@@ -1426,7 +2151,7 @@ class SubtitlesPage extends StatelessWidget {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.brand.withValues(alpha: 0.1),
+                      color: const Color(0xFF2563EB).withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
@@ -1434,7 +2159,7 @@ class SubtitlesPage extends StatelessWidget {
                       style: AppTextStyles.badge.copyWith(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.brand,
+                        color: Colors.white,
                       ),
                     ),
                   );
@@ -1454,24 +2179,27 @@ class SubtitlesPage extends StatelessWidget {
                 );
               }
               if (reqs.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.translate_rounded,
-                        size: 48,
-                        color: textSecondaryColor.withValues(alpha: 0.4),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'No requests yet',
-                        style: AppTextStyles.bodyMedium.copyWith(
-                          fontSize: 14,
-                          color: textSecondaryColor,
+                return SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.translate_rounded,
+                          size: 48,
+                          color: Colors.white,
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 12),
+                        Text(
+                          'No requests yet',
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            fontSize: 14,
+                            color: textSecondaryColor,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               }
@@ -1535,7 +2263,7 @@ class SubtitlesPage extends StatelessWidget {
                                 vertical: 4,
                               ),
                               decoration: BoxDecoration(
-                                color: AppColors.brand.withValues(alpha: 0.15),
+                                color: const Color(0xFF2563EB).withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Row(
@@ -1543,7 +2271,7 @@ class SubtitlesPage extends StatelessWidget {
                                   const Icon(
                                     Icons.people_alt_rounded,
                                     size: 12,
-                                    color: AppColors.brand,
+                                    color: Colors.white,
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
@@ -1551,7 +2279,7 @@ class SubtitlesPage extends StatelessWidget {
                                     style: AppTextStyles.badge.copyWith(
                                       fontSize: 11,
                                       fontWeight: FontWeight.bold,
-                                      color: AppColors.brand,
+                                      color: Colors.white,
                                     ),
                                   ),
                                 ],
@@ -1568,19 +2296,19 @@ class SubtitlesPage extends StatelessWidget {
                                   icon: const Icon(
                                     Icons.check_circle_rounded,
                                     size: 14,
-                                    color: AppColors.success,
+                                    color: Colors.white,
                                   ),
                                   label: Text(
                                     'Provisioned',
                                     style: AppTextStyles.buttonText.copyWith(
                                       fontSize: 12,
-                                      color: AppColors.success,
+                                      color: Colors.white,
                                     ),
                                   ),
                                   style: OutlinedButton.styleFrom(
-                                    disabledForegroundColor: AppColors.success,
+                                    disabledForegroundColor: Colors.white,
                                     side: const BorderSide(
-                                      color: AppColors.success,
+                                      color: AppColors.bgDivider,
                                     ),
                                   ),
                                 )
@@ -1588,17 +2316,17 @@ class SubtitlesPage extends StatelessWidget {
                                   onPressed: () {
                                     controller.addLanguageTrack(langCode);
                                   },
-                                  icon: const Icon(Icons.add_rounded, size: 14),
+                                  icon: const Icon(Icons.add_rounded, size: 14, color: Colors.white),
                                   label: Text(
                                     'Add Track',
                                     style: AppTextStyles.buttonText.copyWith(
                                       fontSize: 12,
-                                      color: AppColors.textPrimary,
+                                      color: Colors.white,
                                     ),
                                   ),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.brand,
-                                    foregroundColor: AppColors.textPrimary,
+                                    backgroundColor: const Color(0xFF2563EB),
+                                    foregroundColor: Colors.white,
                                     elevation: 0,
                                   ),
                                 ),
@@ -1609,6 +2337,381 @@ class SubtitlesPage extends StatelessWidget {
                 },
               );
             }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // DIALOGS & MODALS
+  // ===========================================================================
+
+  void _showGenerateAIModal(BuildContext context) {
+    final textColor = isDarkMode ? AppColors.textPrimary : Colors.black;
+    final selectedLangs = <String>{'en', 'hi', 'te', 'es'}.obs;
+    final priorityMode = 'standard'.obs;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+          ),
+          decoration: BoxDecoration(
+            color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Obx(() {
+            final cost = ChannelWalletService.calculateAIFeatureCost(
+              selectedFeatures: {'subtitles'},
+              targetLanguages: selectedLangs.toList(),
+            );
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.auto_awesome_rounded,
+                      size: 24,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Generate Subtitles with Truthworld AI',
+                      style: AppTextStyles.pageTitle.copyWith(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, color: Colors.white),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Transcribe spoken dialogue with speech recognition and automatically translate into 130+ languages.',
+                  style: AppTextStyles.caption.copyWith(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Priority Mode Selector
+                Text(
+                  'Processing Priority Mode',
+                  style: AppTextStyles.labelMedium.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ChoiceChip(
+                        label: const Text('Standard (Queue)'),
+                        selected: priorityMode.value == 'standard',
+                        onSelected: (s) {
+                          if (s) priorityMode.value = 'standard';
+                        },
+                        selectedColor: const Color(0xFF8B5CF6),
+                        labelStyle: TextStyle(
+                          color: priorityMode.value == 'standard'
+                              ? Colors.white
+                              : textColor,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ChoiceChip(
+                        label: const Text('High Priority (Express)'),
+                        selected: priorityMode.value == 'high',
+                        onSelected: (s) {
+                          if (s) priorityMode.value = 'high';
+                        },
+                        selectedColor: const Color(0xFF8B5CF6),
+                        labelStyle: TextStyle(
+                          color: priorityMode.value == 'high'
+                              ? Colors.white
+                              : textColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Quick Select / Target Languages Selection
+                Row(
+                  children: [
+                    Text(
+                      'Target Languages (${selectedLangs.length})',
+                      style: AppTextStyles.labelMedium.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () {
+                        selectedLangs.addAll(['en', 'hi', 'te', 'ta', 'es', 'fr', 'de', 'ja']);
+                      },
+                      child: const Text('Select Popular', style: TextStyle(fontSize: 12, color: Colors.white)),
+                    ),
+                    TextButton(
+                      onPressed: selectedLangs.clear,
+                      child: const Text('Clear', style: TextStyle(fontSize: 12, color: Colors.white)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+
+                // Multi-select Chips
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: supportedLanguages.map((lang) {
+                        final isSel = selectedLangs.contains(lang.code);
+                        return FilterChip(
+                          label: Text('${lang.name} (${lang.nativeName})'),
+                          selected: isSel,
+                          onSelected: (val) {
+                            if (val) {
+                              selectedLangs.add(lang.code);
+                            } else {
+                              selectedLangs.remove(lang.code);
+                            }
+                          },
+                          selectedColor: const Color(0xFF8B5CF6),
+                          checkmarkColor: Colors.white,
+                          labelStyle: TextStyle(
+                            color: isSel ? Colors.white : textColor,
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Cost summary & Action
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isDarkMode ? const Color(0xFF2A2A2A) : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.wallet_rounded, size: 20, color: Colors.white),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Estimated Wallet Cost:',
+                        style: AppTextStyles.caption.copyWith(fontSize: 13),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '\$${cost.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF10B981),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 44,
+                  child: ElevatedButton.icon(
+                    onPressed: selectedLangs.isEmpty
+                        ? null
+                        : () {
+                            Navigator.pop(context);
+                            controller.triggerSubtitlesGeneration(
+                              targetLanguages: selectedLangs.toList(),
+                              priorityMode: priorityMode.value,
+                            );
+                          },
+                    icon: const Icon(Icons.auto_awesome_rounded, size: 16, color: Colors.white),
+                    label: const Text(
+                      'Start AI Subtitle Pipeline',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF8B5CF6),
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }),
+        );
+      },
+    );
+  }
+
+  void _showShiftTimingsDialog(BuildContext context) {
+    final offsetController = TextEditingController(text: '1000');
+    Get.dialog<void>(
+      AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.timelapse_rounded, size: 20, color: Colors.white),
+            SizedBox(width: 8),
+            Text('Shift Subtitle Timings'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Shift all cues forward (+) or backward (-) in time across the active language track.',
+              style: TextStyle(fontSize: 13, color: Colors.white70),
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ActionChip(
+                  label: const Text('-1000ms (-1s)'),
+                  onPressed: () {
+                    Get.back<void>();
+                    controller.shiftAllCues(-1000);
+                  },
+                ),
+                ActionChip(
+                  label: const Text('-500ms'),
+                  onPressed: () {
+                    Get.back<void>();
+                    controller.shiftAllCues(-500);
+                  },
+                ),
+                ActionChip(
+                  label: const Text('+500ms'),
+                  onPressed: () {
+                    Get.back<void>();
+                    controller.shiftAllCues(500);
+                  },
+                ),
+                ActionChip(
+                  label: const Text('+1000ms (+1s)'),
+                  onPressed: () {
+                    Get.back<void>();
+                    controller.shiftAllCues(1000);
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: offsetController,
+              keyboardType: const TextInputType.numberWithOptions(signed: true),
+              decoration: const InputDecoration(
+                labelText: 'Custom Offset (Milliseconds)',
+                hintText: 'e.g. -250 or 750',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back<void>(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final ms = int.tryParse(offsetController.text.trim()) ?? 0;
+              Get.back<void>();
+              controller.shiftAllCues(ms);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2563EB),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Apply Shift'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showFindReplaceDialog(BuildContext context) {
+    final findCtrl = TextEditingController();
+    final replaceCtrl = TextEditingController();
+
+    Get.dialog<void>(
+      AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.find_replace_rounded, size: 20, color: Colors.white),
+            SizedBox(width: 8),
+            Text('Find and Replace'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: findCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Find Text',
+                hintText: 'Enter word or phrase to find...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: replaceCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Replace With',
+                hintText: 'Enter replacement text...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back<void>(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final find = findCtrl.text;
+              final replace = replaceCtrl.text;
+              Get.back<void>();
+              controller.replaceTextInCues(find, replace);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2563EB),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Replace All'),
           ),
         ],
       ),
@@ -1664,8 +2767,8 @@ class SubtitlesPage extends StatelessWidget {
                             decoration: BoxDecoration(
                               color: dialogActiveTab.value == 0
                                   ? (isDarkMode
-                                        ? Colors.black45
-                                        : AppColors.textPrimary)
+                                      ? Colors.black45
+                                      : AppColors.textPrimary)
                                   : Colors.transparent,
                               borderRadius: BorderRadius.circular(6),
                             ),
@@ -1678,10 +2781,10 @@ class SubtitlesPage extends StatelessWidget {
                                     : FontWeight.normal,
                                 fontSize: 13,
                                 color: dialogActiveTab.value == 0
-                                    ? AppColors.brand
+                                    ? Colors.white
                                     : (isDarkMode
-                                          ? AppColors.textSecondary
-                                          : Colors.black),
+                                        ? AppColors.textSecondary
+                                        : Colors.black),
                               ),
                             ),
                           ),
@@ -1696,8 +2799,8 @@ class SubtitlesPage extends StatelessWidget {
                             decoration: BoxDecoration(
                               color: dialogActiveTab.value == 1
                                   ? (isDarkMode
-                                        ? Colors.black45
-                                        : AppColors.textPrimary)
+                                      ? Colors.black45
+                                      : AppColors.textPrimary)
                                   : Colors.transparent,
                               borderRadius: BorderRadius.circular(6),
                             ),
@@ -1710,10 +2813,10 @@ class SubtitlesPage extends StatelessWidget {
                                     : FontWeight.normal,
                                 fontSize: 13,
                                 color: dialogActiveTab.value == 1
-                                    ? AppColors.brand
+                                    ? Colors.white
                                     : (isDarkMode
-                                          ? AppColors.textSecondary
-                                          : Colors.black),
+                                        ? AppColors.textSecondary
+                                        : Colors.black),
                               ),
                             ),
                           ),
@@ -1768,6 +2871,7 @@ class SubtitlesPage extends StatelessWidget {
                             trailing: const Icon(
                               Icons.add_circle_outline_rounded,
                               size: 20,
+                              color: Colors.white,
                             ),
                             onTap: () {
                               Get.back<void>();
@@ -1786,7 +2890,7 @@ class SubtitlesPage extends StatelessWidget {
                       child: Text(
                         'Cancel',
                         style: AppTextStyles.buttonText.copyWith(
-                          color: AppColors.brand,
+                          color: Colors.white,
                         ),
                       ),
                     ),
@@ -1878,8 +2982,8 @@ class SubtitlesPage extends StatelessWidget {
                             style: AppTextStyles.bodySmall.copyWith(
                               color: dialogPickedFile.value != null
                                   ? (isDarkMode
-                                        ? AppColors.textPrimary
-                                        : Colors.black)
+                                      ? AppColors.textPrimary
+                                      : Colors.black)
                                   : AppColors.textSecondary,
                               fontSize: 13,
                             ),
@@ -1902,17 +3006,17 @@ class SubtitlesPage extends StatelessWidget {
                               controller.showError('Failed to pick file: $e');
                             }
                           },
-                          icon: const Icon(Icons.file_open_rounded, size: 14),
+                          icon: const Icon(Icons.file_open_rounded, size: 14, color: Colors.white),
                           label: Text(
                             'Choose',
                             style: AppTextStyles.buttonText.copyWith(
                               fontSize: 12,
-                              color: AppColors.textPrimary,
+                              color: Colors.white,
                             ),
                           ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.brand,
-                            foregroundColor: AppColors.textPrimary,
+                            backgroundColor: const Color(0xFF2563EB),
+                            foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(
                               horizontal: 12,
                               vertical: 8,
@@ -1931,7 +3035,7 @@ class SubtitlesPage extends StatelessWidget {
                         child: Text(
                           'Cancel',
                           style: AppTextStyles.buttonText.copyWith(
-                            color: AppColors.brand,
+                            color: Colors.white,
                           ),
                         ),
                       ),
@@ -1981,8 +3085,8 @@ class SubtitlesPage extends StatelessWidget {
                                 );
                               },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.brand,
-                          foregroundColor: AppColors.textPrimary,
+                          backgroundColor: const Color(0xFF2563EB),
+                          foregroundColor: Colors.white,
                         ),
                         child: controller.isUploadingFile.value
                             ? const SizedBox(
@@ -1991,14 +3095,14 @@ class SubtitlesPage extends StatelessWidget {
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
                                   valueColor: AlwaysStoppedAnimation<Color>(
-                                    AppColors.textPrimary,
+                                    Colors.white,
                                   ),
                                 ),
                               )
                             : Text(
                                 'Upload & Save',
                                 style: AppTextStyles.buttonText.copyWith(
-                                  color: AppColors.textPrimary,
+                                  color: Colors.white,
                                 ),
                               ),
                       ),

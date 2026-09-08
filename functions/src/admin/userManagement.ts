@@ -112,34 +112,89 @@ export const moderateUser = onRequest(
       const adminUser = await requireAdmin(req, res);
       if (!adminUser) return;
 
-      const { userId, action, reason, duration } = req.body;
-      if (!userId || !action || !reason) {
-        res.status(400).json({ error: "Missing required fields" });
+      const { userId, action, reason, duration, durationDays } = req.body;
+      if (!userId || !action) {
+        res.status(400).json({ error: "Missing required fields (userId, action)" });
         return;
       }
 
-      const updateData: any = {
-          accountStatus: action === "unban" ? "ACTIVE" : action.toUpperCase(),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      const normalizedAction = (action || "").trim().toLowerCase();
+      const actionReason = reason || `Admin moderation action: ${action}`;
+      const db = admin.firestore();
+      const updates: Record<string, any> = {
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       };
 
-      if (action === "suspend" && duration) {
-          updateData.suspendedUntil = Date.now() + (duration * 1000);
-      } else if (action === "unban") {
-          updateData.suspendedUntil = null;
+      if (normalizedAction === "ban" || normalizedAction === "ban user") {
+        updates.isBanned = true;
+        updates.role = "banned";
+        updates.accountStatus = "BANNED";
+        updates.status = "banned";
+        updates.banReason = actionReason;
+        updates.bannedAt = admin.firestore.FieldValue.serverTimestamp();
+      } else if (
+        normalizedAction === "unban" ||
+        normalizedAction === "unban user" ||
+        normalizedAction === "reactivate" ||
+        normalizedAction === "reactivate user"
+      ) {
+        updates.isBanned = false;
+        updates.role = "user";
+        updates.accountStatus = "ACTIVE";
+        updates.status = "active";
+        updates.banReason = admin.firestore.FieldValue.delete();
+        updates.suspendedUntil = admin.firestore.FieldValue.delete();
+      } else if (normalizedAction.startsWith("suspend")) {
+        const days = Number(durationDays || duration || 7);
+        const until = Date.now() + (days * 24 * 60 * 60 * 1000);
+        updates.isBanned = false;
+        updates.accountStatus = "SUSPENDED";
+        updates.status = "suspended";
+        updates.suspendedUntil = until;
+        updates.banReason = actionReason;
+      } else if (normalizedAction === "warn" || normalizedAction === "warn user") {
+        updates.strikes = admin.firestore.FieldValue.increment(1);
+        updates.lastWarningReason = actionReason;
+        updates.lastWarningAt = admin.firestore.FieldValue.serverTimestamp();
+      } else if (
+        normalizedAction === "reset_trust" ||
+        normalizedAction === "reset trust" ||
+        normalizedAction === "reset"
+      ) {
+        updates.trustScore = 100;
+        updates.strikes = 0;
+        try {
+          await db.collection("userTrust").doc(userId).set({
+            score: 100,
+            strikes: 0,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true });
+        } catch (trustErr) {
+          logger.warn("[moderateUser] Could not update userTrust doc:", trustErr);
+        }
+      } else if (
+        normalizedAction === "delete" ||
+        normalizedAction === "delete user" ||
+        normalizedAction === "delete account"
+      ) {
+        updates.isDeleted = true;
+        updates.status = "deleted";
+        updates.accountStatus = "DELETED";
       }
 
-      await admin.firestore().collection("users").doc(userId).update(updateData);
-      
-      await admin.firestore().collection("admin_actions_log").add({
-          adminId: adminUser.uid,
-          userId,
-          action,
-          reason,
-          timestamp: admin.firestore.FieldValue.serverTimestamp()
+      await db.collection("users").doc(userId).set(updates, { merge: true });
+
+      await db.collection("admin_actions_log").add({
+        adminId: adminUser.uid,
+        adminEmail: adminUser.email || "",
+        userId,
+        action: normalizedAction,
+        reason: actionReason,
+        durationDays: durationDays || duration || null,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-      res.status(200).json({ success: true });
+      res.status(200).json({ success: true, action: normalizedAction, userId });
     } catch (error) {
       logger.error("[moderateUser] Error:", error);
       res.status(500).json({ error: error instanceof Error ? error.message : "Internal error" });

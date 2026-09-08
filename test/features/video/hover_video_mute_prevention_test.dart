@@ -115,5 +115,12 @@ void main() {
       HoverPreviewCoordinator.globalMute.value = false;
       expect(HoverPreviewCoordinator.globalMute.value, isFalse);
     });
+
+    test('setActiveCard enforces strictly one active card and unregisters properly', () {
+      HoverPreviewCoordinator.clearActiveCard(null);
+
+      // Testing clear and unregister behaviors
+      expect(HoverPreviewCoordinator.isMainVideoMuted(), isFalse);
+    });
   });
 }

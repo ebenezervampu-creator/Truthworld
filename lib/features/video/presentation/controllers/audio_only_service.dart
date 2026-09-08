@@ -1,7 +1,7 @@
 // ============================================================
 // audio_only_service.dart
-// Industry-Standard Audio-Only Pipeline for Flutter Web
-// Uses: Web Audio API + MediaSource API (no video decoding)
+// Industry-Standard Audio-Only Pipeline for Flutter Web & Native
+// Uses: Web Audio API (Web) & just_audio (Native Android / iOS)
 // Standard: Matches Spotify/YouTube Music audio pipeline
 // ============================================================
 
@@ -9,12 +9,12 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:universal_html/js.dart' show JsObject, context;
 
-/// Web Audio API wrapper for true audio-only playback
-/// This bypasses the video decoder entirely — only the audio
-/// track is demuxed and decoded (industry standard approach)
+/// Audio-Only playback service for true background & low-bandwidth playback.
+/// Bypasses video decoding for maximum battery and data efficiency.
 class AudioOnlyService extends GetxService {
   // ── State ──────────────────────────────────────────────────
   final RxBool isAudioOnly = false.obs;
@@ -29,24 +29,67 @@ class AudioOnlyService extends GetxService {
   final RxBool isBuffering = false.obs;
   final RxString error = ''.obs;
 
+  // ── Native (just_audio) Player ─────────────────────────────
+  AudioPlayer? _nativePlayer;
+  StreamSubscription? _playerStateSub;
+  StreamSubscription? _positionSub;
+  StreamSubscription? _durationSub;
+
   // ── Web Audio API objects ──────────────────────────────────
   dynamic _audioElement;
   html.MediaSession? _mediaSession;
   Timer? _positionTimer;
 
-  // ── Equalizer state (for future EQ panel) ─────────────────
-  final RxDouble bassGain = 0.0.obs; // -12 to +12 dB
+  // ── Equalizer state ────────────────────────────────────────
+  final RxDouble bassGain = 0.0.obs;
   final RxDouble midGain = 0.0.obs;
   final RxDouble trebleGain = 0.0.obs;
 
   @override
   void onInit() {
     super.onInit();
-    _initWebAudioAPI();
-    _setupMediaSessionAPI();
+    if (kIsWeb) {
+      _initWebAudioAPI();
+      _setupMediaSessionAPI();
+    } else {
+      _initNativeAudio();
+    }
   }
 
-  // ── Initialization ─────────────────────────────────────────
+  // ── Native Initialization ──────────────────────────────────
+
+  void _initNativeAudio() {
+    try {
+      _nativePlayer = AudioPlayer();
+
+      _playerStateSub = _nativePlayer!.playerStateStream.listen((state) {
+        isPlaying.value = state.playing;
+        isBuffering.value = state.processingState == ProcessingState.buffering ||
+            state.processingState == ProcessingState.loading;
+
+        if (state.processingState == ProcessingState.completed) {
+          isPlaying.value = false;
+          _onTrackEnded();
+        }
+      });
+
+      _positionSub = _nativePlayer!.positionStream.listen((pos) {
+        position.value = pos.inMilliseconds / 1000.0;
+      });
+
+      _durationSub = _nativePlayer!.durationStream.listen((dur) {
+        if (dur != null) {
+          duration.value = dur.inMilliseconds / 1000.0;
+        }
+      });
+
+      debugPrint('[AudioOnly] Native AudioPlayer initialized successfully');
+    } catch (e) {
+      debugPrint('[AudioOnly] Native init error: $e');
+    }
+  }
+
+  // ── Web Initialization ─────────────────────────────────────
 
   void _initWebAudioAPI() {
     if (!kIsWeb) return;
@@ -56,7 +99,6 @@ class AudioOnlyService extends GetxService {
         ..preload = 'auto'
         ..crossOrigin = 'anonymous';
 
-      // Event listeners
       _audioElement!.onPlay.listen((_) => isPlaying.value = true);
       _audioElement!.onPause.listen((_) => isPlaying.value = false);
       _audioElement!.onEnded.listen((_) {
@@ -74,17 +116,13 @@ class AudioOnlyService extends GetxService {
         duration.value = (_audioElement?.duration ?? 0).toDouble();
       });
 
-      // Append to document for Web Audio API
       html.document.body?.append(_audioElement!);
-
       debugPrint('[AudioOnly] Web Audio API initialized');
     } catch (e) {
       debugPrint('[AudioOnly] Init error: $e');
     }
   }
 
-  /// Media Session API — controls in OS notification tray,
-  /// lock screen, headphone buttons (Spotify/YouTube Music standard)
   void _setupMediaSessionAPI() {
     if (!kIsWeb) return;
 
@@ -92,7 +130,6 @@ class AudioOnlyService extends GetxService {
       _mediaSession = html.window.navigator.mediaSession;
       if (_mediaSession == null) return;
 
-      // Register action handlers for OS media controls
       _registerMediaSessionAction('play', play);
       _registerMediaSessionAction('pause', pause);
       _registerMediaSessionAction('seekbackward', () => seekRelative(-10));
@@ -119,136 +156,200 @@ class AudioOnlyService extends GetxService {
     }
   }
 
+  final RxBool isBackgroundPlayback = false.obs;
+
   // ── Core Playback API ──────────────────────────────────────
 
-  /// Switch to audio-only mode from a video URL
-  /// Extracts or maps to audio-only stream URL
+  Future<void> activateBackgroundPlayback({
+    required String mediaUrl,
+    required String title,
+    required String artworkUrl,
+    required Duration startPosition,
+    bool autoPlay = true,
+  }) async {
+    isBackgroundPlayback.value = true;
+    await activateAudioOnly(
+      videoUrl: mediaUrl,
+      title: title,
+      artworkUrl: artworkUrl,
+      startPosition: startPosition,
+    );
+    if (autoPlay) {
+      await play();
+    }
+  }
+
+  Duration deactivateBackgroundPlayback() {
+    isBackgroundPlayback.value = false;
+    return deactivate();
+  }
+
   Future<void> activateAudioOnly({
     required String videoUrl,
     required String title,
     required String artworkUrl,
     Duration? startPosition,
   }) async {
-    if (!kIsWeb) return;
-
     isAudioOnly.value = true;
     isActive.value = true;
     currentTrackTitle.value = title;
     currentArtwork.value = artworkUrl;
     error.value = '';
 
-    // Pattern 3: Direct MP4 — audio element only decodes AAC/MP3 track
-    // No video decoding occurs, no GPU usage
     final audioUrl = _resolveAudioUrl(videoUrl);
 
-    try {
-      _audioElement?.src = audioUrl;
-      _audioElement?.load();
+    if (kIsWeb) {
+      try {
+        _audioElement?.src = audioUrl;
+        _audioElement?.load();
 
-      if (startPosition != null && startPosition > Duration.zero) {
-        _audioElement?.currentTime = startPosition.inMilliseconds / 1000.0;
+        if (startPosition != null && startPosition > Duration.zero) {
+          _audioElement?.currentTime = startPosition.inMilliseconds / 1000.0;
+        }
+
+        await _audioElement?.play();
+        _startPositionTracking();
+        _updateMediaSessionMetadata(title: title, artworkUrl: artworkUrl);
+
+        debugPrint('[AudioOnly] Web Audio Playing: $audioUrl');
+      } catch (e) {
+        error.value = 'Failed to start web audio: $e';
+        debugPrint('[AudioOnly] Play error: $e');
       }
-
-      await _audioElement?.play();
-      _startPositionTracking();
-      _updateMediaSessionMetadata(title: title, artworkUrl: artworkUrl);
-
-      debugPrint('[AudioOnly] Playing: $audioUrl');
-    } catch (e) {
-      error.value = 'Failed to start audio: $e';
-      debugPrint('[AudioOnly] Play error: $e');
+    } else {
+      try {
+        if (_nativePlayer == null) {
+          _initNativeAudio();
+        }
+        if (audioUrl.startsWith('http://') || audioUrl.startsWith('https://')) {
+          await _nativePlayer?.setUrl(audioUrl);
+        } else {
+          final filePath = audioUrl.startsWith('file://')
+              ? audioUrl.replaceFirst('file://', '')
+              : audioUrl;
+          await _nativePlayer?.setFilePath(filePath);
+        }
+        if (startPosition != null && startPosition > Duration.zero) {
+          await _nativePlayer?.seek(startPosition);
+        }
+        await _nativePlayer?.play();
+        debugPrint('[AudioOnly] Native Audio Playing: $audioUrl');
+      } catch (e) {
+        error.value = 'Failed to start native audio: $e';
+        debugPrint('[AudioOnly] Native Play error: $e');
+      }
     }
   }
 
-  /// Resolve the audio-only URL
-  /// Strategy:
-  ///   1. If server provides separate audio streams → use those
-  ///   2. Otherwise use same URL in <audio> element → browser extracts audio track only
-  ///   3. For HLS streams → use audio-only playlist variant
   String _resolveAudioUrl(String videoUrl) {
-    // Pattern 1: HLS — look for audio-only variant playlist
-    if (videoUrl.contains('.m3u8')) {
-      // If your HLS manifest has audio renditions, ideally parse and use those
-      // For now, same URL loaded in <audio> only decodes audio stream
-      return videoUrl;
-    }
-
-    // Pattern 2: DASH — use audio representation
-    if (videoUrl.contains('.mpd')) {
-      return videoUrl;
-    }
-
-    // Pattern 3: Direct MP4 — audio element only decodes AAC/MP3 track
-    // No video decoding occurs, no GPU usage
     return videoUrl;
   }
 
   Future<void> play() async {
     try {
-      await _audioElement?.play();
+      if (kIsWeb) {
+        await _audioElement?.play();
+      } else {
+        await _nativePlayer?.play();
+      }
     } catch (e) {
       debugPrint('[AudioOnly] Play error: $e');
     }
   }
 
   Future<void> pause() async {
-    _audioElement?.pause();
+    try {
+      if (kIsWeb) {
+        _audioElement?.pause();
+      } else {
+        await _nativePlayer?.pause();
+      }
+    } catch (e) {
+      debugPrint('[AudioOnly] Pause error: $e');
+    }
   }
 
   Future<void> seekTo(Duration pos) async {
-    if (_audioElement == null) return;
-    _audioElement!.currentTime = pos.inMilliseconds / 1000.0;
+    if (kIsWeb) {
+      if (_audioElement == null) return;
+      _audioElement!.currentTime = pos.inMilliseconds / 1000.0;
+    } else {
+      await _nativePlayer?.seek(pos);
+    }
   }
 
   Future<void> seekRelative(int seconds) async {
-    if (_audioElement == null) return;
-    final newTime = (_audioElement!.currentTime + seconds).clamp(
-      0.0,
-      _audioElement!.duration,
-    );
-    _audioElement!.currentTime = newTime;
+    if (kIsWeb) {
+      if (_audioElement == null) return;
+      final newTime = (_audioElement!.currentTime + seconds).clamp(
+        0.0,
+        _audioElement!.duration,
+      );
+      _audioElement!.currentTime = newTime;
+    } else {
+      final cur = _nativePlayer?.position ?? Duration.zero;
+      final target = cur + Duration(seconds: seconds);
+      await _nativePlayer?.seek(target);
+    }
   }
 
   void setVolume(double vol) {
     volume.value = vol.clamp(0.0, 1.0);
-    if (_audioElement != null) {
-      _audioElement!.volume = volume.value;
+    if (kIsWeb) {
+      if (_audioElement != null) {
+        _audioElement!.volume = volume.value;
+      }
+    } else {
+      _nativePlayer?.setVolume(volume.value);
     }
   }
 
   void toggleMute() {
     isMuted.value = !isMuted.value;
-    if (_audioElement != null) {
-      _audioElement!.muted = isMuted.value;
+    if (kIsWeb) {
+      if (_audioElement != null) {
+        _audioElement!.muted = isMuted.value;
+      }
+    } else {
+      _nativePlayer?.setVolume(isMuted.value ? 0.0 : volume.value);
     }
   }
 
-  /// Sync position with video player when switching modes
   void syncPosition(Duration pos) {
-    if (_audioElement == null) return;
-    _audioElement!.currentTime = pos.inMilliseconds / 1000.0;
+    if (kIsWeb) {
+      if (_audioElement == null) return;
+      _audioElement!.currentTime = pos.inMilliseconds / 1000.0;
+    } else {
+      _nativePlayer?.seek(pos);
+    }
   }
 
-  /// Get current exact position as Duration
   Duration get currentPosition {
-    final secs = _audioElement?.currentTime ?? position.value;
-    return Duration(milliseconds: (secs * 1000).round());
+    if (kIsWeb) {
+      final secs = _audioElement?.currentTime ?? position.value;
+      return Duration(milliseconds: (secs * 1000).round());
+    } else {
+      return _nativePlayer?.position ?? Duration(milliseconds: (position.value * 1000).round());
+    }
   }
 
-  /// Deactivate audio-only — return to video mode with current position
   Duration deactivate() {
     final currentPos = currentPosition;
-    _audioElement?.pause();
+    if (kIsWeb) {
+      _audioElement?.pause();
+      _stopPositionTracking();
+    } else {
+      _nativePlayer?.pause();
+    }
     isAudioOnly.value = false;
     isActive.value = false;
-    _stopPositionTracking();
     debugPrint(
       '[AudioOnly] Deactivated at $currentPos, returning to video mode',
     );
     return currentPos;
   }
 
-  // ── Position Tracking ──────────────────────────────────────
+  // ── Position Tracking (Web) ────────────────────────────────
 
   void _startPositionTracking() {
     _positionTimer?.cancel();
@@ -263,8 +364,6 @@ class AudioOnlyService extends GetxService {
   void _stopPositionTracking() {
     _positionTimer?.cancel();
   }
-
-  // ── Media Session API Updates ──────────────────────────────
 
   void _updateMediaSessionMetadata({
     required String title,
@@ -314,7 +413,7 @@ class AudioOnlyService extends GetxService {
     } catch (_) {}
   }
 
-  // ── Callbacks for VideoController integration ──────────────
+  // ── Callbacks ──────────────────────────────────────────────
 
   VoidCallback? _onNextTrackCallback;
   VoidCallback? _onPreviousTrackCallback;
@@ -336,11 +435,17 @@ class AudioOnlyService extends GetxService {
 
   @override
   void onClose() {
-    _audioElement?.pause();
-    _audioElement?.remove();
+    _playerStateSub?.cancel();
+    _positionSub?.cancel();
+    _durationSub?.cancel();
+    _nativePlayer?.dispose();
+    if (kIsWeb) {
+      _audioElement?.pause();
+      _audioElement?.remove();
+    }
     super.onClose();
   }
 }
 
-// Typedef for void callback in web context
 typedef VoidCallback = void Function();
+

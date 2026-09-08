@@ -122,13 +122,40 @@ class HomeFeedController extends BaseController {
     }
   }
 
+  bool _matchesCategory(Video v, String cat) {
+    final target = cat.trim().toLowerCase();
+    final vCat = v.category.trim().toLowerCase();
+    if (vCat == target || vCat.contains(target) || target.contains(vCat)) return true;
+    if (v.tags.any((t) => t.trim().toLowerCase() == target || t.trim().toLowerCase().contains(target))) return true;
+    if (v.topics.any((t) => t.trim().toLowerCase() == target || t.trim().toLowerCase().contains(target))) return true;
+    return false;
+  }
+
   void _loadCachedVideos([String? category]) {
     try {
       final cat = category ?? _selectedCategory;
       final cacheKey = FeedCacheManager.cacheKeyForCategory(cat);
       final cachedVideos = _feedCacheManager.getValidCachedVideos(cacheKey);
       if (cachedVideos != null && cachedVideos.isNotEmpty && videos.isEmpty) {
-        videos.assignAll(cachedVideos);
+        final isSpecialTab = cat == 'All' ||
+            cat == '🔥 Trending' ||
+            cat == 'Trending' ||
+            cat == '⭐ Popular' ||
+            cat == 'Popular' ||
+            cat == '✨ New' ||
+            cat == 'New' ||
+            cat == 'Flip Coin' ||
+            cat == '🪙 Flip Coin';
+
+        if (!isSpecialTab) {
+          final validForCategory = cachedVideos.where((v) => _matchesCategory(v, cat)).toList();
+          if (validForCategory.isEmpty) {
+            return;
+          }
+          videos.assignAll(validForCategory);
+        } else {
+          videos.assignAll(cachedVideos);
+        }
         mixHomeFeed();
         isLoadingVideos.value = false;
       }
@@ -140,9 +167,25 @@ class HomeFeedController extends BaseController {
   void _saveVideosToCache([String? category]) {
     try {
       final cat = category ?? _selectedCategory;
-      if (videos.isNotEmpty && cat != 'Posts' && cat != 'Subscriptions') {
-        final cacheKey = FeedCacheManager.cacheKeyForCategory(cat);
-        _feedCacheManager.saveFeedToCache(cacheKey, videos);
+      if (videos.isNotEmpty && cat != 'Posts' && cat != 'Subscriptions' && cat != 'Topics' && cat != 'Explore Topics') {
+        final isSpecialTab = cat == 'All' ||
+            cat == '🔥 Trending' ||
+            cat == 'Trending' ||
+            cat == '⭐ Popular' ||
+            cat == 'Popular' ||
+            cat == '✨ New' ||
+            cat == 'New' ||
+            cat == 'Flip Coin' ||
+            cat == '🪙 Flip Coin';
+
+        final videosToCache = isSpecialTab
+            ? videos.toList()
+            : videos.where((v) => _matchesCategory(v, cat)).toList();
+
+        if (videosToCache.isNotEmpty) {
+          final cacheKey = FeedCacheManager.cacheKeyForCategory(cat);
+          _feedCacheManager.saveFeedToCache(cacheKey, videosToCache);
+        }
       }
     } catch (e) {
       debugPrint('HomeFeedController: Cache save error: $e');
@@ -188,7 +231,6 @@ class HomeFeedController extends BaseController {
     final results = await VideoQueryBuilder.publicVideos(
       _firestore,
       orderByField: 'views',
-      descending: true,
       limit: limit,
     ).get();
     final rawList = results.docs.map(Video.fromDocumentSnapshot).toList();
@@ -226,37 +268,30 @@ class HomeFeedController extends BaseController {
     if (cat == '⭐ Popular' || cat == 'Popular') {
       return VideoQueryBuilder.publicVideos(
         _firestore,
-        orderByField: 'views',
-        descending: true,
+        orderByField: 'viewCount',
         startAfter: startAfter,
       );
     } else if (cat == '🔥 Trending' || cat == 'Trending') {
       return VideoQueryBuilder.publicVideos(
         _firestore,
         orderByField: 'views',
-        descending: true,
         startAfter: startAfter,
       );
     } else if (cat == '✨ New' || cat == 'New') {
       return VideoQueryBuilder.publicVideos(
         _firestore,
-        orderByField: 'uploadedAt',
-        descending: true,
         startAfter: startAfter,
       );
     } else if (cat == 'All' || cat == 'Flip Coin' || cat == '🪙 Flip Coin' || cat == 'Subscriptions' || cat == 'Posts') {
       return VideoQueryBuilder.publicVideos(
         _firestore,
-        orderByField: 'uploadedAt',
-        descending: true,
         startAfter: startAfter,
       );
     } else {
-      return VideoQueryBuilder.publicVideos(
+      return VideoQueryBuilder.categoryVideos(
         _firestore,
         category: cat,
-        orderByField: 'uploadedAt',
-        descending: true,
+        withOrderBy: false,
         startAfter: startAfter,
       );
     }
@@ -268,9 +303,35 @@ class HomeFeedController extends BaseController {
 
   Future<void> _fetchInitialVideosInternal() async {
     try {
-      final isPostsTab = _selectedCategory == 'Posts';
-      final isMainFeed = _selectedCategory == 'All';
       final currentCat = _selectedCategory;
+      final isPostsTab = currentCat == 'Posts';
+      final isMainFeed = currentCat == 'All';
+      final isTrending = currentCat == 'Trending' || currentCat == '🔥 Trending';
+      final isPopular = currentCat == 'Popular' || currentCat == '⭐ Popular';
+      final isNew = currentCat == 'New' || currentCat == '✨ New';
+      final isFlipCoin = currentCat == 'Flip Coin' || currentCat == '🪙 Flip Coin';
+      final isTopics = currentCat == 'Topics' || currentCat == 'Explore Topics';
+      final isSubscriptions = currentCat == 'Subscriptions';
+
+      if (isSubscriptions) {
+        isLoadingVideos.value = false;
+        videos.clear();
+        communityPosts.clear();
+        homeFeedItems.clear();
+        return;
+      }
+
+      if (isTopics) {
+        isLoadingVideos.value = false;
+        videos.clear();
+        communityPosts.clear();
+        homeFeedItems.clear();
+        if (Get.isRegistered<HomeDiscoveryController>()) {
+          Get.find<HomeDiscoveryController>().fetchFeaturedTopics();
+          Get.find<HomeDiscoveryController>().fetchForYouTopics();
+        }
+        return;
+      }
 
       if (isPostsTab) {
         isLoadingVideos.value = true;
@@ -295,138 +356,18 @@ class HomeFeedController extends BaseController {
       rxHasMore.value = true;
       communityPosts.clear();
 
-      final currentUserId = _authService.user?.uid;
-      final userProfile = Get.isRegistered<UserInterestProfileService>() ? Get.find<UserInterestProfileService>().profile.value : null;
-      final feedAlgorithmService = Get.isRegistered<FeedAlgorithmService>() ? Get.find<FeedAlgorithmService>() : null;
-      var fetchedFromServer = false;
-
-      if (isMainFeed && feedAlgorithmService != null && feedAlgorithmService.isServerAvailable && currentUserId != null && currentUserId.isNotEmpty) {
-        try {
-          final serverVideos = await feedAlgorithmService.getPersonalizedFeed(
-            userId: currentUserId,
-            category: null,
-          );
-
-          final adjusted = feedAlgorithmService.applyLocalAdjustments(
-            serverVideos,
-            notInterestedVideoIds: userProfile?.notInterestedVideoIds,
-            blockedChannelIds: userProfile?.blockedChannelIds,
-            recentlyWatchedVideoIds: userProfile?.recentlyWatchedVideoIds,
-          );
-
-          final isFlipped = Get.isRegistered<FlipCoinService>() && Get.find<FlipCoinService>().isHomeFlipped.value;
-
-          if (isFlipped && Get.isRegistered<TruthworldAlgorithm>()) {
-            final ranked = Get.find<TruthworldAlgorithm>().rankVideosOpposite(
-              adjusted,
-              RecommendationSurface.homeFeedAll,
-              diversityConfig: DiversityConfig.homeFeed,
-            );
-            videos.assignAll(ranked.map((s) => s.video).toList());
-          } else {
-            videos.assignAll(adjusted);
-          }
-
-          _saveVideosToCache(currentCat);
-          if (serverVideos.length < _pageSize) rxHasMore.value = false;
-          fetchedFromServer = true;
-        } catch (e) {
-          debugPrint('Server feed unavailable, falling back to local: $e');
-        }
-      }
-
-      if (!fetchedFromServer) {
-        final isFlipCoinCat = currentCat == 'Flip Coin' ||
-            currentCat == '🪙 Flip Coin' ||
-            (Get.isRegistered<FlipCoinService>() &&
-                Get.find<FlipCoinService>().isHomeFlipped.value);
-        final queryLimit = isFlipCoinCat
-            ? 80
-            : (currentCat == '🔥 Trending' || currentCat == 'Trending' ? 36 : _pageSize);
-
-        final query = _buildCategoryQuery();
-        final results = await query.limit(queryLimit).get();
-
-        if (results.docs.isNotEmpty) {
-          _lastDocument = results.docs.last;
-          final rawVideos = results.docs.map(Video.fromDocumentSnapshot).toList().sanitizeForFeed();
-
-          if (currentCat == '🔥 Trending' || currentCat == 'Trending') {
-            if (Get.isRegistered<TruthworldAlgorithm>()) {
-              final algorithm = Get.find<TruthworldAlgorithm>();
-              final ranked = algorithm.rankVideos(
-                rawVideos,
-                RecommendationSurface.trending,
-                diversityConfig: DiversityConfig.trending,
-              );
-              final rankedVideos = ranked.map((s) => s.video).toList();
-              videos.assignAll(rankedVideos.isNotEmpty ? rankedVideos : rawVideos);
-            } else {
-              rawVideos.sort((a, b) {
-                final daysA = DateTime.now().difference(a.createdAt.toDate()).inDays;
-                final daysB = DateTime.now().difference(b.createdAt.toDate()).inDays;
-                final scoreA = (a.views + a.likes * 3) / (daysA + 1);
-                final scoreB = (b.views + b.likes * 3) / (daysB + 1);
-                return scoreB.compareTo(scoreA);
-              });
-              videos.assignAll(rawVideos);
-            }
-          } else if (currentCat == '⭐ Popular' || currentCat == 'Popular') {
-            // Firestore query is already ordered by views DESC
-            videos.assignAll(rawVideos);
-          } else if (currentCat == '✨ New' || currentCat == 'New') {
-            // Firestore query is already ordered by uploadedAt DESC
-            videos.assignAll(rawVideos);
-          } else if ((isMainFeed || currentCat == 'Flip Coin' || currentCat == '🪙 Flip Coin') && Get.isRegistered<TruthworldAlgorithm>()) {
-            final algorithm = Get.find<TruthworldAlgorithm>();
-            final isFlipped = (currentCat == 'Flip Coin' || currentCat == '🪙 Flip Coin') || (Get.isRegistered<FlipCoinService>() && Get.find<FlipCoinService>().isHomeFlipped.value);
-            final ranked = isFlipped
-                ? algorithm.rankVideosOpposite(rawVideos, RecommendationSurface.homeFeedAll, diversityConfig: DiversityConfig.homeFeed)
-                : algorithm.rankVideos(rawVideos, RecommendationSurface.homeFeedAll, diversityConfig: DiversityConfig.homeFeed);
-            final rankedVideos = ranked.map((s) => s.video).toList();
-            if (isFlipped) {
-              videos.assignAll(rankedVideos);
-            } else {
-              videos.assignAll(rankedVideos.isNotEmpty ? rankedVideos : rawVideos);
-            }
-          } else if (currentCat != 'All' && Get.isRegistered<TruthworldAlgorithm>()) {
-            final algorithm = Get.find<TruthworldAlgorithm>();
-            final ranked = algorithm.rankVideos(rawVideos, RecommendationSurface.homeFeedCategory);
-            final rankedVideos = ranked.map((s) => s.video).toList();
-            videos.assignAll(rankedVideos.isNotEmpty ? rankedVideos : rawVideos);
-          } else {
-            videos.assignAll(rawVideos);
-          }
-
-          _saveVideosToCache(currentCat);
-          if (results.docs.length < queryLimit) rxHasMore.value = false;
-        } else {
-          try {
-            final fallbackResults = await _firestore.collection('videos').limit(_pageSize).get();
-            if (fallbackResults.docs.isNotEmpty) {
-              _lastDocument = fallbackResults.docs.last;
-              final fallbackVideos = fallbackResults.docs.map(Video.fromDocumentSnapshot).where(VideoVisibilityPolicy.isVisibleForFeed).toList();
-              final isFlipped = (currentCat == 'Flip Coin' || currentCat == '🪙 Flip Coin') || (Get.isRegistered<FlipCoinService>() && Get.find<FlipCoinService>().isHomeFlipped.value);
-              if (isFlipped && Get.isRegistered<TruthworldAlgorithm>()) {
-                final ranked = Get.find<TruthworldAlgorithm>().rankVideosOpposite(
-                  fallbackVideos,
-                  RecommendationSurface.homeFeedAll,
-                  diversityConfig: DiversityConfig.homeFeed,
-                );
-                videos.assignAll(ranked.map((s) => s.video).toList());
-              } else if (fallbackVideos.isNotEmpty) {
-                videos.assignAll(fallbackVideos);
-              } else {
-                videos.clear();
-              }
-            } else {
-              videos.clear();
-            }
-          } catch (fbErr) {
-            videos.clear();
-          }
-          rxHasMore.value = false;
-        }
+      if (isMainFeed) {
+        await _fetchMainFeedVideos();
+      } else if (isTrending) {
+        await _fetchTrendingTabVideos();
+      } else if (isPopular) {
+        await _fetchPopularTabVideos();
+      } else if (isNew) {
+        await _fetchNewTabVideos();
+      } else if (isFlipCoin) {
+        await _fetchFlipCoinTabVideos();
+      } else {
+        await _fetchCategoryTabVideos(currentCat);
       }
 
       if (isMainFeed && _authService.isAuthenticated.value) {
@@ -451,14 +392,504 @@ class HomeFeedController extends BaseController {
     }
   }
 
+  Future<void> _fetchMainFeedVideos() async {
+    final currentUserId = _authService.user?.uid;
+    final userProfile = Get.isRegistered<UserInterestProfileService>()
+        ? Get.find<UserInterestProfileService>().profile.value
+        : null;
+    final feedAlgorithmService = Get.isRegistered<FeedAlgorithmService>()
+        ? Get.find<FeedAlgorithmService>()
+        : null;
+
+    if (feedAlgorithmService != null &&
+        feedAlgorithmService.isServerAvailable &&
+        currentUserId != null &&
+        currentUserId.isNotEmpty) {
+      try {
+        final serverVideos = await feedAlgorithmService.getPersonalizedFeed(
+          userId: currentUserId,
+        );
+
+        final adjusted = feedAlgorithmService.applyLocalAdjustments(
+          serverVideos,
+          notInterestedVideoIds: userProfile?.notInterestedVideoIds,
+          blockedChannelIds: userProfile?.blockedChannelIds,
+          recentlyWatchedVideoIds: userProfile?.recentlyWatchedVideoIds,
+        );
+
+        final isFlipped = Get.isRegistered<FlipCoinService>() &&
+            Get.find<FlipCoinService>().isHomeFlipped.value;
+
+        if (isFlipped && Get.isRegistered<TruthworldAlgorithm>()) {
+          final ranked = Get.find<TruthworldAlgorithm>().rankVideosOpposite(
+            adjusted,
+            RecommendationSurface.homeFeedAll,
+            diversityConfig: DiversityConfig.homeFeed,
+          );
+          videos.assignAll(ranked.map((s) => s.video).toList());
+        } else {
+          videos.assignAll(adjusted);
+        }
+
+        _saveVideosToCache('All');
+        if (serverVideos.length < _pageSize) rxHasMore.value = false;
+        return;
+      } catch (e) {
+        debugPrint('Server feed unavailable, falling back to local: $e');
+      }
+    }
+
+    QuerySnapshot? results;
+    try {
+      results = await _firestore
+          .collection('videos')
+          .orderBy('uploadedAt', descending: true)
+          .limit(_pageSize)
+          .get();
+    } catch (e) {
+      debugPrint('Main feed query failed with uploadedAt, trying createdAt: $e');
+      try {
+        results = await _firestore
+            .collection('videos')
+            .orderBy('createdAt', descending: true)
+            .limit(_pageSize)
+            .get();
+      } catch (e2) {
+        debugPrint('Main feed query failed with createdAt, falling back: $e2');
+        try {
+          results = await _firestore.collection('videos').limit(_pageSize).get();
+        } catch (_) {}
+      }
+    }
+
+    if (results != null && results.docs.isNotEmpty) {
+      _lastDocument = results.docs.last;
+      final rawVideos = results.docs
+          .map(Video.fromDocumentSnapshot)
+          .toList()
+          .sanitizeForFeed();
+
+      if (Get.isRegistered<TruthworldAlgorithm>()) {
+        final algorithm = Get.find<TruthworldAlgorithm>();
+        final ranked = algorithm.rankVideos(
+          rawVideos,
+          RecommendationSurface.homeFeedAll,
+          diversityConfig: DiversityConfig.homeFeed,
+        );
+        final rankedVideos = ranked.map((s) => s.video).toList();
+        videos.assignAll(rankedVideos.isNotEmpty ? rankedVideos : rawVideos);
+      } else {
+        videos.assignAll(rawVideos);
+      }
+
+      _saveVideosToCache('All');
+      if (rawVideos.length < _pageSize) rxHasMore.value = false;
+    } else {
+      videos.clear();
+      rxHasMore.value = false;
+    }
+  }
+
+  Future<void> _fetchTrendingTabVideos() async {
+    const limit = 60;
+    QuerySnapshot? results;
+
+    try {
+      results = await _firestore
+          .collection('videos')
+          .orderBy('viewCount', descending: true)
+          .limit(limit)
+          .get();
+    } catch (e) {
+      debugPrint('Trending fetch by viewCount failed: $e');
+    }
+
+    if (results == null || results.docs.isEmpty) {
+      try {
+        results = await _firestore
+            .collection('videos')
+            .orderBy('views', descending: true)
+            .limit(limit)
+            .get();
+      } catch (e) {
+        debugPrint('Trending fetch by views failed: $e');
+      }
+    }
+
+    if (results == null || results.docs.isEmpty) {
+      try {
+        results = await _firestore
+            .collection('videos')
+            .orderBy('uploadedAt', descending: true)
+            .limit(limit)
+            .get();
+      } catch (e) {
+        debugPrint('Trending fetch fallback query failed: $e');
+        try {
+          results = await _firestore.collection('videos').limit(limit).get();
+        } catch (_) {}
+      }
+    }
+
+    if (results != null && results.docs.isNotEmpty) {
+      _lastDocument = results.docs.last;
+      final rawVideos = results.docs
+          .map(Video.fromDocumentSnapshot)
+          .toList()
+          .sanitizeForFeed();
+
+      rawVideos.sort((a, b) {
+        final daysA = DateTime.now().difference(a.createdAt.toDate()).inDays + 1;
+        final daysB = DateTime.now().difference(b.createdAt.toDate()).inDays + 1;
+        final viewsA = (a.views > 0 ? a.views : a.viewCount).toDouble();
+        final viewsB = (b.views > 0 ? b.views : b.viewCount).toDouble();
+        final scoreA = (viewsA * 0.5) + (a.likes * 0.3) + (a.commentCount * 0.2) + ((1.0 / daysA) * 100) + (a.trustScore * 10);
+        final scoreB = (viewsB * 0.5) + (b.likes * 0.3) + (b.commentCount * 0.2) + ((1.0 / daysB) * 100) + (b.trustScore * 10);
+        return scoreB.compareTo(scoreA);
+      });
+
+      if (Get.isRegistered<TruthworldAlgorithm>()) {
+        final algorithm = Get.find<TruthworldAlgorithm>();
+        final ranked = algorithm.rankVideos(
+          rawVideos,
+          RecommendationSurface.trending,
+          diversityConfig: DiversityConfig.trending,
+        );
+        final rankedVideos = ranked.map((s) => s.video).toList();
+        videos.assignAll(rankedVideos.isNotEmpty ? rankedVideos : rawVideos);
+      } else {
+        videos.assignAll(rawVideos);
+      }
+
+      _saveVideosToCache('Trending');
+      if (rawVideos.length < limit) rxHasMore.value = false;
+    } else {
+      videos.clear();
+      rxHasMore.value = false;
+    }
+  }
+
+  Future<void> _fetchPopularTabVideos() async {
+    const limit = 60;
+    QuerySnapshot? results;
+
+    try {
+      results = await _firestore
+          .collection('videos')
+          .orderBy('viewCount', descending: true)
+          .limit(limit)
+          .get();
+    } catch (e) {
+      debugPrint('Popular fetch by viewCount failed: $e');
+    }
+
+    if (results == null || results.docs.isEmpty) {
+      try {
+        results = await _firestore
+            .collection('videos')
+            .orderBy('views', descending: true)
+            .limit(limit)
+            .get();
+      } catch (e) {
+        debugPrint('Popular fetch by views failed: $e');
+      }
+    }
+
+    if (results == null || results.docs.isEmpty) {
+      try {
+        results = await _firestore.collection('videos').limit(limit).get();
+      } catch (e) {
+        debugPrint('Popular fallback failed: $e');
+      }
+    }
+
+    if (results != null && results.docs.isNotEmpty) {
+      _lastDocument = results.docs.last;
+      final rawVideos = results.docs
+          .map(Video.fromDocumentSnapshot)
+          .toList()
+          .sanitizeForFeed();
+
+      rawVideos.sort((a, b) {
+        final viewsA = a.views > 0 ? a.views : a.viewCount;
+        final viewsB = b.views > 0 ? b.views : b.viewCount;
+        final metricA = (viewsA * 2) + a.likes;
+        final metricB = (viewsB * 2) + b.likes;
+        return metricB.compareTo(metricA);
+      });
+
+      videos.assignAll(rawVideos);
+      _saveVideosToCache('Popular');
+      if (rawVideos.length < limit) rxHasMore.value = false;
+    } else {
+      videos.clear();
+      rxHasMore.value = false;
+    }
+  }
+
+  Future<void> _fetchNewTabVideos() async {
+    const limit = 60;
+    QuerySnapshot? results;
+
+    try {
+      results = await _firestore
+          .collection('videos')
+          .orderBy('uploadedAt', descending: true)
+          .limit(limit)
+          .get();
+    } catch (e) {
+      debugPrint('New tab fetch by uploadedAt failed: $e');
+      try {
+        results = await _firestore
+            .collection('videos')
+            .orderBy('createdAt', descending: true)
+            .limit(limit)
+            .get();
+      } catch (e2) {
+        debugPrint('New tab fetch by createdAt failed: $e2');
+        try {
+          results = await _firestore.collection('videos').limit(limit).get();
+        } catch (_) {}
+      }
+    }
+
+    if (results != null && results.docs.isNotEmpty) {
+      _lastDocument = results.docs.last;
+      final rawVideos = results.docs
+          .map(Video.fromDocumentSnapshot)
+          .toList()
+          .sanitizeForFeed();
+
+      rawVideos.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+      videos.assignAll(rawVideos);
+      _saveVideosToCache('New');
+      if (rawVideos.length < limit) rxHasMore.value = false;
+    } else {
+      videos.clear();
+      rxHasMore.value = false;
+    }
+  }
+
+  Future<void> _fetchFlipCoinTabVideos() async {
+    const limit = 60;
+    QuerySnapshot? results;
+
+    try {
+      results = await _firestore
+          .collection('videos')
+          .orderBy('uploadedAt', descending: true)
+          .limit(limit)
+          .get();
+    } catch (e) {
+      try {
+        results = await _firestore.collection('videos').limit(limit).get();
+      } catch (_) {}
+    }
+
+    if (results != null && results.docs.isNotEmpty) {
+      _lastDocument = results.docs.last;
+      final rawVideos = results.docs
+          .map(Video.fromDocumentSnapshot)
+          .toList()
+          .sanitizeForFeed();
+
+      if (Get.isRegistered<TruthworldAlgorithm>()) {
+        final algorithm = Get.find<TruthworldAlgorithm>();
+        final ranked = algorithm.rankVideosOpposite(
+          rawVideos,
+          RecommendationSurface.homeFeedAll,
+          diversityConfig: DiversityConfig.homeFeed,
+        );
+        videos.assignAll(ranked.map((s) => s.video).toList());
+      } else {
+        rawVideos.shuffle();
+        videos.assignAll(rawVideos);
+      }
+
+      _saveVideosToCache('Flip Coin');
+      if (rawVideos.length < limit) rxHasMore.value = false;
+    } else {
+      videos.clear();
+      rxHasMore.value = false;
+    }
+  }
+
+  Future<void> _fetchCategoryTabVideos(String category) async {
+    final cat = category.trim();
+    final candidateDocs = <DocumentSnapshot>[];
+
+    // 1. Try Firestore with exact category case and orderBy uploadedAt
+    try {
+      final snap = await _firestore
+          .collection('videos')
+          .where('category', isEqualTo: cat)
+          .orderBy('uploadedAt', descending: true)
+          .limit(_pageSize)
+          .get();
+      if (snap.docs.isNotEmpty) {
+        candidateDocs.addAll(snap.docs);
+        _lastDocument = snap.docs.last;
+      }
+    } catch (e) {
+      debugPrint('Category query with orderBy failed: $e');
+    }
+
+    // 2. Try Firestore with exact category case WITHOUT orderBy
+    if (candidateDocs.isEmpty) {
+      try {
+        final snap = await _firestore
+            .collection('videos')
+            .where('category', isEqualTo: cat)
+            .limit(_pageSize)
+            .get();
+        if (snap.docs.isNotEmpty) {
+          candidateDocs.addAll(snap.docs);
+          _lastDocument = snap.docs.last;
+        }
+      } catch (e) {
+        debugPrint('Category query without orderBy failed: $e');
+      }
+    }
+
+    // 3. Try lowercase category name
+    if (candidateDocs.isEmpty && cat.toLowerCase() != cat) {
+      try {
+        final snap = await _firestore
+            .collection('videos')
+            .where('category', isEqualTo: cat.toLowerCase())
+            .limit(_pageSize)
+            .get();
+        if (snap.docs.isNotEmpty) {
+          candidateDocs.addAll(snap.docs);
+          _lastDocument = snap.docs.last;
+        }
+      } catch (e) {
+        debugPrint('Lowercase category query failed: $e');
+      }
+    }
+
+    // 4. Try tags matching category
+    if (candidateDocs.isEmpty) {
+      try {
+        final snap = await _firestore
+            .collection('videos')
+            .where('tags', arrayContains: cat.toLowerCase())
+            .limit(_pageSize)
+            .get();
+        if (snap.docs.isNotEmpty) {
+          candidateDocs.addAll(snap.docs);
+          _lastDocument = snap.docs.last;
+        }
+      } catch (e) {
+        debugPrint('Tags category query failed: $e');
+      }
+    }
+
+    // 5. Try topics matching category
+    if (candidateDocs.isEmpty) {
+      try {
+        final snap = await _firestore
+            .collection('videos')
+            .where('topics', arrayContains: cat.toLowerCase())
+            .limit(_pageSize)
+            .get();
+        if (snap.docs.isNotEmpty) {
+          candidateDocs.addAll(snap.docs);
+          _lastDocument = snap.docs.last;
+        }
+      } catch (e) {
+        debugPrint('Topics category query failed: $e');
+      }
+    }
+
+    // 6. Broader scan across recent videos if direct indexed queries didn't yield results
+    if (candidateDocs.isEmpty) {
+      try {
+        final snap = await _firestore.collection('videos').limit(120).get();
+        candidateDocs.addAll(snap.docs);
+      } catch (e) {
+        debugPrint('Broader candidate scan failed: $e');
+      }
+    }
+
+    final uniqueVideos = <String, Video>{};
+    for (final doc in candidateDocs) {
+      try {
+        final v = Video.fromDocumentSnapshot(doc);
+        if (_matchesCategory(v, cat) && VideoVisibilityPolicy.isVisibleForFeed(v)) {
+          uniqueVideos[v.id] = v;
+        }
+      } catch (e) {
+        debugPrint('Error parsing video ${doc.id}: $e');
+      }
+    }
+
+    final catVideos = uniqueVideos.values.toList();
+
+    if (catVideos.isNotEmpty) {
+      catVideos.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+      if (Get.isRegistered<TruthworldAlgorithm>()) {
+        final algorithm = Get.find<TruthworldAlgorithm>();
+        final ranked = algorithm.rankVideos(
+          catVideos,
+          RecommendationSurface.homeFeedCategory,
+        );
+        final rankedList = ranked.map((s) => s.video).toList();
+        videos.assignAll(rankedList.isNotEmpty ? rankedList : catVideos);
+      } else {
+        videos.assignAll(catVideos);
+      }
+
+      _saveVideosToCache(cat);
+      rxHasMore.value = catVideos.length >= _pageSize;
+    } else {
+      // Zero matching videos: maintain empty list so clean empty state is rendered
+      videos.clear();
+      rxHasMore.value = false;
+    }
+
+    try {
+      final topicDocs = await _firestore
+          .collection('topics')
+          .where('status', isEqualTo: 'active')
+          .where('category', isEqualTo: cat)
+          .limit(10)
+          .get();
+      if (topicDocs.docs.isNotEmpty && Get.isRegistered<HomeDiscoveryController>()) {
+        final catTopics = topicDocs.docs
+            .map(Topic.fromDocumentSnapshot)
+            .where((t) => t.isValidTopic && t.videoCount > 0)
+            .toList();
+        if (catTopics.isNotEmpty) {
+          Get.find<HomeDiscoveryController>().featuredTopics.assignAll(catTopics);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching category topics: $e');
+    }
+  }
+
   Future<void> fetchMoreVideos() async {
     if (isLoadingMore.value || !rxHasMore.value || _lastDocument == null) return;
     isLoadingMore.value = true;
     try {
-      if (_selectedCategory == 'Posts') {
+      final currentCat = _selectedCategory;
+      if (currentCat == 'Posts') {
         await _fetchMoreCommunityPostsTab();
         return;
       }
+
+      final isSpecialTab = currentCat == 'All' ||
+          currentCat == '🔥 Trending' ||
+          currentCat == 'Trending' ||
+          currentCat == '⭐ Popular' ||
+          currentCat == 'Popular' ||
+          currentCat == '✨ New' ||
+          currentCat == 'New' ||
+          currentCat == 'Flip Coin' ||
+          currentCat == '🪙 Flip Coin';
 
       final query = _buildCategoryQuery(startAfter: _lastDocument);
       final results = await query.limit(_pageSize).get().timeout(
@@ -468,35 +899,46 @@ class HomeFeedController extends BaseController {
 
       if (results.docs.isNotEmpty) {
         _lastDocument = results.docs.last;
-        final newVideos = results.docs.map(Video.fromDocumentSnapshot).toList().sanitizeForFeed();
-        final currentCat = _selectedCategory;
-        final isFlipped = (currentCat == 'Flip Coin' || currentCat == '🪙 Flip Coin') ||
-            (Get.isRegistered<FlipCoinService>() && Get.find<FlipCoinService>().isHomeFlipped.value);
+        final rawVideos = results.docs.map(Video.fromDocumentSnapshot).toList().sanitizeForFeed();
 
-        List<Video> videosToAdd;
-        if (isFlipped && Get.isRegistered<TruthworldAlgorithm>()) {
-          final algorithm = Get.find<TruthworldAlgorithm>();
-          final ranked = algorithm.rankVideosOpposite(
-            newVideos,
-            RecommendationSurface.homeFeedAll,
-            diversityConfig: DiversityConfig.homeFeed,
-          );
-          videosToAdd = ranked.map((s) => s.video).toList();
-        } else if ((currentCat == '🔥 Trending' || currentCat == 'Trending') && Get.isRegistered<TruthworldAlgorithm>()) {
-          final algorithm = Get.find<TruthworldAlgorithm>();
-          final ranked = algorithm.rankVideos(
-            newVideos,
-            RecommendationSurface.trending,
-            diversityConfig: DiversityConfig.trending,
-          );
-          videosToAdd = ranked.map((s) => s.video).toList();
+        final filteredVideos = isSpecialTab
+            ? rawVideos
+            : rawVideos.where((v) => _matchesCategory(v, currentCat)).toList();
+
+        if (filteredVideos.isNotEmpty) {
+          final isFlipped = (currentCat == 'Flip Coin' || currentCat == '🪙 Flip Coin') ||
+              (Get.isRegistered<FlipCoinService>() && Get.find<FlipCoinService>().isHomeFlipped.value);
+
+          List<Video> videosToAdd;
+          if (isFlipped && Get.isRegistered<TruthworldAlgorithm>()) {
+            final algorithm = Get.find<TruthworldAlgorithm>();
+            final ranked = algorithm.rankVideosOpposite(
+              filteredVideos,
+              RecommendationSurface.homeFeedAll,
+              diversityConfig: DiversityConfig.homeFeed,
+            );
+            videosToAdd = ranked.map((s) => s.video).toList();
+          } else if ((currentCat == '🔥 Trending' || currentCat == 'Trending') && Get.isRegistered<TruthworldAlgorithm>()) {
+            final algorithm = Get.find<TruthworldAlgorithm>();
+            final ranked = algorithm.rankVideos(
+              filteredVideos,
+              RecommendationSurface.trending,
+              diversityConfig: DiversityConfig.trending,
+            );
+            videosToAdd = ranked.map((s) => s.video).toList();
+          } else {
+            videosToAdd = filteredVideos;
+          }
+
+          final existingIds = videos.map((v) => v.id).toSet();
+          final uniqueNewVideos = videosToAdd.where((v) => !existingIds.contains(v.id)).toList();
+          if (uniqueNewVideos.isNotEmpty) {
+            videos.addAll(uniqueNewVideos);
+          }
+          if (results.docs.length < _pageSize) rxHasMore.value = false;
         } else {
-          videosToAdd = newVideos;
+          rxHasMore.value = false;
         }
-
-        final combined = [...videos, ...videosToAdd].sanitizeForFeed();
-        videos.assignAll(combined);
-        if (results.docs.length < _pageSize) rxHasMore.value = false;
       } else {
         rxHasMore.value = false;
       }
@@ -512,35 +954,103 @@ class HomeFeedController extends BaseController {
 
   Future<void> _fetchInitialCommunityPostsTab() async {
     try {
-      final query = _firestore
-          .collection(FirestoreCollections.community)
-          .where('visibility', isEqualTo: 'Public')
-          .orderBy('uploadedAt', descending: true)
-          .limit(_pageSize);
+      var docs = <DocumentSnapshot>[];
 
-      QuerySnapshot snapshot;
+      // 1. Try primary collection 'Community' with order
       try {
-        snapshot = await query.get();
-      } catch (e) {
-        debugPrint('Community query with orderBy uploadedAt failed, falling back: $e');
-        snapshot = await _firestore
+        final snapshot = await _firestore
             .collection(FirestoreCollections.community)
-            .where('visibility', isEqualTo: 'Public')
+            .orderBy('uploadedAt', descending: true)
             .limit(_pageSize)
             .get();
+        if (snapshot.docs.isNotEmpty) {
+          docs = snapshot.docs;
+        }
+      } catch (e) {
+        debugPrint('Community query with uploadedAt failed: $e');
       }
 
-      if (snapshot.docs.isNotEmpty) {
-        _lastDocument = snapshot.docs.last;
-        final posts = snapshot.docs
-            .map((doc) => CommunityPostModel.fromMap(
-                (doc.data()! as Map<String, dynamic>)..putIfAbsent('id', () => doc.id)))
-            .where((p) => p.isValid && !p.isDraft)
-            .toList();
+      // 2. Try primary collection 'Community' with timestamp order
+      if (docs.isEmpty) {
+        try {
+          final snapshot = await _firestore
+              .collection(FirestoreCollections.community)
+              .orderBy('timestamp', descending: true)
+              .limit(_pageSize)
+              .get();
+          if (snapshot.docs.isNotEmpty) {
+            docs = snapshot.docs;
+          }
+        } catch (e) {
+          debugPrint('Community query with timestamp failed: $e');
+        }
+      }
+
+      // 3. Try primary collection 'Community' without order (handles varied date fields)
+      if (docs.isEmpty) {
+        try {
+          final snapshot = await _firestore
+              .collection(FirestoreCollections.community)
+              .limit(_pageSize)
+              .get();
+          if (snapshot.docs.isNotEmpty) {
+            docs = snapshot.docs;
+          }
+        } catch (e) {
+          debugPrint('Community query without order failed: $e');
+        }
+      }
+
+      // 4. Try lowercase 'community' collection
+      if (docs.isEmpty) {
+        try {
+          final snapshot = await _firestore
+              .collection('community')
+              .limit(_pageSize)
+              .get();
+          if (snapshot.docs.isNotEmpty) {
+            docs = snapshot.docs;
+          }
+        } catch (e) {
+          debugPrint('Lowercase community query failed: $e');
+        }
+      }
+
+      // 5. Try 'community_posts' collection
+      if (docs.isEmpty) {
+        try {
+          final snapshot = await _firestore
+              .collection('community_posts')
+              .limit(_pageSize)
+              .get();
+          if (snapshot.docs.isNotEmpty) {
+            docs = snapshot.docs;
+          }
+        } catch (e) {
+          debugPrint('community_posts query failed: $e');
+        }
+      }
+
+      if (docs.isNotEmpty) {
+        _lastDocument = docs.last;
+        final posts = <CommunityPostModel>[];
+        for (final doc in docs) {
+          try {
+            final data = Map<String, dynamic>.from(doc.data()! as Map);
+            data.putIfAbsent('id', () => doc.id);
+            final post = CommunityPostModel.fromMap(data);
+            if (post.isValid && !post.isDraft) {
+              posts.add(post);
+            }
+          } catch (docErr) {
+            debugPrint('Error parsing community post ${doc.id}: $docErr');
+          }
+        }
+
         posts.sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
         communityPosts.assignAll(posts);
         homeFeedItems.assignAll(posts);
-        rxHasMore.value = snapshot.docs.length >= _pageSize;
+        rxHasMore.value = docs.length >= _pageSize;
       } else {
         communityPosts.clear();
         homeFeedItems.clear();
@@ -560,43 +1070,42 @@ class HomeFeedController extends BaseController {
       return;
     }
     try {
-      final query = _firestore
-          .collection(FirestoreCollections.community)
-          .where('visibility', isEqualTo: 'Public')
-          .orderBy('uploadedAt', descending: true)
-          .startAfterDocument(_lastDocument!)
-          .limit(_pageSize);
-
-      QuerySnapshot snapshot;
+      var docs = <DocumentSnapshot>[];
       try {
-        snapshot = await query.get().timeout(
+        final snapshot = await _firestore
+            .collection(FirestoreCollections.community)
+            .startAfterDocument(_lastDocument!)
+            .limit(_pageSize)
+            .get().timeout(
               const Duration(seconds: 10),
               onTimeout: () => throw TimeoutException('Loading more posts'),
             );
+        if (snapshot.docs.isNotEmpty) {
+          docs = snapshot.docs;
+        }
       } catch (e) {
-        debugPrint('Paginated community query with orderBy failed, falling back: $e');
-        snapshot = await _firestore
-            .collection(FirestoreCollections.community)
-            .where('visibility', isEqualTo: 'Public')
-            .startAfterDocument(_lastDocument!)
-            .limit(_pageSize)
-            .get();
+        debugPrint('Paginated community query failed, falling back: $e');
       }
 
-      if (snapshot.docs.isNotEmpty) {
-        _lastDocument = snapshot.docs.last;
-        final newPosts = snapshot.docs
-            .map((doc) {
-              final data = Map<String, dynamic>.from(doc.data() as Map);
-              data.putIfAbsent('id', () => doc.id);
-              return CommunityPostModel.fromMap(data);
-            })
-            .where((p) => p.isValid && !p.isDraft)
-            .toList();
+      if (docs.isNotEmpty) {
+        _lastDocument = docs.last;
+        final newPosts = <CommunityPostModel>[];
+        for (final doc in docs) {
+          try {
+            final data = Map<String, dynamic>.from(doc.data()! as Map);
+            data.putIfAbsent('id', () => doc.id);
+            final post = CommunityPostModel.fromMap(data);
+            if (post.isValid && !post.isDraft) {
+              newPosts.add(post);
+            }
+          } catch (docErr) {
+            debugPrint('Error parsing more community post ${doc.id}: $docErr');
+          }
+        }
         newPosts.sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
         communityPosts.addAll(newPosts);
         homeFeedItems.assignAll(communityPosts);
-        rxHasMore.value = snapshot.docs.length >= _pageSize;
+        rxHasMore.value = docs.length >= _pageSize;
       } else {
         rxHasMore.value = false;
       }
@@ -608,15 +1117,23 @@ class HomeFeedController extends BaseController {
 
   Future<void> fetchCommunityPosts() async {
     try {
-      final snapshot = await _firestore.collection(FirestoreCollections.community).where('visibility', isEqualTo: 'Public').limit(50).get();
-      final posts = snapshot.docs
-          .map((doc) {
-            final data = Map<String, dynamic>.from(doc.data() as Map);
-            data.putIfAbsent('id', () => doc.id);
-            return CommunityPostModel.fromMap(data);
-          })
-          .where((p) => p.isValid && !p.isDraft)
-          .toList();
+      var snapshot = await _firestore.collection(FirestoreCollections.community).limit(50).get();
+      if (snapshot.docs.isEmpty) {
+        snapshot = await _firestore.collection('community').limit(50).get();
+      }
+      final posts = <CommunityPostModel>[];
+      for (final doc in snapshot.docs) {
+        try {
+          final data = Map<String, dynamic>.from(doc.data() as Map);
+          data.putIfAbsent('id', () => doc.id);
+          final post = CommunityPostModel.fromMap(data);
+          if (post.isValid && !post.isDraft) {
+            posts.add(post);
+          }
+        } catch (e) {
+          debugPrint('Error parsing community post: $e');
+        }
+      }
       posts.sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
       communityPosts.assignAll(posts.take(10));
     } catch (e) {
@@ -661,99 +1178,10 @@ class HomeFeedController extends BaseController {
   }
 
   Future<void> fetchCategoryContent(String category) async {
-    if (category == 'All' ||
-        category == '🔥 Trending' ||
-        category == 'Trending' ||
-        category == '⭐ Popular' ||
-        category == 'Popular' ||
-        category == '✨ New' ||
-        category == 'New' ||
-        category == 'Posts' ||
-        category == 'Flip Coin' ||
-        category == '🪙 Flip Coin') {
-      if (Get.isRegistered<HomeDiscoveryController>()) {
-        Get.find<HomeDiscoveryController>().selectedCategory.value = category;
-      }
-      await _fetchInitialVideosInternal();
-      return;
+    if (Get.isRegistered<HomeDiscoveryController>()) {
+      Get.find<HomeDiscoveryController>().selectedCategory.value = category;
     }
-
-    isLoadingVideos.value = true;
-    videos.clear();
-    _lastDocument = null;
-    rxHasMore.value = true;
-
-    try {
-      communityPosts.clear();
-
-      final cacheKey = FeedCacheManager.cacheKeyForCategory(category);
-      final cached = _feedCacheManager.getValidCachedVideos(cacheKey);
-      if (cached != null && cached.isNotEmpty) {
-        videos.assignAll(cached);
-        mixHomeFeed();
-        isLoadingVideos.value = false;
-      }
-
-      final videoDocs = await VideoQueryBuilder.publicVideos(
-        _firestore,
-        category: category,
-        orderByField: 'uploadedAt',
-        descending: true,
-        limit: _pageSize,
-      ).get();
-
-      var catVideos = <Video>[];
-      if (videoDocs.docs.isNotEmpty) {
-        _lastDocument = videoDocs.docs.last;
-        catVideos = videoDocs.docs.map(Video.fromDocumentSnapshot).toList().sanitizeForFeed();
-      }
-
-      if (catVideos.isEmpty) {
-        final fallbackDocs = await _firestore
-            .collection('videos')
-            .where('category', isEqualTo: category)
-            .limit(_pageSize)
-            .get();
-        catVideos = fallbackDocs.docs
-            .map(Video.fromDocumentSnapshot)
-            .where(VideoVisibilityPolicy.isVisibleForFeed)
-            .toList();
-      }
-
-      if (Get.isRegistered<TruthworldAlgorithm>()) {
-        final algorithm = Get.find<TruthworldAlgorithm>();
-        final ranked = algorithm.rankVideos(catVideos, RecommendationSurface.homeFeedCategory);
-        final rankedCatVideos = ranked.map((s) => s.video).toList();
-        videos.assignAll(rankedCatVideos.isNotEmpty ? rankedCatVideos : catVideos);
-      } else {
-        videos.assignAll(catVideos);
-      }
-
-      if (videos.isNotEmpty) {
-        _saveVideosToCache(category);
-      }
-
-      try {
-        final topicDocs = await _firestore.collection('topics').where('category', isEqualTo: category).limit(10).get();
-        if (topicDocs.docs.isNotEmpty && Get.isRegistered<HomeDiscoveryController>()) {
-          final catTopics = topicDocs.docs
-              .map(Topic.fromDocumentSnapshot)
-              .where((t) => t.isValidTopic)
-              .toList();
-          if (catTopics.isNotEmpty) {
-            Get.find<HomeDiscoveryController>().featuredTopics.assignAll(catTopics);
-          }
-        }
-      } catch (e) {
-        debugPrint('Error fetching category topics: $e');
-      }
-
-      mixHomeFeed();
-    } catch (e) {
-      debugPrint('Error fetching category content: $e');
-    } finally {
-      isLoadingVideos.value = false;
-    }
+    await _fetchInitialVideosInternal();
   }
 
   Future<void> refreshHomeFeed() async {
@@ -766,10 +1194,17 @@ class HomeFeedController extends BaseController {
         _lastDocument = null;
         rxHasMore.value = true;
         await _fetchInitialCommunityPostsTab();
+      } else if (category == 'Topics' || category == 'Explore Topics') {
+        isLoadingVideos.value = false;
+        if (Get.isRegistered<HomeDiscoveryController>()) {
+          await Get.find<HomeDiscoveryController>().fetchFeaturedTopics();
+          await Get.find<HomeDiscoveryController>().fetchForYouTopics();
+        }
       } else if (category == 'All') {
         await _fetchInitialVideosInternal();
         if (Get.isRegistered<HomeDiscoveryController>()) {
           await Get.find<HomeDiscoveryController>().fetchFeaturedTopics();
+          await Get.find<HomeDiscoveryController>().fetchForYouTopics();
         }
       } else {
         await fetchCategoryContent(category);

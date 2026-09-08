@@ -16,6 +16,11 @@ class AppConfig {
   final bool enablePerformanceMonitoring;
   final int defaultPlayerPoolSize;
 
+  static const String cloudFunctionsBaseUrl = String.fromEnvironment(
+    'FUNCTIONS_BASE_URL',
+    defaultValue: 'https://asia-south1-truthworld-1.cloudfunctions.net',
+  );
+
   static late AppConfig _instance;
   static AppConfig get instance => _instance;
 

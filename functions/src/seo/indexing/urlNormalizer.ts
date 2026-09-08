@@ -37,15 +37,38 @@ export function normalizeUrl(host: string, rawPath: string, query: Record<string
   // Preserve handle casing if starts with /@
   if (path.startsWith("/@")) {
     const handle = path.substring(2);
-    // Strip trailing slashes
     const cleanHandle = handle.replace(/\/+$/, "");
     return `${base}/@${cleanHandle}`;
+  }
+
+  const rawParts = path.split("/").filter(p => p.length > 0);
+  const lowerParts = rawParts.map(p => p.toLowerCase());
+
+  // Preserve ID casing for channel routes (/channel/ID, /c/ID, /user/ID)
+  if (lowerParts.length >= 2 && (lowerParts[0] === "channel" || lowerParts[0] === "c" || lowerParts[0] === "user")) {
+    const channelId = rawParts[1].replace(/\/+$/, "");
+    return `${base}/channel/${channelId}`;
+  }
+
+  // Preserve ID casing and canonicalize post/community routes (/post/ID, /community/ID)
+  if (lowerParts.length >= 2 && (lowerParts[0] === "post" || lowerParts[0] === "community")) {
+    const postId = rawParts[1].replace(/\/+$/, "");
+    return `${base}/post/${postId}`;
+  }
+
+  // Canonicalize topic routes (/topic/slug, /topics/slug, /T/slug, /t/slug)
+  if (lowerParts.length >= 2 && (lowerParts[0] === "topic" || lowerParts[0] === "topics" || lowerParts[0] === "t")) {
+    const slug = rawParts[1].replace(/\/+$/, "").toLowerCase();
+    return `${base}/topic/${slug}`;
   }
 
   // Strip trailing slashes for other paths
   if (path.length > 1 && path.endsWith("/")) {
     path = path.replace(/\/+$/, "");
   }
+
+  // Lowercase path for case-insensitive route matching (prevents /Watch vs /watch duplicates)
+  path = path.toLowerCase();
 
   // Clean query params (filtering tracking params)
   const cleanQueryParams = new URLSearchParams();
@@ -59,15 +82,30 @@ export function normalizeUrl(host: string, rawPath: string, query: Record<string
 
   const queryString = cleanQueryParams.toString();
 
-  // Watch route canonicalization
-  if (path.startsWith("/watch")) {
-    const v = query.v || query.V;
+  // Watch & video route canonicalization (/watch?v=..., /watch/ID, /v/ID, /shorts/ID, /embed/ID, /embed/watch?v=...)
+  if (
+    path.startsWith("/watch") ||
+    path.startsWith("/v/") ||
+    path.startsWith("/shorts/") ||
+    path.startsWith("/embed")
+  ) {
+    let v = query.v || query.V;
+    if (!v) {
+      if (rawParts.length >= 2 && rawParts[1].toLowerCase() !== "watch") {
+        v = rawParts[1];
+      }
+    }
     return v ? `${base}/watch?v=${encodeURIComponent(String(v))}` : `${base}/watch`;
   }
 
-  // Playlist route canonicalization
+  // Playlist route canonicalization (/playlist?list=..., /playlist/ID)
   if (path.startsWith("/playlist")) {
-    const list = query.list || query.LIST;
+    let list = query.list || query.LIST;
+    if (!list) {
+      if (rawParts.length >= 2) {
+        list = rawParts[1];
+      }
+    }
     return list ? `${base}/playlist?list=${encodeURIComponent(String(list))}` : `${base}/playlist`;
   }
 

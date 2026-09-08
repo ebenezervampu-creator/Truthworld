@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
@@ -113,17 +114,31 @@ class _VideoLoaderScreenState extends State<VideoLoaderScreen>
       if (rawArgs is Map && rawArgs['clip'] != null) {
         args['clip'] = rawArgs['clip'];
       } else {
-        final startStr = Get.parameters['start'] ?? Get.parameters['clipStart'];
-        final endStr = Get.parameters['end'] ?? Get.parameters['clipEnd'];
-        final clipTitleParam =
-            Get.parameters['clipTitle'] ?? Get.parameters['title'];
+        final startStr = Get.parameters['start'] ??
+            Get.parameters['clipStart'] ??
+            (kIsWeb
+                ? (Uri.base.queryParameters['start'] ??
+                    Uri.base.queryParameters['clipStart'])
+                : null);
+        final endStr = Get.parameters['end'] ??
+            Get.parameters['clipEnd'] ??
+            (kIsWeb
+                ? (Uri.base.queryParameters['end'] ??
+                    Uri.base.queryParameters['clipEnd'])
+                : null);
+        final clipTitleParam = Get.parameters['clipTitle'] ??
+            Get.parameters['title'] ??
+            (kIsWeb
+                ? (Uri.base.queryParameters['clipTitle'] ??
+                    Uri.base.queryParameters['title'])
+                : null);
         if (startStr != null && endStr != null) {
           final start = double.tryParse(startStr);
           final end = double.tryParse(endStr);
           if (start != null && end != null && end > start) {
             args['clip'] = VideoClip(
-              id:
-                  Get.parameters['clipId'] ??
+              id: Get.parameters['clipId'] ??
+                  (kIsWeb ? Uri.base.queryParameters['clipId'] : null) ??
                   'temp_${DateTime.now().millisecondsSinceEpoch}',
               videoId: video.id,
               userId: '',

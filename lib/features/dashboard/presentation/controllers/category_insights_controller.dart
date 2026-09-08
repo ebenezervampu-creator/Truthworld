@@ -250,7 +250,8 @@ class CategoryInsightsController extends BaseController {
 
         // Top 3 liked videos for category
         final vList = categoryVideosMap[cat] ?? [];
-        vList.sort((a, b) => (b['likes'] as int).compareTo(a['likes'] as int));
+        vList.sort((a, b) =>
+            ((b['likes'] as num?)?.toInt() ?? 0).compareTo((a['likes'] as num?)?.toInt() ?? 0));
         final top3Videos = vList.take(3).toList();
 
         final stats = CategoryStats(

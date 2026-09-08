@@ -421,7 +421,13 @@ class CommunityPostUploadController extends BaseController
       final fileName = '${_uuid.v4()}.$fileExt';
       final ref = _storage.ref('community_images/$fileName');
 
-      final metadata = SettableMetadata(contentType: 'image/$fileExt');
+      final currentUid = _auth.currentUser?.uid;
+      final metadata = SettableMetadata(
+        contentType: 'image/$fileExt',
+        customMetadata: {
+          'uploaderId': ?currentUid,
+        },
+      );
       final uploadTask = ref.putData(await file.xFile.readAsBytes(), metadata);
 
       // 2. Track Progress
@@ -462,9 +468,10 @@ class CommunityPostUploadController extends BaseController
   }
 
   void startModerationCheck(int index, String docId) {
+    _moderationListeners[index]?.cancel();
     moderationStatuses[index] = 'PENDING';
 
-    final subscription = _imageVerificationService
+    final sub = _imageVerificationService
         .streamVerificationStatus(docId)
         .listen((result) {
           final status = result.status.name.toUpperCase();
@@ -482,8 +489,8 @@ class CommunityPostUploadController extends BaseController
             );
           }
         });
-
-    _moderationListeners[index] = subscription;
+    trackSubscription(sub);
+    _moderationListeners[index] = sub;
   }
 
   Future<void> saveDraft({
@@ -596,47 +603,6 @@ class CommunityPostUploadController extends BaseController
       }
     }
 
-    if (newTopicData.isNotEmpty) {
-      final newTitle = (newTopicData['title'] as String? ?? '').trim();
-      if (newTitle.isNotEmpty) {
-        final tTitleVal = await validateContent(newTitle, fieldName: 'Topic Title');
-        if (!tTitleVal.isValid) {
-          AppSnackbar.show(
-            'Inappropriate Content',
-            tTitleVal.message,
-            snackPosition: SnackPosition.BOTTOM,
-          );
-          return;
-        }
-
-        final newDescription = (newTopicData['description'] as String? ?? '').trim();
-        if (newDescription.isNotEmpty) {
-          final tDescVal = await validateContent(newDescription, fieldName: 'Topic Description');
-          if (!tDescVal.isValid) {
-            AppSnackbar.show(
-              'Inappropriate Content',
-              tDescVal.message,
-              snackPosition: SnackPosition.BOTTOM,
-            );
-            return;
-          }
-        }
-
-        final rawHandle = (newTopicData['handle'] as String?) ?? '';
-        if (rawHandle.trim().isNotEmpty) {
-          final tHandleVal = await validateContent(rawHandle, fieldName: 'Topic Handle');
-          if (!tHandleVal.isValid) {
-            AppSnackbar.show(
-              'Inappropriate Content',
-              tHandleVal.message,
-              snackPosition: SnackPosition.BOTTOM,
-            );
-            return;
-          }
-        }
-      }
-    }
-
     if (selectedChannel.value == null) {
       AppSnackbar.show(
         'Channel Required',
@@ -698,73 +664,6 @@ class CommunityPostUploadController extends BaseController
 
     isUploading.value = true;
     try {
-      // 1. Process inline topic creation if user drafted a new topic
-      if (newTopicData.isNotEmpty) {
-        final newTitle = (newTopicData['title'] as String? ?? '').trim();
-        if (newTitle.isNotEmpty) {
-          final newCategory = (newTopicData['category'] as String? ?? 'General').trim();
-          final newDescription = (newTopicData['description'] as String? ?? '').trim();
-          final newVisibilityStr = (newTopicData['visibility'] as String? ?? 'public').trim();
-          final newVisibility = TopicVisibilityType.fromJson(newVisibilityStr);
-          final newAccessCode = (newTopicData['accessCode'] as String? ?? '').trim();
-          final finalThumbnailUrl = newTopicData['thumbnailUrl'] as String?;
-
-          final newSlug = newTitle
-              .toLowerCase()
-              .replaceAll(RegExp(r'[^a-z0-9\s-]'), '')
-              .replaceAll(RegExp(r'\s+'), '-');
-
-          final existingSlug = await _firestore
-              .collection(FirestoreCollections.topics)
-              .where('slug', isEqualTo: newSlug)
-              .limit(1)
-              .get();
-
-          var finalSlug = newSlug;
-          if (existingSlug.docs.isNotEmpty) {
-            finalSlug = '$newSlug-${const Uuid().v4().substring(0, 6)}';
-          }
-
-          final rawHandle = (newTopicData['handle'] as String?) ?? '';
-          var cleanHandle = rawHandle.trim();
-          if (cleanHandle.startsWith('T/') || cleanHandle.startsWith('t/')) {
-            cleanHandle = cleanHandle.substring(2);
-          }
-          cleanHandle = cleanHandle
-              .replaceAll(RegExp('[^a-zA-Z0-9_-]'), '-')
-              .replaceAll(RegExp('-+'), '-');
-          if (cleanHandle.isEmpty) {
-            cleanHandle = finalSlug;
-          }
-          final finalHandle = 'T/$cleanHandle';
-          final finalHandleLowercase = finalHandle.toLowerCase();
-
-          final newTopicRef = _firestore.collection(FirestoreCollections.topics).doc();
-          final newTopic = Topic(
-            id: newTopicRef.id,
-            title: newTitle,
-            slug: finalSlug,
-            handle: finalHandle,
-            handleLowercase: finalHandleLowercase,
-            description: newDescription,
-            category: newCategory,
-            thumbnailUrl: finalThumbnailUrl,
-            channelId: selectedChannel.value?.channelId ?? '',
-            creatorId: _auth.currentUser?.uid,
-            visibilityType: newVisibility,
-            accessCode: newVisibility == TopicVisibilityType.private ? newAccessCode : null,
-            postCount: 1,
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-            status: 'underReview',
-          );
-
-          await newTopicRef.set(newTopic.toMap());
-          selectedTopicId.value = finalSlug;
-          newTopicData.clear();
-        }
-      }
-
       final docRef = _firestore
           .collection(FirestoreCollections.community)
           .doc();

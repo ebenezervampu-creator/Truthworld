@@ -17,22 +17,66 @@ class AdsTab extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Page Title
-            const Row(
+            Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.campaign_rounded,
                   color: Colors.white,
                   size: 28,
                 ),
-                SizedBox(width: 12),
-                Text(
+                const SizedBox(width: 12),
+                const Text(
                   'Ad Campaigns Moderation',
                   style: TextStyle(
                     fontFamily: TWTypography.brandFamily,
                     color: AppColors.textPrimary,
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Spacer(),
+                Obx(
+                  () => ElevatedButton.icon(
+                    onPressed: controller.isGeneratingAllVideoAdsAI.value
+                        ? null
+                        : controller.generateAllVideoAdsAI,
+                    icon: controller.isGeneratingAllVideoAdsAI.value
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Icon(
+                            Icons.auto_awesome,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                    label: Text(
+                      controller.isGeneratingAllVideoAdsAI.value
+                          ? 'Queueing AI...'
+                          : 'Generate AI for All Video Ads',
+                      style: const TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF27272A),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
                   ),
                 ),
               ],

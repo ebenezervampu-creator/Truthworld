@@ -5,8 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
-import 'package:truthworld/features/video/presentation/controllers/adaptive_birate_controller.dart';
-import 'package:truthworld/features/video/presentation/controllers/audio_only_service.dart';
+import 'package:truthworld/features/video/presentation/controllers/adaptive_bitrate_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/controls/player_controls.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
@@ -40,24 +39,32 @@ class SwitchingResolutionOverlay extends StatelessWidget {
                     width: 40,
                     height: 40,
                     child: Shimmer.fromColors(
-                      baseColor: PT.primary.withValues(alpha: 0.3),
+                      baseColor: PT.primary.withValues(alpha: 0.4),
                       highlightColor: PT.primary,
                       child: const Icon(
-                        Icons.settings_backup_restore_rounded,
+                        Icons.hd_rounded,
                         color: AppColors.textPrimary,
-                        size: 40,
+                        size: 32,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Optimizing Quality...',
-                    style: TS.title.copyWith(letterSpacing: 0.5),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Optimizing Stream',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   const Text(
-                    'Switching to a better resolution',
-                    style: TS.bodySm,
+                    'Auto-adjusting resolution...',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 11,
+                    ),
                   ),
                 ],
               ),
@@ -78,79 +85,62 @@ class AudioOnlyOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
-      color: AppColors.bgPage,
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 130,
-              height: 130,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: PT.primary.withValues(alpha: 0.4),
-                    blurRadius: 50,
-                    spreadRadius: 10,
-                  ),
-                ],
-                border: Border.all(
-                  color: PT.primary.withValues(alpha: 0.4),
-                  width: 2,
-                ),
-              ),
-              child: const ClipOval(
-                child: Icon(
-                  Icons.music_note_rounded,
-                  size: 60,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ),
-            const SizedBox(height: 28),
-            Text(
-              'Audio Only Mode',
-              style: TS.title.copyWith(fontSize: 20, letterSpacing: 1.5),
-            ),
-            const SizedBox(height: 8),
-            Obx(() {
-              ctrl.isAudioOnly.value; // reactive touch
-              final svc = Get.isRegistered<AudioOnlyService>()
-                  ? Get.find<AudioOnlyService>()
-                  : null;
-              return Text(
-                svc?.currentTrackTitle.value ?? '',
-                style: TS.bodySm,
-                textAlign: TextAlign.center,
-              );
-            }),
-            const SizedBox(height: 24),
-            const AudioWaveform(),
-          ],
+    return Obx(() {
+      ctrl.isAudioOnly.value; // reactive touch
+      final isPlaying = ctrl.isPlaying.value;
+
+      return ColoredBox(
+        color: Colors.black,
+        child: AcousticWaveformThemeVisualizer(
+          isPlaying: isPlaying,
         ),
-      ),
-    );
+      );
+    });
   }
 }
 
-class AudioWaveform extends StatefulWidget {
-  const AudioWaveform({super.key});
+// ─────────────────────────────────────────────────────────────────────────────
+// ACOUSTIC WAVEFORM THEME VISUALIZER (High-Resolution Ambient Soundwave)
+// ─────────────────────────────────────────────────────────────────────────────
+class AcousticWaveformThemeVisualizer extends StatefulWidget {
+  const AcousticWaveformThemeVisualizer({
+    required this.isPlaying,
+    super.key,
+  });
+  final bool isPlaying;
+
   @override
-  State<AudioWaveform> createState() => _AudioWaveformState();
+  State<AcousticWaveformThemeVisualizer> createState() =>
+      _AcousticWaveformThemeVisualizerState();
 }
 
-class _AudioWaveformState extends State<AudioWaveform>
+class _AcousticWaveformThemeVisualizerState
+    extends State<AcousticWaveformThemeVisualizer>
     with SingleTickerProviderStateMixin {
   late AnimationController _anim;
+
   @override
   void initState() {
     super.initState();
     _anim = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 1),
-    )..repeat(reverse: true);
+      duration: const Duration(seconds: 4),
+    );
+    if (widget.isPlaying) {
+      _anim.repeat();
+    }
+  }
+
+  @override
+  void didUpdateWidget(AcousticWaveformThemeVisualizer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isPlaying != oldWidget.isPlaying) {
+      if (widget.isPlaying) {
+        _anim.repeat();
+      } else {
+        _anim.stop();
+      }
+    }
   }
 
   @override
@@ -161,30 +151,121 @@ class _AudioWaveformState extends State<AudioWaveform>
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 40,
-      width: 120,
-      child: AnimatedBuilder(
-        animation: _anim,
-        builder: (_, _) {
-          return Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: List.generate(7, (i) {
-              final h =
-                  8 + 18 * ((sin(i * 0.4 + _anim.value * 2 * pi) + 1) / 2);
-              return Container(
-                width: 4,
-                height: h,
-                decoration: BoxDecoration(
-                  color: PT.primary.withValues(alpha: 0.8),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              );
-            }),
-          );
-        },
-      ),
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (context, _) {
+        return CustomPaint(
+          size: Size.infinite,
+          painter: _AcousticWavePainter(
+            time: _anim.value * 2 * pi,
+            isPlaying: widget.isPlaying,
+          ),
+        );
+      },
     );
+  }
+}
+
+class _AcousticWavePainter extends CustomPainter {
+  _AcousticWavePainter({
+    required this.time,
+    required this.isPlaying,
+  });
+  final double time;
+  final bool isPlaying;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.width <= 0 || size.height <= 0) return;
+
+    final centerY = size.height / 2;
+    final maxAmp = (size.height * 0.32).clamp(35.0, 160.0);
+    const strandCount = 18;
+
+    final corePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..isAntiAlias = true;
+
+    final glowPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 4.0)
+      ..isAntiAlias = true;
+
+    // Subtle luminous horizon line
+    final horizonPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.15)
+      ..strokeWidth = 1.0;
+    canvas.drawLine(
+      Offset(0, centerY),
+      Offset(size.width, centerY),
+      horizonPaint,
+    );
+
+    final pointsCount = (size.width / 4).clamp(80, 240).toInt();
+    final dx = size.width / pointsCount;
+
+    for (var k = 0; k < strandCount; k++) {
+      final v = (k - (strandCount / 2)) / (strandCount / 2); // -1.0 to 1.0
+      final absV = v.abs();
+      final phaseOffset = k * 0.38 + (v * 0.5);
+      final freq1 = 4.0 + (k % 3) * 0.5;
+      final freq2 = 8.0 + (k % 2) * 1.2;
+
+      final path = Path();
+      var isFirst = true;
+
+      for (var i = 0; i <= pointsCount; i++) {
+        final x = i * dx;
+        final u = (x / size.width).clamp(0.0, 1.0);
+        final d = (u - 0.5) * 2.0;
+
+        // Smooth bell-curve envelope tapering to 0 at edges
+        final env = cos(d * (pi / 2)).clamp(0.0, 1.0);
+        final envelope = env * env * env;
+
+        // Multi-harmonic oscillation matching acoustic waveform visualizer
+        final t = isPlaying ? time : 0.0;
+        final w1 = sin(u * freq1 * pi + t * 1.6 + phaseOffset);
+        final w2 = sin(u * freq2 * pi - t * 0.9 + phaseOffset * 1.5);
+        final w3 = cos(u * 2 * pi + t * 0.4);
+
+        final crestMod = (sin(u * 6 * pi).abs() * 0.7) + 0.3;
+        final harmonic = (w1 * 0.65 + w2 * 0.25 + w3 * 0.1) * (1.0 + 0.35 * v);
+
+        final yOffset = envelope * maxAmp * harmonic * crestMod + (v * 2.5 * envelope);
+        final y = centerY + yOffset;
+
+        if (isFirst) {
+          path.moveTo(x, y);
+          isFirst = false;
+        } else {
+          path.lineTo(x, y);
+        }
+      }
+
+      // Draw glowing aura
+      if (k % 3 == 0) {
+        glowPaint
+          ..color = Colors.white.withValues(alpha: 0.12 * (1.0 - absV * 0.5))
+          ..strokeWidth = 3.2;
+        canvas.drawPath(path, glowPaint);
+      }
+
+      // Draw luminous high-definition strand
+      final alpha = (0.85 - absV * 0.45).clamp(0.15, 0.95);
+      final strokeW = (1.5 - absV * 0.5).clamp(0.8, 1.8);
+      corePaint
+        ..color = Colors.white.withValues(alpha: alpha)
+        ..strokeWidth = strokeW;
+      canvas.drawPath(path, corePaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_AcousticWavePainter oldDelegate) {
+    return oldDelegate.time != time || oldDelegate.isPlaying != isPlaying;
   }
 }
 
@@ -203,15 +284,17 @@ class StateOverlay extends StatelessWidget {
       final buffering = ctrl.isBuffering.value;
       final hasError = ctrl.hasError.value;
 
-      // Suppress spinner for transparent auto-quality switches
+      // Suppress spinner/errors for transparent auto-quality switches or format recovery
       var isAutoSwitch = false;
+      var isRecovering = false;
       try {
         final vc = ctrl.videoController;
         if (vc != null) {
           isAutoSwitch = vc.isAutoSwitching.value;
+          isRecovering = vc.isRecoveringFromFormatError;
         }
       } catch (_) {}
-      if (isAutoSwitch) return const SizedBox.shrink();
+      if (isAutoSwitch || isRecovering) return const SizedBox.shrink();
 
       if (hasError) return _buildError();
       if (state == PlaybackState.stalled) return _buildStall();
@@ -260,11 +343,17 @@ class StateOverlay extends StatelessWidget {
     final err = ctrl.errorDescription.value.isNotEmpty
         ? ctrl.errorDescription.value
         : (ctrl.vv.errorDescription ?? 'An unknown error occurred');
-    if (err.contains('removed from the document') ||
-        err.contains('play() request was interrupted') ||
-        err.contains('The play() request was interrupted') ||
-        err.contains('AbortError') ||
-        err.contains('NotAllowedError')) {
+    final lower = err.toLowerCase();
+    if (lower.contains('removed from the document') ||
+        lower.contains('play() request was interrupted') ||
+        lower.contains('the play() request was interrupted') ||
+        lower.contains('aborterror') ||
+        lower.contains('notallowederror') ||
+        lower.contains('media_err_aborted') ||
+        lower.contains('client returned a buffer') ||
+        lower.contains('bad_index') ||
+        lower.contains('pause()') ||
+        lower.contains('user gesture')) {
       return const SizedBox.shrink();
     }
     return ColoredBox(
@@ -549,154 +638,157 @@ class SeekPreviewTooltip extends StatelessWidget {
         child: LayoutBuilder(
           builder: (_, c) {
             final xPx = (xPct * c.maxWidth).clamp(52.0, c.maxWidth - 52.0);
-            return Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Positioned(
-                  left: hoveredClaim != null
-                      ? (xPx - 160).clamp(16.0, c.maxWidth - 336.0)
-                      : (xPx - 80).clamp(16.0, c.maxWidth - 176.0),
-                  bottom: 0,
-                  child: Container(
-                    width: hoveredClaim != null ? 320 : 160,
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: PT.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: PT.border),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.bgPage.withValues(alpha: 0.65),
-                          blurRadius: 16,
-                          spreadRadius: 2,
-                        ),
-                      ],
-                    ),
-                    child: Builder(
-                      builder: (context) {
-                        final thumbUrl =
-                            ctrl.videoController?.video.thumbnailUrl;
-                        final Widget thumbWidget = Container(
-                          width: hoveredClaim != null ? 120 : 144,
-                          height: hoveredClaim != null ? 68 : 81,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: AppColors.bgDivider),
-                            color: Colors.black45,
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: thumbUrl != null && thumbUrl.isNotEmpty
-                                ? Image.network(
-                                    thumbUrl,
-                                    fit: BoxFit.cover,
-                                    errorBuilder:
-                                        (context, error, stackTrace) =>
-                                            const Center(
-                                              child: Icon(
-                                                Icons.movie_creation_rounded,
-                                                color: AppColors.textTertiary,
-                                                size: 24,
-                                              ),
-                                            ),
-                                  )
-                                : const Center(
-                                    child: Icon(
-                                      Icons.movie_creation_rounded,
-                                      color: AppColors.textTertiary,
-                                      size: 24,
-                                    ),
-                                  ),
-                          ),
-                        );
+            final tooltipWidth = hoveredClaim != null
+                ? (c.maxWidth - 32.0).clamp(160.0, 320.0)
+                : 160.0;
+            final leftPx = (xPx - (tooltipWidth / 2)).clamp(
+              16.0,
+              (c.maxWidth - tooltipWidth - 16.0).clamp(16.0, c.maxWidth),
+            );
 
-                        if (hoveredClaim != null) {
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Column(
+            return Align(
+              alignment: Alignment.bottomLeft,
+              child: Padding(
+                padding: EdgeInsets.only(left: leftPx),
+                child: Container(
+                  width: tooltipWidth,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: PT.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: PT.border),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.bgPage.withValues(alpha: 0.65),
+                        blurRadius: 16,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: Builder(
+                    builder: (context) {
+                      final thumbUrl =
+                          ctrl.videoController?.video.thumbnailUrl;
+                      final Widget thumbWidget = Container(
+                        width: hoveredClaim != null ? 120 : 144,
+                        height: hoveredClaim != null ? 68 : 81,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.bgDivider),
+                          color: Colors.black45,
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: thumbUrl != null && thumbUrl.isNotEmpty
+                              ? Image.network(
+                                  thumbUrl,
+                                  fit: BoxFit.cover,
+                                  errorBuilder:
+                                      (context, error, stackTrace) =>
+                                          const Center(
+                                            child: Icon(
+                                              Icons.movie_creation_rounded,
+                                              color: AppColors.textPrimary,
+                                              size: 24,
+                                            ),
+                                          ),
+                                )
+                              : const Center(
+                                  child: Icon(
+                                    Icons.movie_creation_rounded,
+                                    color: AppColors.textPrimary,
+                                    size: 24,
+                                  ),
+                                ),
+                        ),
+                      );
+
+                      if (hoveredClaim != null) {
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                thumbWidget,
+                                const SizedBox(height: 6),
+                                Text(
+                                  _fmt(pos),
+                                  style: TS.time.copyWith(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  thumbWidget,
-                                  const SizedBox(height: 6),
                                   Text(
-                                    _fmt(pos),
-                                    style: TS.time.copyWith(fontSize: 12),
+                                    hoveredClaim.text,
+                                    maxLines: 3,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: AppColors.textPrimary,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                      height: 1.3,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: _getVerdictColor(
+                                        hoveredClaim.verdict,
+                                      ).withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(
+                                        color: _getVerdictColor(
+                                          hoveredClaim.verdict,
+                                        ).withValues(alpha: 0.4),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      hoveredClaim.verdict
+                                          .toUpperCase()
+                                          .replaceAll('_', ' '),
+                                      style: TextStyle(
+                                        color: _getVerdictColor(
+                                          hoveredClaim.verdict,
+                                        ),
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      hoveredClaim.text,
-                                      maxLines: 3,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: AppColors.textPrimary,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w500,
-                                        height: 1.3,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: _getVerdictColor(
-                                          hoveredClaim.verdict,
-                                        ).withValues(alpha: 0.15),
-                                        borderRadius: BorderRadius.circular(4),
-                                        border: Border.all(
-                                          color: _getVerdictColor(
-                                            hoveredClaim.verdict,
-                                          ).withValues(alpha: 0.4),
-                                        ),
-                                      ),
-                                      child: Text(
-                                        hoveredClaim.verdict
-                                            .toUpperCase()
-                                            .replaceAll('_', ' '),
-                                        style: TextStyle(
-                                          color: _getVerdictColor(
-                                            hoveredClaim.verdict,
-                                          ),
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.bold,
-                                          letterSpacing: 0.5,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          );
-                        }
-
-                        // Default (no claim hovered)
-                        return Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            thumbWidget,
-                            const SizedBox(height: 6),
-                            Text(
-                              _fmt(pos),
-                              style: TS.time,
                             ),
                           ],
                         );
-                      },
-                    ),
+                      }
+
+                      // Default (no claim hovered)
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          thumbWidget,
+                          const SizedBox(height: 6),
+                          Text(
+                            _fmt(pos),
+                            style: TS.time,
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ),
-              ],
+              ),
             );
           },
         ),

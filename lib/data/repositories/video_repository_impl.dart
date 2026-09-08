@@ -62,6 +62,7 @@ class VideoRepositoryImpl extends BaseRepository implements VideoRepository {
 
       var query = _firestore
           .collection(FirestoreCollections.videos)
+          .where('status', isEqualTo: 'published')
           .where('visibility', isEqualTo: 'public')
           .orderBy('createdAt', descending: true)
           .limit(limit);
@@ -77,7 +78,6 @@ class VideoRepositoryImpl extends BaseRepository implements VideoRepository {
 
       return snapshot.docs
           .map(Video.fromDocumentSnapshot)
-          .where((v) => v.status != VideoStatus.rejected)
           .map(_mapToEntity)
           .toList();
     });
@@ -112,6 +112,7 @@ class VideoRepositoryImpl extends BaseRepository implements VideoRepository {
       final queryLower = query.toLowerCase();
       var q = _firestore
           .collection(FirestoreCollections.videos)
+          .where('status', isEqualTo: 'published')
           .where('titleLowercase', isGreaterThanOrEqualTo: queryLower)
           .where('titleLowercase', isLessThanOrEqualTo: '$queryLower\uf8ff')
           .where('visibility', isEqualTo: 'public')
@@ -128,7 +129,6 @@ class VideoRepositoryImpl extends BaseRepository implements VideoRepository {
 
       return snapshot.docs
           .map(Video.fromDocumentSnapshot)
-          .where((v) => v.status != VideoStatus.rejected)
           .map(_mapToEntity)
           .toList();
     });
@@ -145,6 +145,7 @@ class VideoRepositoryImpl extends BaseRepository implements VideoRepository {
 
       var q = _firestore
           .collection(FirestoreCollections.videos)
+          .where('status', isEqualTo: 'published')
           .where('channelId', isEqualTo: channelId)
           .orderBy('createdAt', descending: true)
           .limit(limit);
@@ -160,7 +161,6 @@ class VideoRepositoryImpl extends BaseRepository implements VideoRepository {
 
       return snapshot.docs
           .map(Video.fromDocumentSnapshot)
-          .where((v) => v.status != VideoStatus.rejected)
           .map(_mapToEntity)
           .toList();
     });

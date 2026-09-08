@@ -48,34 +48,24 @@ export async function verifyAuth(req: Request): Promise<AuthenticatedUser | null
     const decoded = await admin.auth().verifyIdToken(token);
     const email = (decoded.email || "").toLowerCase();
     const ADMIN_EMAILS = [
+      "ebenezervampy@towervsp.com",
+      "ebenezervampu@towervsp.com",
       "ebenezervampu4@gmail.com",
       "admin@truthworld.com",
     ];
 
+    const isEmailVerified = decoded.email_verified === true;
+    const isVerifiedAdminEmail = isEmailVerified && ADMIN_EMAILS.includes(email);
     let isAdminUser =
       decoded.admin === true ||
       decoded.role === "admin" ||
-      ADMIN_EMAILS.includes(email);
+      isVerifiedAdminEmail;
 
-    if (!isAdminUser) {
-      // Fallback check in Firestore users collection
-      try {
-        const userDoc = await admin.firestore().collection("users").doc(decoded.uid).get();
-        if (userDoc.exists) {
-          const data = userDoc.data();
-          if (data?.role === "admin" || data?.isAdmin === true || data?.role === "superadmin") {
-            isAdminUser = true;
-          }
-        }
-      } catch (docErr) {
-        logger.warn("[Auth] Firestore admin role check failed:", docErr);
-      }
-    }
-
-    if (isAdminUser && !decoded.admin) {
+    // Only auto-provision admin claims for hardcoded verified admin emails
+    if (isVerifiedAdminEmail && !decoded.admin) {
       try {
         await admin.auth().setCustomUserClaims(decoded.uid, { admin: true, role: "admin" });
-        logger.info(`[Auth] Auto-set admin claims for user ${decoded.uid} (${email})`);
+        logger.info(`[Auth] Auto-set admin claims for verified admin ${decoded.uid} (${email})`);
       } catch (claimErr) {
         logger.warn("[Auth] Could not auto-set admin claim:", claimErr);
       }
@@ -141,5 +131,26 @@ export async function requireAdmin(req: Request, res: Response): Promise<Authent
     return null;
   }
   return user;
+}
+
+/**
+ * Checks if a Callable function context/auth payload has verified admin privileges.
+ */
+export function isCallableAdmin(auth: any): boolean {
+  if (!auth) return false;
+  const token = auth.token || {};
+  const email = (token.email || "").toLowerCase();
+  const ADMIN_EMAILS = [
+    "ebenezervampy@towervsp.com",
+    "ebenezervampu@towervsp.com",
+    "ebenezervampu4@gmail.com",
+    "admin@truthworld.com",
+  ];
+  const isEmailVerified = token.email_verified === true;
+  return (
+    token.admin === true ||
+    token.role === "admin" ||
+    (isEmailVerified && ADMIN_EMAILS.includes(email))
+  );
 }
 

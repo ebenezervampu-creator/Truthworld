@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
-import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -11,11 +10,10 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!Get.isRegistered<VideoController>(tag: ctrl.tag)) {
+    final vc = ctrl.videoController;
+    if (vc == null) {
       return const SizedBox.shrink();
     }
-
-    final vc = Get.find<VideoController>(tag: ctrl.tag);
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
@@ -57,10 +55,30 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
               icon: Icons.chat_bubble_outline_rounded,
               onTap: () {
                 ctrl.showTranscriptPopup.value = false;
+                ctrl.showFactCheckPopup.value = false;
+                ctrl.showLiveChat.value = false;
                 ctrl.showCommentsPopup.toggle();
                 ctrl.startHideTimer();
               },
               isActive: ctrl.showCommentsPopup.value,
+            ),
+          ),
+          const SizedBox(height: 6),
+
+          // Live Chat
+          Obx(
+            () => _buildVerticalIconBtn(
+              icon: ctrl.showLiveChat.value
+                  ? Icons.forum_rounded
+                  : Icons.forum_outlined,
+              onTap: () {
+                ctrl.showCommentsPopup.value = false;
+                ctrl.showTranscriptPopup.value = false;
+                ctrl.showFactCheckPopup.value = false;
+                ctrl.toggleLiveChat();
+                ctrl.startHideTimer();
+              },
+              isActive: ctrl.showLiveChat.value,
             ),
           ),
           const SizedBox(height: 6),
@@ -71,7 +89,13 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
               icon: Icons.description_outlined,
               onTap: () {
                 ctrl.showCommentsPopup.value = false;
-                ctrl.showTranscriptPopup.toggle();
+                ctrl.showFactCheckPopup.value = false;
+                ctrl.showLiveChat.value = false;
+                final next = !ctrl.showTranscriptPopup.value;
+                ctrl.showTranscriptPopup.value = next;
+                if (next) {
+                  vc.loadTranscriptForVideo();
+                }
                 ctrl.startHideTimer();
               },
               isActive: ctrl.showTranscriptPopup.value,
@@ -82,23 +106,21 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
           // Verified / Facts
           Obx(
             () => _buildVerticalIconBtn(
-              icon: ctrl.showFactOverlay.value
+              icon: ctrl.showFactCheckPopup.value || ctrl.showFactOverlay.value
                   ? Icons.verified_rounded
                   : Icons.verified_outlined,
               onTap: () {
-                final claims = vc.video.uiReport?.keyClaims;
-                if (claims == null || claims.isEmpty) {
-                  ctrl.showToast('No fact-check data for this video');
-                  return;
+                ctrl.showCommentsPopup.value = false;
+                ctrl.showTranscriptPopup.value = false;
+                ctrl.showLiveChat.value = false;
+                final next = !ctrl.showFactCheckPopup.value;
+                ctrl.showFactCheckPopup.value = next;
+                if (next) {
+                  ctrl.showFactOverlay.value = true;
                 }
-                ctrl.showFactOverlay.toggle();
-                ctrl.showToast(
-                  ctrl.showFactOverlay.value
-                      ? 'Fact overlay enabled'
-                      : 'Fact overlay disabled',
-                );
+                ctrl.startHideTimer();
               },
-              isActive: ctrl.showFactOverlay.value,
+              isActive: ctrl.showFactCheckPopup.value,
             ),
           ),
         ],

@@ -71,6 +71,21 @@ void main() {
       expect(topic.topicRoute, '/T/indian-stock-market');
     });
 
+    test('Should flag topic with 0 videos as invalid for discovery', () {
+      final doc = FakeDocumentSnapshot('zero_video_topic', {
+        'title': 'Empty Topic',
+        'slug': 'empty-topic',
+        'handle': 'T/empty-topic',
+        'handleLowercase': 't/empty-topic',
+        'category': 'Tech',
+        'status': 'active',
+        'videoCount': 0,
+      });
+
+      final topic = Topic.fromDocumentSnapshot(doc);
+      expect(topic.isValidTopic, isFalse);
+    });
+
     test('Should fallback route cleanly without colliding with channel route when handle is malformed', () {
       final doc = FakeDocumentSnapshot('malformed_topic', {
         'title': '',
@@ -83,6 +98,53 @@ void main() {
       expect(topic.isValidTopic, isFalse);
       expect(topic.routePathParameter, isEmpty);
       expect(topic.topicRoute, '/explore-topics');
+    });
+    test('Should flag topic with 0 videos and empty featuredVideoIds as invalid', () {
+      final doc = FakeDocumentSnapshot('zero_featured_empty', {
+        'title': 'AI Advances',
+        'slug': 'ai-advances',
+        'handle': 'T/ai-advances',
+        'handleLowercase': 't/ai-advances',
+        'category': 'Tech',
+        'status': 'active',
+        'videoCount': 0,
+        'featuredVideoIds': <String>[],
+      });
+
+      final topic = Topic.fromDocumentSnapshot(doc);
+      expect(topic.isValidTopic, isFalse);
+    });
+
+    test('Should treat topic with featuredVideoIds as valid even if videoCount counter is 0', () {
+      final doc = FakeDocumentSnapshot('featured_video_topic', {
+        'title': 'AI Advances',
+        'slug': 'ai-advances',
+        'handle': 'T/ai-advances',
+        'handleLowercase': 't/ai-advances',
+        'category': 'Tech',
+        'status': 'active',
+        'videoCount': 0,
+        'featuredVideoIds': ['video_123'],
+      });
+
+      final topic = Topic.fromDocumentSnapshot(doc);
+      expect(topic.isValidTopic, isTrue);
+    });
+
+    test('Should flag verificationRejected, empty_archived, and deletion_pending topics as invalid', () {
+      for (final s in ['verificationRejected', 'empty_archived', 'deletion_pending']) {
+        final doc = FakeDocumentSnapshot('invalid_status_$s', {
+          'title': 'Quantum Physics',
+          'slug': 'quantum-physics',
+          'handle': 'T/quantum-physics',
+          'category': 'Science',
+          'status': s,
+          'videoCount': 10,
+        });
+
+        final topic = Topic.fromDocumentSnapshot(doc);
+        expect(topic.isValidTopic, isFalse, reason: 'Status $s must not be valid');
+      }
     });
   });
 }

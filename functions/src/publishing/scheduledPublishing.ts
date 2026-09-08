@@ -20,7 +20,7 @@
  */
 
 import * as admin from "firebase-admin";
-import { onMessagePublished } from "firebase-functions/v2/pubsub";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import { logger } from "../pipeline/utils/logger";
 
 const db = admin.firestore();
@@ -64,20 +64,19 @@ const FUNCTION_NAME = "scheduledPublishing";
  *   - timeout: 540s (9 minutes for safety)
  *   - memory: 512MiB
  */
-export const scheduledPublishing = onMessagePublished(
+export const scheduledPublishing = onSchedule(
   {
-    topic: "scheduled-publishing",
+    schedule: "every 5 minutes",
     region: "asia-south1",
+    timeZone: "UTC",
     minInstances: 0,
-    maxInstances: 2,
-    concurrency: 10,
-    cpu: 1,
+    maxInstances: 1,
     timeoutSeconds: 540,
     memory: "512MiB",
   },
   async (event) => {
     const startTime = Date.now();
-    const executionId = event.id || "unknown";
+    const executionId = event.scheduleTime || "unknown";
 
     try {
       logger.info(FUNCTION_NAME, `[${executionId}] Starting scheduled publishing check...`);
@@ -109,11 +108,7 @@ export const scheduledPublishing = onMessagePublished(
           FUNCTION_NAME,
           `[${executionId}] No scheduled videos due for publishing at this time`
         );
-        return {
-          status: "success",
-          videosProcessed: 0,
-          executionTime: Date.now() - startTime,
-        };
+        return;
       }
 
       logger.info(
@@ -176,11 +171,7 @@ export const scheduledPublishing = onMessagePublished(
 
       if (videosToDocs.length === 0) {
         logger.info(FUNCTION_NAME, `[${executionId}] No valid videos to publish after validation`);
-        return {
-          status: "success",
-          videosProcessed: 0,
-          executionTime: Date.now() - startTime,
-        };
+        return;
       }
 
       // ───────────────────────────────────────────────────────────────────────
@@ -211,10 +202,7 @@ export const scheduledPublishing = onMessagePublished(
 
       logger.info(FUNCTION_NAME, `[${executionId}] EXECUTION SUMMARY: ${JSON.stringify(summary)}`);
 
-      return {
-        status: "success",
-        ...summary,
-      };
+      return;
     } catch (error) {
       const executionTime = Date.now() - startTime;
       logger.error(

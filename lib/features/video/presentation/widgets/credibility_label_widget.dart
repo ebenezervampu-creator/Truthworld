@@ -128,7 +128,7 @@ class CredibilityLabelWidget extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.warning_amber_rounded, color: AppColors.error),
+          const Icon(Icons.warning_amber_rounded, color: Colors.white),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -183,7 +183,7 @@ class CredibilityLabelWidget extends StatelessWidget {
         children: [
           const Row(
             children: [
-              Icon(Icons.security, color: AppColors.warning, size: 18),
+              Icon(Icons.security, color: Colors.white, size: 18),
               SizedBox(width: 8),
               Text(
                 'TRUST SAFEGUARDS APPLIED',

@@ -42,7 +42,9 @@ import * as crypto              from "crypto";
 import { requireAdmin } from "../utils/auth";
 
 if (!admin.apps.length) {
-  admin.initializeApp();
+  admin.initializeApp({
+    databaseURL: "https://truthworld-1-default-rtdb.asia-southeast1.firebasedatabase.app",
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

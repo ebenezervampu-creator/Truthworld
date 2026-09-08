@@ -12,6 +12,7 @@ import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/config/app_config.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
@@ -38,6 +39,20 @@ class VideoManagementController extends BaseController with ContentValidationMix
   final RxString postsError = ''.obs;
   StreamSubscription? _postsSub;
 
+  String? _activeChannelId;
+
+  void ensureInitialized(String channelId) {
+    final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final targetId = channelId.isNotEmpty ? channelId : currentUid;
+
+    if (_activeChannelId == targetId && _videosSub != null && _postsSub != null) {
+      return;
+    }
+    _activeChannelId = targetId;
+    listenToChannelVideos(targetId);
+    listenToCommunityPosts(targetId);
+  }
+
   void listenToChannelVideos(String channelId) {
     isLoadingChannelVideos.value = true;
     channelVideosError.value = '';
@@ -58,6 +73,7 @@ class VideoManagementController extends BaseController with ContentValidationMix
         isLoadingChannelVideos.value = false;
       },
       onError: (e) {
+        debugPrint('❌ Error loading channel videos: $e');
         channelVideosError.value = e.toString();
         isLoadingChannelVideos.value = false;
       },
@@ -69,13 +85,11 @@ class VideoManagementController extends BaseController with ContentValidationMix
     isLoadingPosts.value = true;
     postsError.value = '';
     _postsSub?.cancel();
+    final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final targetId = channelId.isNotEmpty ? channelId : currentUid;
+
     _postsSub = _firestore
         .collection(FirestoreCollections.community)
-        .where('channelId', isEqualTo: channelId)
-        .where(
-          'ownerId',
-          isEqualTo: FirebaseAuth.instance.currentUser?.uid ?? '',
-        )
         .snapshots()
         .listen(
           (snapshot) {
@@ -85,15 +99,21 @@ class VideoManagementController extends BaseController with ContentValidationMix
                     doc.data(),
                   ),
                 )
+                .where((p) =>
+                    p.channelId == targetId ||
+                    p.ownerId == targetId ||
+                    (p.channelId.isEmpty && currentUid.isNotEmpty && p.ownerId == currentUid))
                 .toList();
             communityPosts.assignAll(posts);
             isLoadingPosts.value = false;
           },
           onError: (e) {
+            debugPrint('❌ Error loading community posts: $e');
             postsError.value = e.toString();
             isLoadingPosts.value = false;
           },
         );
+    trackSubscription(_postsSub!);
   }
 
   @override
@@ -162,8 +182,32 @@ class VideoManagementController extends BaseController with ContentValidationMix
         customMetadata: {'uploaderId': currentUserId},
       );
 
-      final videoUploadTask = videoRef.putData(videoFile.bytes!, videoMetadata);
-      final imageUploadTask = imageRef.putData(imageFile.bytes!, imageMetadata);
+      final UploadTask videoUploadTask;
+      final UploadTask imageUploadTask;
+
+      if (kIsWeb) {
+        if (videoFile.bytes == null || imageFile.bytes == null) {
+          throw Exception('Media bytes are null on Web platform');
+        }
+        videoUploadTask = videoRef.putData(videoFile.bytes!, videoMetadata);
+        imageUploadTask = imageRef.putData(imageFile.bytes!, imageMetadata);
+      } else {
+        if (videoFile.path != null && File(videoFile.path!).existsSync()) {
+          videoUploadTask = videoRef.putFile(File(videoFile.path!), videoMetadata);
+        } else if (videoFile.bytes != null) {
+          videoUploadTask = videoRef.putData(videoFile.bytes!, videoMetadata);
+        } else {
+          throw Exception('Video file missing path and bytes');
+        }
+
+        if (imageFile.path != null && File(imageFile.path!).existsSync()) {
+          imageUploadTask = imageRef.putFile(File(imageFile.path!), imageMetadata);
+        } else if (imageFile.bytes != null) {
+          imageUploadTask = imageRef.putData(imageFile.bytes!, imageMetadata);
+        } else {
+          throw Exception('Image file missing path and bytes');
+        }
+      }
 
       videoUploadTask.snapshotEvents.listen((event) {
         uploadProgress.value =
@@ -480,14 +524,25 @@ class VideoManagementController extends BaseController with ContentValidationMix
       });
       return completer.future;
     } else {
-      final tempDir = await getTemporaryDirectory();
-      final tempFile = File('${tempDir.path}/${videoFile.name}');
-      await tempFile.writeAsBytes(videoFile.bytes!);
-      final controller = VideoPlayerController.file(tempFile);
+      final File targetFile;
+      var shouldDelete = false;
+      if (videoFile.path != null && File(videoFile.path!).existsSync()) {
+        targetFile = File(videoFile.path!);
+      } else {
+        final tempDir = await getTemporaryDirectory();
+        targetFile = File('${tempDir.path}/${videoFile.name}');
+        if (videoFile.bytes != null) {
+          await targetFile.writeAsBytes(videoFile.bytes!);
+          shouldDelete = true;
+        }
+      }
+      final controller = VideoPlayerController.file(targetFile);
       await controller.initialize();
       final duration = controller.value.duration;
       await controller.dispose();
-      await tempFile.delete();
+      if (shouldDelete) {
+        await targetFile.delete().catchError((_) => targetFile);
+      }
       return _formatDuration(duration);
     }
   }
@@ -530,7 +585,7 @@ class VideoManagementController extends BaseController with ContentValidationMix
 
       final token = await currentUser.getIdToken();
       final url = Uri.parse(
-        'https://asia-south1-truthworld-1.cloudfunctions.net/triggerVideoAIFeatures',
+        '${AppConfig.cloudFunctionsBaseUrl}/triggerVideoAIFeatures',
       );
 
       final response = await http.post(

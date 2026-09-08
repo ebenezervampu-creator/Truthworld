@@ -50,8 +50,8 @@ export class IngestionLayer {
   ): Promise<string | null> {
     const fileName = filePath.split("/").pop() ?? "";
 
-    // 0. Only process files under the videos/ prefix (skip thumbnails, channels, etc.)
-    if (!filePath.startsWith("videos/")) {
+    // 0. Only process original video uploads under the videos/ prefix (skip thumbnails, channels, etc.)
+    if (!filePath.startsWith("videos/") || !fileName.startsWith("original")) {
       return null;  // Silently skip — other features handle these prefixes
     }
 

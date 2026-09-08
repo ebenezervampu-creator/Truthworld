@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:universal_html/js.dart' as js;
@@ -272,6 +273,26 @@ class SeoHelper {
     }
   }
 
+  /// Update or create JSON-LD script tag in head
+  static void _updateOrCreateJsonLd(String id, Map<String, dynamic> jsonLdData) {
+    if (!kIsWeb) return;
+    final head = html.document.head;
+    if (head == null) return;
+
+    var script = head.querySelector('script#$id') as html.ScriptElement?;
+    final jsonStr = json.encode(jsonLdData);
+
+    if (script != null) {
+      script.text = jsonStr;
+    } else {
+      script = html.ScriptElement()
+        ..id = id
+        ..type = 'application/ld+json'
+        ..text = jsonStr;
+      head.append(script);
+    }
+  }
+
   /// Set video metadata with optimized image handling
   static void setVideoMetadata({
     required String title,
@@ -281,10 +302,16 @@ class SeoHelper {
     required Duration duration,
     String? thumbnailUrl,
     DateTime? uploadDate,
+    String? channelName,
+    String? channelUrl,
+    bool isKidFriendly = true,
   }) {
     // Validate and convert video URL to absolute
     final absoluteVideoUrl = _toAbsoluteUrl(videoUrl);
     final absoluteThumbnailUrl = _validateImageUrl(thumbnailUrl);
+    final fullUrl = url.startsWith('http') ? url : '$_appUrl$url';
+    final isHls = videoUrl.contains('.m3u8') || videoUrl.contains('hls');
+    final videoMimeType = isHls ? 'application/x-mpegURL' : 'video/mp4';
 
     setPage(
       title: title,
@@ -298,7 +325,7 @@ class SeoHelper {
     if (head != null) {
       _updateOrCreateMeta(property: 'og:video', content: absoluteVideoUrl);
 
-      _updateOrCreateMeta(property: 'og:video:type', content: 'video/mp4');
+      _updateOrCreateMeta(property: 'og:video:type', content: videoMimeType);
 
       _updateOrCreateMeta(property: 'og:video:url', content: absoluteVideoUrl);
 
@@ -319,6 +346,57 @@ class SeoHelper {
         property: 'og:video:thumbnail_url',
         content: absoluteThumbnailUrl,
       );
+
+      // Inject Schema.org VideoObject JSON-LD for Google Rich Results
+      final embedUrl = fullUrl.replaceAll('/watch?v=', '/embed/').replaceAll('/watch/', '/embed/');
+      _updateOrCreateJsonLd('video-jsonld', {
+        '@context': 'https://schema.org',
+        '@type': 'VideoObject',
+        'name': title,
+        'description': description,
+        'thumbnailUrl': [absoluteThumbnailUrl],
+        if (uploadDate != null) 'uploadDate': uploadDate.toIso8601String(),
+        'duration': () {
+          final totalSec = duration.inSeconds;
+          final h = totalSec ~/ 3600;
+          final m = (totalSec % 3600) ~/ 60;
+          final s = totalSec % 60;
+          final parts = <String>[];
+          if (h > 0) parts.add('${h}H');
+          if (m > 0) parts.add('${m}M');
+          if (s > 0 || parts.isEmpty) parts.add('${s}S');
+          return 'PT${parts.join()}';
+        }(),
+        'contentUrl': absoluteVideoUrl,
+        'embedUrl': embedUrl,
+        'isFamilyFriendly': isKidFriendly,
+        'publisher': {
+          '@type': 'Organization',
+          'name': 'Truthworld',
+          'url': _appUrl,
+          'logo': {
+            '@type': 'ImageObject',
+            'url': '$_appUrl/icons/Icon-192.png',
+          },
+        },
+        if (channelName != null && channelName.isNotEmpty)
+          'author': {
+            '@type': 'Person',
+            'name': channelName,
+            'url': channelUrl ?? _appUrl,
+          },
+        'potentialAction': [
+          {
+            '@type': 'SeekToAction',
+            'target': '$fullUrl&t={seek_to_second_number}',
+            'startOffset-input': 'required name=seek_to_second_number',
+          },
+          {
+            '@type': 'WatchAction',
+            'target': fullUrl,
+          },
+        ],
+      });
     }
   }
 
@@ -421,6 +499,19 @@ class SeoHelper {
 
   /// Reset to default metadata
   static void resetToDefault() {
+    if (kIsWeb) {
+      final head = html.document.head;
+      if (head != null) {
+        head.querySelector('script#video-jsonld')?.remove();
+        head.querySelector('meta[property="og:video"]')?.remove();
+        head.querySelector('meta[property="og:video:type"]')?.remove();
+        head.querySelector('meta[property="og:video:url"]')?.remove();
+        head.querySelector('meta[property="og:video:thumbnail_url"]')?.remove();
+        head.querySelector('meta[property="video:release_date"]')?.remove();
+        head.querySelector('meta[property="video:duration"]')?.remove();
+        head.querySelector('meta[property="og:video:secure_url"]')?.remove();
+      }
+    }
     setPage(
       title: 'Home',
       description: 'Truthworld - Share and discover amazing video content',

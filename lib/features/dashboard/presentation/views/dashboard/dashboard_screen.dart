@@ -27,11 +27,13 @@ import 'package:truthworld/features/dashboard/presentation/views/dashboard/analy
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audience_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/category_insights_screen.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/chapters_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/content_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/copyright_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/creator_intelligence_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/customization_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_comments_page.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/drafts_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/memberships_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/place_holder_screen.dart';
@@ -39,6 +41,7 @@ import 'package:truthworld/features/dashboard/presentation/views/dashboard/playl
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/studio_settings_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/topic_management_screen.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/trash_restore_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification_dashboard_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/features/topics/presentation/widgets/create_topic_dialog.dart';
@@ -605,6 +608,22 @@ class _DashboardScreenState extends State<DashboardScreen>
       final tabIndex = args is Map ? args['tab'] as int? : null;
       if (tabIndex != null) {
         controller.selectedIndex.value = tabIndex;
+      } else {
+        final currentRoute = Get.currentRoute.toLowerCase();
+        final tabParam = (Get.parameters['tab'] ?? '').toLowerCase();
+        if (currentRoute.contains('/chapters') ||
+            tabParam == 'chapters' ||
+            tabParam == '11') {
+          controller.selectedIndex.value = 11;
+        } else if (currentRoute.contains('/trash') ||
+            tabParam == 'trash' ||
+            tabParam == '13') {
+          controller.selectedIndex.value = 13;
+        } else if (currentRoute.contains('/drafts') ||
+            tabParam == 'drafts' ||
+            tabParam == '20') {
+          controller.selectedIndex.value = 20;
+        }
       }
 
       if (!Get.isRegistered<VideoManagementController>()) {
@@ -1113,7 +1132,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     try {
       await AuthService.to.signInWithGoogle();
       if (!mounted) return;
-      await AuthService.to.checkAndPromptOnboarding(context);
 
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
@@ -1197,14 +1215,15 @@ class _DashboardScreenState extends State<DashboardScreen>
               ),
             ),
           ),
-          child: Column(
-            children: [
-              _buildSidebarHeader(isDarkMode),
-              Expanded(child: _buildSidebarMenu(isDarkMode)),
-            ],
-          ),
+          child: child,
         );
       },
+      child: Column(
+        children: [
+          _buildSidebarHeader(isDarkMode),
+          Expanded(child: _buildSidebarMenu(isDarkMode)),
+        ],
+      ),
     );
   }
 
@@ -1263,6 +1282,13 @@ class _DashboardScreenState extends State<DashboardScreen>
         'color': const Color(0xFF10B981),
         'action': 'select',
         'target': 2,
+      },
+      {
+        'icon': Icons.drafts_rounded,
+        'label': 'Drafts',
+        'color': const Color(0xFFF59E0B),
+        'action': 'select',
+        'target': 20,
       },
       {
         'icon': Icons.upload_rounded,
@@ -1348,6 +1374,13 @@ class _DashboardScreenState extends State<DashboardScreen>
         'target': 7,
       },
       {
+        'icon': Icons.view_timeline_rounded,
+        'label': 'Chapters',
+        'color': const Color(0xFF3B82F6),
+        'action': 'select',
+        'target': 11,
+      },
+      {
         'icon': Icons.color_lens_rounded,
         'label': 'Customization',
         'color': const Color(0xFFEC4899),
@@ -1374,6 +1407,15 @@ class _DashboardScreenState extends State<DashboardScreen>
         'color': const Color(0xFF10B981),
         'action': 'select',
         'target': 15,
+      },
+
+      // System & Recovery
+      {
+        'icon': Icons.auto_delete_outlined,
+        'label': 'Trash & Restore',
+        'color': const Color(0xFF94A3B8),
+        'action': 'select',
+        'target': 13,
       },
     ];
 
@@ -1650,8 +1692,18 @@ class _DashboardScreenState extends State<DashboardScreen>
                   channelId: channelId,
                   isDarkMode: isDarkMode,
                 );
+              case 11:
+                return ChaptersPage(
+                  channelId: channelId,
+                  isDarkMode: isDarkMode,
+                );
               case 12:
                 return AudiencePage(
+                  channelId: channelId,
+                  isDarkMode: isDarkMode,
+                );
+              case 13:
+                return TrashRestoreScreen(
                   channelId: channelId,
                   isDarkMode: isDarkMode,
                 );
@@ -1685,6 +1737,11 @@ class _DashboardScreenState extends State<DashboardScreen>
                 );
               case 19:
                 return CategoryInsightsScreen(
+                  channelId: channelId,
+                  isDarkMode: isDarkMode,
+                );
+              case 20:
+                return DraftsScreen(
                   channelId: channelId,
                   isDarkMode: isDarkMode,
                 );
@@ -2659,14 +2716,11 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildChannelStatsGrid(bool isDarkMode) {
-    return AnimatedBuilder(
-      animation: _statsAnimation,
-      builder: (context, child) {
-        return Transform.scale(
-          scale: _statsAnimation.value,
-          child: Opacity(
-            opacity: _statsAnimation.value,
-            child: Obx(() {
+    return ScaleTransition(
+      scale: _statsAnimation,
+      child: FadeTransition(
+        opacity: _statsAnimation,
+        child: Obx(() {
               if (controller.rxIsLoading.value &&
                   controller.channelStats.isEmpty) {
                 return _buildStatsLoadingGrid(isDarkMode);
@@ -2865,9 +2919,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ],
               );
             }),
-          ),
-        );
-      },
+      ),
     );
   }
 
@@ -3101,6 +3153,88 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildRecentPerformanceSection(bool isDarkMode) {
+    final performanceContent = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Recent Performance',
+              style: TextStyle(
+                fontSize: isMobile ? 20 : 24,
+                fontWeight: FontWeight.bold,
+                color: isDarkMode
+                    ? AppColors.textPrimary
+                    : Colors.black,
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 6,
+              ),
+              decoration: BoxDecoration(
+                color: isDarkMode
+                    ? AppTheme.colors.surface
+                    : const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isDarkMode
+                      ? const Color(0xFF374151)
+                      : AppColors.bgDivider,
+                ),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.date_range_rounded,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                  SizedBox(width: 6),
+                  Text(
+                    'Last 28 days',
+                    style: TextStyle(
+                      color: Color(0xFF6366F1),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        Container(
+          height: 300,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: isDarkMode
+                ? AppTheme.colors.surface
+                : AppColors.textPrimary,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isDarkMode
+                  ? const Color(0xFF374151)
+                  : AppColors.bgDivider,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: isDarkMode ? Colors.black26 : Colors.black38,
+                blurRadius: 20,
+                spreadRadius: 2,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: _buildPerformanceChart(isDarkMode),
+        ),
+      ],
+    );
+
     return AnimatedBuilder(
       animation: _chartAnimation,
       builder: (context, child) {
@@ -3108,90 +3242,11 @@ class _DashboardScreenState extends State<DashboardScreen>
           offset: Offset(0, 50 * (1 - _chartAnimation.value)),
           child: Opacity(
             opacity: _chartAnimation.value,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Recent Performance',
-                      style: TextStyle(
-                        fontSize: isMobile ? 20 : 24,
-                        fontWeight: FontWeight.bold,
-                        color: isDarkMode
-                            ? AppColors.textPrimary
-                            : Colors.black,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isDarkMode
-                            ? AppTheme.colors.surface
-                            : const Color(0xFFF1F5F9),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: isDarkMode
-                              ? const Color(0xFF374151)
-                              : AppColors.bgDivider,
-                        ),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.date_range_rounded,
-                            color: Color(0xFF6366F1),
-                            size: 16,
-                          ),
-                          SizedBox(width: 6),
-                          Text(
-                            'Last 28 days',
-                            style: TextStyle(
-                              color: Color(0xFF6366F1),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                Container(
-                  height: 300,
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: isDarkMode
-                        ? AppTheme.colors.surface
-                        : AppColors.textPrimary,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: isDarkMode
-                          ? const Color(0xFF374151)
-                          : AppColors.bgDivider,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: isDarkMode ? Colors.black26 : Colors.black38,
-                        blurRadius: 20,
-                        spreadRadius: 2,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: _buildPerformanceChart(isDarkMode),
-                ),
-              ],
-            ),
+            child: child,
           ),
         );
       },
+      child: performanceContent,
     );
   }
 

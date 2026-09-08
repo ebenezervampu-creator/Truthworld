@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
@@ -35,7 +36,13 @@ class UploadRepository {
     required Uint8List bytes,
   }) {
     final videoRef = _storage.ref().child('videos/$uniqueId/original.mp4');
-    final metadata = SettableMetadata(contentType: 'video/mp4');
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    final metadata = SettableMetadata(
+      contentType: 'video/mp4',
+      customMetadata: {
+        'uploaderId': ?currentUid,
+      },
+    );
     return videoRef.putData(bytes, metadata);
   }
 
@@ -45,7 +52,13 @@ class UploadRepository {
     required Uint8List bytes,
   }) async {
     final imageRef = _storage.ref().child('thumbnails/$uniqueId.jpg');
-    final metadata = SettableMetadata(contentType: 'image/jpeg');
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    final metadata = SettableMetadata(
+      contentType: 'image/jpeg',
+      customMetadata: {
+        'uploaderId': ?currentUid,
+      },
+    );
     final uploadTask = await imageRef.putData(bytes, metadata);
     return uploadTask.ref.getDownloadURL();
   }
@@ -60,9 +73,12 @@ class UploadRepository {
     final sampleRef = _storage.ref().child(
       'voices/$userId/$uniqueId.$sampleExt',
     );
-    final sampleMeta = SettableMetadata(contentType: 'audio/$sampleExt');
+    final metadata = SettableMetadata(
+      contentType: 'audio/$sampleExt',
+      customMetadata: {'uploaderId': userId},
+    );
     final sampleBytes = await voiceSampleFile.xFile.readAsBytes();
-    await sampleRef.putData(sampleBytes, sampleMeta);
+    await sampleRef.putData(sampleBytes, metadata);
   }
 
   /// Updates an existing video document

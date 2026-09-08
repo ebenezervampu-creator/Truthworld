@@ -7,15 +7,27 @@ import { notifyUser } from "../notifications/notifications";
 // Safe db access function/instance
 const db = () => admin.firestore();
 
-// Sanitize text simple implementation to strip script/iframe tags
+// L-34: Hardened sanitization — strip ALL HTML tags, not just script/iframe
+// The previous regex-only approach was easily bypassed with <img onerror>, <svg onload>, etc.
 function sanitizeText(text: string): string {
   return text
+    // Strip executable blocks along with their inner contents
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
     .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, "")
+    // Strip ALL remaining HTML tags (e.g. img, svg, a, object, embed)
+    .replace(/<[^>]*>/g, "")
+    // Remove event handlers that survived (e.g., in malformed HTML)
     .replace(/on\w+="[^"]*"/gi, "")
     .replace(/on\w+='[^']*'/gi, "")
     .replace(/on\w+=\w+/gi, "")
+    // Block dangerous URI schemes
     .replace(/javascript:/gi, "javascript_blocked:")
+    .replace(/data:/gi, "data_blocked:")
+    .replace(/vbscript:/gi, "vbscript_blocked:")
+    // Encode remaining angle brackets to prevent reconstruction
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
     .trim();
 }
 
@@ -75,12 +87,15 @@ export const getComments = onCall(
     const { videoId, limit = 20 } = request.data;
     if (!videoId) throw new HttpsError("invalid-argument", "Missing videoId.");
 
+    // L-35: Clamp limit to prevent unbounded Firestore reads
+    const safeLimit = Math.min(Math.max(1, Number(limit) || 20), 100);
+
     try {
       const snap = await db().collection("comments")
         .where("videoId", "==", videoId)
         .where("parentId", "==", null)
         .orderBy("authorRankScore", "desc")
-        .limit(limit)
+        .limit(safeLimit)
         .get();
 
       const comments = snap.docs.map(doc => doc.data() as Comment);
@@ -721,6 +736,18 @@ export const reportCommentNested = onCall(
     }
 
     try {
+      // L-36: Prevent duplicate reports — one report per user per target
+      const existingReport = await db().collection("reports")
+        .where("reporterId", "==", reporterId)
+        .where("commentId", "==", commentId)
+        .where("replyId", "==", replyId || null)
+        .limit(1)
+        .get();
+
+      if (!existingReport.empty) {
+        throw new HttpsError("already-exists", "You have already reported this content.");
+      }
+
       // 1. Create tracking report document
       await db().collection("reports").add({
         commentId,

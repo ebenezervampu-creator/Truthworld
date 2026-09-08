@@ -59,6 +59,21 @@ class LibraryScreenState extends State<LibraryScreen>
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
   late Animation<double> _scaleAnimation;
+  Stream<QuerySnapshot>? _sidebarPlaylistsStream;
+  String? _lastUserId;
+
+  Stream<QuerySnapshot> _getSidebarPlaylistsStream(String userId) {
+    if (_sidebarPlaylistsStream == null || _lastUserId != userId) {
+      _lastUserId = userId;
+      _sidebarPlaylistsStream = FirebaseFirestore.instance
+          .collection(FirestoreCollections.users)
+          .doc(userId)
+          .collection(FirestoreCollections.playlists)
+          .orderBy('createdAt', descending: true)
+          .snapshots();
+    }
+    return _sidebarPlaylistsStream!;
+  }
 
   @override
   void initState() {
@@ -126,20 +141,15 @@ class LibraryScreenState extends State<LibraryScreen>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _fadeAnimation,
-      builder: (context, child) {
-        return FadeTransition(
-          opacity: _fadeAnimation,
-          child: SlideTransition(
-            position: _slideAnimation,
-            child: ScaleTransition(
-              scale: _scaleAnimation,
-              child: _buildResponsiveLayout(context),
-            ),
-          ),
-        );
-      },
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: SlideTransition(
+        position: _slideAnimation,
+        child: ScaleTransition(
+          scale: _scaleAnimation,
+          child: _buildResponsiveLayout(context),
+        ),
+      ),
     );
   }
 
@@ -1165,12 +1175,7 @@ class LibraryScreenState extends State<LibraryScreen>
         const SizedBox(height: 16),
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection(FirestoreCollections.users)
-                .doc(userId)
-                .collection(FirestoreCollections.playlists)
-                .orderBy('createdAt', descending: true)
-                .snapshots(),
+            stream: _getSidebarPlaylistsStream(userId),
             builder: (context, snapshot) {
               if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                 return const Text(

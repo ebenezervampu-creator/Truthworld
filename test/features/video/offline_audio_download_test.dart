@@ -3,10 +3,6 @@ import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/features/video/presentation/controllers/downloadcontroller.dart';
 
 class TestDownloadsController extends DownloadsController {
-  @override
-  void onInit() {
-    // Avoid database call in test
-  }
 }
 
 void main() {
@@ -21,7 +17,7 @@ void main() {
         channelImage: '',
         views: '100',
         thumbnailUrl: 'https://example.com/thumb.jpg',
-        downloadedAt: DateTime(2026, 1, 1),
+        downloadedAt: DateTime(2026),
       );
 
       expect(item.isAudioOnly, isFalse);
@@ -40,7 +36,7 @@ void main() {
         channelImage: 'https://example.com/avatar.jpg',
         views: '1500',
         thumbnailUrl: 'https://example.com/thumb.jpg',
-        downloadedAt: DateTime(2026, 2, 1),
+        downloadedAt: DateTime(2026, 2),
         isAudioOnly: true,
         quality: 'Audio only',
       );
@@ -67,7 +63,7 @@ void main() {
         channelImage: '',
         views: '10',
         thumbnailUrl: '',
-        downloadedAt: DateTime(2026, 1, 1),
+        downloadedAt: DateTime(2026),
       );
 
       final updated = item.copyWith(
@@ -96,8 +92,7 @@ void main() {
           channelImage: '',
           views: '500',
           thumbnailUrl: '',
-          downloadedAt: DateTime(2026, 1, 1),
-          isAudioOnly: false,
+          downloadedAt: DateTime(2026),
           quality: '1080p',
         ),
         OfflineVideo(
@@ -119,7 +114,6 @@ void main() {
           views: '1200',
           thumbnailUrl: '',
           downloadedAt: DateTime(2026, 1, 3),
-          isAudioOnly: false,
           quality: '720p',
         ),
         OfflineVideo(

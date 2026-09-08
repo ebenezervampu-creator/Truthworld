@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/network/result.dart';
@@ -26,7 +27,14 @@ class StorageVideoUploadRepository implements VideoUploadRepository {
     try {
       final file = File(filePath);
       final ref = _storage.ref().child(destinationPath);
-      final uploadTask = ref.putFile(file);
+      final currentUid = FirebaseAuth.instance.currentUser?.uid;
+      final metadata = SettableMetadata(
+        contentType: 'video/mp4',
+        customMetadata: {
+          'uploaderId': ?currentUid,
+        },
+      );
+      final uploadTask = ref.putFile(file, metadata);
 
       if (onProgress != null) {
         uploadTask.snapshotEvents.listen((event) {
@@ -52,7 +60,14 @@ class StorageVideoUploadRepository implements VideoUploadRepository {
   }) async {
     try {
       final ref = _storage.ref().child('thumbnails/$fileName');
-      final uploadTask = ref.putData(imageBytes);
+      final currentUid = FirebaseAuth.instance.currentUser?.uid;
+      final metadata = SettableMetadata(
+        contentType: 'image/jpeg',
+        customMetadata: {
+          'uploaderId': ?currentUid,
+        },
+      );
+      final uploadTask = ref.putData(imageBytes, metadata);
       final snapshot = await uploadTask;
       final downloadUrl = await snapshot.ref.getDownloadURL();
       return Result.success(downloadUrl);

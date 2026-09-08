@@ -277,7 +277,7 @@ class TopicRepository {
         allTopics.addAll(
           query.docs
               .map(Topic.fromDocumentSnapshot)
-              .where((t) => t.isValidTopic),
+              .where((t) => t.isValidTopic && t.videoCount > 0),
         );
       }
 
@@ -305,7 +305,7 @@ class TopicRepository {
 
       return snapshot.docs
           .map(Topic.fromDocumentSnapshot)
-          .where((t) => t.isValidTopic && t.slug != excludeSlug)
+          .where((t) => t.isValidTopic && t.videoCount > 0 && t.slug != excludeSlug)
           .toList();
     } catch (e) {
       debugPrint('Error fetching similar topics: $e');
@@ -328,7 +328,7 @@ class TopicRepository {
 
       return snapshot.docs
           .map(Topic.fromDocumentSnapshot)
-          .where((t) => t.isValidTopic)
+          .where((t) => t.isValidTopic && t.videoCount > 0)
           .toList();
     } catch (e) {
       debugPrint('Error fetching popular topics: $e');
@@ -351,7 +351,7 @@ class TopicRepository {
 
       return snapshot.docs
           .map(Topic.fromDocumentSnapshot)
-          .where((t) => t.isValidTopic)
+          .where((t) => t.isValidTopic && t.videoCount > 0)
           .toList();
     } catch (e) {
       debugPrint('Error searching topics: $e');
@@ -369,7 +369,7 @@ class TopicRepository {
       if (snapshot.docs.isNotEmpty) {
         final list = snapshot.docs
             .map(Topic.fromDocumentSnapshot)
-            .where((t) => t.isValidTopic)
+            .where((t) => t.isValidTopic && t.videoCount > 0)
             .toList();
         if (list.isNotEmpty) return list;
       }
@@ -397,7 +397,7 @@ class TopicRepository {
       final snapshot = await query.get();
       return snapshot.docs
           .map(Topic.fromDocumentSnapshot)
-          .where((t) => t.isValidTopic)
+          .where((t) => t.isValidTopic && t.videoCount > 0)
           .toList();
     } catch (e) {
       debugPrint('Error fetchTrendingTopics: $e');
@@ -422,11 +422,25 @@ class TopicRepository {
       final snapshot = await query.get();
       return snapshot.docs
           .map(Topic.fromDocumentSnapshot)
-          .where((t) => t.isValidTopic)
+          .where((t) => t.isValidTopic && t.videoCount > 0)
           .toList();
     } catch (e) {
       debugPrint('Error fetchTopics: $e');
-      return [];
+      try {
+        Query fallbackQuery = _firestore.collection(FirestoreCollections.topics);
+        if (category.toLowerCase() != 'all') {
+          fallbackQuery = fallbackQuery.where('category', isEqualTo: category);
+        }
+        fallbackQuery = fallbackQuery.limit(limit);
+        final snapshot = await fallbackQuery.get();
+        return snapshot.docs
+            .map(Topic.fromDocumentSnapshot)
+            .where((t) => t.isValidTopic && t.videoCount > 0)
+            .toList();
+      } catch (err) {
+        debugPrint('Error in fallback fetchTopics: $err');
+        return [];
+      }
     }
   }
 
@@ -481,7 +495,7 @@ class TopicRepository {
                 .get();
             return query.docs
                 .map(Topic.fromDocumentSnapshot)
-                .where((t) => t.isValidTopic)
+                .where((t) => t.isValidTopic && t.videoCount > 0)
                 .toList();
           } catch (e) {
             debugPrint('Error batch fetching topics by IDs: $e');
@@ -514,6 +528,17 @@ class TopicRepository {
 
   Future<bool> followTopic(String userId, String topicId) async {
     try {
+      final topicDoc = await _firestore
+          .collection(FirestoreCollections.topics)
+          .doc(topicId)
+          .get();
+      if (!topicDoc.exists) return false;
+      final topic = Topic.fromDocumentSnapshot(topicDoc);
+      if (!topic.isValidTopic || topic.videoCount <= 0) {
+        debugPrint('Cannot follow invalid or 0-video topic: $topicId');
+        return false;
+      }
+
       final batch = _firestore.batch();
       final topicRef = _firestore
           .collection(FirestoreCollections.topics)

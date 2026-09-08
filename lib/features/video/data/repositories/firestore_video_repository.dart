@@ -31,6 +31,7 @@ class FirestoreVideoRepository implements VideoRepository {
     try {
       final snap = await _firestore
           .collection('videos')
+          .where('status', isEqualTo: 'published')
           .orderBy('createdAt', descending: true)
           .limit(limit)
           .get();

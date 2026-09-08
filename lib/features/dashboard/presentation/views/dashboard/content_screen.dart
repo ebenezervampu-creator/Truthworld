@@ -7,7 +7,12 @@ import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/core/utils/watch_time_formatter.dart';
 import 'package:truthworld/features/analytics/presentation/pages/watch_time_page.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/chapters_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/chapters_page.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart' show DashboardController;
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/drafts_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/edit_videoscreen.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/trash_restore_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_content_details_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
@@ -30,8 +35,7 @@ class ContentScreen extends StatelessWidget {
     final ctrl = Get.isRegistered<VideoManagementController>()
         ? Get.find<VideoManagementController>()
         : Get.put(VideoManagementController());
-    ctrl.listenToChannelVideos(channelId);
-    ctrl.listenToCommunityPosts(channelId);
+    ctrl.ensureInitialized(channelId);
     return ctrl;
   }
 
@@ -47,26 +51,72 @@ class ContentScreen extends StatelessWidget {
           toolbarHeight: 0, // Hide the app bar title portion, only keep TabBar
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(52),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: TabBar(
-                isScrollable: true,
-                indicatorColor: AppColors.brand,
-                indicatorWeight: 3,
-                labelColor: AppColors.textPrimary,
-                unselectedLabelColor: AppColors.textSecondary,
-                indicatorSize: TabBarIndicatorSize.label,
-                labelStyle: AppTextStyles.titleMedium.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-                unselectedLabelStyle: AppTextStyles.titleMedium.copyWith(
-                  fontWeight: FontWeight.normal,
-                ),
-                tabs: const [
-                  Tab(text: 'Videos'),
-                  Tab(text: 'Posts'),
-                  Tab(text: 'Drafts'),
-                  Tab(text: 'Scheduled'),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TabBar(
+                      isScrollable: true,
+                      indicatorColor: AppColors.brand,
+                      indicatorWeight: 3,
+                      labelColor: AppColors.textPrimary,
+                      unselectedLabelColor: AppColors.textSecondary,
+                      indicatorSize: TabBarIndicatorSize.label,
+                      labelStyle: AppTextStyles.titleMedium.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                      unselectedLabelStyle: AppTextStyles.titleMedium.copyWith(
+                        fontWeight: FontWeight.normal,
+                      ),
+                      tabs: const [
+                        Tab(text: 'Videos'),
+                        Tab(text: 'Posts'),
+                        Tab(text: 'Drafts'),
+                        Tab(text: 'Scheduled'),
+                      ],
+                    ),
+                  ),
+                  Tooltip(
+                    message: 'Trash & Restore',
+                    child: TextButton.icon(
+                      onPressed: () {
+                        if (Get.isRegistered<DashboardController>()) {
+                          Get.find<DashboardController>().setSelectedIndex(13);
+                        } else {
+                          Get.to<dynamic>(
+                            () => TrashRestoreScreen(
+                              channelId: channelId,
+                              isDarkMode: isDarkMode,
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(
+                        Icons.auto_delete_outlined,
+                        size: 18,
+                        color: Colors.white,
+                      ),
+                      label: Text(
+                        'Trash',
+                        style: AppTextStyles.bodySmall.copyWith(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      style: TextButton.styleFrom(
+                        backgroundColor: AppColors.bgInput,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          side: const BorderSide(color: AppColors.bgDivider),
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -329,7 +379,7 @@ class ContentScreen extends StatelessWidget {
               const Icon(
                 Icons.drafts_outlined,
                 size: 72,
-                color: AppColors.textTertiary,
+                color: Colors.white,
               ),
               const SizedBox(height: 16),
               Text(
@@ -344,6 +394,41 @@ class ContentScreen extends StatelessWidget {
                 'Drafts you save while creating videos or posts will appear here.',
                 style: AppTextStyles.bodyMedium.copyWith(
                   color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () {
+                  if (Get.isRegistered<DashboardController>()) {
+                    Get.find<DashboardController>().setSelectedIndex(20);
+                  } else {
+                    Get.to<dynamic>(
+                      () => DraftsScreen(
+                        channelId: channelId,
+                        isDarkMode: isDarkMode,
+                      ),
+                    );
+                  }
+                },
+                icon: const Icon(
+                  Icons.open_in_new_rounded,
+                  size: 16,
+                  color: Colors.white,
+                ),
+                label: Text(
+                  'Open Drafts Manager',
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: AppColors.bgDivider),
+                  backgroundColor: AppColors.bgSurface,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
             ],
@@ -367,20 +452,74 @@ class ContentScreen extends StatelessWidget {
         }).toList();
       }
 
-      return ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        itemCount: items.length,
-        itemBuilder: (context, index) {
-          final item = items[index];
-          if (item is Video) {
-            return _buildDraftVideoCard(context, item, controller);
-          } else {
-            return CommunityPostCard(
-              key: ValueKey((item as CommunityPostModel).id),
-              post: item,
-            );
-          }
-        },
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Drafts (${items.length})',
+                  style: AppTextStyles.titleMedium.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    if (Get.isRegistered<DashboardController>()) {
+                      Get.find<DashboardController>().setSelectedIndex(20);
+                    } else {
+                      Get.to<dynamic>(
+                        () => DraftsScreen(
+                          channelId: channelId,
+                          isDarkMode: isDarkMode,
+                        ),
+                      );
+                    }
+                  },
+                  icon: const Icon(
+                    Icons.open_in_new_rounded,
+                    size: 16,
+                    color: Colors.white,
+                  ),
+                  label: Text(
+                    'Advanced Drafts Manager',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: AppColors.bgDivider),
+                    backgroundColor: AppColors.bgSurface,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              itemCount: items.length,
+              itemBuilder: (context, index) {
+                final item = items[index];
+                if (item is Video) {
+                  return _buildDraftVideoCard(context, item, controller);
+                } else {
+                  return CommunityPostCard(
+                    key: ValueKey((item as CommunityPostModel).id),
+                    post: item,
+                  );
+                }
+              },
+            ),
+          ),
+        ],
       );
     });
   }
@@ -974,6 +1113,22 @@ class ContentScreen extends StatelessWidget {
                         isDarkMode: isDarkMode,
                       ),
                     );
+                  } else if (value == 'chapters') {
+                    final chaptersCtrl = Get.isRegistered<ChaptersController>()
+                        ? Get.find<ChaptersController>()
+                        : Get.put(ChaptersController());
+                    chaptersCtrl.setChannelContext(video.channelId);
+                    chaptersCtrl.selectVideo(video);
+                    if (Get.isRegistered<DashboardController>()) {
+                      Get.find<DashboardController>().setSelectedIndex(11);
+                    } else {
+                      Get.to<dynamic>(
+                        () => ChaptersPage(
+                          channelId: video.channelId,
+                          isDarkMode: isDarkMode,
+                        ),
+                      );
+                    }
                   } else if (value == 'visibility') {
                     _showChangeVisibilityDialog(context, video, controller);
                   } else if (value == 'edit') {
@@ -1043,6 +1198,23 @@ class ContentScreen extends StatelessWidget {
                         const SizedBox(width: 10),
                         Text(
                           'Video Content Details',
+                          style: AppTextStyles.bodyMedium,
+                        ),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'chapters',
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.view_timeline_rounded,
+                          size: 18,
+                          color: AppColors.textPrimary,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Chapters',
                           style: AppTextStyles.bodyMedium,
                         ),
                       ],

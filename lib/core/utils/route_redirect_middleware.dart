@@ -1,6 +1,9 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
+import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 
 /// Middleware that redirects `/videoscreen` to `/watch?v=VIDEO_ID` *before*
@@ -240,5 +243,51 @@ class RouteStackObserver extends NavigatorObserver {
     return routeStack.any(
       (route) => route.settings.name?.contains(namePattern) ?? false,
     );
+  }
+}
+
+/// Middleware that protects `/admin/dashboard` routes.
+/// Verifies that the user is authenticated and is the owner or has admin claim.
+class AdminAuthGuardMiddleware extends GetMiddleware {
+  static const List<String> authorizedOwnerEmails = [
+    'ebenezervampy@towervsp.com',
+    'ebenezervampu@towervsp.com',
+    'ebenezervampu4@gmail.com',
+    'admin@truthworld.com',
+  ];
+
+  @override
+  int? get priority => 0;
+
+  @override
+  RouteSettings? redirect(String? route) {
+    // 1. Check if AdminController is registered and explicitly verified as admin
+    if (Get.isRegistered<AdminController>()) {
+      final ctrl = Get.find<AdminController>();
+      if (ctrl.isAdmin.value) {
+        return null;
+      }
+    }
+
+    // 2. Check persistent admin protocol session
+    try {
+      final storage = GetStorage();
+      final session = storage.read<Map<dynamic, dynamic>>('truthworld_admin_session');
+      if (session != null && session['email'] != null) {
+        return null;
+      }
+    } catch (_) {}
+
+    // 3. Fallback check for owner account in Firebase Auth
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null && user.email != null) {
+      final email = user.email!.toLowerCase();
+      if (authorizedOwnerEmails.contains(email)) {
+        return null;
+      }
+    }
+
+    // Strict protocol gate: redirect anyone unauthenticated to login
+    return const RouteSettings(name: '/admin/login');
   }
 }

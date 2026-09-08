@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
@@ -14,7 +13,7 @@ class CreateTopicScreen extends StatelessWidget {
 
   Future<List<Map<String, dynamic>>> _fetchVideos(String channelId) async {
     try {
-      final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+      final uid = AuthService.to.uid;
       if (channelId.isNotEmpty) {
         final snap = await FirebaseFirestore.instance
             .collection(FirestoreCollections.videos)

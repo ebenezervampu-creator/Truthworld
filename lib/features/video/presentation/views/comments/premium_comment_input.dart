@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -54,10 +53,15 @@ class PremiumCommentInput extends StatelessWidget {
       PremiumCommentInputController(),
       tag: 'premium_input_${videoId}_$isReply',
     );
-    final user = FirebaseAuth.instance.currentUser;
 
     return Obx(() {
       final authService = AuthService.to;
+      final isAuthenticated = authService.isAuthenticated.value;
+      if (!isAuthenticated) {
+        return _buildUnauthenticatedPrompt(context);
+      }
+
+      final user = authService.user;
       final hasChannel = authService.hasChannel.value;
       final channel = authService.userChannel;
 
@@ -73,6 +77,29 @@ class PremiumCommentInput extends StatelessWidget {
                       : 'U'));
 
       Future<void> submitComment() async {
+        if (!authService.isAuthenticated.value) {
+          Get.snackbar(
+            'Sign In Required',
+            'Please sign in to post a comment',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: AppColors.bgSurface,
+            colorText: AppColors.textPrimary,
+            margin: const EdgeInsets.all(16),
+            borderRadius: 12,
+            mainButton: TextButton(
+              onPressed: authService.signInWithGoogle,
+              child: const Text(
+                'SIGN IN',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          );
+          return;
+        }
+
         final text = controller.commentController.text.trim();
         if (text.isEmpty || controller.isSubmitting.value) return;
 
@@ -226,12 +253,101 @@ class PremiumCommentInput extends StatelessWidget {
     });
   }
 
+  Widget _buildUnauthenticatedPrompt(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.bgSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.08),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.06),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.account_circle_outlined,
+              color: Colors.white,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Join the conversation',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Sign in to add a comment or reply',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          ElevatedButton(
+            onPressed: () async {
+              HapticFeedback.lightImpact();
+              await AuthService.to.signInWithGoogle();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              elevation: 0,
+            ),
+            child: const Text(
+              'Sign In',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showSuperThanksModal(BuildContext context, String videoId) {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
+    if (!AuthService.to.isAuthenticated.value) {
       Get.snackbar(
         'Authentication Required',
         'Please sign in to send Super Thanks.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.bgSurface,
+        colorText: AppColors.textPrimary,
+        margin: const EdgeInsets.all(16),
+        borderRadius: 12,
+        mainButton: TextButton(
+          onPressed: () => AuthService.to.signInWithGoogle(),
+          child: const Text(
+            'SIGN IN',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+        ),
       );
       return;
     }
@@ -270,7 +386,7 @@ class PremiumCommentInput extends StatelessWidget {
                   int.parse(currentTier['color']! as String),
                 );
                 final amountStr = currentTier['label']! as String;
-                final amountVal = currentTier['amount']! as double;
+                final amountVal = (currentTier['amount'] as num?)?.toDouble() ?? 0.0;
 
                 return Column(
                   mainAxisSize: MainAxisSize.min,
@@ -399,15 +515,15 @@ class PremiumCommentInput extends StatelessWidget {
                             child: Row(
                               children: [
                                 UserAvatar(
-                                  photoUrl: user.photoURL,
-                                  displayName: user.displayName ?? 'U',
+                                  photoUrl: AuthService.to.activePhotoUrl,
+                                  displayName: AuthService.to.activeDisplayName,
                                   radius: 16,
                                   textColor: Colors.white,
                                 ),
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Text(
-                                    user.displayName ?? 'User',
+                                    AuthService.to.activeDisplayName,
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.bold,

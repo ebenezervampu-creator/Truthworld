@@ -321,6 +321,18 @@ class SecurityTab extends StatelessWidget {
                         fontSize: 11,
                       ),
                     ),
+                    trailing: TextButton(
+                      onPressed: () => controller.investigateAnomaly(alert),
+                      child: const Text(
+                        'Investigate',
+                        style: TextStyle(
+                          fontFamily: TWTypography.uiFamily,
+                          color: Color(0xFF42A5F5),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
                   ),
                 );
               },
@@ -419,7 +431,7 @@ class SecurityTab extends StatelessWidget {
                 final name = cluster['name'] ?? 'Cluster #${index + 1}';
                 final desc = cluster['description'] ?? '${cluster['accountCount'] ?? 0} accounts linked';
 
-                return _buildClusterItem(name.toString(), desc.toString());
+                return _buildClusterItem(cluster, name.toString(), desc.toString());
               },
             );
           }),
@@ -428,7 +440,7 @@ class SecurityTab extends StatelessWidget {
     );
   }
 
-  Widget _buildClusterItem(String title, String desc) {
+  Widget _buildClusterItem(Map<String, dynamic> cluster, String title, String desc) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
@@ -457,7 +469,7 @@ class SecurityTab extends StatelessWidget {
             ],
           ),
           TextButton(
-            onPressed: () {},
+            onPressed: () => controller.investigateAnomaly(cluster),
             child: const Text(
               'Investigate',
               style: TextStyle(
@@ -481,65 +493,94 @@ class SecurityTab extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Rate Limit Controls',
-            style: TextStyle(
-              fontFamily: TWTypography.brandFamily,
-              color: AppColors.textPrimary,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Global upload rate throttling configuration',
-            style: TextStyle(
-              fontFamily: TWTypography.uiFamily,
-              color: AppColors.textSecondary,
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: 16),
-          _buildRateLimitInput('Per-User (Uploads/hr)', '50'),
-          const SizedBox(height: 12),
-          _buildRateLimitInput('Global (Uploads/min)', '5000'),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF242424),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-                side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-              ),
-            ),
-            onPressed: () {
-              Get.snackbar(
-                'Rate Limits Updated',
-                'Upload throttling policy applied across all nodes.',
-                backgroundColor: const Color(0xFF2BA640),
-                colorText: AppColors.textPrimary,
-                snackPosition: SnackPosition.BOTTOM,
-              );
-            },
-            child: const Text(
-              'Apply Changes',
+      child: Obx(() {
+        final isSaving = controller.isSavingRateLimits.value;
+        final perUser = controller.perUserUploadRateLimit.value;
+        final global = controller.globalUploadRateLimit.value;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Rate Limit Controls',
               style: TextStyle(
                 fontFamily: TWTypography.brandFamily,
+                color: AppColors.textPrimary,
+                fontSize: 18,
                 fontWeight: FontWeight.bold,
-                fontSize: 13,
               ),
             ),
-          ),
-        ],
-      ),
+            const SizedBox(height: 6),
+            const Text(
+              'Global upload rate throttling configuration',
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                color: AppColors.textSecondary,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _buildRateLimitInput(
+              label: 'Per-User (Uploads/hr)',
+              currentVal: perUser,
+              onChanged: (val) {
+                final parsed = int.tryParse(val);
+                if (parsed != null && parsed > 0) {
+                  controller.perUserUploadRateLimit.value = parsed;
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildRateLimitInput(
+              label: 'Global (Uploads/min)',
+              currentVal: global,
+              onChanged: (val) {
+                final parsed = int.tryParse(val);
+                if (parsed != null && parsed > 0) {
+                  controller.globalUploadRateLimit.value = parsed;
+                }
+              },
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF242424),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                ),
+              ),
+              onPressed: isSaving ? null : controller.saveRateLimits,
+              child: isSaving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text(
+                      'Apply Changes',
+                      style: TextStyle(
+                        fontFamily: TWTypography.brandFamily,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+            ),
+          ],
+        );
+      }),
     );
   }
 
-  Widget _buildRateLimitInput(String label, String value) {
+  Widget _buildRateLimitInput({
+    required String label,
+    required int currentVal,
+    required ValueChanged<String> onChanged,
+  }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -552,10 +593,13 @@ class SecurityTab extends StatelessWidget {
           ),
         ),
         SizedBox(
-          width: 100,
+          width: 110,
           height: 36,
-          child: TextField(
-            controller: TextEditingController(text: value),
+          child: TextFormField(
+            key: ValueKey(currentVal),
+            initialValue: currentVal.toString(),
+            keyboardType: TextInputType.number,
+            onChanged: onChanged,
             style: const TextStyle(
               fontFamily: TWTypography.uiFamily,
               color: AppColors.textPrimary,

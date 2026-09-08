@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/features/miniplayer/data/models/miniplayer_model.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
@@ -24,10 +25,12 @@ class MiniplayerNavigationHelper {
   /// Navigate to video screen directly without showing miniplayer first.
   /// The miniplayer will appear when navigating AWAY from the video screen.
   ///
-  /// Exception handling ensures the app continues even if miniplayer fails.
+  /// Automatically resolves and injects [resumePosition] from active handoff
+  /// or local watch history so videos resume seamlessly across platforms.
   static Future<void> navigateToVideoScreen({
     required Video video,
     Map<String, dynamic>? routeArguments,
+    Duration? resumePosition,
   }) async {
     try {
       if (video.id.isEmpty || video.videoUrl.isEmpty) {
@@ -42,7 +45,39 @@ class MiniplayerNavigationHelper {
       }
 
       final targetUrl = '/watch?v=${video.id}';
-      final args = routeArguments ?? {'video': video};
+      final args = Map<String, dynamic>.from(routeArguments ?? {'video': video});
+      if (!args.containsKey('video')) {
+        args['video'] = video;
+      }
+
+      // Determine the best resume timestamp
+      Duration? targetResume = resumePosition;
+      if (targetResume == null && args['resumePosition'] != null) {
+        final raw = args['resumePosition'];
+        if (raw is Duration) {
+          targetResume = raw;
+        } else if (raw is int) {
+          targetResume = Duration(milliseconds: raw);
+        }
+      }
+
+      if (targetResume == null || targetResume <= Duration.zero) {
+        final peeked = VideoPlaybackHandoff.peekPosition(video.id);
+        if (peeked != null && peeked > Duration.zero) {
+          targetResume = peeked;
+        } else if (Get.isRegistered<WatchHistoryService>()) {
+          final historySec = WatchHistoryService.to.getLastPosition(video.id);
+          if (historySec > 0) {
+            targetResume = Duration(seconds: historySec);
+          }
+        }
+      }
+
+      if (targetResume != null && targetResume > Duration.zero) {
+        args['resumePosition'] = targetResume;
+        args['initialPosition'] = targetResume;
+        VideoPlaybackHandoff.registerResumePosition(video.id, targetResume);
+      }
 
       final currentRouteName = Get.currentRoute.toLowerCase();
       final hasWatchInStack = RouteStackObserver.routeStack.isNotEmpty &&

@@ -121,20 +121,65 @@ export const stripeSuccessCallback = onRequest(
         return;
       }
 
+      // Security Check: Verify session was created for the intended user
+      const sessionUserId = session.metadata?.userId;
+      if (!sessionUserId || sessionUserId !== userId) {
+        logger.warn(`[stripeSuccessCallback] User ID mismatch: query=${userId}, metadata=${sessionUserId}`);
+        res.status(403).send("Unauthorized session claim.");
+        return;
+      }
+
       const planId = session.metadata?.planId || "individual_monthly";
 
-      // Upgrade user to Premium in Firestore database
-      await db().collection("users").doc(userId).update({
-        isPremium: true,
-        monetizationTier: "premium",
-        premiumPlanId: planId,
-        premiumUpdatedAt: Date.now(),
+      // Replay Attack Protection: Atomically verify and record processed session in a transaction
+      await db().runTransaction(async (transaction) => {
+        const sessionLogRef = db().collection("stripe_processed_sessions").doc(sessionId);
+        const sessionDoc = await transaction.get(sessionLogRef);
+
+        if (sessionDoc.exists) {
+          logger.info(`[stripeSuccessCallback] Session ${sessionId} already processed, skipping duplicate grant.`);
+          return;
+        }
+
+        transaction.set(sessionLogRef, {
+          sessionId,
+          userId,
+          planId,
+          processedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        const userRef = db().collection("users").doc(userId);
+        transaction.update(userRef, {
+          isPremium: true,
+          monetizationTier: "premium",
+          premiumPlanId: planId,
+          premiumUpdatedAt: Date.now(),
+        });
       });
 
       logger.info(`[Stripe Checkout] User ${userId} successfully upgraded to Premium. Plan: ${planId}`);
 
+      // Open Redirect Prevention: Validate redirect origin against trusted domains
+      let safeOrigin = "https://truthworld.in";
+      try {
+        const parsed = new URL(origin);
+        const host = parsed.hostname.toLowerCase();
+        if (
+          host === "truthworld.in" ||
+          host.endsWith(".truthworld.in") ||
+          host === "localhost" ||
+          host === "127.0.0.1" ||
+          host.endsWith(".web.app") ||
+          host.endsWith(".firebaseapp.com")
+        ) {
+          safeOrigin = origin.replace(/\/$/, "");
+        }
+      } catch {
+        safeOrigin = "https://truthworld.in";
+      }
+
       // Redirect client browser back to app
-      res.redirect(`${origin}/?premium=success`);
+      res.redirect(`${safeOrigin}/?premium=success`);
     } catch (err) {
       logger.error("[stripeSuccessCallback] Error:", err);
       res.status(500).send("Verification failed: " + (err instanceof Error ? err.message : String(err)));
@@ -233,7 +278,25 @@ export const requestPayout = onCall(
       throw new HttpsError("unauthenticated", "Authentication is required.");
     }
 
+    const lockRef = db().collection("payout_locks").doc(userId);
+
     try {
+      // Concurrency & Race Condition Guard: Acquire atomic lock for user
+      await db().runTransaction(async (transaction) => {
+        const lockDoc = await transaction.get(lockRef);
+        if (lockDoc.exists) {
+          const lockData = lockDoc.data() || {};
+          const lockedAt = lockData.lockedAt || 0;
+          if (Date.now() - lockedAt < 30000) {
+            throw new HttpsError("failed-precondition", "A payout request is already being processed. Please wait.");
+          }
+        }
+        transaction.set(lockRef, {
+          userId,
+          lockedAt: Date.now(),
+        });
+      });
+
       // 1. Verify user exists and has Stripe Connect set up
       const userRef = db().collection("users").doc(userId);
       const userDoc = await userRef.get();
@@ -330,6 +393,8 @@ export const requestPayout = onCall(
       logger.error("[requestPayout] Error:", err);
       if (err instanceof HttpsError) throw err;
       throw new HttpsError("internal", "Failed to process payout.");
+    } finally {
+      await lockRef.delete().catch(() => {});
     }
   }
 );

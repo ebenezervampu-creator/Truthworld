@@ -13,29 +13,43 @@ import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/data/repositories/admin_repository_impl.dart';
 import 'package:truthworld/data/repositories/advertiser_repository_impl.dart';
 import 'package:truthworld/data/repositories/analytics_repository_impl.dart';
+import 'package:truthworld/data/repositories/category_repository_impl.dart';
 import 'package:truthworld/data/repositories/channel_repository_impl.dart';
 import 'package:truthworld/data/repositories/comment_repository_impl.dart';
 import 'package:truthworld/data/repositories/community_repository_impl.dart';
 import 'package:truthworld/data/repositories/dashboard_repository_impl.dart';
+import 'package:truthworld/data/repositories/feedback_repository_impl.dart';
+import 'package:truthworld/data/repositories/hashtag_repository_impl.dart';
 import 'package:truthworld/data/repositories/home_repository_impl.dart';
 import 'package:truthworld/data/repositories/library_repository_impl.dart';
 import 'package:truthworld/data/repositories/notification_repository_impl.dart';
 import 'package:truthworld/data/repositories/playlist_repository_impl.dart';
+import 'package:truthworld/data/repositories/premium_repository_impl.dart';
 import 'package:truthworld/data/repositories/search_repository_impl.dart';
+import 'package:truthworld/data/repositories/subscription_repository_impl.dart';
+import 'package:truthworld/data/repositories/trending_repository_impl.dart';
 import 'package:truthworld/data/repositories/video_repository_impl.dart';
+import 'package:truthworld/data/repositories/watchtime_repository_impl.dart';
 import 'package:truthworld/domain/repositories/admin_repository.dart';
 import 'package:truthworld/domain/repositories/advertiser_repository.dart';
 import 'package:truthworld/domain/repositories/analytics_repository.dart';
+import 'package:truthworld/domain/repositories/category_repository.dart';
 import 'package:truthworld/domain/repositories/channel_repository.dart';
 import 'package:truthworld/domain/repositories/comment_repository.dart';
 import 'package:truthworld/domain/repositories/community_repository.dart';
 import 'package:truthworld/domain/repositories/dashboard_repository.dart';
+import 'package:truthworld/domain/repositories/feedback_repository.dart';
+import 'package:truthworld/domain/repositories/hashtag_repository.dart';
 import 'package:truthworld/domain/repositories/home_repository.dart';
 import 'package:truthworld/domain/repositories/library_repository.dart';
 import 'package:truthworld/domain/repositories/notification_repository.dart';
 import 'package:truthworld/domain/repositories/playlist_repository.dart';
+import 'package:truthworld/domain/repositories/premium_repository.dart';
 import 'package:truthworld/domain/repositories/search_repository.dart';
+import 'package:truthworld/domain/repositories/subscription_repository.dart';
+import 'package:truthworld/domain/repositories/trending_repository.dart';
 import 'package:truthworld/domain/repositories/video_repository.dart';
+import 'package:truthworld/domain/repositories/watchtime_repository.dart';
 import 'package:truthworld/features/analytics/data/services/geolocation_service.dart';
 import 'package:truthworld/features/analytics/data/services/impression_tracking_service.dart';
 import 'package:truthworld/features/analytics/data/services/video_analytics_service.dart';
@@ -126,6 +140,16 @@ class InitialBinding extends Bindings {
     Get.lazyPut<AdvertiserRepository>(AdvertiserRepositoryImpl.new, fenix: true);
     Get.lazyPut<AnalyticsRepository>(AnalyticsRepositoryImpl.new, fenix: true);
     Get.lazyPut<LibraryRepository>(LibraryRepositoryImpl.new, fenix: true);
+    Get.lazyPut<CategoryRepository>(CategoryRepositoryImpl.new, fenix: true);
+    Get.lazyPut<FeedbackRepository>(FeedbackRepositoryImpl.new, fenix: true);
+    Get.lazyPut<HashtagRepository>(HashtagRepositoryImpl.new, fenix: true);
+    Get.lazyPut<PremiumRepository>(PremiumRepositoryImpl.new, fenix: true);
+    Get.lazyPut<SubscriptionRepository>(
+      SubscriptionRepositoryImpl.new,
+      fenix: true,
+    );
+    Get.lazyPut<TrendingRepository>(TrendingRepositoryImpl.new, fenix: true);
+    Get.lazyPut<WatchTimeRepository>(WatchTimeRepositoryImpl.new, fenix: true);
     Get.lazyPut(TopicRepository.new, fenix: true);
 
     // Topic Controllers
@@ -135,7 +159,9 @@ class InitialBinding extends Bindings {
     Get.lazyPut(CreateTopicController.new, fenix: true);
 
     // Core Feature Controllers
-    Get.lazyPut(UserSettingsController.new, fenix: true);
+    if (!Get.isRegistered<UserSettingsController>()) {
+      Get.lazyPut(UserSettingsController.new, fenix: true);
+    }
     Get.lazyPut(DigitalWellbeingService.new, fenix: true);
     Get.lazyPut(PlaylistController.new, fenix: true);
     Get.lazyPut(PlaylistDialogController.new, fenix: true);

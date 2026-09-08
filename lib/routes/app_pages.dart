@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:get/get.dart';
 import 'package:truthworld/core/bindings/app_bindings.dart';
@@ -6,6 +7,7 @@ import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/widgets/deferred_widget.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/about/presentation/views/About/about.dart';
+import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/features/admin/presentation/views/admin_dashboard_screen.dart'
     deferred as admin_dashboard;
 import 'package:truthworld/features/admin/presentation/views/admin_login_screen.dart'
@@ -30,6 +32,7 @@ import 'package:truthworld/features/community/presentation/bindings/saved_commun
 import 'package:truthworld/features/community/presentation/views/saved_comments_screen.dart';
 import 'package:truthworld/features/community/presentation/views/saved_community_posts_screen.dart';
 import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/community_guidelines.dart';
+import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/copyright_complaint_screen.dart';
 import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/privacy_polices.dart';
 import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/terms.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart'
@@ -94,20 +97,29 @@ class AppPages {
       page: () {
         if (kIsWeb) {
           final host = Uri.base.host.toLowerCase();
-          final uriStr = Uri.base.toString().toLowerCase();
-          if (host.startsWith('admin') ||
-              host.contains('admin') ||
-              uriStr.contains('admin') ||
-              Uri.base.queryParameters.containsKey('admin')) {
+          if (host.startsWith('admin') || host.contains('admin.truthworld.in')) {
+            final user = FirebaseAuth.instance.currentUser;
+            final email = user?.email?.toLowerCase();
+            final isOwner = email != null && (
+              email == 'ebenezervampy@towervsp.com' ||
+              email == 'ebenezervampu@towervsp.com' ||
+              email == 'ebenezervampu4@gmail.com' ||
+              email == 'admin@truthworld.com'
+            );
+            final hasAdminClaim = isOwner || (Get.isRegistered<AdminController>() && Get.find<AdminController>().isAdmin.value);
+            if (hasAdminClaim) {
+              return DeferredWidget(
+                loader: admin_dashboard.loadLibrary,
+                builder: () => admin_dashboard.AdminDashboardScreen(),
+              );
+            }
             return DeferredWidget(
-              loader: admin_dashboard.loadLibrary,
-              builder: () => admin_dashboard.AdminDashboardScreen(),
+              loader: admin_login.loadLibrary,
+              builder: () => admin_login.AdminLoginScreen(),
             );
           }
           if (host.startsWith('studio') ||
-              host.contains('studio') ||
-              uriStr.contains('studio') ||
-              Uri.base.queryParameters.containsKey('studio')) {
+              host.contains('studio.truthworld.in')) {
             return DeferredWidget(
               loader: dashboard.loadLibrary,
               builder: () => dashboard.DashboardScreen(),
@@ -119,18 +131,12 @@ class AppPages {
       binding: BindingsBuilder(() {
         if (kIsWeb) {
           final host = Uri.base.host.toLowerCase();
-          final uriStr = Uri.base.toString().toLowerCase();
-          if (host.startsWith('admin') ||
-              host.contains('admin') ||
-              uriStr.contains('admin') ||
-              Uri.base.queryParameters.containsKey('admin')) {
+          if (host.startsWith('admin') || host.contains('admin.truthworld.in')) {
             AdminBinding().dependencies();
             return;
           }
           if (host.startsWith('studio') ||
-              host.contains('studio') ||
-              uriStr.contains('studio') ||
-              Uri.base.queryParameters.containsKey('studio')) {
+              host.contains('studio.truthworld.in')) {
             DashboardBinding().dependencies();
             return;
           }
@@ -140,6 +146,33 @@ class AppPages {
     ),
     GetPage(
       name: '/studio',
+      page: () => DeferredWidget(
+        loader: dashboard.loadLibrary,
+        builder: () => dashboard.DashboardScreen(),
+      ),
+      middlewares: [StudioRedirectMiddleware(), StudioAccessGuard()],
+      binding: DashboardBinding(),
+    ),
+    GetPage(
+      name: '/studio/chapters',
+      page: () => DeferredWidget(
+        loader: dashboard.loadLibrary,
+        builder: () => dashboard.DashboardScreen(),
+      ),
+      middlewares: [StudioRedirectMiddleware(), StudioAccessGuard()],
+      binding: DashboardBinding(),
+    ),
+    GetPage(
+      name: '/studio/trash',
+      page: () => DeferredWidget(
+        loader: dashboard.loadLibrary,
+        builder: () => dashboard.DashboardScreen(),
+      ),
+      middlewares: [StudioRedirectMiddleware(), StudioAccessGuard()],
+      binding: DashboardBinding(),
+    ),
+    GetPage(
+      name: '/studio/drafts',
       page: () => DeferredWidget(
         loader: dashboard.loadLibrary,
         builder: () => dashboard.DashboardScreen(),
@@ -269,6 +302,23 @@ class AppPages {
     ),
     GetPage(
       name: '/watch/:videoId',
+      page: () {
+        final video = Get.arguments?['video'];
+        final videoId = video?.id ??
+            Get.parameters['videoId'] ??
+            Get.parameters['v'] ??
+            Get.parameters['id'];
+        return DeferredWidget(
+          loader: video_screen.loadLibrary,
+          builder: () =>
+              video_screen.VideoScreen(videoTag: videoId as String?),
+        );
+      },
+      preventDuplicates: false,
+      binding: VideoBinding(),
+    ),
+    GetPage(
+      name: '/video/:videoId',
       page: () {
         final video = Get.arguments?['video'];
         final videoId = video?.id ??
@@ -498,6 +548,14 @@ class AppPages {
       page: CommunityGuidelinesPage.new,
     ),
     GetPage(
+      name: '/copyright-complaint',
+      page: CopyrightComplaintScreen.new,
+    ),
+    GetPage(
+      name: '/dmca',
+      page: CopyrightComplaintScreen.new,
+    ),
+    GetPage(
       name: '/subscriptions',
       page: () => DeferredWidget(
         loader: subscriptions.loadLibrary,
@@ -519,10 +577,17 @@ class AppPages {
     ),
     GetPage(
       name: '/watchtimedetails',
-      page: () => const WatchtimeDetailsPage(
-        channelId: '',
-        isDarkMode: false,
-      ), // channelId and isDarkMode should be set dynamically
+      page: () {
+        final channelId = Get.parameters['channelId'] ??
+            Get.parameters['id'] ??
+            (Get.arguments is Map ? Get.arguments['channelId'] as String? : null) ??
+            '';
+        return WatchtimeDetailsPage(
+          channelId: channelId,
+          isDarkMode: Get.isDarkMode,
+        );
+      },
+      binding: AnalyticsBinding(),
     ),
     GetPage(
       name: '/WatchTimePage',
@@ -587,6 +652,7 @@ class AppPages {
     GetPage(
       name: '/admin/dashboard',
       binding: AdminBinding(),
+      middlewares: [AdminAuthGuardMiddleware()],
       page: () => DeferredWidget(
         loader: admin_dashboard.loadLibrary,
         builder: () => admin_dashboard.AdminDashboardScreen(),

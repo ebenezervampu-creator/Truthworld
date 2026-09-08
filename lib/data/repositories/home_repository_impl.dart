@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:truthworld/core/base/base_repository.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/network/result.dart';
@@ -90,16 +91,32 @@ class HomeRepositoryImpl extends BaseRepository implements HomeRepository {
   @override
   Future<Result<List<Topic>>> getFeaturedTopics({int limit = 10}) async {
     return safeFetch(() async {
-      final snapshot = await _firestore
+      try {
+        final snapshot = await _firestore
+            .collection(FirestoreCollections.topics)
+            .where('status', isEqualTo: 'active')
+            .where('isFeatured', isEqualTo: true)
+            .limit(limit)
+            .get();
+
+        final topics = snapshot.docs
+            .map(Topic.fromDocumentSnapshot)
+            .where((t) => t.isValidTopic && t.videoCount > 0)
+            .toList();
+        if (topics.isNotEmpty) return topics;
+      } catch (e) {
+        debugPrint('HomeRepositoryImpl: getFeaturedTopics isFeatured error: $e');
+      }
+
+      final fallbackSnapshot = await _firestore
           .collection(FirestoreCollections.topics)
-          .where('isFeatured', isEqualTo: true)
-          .orderBy('followerCount', descending: true)
+          .where('status', isEqualTo: 'active')
           .limit(limit)
           .get();
 
-      return snapshot.docs
+      return fallbackSnapshot.docs
           .map(Topic.fromDocumentSnapshot)
-          .where((t) => t.isValidTopic)
+          .where((t) => t.isValidTopic && t.videoCount > 0)
           .toList();
     });
   }

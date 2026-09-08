@@ -35,9 +35,11 @@ void main() {
 
       try {
         try {
-          await Firebase.initializeApp(
-            options: DefaultFirebaseOptions.currentPlatform,
-          );
+          if (Firebase.apps.isEmpty) {
+            await Firebase.initializeApp(
+              options: DefaultFirebaseOptions.currentPlatform,
+            );
+          }
           FirebaseFirestore.instance.settings = const Settings(
             persistenceEnabled: !kIsWeb,
             cacheSizeBytes: 100 * 1024 * 1024,

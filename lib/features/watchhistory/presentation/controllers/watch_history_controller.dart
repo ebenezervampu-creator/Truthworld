@@ -18,7 +18,28 @@ class WatchHistoryController extends BaseController {
   final RxBool isHistoryPaused = false.obs;
   final RxString selectedCategory = 'All'.obs;
 
-  void retry() => refreshTrigger.value++;
+  Stream<QuerySnapshot>? _historyStream;
+  String? _lastUserId;
+
+  Stream<QuerySnapshot> getHistoryStream(String userId) {
+    if (_historyStream != null && _lastUserId == userId) {
+      return _historyStream!;
+    }
+    _lastUserId = userId;
+    _historyStream = FirebaseFirestore.instance
+        .collection(FirestoreCollections.users)
+        .doc(userId)
+        .collection('watch_history')
+        .orderBy('watchedAt', descending: true)
+        .limit(100)
+        .snapshots();
+    return _historyStream!;
+  }
+
+  void retry() {
+    _historyStream = null;
+    refreshTrigger.value++;
+  }
 
   final TextEditingController searchController = TextEditingController();
   final ScrollController scrollController = ScrollController();

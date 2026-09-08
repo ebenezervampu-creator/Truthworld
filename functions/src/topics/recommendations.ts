@@ -55,7 +55,7 @@ export const recommendTopicsForVideo = onRequest(
       const titleTokens = tokenize(videoTitle);
       const videoCatClean = (category || "").trim().toLowerCase();
 
-      const snapshot = await db().collection("topics").get();
+      const snapshot = await db().collection("topics").where("status", "==", "active").get();
       if (snapshot.empty) {
         res.status(200).json({ status: "success", recommendedTopic: null, rankedTopics: [] });
         return;
@@ -66,12 +66,30 @@ export const recommendTopicsForVideo = onRequest(
       snapshot.docs.forEach((doc) => {
         const data = doc.data();
         const id = doc.id;
-        const slug = data.slug || id;
-        const title = data.title || "";
-        const handle = data.handle || "";
+        const slug = (data.slug || id).trim();
+        const title = (data.title || "").trim();
+        const handle = (data.handle || "").trim();
         const description = data.description || "";
         const topicCat = (data.category || "").trim().toLowerCase();
         const topicTags: string[] = data.tags || [];
+        const videoCount = Number(data.videoCount) || (data.featuredVideoIds?.length || 0);
+
+        // Strict validity checks: ignore empty/mock topics
+        const lowerTitle = title.toLowerCase();
+        const lowerSlug = slug.toLowerCase();
+        if (
+          !title ||
+          !slug ||
+          lowerTitle === "topic" ||
+          lowerTitle === "featured topic" ||
+          lowerTitle.startsWith("untitled") ||
+          lowerSlug === "topic" ||
+          lowerSlug === "featured-topic" ||
+          lowerSlug.startsWith("untitled") ||
+          videoCount <= 0
+        ) {
+          return;
+        }
 
         let score = 10; // Baseline score
         const reasons: string[] = [];
@@ -119,7 +137,6 @@ export const recommendTopicsForVideo = onRequest(
         });
 
         // 5. Popularity weight bonus
-        const videoCount = data.videoCount || 0;
         const followerCount = data.followerCount || 0;
         const popBonus = Math.min(10, Math.log10(videoCount + followerCount + 1) * 3);
         score += popBonus;

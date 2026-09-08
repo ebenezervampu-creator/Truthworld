@@ -148,6 +148,18 @@ class RouteMetadataConfig {
       description: 'Read our terms of service and usage guidelines',
       keywords: 'terms, conditions, service',
     ),
+    '/copyright-complaint': const RouteMetadata(
+      title: 'Submit Copyright Infringement Notice',
+      description:
+          'Submit statutory copyright takedown notices under Copyright Act 1957, IT Rules 2021, and DMCA',
+      keywords: 'copyright, dmca, takedown, infringement, intellectual property',
+    ),
+    '/dmca': const RouteMetadata(
+      title: 'Submit Copyright Infringement Notice',
+      description:
+          'Submit statutory copyright takedown notices under Copyright Act 1957, IT Rules 2021, and DMCA',
+      keywords: 'copyright, dmca, takedown, infringement, intellectual property',
+    ),
     '/subscriptions': const RouteMetadata(
       title: 'Subscriptions',
       description: 'Keep up with the creators you follow',

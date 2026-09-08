@@ -655,7 +655,7 @@ class TruthReportWidget extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.warning_amber_rounded, color: AppColors.error),
+          const Icon(Icons.warning_amber_rounded, color: Colors.white),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -919,7 +919,7 @@ class TruthReportWidget extends StatelessWidget {
         children: [
           const Icon(
             Icons.verified_user_outlined,
-            color: AppColors.brand,
+            color: Colors.white,
             size: 32,
           ),
           const SizedBox(height: 16),

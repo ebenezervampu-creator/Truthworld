@@ -155,20 +155,15 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _fadeAnimation,
-      builder: (context, child) {
-        return FadeTransition(
-          opacity: _fadeAnimation,
-          child: SlideTransition(
-            position: _slideAnimation,
-            child: ScaleTransition(
-              scale: _scaleAnimation,
-              child: _buildResponsiveLayout(context),
-            ),
-          ),
-        );
-      },
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: SlideTransition(
+        position: _slideAnimation,
+        child: ScaleTransition(
+          scale: _scaleAnimation,
+          child: _buildResponsiveLayout(context),
+        ),
+      ),
     );
   }
 
@@ -1234,10 +1229,11 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage>
                     opacity: opacity,
                     child: Transform.scale(
                       scale: scale,
-                      child: _buildTopicCardItem(context, topic, pageOffset),
+                      child: child,
                     ),
                   );
                 },
+                child: _buildTopicCardItem(context, topic, 0.0),
               );
             },
           ),

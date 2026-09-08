@@ -125,5 +125,22 @@ void main() {
       expect(profaneTagRes.isValid, isFalse);
       expect(profaneTagRes.message, contains('Tag "porn" is invalid'));
     });
+
+    test('validates membership tier names and standard perks cleanly without false positives', () {
+      final tierName = ContentValidator.validate('Silver VIP', fieldName: 'Tier Name');
+      expect(tierName.isValid, isTrue);
+
+      final shortName = ContentValidator.validate('hi', fieldName: 'Tier Name');
+      expect(shortName.isValid, isTrue);
+
+      final perk1 = ContentValidator.validate('Loyalty badge, Early access to videos', fieldName: 'Perk');
+      expect(perk1.isValid, isTrue);
+
+      final perk2 = ContentValidator.validate('Custom channel emojis in live chat & comments', fieldName: 'Perk');
+      expect(perk2.isValid, isTrue);
+
+      final perk3 = ContentValidator.validate('Behind-the-scenes clips & bloopers', fieldName: 'Perk');
+      expect(perk3.isValid, isTrue);
+    });
   });
 }

@@ -1,4 +1,7 @@
 {
+  "database": {
+    "rules": "database.rules.json"
+  },
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
@@ -97,35 +100,63 @@
           }
         },
         {
-          "source": "/post/**",
+          "source": "/[Pp]ost/**",
           "function": {
             "functionId": "seoServer",
             "region": "asia-south1"
           }
         },
         {
-          "source": "/community/**",
+          "source": "/[Cc]ommunity/**",
           "function": {
             "functionId": "seoServer",
             "region": "asia-south1"
           }
         },
         {
-          "source": "/watch",
+          "source": "/embed",
           "function": {
             "functionId": "seoServer",
             "region": "asia-south1"
           }
         },
         {
-          "source": "/watch/**",
+          "source": "/embed/**",
           "function": {
             "functionId": "seoServer",
             "region": "asia-south1"
           }
         },
         {
-          "source": "/channel/**",
+          "source": "/v/**",
+          "function": {
+            "functionId": "seoServer",
+            "region": "asia-south1"
+          }
+        },
+        {
+          "source": "/shorts/**",
+          "function": {
+            "functionId": "seoServer",
+            "region": "asia-south1"
+          }
+        },
+        {
+          "source": "/[Ww]atch",
+          "function": {
+            "functionId": "seoServer",
+            "region": "asia-south1"
+          }
+        },
+        {
+          "source": "/[Ww]atch/**",
+          "function": {
+            "functionId": "seoServer",
+            "region": "asia-south1"
+          }
+        },
+        {
+          "source": "/[Cc]hannel/**",
           "function": {
             "functionId": "seoServer",
             "region": "asia-south1"
@@ -139,7 +170,7 @@
           }
         },
         {
-          "source": "/topic/**",
+          "source": "/[Tt]opic/**",
           "function": {
             "functionId": "seoServer",
             "region": "asia-south1"
@@ -153,14 +184,14 @@
           }
         },
         {
-          "source": "/playlist",
+          "source": "/[Pp]laylist",
           "function": {
             "functionId": "seoServer",
             "region": "asia-south1"
           }
         },
         {
-          "source": "/playlist/**",
+          "source": "/[Pp]laylist/**",
           "function": {
             "functionId": "seoServer",
             "region": "asia-south1"
@@ -261,7 +292,24 @@
             },
             {
               "key": "Content-Security-Policy",
-              "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: https://apis.google.com https://www.gstatic.com https://accounts.google.com https://www.google.com https://recaptcha.net https://www.recaptcha.net; worker-src 'self' blob: https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; font-src 'self' data: https://fonts.gstatic.com https://fonts.googleapis.com; img-src 'self' data: blob: https:; media-src 'self' blob: data: https://firebasestorage.googleapis.com https://*.googleapis.com https:; connect-src 'self' blob: https://*.firebaseio.com wss://*.firebaseio.com https://*.googleapis.com https://www.gstatic.com https://fonts.gstatic.com https://*.firebaseapp.com https://www.google.com https://*.google.com; frame-src 'self' https://accounts.google.com https://*.firebaseapp.com https://www.google.com https://recaptcha.net https://www.recaptcha.net; object-src 'none'; base-uri 'self';"
+              "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: https://apis.google.com https://www.gstatic.com https://accounts.google.com https://www.google.com https://recaptcha.net https://www.recaptcha.net; worker-src 'self' blob: https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; font-src 'self' data: https://fonts.gstatic.com https://fonts.googleapis.com; img-src 'self' data: blob: https:; media-src 'self' blob: data: https://firebasestorage.googleapis.com https://*.googleapis.com https:; connect-src 'self' blob: https://*.firebaseio.com wss://*.firebaseio.com https://*.firebasedatabase.app wss://*.firebasedatabase.app https://*.googleapis.com https://www.gstatic.com https://fonts.gstatic.com https://*.firebaseapp.com https://www.google.com https://*.google.com; frame-src 'self' https://accounts.google.com https://*.firebaseapp.com https://www.google.com https://recaptcha.net https://www.recaptcha.net; object-src 'none'; base-uri 'self';"
+            }
+          ]
+        },
+        {
+          "source": "/embed/**",
+          "headers": [
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "*"
+            },
+            {
+              "key": "X-Frame-Options",
+              "value": "ALLOWALL"
+            },
+            {
+              "key": "Content-Security-Policy",
+              "value": "default-src 'self' 'unsafe-inline' https: data: blob:; frame-ancestors *;"
             }
           ]
         }
@@ -386,7 +434,7 @@
             },
             {
               "key": "Content-Security-Policy",
-              "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: https://apis.google.com https://www.gstatic.com https://accounts.google.com https://www.google.com https://recaptcha.net https://www.recaptcha.net; worker-src 'self' blob: https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; font-src 'self' data: https://fonts.gstatic.com https://fonts.googleapis.com; img-src 'self' data: blob: https:; media-src 'self' blob: data: https://firebasestorage.googleapis.com https://*.googleapis.com https:; connect-src 'self' blob: https://*.firebaseio.com wss://*.firebaseio.com https://*.googleapis.com https://www.gstatic.com https://fonts.gstatic.com https://*.firebaseapp.com https://www.google.com https://*.google.com; frame-src 'self' https://accounts.google.com https://*.firebaseapp.com https://www.google.com https://recaptcha.net https://www.recaptcha.net; object-src 'none'; base-uri 'self';"
+              "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: https://apis.google.com https://www.gstatic.com https://accounts.google.com https://www.google.com https://recaptcha.net https://www.recaptcha.net; worker-src 'self' blob: https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; font-src 'self' data: https://fonts.gstatic.com https://fonts.googleapis.com; img-src 'self' data: blob: https:; media-src 'self' blob: data: https://firebasestorage.googleapis.com https://*.googleapis.com https:; connect-src 'self' blob: https://*.firebaseio.com wss://*.firebaseio.com https://*.firebasedatabase.app wss://*.firebasedatabase.app https://*.googleapis.com https://www.gstatic.com https://fonts.gstatic.com https://*.firebaseapp.com https://www.google.com https://*.google.com; frame-src 'self' https://accounts.google.com https://*.firebaseapp.com https://www.google.com https://recaptcha.net https://www.recaptcha.net; object-src 'none'; base-uri 'self';"
             }
           ]
         }
@@ -394,7 +442,7 @@
     },
     {
       "target": "advertiser-app",
-      "public": "build/web_advertiser",
+      "public": "build/web",
       "ignore": [
         "firebase.json",
         "**/.*",
@@ -485,7 +533,7 @@
             },
             {
               "key": "Content-Security-Policy",
-              "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: https://apis.google.com https://www.gstatic.com https://accounts.google.com https://www.google.com https://recaptcha.net https://www.recaptcha.net; worker-src 'self' blob: https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; font-src 'self' data: https://fonts.gstatic.com https://fonts.googleapis.com; img-src 'self' data: blob: https:; media-src 'self' blob: data: https://firebasestorage.googleapis.com https://*.googleapis.com https:; connect-src 'self' blob: https://*.firebaseio.com wss://*.firebaseio.com https://*.googleapis.com https://www.gstatic.com https://fonts.gstatic.com https://*.firebaseapp.com https://www.google.com https://*.google.com; frame-src 'self' https://accounts.google.com https://*.firebaseapp.com https://www.google.com https://recaptcha.net https://www.recaptcha.net; object-src 'none'; base-uri 'self';"
+              "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: https://apis.google.com https://www.gstatic.com https://accounts.google.com https://www.google.com https://recaptcha.net https://www.recaptcha.net; worker-src 'self' blob: https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; font-src 'self' data: https://fonts.gstatic.com https://fonts.googleapis.com; img-src 'self' data: blob: https:; media-src 'self' blob: data: https://firebasestorage.googleapis.com https://*.googleapis.com https:; connect-src 'self' blob: https://*.firebaseio.com wss://*.firebaseio.com https://*.firebasedatabase.app wss://*.firebasedatabase.app https://*.googleapis.com https://www.gstatic.com https://fonts.gstatic.com https://*.firebaseapp.com https://www.google.com https://*.google.com; frame-src 'self' https://accounts.google.com https://*.firebaseapp.com https://www.google.com https://recaptcha.net https://www.recaptcha.net; object-src 'none'; base-uri 'self';"
             }
           ]
         }

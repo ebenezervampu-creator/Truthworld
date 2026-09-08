@@ -9,7 +9,6 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/theme/app_theme.dart';
-import 'package:universal_html/html.dart' as html;
 import 'package:url_launcher/url_launcher.dart';
 
 class PremiumController extends BaseController {
@@ -39,9 +38,9 @@ class PremiumController extends BaseController {
       rxIsLoading.value = true;
 
       // Get origin URL for redirection after payment
-      var clientOrigin = 'http://localhost:5000';
+      var clientOrigin = 'https://truthworld.in';
       if (kIsWeb) {
-        clientOrigin = Uri.parse(html.window.location.href).origin;
+        clientOrigin = Uri.base.origin;
       }
 
       final callable = FirebaseFunctions.instanceFor(
@@ -63,10 +62,28 @@ class PremiumController extends BaseController {
           return;
         }
       }
-      await upgradeSimulated(planId);
+      if (kDebugMode) {
+        await upgradeSimulated(planId);
+      } else {
+        AppSnackbar.show(
+          'Checkout Error',
+          'Unable to launch payment gateway. Please try again.',
+          backgroundColor: AppColors.error,
+          colorText: AppColors.textPrimary,
+        );
+      }
     } catch (_) {
-      // Fallback to simulated sandbox upgrade
-      await upgradeSimulated(planId);
+      if (kDebugMode) {
+        // Fallback to simulated sandbox upgrade only in debug/development
+        await upgradeSimulated(planId);
+      } else {
+        AppSnackbar.show(
+          'Payment Error',
+          'Failed to initialize checkout session. Please try again.',
+          backgroundColor: AppColors.error,
+          colorText: AppColors.textPrimary,
+        );
+      }
     } finally {
       rxIsLoading.value = false;
     }
@@ -94,18 +111,14 @@ class PremiumController extends BaseController {
       final expiresAtMs =
           now.add(const Duration(days: 7)).millisecondsSinceEpoch;
 
-      if (auth.uid.isNotEmpty) {
+      if (kDebugMode && auth.uid.isNotEmpty) {
         await FirebaseFirestore.instance
             .collection(FirestoreCollections.users)
             .doc(auth.uid)
             .update(
               {
-                'isPremium': true,
-                'monetizationTier': 'premium',
-                'premiumPlanId': planId,
                 'premiumStartedAt': startedAtMs,
                 'premiumExpiresAt': expiresAtMs,
-                'premiumUpdatedAt': startedAtMs,
               },
             )
             .catchError((_) {});

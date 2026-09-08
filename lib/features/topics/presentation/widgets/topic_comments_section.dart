@@ -1,11 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/topic_interaction_controller.dart';
@@ -14,19 +15,61 @@ import 'package:truthworld/features/video/data/models/reply.dart';
 import 'package:truthworld/features/video/presentation/views/comments/premium_comment_input.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class TopicCommentsSection extends StatelessWidget {
-  TopicCommentsSection({required this.topic, super.key});
+void _showTopicSignInPrompt(String action) {
+  Get.snackbar(
+    'Sign in required',
+    'Please sign in with your Google account to $action.',
+    snackPosition: SnackPosition.BOTTOM,
+    backgroundColor: AppColors.bgSurface,
+    colorText: AppColors.textPrimary,
+    margin: const EdgeInsets.all(16),
+    borderRadius: 12,
+    duration: const Duration(seconds: 4),
+    mainButton: TextButton(
+      onPressed: () {
+        AuthService.to.signInWithGoogle();
+      },
+      child: const Text(
+        'SIGN IN',
+        style: TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    ),
+  );
+}
+
+class TopicCommentsSection extends StatefulWidget {
+  const TopicCommentsSection({required this.topic, super.key});
   final Topic topic;
 
-  final RxBool isSortNewest = true.obs;
+  @override
+  State<TopicCommentsSection> createState() => _TopicCommentsSectionState();
+}
 
-  TopicInteractionController get controller {
-    final currentController =
-        Get.isRegistered<TopicInteractionController>(tag: topic.id)
-            ? Get.find<TopicInteractionController>(tag: topic.id)
-            : Get.put(TopicInteractionController(), tag: topic.id);
-    currentController.initializeTopic(topic);
-    return currentController;
+class _TopicCommentsSectionState extends State<TopicCommentsSection> {
+  final RxBool isSortNewest = true.obs;
+  late TopicInteractionController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = Get.isRegistered<TopicInteractionController>(tag: widget.topic.id)
+        ? Get.find<TopicInteractionController>(tag: widget.topic.id)
+        : Get.put(TopicInteractionController(), tag: widget.topic.id);
+    controller.initializeTopic(widget.topic);
+  }
+
+  @override
+  void didUpdateWidget(covariant TopicCommentsSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.topic.id != widget.topic.id) {
+      controller = Get.isRegistered<TopicInteractionController>(tag: widget.topic.id)
+          ? Get.find<TopicInteractionController>(tag: widget.topic.id)
+          : Get.put(TopicInteractionController(), tag: widget.topic.id);
+      controller.initializeTopic(widget.topic);
+    }
   }
 
   List<Comment> _getSortedComments(List<Comment> rawComments) {
@@ -44,7 +87,7 @@ class TopicCommentsSection extends StatelessWidget {
     try {
       Get.dialog(
         const Center(
-          child: CircularProgressIndicator(color: AppColors.brand),
+          child: CircularProgressIndicator(color: AppColors.textPrimary),
         ),
         barrierDismissible: false,
       );
@@ -70,6 +113,68 @@ class TopicCommentsSection extends StatelessWidget {
       }
       debugPrint('Error navigating to channel: $e');
     }
+  }
+
+  Widget _buildCommentsSkeleton() {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFF1E1E1E),
+      highlightColor: const Color(0xFF2E2E2E),
+      child: Column(
+        children: List.generate(
+          3,
+          (index) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 120,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        width: 180,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -176,23 +281,16 @@ class TopicCommentsSection extends StatelessWidget {
 
             // Comment Input
             PremiumCommentInput(
-              videoId: topic.id,
+              videoId: widget.topic.id,
               onSubmit: (text, postAsChannel, channelId) async {
-                await controller.addComment(topic.id, text);
+                await controller.addComment(widget.topic.id, text);
               },
             ),
             const SizedBox(height: 24),
 
             // Loading/Empty/List Comments
-            if (controller.isLoadingComments.value)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 32),
-                  child: CircularProgressIndicator(
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-              )
+            if (controller.isLoadingComments.value && sortedComments.isEmpty)
+              _buildCommentsSkeleton()
             else if (sortedComments.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 32),
@@ -215,7 +313,7 @@ class TopicCommentsSection extends StatelessWidget {
                   final comment = sortedComments[index];
                   return TopicCommentItemWidget(
                     comment: comment,
-                    topicId: topic.id,
+                    topicId: widget.topic.id,
                     controller: controller,
                     theme: theme,
                     isMobile: isMobile,
@@ -285,8 +383,8 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
     final commentId = widget.comment.id;
     if (commentId.isEmpty) return;
 
-    if (FirebaseAuth.instance.currentUser == null) {
-      Get.snackbar('Sign in required', 'Please sign in to reply');
+    if (!AuthService.to.isAuthenticated.value) {
+      _showTopicSignInPrompt('reply to comments');
       return;
     }
 
@@ -302,17 +400,14 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
   }
 
   Future<void> _toggleSaveTopicComment(Comment comment) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      Get.snackbar(
-        'Authentication Required',
-        'Please sign in to save comments.',
-      );
+    if (!AuthService.to.isAuthenticated.value) {
+      _showTopicSignInPrompt('save comments');
       return;
     }
+    final uid = AuthService.to.uid;
     final docRef = FirebaseFirestore.instance
         .collection(FirestoreCollections.users)
-        .doc(user.uid)
+        .doc(uid)
         .collection('savedComments')
         .doc(comment.id);
 
@@ -378,8 +473,8 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
     Comment comment,
     TopicInteractionController controller,
   ) {
-    final user = FirebaseAuth.instance.currentUser;
-    final isOwner = user != null && user.uid == comment.userId;
+    final isOwner = AuthService.to.isAuthenticated.value &&
+        AuthService.to.uid == comment.userId;
 
     showModalBottomSheet(
       context: context,
@@ -422,7 +517,7 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
               ),
               if (isOwner)
                 ListTile(
-                  leading: const Icon(Icons.delete, color: AppColors.error),
+                  leading: const Icon(Icons.delete, color: Colors.white),
                   title: const Text(
                     'Delete',
                     style: TextStyle(color: AppColors.error),
@@ -544,6 +639,10 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                         children: [
                           InkWell(
                             onTap: () {
+                              if (!AuthService.to.isAuthenticated.value) {
+                                _showTopicSignInPrompt('like comments');
+                                return;
+                              }
                               HapticFeedback.lightImpact();
                               widget.controller.toggleCommentLike(
                                 widget.topicId,
@@ -578,6 +677,10 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                           const SizedBox(width: 16),
                           InkWell(
                             onTap: () {
+                              if (!AuthService.to.isAuthenticated.value) {
+                                _showTopicSignInPrompt('dislike comments');
+                                return;
+                              }
                               HapticFeedback.lightImpact();
                               widget.controller.toggleCommentDislike(
                                 widget.topicId,
@@ -630,6 +733,10 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                           const SizedBox(width: 16),
                           InkWell(
                             onTap: () {
+                              if (!AuthService.to.isAuthenticated.value) {
+                                _showTopicSignInPrompt('reply to comments');
+                                return;
+                              }
                               isReplying.value = !isReplying.value;
                               if (isReplying.value) {
                                 WidgetsBinding.instance.addPostFrameCallback((
@@ -732,7 +839,7 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                           Icons.send,
                           size: 20,
                           color: replyText.value.isNotEmpty
-                              ? AppColors.info
+                              ? AppColors.textPrimary
                               : AppColors.textSecondary,
                         ),
                       ),
@@ -838,7 +945,7 @@ class TopicRepliesSection extends StatelessWidget {
                   const SizedBox(width: 4),
                   const Icon(
                     Icons.expand_more,
-                    color: AppColors.info,
+                    color: AppColors.textPrimary,
                     size: 16,
                   ),
                 ],
@@ -905,7 +1012,7 @@ class TopicRepliesSection extends StatelessWidget {
                     const SizedBox(width: 4),
                     const Icon(
                       Icons.expand_less,
-                      color: AppColors.info,
+                      color: AppColors.textPrimary,
                       size: 16,
                     ),
                   ],
@@ -943,17 +1050,14 @@ class TopicReplyItemWidget extends StatelessWidget {
   final Function(String?) onNavigateToChannel;
 
   Future<void> _toggleSaveReply(Reply reply) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      Get.snackbar(
-        'Authentication Required',
-        'Please sign in to save comments.',
-      );
+    if (!AuthService.to.isAuthenticated.value) {
+      _showTopicSignInPrompt('save comments');
       return;
     }
+    final uid = AuthService.to.uid;
     final docRef = FirebaseFirestore.instance
         .collection(FirestoreCollections.users)
-        .doc(user.uid)
+        .doc(uid)
         .collection('savedComments')
         .doc(reply.id);
 
@@ -1003,8 +1107,8 @@ class TopicReplyItemWidget extends StatelessWidget {
     Reply reply,
     TopicInteractionController controller,
   ) {
-    final user = FirebaseAuth.instance.currentUser;
-    final isOwner = user != null && user.uid == reply.userId;
+    final isOwner = AuthService.to.isAuthenticated.value &&
+        AuthService.to.uid == reply.userId;
 
     showModalBottomSheet(
       context: context,
@@ -1062,7 +1166,7 @@ class TopicReplyItemWidget extends StatelessWidget {
               ),
               if (isOwner)
                 ListTile(
-                  leading: const Icon(Icons.delete, color: AppColors.error),
+                  leading: const Icon(Icons.delete, color: Colors.white),
                   title: const Text(
                     'Delete',
                     style: TextStyle(color: AppColors.error),
@@ -1185,11 +1289,8 @@ class TopicReplyItemWidget extends StatelessWidget {
                               : AppColors.textSecondary,
                         ),
                         onPressed: () {
-                          if (FirebaseAuth.instance.currentUser == null) {
-                            Get.snackbar(
-                              'Authentication Required',
-                              'Please sign in to react.',
-                            );
+                          if (!AuthService.to.isAuthenticated.value) {
+                            _showTopicSignInPrompt('react to replies');
                             return;
                           }
                           HapticFeedback.lightImpact();
@@ -1226,11 +1327,8 @@ class TopicReplyItemWidget extends StatelessWidget {
                               : AppColors.textSecondary,
                         ),
                         onPressed: () {
-                          if (FirebaseAuth.instance.currentUser == null) {
-                            Get.snackbar(
-                              'Authentication Required',
-                              'Please sign in to react.',
-                            );
+                          if (!AuthService.to.isAuthenticated.value) {
+                            _showTopicSignInPrompt('react to replies');
                             return;
                           }
                           HapticFeedback.lightImpact();

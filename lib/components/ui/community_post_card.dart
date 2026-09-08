@@ -1,6 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -110,6 +109,28 @@ class CommunityPostCardReactionEngine {
   }
 }
 
+void _showCommunitySignInPrompt(String action) {
+  Get.snackbar(
+    'Sign In Required',
+    'Please sign in to $action.',
+    snackPosition: SnackPosition.BOTTOM,
+    backgroundColor: AppColors.bgSurface,
+    colorText: AppColors.textPrimary,
+    margin: const EdgeInsets.all(16),
+    borderRadius: 12,
+    mainButton: TextButton(
+      onPressed: AuthService.to.signInWithGoogle,
+      child: const Text(
+        'SIGN IN',
+        style: TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    ),
+  );
+}
+
 class CommunityPostCard extends StatefulWidget {
   const CommunityPostCard({
     required this.post,
@@ -130,7 +151,8 @@ class _CommunityPostCardState extends State<CommunityPostCard>
   final RxInt _currentPage = 0.obs;
   late final Rx<CommunityPostReactionState> _reactionState;
   late final RxInt _commentCount;
-  final String? _currentUid = FirebaseAuth.instance.currentUser?.uid;
+  String? get _currentUid =>
+      AuthService.to.isAuthenticated.value ? AuthService.to.uid : null;
   final RxBool _isHidden = false.obs;
   final RxBool _isSaved = false.obs;
 
@@ -233,15 +255,15 @@ class _CommunityPostCardState extends State<CommunityPostCard>
   }
 
   Future<void> _toggleLike() async {
-    if (_currentUid == null) {
-      Get.snackbar('Authentication Required', 'Please sign in to like posts.');
+    if (_currentUid == null || !AuthService.to.isAuthenticated.value) {
+      _showCommunitySignInPrompt('like posts');
       return;
     }
 
     final previousState = _reactionState.value;
     final nextState = CommunityPostCardReactionEngine.toggleLike(
       previousState,
-      _currentUid,
+      _currentUid!,
     );
     _reactionState.value = nextState;
 
@@ -277,18 +299,15 @@ class _CommunityPostCardState extends State<CommunityPostCard>
   }
 
   Future<void> _toggleDislike() async {
-    if (_currentUid == null) {
-      Get.snackbar(
-        'Authentication Required',
-        'Please sign in to dislike posts.',
-      );
+    if (_currentUid == null || !AuthService.to.isAuthenticated.value) {
+      _showCommunitySignInPrompt('dislike posts');
       return;
     }
 
     final previousState = _reactionState.value;
     final nextState = CommunityPostCardReactionEngine.toggleDislike(
       previousState,
-      _currentUid,
+      _currentUid!,
     );
     _reactionState.value = nextState;
 
@@ -327,9 +346,6 @@ class _CommunityPostCardState extends State<CommunityPostCard>
   Widget build(BuildContext context) {
     return Obx(() {
       if (_isHidden.value) return const SizedBox.shrink();
-      if (!widget.isFullWidth) {
-        return _buildCompactGridCard(context);
-      }
       return _buildFullTruthworldCard(context);
     });
   }
@@ -800,8 +816,8 @@ class _CommunityPostCardState extends State<CommunityPostCard>
   }
 
   Future<void> _toggleSavePost() async {
-    if (_currentUid == null) {
-      Get.snackbar('Authentication Required', 'Please sign in to save posts.');
+    if (_currentUid == null || !AuthService.to.isAuthenticated.value) {
+      _showCommunitySignInPrompt('save posts');
       return;
     }
     final docRef = FirebaseFirestore.instance
@@ -965,11 +981,8 @@ class _CommunityPostCardState extends State<CommunityPostCard>
   }
 
   void _showReportModal(BuildContext context) {
-    if (_currentUid == null) {
-      Get.snackbar(
-        'Authentication Required',
-        'Please sign in to report posts.',
-      );
+    if (_currentUid == null || !AuthService.to.isAuthenticated.value) {
+      _showCommunitySignInPrompt('report posts');
       return;
     }
 
@@ -1370,246 +1383,38 @@ class _CommunityPostCardState extends State<CommunityPostCard>
     );
   }
 
-  Widget _buildCompactGridCard(BuildContext context) {
-    return Semantics(
-      button: true,
-      enabled: true,
-      label: 'Community Post: ${widget.post.title}',
-      child: AnimatedContainer(
-        duration: AppTheme.animations.normal,
-        curve: AppTheme.animations.easeOutCubic,
-        decoration: BoxDecoration(
-          color: AppTheme.colors.surface,
-          borderRadius: AppTheme.radius.circularLg,
-          border: Border.all(
-            color: AppTheme.colors.border.withValues(alpha: 0.3),
-            width: AppTheme.components.dividerThickness,
-          ),
-          boxShadow: AppTheme.shadows.elevationMd,
-        ),
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: AppTheme.radius.circularLg,
-          child: InkWell(
-            onTap: widget.onTap,
-            borderRadius: AppTheme.radius.circularLg,
-            hoverColor: AppTheme.colors.surface.withValues(alpha: 0.8),
-            splashColor: AppTheme.colors.primary.withValues(alpha: 0.2),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildCompactImages(),
-                Padding(
-                  padding: EdgeInsets.all(AppTheme.spacing.xs),
-                  child: _buildCompactDetails(context),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
-  Widget _buildCompactImages() {
-    if (widget.post.images.isEmpty) {
-      return SizedBox(
-        height: 120,
-        child: ColoredBox(
-          color: AppTheme.colors.surface,
-          child: Icon(
-            Icons.article,
-            size: AppTheme.sizes.iconLg,
-            color: AppTheme.colors.primary,
-          ),
-        ),
-      );
-    }
-
-    if (widget.post.images.length == 1) {
-      return GestureDetector(
-        onTap: () => _showFullScreenImage(context, widget.post.images, 0),
-        child: ClipRRect(
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(AppTheme.radius.lg),
-          ),
-          child: CachedNetworkImage(
-            imageUrl: widget.post.images.first,
-            fit: BoxFit.cover,
-            height: 150,
-            memCacheWidth: AppTheme.sizes.imageCacheMediumWidth,
-            memCacheHeight: AppTheme.sizes.imageCacheMediumHeight,
-            placeholder: (context, url) => Shimmer.fromColors(
-              baseColor: AppTheme.colors.surface,
-              highlightColor: AppTheme.colors.border,
-              child: Container(color: AppTheme.colors.surface),
-            ),
-            errorWidget: (context, url, error) => ColoredBox(
-              color: AppTheme.colors.surface,
-              child: const Icon(Icons.error),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return ClipRRect(
-      borderRadius: BorderRadius.vertical(
-        top: Radius.circular(AppTheme.radius.lg),
-      ),
-      child: SizedBox(
-        height: 150,
-        child: GridView.builder(
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: widget.post.images.length > 4 ? 3 : 2,
-            crossAxisSpacing: 2,
-            mainAxisSpacing: 2,
-          ),
-          itemCount: widget.post.images.take(4).length,
-          itemBuilder: (context, index) {
-            return GestureDetector(
-              onTap: () =>
-                  _showFullScreenImage(context, widget.post.images, index),
-              child: CachedNetworkImage(
-                imageUrl: widget.post.images[index],
-                fit: BoxFit.cover,
-                placeholder: (context, url) => Shimmer.fromColors(
-                  baseColor: AppTheme.colors.surface,
-                  highlightColor: AppTheme.colors.border,
-                  child: Container(color: AppTheme.colors.surface),
-                ),
-                errorWidget: (context, url, error) => ColoredBox(
-                  color: AppTheme.colors.surface,
-                  child: const Icon(Icons.error),
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCompactDetails(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        ClickableUrlText(
-          text: widget.post.title,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: AppTheme.typography.body.copyWith(
-            fontWeight: FontWeight.w500,
-            height: 1.4,
-          ),
-        ),
-        SizedBox(height: AppTheme.spacing.xs),
-        InkWell(
-          onTap: () => _navigateToChannel(context),
-          borderRadius: BorderRadius.circular(12),
-          child: Row(
-            children: [
-              UserAvatar(
-                radius: 12,
-                photoUrl: widget.post.channelImage,
-                displayName: widget.post.channelName,
-                fontSize: 12,
-              ),
-              SizedBox(width: AppTheme.spacing.xs),
-              Expanded(
-                child: Text(
-                  widget.post.channelName,
-                  style: AppTheme.typography.bodyMedium.copyWith(
-                    color: AppTheme.colors.textSecondary,
-                    fontSize: 12,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-        SizedBox(height: AppTheme.spacing.xs),
-        Row(
-          children: [
-            Icon(
-              Icons.thumb_up_outlined,
-              size: 14,
-              color: AppTheme.colors.textTertiary,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              '${widget.post.likes}',
-              style: AppTheme.typography.caption.copyWith(
-                color: AppTheme.colors.textTertiary,
-              ),
-            ),
-            SizedBox(width: AppTheme.spacing.sm),
-            Icon(
-              Icons.thumb_down_outlined,
-              size: 14,
-              color: AppTheme.colors.textTertiary,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              '${widget.post.dislikeCount}',
-              style: AppTheme.typography.caption.copyWith(
-                color: AppTheme.colors.textTertiary,
-              ),
-            ),
-            SizedBox(width: AppTheme.spacing.sm),
-            Icon(
-              Icons.comment_outlined,
-              size: 14,
-              color: AppTheme.colors.textTertiary,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              '${widget.post.commentCount}',
-              style: AppTheme.typography.caption.copyWith(
-                color: AppTheme.colors.textTertiary,
-              ),
-            ),
-            SizedBox(width: AppTheme.spacing.sm),
-            Icon(
-              Icons.visibility_outlined,
-              size: 14,
-              color: AppTheme.colors.textTertiary,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              '${widget.post.views}',
-              style: AppTheme.typography.caption.copyWith(
-                color: AppTheme.colors.textTertiary,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
 
   void _openCommentsPopup(BuildContext context) {
     final isSortNewest = false.obs;
     final textController = TextEditingController();
+    final commentsStream = FirebaseFirestore.instance
+        .collection('Community')
+        .doc(widget.post.id)
+        .collection('comments')
+        .snapshots();
 
-    Get.bottomSheet<void>(
-      DraggableScrollableSheet(
-        initialChildSize: 0.75,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        expand: false,
-        builder: (context, scrollController) {
-          return Container(
-            decoration: const BoxDecoration(
-              color: Color(0xFF0F0F0F),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-            ),
-            child: Column(
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (bottomSheetContext) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(bottomSheetContext).viewInsets.bottom,
+          ),
+          child: DraggableScrollableSheet(
+            initialChildSize: 0.75,
+            minChildSize: 0.5,
+            maxChildSize: 0.95,
+            expand: false,
+            builder: (context, scrollController) {
+              return Container(
+                decoration: const BoxDecoration(
+                  color: Color(0xFF0F0F0F),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                ),
+                child: Column(
               children: [
                 Center(
                   child: Container(
@@ -1631,11 +1436,7 @@ class _CommunityPostCardState extends State<CommunityPostCard>
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                        stream: FirebaseFirestore.instance
-                            .collection('Community')
-                            .doc(widget.post.id)
-                            .collection('comments')
-                            .snapshots(),
+                        stream: commentsStream,
                         builder: (context, snapshot) {
                           final count =
                               snapshot.data?.docs.length ?? _commentCount;
@@ -1718,11 +1519,7 @@ class _CommunityPostCardState extends State<CommunityPostCard>
                 const Divider(color: Colors.white12, height: 1),
                 Expanded(
                   child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                    stream: FirebaseFirestore.instance
-                        .collection('Community')
-                        .doc(widget.post.id)
-                        .collection('comments')
-                        .snapshots(),
+                    stream: commentsStream,
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting &&
                           !snapshot.hasData) {
@@ -1812,119 +1609,128 @@ class _CommunityPostCardState extends State<CommunityPostCard>
                   ),
                 ),
                 const Divider(color: Colors.white12, height: 1),
-                Padding(
-                  padding: EdgeInsets.only(
-                    bottom: MediaQuery.of(context).viewInsets.bottom,
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                    color: const Color(0xFF181818),
-                    child: Row(
-                      children: [
-                        UserAvatar(
-                          radius: 16,
-                          photoUrl: AuthService.to.activePhotoUrl.isNotEmpty
-                              ? AuthService.to.activePhotoUrl
-                              : (FirebaseAuth.instance.currentUser?.photoURL ??
-                                    ''),
-                          displayName:
-                              AuthService.to.activeDisplayName.isNotEmpty
-                              ? AuthService.to.activeDisplayName
-                              : (FirebaseAuth
-                                        .instance
-                                        .currentUser
-                                        ?.displayName ??
-                                    'User'),
-                          fontSize: 11,
+                SafeArea(
+                  top: false,
+                  child: Obx(() {
+                    if (!AuthService.to.isAuthenticated.value) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextField(
-                            controller: textController,
-                            style: const TextStyle(
+                        color: const Color(0xFF181818),
+                        child: Center(
+                          child: TextButton.icon(
+                            onPressed: AuthService.to.signInWithGoogle,
+                            icon: const Icon(
+                              Icons.login_rounded,
+                              size: 16,
                               color: Colors.white,
-                              fontSize: 14,
                             ),
-                            decoration: const InputDecoration(
-                              hintText: 'Add a comment...',
-                              hintStyle: TextStyle(
-                                color: Colors.white54,
+                            label: const Text(
+                              'Sign in to add a comment',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      color: const Color(0xFF181818),
+                      child: Row(
+                        children: [
+                          UserAvatar(
+                            radius: 16,
+                            photoUrl: AuthService.to.activePhotoUrl,
+                            displayName: AuthService.to.activeDisplayName,
+                            fontSize: 11,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextField(
+                              controller: textController,
+                              style: const TextStyle(
+                                color: Colors.white,
                                 fontSize: 14,
                               ),
-                              border: InputBorder.none,
+                              decoration: const InputDecoration(
+                                hintText: 'Add a comment...',
+                                hintStyle: TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 14,
+                                ),
+                                border: InputBorder.none,
+                              ),
                             ),
                           ),
-                        ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.send_rounded,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                          onPressed: () async {
-                            final text = textController.text.trim();
-                            if (text.isEmpty) return;
-                            final user = FirebaseAuth.instance.currentUser;
-                            if (user == null) {
-                              Get.snackbar(
-                                'Authentication Required',
-                                'Please sign in to comment.',
+                          IconButton(
+                            icon: const Icon(
+                              Icons.send_rounded,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                            onPressed: () async {
+                              final text = textController.text.trim();
+                              if (text.isEmpty) return;
+                              if (!AuthService.to.isAuthenticated.value) {
+                                _showCommunitySignInPrompt('comment');
+                                return;
+                              }
+                              final uid = AuthService.to.uid;
+                              if (uid.isEmpty) return;
+                              final validation = await validateContent(
+                                text,
+                                fieldName: 'Comment',
                               );
-                              return;
-                            }
-                            final validation = await validateContent(
-                              text,
-                              fieldName: 'Comment',
-                            );
-                            if (!validation.isValid) {
-                              Get.snackbar(
-                                'Inappropriate Content',
-                                validation.message,
-                                snackPosition: SnackPosition.BOTTOM,
-                                backgroundColor: AppColors.bgSurface,
-                                colorText: AppColors.textPrimary,
-                              );
-                              return;
-                            }
-                            textController.clear();
-                            try {
-                              final authService = AuthService.to;
-                              final hasChannel = authService.hasChannel.value;
-                              final channel = authService.userChannel;
+                              if (!validation.isValid) {
+                                Get.snackbar(
+                                  'Inappropriate Content',
+                                  validation.message,
+                                  snackPosition: SnackPosition.BOTTOM,
+                                  backgroundColor: AppColors.bgSurface,
+                                  colorText: AppColors.textPrimary,
+                                );
+                                return;
+                              }
+                              textController.clear();
+                              try {
+                                final authService = AuthService.to;
+                                final hasChannel = authService.hasChannel.value;
+                                final channel = authService.userChannel;
 
-                              final channelId = hasChannel ? channel?.id : null;
-                              final channelName = hasChannel
-                                  ? (channel?.handle.isNotEmpty ?? false
-                                        ? channel?.handle
-                                        : channel?.name)
-                                  : null;
-                              final channelAvatar = hasChannel
-                                  ? channel?.avatarUrl
-                                  : null;
-                              final userAvatar =
-                                  authService.activePhotoUrl.isNotEmpty
-                                  ? authService.activePhotoUrl
-                                  : (user.photoURL ?? '');
-                              final userName =
-                                  authService.activeDisplayName.isNotEmpty
-                                  ? authService.activeDisplayName
-                                  : (user.displayName ?? 'User');
+                                final channelId = hasChannel ? channel?.id : null;
+                                final channelName = hasChannel
+                                    ? (channel?.handle.isNotEmpty ?? false
+                                          ? channel?.handle
+                                          : channel?.name)
+                                    : null;
+                                final channelAvatar = hasChannel
+                                    ? channel?.avatarUrl
+                                    : null;
+                                final userAvatar = authService.activePhotoUrl;
+                                final userName = authService.activeDisplayName;
 
-                              final postDoc = FirebaseFirestore.instance
-                                  .collection('Community')
-                                  .doc(widget.post.id);
-                              await postDoc.collection('comments').add({
-                                'text': text,
-                                'userId': user.uid,
-                                'userName': userName,
-                                'userImage': userAvatar,
-                                'userProfilePicUrl': userAvatar,
-                                'channelId': channelId,
-                                'channelName': channelName,
-                                'channelProfilePicUrl': channelAvatar,
+                                final postDoc = FirebaseFirestore.instance
+                                    .collection('Community')
+                                    .doc(widget.post.id);
+                                await postDoc.collection('comments').add({
+                                  'text': text,
+                                  'userId': uid,
+                                  'userName': userName,
+                                  'userImage': userAvatar,
+                                  'userProfilePicUrl': userAvatar,
+                                  'channelId': channelId,
+                                  'channelName': channelName,
+                                  'channelProfilePicUrl': channelAvatar,
                                 'createdAt': FieldValue.serverTimestamp(),
                                 'timestamp': FieldValue.serverTimestamp(),
                                 'likeCount': 0,
@@ -1947,17 +1753,18 @@ class _CommunityPostCardState extends State<CommunityPostCard>
                         ),
                       ],
                     ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-    );
-  }
+                  );
+                }),
+              ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
+},
+);
+}
 }
 
 class _CommunityCommentItemWidget extends StatefulWidget {
@@ -1988,9 +1795,26 @@ class _CommunityCommentItemWidgetState
   final RxBool _isRepliesExpanded = false.obs;
   final TextEditingController _replyController = TextEditingController();
 
+  Stream<QuerySnapshot<Map<String, dynamic>>>? _repliesStream;
+
+  void _initRepliesStream() {
+    final commentId = widget.commentData['id'] as String? ?? '';
+    if (commentId.isNotEmpty) {
+      _repliesStream = FirebaseFirestore.instance
+          .collection('Community')
+          .doc(widget.postId)
+          .collection('comments')
+          .doc(commentId)
+          .collection('replies')
+          .orderBy('createdAt', descending: false)
+          .snapshots();
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    _initRepliesStream();
     final likedBy = List<String>.from(
       widget.commentData['likedBy'] ?? widget.commentData['likedby'] ?? [],
     );
@@ -2018,13 +1842,19 @@ class _CommunityCommentItemWidgetState
             .obs;
   }
 
+  @override
+  void didUpdateWidget(covariant _CommunityCommentItemWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.postId != widget.postId ||
+        oldWidget.commentData['id'] != widget.commentData['id']) {
+      _initRepliesStream();
+    }
+  }
+
   Future<void> _toggleCommentLike() async {
     final uid = widget.currentUid;
-    if (uid == null) {
-      Get.snackbar(
-        'Authentication Required',
-        'Please sign in to like comments.',
-      );
+    if (uid == null || !AuthService.to.isAuthenticated.value) {
+      _showCommunitySignInPrompt('like comments');
       return;
     }
     final commentId = widget.commentData['id'] as String;
@@ -2067,11 +1897,8 @@ class _CommunityCommentItemWidgetState
 
   Future<void> _toggleCommentDislike() async {
     final uid = widget.currentUid;
-    if (uid == null) {
-      Get.snackbar(
-        'Authentication Required',
-        'Please sign in to dislike comments.',
-      );
+    if (uid == null || !AuthService.to.isAuthenticated.value) {
+      _showCommunitySignInPrompt('dislike comments');
       return;
     }
     final commentId = widget.commentData['id'] as String;
@@ -2115,11 +1942,12 @@ class _CommunityCommentItemWidgetState
   Future<void> _submitReply() async {
     final text = _replyController.text.trim();
     if (text.isEmpty) return;
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      Get.snackbar('Authentication Required', 'Please sign in to reply.');
+    if (!AuthService.to.isAuthenticated.value) {
+      _showCommunitySignInPrompt('reply');
       return;
     }
+    final uid = AuthService.to.uid;
+    if (uid.isEmpty) return;
     final validation = await validateContent(text, fieldName: 'Reply');
     if (!validation.isValid) {
       Get.snackbar(
@@ -2147,12 +1975,8 @@ class _CommunityCommentItemWidgetState
                 : channel?.name)
           : null;
       final channelAvatar = hasChannel ? channel?.avatarUrl : null;
-      final userAvatar = authService.activePhotoUrl.isNotEmpty
-          ? authService.activePhotoUrl
-          : (user.photoURL ?? '');
-      final userName = authService.activeDisplayName.isNotEmpty
-          ? authService.activeDisplayName
-          : (user.displayName ?? 'User');
+      final userAvatar = authService.activePhotoUrl;
+      final userName = authService.activeDisplayName;
 
       final commentDoc = FirebaseFirestore.instance
           .collection('Community')
@@ -2162,7 +1986,7 @@ class _CommunityCommentItemWidgetState
 
       await commentDoc.collection('replies').add({
         'text': text,
-        'userId': user.uid,
+        'userId': uid,
         'userName': userName,
         'userImage': userAvatar,
         'userProfilePicUrl': userAvatar,
@@ -2188,20 +2012,18 @@ class _CommunityCommentItemWidgetState
   }
 
   Future<void> _toggleSaveComment() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      Get.snackbar(
-        'Authentication Required',
-        'Please sign in to save comments.',
-      );
+    if (!AuthService.to.isAuthenticated.value) {
+      _showCommunitySignInPrompt('save comments');
       return;
     }
+    final uid = AuthService.to.uid;
+    if (uid.isEmpty) return;
     final commentId = widget.commentData['id'] as String? ?? '';
     if (commentId.isEmpty) return;
 
     final docRef = FirebaseFirestore.instance
         .collection('users')
-        .doc(user.uid)
+        .doc(uid)
         .collection('savedComments')
         .doc(commentId);
 
@@ -2260,9 +2082,9 @@ class _CommunityCommentItemWidgetState
   }
 
   void _showCommentOptions(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
     final authorId = widget.commentData['userId'] as String?;
-    final isOwner = user != null && user.uid == authorId;
+    final isOwner = AuthService.to.isAuthenticated.value &&
+        AuthService.to.uid == authorId;
     final text = widget.commentData['text']?.toString() ?? '';
 
     showModalBottomSheet(
@@ -2477,7 +2299,7 @@ class _CommunityCommentItemWidgetState
                                         ? Icons.thumb_down
                                         : Icons.thumb_down_outlined,
                                     color: _isDisliked.value
-                                        ? AppColors.error
+                                        ? Colors.white
                                         : Colors.white70,
                                     size: 16,
                                   ),
@@ -2501,6 +2323,10 @@ class _CommunityCommentItemWidgetState
                         const SizedBox(width: 16),
                         InkWell(
                           onTap: () {
+                            if (!AuthService.to.isAuthenticated.value) {
+                              _showCommunitySignInPrompt('reply to comments');
+                              return;
+                            }
                             _isReplying.value = !_isReplying.value;
                           },
                           borderRadius: BorderRadius.circular(12),
@@ -2602,17 +2428,11 @@ class _CommunityCommentItemWidgetState
   }
 
   Widget _buildRepliesList() {
-    final commentId = widget.commentData['id'] as String;
+    if (_repliesStream == null) return const SizedBox.shrink();
+    final commentId = widget.commentData['id'] as String? ?? '';
 
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('Community')
-          .doc(widget.postId)
-          .collection('comments')
-          .doc(commentId)
-          .collection('replies')
-          .orderBy('createdAt', descending: false)
-          .snapshots(),
+      stream: _repliesStream,
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const SizedBox.shrink();
         final replies = snapshot.data!.docs
@@ -2729,7 +2549,8 @@ class _CommunityReplyItem extends StatefulWidget {
 
 class _CommunityReplyItemState extends State<_CommunityReplyItem> {
   late final String _replyId;
-  final String? _currentUid = FirebaseAuth.instance.currentUser?.uid;
+  String? get _currentUid =>
+      AuthService.to.isAuthenticated.value ? AuthService.to.uid : null;
 
   late final RxBool _isLiked;
   late final RxBool _isDisliked;
@@ -2776,11 +2597,8 @@ class _CommunityReplyItemState extends State<_CommunityReplyItem> {
       .doc(_replyId);
 
   Future<void> _toggleReplyLike() async {
-    if (_currentUid == null) {
-      Get.snackbar(
-        'Authentication Required',
-        'Please sign in to react to replies.',
-      );
+    if (_currentUid == null || !AuthService.to.isAuthenticated.value) {
+      _showCommunitySignInPrompt('react to replies');
       return;
     }
 
@@ -2830,11 +2648,8 @@ class _CommunityReplyItemState extends State<_CommunityReplyItem> {
   }
 
   Future<void> _toggleReplyDislike() async {
-    if (_currentUid == null) {
-      Get.snackbar(
-        'Authentication Required',
-        'Please sign in to react to replies.',
-      );
+    if (_currentUid == null || !AuthService.to.isAuthenticated.value) {
+      _showCommunitySignInPrompt('react to replies');
       return;
     }
 
@@ -3156,7 +2971,7 @@ class _CommunityReplyItemState extends State<_CommunityReplyItem> {
                                         ? Icons.thumb_down
                                         : Icons.thumb_down_outlined,
                                     color: _isDisliked.value
-                                        ? AppColors.error
+                                        ? Colors.white
                                         : Colors.white70,
                                     size: 14,
                                   ),

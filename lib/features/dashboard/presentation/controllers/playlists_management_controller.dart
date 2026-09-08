@@ -289,7 +289,10 @@ class PlaylistsManagementController extends BaseController
       final ref = _storage.ref().child('thumbnails/playlists/$fileName');
       final metadata = SettableMetadata(
         contentType: 'image/jpeg',
-        customMetadata: {'uploaded': DateTime.now().toString()},
+        customMetadata: {
+          'uploaderId': user.uid,
+          'uploaded': DateTime.now().toString(),
+        },
       );
       final uploadTask = ref.putData(bytes, metadata);
       await uploadTask.timeout(const Duration(seconds: 20));

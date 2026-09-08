@@ -1,10 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
-
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
@@ -204,8 +203,12 @@ class TopicController extends BaseController {
 
   /// Fetch user's subscribed channel IDs
   Future<void> loadUserSubscriptions() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) {
+    if (!AuthService.to.isAuthenticated.value) {
+      subscribedChannelIds.clear();
+      return;
+    }
+    final uid = AuthService.to.uid;
+    if (uid.isEmpty) {
       subscribedChannelIds.clear();
       return;
     }
@@ -275,6 +278,13 @@ class TopicController extends BaseController {
         }
         hasError.value = true;
         rxErrorMessage.value = 'Topic not found';
+        rxIsLoading.value = false;
+        return;
+      }
+
+      if (!topicData.isValidTopic) {
+        hasError.value = true;
+        rxErrorMessage.value = 'This topic is unavailable or contains no videos.';
         rxIsLoading.value = false;
         return;
       }

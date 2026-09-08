@@ -49,24 +49,6 @@ class PlaylistsManagementScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0F0F0F),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showCreatePlaylistDialog(context),
-        icon: const Icon(Icons.add_rounded, color: Colors.white, size: 20),
-        label: const Text(
-          'Create Playlist',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-            fontSize: 13,
-          ),
-        ),
-        backgroundColor: const Color(0xFF27272A),
-        elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: const BorderSide(color: Color(0xFF3F3F46)),
-        ),
-      ),
       body: CustomScrollView(
         slivers: [
           // Studio Header & Summary Metrics Bar
@@ -108,77 +90,37 @@ class PlaylistsManagementScreen extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 14),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: OutlinedButton.icon(
-                                    onPressed: () =>
-                                        _showQuickAddVideoModal(context),
-                                    icon: const Icon(
-                                      Icons.playlist_add_rounded,
-                                      size: 16,
-                                      color: Colors.white,
-                                    ),
-                                    label: const Text(
-                                      'Save Video',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    style: OutlinedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF18181B),
-                                      foregroundColor: Colors.white,
-                                      side: const BorderSide(
-                                        color: Color(0xFF27272A),
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 12,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                    ),
-                                  ),
+                            ElevatedButton.icon(
+                              onPressed: () =>
+                                  _showCreatePlaylistDialog(context),
+                              icon: const Icon(
+                                Icons.add_rounded,
+                                size: 18,
+                                color: Colors.white,
+                              ),
+                              label: const Text(
+                                'New Playlist',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
                                 ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: ElevatedButton.icon(
-                                    onPressed: () =>
-                                        _showCreatePlaylistDialog(context),
-                                    icon: const Icon(
-                                      Icons.add_rounded,
-                                      size: 18,
-                                      color: Colors.white,
-                                    ),
-                                    label: const Text(
-                                      'New Playlist',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF27272A),
-                                      foregroundColor: Colors.white,
-                                      side: const BorderSide(
-                                        color: Color(0xFF3F3F46),
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 14,
-                                        vertical: 12,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      elevation: 0,
-                                    ),
-                                  ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF27272A),
+                                foregroundColor: Colors.white,
+                                side: const BorderSide(
+                                  color: Color(0xFF3F3F46),
                                 ),
-                              ],
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                elevation: 0,
+                              ),
                             ),
                           ],
                         );
@@ -212,73 +154,37 @@ class PlaylistsManagementScreen extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 16),
-                          Row(
-                            children: [
-                              OutlinedButton.icon(
-                                onPressed: () =>
-                                    _showQuickAddVideoModal(context),
-                                icon: const Icon(
-                                  Icons.playlist_add_rounded,
-                                  size: 18,
-                                  color: Colors.white,
-                                ),
-                                label: const Text(
-                                  'Save Video to Playlist',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                style: OutlinedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF18181B),
-                                  foregroundColor: Colors.white,
-                                  side: const BorderSide(
-                                    color: Color(0xFF27272A),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
+                          ElevatedButton.icon(
+                            onPressed: () =>
+                                _showCreatePlaylistDialog(context),
+                            icon: const Icon(
+                              Icons.add_rounded,
+                              size: 18,
+                              color: Colors.white,
+                            ),
+                            label: const Text(
+                              'New Playlist',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
                               ),
-                              const SizedBox(width: 10),
-                              ElevatedButton.icon(
-                                onPressed: () =>
-                                    _showCreatePlaylistDialog(context),
-                                icon: const Icon(
-                                  Icons.add_rounded,
-                                  size: 18,
-                                  color: Colors.white,
-                                ),
-                                label: const Text(
-                                  'New Playlist',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF27272A),
-                                  foregroundColor: Colors.white,
-                                  side: const BorderSide(
-                                    color: Color(0xFF3F3F46),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 18,
-                                    vertical: 12,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  elevation: 0,
-                                ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF27272A),
+                              foregroundColor: Colors.white,
+                              side: const BorderSide(
+                                color: Color(0xFF3F3F46),
                               ),
-                            ],
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 12,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              elevation: 0,
+                            ),
                           ),
                         ],
                       );
@@ -1263,38 +1169,8 @@ class PlaylistsManagementScreen extends StatelessWidget {
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 24),
-            if (!isSearch)
-              ElevatedButton.icon(
-                onPressed: () => _showCreatePlaylistDialog(context),
-                icon: const Icon(
-                  Icons.add_rounded,
-                  color: Colors.white,
-                  size: 18,
-                ),
-                label: const Text(
-                  'Create Your First Playlist',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF27272A),
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Color(0xFF3F3F46)),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  elevation: 0,
-                ),
-              )
-            else
+            if (isSearch) ...[
+              const SizedBox(height: 24),
               OutlinedButton(
                 onPressed: () {
                   _searchController.clear();
@@ -1314,6 +1190,7 @@ class PlaylistsManagementScreen extends StatelessWidget {
                 ),
                 child: const Text('Clear Filters'),
               ),
+            ],
           ],
         ),
       ),
@@ -2546,362 +2423,6 @@ class PlaylistsManagementScreen extends StatelessWidget {
                     );
                   }),
                 ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  void _showQuickAddVideoModal(BuildContext context) {
-    final searchFilter = ''.obs;
-    final allChannelVideos = <Video>[].obs;
-    final isLoading = true.obs;
-    final selectedVideo = Rx<Video?>(null);
-    final selectedPlaylistId = ''.obs;
-    final isSaving = false.obs;
-
-    _controller.fetchChannelVideos(activeChannelId).then((vids) {
-      allChannelVideos.assignAll(vids);
-      isLoading.value = false;
-    });
-
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFF141417),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        side: BorderSide(color: Color(0xFF27272A)),
-      ),
-      builder: (sheetCtx) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.8,
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Quick Save Video to Playlist',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.close_rounded,
-                      color: Colors.white,
-                    ),
-                    onPressed: () => Navigator.pop(sheetCtx),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'Select a channel video and choose which playlist to add it to.',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Playlist Selector
-              Obx(() {
-                final playlists = _controller.playlistsList;
-                if (playlists.isEmpty) {
-                  return const Text(
-                    'No playlists exist yet. Create a playlist first.',
-                    style: TextStyle(color: AppColors.error, fontSize: 12),
-                  );
-                }
-
-                if (selectedPlaylistId.value.isEmpty) {
-                  selectedPlaylistId.value = playlists.first.id;
-                }
-
-                return DropdownButtonFormField<String>(
-                  value: selectedPlaylistId.value,
-                  dropdownColor: const Color(0xFF1E1E22),
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
-                  decoration: InputDecoration(
-                    labelText: 'Target Playlist',
-                    labelStyle: const TextStyle(color: AppColors.textSecondary),
-                    filled: true,
-                    fillColor: const Color(0xFF0F0F0F),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: Color(0xFF27272A)),
-                    ),
-                  ),
-                  items: playlists.map((p) {
-                    return DropdownMenuItem(
-                      value: p.id,
-                      child: Text(
-                        '${p.name} (${p.videoCount} videos)',
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (val) {
-                    if (val != null) selectedPlaylistId.value = val;
-                  },
-                );
-              }),
-              const SizedBox(height: 16),
-
-              // Video Search
-              TextField(
-                onChanged: (val) => searchFilter.value = val.trim().toLowerCase(),
-                style: const TextStyle(color: Colors.white, fontSize: 13),
-                decoration: InputDecoration(
-                  hintText: 'Search video to add...',
-                  hintStyle: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 13,
-                  ),
-                  prefixIcon: const Icon(
-                    Icons.search_rounded,
-                    color: Colors.white,
-                    size: 18,
-                  ),
-                  filled: true,
-                  fillColor: const Color(0xFF0F0F0F),
-                  isDense: true,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFF27272A)),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-
-              // Video List
-              Expanded(
-                child: Obx(() {
-                  if (isLoading.value) {
-                    return const Center(
-                      child: CircularProgressIndicator(color: Colors.white),
-                    );
-                  }
-
-                  final query = searchFilter.value;
-                  final displayList = query.isEmpty
-                      ? allChannelVideos
-                      : allChannelVideos
-                          .where((v) =>
-                              v.title.toLowerCase().contains(query) ||
-                              v.description.toLowerCase().contains(query))
-                          .toList();
-
-                  if (displayList.isEmpty) {
-                    return const Center(
-                      child: Text(
-                        'No videos found.',
-                        style: TextStyle(color: AppColors.textSecondary),
-                      ),
-                    );
-                  }
-
-                  return ListView.separated(
-                    itemCount: displayList.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 6),
-                    itemBuilder: (context, index) {
-                      final video = displayList[index];
-
-                      return Obx(() {
-                        final isSelected =
-                            selectedVideo.value?.id == video.id;
-
-                        return Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () {
-                              selectedVideo.value = video;
-                            },
-                            borderRadius: BorderRadius.circular(8),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? const Color(0xFF27272A)
-                                    : const Color(0xFF0F0F0F),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: isSelected
-                                      ? Colors.white.withValues(alpha: 0.5)
-                                      : const Color(0xFF27272A),
-                                  width: isSelected ? 1.5 : 1,
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(4),
-                                    child: SizedBox(
-                                      width: 56,
-                                      height: 32,
-                                      child: video.thumbnailUrl.isNotEmpty
-                                          ? CachedNetworkImage(
-                                              imageUrl: video.thumbnailUrl,
-                                              fit: BoxFit.cover,
-                                              errorWidget: (_, _, _) =>
-                                                  const ColoredBox(
-                                                color: Color(0xFF27272A),
-                                                child: Icon(
-                                                  Icons.movie,
-                                                  color: Colors.white,
-                                                  size: 16,
-                                                ),
-                                              ),
-                                            )
-                                          : const ColoredBox(
-                                              color: Color(0xFF27272A),
-                                              child: Icon(
-                                                Icons.movie,
-                                                color: Colors.white,
-                                                size: 16,
-                                              ),
-                                            ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          video.title,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          video.duration.isNotEmpty
-                                              ? video.duration
-                                              : '${video.views} views',
-                                          style: const TextStyle(
-                                            color: AppColors.textSecondary,
-                                            fontSize: 11,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    width: 20,
-                                    height: 20,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: isSelected
-                                          ? const Color(0xFF3F3F46)
-                                          : Colors.transparent,
-                                      border: Border.all(
-                                        color: isSelected
-                                            ? Colors.white
-                                            : const Color(0xFF52525B),
-                                        width: 1.5,
-                                      ),
-                                    ),
-                                    child: isSelected
-                                        ? const Icon(
-                                            Icons.check,
-                                            color: Colors.white,
-                                            size: 14,
-                                          )
-                                        : null,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      });
-                    },
-                  );
-                }),
-              ),
-              const SizedBox(height: 16),
-
-              // Save CTA
-              SizedBox(
-                width: double.infinity,
-                child: Obx(() {
-                  final canSave = selectedVideo.value != null &&
-                      selectedPlaylistId.value.isNotEmpty;
-
-                  return ElevatedButton(
-                    onPressed: !canSave || isSaving.value
-                        ? null
-                        : () async {
-                            isSaving.value = true;
-                            final playlist = _controller.playlistsList
-                                .firstWhereOrNull(
-                              (p) => p.id == selectedPlaylistId.value,
-                            );
-                            if (playlist != null) {
-                              final video = selectedVideo.value!;
-                              final currentIds = List<String>.from(
-                                playlist.videoIds,
-                              );
-                              if (!currentIds.contains(video.id)) {
-                                currentIds.add(video.id);
-                                await _controller.updatePlaylistVideos(
-                                  playlist: playlist,
-                                  videoIds: currentIds,
-                                );
-                              } else {
-                                AppSnackbar.show(
-                                  'Already Added',
-                                  'This video is already in "${playlist.name}".',
-                                  backgroundColor: AppColors.warning,
-                                  colorText: AppColors.textPrimary,
-                                );
-                              }
-                            }
-                            isSaving.value = false;
-                            if (sheetCtx.mounted) Navigator.pop(sheetCtx);
-                          },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF27272A),
-                      foregroundColor: Colors.white,
-                      side: const BorderSide(color: Color(0xFF3F3F46)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: isSaving.value
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Text(
-                            'Add to Playlist',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                  );
-                }),
               ),
             ],
           ),

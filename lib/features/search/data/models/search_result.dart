@@ -59,7 +59,7 @@ class SearchResult {
         final playlistTitle = data['name'] as String? ??
             data['playlistName'] as String? ??
             data['title'] as String? ??
-            'Playlist';
+            '';
         final playlistThumb = data['thumbnailUrl'] as String? ??
             data['thumbnail'] as String? ??
             data['coverUrl'] as String? ??
@@ -84,23 +84,26 @@ class SearchResult {
           type: ResultType.playlist,
         );
       case ResultType.topic:
-        final slugVal = data['slug'] as String? ?? '';
-        final topicTitle = data['title'] as String? ??
-            data['name'] as String? ??
-            data['topicName'] as String? ??
-            (slugVal.isNotEmpty ? slugVal.replaceAll('-', ' ') : 'Topic');
+        final slugVal = (data['slug'] as String?)?.trim() ?? '';
+        final rawTitle = (data['title'] as String?)?.trim() ??
+            (data['name'] as String?)?.trim() ??
+            (data['topicName'] as String?)?.trim() ??
+            '';
+        final topicTitle = rawTitle.isNotEmpty
+            ? rawTitle
+            : (slugVal.isNotEmpty && slugVal.toLowerCase() != 'topic'
+                ? slugVal.replaceAll('-', ' ')
+                : '');
         final topicThumb = data['thumbnailUrl'] as String? ??
             data['thumbnail'] as String? ??
             data['coverImage'] as String? ??
             data['imageUrl'] as String? ??
             '';
         final topicCount = (data['videoCount'] as num?)?.toInt() ??
-            (data['followerCount'] as num?)?.toInt() ??
-            (data['followersCount'] as num?)?.toInt() ??
-            (data['views'] as num?)?.toInt() ??
+            (data['featuredVideoIds'] as List?)?.length ??
             0;
         final handleVal = data['handle'] as String? ??
-            (slugVal.isNotEmpty ? 'T/$slugVal' : 'Topic');
+            (slugVal.isNotEmpty ? 'T/$slugVal' : '');
 
         return SearchResult(
           id: doc.id,
@@ -184,6 +187,37 @@ class SearchResult {
           t == 'uploading...' ||
           t.startsWith('untitled draft') ||
           t.startsWith('uploading')) {
+        return false;
+      }
+    } else if (type == ResultType.playlist) {
+      if (t == 'playlist' ||
+          t == 'untitled' ||
+          t == 'untitled playlist' ||
+          t == 'truthworld playlist' ||
+          t.startsWith('untitled')) {
+        return false;
+      }
+      // Playlists must have at least 1 video to be displayed in search
+      if (views <= 0) {
+        return false;
+      }
+    } else if (type == ResultType.topic) {
+      if (t == 'topic' ||
+          t == 'featured topic' ||
+          t == 'untitled' ||
+          t == 'untitled topic' ||
+          t.startsWith('untitled')) {
+        return false;
+      }
+      // Topics must have at least 1 video to be displayed in search
+      if (views <= 0) {
+        return false;
+      }
+    } else if (type == ResultType.channel) {
+      if (t == 'channel' ||
+          t == 'untitled' ||
+          t == 'untitled channel' ||
+          t.startsWith('untitled')) {
         return false;
       }
     }

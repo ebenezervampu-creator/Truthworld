@@ -25,7 +25,7 @@ class LanguagePreferencesDialog extends StatelessWidget {
           icon: const Icon(
             Icons.edit_rounded,
             size: 14,
-            color: AppColors.brand,
+            color: Colors.white,
           ),
           label: const Text(
             'Edit',
@@ -187,7 +187,7 @@ class LanguagePreferencesDialog extends StatelessWidget {
                 children: [
                   const Icon(
                     Icons.settings_suggest_rounded,
-                    color: AppColors.brand,
+                    color: Colors.white,
                   ),
                   const SizedBox(width: 12),
                   const Text(
@@ -483,7 +483,7 @@ class LanguageSelectionDialog extends StatelessWidget {
                           : isSelected
                           ? const Icon(
                               Icons.check_circle_rounded,
-                              color: AppColors.brand,
+                              color: Colors.white,
                               size: 18,
                             )
                           : null,

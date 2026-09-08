@@ -1,11 +1,21 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/core/utils/firebase_rtdb_helper.dart';
 
+/// Hybrid Multi-Tiered Watch History & Playback Resume Service.
+///
+/// Tier 1: Local GetStorage (0ms instant resume on same device, offline-ready)
+/// Tier 2: Firebase RTDB /playbackResume (lightweight, zero-cost cross-device sync)
+/// Tier 3: Cloud Firestore /watch_history (durable permanent watch history, updated on pause/exit/completion)
 class WatchHistoryService extends GetxService {
   static WatchHistoryService get to {
     if (!Get.isRegistered<WatchHistoryService>()) {
@@ -15,12 +25,16 @@ class WatchHistoryService extends GetxService {
   }
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseDatabase _database = getSafeFirebaseDatabase();
+  final GetStorage _storage = GetStorage();
+
   final RxMap<String, double> _watchProgress =
       <String, double>{}.obs; // videoId -> percentage (0-100)
   final RxMap<String, int> _lastPositions =
       <String, int>{}.obs; // videoId -> seconds
 
   StreamSubscription? _historySubscription;
+  StreamSubscription? _rtdbResumeSubscription;
 
   @override
   void onInit() {
@@ -32,21 +46,24 @@ class WatchHistoryService extends GetxService {
 
   void _handleAuthChanged(dynamic user) {
     _historySubscription?.cancel();
+    _rtdbResumeSubscription?.cancel();
     _watchProgress.clear();
     _lastPositions.clear();
 
     if (user != null) {
       final userId = AuthService.to.uid;
+      if (userId.isEmpty) return;
+
+      // 1. Listen to permanent Firestore watch history (bounded to 50 items for cost efficiency)
       _historySubscription = _firestore
           .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('watch_history')
+          .orderBy('watchedAt', descending: true)
+          .limit(50)
           .snapshots()
           .listen(
             (snapshot) {
-              final newProgress = <String, double>{};
-              final newPositions = <String, int>{};
-
               for (final doc in snapshot.docs) {
                 final data = doc.data();
                 final videoId = doc.id;
@@ -54,12 +71,9 @@ class WatchHistoryService extends GetxService {
                     (data['watchPercentage'] as num?)?.toDouble() ?? 0.0;
                 final lastPos = (data['lastPosition'] as num?)?.toInt() ?? 0;
 
-                newProgress[videoId] = percentage;
-                newPositions[videoId] = lastPos;
+                _watchProgress[videoId] = percentage;
+                _lastPositions[videoId] = lastPos;
               }
-
-              _watchProgress.assignAll(newProgress);
-              _lastPositions.assignAll(newPositions);
             },
             onError: (e) {
               logger.error(
@@ -68,27 +82,125 @@ class WatchHistoryService extends GetxService {
               );
             },
           );
+
+      // 2. Listen to RTDB cross-device resume updates (zero-cost operations)
+      try {
+        _rtdbResumeSubscription = _database
+            .ref('playbackResume/$userId')
+            .onValue
+            .listen((event) {
+              final val = event.snapshot.value;
+              if (val is Map) {
+                val.forEach((key, raw) {
+                  if (raw is Map) {
+                    final videoId = key.toString();
+                    final pos = (raw['position'] as num?)?.toInt() ?? 0;
+                    final pct = (raw['percentage'] as num?)?.toDouble() ?? 0.0;
+                    if (pos > 0) _lastPositions[videoId] = pos;
+                    if (pct > 0) _watchProgress[videoId] = pct;
+                  }
+                });
+              }
+            }, onError: (Object e) {
+              debugPrint('[WatchHistoryService] RTDB resume listener error: $e');
+            });
+      } catch (e) {
+        debugPrint('[WatchHistoryService] Failed to attach RTDB resume listener: $e');
+      }
     }
   }
 
   /// Get watch progress percentage for a video (0.0 to 100.0)
   double getProgress(String videoId) {
-    return _watchProgress[videoId] ?? 0.0;
+    if (videoId.isEmpty) return 0.0;
+    final memoryVal = _watchProgress[videoId];
+    try {
+      final local = _storage.read<Map<String, dynamic>>('resume_$videoId');
+      if (local != null && local['percentage'] is num) {
+        return (local['percentage'] as num).toDouble();
+      }
+    } catch (_) {}
+    return memoryVal ?? 0.0;
   }
 
-  /// Get last watched position in seconds for a video
+  /// Get last watched position in seconds for a video (checking local storage first, then memory/RTDB/Firestore)
   int getLastPosition(String videoId) {
+    if (videoId.isEmpty) return 0;
+    try {
+      final local = _storage.read<Map<String, dynamic>>('resume_$videoId');
+      if (local != null && local['position'] is num) {
+        final pos = (local['position'] as num).toInt();
+        if (pos > 0) return pos;
+      }
+    } catch (_) {}
     return _lastPositions[videoId] ?? 0;
+  }
+
+  /// Save local position immediately into GetStorage (called every few seconds during playback - 100% free, 0ms)
+  void saveLocalPosition(String videoId, int positionSeconds, double percentage) {
+    if (videoId.isEmpty || positionSeconds <= 0) return;
+
+    final currentPos = _lastPositions[videoId];
+    final currentPct = _watchProgress[videoId];
+
+    final hasPosChanged = currentPos != positionSeconds;
+    final hasPctChanged = currentPct == null || (currentPct - percentage).abs() >= 1.0;
+
+    if (hasPosChanged || hasPctChanged) {
+      void applyUpdate() {
+        if (hasPosChanged) _lastPositions[videoId] = positionSeconds;
+        if (hasPctChanged) _watchProgress[videoId] = percentage;
+      }
+
+      if (WidgetsBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          applyUpdate();
+        });
+      } else {
+        applyUpdate();
+      }
+    }
+
+    try {
+      _storage.write('resume_$videoId', {
+        'position': positionSeconds,
+        'percentage': percentage,
+        'updatedAt': DateTime.now().millisecondsSinceEpoch,
+      });
+    } catch (e) {
+      debugPrint('[WatchHistoryService] Error writing local resume: $e');
+    }
+  }
+
+  /// Sync cross-device resume position to RTDB (throttled to 45-60s - 100% free operation)
+  Future<void> syncCrossDeviceResume(
+    String videoId,
+    int positionSeconds,
+    double percentage,
+  ) async {
+    final userId = AuthService.to.uid;
+    if (userId.isEmpty || videoId.isEmpty || positionSeconds <= 0) return;
+
+    try {
+      await _database.ref('playbackResume/$userId/$videoId').set({
+        'position': positionSeconds,
+        'percentage': percentage,
+        'updatedAt': ServerValue.timestamp,
+      });
+    } catch (e) {
+      debugPrint('[WatchHistoryService] RTDB cross-device sync error: $e');
+    }
   }
 
   /// Check if a video has any watch progress
   bool hasProgress(String videoId) {
-    return _watchProgress.containsKey(videoId) && _watchProgress[videoId]! > 0;
+    return getProgress(videoId) > 0;
   }
 
   @override
   void onClose() {
     _historySubscription?.cancel();
+    _rtdbResumeSubscription?.cancel();
     super.onClose();
   }
 }

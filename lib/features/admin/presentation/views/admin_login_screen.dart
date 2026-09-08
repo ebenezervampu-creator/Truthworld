@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/widgets/app_logo.dart';
@@ -6,7 +5,9 @@ import 'package:truthworld/features/admin/presentation/controllers/admin_control
 import 'package:truthworld/theme/app_theme.dart';
 
 class AdminLoginScreen extends StatelessWidget {
-  const AdminLoginScreen({super.key});
+  AdminLoginScreen({super.key});
+
+  final RxBool _obscurePassword = true.obs;
 
   TextEditingController get _emailController => AdminController.to.emailController;
   TextEditingController get _passwordController => AdminController.to.passwordController;
@@ -186,54 +187,7 @@ class AdminLoginScreen extends StatelessWidget {
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 20),
-
-          if (FirebaseAuth.instance.currentUser != null) ...[
-            Container(
-              padding: const EdgeInsets.all(16),
-              margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(
-                color: AppColors.brand.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: AppColors.brand.withValues(alpha: 0.4),
-                ),
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    'Active Session: ${FirebaseAuth.instance.currentUser?.email ?? 'Authenticated Admin'}',
-                    style: const TextStyle(
-                      fontFamily: TWTypography.uiFamily,
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  ElevatedButton(
-                    onPressed: () => Get.offAllNamed('/admin/dashboard'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.brand,
-                      foregroundColor: Colors.black,
-                      minimumSize: const Size.fromHeight(42),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    child: const Text(
-                      'Open Admin Dashboard',
-                      style: TextStyle(
-                        fontFamily: TWTypography.uiFamily,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          const SizedBox(height: 24),
 
           // Email Input
           TextField(
@@ -244,7 +198,7 @@ class AdminLoginScreen extends StatelessWidget {
               color: AppColors.textPrimary,
             ),
             decoration: InputDecoration(
-              hintText: 'ebenezervampu4@gmail.com',
+              hintText: 'ebenezervampy@towervsp.com',
               labelText: 'Admin Email',
               labelStyle: const TextStyle(
                 fontFamily: TWTypography.uiFamily,
@@ -272,38 +226,50 @@ class AdminLoginScreen extends StatelessWidget {
           ),
           const SizedBox(height: 14),
 
-          // Password Input
-          TextField(
-            controller: _passwordController,
-            obscureText: true,
-            style: const TextStyle(
-              fontFamily: TWTypography.uiFamily,
-              color: AppColors.textPrimary,
-            ),
-            decoration: InputDecoration(
-              hintText: '••••••••',
-              labelText: 'Admin Password',
-              labelStyle: const TextStyle(
+          // Password Input with Visibility Toggle
+          Obx(
+            () => TextField(
+              controller: _passwordController,
+              obscureText: _obscurePassword.value,
+              style: const TextStyle(
                 fontFamily: TWTypography.uiFamily,
-                color: AppColors.textSecondary,
+                color: AppColors.textPrimary,
               ),
-              filled: true,
-              fillColor: AppColors.bgInput,
-              prefixIcon: const Icon(
-                Icons.lock_outline_rounded,
-                color: Colors.white,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: AppColors.brand),
+              decoration: InputDecoration(
+                hintText: '••••••••',
+                labelText: 'Admin Password',
+                labelStyle: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  color: AppColors.textSecondary,
+                ),
+                filled: true,
+                fillColor: AppColors.bgInput,
+                prefixIcon: const Icon(
+                  Icons.lock_outline_rounded,
+                  color: Colors.white,
+                ),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePassword.value
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  onPressed: _obscurePassword.toggle,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.brand),
+                ),
               ),
             ),
           ),
@@ -313,7 +279,7 @@ class AdminLoginScreen extends StatelessWidget {
           ElevatedButton(
             onPressed: controller.isLoading
                 ? null
-                : () => controller.signInWithEmailAndPassword(
+                : () => controller.signInWithAdminProtocol(
                       emailInput: _emailController.text,
                       passwordInput: _passwordController.text,
                     ),
@@ -422,7 +388,7 @@ class AdminLoginScreen extends StatelessWidget {
               border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
             child: const Text(
-              'Authorized Owner: ebenezervampu4@gmail.com',
+              'Authorized Owner: ebenezervampy@towervsp.com',
               style: TextStyle(
                 fontFamily: TWTypography.uiFamily,
                 color: AppColors.textSecondary,

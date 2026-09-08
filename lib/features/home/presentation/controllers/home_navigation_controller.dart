@@ -105,7 +105,8 @@ class HomeNavigationController extends BaseController with GetTickerProviderStat
   void _initializeTabController() {
     if (!Get.isRegistered<HomeDiscoveryController>()) return;
     final availableCategories = Get.find<HomeDiscoveryController>().availableCategories;
-    tabController = TabController(length: availableCategories.length, vsync: this);
+    final len = availableCategories.isNotEmpty ? availableCategories.length : 1;
+    tabController = TabController(length: len, vsync: this);
     tabController.addListener(_onTabChanged);
   }
 
@@ -113,9 +114,10 @@ class HomeNavigationController extends BaseController with GetTickerProviderStat
     try {
       if (!Get.isRegistered<HomeDiscoveryController>()) return;
       final availableCategories = Get.find<HomeDiscoveryController>().availableCategories;
-      final newLength = availableCategories.length;
+      final newLength = availableCategories.isNotEmpty ? availableCategories.length : 1;
       if (tabController.length != newLength) {
-        final currentIndex = tabController.index.clamp(0, newLength > 0 ? newLength - 1 : 0);
+        final currentIndex = tabController.index.clamp(0, newLength - 1);
+        tabController.removeListener(_onTabChanged);
         tabController.dispose();
         tabController = TabController(length: newLength, initialIndex: currentIndex, vsync: this);
         tabController.addListener(_onTabChanged);
@@ -153,7 +155,10 @@ class HomeNavigationController extends BaseController with GetTickerProviderStat
   void onTabChanged(int index) {
     if (!Get.isRegistered<HomeDiscoveryController>()) return;
     final discovery = Get.find<HomeDiscoveryController>();
-    if (index >= 0 && index < discovery.availableCategories.length) {
+    if (tabController.length != discovery.availableCategories.length) {
+      reinitializeTabController();
+    }
+    if (index >= 0 && index < tabController.length) {
       tabController.animateTo(index);
     }
   }
@@ -161,8 +166,11 @@ class HomeNavigationController extends BaseController with GetTickerProviderStat
   void syncTabToCategory(String category) {
     if (!Get.isRegistered<HomeDiscoveryController>()) return;
     final discovery = Get.find<HomeDiscoveryController>();
+    if (tabController.length != discovery.availableCategories.length) {
+      reinitializeTabController();
+    }
     final categoryIndex = discovery.availableCategories.indexOf(category);
-    if (categoryIndex != -1) {
+    if (categoryIndex >= 0 && categoryIndex < tabController.length) {
       tabController.animateTo(categoryIndex);
     }
   }

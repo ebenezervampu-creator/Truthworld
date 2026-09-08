@@ -511,6 +511,23 @@ class _AnimatedSubscribeButtonState extends State<AnimatedSubscribeButton>
                     crossFadeState: isSub
                         ? CrossFadeState.showSecond
                         : CrossFadeState.showFirst,
+                    layoutBuilder: (topChild, topChildKey, bottomChild, bottomChildKey) {
+                      return Stack(
+                        alignment: Alignment.center,
+                        children: <Widget>[
+                          Positioned(
+                            key: bottomChildKey,
+                            top: 0,
+                            bottom: 0,
+                            child: Center(child: bottomChild),
+                          ),
+                          Positioned(
+                            key: topChildKey,
+                            child: Center(child: topChild),
+                          ),
+                        ],
+                      );
+                    },
                     firstChild: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [

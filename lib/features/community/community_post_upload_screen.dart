@@ -68,9 +68,7 @@ class _CommunityPostUploadScreenState extends State<CommunityPostUploadScreen> {
                   children: [
                     _buildHeader(context),
                     const SizedBox(height: 24),
-                    _isMobile(context)
-                        ? _buildMobileLayout(context)
-                        : _buildDesktopLayout(context),
+                    if (_isMobile(context)) _buildMobileLayout(context) else _buildDesktopLayout(context),
                   ],
                 ),
               ),
@@ -222,7 +220,7 @@ class _CommunityPostUploadScreenState extends State<CommunityPostUploadScreen> {
                   ),
                 ),
               ),
-              if (titleAction != null) titleAction,
+              ?titleAction,
             ],
           ),
           if (subtitle != null) ...[
@@ -288,9 +286,6 @@ class _CommunityPostUploadScreenState extends State<CommunityPostUploadScreen> {
           return CustomPaint(
             painter: DashedBorderPainter(
               color: context.colors.divider,
-              strokeWidth: 1.5,
-              radius: 12,
-              gap: 5,
             ),
             child: Container(
               width: double.infinity,
@@ -708,10 +703,10 @@ class _CommunityPostUploadScreenState extends State<CommunityPostUploadScreen> {
         title: '2. Visibility',
         subtitle: 'Choose who can see your post.',
         children: visibilityOptions.map((opt) {
-          final key = opt['key'] as String;
-          final title = opt['title'] as String;
-          final desc = opt['desc'] as String;
-          final icon = opt['icon'] as IconData;
+          final key = opt['key']! as String;
+          final title = opt['title']! as String;
+          final desc = opt['desc']! as String;
+          final icon = opt['icon']! as IconData;
           final hasInfo = opt['hasInfo'] == true;
           final isSelected = currentVis == key;
 
@@ -1152,7 +1147,7 @@ class DashedBorderPainter extends CustomPainter {
 
     final metrics = path.computeMetrics();
     for (final metric in metrics) {
-      double distance = 0.0;
+      var distance = 0.0;
       while (distance < metric.length) {
         final length = gap;
         canvas.drawPath(

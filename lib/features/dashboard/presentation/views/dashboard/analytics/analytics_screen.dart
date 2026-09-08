@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:truthworld/features/analytics/presentation/pages/creator_analytics_dashboard.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/analytics_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/recommendation_card_widget.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/live_subscribers_screen.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -92,58 +93,116 @@ class AnalyticsScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  InkWell(
-                    onTap: () {
-                      Get.to<dynamic>(
-                        () => const CreatorAnalyticsDashboard(),
-                        arguments: {
-                          'channelId': channelId,
-                          'channelName': 'My Channel',
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      // Live Subscribers of Channel Action Button
+                      InkWell(
+                        onTap: () {
+                          Get.to<dynamic>(
+                            () => LiveSubscribersScreen(
+                              isDarkMode: isDarkMode,
+                              channelId: channelId,
+                            ),
+                          );
                         },
-                      );
-                    },
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.brand,
                         borderRadius: BorderRadius.circular(10),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.brand.withValues(alpha: 0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 3),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
                           ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.analytics_rounded,
-                            color: Colors.white,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Full Dashboard',
-                            style: AppTextStyles.buttonText.copyWith(
-                              color: Colors.black,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE94560).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: const Color(0xFFE94560).withValues(alpha: 0.4),
                             ),
                           ),
-                          const SizedBox(width: 4),
-                          const Icon(
-                            Icons.arrow_forward_ios_rounded,
-                            color: Colors.white,
-                            size: 12,
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.sensors_rounded,
+                                color: Colors.white,
+                                size: 16,
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'Live Subscribers of channel',
+                                style: TextStyle(
+                                  color: Color(0xFFE94560),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              SizedBox(width: 4),
+                              Icon(
+                                Icons.arrow_forward_ios_rounded,
+                                color: Colors.white,
+                                size: 11,
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
-                    ),
+                      // Full Dashboard Button
+                      InkWell(
+                        onTap: () {
+                          Get.to<dynamic>(
+                            () => const CreatorAnalyticsDashboard(),
+                            arguments: {
+                              'channelId': channelId,
+                              'channelName': 'My Channel',
+                            },
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.brand,
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.brand.withValues(alpha: 0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.analytics_rounded,
+                                color: Colors.white,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Full Dashboard',
+                                style: AppTextStyles.buttonText.copyWith(
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.arrow_forward_ios_rounded,
+                                color: Colors.white,
+                                size: 12,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

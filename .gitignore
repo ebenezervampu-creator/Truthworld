@@ -90,6 +90,11 @@ htmlcov/
 .flutter-plugins-dependencies
 .packages
 *.iml
+android/key.properties
+android/app/key.properties
+key.properties
+*.jks
+*.keystore
 
 # Firebase
 .firebase/

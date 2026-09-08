@@ -1,9 +1,10 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
-import 'package:truthworld/features/video/presentation/controllers/adaptive_birate_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/adaptive_bitrate_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/controls/progress_bar.dart';
@@ -25,8 +26,8 @@ class MainControls extends StatelessWidget {
     return Obx(() {
       ctrl.isFullScreen.value;
       final playerHeight = MediaQuery.of(context).size.height;
-      final videoAspectRatio = ctrl.vv.isInitialized
-          ? ctrl.vv.aspectRatio
+      final videoAspectRatio = ctrl.isInitialized.value
+          ? ctrl.aspectRatio.value
           : null;
       final maxControlsWidth =
           (ctrl.isFullScreen.value &&
@@ -215,8 +216,31 @@ class PlayerTopBar extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   InkWell(
-                    onTap: () =>
-                        channelCtrl!.toggleSubscription(vc!.video.channelId),
+                    onTap: () {
+                      if (!AuthService.to.isAuthenticated.value) {
+                        Get.snackbar(
+                          'Sign In Required',
+                          'Please sign in to subscribe to channels.',
+                          snackPosition: SnackPosition.BOTTOM,
+                          backgroundColor: AppColors.bgSurface,
+                          colorText: AppColors.textPrimary,
+                          margin: const EdgeInsets.all(16),
+                          borderRadius: 12,
+                          mainButton: TextButton(
+                            onPressed: AuthService.to.signInWithGoogle,
+                            child: const Text(
+                              'SIGN IN',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        );
+                        return;
+                      }
+                      channelCtrl!.toggleSubscription(vc!.video.channelId);
+                    },
                     borderRadius: BorderRadius.circular(16),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
@@ -545,40 +569,12 @@ class ControlRow extends StatelessWidget {
     if (isMobileDevice) {
       return Row(
         children: [
-          TimeDisplay(ctrl: ctrl),
-          const SizedBox(width: 4),
-          Tooltip(
-            message: 'Chapters',
-            child: IconBtn(
-              icon: Icons.segment_rounded,
-              onTap: () {
-                if (ctrl.chapters.isEmpty) {
-                  ctrl.showToast('No chapters available for this video');
-                  return;
-                }
-                VideoController? vc;
-                try {
-                  if (ctrl.tag != null &&
-                      Get.isRegistered<VideoController>(tag: ctrl.tag)) {
-                    vc = Get.find<VideoController>(tag: ctrl.tag);
-                  } else if (Get.isRegistered<VideoController>()) {
-                    vc = Get.find<VideoController>();
-                  }
-                } catch (_) {}
-                if (vc != null) {
-                  VideoChaptersBottomSheet.show(
-                    context,
-                    video: vc.video,
-                    videoTag: ctrl.tag,
-                  );
-                } else {
-                  ctrl.activePanel.value = 'chapters';
-                  ctrl.settingsOpen.value = true;
-                }
-              },
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: TimeDisplay(ctrl: ctrl),
             ),
           ),
-          const Spacer(),
           Obx(
             () => Tooltip(
               message: ctrl.subtitlesEnabled.value
@@ -670,41 +666,13 @@ class ControlRow extends StatelessWidget {
           Obx(() => IconBtn(icon: ctrl.volumeIcon, onTap: ctrl.toggleMute)),
         ],
 
-        // Time display
-        TimeDisplay(ctrl: ctrl),
-        const SizedBox(width: 4),
-        Tooltip(
-          message: 'Chapters',
-          child: IconBtn(
-            icon: Icons.segment_rounded,
-            onTap: () {
-              if (ctrl.chapters.isEmpty) {
-                ctrl.showToast('No chapters available for this video');
-                return;
-              }
-              VideoController? vc;
-              try {
-                if (ctrl.tag != null &&
-                    Get.isRegistered<VideoController>(tag: ctrl.tag)) {
-                  vc = Get.find<VideoController>(tag: ctrl.tag);
-                } else if (Get.isRegistered<VideoController>()) {
-                  vc = Get.find<VideoController>();
-                }
-              } catch (_) {}
-              if (vc != null) {
-                VideoChaptersBottomSheet.show(
-                  context,
-                  video: vc.video,
-                  videoTag: ctrl.tag,
-                );
-              } else {
-                ctrl.activePanel.value = 'chapters';
-                ctrl.settingsOpen.value = true;
-              }
-            },
+        // Time display & chapters
+        Expanded(
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: TimeDisplay(ctrl: ctrl),
           ),
         ),
-        const Spacer(),
 
         // Right cluster
         if (!isNarrow) AbrBadge(ctrl: ctrl),
@@ -951,48 +919,92 @@ class TimeDisplay extends StatelessWidget {
     return h > 0 ? '$h:$m:$s' : '$m:$s';
   }
 
+  void _openChapters(BuildContext context) {
+    if (ctrl.chapters.isEmpty) return;
+    final isMobileDevice =
+        Theme.of(context).platform == TargetPlatform.android ||
+        Theme.of(context).platform == TargetPlatform.iOS;
+    if (isMobileDevice) {
+      VideoController? vc;
+      try {
+        if (ctrl.tag != null &&
+            Get.isRegistered<VideoController>(tag: ctrl.tag)) {
+          vc = Get.find<VideoController>(tag: ctrl.tag);
+        } else if (Get.isRegistered<VideoController>()) {
+          vc = Get.find<VideoController>();
+        }
+      } catch (_) {}
+      if (vc != null) {
+        VideoChaptersBottomSheet.show(
+          context,
+          video: vc.video,
+          videoTag: ctrl.tag,
+        );
+        return;
+      }
+    }
+    ctrl.activePanel.value = 'chapters';
+    ctrl.settingsOpen.value = true;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Obx(
-      () => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '${_fmt(ctrl.vv.position)} / ${_fmt(ctrl.vv.duration)}',
-            style: TS.time,
-          ),
-          if (ctrl.currentChapter.value != null) ...[
-            const SizedBox(width: 8),
+      () {
+        final currentChapter = ctrl.currentChapter.value;
+        final hasChapters = ctrl.chapters.isNotEmpty;
+        final chapterTitle =
+            currentChapter?.title ?? (hasChapters ? 'Chapters' : null);
+
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
             Text(
-              '•',
-              style: TextStyle(
-                color: AppColors.textPrimary.withValues(alpha: 0.5),
-              ),
+              '${_fmt(ctrl.vv.position)} / ${_fmt(ctrl.vv.duration)}',
+              style: TS.time,
             ),
-            const SizedBox(width: 8),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 100),
-              child: InkWell(
-                onTap: () {
-                  ctrl.activePanel.value = 'chapters';
-                  ctrl.settingsOpen.value = true;
-                },
-                borderRadius: BorderRadius.circular(4),
-                child: Text(
-                  ctrl.currentChapter.value!.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: PT.primary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
+            if (chapterTitle != null) ...[
+              const SizedBox(width: 6),
+              Text(
+                '•',
+                style: TextStyle(
+                  color: AppColors.textPrimary.withValues(alpha: 0.5),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: InkWell(
+                  onTap: () => _openChapters(context),
+                  borderRadius: BorderRadius.circular(4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          chapterTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        size: 14,
+                        color: AppColors.textPrimary,
+                      ),
+                    ],
                   ),
                 ),
               ),
-            ),
+            ],
           ],
-        ],
-      ),
+        );
+      },
     );
   }
 }

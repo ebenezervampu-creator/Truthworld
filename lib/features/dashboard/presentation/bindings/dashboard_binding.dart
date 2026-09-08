@@ -8,9 +8,11 @@ import 'package:truthworld/features/dashboard/presentation/controllers/customiza
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_comments_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/drafts_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/multi_audio_player_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/playlists_management_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/studio_settings_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/topic_management_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/trash_restore_screen.dart';
 
 /// Binding for the Creator Dashboard feature.
 ///
@@ -32,5 +34,7 @@ class DashboardBinding extends Bindings {
     Get.lazyPut(MultiAudioPlayerController.new, fenix: true);
     Get.lazyPut(StudioSettingsController.new, fenix: true);
     Get.lazyPut(DraftsController.new, fenix: true);
+    Get.lazyPut(PlaylistsManagementController.new, fenix: true);
+    Get.lazyPut(() => TrashRestoreController(channelId: ''), fenix: true);
   }
 }

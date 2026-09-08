@@ -78,7 +78,10 @@ class ExploreTopicsController extends BaseController {
       fetchAvailableCategories();
 
       // 2. Fetch Featured Curated Strips
-      featuredTopics.value = await _repository.fetchFeaturedTopics();
+      final rawFeatured = await _repository.fetchFeaturedTopics();
+      featuredTopics.value = rawFeatured
+          .where((t) => t.isValidTopic && t.videoCount > 0)
+          .toList();
 
       // 3. Fetch paginated topics
       await loadTopics(reset: true);
@@ -165,7 +168,7 @@ class ExploreTopicsController extends BaseController {
       // Filter out any duplicates to ensure robust, unique listing
       final existingIds = topics.map((t) => t.id).toSet();
       final uniqueNewTopics = newTopics
-          .where((t) => !existingIds.contains(t.id))
+          .where((t) => !existingIds.contains(t.id) && t.isValidTopic && t.videoCount > 0)
           .toList();
       if (Get.isRegistered<TruthworldAlgorithm>()) {
         final algorithm = Get.find<TruthworldAlgorithm>();
@@ -280,19 +283,25 @@ class ExploreTopicsController extends BaseController {
       try {
         final topicSnapshot = await FirebaseFirestore.instance
             .collection(FirestoreCollections.topics)
+            .where('status', isEqualTo: 'active')
             .limit(300)
             .get();
 
         for (final doc in topicSnapshot.docs) {
           final data = doc.data();
+          final status = (data['status'] as String?)?.toLowerCase();
+          if (status != null && status != 'active') continue;
+          final vCount = (data['videoCount'] as num?)?.toInt() ??
+              (data['featuredVideoIds'] as List?)?.length ??
+              0;
+          if (vCount <= 0) continue;
           final rawCat = (data['category'] as String?)?.trim();
-          final vCount = (data['videoCount'] as num?)?.toInt() ?? 1;
           if (rawCat != null &&
               rawCat.isNotEmpty &&
               rawCat.toLowerCase() != 'all') {
             final normalized = _capitalizeCategory(rawCat);
             categoryCounts[normalized] =
-                (categoryCounts[normalized] ?? 0) + (vCount > 0 ? vCount : 1);
+                (categoryCounts[normalized] ?? 0) + vCount;
           }
         }
       } catch (e) {

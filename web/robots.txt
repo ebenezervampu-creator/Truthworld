@@ -1,6 +1,9 @@
 User-agent: *
 Allow: /
 Allow: /watch
+Allow: /watch/
+Allow: /v/
+Allow: /shorts/
 Allow: /channel/
 Allow: /@
 Allow: /topic/
@@ -15,7 +18,10 @@ Allow: /advertisements
 Allow: /ads
 Allow: /post/
 Allow: /community/
+Allow: /sitemap*.xml
 
+Disallow: /embed
+Disallow: /embed/
 Disallow: /settings
 Disallow: /myvideos
 Disallow: /uploadscreen

@@ -1116,7 +1116,8 @@ class UserSessionController extends BaseController {
 
 
   /// Check if user is authenticated
-  bool get isAuthenticated => _auth.currentUser != null;
+  bool get isAuthenticated =>
+      _auth.currentUser != null && !_auth.currentUser!.isAnonymous;
 
   /// Get current user ID
   String? get currentUserId => _auth.currentUser?.uid;

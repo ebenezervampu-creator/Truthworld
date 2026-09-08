@@ -40,11 +40,15 @@ class TrendingRepositoryImpl extends BaseRepository implements TrendingRepositor
     return safeFetch(() async {
       final snapshot = await _firestore
           .collection(FirestoreCollections.topics)
+          .where('status', isEqualTo: 'active')
           .orderBy('followerCount', descending: true)
           .limit(limit)
           .get();
 
-      return snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
+      return snapshot.docs
+          .map((doc) => {'id': doc.id, ...doc.data()})
+          .where((data) => ((data['videoCount'] as num?)?.toInt() ?? 0) > 0)
+          .toList();
     });
   }
 

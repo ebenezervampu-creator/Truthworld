@@ -66,6 +66,12 @@ class TopicCardWidget extends StatelessWidget {
     final currentTopic = topic;
     if (currentTopic == null) return const SizedBox.shrink();
 
+    // Guard: Never render empty or invalid topics in public feeds/views.
+    // Dashboard views may show them to creator/owner to manage/add videos.
+    if (!isDashboard && (!currentTopic.isValidTopic || currentTopic.videoCount <= 0)) {
+      return const SizedBox.shrink();
+    }
+
     final exploreController = Get.isRegistered<ExploreTopicsController>()
         ? Get.find<ExploreTopicsController>()
         : null;

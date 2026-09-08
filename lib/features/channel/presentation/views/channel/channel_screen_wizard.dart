@@ -1,10 +1,8 @@
-import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:lottie/lottie.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
@@ -34,7 +32,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
 
   TextEditingController _getSocialController(String key) {
     if (!_socialControllers.containsKey(key)) {
-      String initialText = controller.socialLinks[key] ?? '';
+      var initialText = controller.socialLinks[key] ?? '';
       if (key == 'website' && initialText.isEmpty) {
         initialText = controller.websiteUrl.text;
       } else if (key == 'email' && initialText.isEmpty) {
@@ -90,7 +88,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
     try {
       _showAllFeatures.value = !_showAllFeatures.value;
     } catch (_) {
-      _showAllFeatures = (!(_showAllFeatures.value)).obs;
+      _showAllFeatures = (!_showAllFeatures.value).obs;
     }
   }
 
@@ -234,9 +232,9 @@ class _ChannelScreenState extends State<ChannelScreen> {
                       ],
                     ),
                     if (controller.isSubmitting.value)
-                      Container(
+                      const ColoredBox(
                         color: Colors.black54,
-                        child: const Center(
+                        child: Center(
                           child: CircularProgressIndicator(),
                         ),
                       ),
@@ -262,7 +260,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
       decoration: const BoxDecoration(
         color: Color(0xFF0F0F0F),
         border: Border(
-          bottom: BorderSide(color: Color(0xFF27272A), width: 1),
+          bottom: BorderSide(color: Color(0xFF27272A)),
         ),
       ),
       child: Row(
@@ -278,8 +276,8 @@ class _ChannelScreenState extends State<ChannelScreen> {
             child: Column(
               crossAxisAlignment:
                   isDesktop ? CrossAxisAlignment.start : CrossAxisAlignment.center,
-              children: [
-                const Text(
+              children: const [
+                Text(
                   'Create Channel',
                   style: TextStyle(
                     fontSize: 22,
@@ -288,7 +286,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
                     letterSpacing: -0.5,
                   ),
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text(
                   'Build your brand. Share your story with the world.',
                   style: TextStyle(
@@ -343,16 +341,16 @@ class _ChannelScreenState extends State<ChannelScreen> {
                   ],
                 ),
               ),
-              PopupMenuItem(
+              const PopupMenuItem(
                 value: 'delete_draft',
                 child: Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.delete_outline,
                       color: Colors.white,
                       size: 20,
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: 12),
                     Text(
                       'Delete draft',
                       style: TextStyle(
@@ -974,7 +972,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
     required int mode,
     required bool showGuides,
   }) {
-    Widget imageWidget = bannerData != null
+    final imageWidget = bannerData != null
         ? Image.memory(bannerData.bytes, fit: BoxFit.cover)
         : CachedNetworkImage(
             imageUrl: bannerUrl,
@@ -1354,9 +1352,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
             _addTag(val);
           }
         },
-        onSubmitted: (val) {
-          _addTag(val);
-        },
+        onSubmitted: _addTag,
         decoration: const InputDecoration(
           hintText: 'Add tags (type & press Enter or comma)',
           hintStyle: TextStyle(color: AppColors.textTertiary, fontSize: 13),
@@ -1377,7 +1373,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
       final currentTags = _tagList.toList();
 
       // ONLY use real Firestore suggestions from the database
-      final List<Map<String, dynamic>> realMatches = [];
+      final realMatches = <Map<String, dynamic>>[];
       for (final item in _liveFirestoreSuggestions) {
         final name = item['name'] as String;
         if (!currentTags.contains(name)) {
@@ -1395,8 +1391,8 @@ class _ChannelScreenState extends State<ChannelScreen> {
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: const Color(0xFF27272A)),
             ),
-            child: Row(
-              children: const [
+            child: const Row(
+              children: [
                 SizedBox(
                   width: 14,
                   height: 14,
@@ -1522,7 +1518,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
                   ),
                 ),
               );
-            }).toList(),
+            }),
           ],
         ),
       );
@@ -1630,7 +1626,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
       }
 
       // Gather recommended tags based on selected categories
-      final Set<String> recommendedSet = {};
+      final recommendedSet = <String>{};
       for (final cat in selectedCats) {
         final tags = _categoryRecommendedTags[cat];
         if (tags != null) {
@@ -1930,7 +1926,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'Select one or more categories that best describe your channel.',
           style: TextStyle(
             fontSize: 12,
@@ -2058,12 +2054,12 @@ class _ChannelScreenState extends State<ChannelScreen> {
                     )),
                 IconButton(
                   icon: const Icon(Icons.close, color: Colors.white),
-                  onPressed: () => Get.back(),
+                  onPressed: Get.back,
                 ),
               ],
             ),
             const SizedBox(height: 4),
-            Text(
+            const Text(
               'You can pick multiple categories for your channel.',
               style: TextStyle(
                 fontSize: 12,
@@ -2108,7 +2104,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
               width: double.infinity,
               height: 44,
               child: ElevatedButton(
-                onPressed: () => Get.back(),
+                onPressed: Get.back,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
@@ -2209,34 +2205,6 @@ class _ChannelScreenState extends State<ChannelScreen> {
     ],
   };
 
-  static const Map<String, String> _socialBrandSlugMap = {
-    'youtube': 'youtube',
-    'facebook': 'facebook',
-    'twitter': 'x',
-    'instagram': 'instagram',
-    'linkedin': 'linkedin',
-    'tiktok': 'tiktok',
-    'whatsapp': 'whatsapp',
-    'telegram': 'telegram',
-    'wechat': 'wechat',
-    'weibo': 'sinaweibo',
-    'bilibili': 'bilibili',
-    'douyin': 'douyin',
-    'xiaohongshu': 'xiaohongshu',
-    'zhihu': 'zhihu',
-    'qq': 'tencentqq',
-    'vk': 'vk',
-    'rutube': 'rutube',
-    'yandex': 'yandex',
-    'line': 'line',
-    'naver': 'naver',
-    'kakao': 'kakaotalk',
-    'xing': 'xing',
-    'threads': 'threads',
-    'reddit': 'reddit',
-    'discord': 'discord',
-    'twitch': 'twitch',
-  };
 
   static const Map<String, IconData> _socialIconMap = {
     'website': Icons.language,
@@ -2347,10 +2315,22 @@ class _ChannelScreenState extends State<ChannelScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 6),
-            const Text(
-              '⚠️ Organization / Company channels require a custom business domain email (e.g. info@company.com). Free emails (@gmail.com, @yahoo.com) are not allowed.',
-              style: TextStyle(fontSize: 12, color: Color(0xFFFBBF24), height: 1.4),
+            const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  size: 16,
+                  color: Colors.white,
+                ),
+                SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Organization / Company channels require a custom business domain email (e.g. info@company.com). Free emails (@gmail.com, @yahoo.com) are not allowed.',
+                    style: TextStyle(fontSize: 12, color: Color(0xFFFBBF24), height: 1.4),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
           ],
@@ -2486,7 +2466,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'Choose who can view your channel.',
           style: TextStyle(
             fontSize: 12,
@@ -2677,7 +2657,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'Select your channel language.',
           style: TextStyle(
             fontSize: 12,
@@ -2751,7 +2731,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.close, color: Colors.white),
-                    onPressed: () => Get.back(),
+                    onPressed: Get.back,
                   ),
                 ],
               ),
@@ -2903,7 +2883,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.close, color: Colors.white),
-                    onPressed: () => Get.back(),
+                    onPressed: Get.back,
                   ),
                 ],
               ),
@@ -3330,9 +3310,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
             child: const Text('Discard', style: TextStyle(color: AppColors.error)),
           ),
           TextButton(
-            onPressed: () {
-              Get.back();
-            },
+            onPressed: Get.back,
             child: const Text('Restore', style: TextStyle(color: Colors.white)),
           ),
         ],
@@ -3354,7 +3332,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Get.back(),
+            onPressed: Get.back,
             child: const Text('Cancel', style: TextStyle(color: Colors.white)),
           ),
           TextButton(
@@ -3569,7 +3547,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
   // PLAN SELECTION SCREEN (STEP 1 BEFORE CHANNEL SETUP)
   // ========================================================================
   Widget _buildStandard3DGraphic(bool isDesktop) {
-    final double scale = isDesktop ? 0.75 : 1.0;
+    final scale = isDesktop ? 0.75 : 1.0;
     return Transform.scale(
       scale: scale,
       child: SizedBox(
@@ -3661,7 +3639,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
   }
 
   Widget _buildCustomRocket3DGraphic(bool isDesktop) {
-    final double scale = isDesktop ? 0.75 : 1.0;
+    final scale = isDesktop ? 0.75 : 1.0;
     return Transform.scale(
       scale: scale,
       child: SizedBox(
@@ -3785,7 +3763,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
   }
 
   Widget _buildDashboard3DGraphic(bool isDesktop) {
-    final double scale = isDesktop ? 0.75 : 1.0;
+    final scale = isDesktop ? 0.75 : 1.0;
     return Transform.scale(
       scale: scale,
       child: SizedBox(
@@ -3918,9 +3896,9 @@ class _ChannelScreenState extends State<ChannelScreen> {
       return Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
+          const Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children: [
               Text(
                 'Select Channel Plan',
                 style: TextStyle(
@@ -4240,13 +4218,13 @@ class _ChannelScreenState extends State<ChannelScreen> {
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(color: const Color(0xFFA855F7)),
                     ),
-                    child: Row(
+                    child: const Row(
                       mainAxisSize: MainAxisSize.min,
-                      children: const [
+                      children: [
                         Icon(Icons.card_giftcard, size: 13, color: Colors.white),
                         SizedBox(width: 6),
                         Text(
-                          '\$10 FREE Bonus Credit Included',
+                          r'$10 FREE Bonus Credit Included',
                           style: TextStyle(
                             fontFamily: TWTypography.uiFamily,
                             fontSize: 11,
@@ -4270,10 +4248,10 @@ class _ChannelScreenState extends State<ChannelScreen> {
                   const SizedBox(height: 4),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: [r'$15', r'$30', r'$45', r'Custom'].map((tier) {
+                    children: [r'$15', r'$30', r'$45', 'Custom'].map((tier) {
                       return Obx(() {
                         final isTierSelected = controller.customPricingTier.value == tier;
-                        final label = tier == r'Custom' ? 'Custom' : '$tier/mo';
+                        final label = tier == 'Custom' ? 'Custom' : '$tier/mo';
                         return GestureDetector(
                           onTap: () {
                             controller.selectedPlan.value = 'custom';
@@ -4316,7 +4294,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
                   Obx(() {
                     final selectedTier = controller.customPricingTier.value;
                     List<String> tierBadges;
-                    if (selectedTier == r'Custom') {
+                    if (selectedTier == 'Custom') {
                       tierBadges = [
                         'Flexible Storage & CDN',
                         'Dedicated VIP Support & SLA',
@@ -4328,7 +4306,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
                         '1 TB Cloud Storage',
                         '5 TB Global CDN Bandwidth',
                         '4K HDR Video',
-                        '\$20 Monthly Bonus Credit',
+                        r'$20 Monthly Bonus Credit',
                         '100% Revenue Share',
                       ];
                     } else if (selectedTier == r'$30') {
@@ -4336,7 +4314,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
                         '300 GB Cloud Storage',
                         '1.5 TB Global CDN Bandwidth',
                         '4K Ultra HD',
-                        '\$10 Monthly Bonus Credit',
+                        r'$10 Monthly Bonus Credit',
                         '100% Revenue Share',
                       ];
                     } else {
@@ -4379,7 +4357,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
 
       final selectedTier = controller.customPricingTier.value;
       List<String> customBullets;
-      if (selectedTier == r'Custom') {
+      if (selectedTier == 'Custom') {
         customBullets = [
           '100% Revenue Share: Keep 100% from Ads, Subscriptions & Superchats',
           'Flexible Cloud Storage & Global CDN Bandwidth scaled to your audience',
@@ -4394,7 +4372,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
           '1 TB Cloud Storage: Space for ~3,000+ HD/4K videos',
           '5 TB High-Speed Global CDN: Fast global streaming (~15,000+ hrs)',
           '4K HDR Video & Lossless Audio encoding',
-          '\$20 FREE Monthly Bonus Credit included',
+          r'$20 FREE Monthly Bonus Credit included',
           'VIP Priority 24/7 Account Support & HD Transcoding',
           '100% Free Premium Features (Value ₹25,999/year included)',
         ];
@@ -4404,7 +4382,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
           '300 GB Cloud Storage: Space for ~1,000 HD/4K videos',
           '1.5 TB High-Speed Global CDN: Fast streaming (~5,000 hrs)',
           '4K Ultra HD Uploads (3840x2160) + High Bitrate',
-          '\$10 FREE Monthly Bonus Credit included',
+          r'$10 FREE Monthly Bonus Credit included',
           'Priority Live Support & Fast HD Transcoding',
           '100% Free Premium Features (Value ₹25,999/year included)',
         ];
@@ -4421,7 +4399,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
       }
 
       final standardBullets = [
-        '100% Forever Free: \$0/month — Zero subscription fee',
+        r'100% Forever Free: $0/month — Zero subscription fee',
         'TruthWorld Covers Hosting: Free video transcoding & storage',
         '70% Revenue Share: Earn 70% from ads & subscriptions',
         '100% Direct Fan Revenue: Keep 100% Memberships & Superchats',
@@ -4436,7 +4414,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
         'Keep 100% Direct Fan Revenue: 0% Platform Commission on Memberships & Superchats',
         'Standard Plan: 100% Free with 20 min/day uploads in 1080p Full HD',
         'Custom Plan: Unlimited uploads, 4K Ultra HD & Cloud Storage up to 1 TB',
-        'Custom Bonus: Instant \$10 FREE Monthly Bonus Credit included',
+        r'Custom Bonus: Instant $10 FREE Monthly Bonus Credit included',
         'Easy Upgrade: Switch or upgrade your plan anytime from Channel Settings',
       ];
 
@@ -4509,7 +4487,6 @@ class _ChannelScreenState extends State<ChannelScreen> {
 
               if (isDesktop) {
                 return Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Center(child: _buildDashboard3DGraphic(isDesktop)),
                     const SizedBox(width: 16),
@@ -4593,8 +4570,8 @@ class _ChannelScreenState extends State<ChannelScreen> {
           'capacity': '~3,000+ HD/4K videos (~15,000+ hrs)',
         },
         {
-          'id': r'Custom',
-          'name': r'Custom Quote',
+          'id': 'Custom',
+          'name': 'Custom Quote',
           'storage': 'Flexible Storage Limit',
           'cdn': 'Custom Global CDN',
           'capacity': 'Enterprise Level (Custom SLA)',
@@ -4661,8 +4638,8 @@ class _ChannelScreenState extends State<ChannelScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                         color: const Color(0xFF1F1F24),
-                        child: Row(
-                          children: const [
+                        child: const Row(
+                          children: [
                             Expanded(flex: 3, child: Text('Custom Tier', style: TextStyle(fontFamily: TWTypography.uiFamily, color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
                             Expanded(flex: 3, child: Text('Storage Included', style: TextStyle(fontFamily: TWTypography.uiFamily, color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
                             Expanded(flex: 3, child: Text('Monthly Global CDN', style: TextStyle(fontFamily: TWTypography.uiFamily, color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
@@ -4714,7 +4691,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
                             ],
                           ),
                         );
-                      }).toList(),
+                      }),
                     ],
                   ),
                 ),
@@ -4773,7 +4750,6 @@ class _ChannelScreenState extends State<ChannelScreen> {
         border: Border.all(color: const Color(0xFF27272A)),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
             width: 24,
@@ -4814,7 +4790,7 @@ class _ChannelScreenState extends State<ChannelScreen> {
     final customChecklist = [
       {
         'title': 'Custom Tier Pricing: ${controller.customPricingTier.value}/month',
-        'subtitle': '\$10 FREE credit applied automatically upon channel creation!',
+        'subtitle': r'$10 FREE credit applied automatically upon channel creation!',
       },
       {
         'title': '100% Revenue Share from Ads & Premium Subscriptions',
@@ -4887,8 +4863,8 @@ class _ChannelScreenState extends State<ChannelScreen> {
         'subtitle': 'Standard: Free hosting. Custom: 100 GB, 300 GB, 1 TB Cloud Storage & 500 GB to 5 TB CDN.',
       },
       {
-        'title': '\$10 FREE Monthly Bonus Credit Included on Custom',
-        'subtitle': '\$10 credit applied automatically upon Custom Channel creation.',
+        'title': r'$10 FREE Monthly Bonus Credit Included on Custom',
+        'subtitle': r'$10 credit applied automatically upon Custom Channel creation.',
       },
       {
         'title': '10+ Essential Creator Tools vs 30+ Premium Tools & VIP Support',
@@ -5058,12 +5034,12 @@ class _ChannelScreenState extends State<ChannelScreen> {
               ),
             ),
           ),
-          Column(
+          const Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
+                children: [
                   Icon(Icons.analytics_outlined, color: Colors.white, size: 36),
                   SizedBox(width: 12),
                   Icon(Icons.trending_up, color: Colors.white, size: 40),
@@ -5071,8 +5047,8 @@ class _ChannelScreenState extends State<ChannelScreen> {
                   Icon(Icons.monetization_on_outlined, color: Colors.white, size: 32),
                 ],
               ),
-              const SizedBox(height: 16),
-              const Text(
+              SizedBox(height: 16),
+              Text(
                 'TruthWorld Analytics & Monetization',
                 style: TextStyle(
                   fontSize: 14,
@@ -5080,8 +5056,8 @@ class _ChannelScreenState extends State<ChannelScreen> {
                   color: Colors.white,
                 ),
               ),
-              const SizedBox(height: 4),
-              const Text(
+              SizedBox(height: 4),
+              Text(
                 'Unlock 100% Revenue Share & Priority Growth',
                 style: TextStyle(
                   fontSize: 11,
@@ -5173,7 +5149,6 @@ class _ChannelScreenState extends State<ChannelScreen> {
             colorText: Colors.white,
             borderColor: const Color(0xFF7C3AED),
             borderWidth: 1,
-            duration: const Duration(seconds: 3),
           );
           return;
         }
@@ -5545,9 +5520,9 @@ class _ChannelScreenState extends State<ChannelScreen> {
   };
 
   static String _countryCodeToEmoji(String countryCode) {
-    if (countryCode.length != 2) return '🏳️';
-    final int firstLetter = countryCode.codeUnitAt(0) - 0x41 + 0x1F1E6;
-    final int secondLetter = countryCode.codeUnitAt(1) - 0x41 + 0x1F1E6;
+    if (countryCode.length != 2) return '\u{1F3F3}';
+    final firstLetter = countryCode.codeUnitAt(0) - 0x41 + 0x1F1E6;
+    final secondLetter = countryCode.codeUnitAt(1) - 0x41 + 0x1F1E6;
     return String.fromCharCodes([firstLetter, secondLetter]);
   }
 
@@ -5594,8 +5569,8 @@ class _ChannelScreenState extends State<ChannelScreen> {
   }
 
   void _showCountryPicker(BuildContext context) {
-    final TextEditingController searchController = TextEditingController();
-    final RxList<String> filteredCountries = RxList<String>(_allCountries);
+    final searchController = TextEditingController();
+    final filteredCountries = RxList<String>(_allCountries);
 
     showModalBottomSheet<void>(
       context: context,
@@ -5749,21 +5724,21 @@ class DashedBorderPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final Paint paint = Paint()
+    final paint = Paint()
       ..color = color
       ..strokeWidth = strokeWidth
       ..style = PaintingStyle.stroke;
 
-    final RRect rrect = RRect.fromRectAndRadius(
+    final rrect = RRect.fromRectAndRadius(
       Rect.fromLTWH(0, 0, size.width, size.height),
       Radius.circular(borderRadius),
     );
-    final Path path = Path()..addRRect(rrect);
+    final path = Path()..addRRect(rrect);
 
-    for (final PathMetric metric in path.computeMetrics()) {
-      double distance = 0.0;
+    for (final metric in path.computeMetrics()) {
+      var distance = 0.0;
       while (distance < metric.length) {
-        final double len = (distance + dash > metric.length)
+        final len = (distance + dash > metric.length)
             ? metric.length - distance
             : dash;
         canvas.drawPath(metric.extractPath(distance, distance + len), paint);

@@ -102,6 +102,53 @@ export const onTopicWritten = onDocumentWritten(
       return;
     }
 
+    // Fast-fail check for empty or mock placeholder topics
+    const cleanTitle = titleAfter.trim().toLowerCase();
+    const cleanHandle = handleAfter.trim().toLowerCase();
+    const cleanSlug = (afterData.slug || "").trim().toLowerCase();
+    if (
+      !cleanTitle ||
+      cleanTitle === "topic" ||
+      cleanTitle === "featured topic" ||
+      cleanTitle.startsWith("untitled") ||
+      cleanHandle === "t/topic" ||
+      cleanHandle === "topic" ||
+      cleanSlug === "topic" ||
+      cleanSlug === "featured-topic" ||
+      cleanSlug.startsWith("untitled")
+    ) {
+      logger.info(`[onTopicWritten] Rejecting mock/placeholder topic ${topicId}: "${titleAfter}"`);
+      await db().collection("topics").doc(topicId).update({
+        geminiApproved: false,
+        status: "verificationRejected",
+        moderationReason: "Topic title or handle is a placeholder (e.g. 'Topic', 'Untitled') and cannot be published.",
+        updatedAt: Date.now(),
+      });
+      return;
+    }
+
+    // Fast-fail check for zero-video topics: Topics MUST have at least 1 video
+    const topicVideoCount = Number(afterData.videoCount) || 0;
+    const featuredVideos = Array.isArray(afterData.featuredVideoIds) ? afterData.featuredVideoIds : [];
+    if (topicVideoCount <= 0 && featuredVideos.length === 0) {
+      // Check if any video in the database actually references this topic slug or ID
+      const videoSnap = await db().collection("videos")
+        .where("topics", "array-contains", cleanSlug)
+        .limit(1)
+        .get();
+
+      if (videoSnap.empty) {
+        logger.info(`[onTopicWritten] Rejecting topic ${topicId} with 0 videos: "${titleAfter}"`);
+        await db().collection("topics").doc(topicId).update({
+          geminiApproved: false,
+          status: "verificationRejected",
+          moderationReason: "Topic must contain at least 1 video. Topics cannot be created or published without videos.",
+          updatedAt: Date.now(),
+        });
+        return;
+      }
+    }
+
     // Check if Topic moderation is in Admin Only mode (Gemini bypassed)
     const bypassed = await isTopicsBypassed();
     if (bypassed) {
@@ -213,10 +260,31 @@ export const onTopicWritten = onDocumentWritten(
         logger.info(`[onTopicWritten] Gemini moderation finished for ${topicId}: approved=${approved}, reason=${reason}`);
 
         // Update topic status in Firestore
+        let finalStatus = approved ? "active" : "verificationRejected";
+        let finalReason = reason;
+        if (approved) {
+          const freshDoc = await db().collection("topics").doc(topicId).get();
+          const freshData = freshDoc.data();
+          const freshCount = Number(freshData?.videoCount) || (freshData?.featuredVideoIds?.length || 0);
+          if (freshCount <= 0) {
+            const countSnap = await db().collection("videos")
+              .where("topics", "array-contains", cleanSlug)
+              .get();
+            if (countSnap.size > 0) {
+              await db().collection("topics").doc(topicId).update({
+                videoCount: countSnap.size,
+              });
+            } else {
+              finalStatus = "verificationRejected";
+              finalReason = "Topic must contain at least 1 video. Cannot activate topic with 0 videos.";
+            }
+          }
+        }
+
         await db().collection("topics").doc(topicId).update({
-          geminiApproved: approved,
-          status: approved ? "active" : "verificationRejected",
-          moderationReason: reason,
+          geminiApproved: finalStatus === "active",
+          status: finalStatus,
+          moderationReason: finalReason,
           updatedAt: Date.now(),
         });
 
@@ -282,6 +350,16 @@ export const moderateTopicManual = onRequest(
 
       const now = Date.now();
       const approved = action === "approve";
+
+      if (approved) {
+        const topicData = topicDoc.data() || {};
+        const vCount = Number(topicData.videoCount) || 0;
+        const featVids = Array.isArray(topicData.featuredVideoIds) ? topicData.featuredVideoIds : [];
+        if (vCount <= 0 && featVids.length === 0) {
+          res.status(400).json({ error: "Cannot approve a topic with 0 videos. A topic must contain at least 1 video." });
+          return;
+        }
+      }
 
       await topicRef.update({
         geminiApproved: approved,

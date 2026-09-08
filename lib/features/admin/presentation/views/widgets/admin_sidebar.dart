@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -26,19 +27,32 @@ class AdminSidebar extends StatelessWidget {
           _buildSidebarHeader(context),
           Divider(color: Colors.white.withValues(alpha: 0.08)),
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              children: [
-                _buildNavItem(context, index: 0, icon: Icons.dashboard_outlined, label: 'Analytics'),
-                _buildNavItem(context, index: 1, icon: Icons.people_outline, label: 'Users'),
-                _buildNavItem(context, index: 2, icon: Icons.gavel_outlined, label: 'Appeals'),
-                _buildNavItem(context, index: 3, icon: Icons.campaign_outlined, label: 'Ads'),
-                _buildNavItem(context, index: 4, icon: Icons.security_outlined, label: 'Security'),
-                _buildNavItem(context, index: 5, icon: Icons.feedback_outlined, label: 'Feedback'),
-                _buildNavItem(context, index: 6, icon: Icons.flag_outlined, label: 'Ad Reports'),
-                _buildNavItem(context, index: 7, icon: Icons.add_alert_outlined, label: 'Alerts Config'),
-                _buildNavItem(context, index: 8, icon: Icons.help_outline, label: 'Help & Support'),
-              ],
+            child: Obx(
+              () => ListView(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                children: [
+                  if (controller.isTabAllowed('analytics'))
+                    _buildNavItem(context, index: 0, icon: Icons.dashboard_outlined, label: 'Analytics'),
+                  if (controller.isTabAllowed('users'))
+                    _buildNavItem(context, index: 1, icon: Icons.people_outline, label: 'Users'),
+                  if (controller.isTabAllowed('appeals'))
+                    _buildNavItem(context, index: 2, icon: Icons.gavel_outlined, label: 'Appeals'),
+                  if (controller.isTabAllowed('ads'))
+                    _buildNavItem(context, index: 3, icon: Icons.campaign_outlined, label: 'Ads'),
+                  if (controller.isTabAllowed('security'))
+                    _buildNavItem(context, index: 4, icon: Icons.security_outlined, label: 'Security'),
+                  if (controller.isTabAllowed('feedbacks'))
+                    _buildNavItem(context, index: 5, icon: Icons.feedback_outlined, label: 'Feedback'),
+                  if (controller.isTabAllowed('ad_reports'))
+                    _buildNavItem(context, index: 6, icon: Icons.flag_outlined, label: 'Ad Reports'),
+                  if (controller.isTabAllowed('alerts'))
+                    _buildNavItem(context, index: 7, icon: Icons.add_alert_outlined, label: 'Alerts Config'),
+                  if (controller.isTabAllowed('help'))
+                    _buildNavItem(context, index: 8, icon: Icons.help_outline, label: 'Help & Support'),
+                  if (controller.isTabAllowed('team'))
+                    _buildNavItem(context, index: 9, icon: Icons.group_outlined, label: 'Team Members'),
+                ],
+              ),
             ),
           ),
         ],

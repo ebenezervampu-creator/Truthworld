@@ -1,11 +1,13 @@
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:truthworld/core/services/clip_share_service.dart';
+import 'package:truthworld/core/utils/download_helper.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -128,12 +130,15 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
   }
 
   Future<File?> _prepareClipFile() async {
+    const canGenerateVideo = !kIsWeb;
+    if (!canGenerateVideo) return null;
+
     if (_clipFile.value != null && await _clipFile.value!.exists()) {
       return _clipFile.value;
     }
     _isPreparingClip.value = true;
     _clipProgress.value = 0.1;
-    _clipStatus.value = 'Preparing video clip...';
+    _clipStatus.value = 'Preparing TikTok-style Truthworld clip...';
 
     final start = widget.clipStartTime ?? 0.0;
     final end = widget.clipEndTime ?? ((widget.durationMs ?? 15000) / 1000.0);
@@ -143,6 +148,9 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
       final file = await ClipShareService.instance.getOrGenerateClipFile(
         videoId: vId,
         videoUrl: widget.videoUrl,
+        channelName: widget.channelName,
+        videoTitle: widget.videoTitle ?? widget.title,
+        clipTitle: widget.title,
         startSeconds: start,
         endSeconds: end,
         onProgress: (progress, status) {
@@ -188,75 +196,67 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.6),
+                  color: Colors.black.withValues(alpha: 0.5),
                   blurRadius: 24,
                   offset: const Offset(0, 8),
                 ),
               ],
             ),
-            child: Obx(() {
-              final percent = (progress.value * 100).toInt().clamp(0, 100);
-              return Column(
+            child: Material(
+              color: Colors.transparent,
+              child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      SizedBox(
-                        width: 68,
-                        height: 68,
-                        child: CircularProgressIndicator(
-                          value: progress.value > 0 ? progress.value : null,
-                          color: AppColors.brand,
-                          backgroundColor: Colors.white12,
-                          strokeWidth: 4.5,
-                        ),
-                      ),
-                      Text(
-                        '$percent%',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
+                  const CircularProgressIndicator(
+                    strokeWidth: 3,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 20),
                   Text(
                     title,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w600,
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    status.value.isNotEmpty
-                        ? status.value
-                        : 'Processing Truthworld video clip...',
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
+                  const SizedBox(height: 12),
+                  Obx(
+                    () => LinearProgressIndicator(
+                      value: progress.value,
+                      backgroundColor: Colors.white12,
+                      valueColor:
+                          const AlwaysStoppedAnimation<Color>(Colors.white),
+                      minHeight: 6,
+                      borderRadius: BorderRadius.circular(3),
                     ),
-                    textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 8),
+                  Obx(
+                    () => Text(
+                      status.value,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   TextButton(
                     onPressed: () {
                       onCancel();
                       Get.back<void>();
                     },
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.textSecondary,
+                    child: const Text(
+                      'Cancel',
+                      style: TextStyle(color: Colors.white54, fontSize: 13),
                     ),
-                    child: const Text('Cancel'),
                   ),
                 ],
-              );
-            }),
+              ),
+            ),
           ),
         ),
       ),
@@ -285,12 +285,14 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
       clipUrl: shareUrl,
     );
 
+    const canGenerateVideo = !kIsWeb;
+
     var file = _clipFile.value;
     var cancelled = false;
 
-    if (file == null || !await file.exists()) {
+    if (canGenerateVideo && (file == null || !await file.exists())) {
       _showTikTokExportDialog(
-        title: 'Saving video clip...',
+        title: 'Exporting TikTok-style clip...',
         progress: _clipProgress,
         status: _clipStatus,
         onCancel: () => cancelled = true,
@@ -305,7 +307,20 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
 
     if (cancelled) return;
 
-    final xFile = (file != null && await file.exists())
+    final hasVideo = file != null && await file.exists();
+    if (canGenerateVideo && !hasVideo) {
+      Get.snackbar(
+        'Sharing Clip',
+        'Video file could not be generated. Sharing clip link instead.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.bgPage.withValues(alpha: 0.85),
+        colorText: AppColors.textPrimary,
+        margin: const EdgeInsets.all(16),
+        borderRadius: 12,
+      );
+    }
+
+    final xFile = hasVideo
         ? XFile(
             file.path,
             mimeType: 'video/mp4',
@@ -313,31 +328,59 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
           )
         : null;
 
-    // Notify user if clip video generation failed so they know why only a link was sent
-    if (xFile == null) {
-      Get.snackbar(
-        'Video Processing',
-        'Could not prepare the video file. Sharing link instead.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.error.withValues(alpha: 0.85),
-        colorText: Colors.white,
-        margin: const EdgeInsets.all(16),
-        borderRadius: 12,
-      );
-    }
-
-    // App-specific share: closes bottom sheet first, then delivers video
     Future<void> shareVideoFile() async {
       if (Get.isBottomSheetOpen ?? false) Get.back<void>();
       if (xFile != null) {
         await SharePlus.instance.share(
           ShareParams(files: [xFile], text: caption, subject: widget.title),
         );
+      } else if (kIsWeb) {
+        var sourceUrl = widget.videoUrl;
+        if (sourceUrl == null || sourceUrl.isEmpty) {
+          sourceUrl =
+              await ClipShareService.instance.resolveVideoSourceUrl(vId);
+        }
+        if (sourceUrl != null && sourceUrl.isNotEmpty) {
+          final safeTitle =
+              widget.title.replaceAll(RegExp('[^a-zA-Z0-9_-]'), '_');
+          await DownloadHelper.downloadFromUrl(
+            sourceUrl,
+            'Truthworld_${safeTitle}_Clip.mp4',
+          );
+        }
+        await _shareDirectToPlatform(
+          target ?? 'more',
+          caption: caption,
+          shareUrl: shareUrl,
+        );
       } else {
-        await SharePlus.instance.share(
-          ShareParams(text: caption, subject: widget.title),
+        await _shareDirectToPlatform(
+          target ?? 'more',
+          caption: caption,
+          shareUrl: shareUrl,
         );
       }
+    }
+
+    if (kIsWeb && (target == 'whatsapp' || target == 'whatsapp_status')) {
+      await _showAppGuideDialog(
+        emoji: '🎬',
+        appName: 'WhatsApp',
+        iconColor: const Color(0xFF25D366),
+        steps:
+            '1. Your video clip is downloading to your computer.\n\n'
+            '2. In WhatsApp, click 📎 (Attach) > Photos & Videos.\n\n'
+            '3. Select the downloaded clip to send it directly as a video message!',
+        confirmText: 'Got it — Open WhatsApp',
+        confirmColor: const Color(0xFF25D366),
+      );
+      await shareVideoFile();
+      return;
+    }
+
+    if (xFile == null && !kIsWeb) {
+      await shareVideoFile();
+      return;
     }
 
     switch (target) {
@@ -474,6 +517,33 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
     final start = widget.clipStartTime ?? 0.0;
     final end = widget.clipEndTime ?? ((widget.durationMs ?? 15000) / 1000.0);
     final vId = widget.videoId ?? _extractVideoId();
+
+    if (kIsWeb) {
+      if (Get.isBottomSheetOpen ?? false) Get.back<void>();
+      var sourceUrl = widget.videoUrl;
+      if (sourceUrl == null || sourceUrl.isEmpty) {
+        sourceUrl = await ClipShareService.instance.resolveVideoSourceUrl(vId);
+      }
+      if (sourceUrl != null && sourceUrl.isNotEmpty) {
+        final safeTitle =
+            widget.title.replaceAll(RegExp('[^a-zA-Z0-9_-]'), '_');
+        await DownloadHelper.downloadFromUrl(
+          sourceUrl,
+          'Truthworld_${safeTitle}_Clip.mp4',
+        );
+        Get.snackbar(
+          'Downloading Clip',
+          'Truthworld video clip is downloading to your computer.',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: AppColors.success,
+          colorText: AppColors.textPrimary,
+          margin: const EdgeInsets.all(16),
+          borderRadius: 12,
+        );
+        return;
+      }
+    }
+
     var cancelled = false;
 
     _showTikTokExportDialog(
@@ -579,7 +649,9 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
 
   String _detectType() {
     if (widget.type != null) return widget.type!;
-    if (widget.url.contains('clipTitle') ||
+    if (widget.clipStartTime != null ||
+        widget.clipEndTime != null ||
+        widget.url.contains('clipTitle') ||
         (widget.url.contains('start=') && widget.url.contains('end='))) {
       return 'clip';
     }
@@ -2638,13 +2710,24 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
 
     final shareUrl = _getShareUrl();
     final text = _buildShareMessage(shareUrl);
-    final encodedText = Uri.encodeComponent(text);
+    await _shareDirectToPlatform(platform, caption: text, shareUrl: shareUrl);
+  }
+
+  Future<void> _shareDirectToPlatform(
+    String platform, {
+    required String caption,
+    required String shareUrl,
+  }) async {
+    if (Get.isBottomSheetOpen ?? false) Get.back<void>();
+
+    final encodedText = Uri.encodeComponent(caption);
     final encodedUrl = Uri.encodeComponent(shareUrl);
     final encodedTitle = Uri.encodeComponent(widget.title);
 
     try {
       switch (platform) {
         case 'whatsapp':
+        case 'whatsapp_status':
           // WhatsApp direct share scheme opens WhatsApp's share picker (Status & Friends)
           final whatsappUri = Uri.parse('whatsapp://send?text=$encodedText');
           final webUri = Uri.parse(
@@ -2659,7 +2742,9 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
           } else if (await canLaunchUrl(waMeUri)) {
             await launchUrl(waMeUri, mode: LaunchMode.externalApplication);
           } else {
-            await _shareNative();
+            await SharePlus.instance.share(
+              ShareParams(text: caption, subject: widget.title),
+            );
           }
 
         case 'facebook':
@@ -2673,7 +2758,9 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
           } else if (await canLaunchUrl(fbWebUri)) {
             await launchUrl(fbWebUri, mode: LaunchMode.externalApplication);
           } else {
-            await _shareNative();
+            await SharePlus.instance.share(
+              ShareParams(text: caption, subject: widget.title),
+            );
           }
 
         case 'twitter':
@@ -2696,13 +2783,15 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
               mode: LaunchMode.externalApplication,
             );
           } else {
-            await _shareNative();
+            await SharePlus.instance.share(
+              ShareParams(text: caption, subject: widget.title),
+            );
           }
 
         case 'telegram':
           final tgAppUri = Uri.parse('tg://msg?text=$encodedText');
           final tgWebUri = Uri.parse(
-            'https://t.me/share/url?url=$encodedUrl&text=$encodedTitle',
+            'https://t.me/share/url?url=$encodedUrl&text=$encodedText',
           );
 
           if (await canLaunchUrl(tgAppUri)) {
@@ -2710,7 +2799,9 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
           } else if (await canLaunchUrl(tgWebUri)) {
             await launchUrl(tgWebUri, mode: LaunchMode.externalApplication);
           } else {
-            await _shareNative();
+            await SharePlus.instance.share(
+              ShareParams(text: caption, subject: widget.title),
+            );
           }
 
         case 'email':
@@ -2721,14 +2812,20 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
           if (await canLaunchUrl(mailUri)) {
             await launchUrl(mailUri, mode: LaunchMode.externalApplication);
           } else {
-            await _shareNative();
+            await SharePlus.instance.share(
+              ShareParams(text: caption, subject: widget.title),
+            );
           }
 
         default:
-          await _shareNative();
+          await SharePlus.instance.share(
+            ShareParams(text: caption, subject: widget.title),
+          );
       }
     } catch (_) {
-      await _shareNative();
+      await SharePlus.instance.share(
+        ShareParams(text: caption, subject: widget.title),
+      );
     }
   }
 

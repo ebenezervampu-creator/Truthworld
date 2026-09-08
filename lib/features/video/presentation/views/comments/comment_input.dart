@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -38,7 +37,6 @@ class _ModernCommentInputState extends State<ModernCommentInput>
   late Animation<double> _submitAnimation;
   late Animation<double> _focusAnimation;
   late Animation<double> _typingAnimation;
-  late Animation<double> _successAnimation;
   Animation<Color?>? _borderColorAnimation;
   late Animation<double> _elevationAnimation;
 
@@ -101,10 +99,6 @@ class _ModernCommentInputState extends State<ModernCommentInput>
     _successAnimationController = AnimationController(
       duration: const Duration(milliseconds: 600),
       vsync: this,
-    );
-    _successAnimation = CurvedAnimation(
-      parent: _successAnimationController,
-      curve: Curves.elasticOut,
     );
 
     // Elevation Animation (no context dependency)
@@ -170,6 +164,31 @@ class _ModernCommentInputState extends State<ModernCommentInput>
   }
 
   Future<void> _submitComment() async {
+    if (!AuthService.to.isAuthenticated.value) {
+      Get.snackbar(
+        'Sign in required',
+        'Please sign in with your Google account to post comments.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.bgSurface,
+        colorText: AppColors.textPrimary,
+        margin: const EdgeInsets.all(16),
+        borderRadius: 12,
+        duration: const Duration(seconds: 4),
+        mainButton: TextButton(
+          onPressed: () {
+            AuthService.to.signInWithGoogle();
+          },
+          child: const Text(
+            'SIGN IN',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      );
+      return;
+    }
     if (_commentController.text.trim().isEmpty ||
         !widget.enableComments ||
         _isSubmitting.value) {
@@ -179,19 +198,23 @@ class _ModernCommentInputState extends State<ModernCommentInput>
     _isSubmitting.value = true;
 
     try {
-      final user = FirebaseAuth.instance.currentUser!;
+      final authService = AuthService.to;
+      final uid = authService.uid;
+      if (uid.isEmpty) {
+        _isSubmitting.value = false;
+        return;
+      }
 
       // Add haptic feedback
       HapticFeedback.mediumImpact();
 
-      final authService = AuthService.to;
       final finalUserName = authService.activeDisplayName;
       final finalUserProfilePicUrl = authService.activePhotoUrl;
 
       // Submit comment (preserved original functionality)
       await _mainController.addComment(
         videoId: widget.videoId,
-        userId: user.uid,
+        userId: uid,
         userName: finalUserName,
         userProfilePicUrl: finalUserProfilePicUrl,
         text: _commentController.text,
@@ -285,7 +308,7 @@ class _ModernCommentInputState extends State<ModernCommentInput>
 
   @override
   Widget build(BuildContext context) {
-    final isUserSignedIn = FirebaseAuth.instance.currentUser != null;
+    final isUserSignedIn = AuthService.to.isAuthenticated.value;
     final theme = Theme.of(context);
     final size = MediaQuery.of(context).size;
 
@@ -413,7 +436,7 @@ class _ModernCommentInputState extends State<ModernCommentInput>
                       ),
                       child: Icon(
                         Icons.chat_bubble_outline_rounded,
-                        color: theme.colorScheme.primary,
+                        color: Colors.white,
                         size: iconSize,
                       ),
                     ),
@@ -467,7 +490,7 @@ class _ModernCommentInputState extends State<ModernCommentInput>
                       child: ElevatedButton.icon(
                         onPressed: () {
                           HapticFeedback.lightImpact();
-                          Get.toNamed('/login');
+                          AuthService.to.signInWithGoogle();
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.transparent,
@@ -537,10 +560,10 @@ class _ModernCommentInputState extends State<ModernCommentInput>
   }
 
   Widget _buildUserAvatar(ThemeData theme, double radius) {
-    final user = FirebaseAuth.instance.currentUser!;
+    final uid = AuthService.to.uid;
 
     return Hero(
-      tag: 'user_avatar_${user.uid}',
+      tag: 'user_avatar_${uid.isNotEmpty ? uid : "guest"}',
       child: Material(
         shape: const CircleBorder(),
         clipBehavior: Clip.hardEdge,
@@ -580,18 +603,116 @@ class _ModernCommentInputState extends State<ModernCommentInput>
     double horizontalPadding,
     double iconSize,
   ) {
+    final inputContent = SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _commentController,
+            focusNode: _focusNode,
+            maxLines: null,
+            minLines: 1,
+            maxLength: 500,
+            textCapitalization: TextCapitalization.sentences,
+            textInputAction: TextInputAction.send,
+            onSubmitted: (_) => _submitComment(),
+            style: TextStyle(
+              fontSize: isMobile ? 14 : 15,
+              color: theme.colorScheme.onSurface,
+              fontWeight: FontWeight.w400,
+            ),
+            decoration: InputDecoration(
+              hintText: 'What are your thoughts?',
+              hintStyle: TextStyle(
+                color: theme.colorScheme.onSurfaceVariant.withValues(
+                  alpha: 0.6,
+                ),
+                fontSize: isMobile ? 14 : 15,
+                fontWeight: FontWeight.w400,
+              ),
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: horizontalPadding,
+                vertical: isMobile ? 12 : 14,
+              ),
+              counterText: '',
+              suffixIcon: Obx(() {
+                return _hasText.value
+                    ? ScaleTransition(
+                        scale: _typingAnimation,
+                        child: IconButton(
+                          icon: Icon(
+                            Icons.close_rounded,
+                            size: iconSize - 2,
+                          ),
+                          onPressed: () {
+                            _commentController.clear();
+                            HapticFeedback.lightImpact();
+                          },
+                          color: theme.colorScheme.onSurfaceVariant,
+                          tooltip: 'Clear',
+                        ),
+                      )
+                    : const SizedBox.shrink();
+              }),
+            ),
+          ),
+          Obx(() {
+            final isFocused = _isFocused.value;
+            final characterCount = _characterCount.value;
+            if (!isFocused || characterCount <= 0) {
+              return const SizedBox.shrink();
+            }
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: EdgeInsets.only(
+                left: horizontalPadding,
+                right: horizontalPadding,
+                bottom: 8,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Press Enter to send',
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurfaceVariant
+                          .withValues(alpha: 0.6),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                  Text(
+                    '$characterCount/500',
+                    style: TextStyle(
+                      color: characterCount > 450
+                          ? AppColors.warning
+                          : characterCount > 480
+                          ? AppColors.error
+                          : theme.colorScheme.onSurfaceVariant
+                                .withValues(alpha: 0.6),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+
     return AnimatedBuilder(
       animation: Listenable.merge([
         _focusAnimation,
-        _typingAnimation,
         _elevationAnimation,
         ...[_borderColorAnimation].nonNulls,
       ]),
+      child: inputContent,
       builder: (context, child) {
         return Obx(() {
           final isFocused = _isFocused.value;
-          final hasText = _hasText.value;
-          final characterCount = _characterCount.value;
 
           return Container(
             constraints: BoxConstraints(
@@ -646,99 +767,7 @@ class _ModernCommentInputState extends State<ModernCommentInput>
                       ),
                     ],
             ),
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextField(
-                    controller: _commentController,
-                    focusNode: _focusNode,
-                    maxLines: null,
-                    minLines: 1,
-                    maxLength: 500,
-                    textCapitalization: TextCapitalization.sentences,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _submitComment(),
-                    style: TextStyle(
-                      fontSize: isMobile ? 14 : 15,
-                      color: theme.colorScheme.onSurface,
-                      fontWeight: FontWeight.w400,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: isFocused
-                          ? 'What are your thoughts?'
-                          : 'Share your thoughts...',
-                      hintStyle: TextStyle(
-                        color: theme.colorScheme.onSurfaceVariant.withValues(
-                          alpha: 0.6,
-                        ),
-                        fontSize: isMobile ? 14 : 15,
-                        fontWeight: FontWeight.w400,
-                      ),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: horizontalPadding,
-                        vertical: isMobile ? 12 : 14,
-                      ),
-                      counterText: '',
-                      suffixIcon: hasText
-                          ? ScaleTransition(
-                              scale: _typingAnimation,
-                              child: IconButton(
-                                icon: Icon(
-                                  Icons.close_rounded,
-                                  size: iconSize - 2,
-                                ),
-                                onPressed: () {
-                                  _commentController.clear();
-                                  HapticFeedback.lightImpact();
-                                },
-                                color: theme.colorScheme.onSurfaceVariant,
-                                tooltip: 'Clear',
-                              ),
-                            )
-                          : null,
-                    ),
-                  ),
-                  if (isFocused && characterCount > 0)
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: EdgeInsets.only(
-                        left: horizontalPadding,
-                        right: horizontalPadding,
-                        bottom: 8,
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Press Enter to send',
-                            style: TextStyle(
-                              color: theme.colorScheme.onSurfaceVariant
-                                  .withValues(alpha: 0.6),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
-                          Text(
-                            '$characterCount/500',
-                            style: TextStyle(
-                              color: characterCount > 450
-                                  ? AppColors.warning
-                                  : characterCount > 480
-                                  ? AppColors.error
-                                  : theme.colorScheme.onSurfaceVariant
-                                        .withValues(alpha: 0.6),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ),
+            child: child,
           );
         });
       },
@@ -748,81 +777,75 @@ class _ModernCommentInputState extends State<ModernCommentInput>
   Widget _buildSubmitButton(ThemeData theme, double iconSize) {
     return ScaleTransition(
       scale: _submitAnimation,
-      child: AnimatedBuilder(
-        animation: _successAnimation,
-        builder: (context, child) {
-          return Obx(() {
-            final hasText = _hasText.value;
-            final isSubmitting = _isSubmitting.value;
+      child: Obx(() {
+        final hasText = _hasText.value;
+        final isSubmitting = _isSubmitting.value;
 
-            return Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: hasText
-                    ? LinearGradient(
-                        colors: [
-                          theme.colorScheme.primary,
-                          theme.colorScheme.primary.withValues(alpha: 0.8),
-                        ],
-                      )
-                    : LinearGradient(
-                        colors: [
-                          theme.colorScheme.primaryContainer.withValues(
-                            alpha: 0.6,
-                          ),
-                          theme.colorScheme.primaryContainer.withValues(
-                            alpha: 0.4,
-                          ),
-                        ],
+        return Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: hasText
+                ? LinearGradient(
+                    colors: [
+                      theme.colorScheme.primary,
+                      theme.colorScheme.primary.withValues(alpha: 0.8),
+                    ],
+                  )
+                : LinearGradient(
+                    colors: [
+                      theme.colorScheme.primaryContainer.withValues(
+                        alpha: 0.6,
                       ),
-                boxShadow: hasText
-                    ? [
-                        BoxShadow(
-                          color: theme.colorScheme.primary.withValues(
-                            alpha: 0.3,
-                          ),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: IconButton(
-                icon: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 300),
-                  transitionBuilder:
-                      (child, animation) {
-                        return ScaleTransition(
-                          scale: animation,
-                          child: RotationTransition(
-                            turns: animation,
-                            child: child,
-                          ),
-                        );
-                      },
-                  child: hasText
-                      ? Icon(
-                          Icons.send_rounded,
-                          key: const ValueKey('send'),
-                          color: AppColors.textPrimary,
-                          size: iconSize,
-                        )
-                      : Icon(
-                          Icons.emoji_emotions_outlined,
-                          key: const ValueKey('emoji'),
-                          color: theme.colorScheme.primary,
-                          size: iconSize,
-                        ),
-                ),
-                onPressed: hasText && !isSubmitting
-                    ? _submitComment
-                    : HapticFeedback.lightImpact,
-                tooltip: hasText ? 'Send comment' : 'Add emoji',
-              ),
-            );
-          });
-        },
-      ),
+                      theme.colorScheme.primaryContainer.withValues(
+                        alpha: 0.4,
+                      ),
+                    ],
+                  ),
+            boxShadow: hasText
+                ? [
+                    BoxShadow(
+                      color: theme.colorScheme.primary.withValues(
+                        alpha: 0.3,
+                      ),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: IconButton(
+            icon: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              transitionBuilder: (child, animation) {
+                return ScaleTransition(
+                  scale: animation,
+                  child: RotationTransition(
+                    turns: animation,
+                    child: child,
+                  ),
+                );
+              },
+              child: hasText
+                  ? Icon(
+                      Icons.send_rounded,
+                      key: const ValueKey('send'),
+                      color: AppColors.textPrimary,
+                      size: iconSize,
+                    )
+                  : Icon(
+                      Icons.emoji_emotions_outlined,
+                      key: const ValueKey('emoji'),
+                      color: AppColors.textPrimary,
+                      size: iconSize,
+                    ),
+            ),
+            onPressed: hasText && !isSubmitting
+                ? _submitComment
+                : HapticFeedback.lightImpact,
+            tooltip: hasText ? 'Send comment' : 'Add emoji',
+          ),
+        );
+      }),
     );
   }
 }
