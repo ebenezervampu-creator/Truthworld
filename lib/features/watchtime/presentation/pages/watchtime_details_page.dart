@@ -50,7 +50,12 @@ class WatchtimeDetailsPage extends StatelessWidget {
             return buildShimmerVideoList();
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Error: \\${snapshot.error}'));
+            return const Center(
+              child: Text(
+                'Unable to load watch time details. Please try again later.',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+            );
           }
           final videos = snapshot.data?.docs ?? [];
           if (videos.isEmpty) {

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
@@ -54,8 +55,12 @@ class CreatePlaylistController extends BaseController {
         if (doc.exists) {
           selectedVideos.add(Video.fromDocumentSnapshot(doc));
         }
-      } catch (e) {
-        debugPrint('Error loading initial video: $e');
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'CreatePlaylistController.loadInitialVideo',
+        );
       }
     }
   }
@@ -73,7 +78,8 @@ class CreatePlaylistController extends BaseController {
         useCustomThumbnail.value = true;
       }
     } catch (e) {
-      AppSnackbar.show('Error', 'Failed to pick image: $e');
+      ErrorHandler.log(e, tag: 'CreatePlaylistController');
+      AppSnackbar.error('Unable to select image. Please try again.');
     }
   }
 
@@ -181,7 +187,8 @@ class CreatePlaylistController extends BaseController {
         return true;
       }
     } catch (e) {
-      AppSnackbar.show('Error', 'Failed to create playlist: $e');
+      ErrorHandler.log(e, tag: 'CreatePlaylistController');
+      AppSnackbar.error('Unable to create playlist. Please try again.');
     } finally {
       isCreating.value = false;
     }

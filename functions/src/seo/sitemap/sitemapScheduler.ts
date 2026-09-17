@@ -1,6 +1,6 @@
 import * as admin from "firebase-admin";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { generateVideosSitemapShard, generateChannelsSitemapShard, generateTopicsSitemap, generatePlaylistsSitemap } from "./sitemapGenerator";
+import { generateVideosSitemapShard, generateChannelsSitemapShard, generateTopicsSitemap, generatePlaylistsSitemap, generateCommunityPostsSitemapShard } from "./sitemapGenerator";
 import { generateRssFeed } from "./rssGenerator";
 import { logSeoEvent } from "../monitor/searchHealth";
 
@@ -33,6 +33,8 @@ export const rebuildDirtySitemapsScheduler = onSchedule(
           xmlContent = await generateTopicsSitemap(db);
         } else if (shardId === "playlists") {
           xmlContent = await generatePlaylistsSitemap(db);
+        } else if (shardId.startsWith("community")) {
+          xmlContent = await generateCommunityPostsSitemapShard(db);
         }
 
         if (xmlContent) {

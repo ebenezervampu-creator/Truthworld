@@ -22,8 +22,12 @@ void setupGlobalErrorHandlers() {
       if (!isTransient) {
         try {
           FlutterError.dumpErrorToConsole(details);
-        } catch (_) {
-          debugPrint('[FlutterError] ${details.exceptionAsString()}');
+        } catch (e, stackTrace) {
+          ErrorHandler.log(
+            details.exception,
+            stackTrace: details.stack ?? stackTrace,
+            tag: 'FlutterFramework.dumpError',
+          );
         }
         logger.error(
           'Flutter Framework Error',

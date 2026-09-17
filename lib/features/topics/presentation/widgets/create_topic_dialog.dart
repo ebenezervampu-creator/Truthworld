@@ -1,5 +1,8 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
@@ -169,6 +172,7 @@ class CreateTopicDialog extends StatelessWidget {
                 ),
               ),
               child: TextField(
+                inputFormatters: [TruthworldTextInputFormatters.englishOnly],
                 style: const TextStyle(color: Colors.white, fontSize: 14),
                 decoration: InputDecoration(
                   hintText: 'Search videos, channels, topics...',
@@ -380,6 +384,7 @@ class CreateTopicDialog extends StatelessWidget {
               TextFormField(
                 controller: controller.nameController,
                 maxLength: 60,
+                inputFormatters: [TruthworldTextInputFormatters.englishOnly],
                 onChanged: (_) => controller.formKey.currentState?.validate(),
                 style: const TextStyle(color: Colors.white, fontSize: 14),
                 decoration: _buildInputDecoration(hintText: 'Enter topic name'),
@@ -429,6 +434,7 @@ class CreateTopicDialog extends StatelessWidget {
               TextFormField(
                 controller: controller.handleController,
                 maxLength: 30,
+                inputFormatters: [TruthworldTextInputFormatters.englishOnly],
                 onChanged: (_) => controller.onHandleManualEdit(),
                 style: const TextStyle(color: Colors.white, fontSize: 14),
                 decoration: _buildInputDecoration(
@@ -481,6 +487,7 @@ class CreateTopicDialog extends StatelessWidget {
               TextFormField(
                 controller: controller.titleController,
                 maxLength: 100,
+                inputFormatters: [TruthworldTextInputFormatters.englishOnly],
                 style: const TextStyle(color: Colors.white, fontSize: 14),
                 decoration: _buildInputDecoration(hintText: 'Enter a catchy title for your topic'),
                 validator: (val) {
@@ -528,6 +535,7 @@ class CreateTopicDialog extends StatelessWidget {
                 controller: controller.descriptionController,
                 maxLines: 4,
                 maxLength: 500,
+                inputFormatters: [TruthworldTextInputFormatters.englishOnly],
                 style: const TextStyle(color: Colors.white, fontSize: 14),
                 decoration: _buildInputDecoration(
                   hintText: 'Describe your topic. What is it about?',
@@ -571,6 +579,7 @@ class CreateTopicDialog extends StatelessWidget {
           const SizedBox(height: 12),
           TextFormField(
             controller: controller.tagInputController,
+            inputFormatters: [TruthworldTextInputFormatters.englishOnly],
             style: const TextStyle(color: Colors.white, fontSize: 14),
             decoration: _buildInputDecoration(hintText: 'Add tags and press Enter'),
             onFieldSubmitted: (val) {
@@ -774,6 +783,7 @@ class CreateTopicDialog extends StatelessWidget {
                   TextFormField(
                     controller: controller.accessCodeController,
                     obscureText: controller.obscureAccessCode.value,
+                    inputFormatters: [TruthworldTextInputFormatters.englishOnly],
                     style: const TextStyle(color: Colors.white, fontSize: 14),
                     decoration: _buildInputDecoration(
                       hintText: 'Enter Private Passcode',
@@ -898,7 +908,7 @@ class CreateTopicDialog extends StatelessWidget {
                                   height: 38,
                                   color: const Color(0xFF1E1E24),
                                   child: thumb.isNotEmpty
-                                      ? Image.network(thumb, fit: BoxFit.cover, errorBuilder: (_, _, _) => const Icon(Icons.movie, size: 16, color: Colors.white))
+                                      ? CachedNetworkImage(imageUrl: thumb, fit: BoxFit.cover, errorWidget: (_, _, _) => const Icon(Icons.movie, size: 16, color: Colors.white))
                                       : const Icon(Icons.movie, size: 16, color: Colors.white),
                                 ),
                               ),
@@ -1045,7 +1055,7 @@ class CreateTopicDialog extends StatelessWidget {
                                         child: ClipRRect(
                                           borderRadius: BorderRadius.circular(8),
                                           child: thumb.isNotEmpty
-                                              ? Image.network(thumb, fit: BoxFit.cover, errorBuilder: (_, _, _) => const Icon(Icons.movie, size: 20, color: Colors.white))
+                                              ? CachedNetworkImage(imageUrl: thumb, fit: BoxFit.cover, errorWidget: (_, _, _) => const Icon(Icons.movie, size: 20, color: Colors.white))
                                               : const Icon(Icons.movie, size: 20, color: Colors.white),
                                         ),
                                       ),
@@ -1270,7 +1280,8 @@ class CreateTopicDialog extends StatelessWidget {
                         }
                       }
                     } catch (e) {
-                      AppSnackbar.show('Error', e.toString());
+                      ErrorHandler.log(e, context: 'CreateTopicDialog.submit');
+                      AppSnackbar.error('Unable to create topic. Please try again.');
                     } finally {
                       controller.isSubmitting.value = false;
                     }
@@ -1338,7 +1349,8 @@ class CreateTopicDialog extends StatelessWidget {
                         }
                       }
                     } catch (e) {
-                      AppSnackbar.show('Error', e.toString());
+                      ErrorHandler.log(e, context: 'CreateTopicDialog.mobileSubmit');
+                      AppSnackbar.error('Unable to create topic. Please try again.');
                     } finally {
                       controller.isSubmitting.value = false;
                     }
@@ -1421,7 +1433,7 @@ class CreateTopicDialog extends StatelessWidget {
                             secondary: ClipRRect(
                               borderRadius: BorderRadius.circular(6),
                               child: thumb.isNotEmpty
-                                  ? Image.network(thumb, width: 48, height: 32, fit: BoxFit.cover, errorBuilder: (_, _, _) => const Icon(Icons.movie, color: Colors.white))
+                                  ? CachedNetworkImage(imageUrl: thumb, width: 48, height: 32, fit: BoxFit.cover, errorWidget: (_, _, _) => const Icon(Icons.movie, color: Colors.white))
                                   : const Icon(Icons.movie, color: Colors.white),
                             ),
                             activeColor: Colors.white,

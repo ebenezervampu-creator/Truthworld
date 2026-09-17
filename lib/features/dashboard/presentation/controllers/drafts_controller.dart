@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/base/ui_event.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/features/dashboard/data/models/draft_model.dart';
 
 /// Controller for managing creator studio video and community drafts.
@@ -58,7 +59,12 @@ class DraftsController extends BaseController {
                 ? ViewState.empty
                 : ViewState.success;
           },
-          onError: (error) {
+          onError: (error, stackTrace) {
+            ErrorHandler.log(
+              error,
+              stackTrace: stackTrace,
+              tag: 'DraftsController.streamDrafts',
+            );
             if (videoDrafts.isEmpty && communityDrafts.isEmpty) {
               rxState.value = ViewState.empty;
             } else {
@@ -73,7 +79,12 @@ class DraftsController extends BaseController {
             ? ViewState.empty
             : ViewState.success;
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'DraftsController.loadDrafts',
+      );
       if (videoDrafts.isEmpty && communityDrafts.isEmpty) {
         rxState.value = ViewState.error;
       } else {
@@ -91,7 +102,13 @@ class DraftsController extends BaseController {
             .toList();
         _updateDraftLists(localDrafts);
       }
-    } catch (_) {}
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'DraftsController.loadLocalDrafts',
+      );
+    }
   }
 
   void _updateDraftLists(List<DraftModel> drafts) {
@@ -103,7 +120,13 @@ class DraftsController extends BaseController {
   void _saveToLocalStorage(List<DraftModel> drafts) {
     try {
       _storage.write(_storageKey, drafts.map((d) => d.toMap()).toList());
-    } catch (_) {}
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'DraftsController.saveToLocalStorage',
+      );
+    }
   }
 
   /// Save or update a draft item persistently
@@ -144,7 +167,12 @@ class DraftsController extends BaseController {
             .collection('user_drafts')
             .doc(updatedDraft.id)
             .set(draftData, SetOptions(merge: true));
-      } catch (e) {
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'DraftsController.saveDraft.firestore',
+        );
         emitUiEvent(
           const UiEventShowSnackbar(
             title: 'Draft Saved Locally',
@@ -171,7 +199,13 @@ class DraftsController extends BaseController {
     if (userId != null && userId.isNotEmpty) {
       try {
         await _firestore.collection('user_drafts').doc(id).delete();
-      } catch (_) {}
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'DraftsController.deleteDraft.firestore',
+        );
+      }
     }
 
     emitUiEvent(const UiEventShowToast(message: 'Draft deleted'));

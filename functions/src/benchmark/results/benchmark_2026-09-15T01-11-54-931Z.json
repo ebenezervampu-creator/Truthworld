@@ -1,0 +1,1314 @@
+{
+  "runId": "bench_1789434714812",
+  "timestamp": "2026-09-15T01:11:54.812Z",
+  "version": "v1.2.0",
+  "datasetVersion": "1.0.0",
+  "config": {
+    "extractionModel": "gemini-2.5-flash",
+    "verificationModel": "gemini-2.5-flash",
+    "groundingMode": "auto"
+  },
+  "results": [
+    {
+      "id": "geo_001",
+      "claim": "20% of the world's daily oil supply passes through the Strait of Hormuz.",
+      "domain": "geopolitics",
+      "groundTruth": "correct",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "correct",
+        "mostly_correct"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": true,
+      "latencyMs": 62034,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "geo_002",
+      "claim": "Ayatollah Ali Khamenei has been Iran's ultimate authority for over 3 decades.",
+      "domain": "geopolitics",
+      "groundTruth": "mostly_correct",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "correct",
+        "mostly_correct"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": true,
+      "latencyMs": 62034,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "geo_003",
+      "claim": "Russia invaded Ukraine in February 2022.",
+      "domain": "geopolitics",
+      "groundTruth": "correct",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "correct"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": true,
+      "latencyMs": 62034,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "geo_004",
+      "claim": "NATO has 35 member countries as of 2026.",
+      "domain": "geopolitics",
+      "groundTruth": "needs_context",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "mostly_correct",
+        "needs_context",
+        "correct"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": true,
+      "latencyMs": 62034,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "geo_005",
+      "claim": "The US military operation against Iran was named 'Epic Fury'.",
+      "domain": "geopolitics",
+      "groundTruth": "unsupported",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "unsupported",
+        "unverifiable"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": true,
+      "latencyMs": 62034,
+      "exactMatch": false,
+      "acceptableMatch": true,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "geo_006",
+      "claim": "China has the largest navy in the world by number of vessels.",
+      "domain": "geopolitics",
+      "groundTruth": "correct",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "correct",
+        "mostly_correct"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": true,
+      "latencyMs": 703,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "geo_007",
+      "claim": "The Israeli-Palestinian conflict started in 1948.",
+      "domain": "geopolitics",
+      "groundTruth": "needs_context",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "needs_context",
+        "mostly_correct",
+        "contested_interpretation"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": true,
+      "latencyMs": 703,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "geo_008",
+      "claim": "North Korea has successfully tested nuclear weapons 6 times.",
+      "domain": "geopolitics",
+      "groundTruth": "correct",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "correct"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": true,
+      "latencyMs": 703,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "geo_009",
+      "claim": "The EU imposed 15 rounds of sanctions on Russia by the end of 2024.",
+      "domain": "geopolitics",
+      "groundTruth": "mostly_correct",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "correct",
+        "mostly_correct",
+        "needs_context"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": true,
+      "latencyMs": 703,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "geo_010",
+      "claim": "The Taliban seized control of Afghanistan in August 2021.",
+      "domain": "geopolitics",
+      "groundTruth": "correct",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "correct"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": true,
+      "latencyMs": 703,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "health_001",
+      "claim": "Ivermectin is a proven cure for COVID-19.",
+      "domain": "health",
+      "groundTruth": "incorrect",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "incorrect"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": true,
+      "latencyMs": 277,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "health_002",
+      "claim": "Smoking causes lung cancer.",
+      "domain": "health",
+      "groundTruth": "correct",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "correct"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 277,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "health_003",
+      "claim": "Drinking 8 glasses of water per day is medically required.",
+      "domain": "health",
+      "groundTruth": "mostly_correct",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "mostly_correct",
+        "needs_context"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 277,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "health_004",
+      "claim": "mRNA vaccines alter your DNA permanently.",
+      "domain": "health",
+      "groundTruth": "incorrect",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "incorrect"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": true,
+      "latencyMs": 277,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "health_005",
+      "claim": "The WHO declared monkeypox a global health emergency in 2022.",
+      "domain": "health",
+      "groundTruth": "correct",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "correct"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 277,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "health_006",
+      "claim": "Turmeric cures cancer.",
+      "domain": "health",
+      "groundTruth": "incorrect",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "incorrect",
+        "unsupported"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": true,
+      "latencyMs": 305,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "health_007",
+      "claim": "Life expectancy in the US declined during 2020-2021.",
+      "domain": "health",
+      "groundTruth": "correct",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "correct"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 305,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "health_008",
+      "claim": "5G towers spread the coronavirus.",
+      "domain": "health",
+      "groundTruth": "incorrect",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "incorrect"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": true,
+      "latencyMs": 305,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "health_009",
+      "claim": "The global maternal mortality rate has decreased by about 35% since 2000.",
+      "domain": "health",
+      "groundTruth": "mostly_correct",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "correct",
+        "mostly_correct"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 305,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "health_010",
+      "claim": "COVID-19 vaccines were developed in under a year, which is unprecedented.",
+      "domain": "health",
+      "groundTruth": "correct",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "correct",
+        "mostly_correct"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 305,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "fin_001",
+      "claim": "Bitcoin reached an all-time high of $100,000 in 2024.",
+      "domain": "finance",
+      "groundTruth": "mostly_correct",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "correct",
+        "mostly_correct",
+        "needs_context"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": true,
+      "latencyMs": 548,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "fin_002",
+      "claim": "The US national debt exceeds $34 trillion.",
+      "domain": "finance",
+      "groundTruth": "correct",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "correct",
+        "mostly_correct"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 548,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "fin_003",
+      "claim": "The stock market always recovers within 2 years after a crash.",
+      "domain": "finance",
+      "groundTruth": "incorrect",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "incorrect",
+        "mostly_correct"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": true,
+      "latencyMs": 548,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "fin_004",
+      "claim": "Inflation in the US peaked at around 9% in June 2022.",
+      "domain": "finance",
+      "groundTruth": "correct",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "correct",
+        "mostly_correct"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 548,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "fin_005",
+      "claim": "The Federal Reserve has never cut interest rates by more than 50 basis points at once.",
+      "domain": "finance",
+      "groundTruth": "incorrect",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "incorrect"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": true,
+      "latencyMs": 548,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "fin_006",
+      "claim": "Silicon Valley Bank collapsed in March 2023 due to a bank run.",
+      "domain": "finance",
+      "groundTruth": "correct",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "correct",
+        "mostly_correct"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 327,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "fin_007",
+      "claim": "China's GDP surpassed the US economy in 2023.",
+      "domain": "finance",
+      "groundTruth": "incorrect",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "incorrect",
+        "needs_context"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": true,
+      "latencyMs": 327,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "fin_008",
+      "claim": "The Indian rupee has depreciated about 40% against the dollar over the last decade.",
+      "domain": "finance",
+      "groundTruth": "mostly_correct",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "correct",
+        "mostly_correct"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 327,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "fin_009",
+      "claim": "Cryptocurrency is illegal in India.",
+      "domain": "finance",
+      "groundTruth": "incorrect",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "incorrect",
+        "outdated"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": true,
+      "latencyMs": 327,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "fin_010",
+      "claim": "Warren Buffett has consistently beaten the S&P 500 over the last 50 years.",
+      "domain": "finance",
+      "groundTruth": "mostly_correct",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "correct",
+        "mostly_correct",
+        "needs_context"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 327,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "tech_001",
+      "claim": "OpenAI released GPT-4 in March 2023.",
+      "domain": "technology",
+      "groundTruth": "correct",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "correct"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 250,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "tech_002",
+      "claim": "Apple's Vision Pro sold over 10 million units in its first year.",
+      "domain": "technology",
+      "groundTruth": "incorrect",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "incorrect",
+        "unsupported"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 250,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "tech_003",
+      "claim": "Google's Gemini model can process text, images, and audio natively.",
+      "domain": "technology",
+      "groundTruth": "correct",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "correct"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 250,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "tech_004",
+      "claim": "Elon Musk acquired Twitter for $44 billion and renamed it to X.",
+      "domain": "technology",
+      "groundTruth": "correct",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "correct"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 250,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "tech_005",
+      "claim": "TikTok was permanently banned in the United States in 2024.",
+      "domain": "technology",
+      "groundTruth": "needs_context",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "needs_context",
+        "outdated",
+        "mostly_correct"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": true,
+      "latencyMs": 250,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "tech_006",
+      "claim": "Anthropic's Claude model was trained by former OpenAI researchers.",
+      "domain": "technology",
+      "groundTruth": "correct",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "correct",
+        "mostly_correct"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 239,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "tech_007",
+      "claim": "Quantum computers can already break all existing encryption.",
+      "domain": "technology",
+      "groundTruth": "incorrect",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "incorrect"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": true,
+      "latencyMs": 239,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "tech_008",
+      "claim": "India's Chandrayaan-3 successfully landed on the Moon's south pole region in August 2023.",
+      "domain": "technology",
+      "groundTruth": "correct",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "correct"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 239,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "tech_009",
+      "claim": "Meta's Threads app hit 100 million users in its first week.",
+      "domain": "technology",
+      "groundTruth": "correct",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "correct",
+        "mostly_correct"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 239,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "tech_010",
+      "claim": "Self-driving cars are fully legal and operating without any safety drivers in all US states.",
+      "domain": "technology",
+      "groundTruth": "incorrect",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "incorrect"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": true,
+      "latencyMs": 239,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "gray_001",
+      "claim": "The Great Wall of China is visible from space with the naked eye.",
+      "domain": "science",
+      "groundTruth": "incorrect",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "incorrect"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 2409,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "gray_002",
+      "claim": "Napoleon was exceptionally short for his era.",
+      "domain": "history",
+      "groundTruth": "incorrect",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "incorrect",
+        "needs_context"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 2409,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "gray_003",
+      "claim": "Einstein failed math in school.",
+      "domain": "history",
+      "groundTruth": "incorrect",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "incorrect"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 2409,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "gray_004",
+      "claim": "The average human uses only 10% of their brain.",
+      "domain": "science",
+      "groundTruth": "incorrect",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "incorrect"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 2409,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "gray_005",
+      "claim": "The Soviet Union put the first human in space before the United States.",
+      "domain": "history",
+      "groundTruth": "correct",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "correct"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 2409,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "gray_006",
+      "claim": "Twitter had 500 million daily active users when Elon Musk bought it.",
+      "domain": "technology",
+      "groundTruth": "incorrect",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "incorrect",
+        "unsupported"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 259,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "gray_007",
+      "claim": "The Bermuda Triangle has a higher rate of ship disappearances than any other region.",
+      "domain": "science",
+      "groundTruth": "incorrect",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "incorrect",
+        "unsupported"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 259,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "gray_008",
+      "claim": "Yoga was invented 5,000 years ago.",
+      "domain": "religion",
+      "groundTruth": "mostly_correct",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "mostly_correct",
+        "needs_context",
+        "contested_interpretation"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 259,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "gray_009",
+      "claim": "Global temperatures have risen by about 1.1°C since pre-industrial times.",
+      "domain": "science",
+      "groundTruth": "outdated",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "outdated",
+        "mostly_correct"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 259,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "gray_010",
+      "claim": "Mark Zuckerberg challenged Elon Musk to a cage fight and it actually happened.",
+      "domain": "viral",
+      "groundTruth": "incorrect",
+      "predictedLabel": "unverifiable",
+      "acceptableLabels": [
+        "incorrect"
+      ],
+      "confidence": 0,
+      "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+      "modelUsed": "error",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 259,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    }
+  ],
+  "metrics": {
+    "accuracy": {
+      "exactMatchRate": 0,
+      "acceptableMatchRate": 2,
+      "highRiskAccuracy": 4.5,
+      "lowRiskAccuracy": 0
+    },
+    "errors": {
+      "falseAccusationRate": 0,
+      "falseLeniencyRate": 0,
+      "totalMismatches": 50,
+      "worstMismatches": [
+        {
+          "id": "geo_001",
+          "claim": "20% of the world's daily oil supply passes through the Strait of Hormuz.",
+          "domain": "geopolitics",
+          "groundTruth": "correct",
+          "predictedLabel": "unverifiable",
+          "acceptableLabels": [
+            "correct",
+            "mostly_correct"
+          ],
+          "confidence": 0,
+          "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+          "modelUsed": "error",
+          "wasRouted": "flash",
+          "shouldUsePro": true,
+          "latencyMs": 62034,
+          "exactMatch": false,
+          "acceptableMatch": false,
+          "routingCorrect": false,
+          "isFalseAccusation": false,
+          "isFalseLeniency": false
+        },
+        {
+          "id": "geo_002",
+          "claim": "Ayatollah Ali Khamenei has been Iran's ultimate authority for over 3 decades.",
+          "domain": "geopolitics",
+          "groundTruth": "mostly_correct",
+          "predictedLabel": "unverifiable",
+          "acceptableLabels": [
+            "correct",
+            "mostly_correct"
+          ],
+          "confidence": 0,
+          "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+          "modelUsed": "error",
+          "wasRouted": "flash",
+          "shouldUsePro": true,
+          "latencyMs": 62034,
+          "exactMatch": false,
+          "acceptableMatch": false,
+          "routingCorrect": false,
+          "isFalseAccusation": false,
+          "isFalseLeniency": false
+        },
+        {
+          "id": "geo_003",
+          "claim": "Russia invaded Ukraine in February 2022.",
+          "domain": "geopolitics",
+          "groundTruth": "correct",
+          "predictedLabel": "unverifiable",
+          "acceptableLabels": [
+            "correct"
+          ],
+          "confidence": 0,
+          "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+          "modelUsed": "error",
+          "wasRouted": "flash",
+          "shouldUsePro": true,
+          "latencyMs": 62034,
+          "exactMatch": false,
+          "acceptableMatch": false,
+          "routingCorrect": false,
+          "isFalseAccusation": false,
+          "isFalseLeniency": false
+        },
+        {
+          "id": "geo_004",
+          "claim": "NATO has 35 member countries as of 2026.",
+          "domain": "geopolitics",
+          "groundTruth": "needs_context",
+          "predictedLabel": "unverifiable",
+          "acceptableLabels": [
+            "mostly_correct",
+            "needs_context",
+            "correct"
+          ],
+          "confidence": 0,
+          "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+          "modelUsed": "error",
+          "wasRouted": "flash",
+          "shouldUsePro": true,
+          "latencyMs": 62034,
+          "exactMatch": false,
+          "acceptableMatch": false,
+          "routingCorrect": false,
+          "isFalseAccusation": false,
+          "isFalseLeniency": false
+        },
+        {
+          "id": "geo_005",
+          "claim": "The US military operation against Iran was named 'Epic Fury'.",
+          "domain": "geopolitics",
+          "groundTruth": "unsupported",
+          "predictedLabel": "unverifiable",
+          "acceptableLabels": [
+            "unsupported",
+            "unverifiable"
+          ],
+          "confidence": 0,
+          "reasoning": "Verification failed: GoogleAuthError: [VertexAI.GoogleAuthError]: \nUnable to authenticate your request        \nDepending on your run time environment, you can get authentication by        \n- if in local instance or cloud shell: `!gcloud auth login`        \n- if in Colab:        \n    -`from google.colab import auth`        \n    -`auth.authenticate_user()`        \n- if in service account or other: please follow guidance in https://cloud.google.com/docs/authentication",
+          "modelUsed": "error",
+          "wasRouted": "flash",
+          "shouldUsePro": true,
+          "latencyMs": 62034,
+          "exactMatch": false,
+          "acceptableMatch": true,
+          "routingCorrect": false,
+          "isFalseAccusation": false,
+          "isFalseLeniency": false
+        }
+      ]
+    },
+    "routing": {
+      "totalClaims": 50,
+      "routedToPro": 0,
+      "routedToFlash": 50,
+      "escalationRate": 0,
+      "routingAccuracy": 0,
+      "missedEscalations": 22,
+      "unnecessaryPro": 0
+    },
+    "labelDistribution": {
+      "predicted": {
+        "unverifiable": 50
+      },
+      "expected": {
+        "correct": 19,
+        "mostly_correct": 8,
+        "needs_context": 3,
+        "unsupported": 1,
+        "incorrect": 18,
+        "outdated": 1
+      }
+    },
+    "domainAccuracy": {
+      "geopolitics": {
+        "total": 10,
+        "exactMatch": 0,
+        "acceptableMatch": 1,
+        "accuracy": 10
+      },
+      "health": {
+        "total": 10,
+        "exactMatch": 0,
+        "acceptableMatch": 0,
+        "accuracy": 0
+      },
+      "finance": {
+        "total": 10,
+        "exactMatch": 0,
+        "acceptableMatch": 0,
+        "accuracy": 0
+      },
+      "technology": {
+        "total": 11,
+        "exactMatch": 0,
+        "acceptableMatch": 0,
+        "accuracy": 0
+      },
+      "science": {
+        "total": 4,
+        "exactMatch": 0,
+        "acceptableMatch": 0,
+        "accuracy": 0
+      },
+      "history": {
+        "total": 3,
+        "exactMatch": 0,
+        "acceptableMatch": 0,
+        "accuracy": 0
+      },
+      "religion": {
+        "total": 1,
+        "exactMatch": 0,
+        "acceptableMatch": 0,
+        "accuracy": 0
+      },
+      "viral": {
+        "total": 1,
+        "exactMatch": 0,
+        "acceptableMatch": 0,
+        "accuracy": 0
+      }
+    },
+    "nuance": {
+      "mostlyCorrectRecognition": 0,
+      "outdatedRecognition": 0,
+      "needsContextRecognition": 0,
+      "unsupportedRecognition": 100
+    },
+    "performance": {
+      "avgLatencyMs": 6735,
+      "avgLatencyFlash": 6735,
+      "avgLatencyPro": 0,
+      "estimatedCostPer100": 0.1
+    },
+    "trustMetrics": {
+      "creatorHarmIndex": 0,
+      "misinformationEscapeRate": 0,
+      "nuanceRecognitionScore": 0.08
+    }
+  },
+  "duration": 85461
+}

@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
 class VideoFeedNotificationService {
@@ -47,8 +47,12 @@ class VideoFeedNotificationService {
           .get();
 
       return snapshot.docs.map(_mapInboxToVideo).toList();
-    } catch (e) {
-      debugPrint('Error fetching materialized notifications once: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'VideoFeedNotificationService.getVideoNotificationsOnce',
+      );
       return [];
     }
   }
@@ -64,8 +68,12 @@ class VideoFeedNotificationService {
           .collection('feed_inbox')
           .doc(videoId)
           .update({'isSeen': true});
-    } catch (e) {
-      debugPrint('Error marking video as seen: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'VideoFeedNotificationService.markVideoAsSeen',
+      );
     }
   }
 
@@ -92,8 +100,12 @@ class VideoFeedNotificationService {
         batch.update(ref, {'isSeen': true});
       }
       await batch.commit();
-    } catch (e) {
-      debugPrint('Error batch marking all as seen: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'VideoFeedNotificationService.markAllAsSeen',
+      );
     }
   }
 

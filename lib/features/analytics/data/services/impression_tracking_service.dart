@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:firebase_database/firebase_database.dart';
-import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/utils/firebase_rtdb_helper.dart';
@@ -78,15 +78,17 @@ class ImpressionTrackingService extends GetxService {
     if (_seenThisSession.contains(dedupKey)) return;
     _seenThisSession.add(dedupKey);
 
-    _batch.add(
-      _ImpressionEvent(
-        videoId: videoId,
-        channelId: channelId,
-        source: source ?? 'unknown',
-        timestamp: DateTime.now(),
-        userId: AuthService.to.uid.isNotEmpty ? AuthService.to.uid : null,
-      ),
-    );
+    if (_batch.length < _maxBatchSize) {
+      _batch.add(
+        _ImpressionEvent(
+          videoId: videoId,
+          channelId: channelId,
+          source: source ?? 'unknown',
+          timestamp: DateTime.now(),
+          userId: AuthService.to.uid.isNotEmpty ? AuthService.to.uid : null,
+        ),
+      );
+    }
 
     // Auto-flush if batch is large
     if (_batch.length >= 50) {
@@ -127,10 +129,21 @@ class ImpressionTrackingService extends GetxService {
     );
   }
 
+  static const int _maxBatchSize = 100;
+
   /// Flush batched impressions to RTDB.
   /// Aggregates counts per video in-memory and pushes atomic ServerValue.increment deltas.
   Future<void> _flushBatch() async {
     if (_batch.isEmpty) return;
+
+    // RTDB rules strictly require auth != null for pendingImpressions
+    if (!AuthService.to.isUserSignedIn) {
+      if (_batch.isNotEmpty) {
+        // Discard unauthenticated guest impressions to prevent RTDB PERMISSION_DENIED loops
+        _batch.clear();
+      }
+      return;
+    }
 
     final toFlush = List<_ImpressionEvent>.from(_batch);
     _batch.clear();
@@ -158,10 +171,23 @@ class ImpressionTrackingService extends GetxService {
         'Flushed ${toFlush.length} impressions for ${videoImpressionCounts.length} videos to RTDB',
         tag: _tag,
       );
-    } catch (e) {
-      // Put back failed events for retry
-      _batch.insertAll(0, toFlush);
-      debugPrint('[$_tag] Failed to flush impressions to RTDB, will retry: $e');
+    } catch (e, s) {
+      final errStr = e.toString().toLowerCase();
+      // Only retry transient network glitches; never retry permission denied
+      if (!errStr.contains('permission_denied') &&
+          !errStr.contains('permission denied')) {
+        // Re-insert failed events up to safety limit to avoid memory leak
+        final spaceAvailable = _maxBatchSize - _batch.length;
+        if (spaceAvailable > 0) {
+          final retriable = toFlush.take(spaceAvailable).toList();
+          _batch.insertAll(0, retriable);
+        }
+      }
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: '$_tag.flushPendingImpressions',
+      );
     }
   }
 }

@@ -1,502 +1,274 @@
 import 'dart:async';
-import 'dart:io' as io;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:image_cropper/image_cropper.dart';
-import 'package:truthworld/core/base/base_controller.dart';
-import 'package:truthworld/core/constants/firestore_collections.dart';
-import 'package:truthworld/core/mixins/content_validation_mixin.dart';
-import 'package:truthworld/core/services/auth_service.dart';
-import 'package:truthworld/core/services/deep_link_service.dart';
-import 'package:truthworld/core/services/image_cropper_service.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/image_verification_service.dart';
-import 'package:truthworld/core/services/video_visibility_policy.dart';
-import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/channel/data/models/channel_availability_status.dart';
+import 'package:truthworld/features/channel/data/models/channel_image_data.dart';
+import 'package:truthworld/features/channel/presentation/controllers/channel_mixins/channel_mixins.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
-import 'package:truthworld/features/community/data/models/community_post_model.dart';
-import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
-import 'package:truthworld/features/topics/data/models/topic.dart';
-import 'package:truthworld/features/topics/data/repositories/topic_repository.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:uuid/uuid.dart';
 
-// ==========================================================================
-// MODELS AND ENUMS
-// ==========================================================================
+// Re-exports for 100% backward compatibility
+export 'package:truthworld/features/channel/data/models/channel_availability_status.dart';
+export 'package:truthworld/features/channel/data/models/channel_image_data.dart';
+export 'package:truthworld/features/channel/data/models/channel_transaction_result.dart';
+export 'package:truthworld/features/channel/presentation/controllers/channel_mixins/channel_mixins.dart';
 
-// ContentValidationResult is now provided by content_validation_mixin.dart
-
-class TransactionResult {
-  TransactionResult({
-    this.success = false,
-    this.errorMessage,
-    this.alreadySubscribed = false,
-  });
-  final bool success;
-  final String? errorMessage;
-  final bool alreadySubscribed;
-}
-
-enum AvailabilityStatus { unknown, checking, available, taken, invalid, error }
-
-extension AvailabilityStatusExtension on AvailabilityStatus {
-  Color get color {
-    switch (this) {
-      case AvailabilityStatus.unknown:
-        return AppColors.textSecondary;
-      case AvailabilityStatus.checking:
-        return const Color(0xFFF59E0B);
-      case AvailabilityStatus.available:
-        return AppColors.success;
-      case AvailabilityStatus.taken:
-      case AvailabilityStatus.invalid:
-      case AvailabilityStatus.error:
-        return AppColors.brand;
-    }
-  }
-
-  IconData get icon {
-    switch (this) {
-      case AvailabilityStatus.unknown:
-        return Icons.help_outline;
-      case AvailabilityStatus.checking:
-        return Icons.hourglass_empty;
-      case AvailabilityStatus.available:
-        return Icons.check_circle;
-      case AvailabilityStatus.taken:
-        return Icons.cancel;
-      case AvailabilityStatus.invalid:
-      case AvailabilityStatus.error:
-        return Icons.error;
-    }
-  }
-
-  String get message {
-    switch (this) {
-      case AvailabilityStatus.unknown:
-        return '';
-      case AvailabilityStatus.checking:
-        return 'Checking availability...';
-      case AvailabilityStatus.available:
-        return 'Available!';
-      case AvailabilityStatus.taken:
-        return 'This name is already taken';
-      case AvailabilityStatus.invalid:
-        return 'Invalid format';
-      case AvailabilityStatus.error:
-        return 'Error checking availability';
-    }
-  }
-}
-
-class ImageData {
-  ImageData({
-    required this.bytes,
-    required this.name,
-    required this.size,
-    required this.aspectRatio,
-  });
-  final Uint8List bytes;
-  final String name;
-  final int size;
-  final double aspectRatio;
-}
-
-// ==========================================================================
-// UNIFIED CHANNEL CONTROLLER
-// ==========================================================================
-
-class ChannelController extends BaseController
-    with GetTickerProviderStateMixin, ContentValidationMixin {
+class ChannelController extends ChannelControllerBase
+    with
+        ChannelAvailabilityMixin,
+        ChannelMediaMixin,
+        ChannelCreationMixin,
+        ChannelDraftMixin,
+        ChannelManagementMixin,
+        ChannelDetailsMixin,
+        ChannelTopicsMixin {
   static final RxMap<String, int> globalSubscriberCounts = <String, int>{}.obs;
-  // Flag to track disposal state and prevent ticker errors
+
   bool _isDisposed = false;
   @override
   bool get isClosed => _isDisposed;
+
   // Dependencies
-  final FirebaseStorage _storage = FirebaseStorage.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final Uuid _uuid = const Uuid();
-  final ImageVerificationService _imageVerificationService =
-      ImageVerificationService();
+  @override
+  final FirebaseStorage storage = FirebaseStorage.instance;
+  @override
+  final FirebaseFirestore firestore = FirebaseFirestore.instance;
+  @override
+  final FirebaseAuth auth = FirebaseAuth.instance;
+  @override
+  final Uuid uuid = const Uuid();
+  @override
+  final ImageVerificationService imageVerificationService = ImageVerificationService();
 
-  // Moderation filters are now provided by ContentValidationMixin
+  late ChannelSubscriptionController _subController;
+  @override
+  ChannelSubscriptionController get subController => _subController;
+  @override
+  set subController(ChannelSubscriptionController s) => _subController = s;
 
-  // Form Keys
-  final formKey = GlobalKey<FormState>();
+  // Controllers
+  @override
+  final GlobalKey<FormState> formKey = GlobalKey<FormState>();
+  @override
+  final TextEditingController channelName = TextEditingController();
+  @override
+  final TextEditingController description = TextEditingController();
+  @override
+  final TextEditingController customUrl = TextEditingController();
+  @override
+  final TextEditingController tags = TextEditingController();
+  @override
+  final TextEditingController contactEmail = TextEditingController();
+  @override
+  final TextEditingController websiteUrl = TextEditingController();
 
-  // Text Editing Controllers
-  final channelName = TextEditingController();
-  final description = TextEditingController();
-  final customUrl = TextEditingController();
-  final tags = TextEditingController();
-  final contactEmail = TextEditingController();
-  final websiteUrl = TextEditingController();
-
-  // Plan Selection & Location State
-  final RxString selectedPlan = 'standard'.obs;
-  final RxString customPricingTier = r'$30'.obs;
+  // Plans & Channels
+  @override
+  final RxString selectedPlan = 'free'.obs;
+  @override
+  final RxString customPricingTier = 'basic'.obs;
+  @override
   final RxBool planSelectionError = false.obs;
-  final RxString country = ''.obs;
+  @override
+  final RxString country = 'US'.obs;
+  @override
   final RxString channelTypeCategory = ''.obs;
-
-  // Constants
-  static const String _channelsCol = 'channels';
-
-  static const int maxChannelsPerUser = 1;
-  static const int debounceDurationMs = 500;
-  static const int minChannelNameLength = 3;
-  static const int maxChannelNameLength = 50;
-  static const int minCustomUrlLength = 3;
-  static const int maxCustomUrlLength = 30;
-  static const int maxDescriptionLength = 1000;
-  static const int maxTags = 5;
-  static const int maxBannerSize = 5 * 1024 * 1024; // 5MB
-  static const int maxAvatarSize = 2 * 1024 * 1024; // 2MB
-  static const double recommendedBannerRatio = 16 / 9;
-  static const double recommendedAvatarRatio = 1;
-
-  // Animation Controllers
-  late AnimationController formFadeAnimationController;
-  late AnimationController formSlideAnimationController;
-  late AnimationController formScaleAnimationController;
-  late AnimationController heroAnimationController;
-  late AnimationController staggeredAnimationController;
-  late AnimationController buttonAnimationController;
-  late AnimationController successAnimationController;
-
-  // Animations
-  late Animation<double> fadeAnimation;
-  late Animation<Offset> slideAnimation;
-  late Animation<double> scaleAnimation;
-  late Animation<double> heroAnimation;
-  late Animation<double> buttonScaleAnimation;
-  late Animation<double> successScaleAnimation;
-
-  // Channel Details Page Animations
-  late AnimationController pageFadeAnimationController;
-  late AnimationController pageSlideAnimationController;
-  late AnimationController pageScaleAnimationController;
-  late Animation<double> pageFadeAnimation;
-  late Animation<Offset> pageSlideAnimation;
-  late Animation<double> pageScaleAnimation;
-
-  // Subscription Button Animations
-  late AnimationController subscriptionAnimationController;
-  late Animation<double> subscriptionScaleAnimation;
-
-  // Reactive State - Channel List
-  RxList<Channel> channels = RxList<Channel>();
-  Rx<Channel?> selectedChannel = Rx<Channel?>(null);
-
-  late final ChannelSubscriptionController _subController;
-
-  RxBool get isSubscribed => _subController.isSubscribed;
-  RxBool get isSubscriptionLoading => _subController.isLoadingSubscription;
-  RxBool get notificationsEnabled => _subController.notificationsEnabled;
-  RxString get notificationOption => _subController.notificationOption;
-  RxInt get subscriberCount => _subController.subscriberCount;
-  RxList<Channel> get subscribedChannels => _subController.subscribedChannels;
-
-  RxBool rxIsLoading = false.obs;
-  RxString rxErrorMessage = ''.obs;
-  RxDouble uploadProgress = 0.0.obs;
+  @override
+  final RxList<Channel> channels = <Channel>[].obs;
+  @override
+  final Rx<Channel?> selectedChannel = Rx<Channel?>(null);
+  @override
+  final RxBool rxIsLoading = false.obs;
+  @override
+  final RxString rxErrorMessage = ''.obs;
+  @override
+  final RxDouble uploadProgress = 0.0.obs;
+  @override
   final RxString channelNameMessage = ''.obs;
+  @override
   final Rx<ChannelType> selectedChannelType = ChannelType.standard.obs;
 
-  // State for Channel Details Page
-  final RxBool isAppBarExpanded = false.obs;
-  final RxBool isDescriptionExpanded = false.obs;
-  final RxBool isLoadingVideos = false.obs;
-  final RxList<Video> videos = <Video>[].obs;
-  final lastVideoDocument = Rx<DocumentSnapshot?>(null);
-  final RxBool isLoadingMore = false.obs;
-  final RxString videoSortFilter = 'Latest'.obs;
-
-  // Reactive flags for channel content tabs availability
-  final RxBool hasVideos = false.obs;
-  final RxBool hasPlaylists = false.obs;
-  final RxBool hasPosts = false.obs;
-  final RxBool hasTopics = false.obs;
-  final RxInt channelVideoCount = 0.obs;
-
-  List<String> get activeTabs {
-    return const ['Home', 'Videos', 'Topics', 'Playlists', 'Posts'];
-  }
-
-  // Topic content maps matching Saved Topics (FollowingTopicsPage) architecture
-  final TopicRepository _topicRepository = TopicRepository();
-  final Rxn<Topic> selectedChannelTopic = Rxn<Topic>();
-  final RxMap<String, List<Video>> topicVideosMap = <String, List<Video>>{}.obs;
-  final RxMap<String, bool> isLoadingVideosMap = <String, bool>{}.obs;
-  final RxMap<String, List<CommunityPostModel>> topicPostsMap =
-      <String, List<CommunityPostModel>>{}.obs;
-  final RxMap<String, bool> isLoadingPostsMap = <String, bool>{}.obs;
-
-  Future<void> fetchVideosForChannelTopic(Topic topic) async {
-    final key = topic.id;
-    if (topicVideosMap.containsKey(key) && isLoadingVideosMap[key] != true) {
-      return;
-    }
-    isLoadingVideosMap[key] = true;
-    try {
-      var vids = await _topicRepository.getVideosByTopic(topic.slug);
-      if (vids.isEmpty && topic.id != topic.slug) {
-        vids = await _topicRepository.getVideosByTopic(topic.id);
-      }
-      topicVideosMap[key] = vids;
-    } catch (e) {
-      debugPrint('Error fetching videos for channel topic ${topic.title}: $e');
-      topicVideosMap[key] = [];
-    } finally {
-      isLoadingVideosMap[key] = false;
-    }
-  }
-
-  Future<void> fetchPostsForChannelTopic(Topic topic) async {
-    final key = topic.id;
-    if (topicPostsMap.containsKey(key) && isLoadingPostsMap[key] != true) {
-      return;
-    }
-    isLoadingPostsMap[key] = true;
-    try {
-      var posts = await _topicRepository.getCommunityPostsByTopic(topic.slug);
-      if (posts.isEmpty && topic.id != topic.slug) {
-        posts = await _topicRepository.getCommunityPostsByTopic(topic.id);
-      }
-      topicPostsMap[key] = posts;
-    } catch (e) {
-      debugPrint('Error fetching posts for channel topic ${topic.title}: $e');
-      topicPostsMap[key] = [];
-    } finally {
-      isLoadingPostsMap[key] = false;
-    }
-  }
-
-  void selectChannelTopic(Topic? topic) {
-    selectedChannelTopic.value = topic;
-    if (topic != null) {
-      fetchVideosForChannelTopic(topic);
-      fetchPostsForChannelTopic(topic);
-    }
-  }
-
-  // Reactive State - Image Upload
-  final bannerImageData = Rx<ImageData?>(null);
-  final avatarImageData = Rx<ImageData?>(null);
+  // Media
+  @override
+  final Rx<ImageData?> bannerImageData = Rx<ImageData?>(null);
+  @override
+  final Rx<ImageData?> avatarImageData = Rx<ImageData?>(null);
+  @override
   final RxString bannerUrl = ''.obs;
+  @override
   final RxString avatarUrl = ''.obs;
+  @override
   final RxDouble bannerUploadProgress = 0.0.obs;
+  @override
   final RxDouble avatarUploadProgress = 0.0.obs;
+  @override
   final RxBool isUploadingBanner = false.obs;
+  @override
   final RxBool isUploadingAvatar = false.obs;
-
-  // Moderation statuses
+  @override
   final RxString bannerStatus = ''.obs;
+  @override
   final RxString avatarStatus = ''.obs;
+  @override
   final RxString bannerStatusReason = ''.obs;
+  @override
   final RxString avatarStatusReason = ''.obs;
-
-  // Verification File IDs
+  @override
   final RxString avatarFileId = ''.obs;
+  @override
   final RxString bannerFileId = ''.obs;
+  @override
+  final List<String> uploadedDocIds = [];
+  @override
+  final Map<String, StreamSubscription> moderationListeners = {};
+  @override
+  final Map<String, Timer> moderationTimers = {};
 
-  // Details screen real-time verification statuses
+  // Details screen verification
+  @override
   final RxString detailsAvatarStatus = ''.obs;
+  @override
   final RxString detailsBannerStatus = ''.obs;
+  @override
   final RxString detailsAvatarReason = ''.obs;
+  @override
   final RxString detailsBannerReason = ''.obs;
+  @override
+  StreamSubscription? detailsAvatarSub;
+  @override
+  StreamSubscription? detailsBannerSub;
 
-  StreamSubscription? _detailsAvatarSub;
-  StreamSubscription? _detailsBannerSub;
-
-  // Draft management
+  // Drafts
+  @override
   final RxBool hasDraft = false.obs;
-  final draftId = Rx<String?>(null);
+  @override
+  final Rx<String?> draftId = Rx<String?>(null);
+  @override
   final RxBool isSavingDraft = false.obs;
-  final lastDraftSaveTime = Rx<DateTime?>(null);
+  @override
+  final Rx<DateTime?> lastDraftSaveTime = Rx<DateTime?>(null);
+  @override
   final RxBool isSubmitting = false.obs;
 
-  // Other reactive state
+  // Settings
+  @override
   final RxBool isPublic = true.obs;
+  @override
+  final RxString visibility = 'Public'.obs;
+  @override
+  void setVisibility(String val) {
+    visibility.value = val;
+    isPublic.value = (val == 'Public');
+  }
+  @override
   final RxString language = 'en'.obs;
-  final selectedCategory = Rx<String?>(null);
+  @override
+  final Rx<String?> selectedCategory = Rx<String?>(null);
+  @override
   final RxList<String> selectedCategories = <String>[].obs;
+  @override
   final RxBool isAgreed = false.obs;
+  @override
   final RxBool agreeTerms = false.obs;
+  @override
   final RxBool agreeGuidelines = false.obs;
+  @override
   final RxInt formChangeTrigger = 0.obs;
+  @override
   final RxMap<String, String> socialLinks = {
     'twitter': '',
     'instagram': '',
+    'facebook': '',
+    'linkedin': '',
     'youtube': '',
     'website': '',
   }.obs;
+  @override
   final RxMap<String, dynamic> advancedSettings = <String, dynamic>{
     'allowComments': true,
-    'allowSubscriptions': true,
+    'moderationLevel': 'standard',
     'showSubscriberCount': true,
+    'enableWatermark': false,
   }.obs;
-
-  // Notification preferences
+  @override
   final RxBool notificationAll = true.obs;
+  @override
   final RxBool notificationPersonalized = true.obs;
+  @override
   final RxBool notificationNew = true.obs;
+  @override
   final RxBool notificationLive = true.obs;
+  @override
   final RxBool notificationPlaylist = false.obs;
 
-  // Availability Checking
+  // Availability
+  @override
   final RxList<String> handleSuggestions = <String>[].obs;
-  Rx<AvailabilityStatus> channelNameAvailability = Rx<AvailabilityStatus>(
-    AvailabilityStatus.unknown,
-  );
-  Rx<AvailabilityStatus> customUrlAvailability = Rx<AvailabilityStatus>(
-    AvailabilityStatus.unknown,
-  );
-  Timer? _channelNameDebounceTimer;
-  Timer? _customUrlDebounceTimer;
-  String _lastAutoSlug = '';
+  @override
+  final Rx<AvailabilityStatus> channelNameAvailability = Rx<AvailabilityStatus>(AvailabilityStatus.unknown);
+  @override
+  final Rx<AvailabilityStatus> customUrlAvailability = Rx<AvailabilityStatus>(AvailabilityStatus.unknown);
+  @override
+  String lastAutoSlug = '';
 
-  // Subscriptions & Timers
-  final Map<String, StreamSubscription> _moderationListeners = {};
-  final Map<String, Timer> _moderationTimers = {};
-  List<String> uploadedDocIds = [];
+  // Details State
+  @override
+  final Rx<Channel?> activeChannel = Rx<Channel?>(null);
+  @override
+  final RxList<Video> videos = <Video>[].obs;
+  @override
+  final Rx<DocumentSnapshot?> lastVideoDocument = Rx<DocumentSnapshot?>(null);
+  @override
+  final RxBool isLoadingMore = false.obs;
+  @override
+  final RxString videoSortFilter = 'Latest'.obs;
+  @override
+  final RxBool hasVideos = false.obs;
+  @override
+  final RxBool hasPlaylists = false.obs;
+  @override
+  final RxBool hasPosts = false.obs;
+  @override
+  final RxBool hasTopics = false.obs;
+  @override
+  final RxInt channelVideoCount = 0.obs;
+  @override
+  RxInt get subscriberCount => _subController.subscriberCount;
+  @override
+  final RxBool isAppBarExpanded = false.obs;
+  @override
+  final RxBool isDescriptionExpanded = false.obs;
+  @override
+  final RxBool isLoadingVideos = false.obs;
 
-  // Lists
-  final List<String> tabs = [
-    'Home',
-    'Videos',
-    'Playlists',
-    'Channels',
-    'About',
-  ];
-
-  final List<String> languages = [
-    'en',
-    'es',
-    'fr',
-    'de',
-    'zh',
-    'ja',
-    'ar',
-    'hi',
-    'pt',
-    'ru',
-  ];
-
-  final List<String> categories = [
-    // Fact-checking / High-credibility categories first
-    'Business',
-    'History',
-    'News',
-    'Education',
-    'Science',
-    'Technology',
-    'Finance',
-    'Health',
-    'Documentary',
-    'Fitness',
-    // General / Entertainment / Lifestyle categories
-    'Music',
-    'Entertainment',
-    'Sports',
-    'Lifestyle',
-    'Travel',
-    'Food',
-    'Fashion',
-    'Comedy',
-    'Art',
-    'Animation',
-    'Automotive',
-    'Pets & Animals',
-    'DIY & How-to',
-    'Nature',
-    'Spirituality',
-    'People & Blogs',
-    'Kids & Family',
-    'Movies',
-    'TV Shows',
-    'Vlogs',
-    'Other',
-  ];
-
-  // Computed Properties
-  bool get canCreateMoreChannels => channels.length < maxChannelsPerUser;
-
-  // Category Selection Helpers
-  void toggleCategory(String category) {
-    if (selectedCategories.contains(category)) {
-      selectedCategories.remove(category);
-    } else {
-      selectedCategories.add(category);
-    }
-    selectedCategory.value = selectedCategories.isEmpty
-        ? null
-        : selectedCategories.first;
-    formChangeTrigger.value++;
-  }
-
-  void selectAllCategories() {
-    selectedCategories.assignAll(categories);
-    selectedCategory.value = categories.isNotEmpty ? categories.first : 'Other';
-    formChangeTrigger.value++;
-  }
-
-  void deselectAllCategories() {
-    selectedCategories.clear();
-    selectedCategory.value = null;
-    formChangeTrigger.value++;
-  }
-
-  bool isCategorySelected(String category) {
-    return selectedCategories.contains(category);
-  }
-
-  bool get isAllCategoriesSelected =>
-      selectedCategories.length == categories.length && categories.isNotEmpty;
-
-  bool isCustomBusinessEmail(String email) {
-    final trimmed = email.trim().toLowerCase();
-    if (!trimmed.contains('@')) return false;
-    final parts = trimmed.split('@');
-    if (parts.length != 2) return false;
-    final domain = parts[1].trim();
-    if (domain.isEmpty || !domain.contains('.')) return false;
-    const blockedDomains = [
-      'gmail.com',
-      'yahoo.com',
-      'hotmail.com',
-      'outlook.com',
-      'icloud.com',
-      'aol.com',
-      'mail.com',
-      'zoho.com',
-      'protonmail.com',
-      'proton.me',
-      'yandex.com',
-      'gmx.com',
-    ];
-    return !blockedDomains.contains(domain);
-  }
-
-  // UI Controllers for details page
-  late ScrollController scrollController;
-  late TabController tabController;
+  // Backward compatibility getters
+  FirebaseFirestore get _firestore => firestore;
+  FirebaseAuth get _auth => auth;
+  FirebaseStorage get _storage => storage;
+  Uuid get _uuid => uuid;
+  ImageVerificationService get _imageVerificationService => imageVerificationService;
+  String get _lastAutoSlug => lastAutoSlug;
+  set _lastAutoSlug(String val) => lastAutoSlug = val;
+  StreamSubscription? get _detailsAvatarSub => detailsAvatarSub;
+  set _detailsAvatarSub(StreamSubscription? s) => detailsAvatarSub = s;
+  StreamSubscription? get _detailsBannerSub => detailsBannerSub;
+  set _detailsBannerSub(StreamSubscription? s) => detailsBannerSub = s;
+  Map<String, StreamSubscription> get _moderationListeners => moderationListeners;
+  Map<String, Timer> get _moderationTimers => moderationTimers;
 
   @override
   void onInit() {
     super.onInit();
-    _subController = Get.isRegistered<ChannelSubscriptionController>()
+    subController = Get.isRegistered<ChannelSubscriptionController>()
         ? Get.find<ChannelSubscriptionController>()
         : Get.put(ChannelSubscriptionController());
 
@@ -516,7 +288,7 @@ class ChannelController extends BaseController
     initializeContentFilters();
     _initializeAnimations();
 
-    final user = _auth.currentUser;
+    final user = auth.currentUser;
     if (user != null) {
       // Auto-populate channel name from user's display name if empty
       if (channelName.text.isEmpty) {
@@ -527,15 +299,15 @@ class ChannelController extends BaseController
         }
       }
 
-      _setupTextFieldListeners();
-      _setupFormValidationListeners();
-      _loadDraft();
+      setupTextFieldListeners();
+      setupFormValidationListeners();
+      loadDraft();
       startAnimations();
 
       // Keep channels RxList in sync with Firestore
       rxIsLoading.value = true;
-      final sub = _firestore
-          .collection(_channelsCol)
+      final sub = firestore
+          .collection(ChannelControllerBase.channelsCol)
           .where('ownerId', isEqualTo: user.uid)
           .snapshots()
           .listen(
@@ -557,14 +329,16 @@ class ChannelController extends BaseController
   }
 
   // In ChannelController
+
+
   Future<void> fetchUserChannels() async {
-    final user = _auth.currentUser;
+    final user = auth.currentUser;
     if (user == null) return;
 
     try {
       rxIsLoading.value = true;
-      final snapshot = await _firestore
-          .collection(_channelsCol)
+      final snapshot = await firestore
+          .collection(ChannelControllerBase.channelsCol)
           .where('ownerId', isEqualTo: user.uid)
           .get();
 
@@ -574,14 +348,20 @@ class ChannelController extends BaseController
           .toList();
 
       channels.assignAll(results);
-    } catch (e) {
-      debugPrint('Error fetching channels: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'ChannelControllerUnified.fetchChannels',
+      );
     } finally {
       rxIsLoading.value = false;
     }
   }
 
   // _initializeFilters removed in favor of initializeContentFilters from mixin
+
+
 
   void _initializeAnimations() {
     // Existing animations
@@ -698,62 +478,6 @@ class ChannelController extends BaseController
     );
   }
 
-  void _updateHandleSuggestions(String baseSlug) {
-    if (baseSlug.trim().isEmpty) {
-      handleSuggestions.clear();
-      return;
-    }
-    final base = baseSlug.length > 25 ? baseSlug.substring(0, 25) : baseSlug;
-    handleSuggestions.value = [
-      base,
-      '${base}123',
-      '${base}_vsp',
-      '${base}777',
-    ];
-  }
-
-  void _setupTextFieldListeners() {
-    channelName.addListener(() {
-      checkChannelNameAvailability(channelName.text);
-      // Auto-fill custom URL if it's empty or was previously auto-filled
-      final slug = channelName.text
-          .toLowerCase()
-          .trim()
-          .replaceAll(RegExp('[^a-z0-9_-]'), '-')
-          .replaceAll(RegExp('-+'), '-')
-          .replaceAll(RegExp('_+'), '_');
-      var cleanSlug = slug;
-      if (cleanSlug.startsWith('-') || cleanSlug.startsWith('_')) {
-        cleanSlug = cleanSlug.substring(1);
-      }
-      if (cleanSlug.endsWith('-') || cleanSlug.endsWith('_')) {
-        cleanSlug = cleanSlug.substring(0, cleanSlug.length - 1);
-      }
-      if (customUrl.text.isEmpty || customUrl.text == _lastAutoSlug) {
-        customUrl.text = cleanSlug;
-        _lastAutoSlug = cleanSlug;
-        if (cleanSlug.isNotEmpty) {
-          checkCustomUrlAvailability(cleanSlug);
-        }
-      }
-      _updateHandleSuggestions(cleanSlug);
-      formChangeTrigger.value++;
-    });
-    customUrl.addListener(() {
-      if (customUrl.text.isNotEmpty) {
-        checkCustomUrlAvailability(customUrl.text);
-      } else {
-        customUrlAvailability.value = AvailabilityStatus.unknown;
-      }
-    });
-    description.addListener(() {
-      formChangeTrigger.value++;
-    });
-  }
-
-  void _setupFormValidationListeners() {
-    // Already handled in _setupTextFieldListeners
-  }
 
   void startAnimations() {
     if (isClosed) return;
@@ -766,8 +490,12 @@ class ChannelController extends BaseController
         if (!isClosed) formScaleAnimationController.forward();
       });
       if (!isClosed) staggeredAnimationController.forward();
-    } catch (e) {
-      debugPrint('Animation start error: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'ChannelControllerUnified.startFormAnimations',
+      );
     }
   }
 
@@ -777,8 +505,12 @@ class ChannelController extends BaseController
       pageFadeAnimationController.forward();
       pageSlideAnimationController.forward();
       pageScaleAnimationController.forward();
-    } catch (e) {
-      if (kDebugMode) debugPrint('Page animation start error: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'ChannelControllerUnified.startPageAnimations',
+      );
     }
   }
 
@@ -803,14 +535,14 @@ class ChannelController extends BaseController
     tabController.dispose();
 
     // Cancel moderation listeners & timers
-    for (final timer in _moderationTimers.values) {
+    for (final timer in moderationTimers.values) {
       timer.cancel();
     }
-    _moderationTimers.clear();
-    for (final sub in _moderationListeners.values) {
+    moderationTimers.clear();
+    for (final sub in moderationListeners.values) {
       sub.cancel();
     }
-    _moderationListeners.clear();
+    moderationListeners.clear();
 
     // Call clear state to ensure all listeners/subscriptions are removed
     clearChannelDetailsState();
@@ -818,1343 +550,9 @@ class ChannelController extends BaseController
     super.onClose();
   }
 
-  // ==========================================================================
-  // CONTENT VALIDATION
-  // ==========================================================================
 
-  // Deprecated validation logic replaced by ContentValidationMixin
-
-  // validateTags is now provided by ContentValidationMixin
-
-  // ==========================================================================
-  // AVAILABILITY CHECKING
-  // ==========================================================================
-
-  void checkChannelNameAvailability(String channelName) {
-    _channelNameDebounceTimer?.cancel();
-
-    if (channelName.trim().isEmpty) {
-      channelNameAvailability.value = AvailabilityStatus.unknown;
-      return;
-    }
-
-    if (channelName.length < minChannelNameLength ||
-        channelName.length > maxChannelNameLength) {
-      channelNameAvailability.value = AvailabilityStatus.invalid;
-      return;
-    }
-
-    channelNameAvailability.value = AvailabilityStatus.checking;
-
-    _channelNameDebounceTimer = Timer(
-      const Duration(milliseconds: debounceDurationMs),
-      () => _performChannelNameAvailabilityCheck(channelName),
-    );
-  }
-
-  Future<void> _performChannelNameAvailabilityCheck(String channelName) async {
-    try {
-      final snapshot = await _firestore
-          .collection(_channelsCol)
-          .where('nameLowercase', isEqualTo: channelName.trim().toLowerCase())
-          .limit(1)
-          .get();
-
-      channelNameAvailability.value = snapshot.docs.isEmpty
-          ? AvailabilityStatus.available
-          : AvailabilityStatus.taken;
-    } catch (e) {
-      if (e.toString().contains('permission-denied')) {
-        debugPrint(
-          '📋 ChannelController: Permission denied checking channel name. Using error state.',
-        );
-      } else {
-        debugPrint('❌ ChannelController: Error checking channel name: $e');
-      }
-      channelNameAvailability.value = AvailabilityStatus.error;
-    }
-  }
-
-  void checkCustomUrlAvailability(String customUrl) {
-    _customUrlDebounceTimer?.cancel();
-
-    if (customUrl.trim().isEmpty) {
-      customUrlAvailability.value = AvailabilityStatus.unknown;
-      return;
-    }
-
-    if (!RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(customUrl) ||
-        customUrl.length < minCustomUrlLength ||
-        customUrl.length > maxCustomUrlLength) {
-      customUrlAvailability.value = AvailabilityStatus.invalid;
-      return;
-    }
-
-    customUrlAvailability.value = AvailabilityStatus.checking;
-
-    _customUrlDebounceTimer = Timer(
-      const Duration(milliseconds: debounceDurationMs),
-      () => _performCustomUrlAvailabilityCheck(customUrl),
-    );
-  }
-
-  Future<void> _performCustomUrlAvailabilityCheck(String customUrl) async {
-    try {
-      final snapshot = await _firestore
-          .collection(_channelsCol)
-          .where('handleLowercase', isEqualTo: customUrl.trim().toLowerCase())
-          .limit(1)
-          .get();
-
-      customUrlAvailability.value = snapshot.docs.isEmpty
-          ? AvailabilityStatus.available
-          : AvailabilityStatus.taken;
-    } catch (e) {
-      debugPrint('Error checking custom URL: $e');
-      customUrlAvailability.value = AvailabilityStatus.error;
-    }
-  }
-
-  void resetAvailabilityStatus() {
-    channelNameAvailability.value = AvailabilityStatus.unknown;
-    customUrlAvailability.value = AvailabilityStatus.unknown;
-  }
-
-  // ==========================================================================
-  // IMAGE UPLOAD
-  // ==========================================================================
-
-  Future<Map<String, String>?> uploadImage(
-    PlatformFile file,
-    String folder,
-    String userId, {
-    Function(double progress)? onProgress,
-  }) async {
-    try {
-      final uniqueFileName = '${_uuid.v4()}.${file.extension}';
-      final ref = _storage.ref().child(
-        'channels/$folder/$userId/$uniqueFileName',
-      );
-      final metadata = SettableMetadata(
-        contentType: 'image/${file.extension}',
-        customMetadata: {'uploaderId': userId},
-      );
-      final UploadTask uploadTask;
-      if (kIsWeb) {
-        if (file.bytes == null) {
-          throw Exception('File bytes are null on Web platform');
-        }
-        uploadTask = ref.putData(file.bytes!, metadata);
-      } else {
-        if (file.path != null && io.File(file.path!).existsSync()) {
-          uploadTask = ref.putFile(io.File(file.path!), metadata);
-        } else if (file.bytes != null) {
-          uploadTask = ref.putData(file.bytes!, metadata);
-        } else {
-          throw Exception('File is missing both path and bytes');
-        }
-      }
-
-      uploadTask.snapshotEvents.listen(
-        (snapshot) {
-          final progress = snapshot.bytesTransferred / snapshot.totalBytes;
-          if (onProgress != null) onProgress(progress);
-        },
-        onError: (e) {
-          debugPrint('Upload stream error: $e');
-        },
-      );
-
-      final snapshot = await uploadTask;
-      final url = await snapshot.ref.getDownloadURL();
-      return {'url': url, 'fileName': uniqueFileName};
-    } on FirebaseException catch (e) {
-      debugPrint('🔥 Firebase Storage Error: ${e.code}');
-      debugPrint('📍 Message: ${e.message}');
-      if (e.code == 'permission-denied') {
-        debugPrint(
-          '⚠️ Ensure Firebase Storage rules are configured correctly.',
-        );
-      }
-      return null;
-    } catch (e) {
-      debugPrint('❌ Upload error: $e');
-      return null;
-    }
-  }
-
-  Future<void> pickImage(bool isBanner) async {
-    try {
-      final result = await FilePicker.pickFiles(
-        type: FileType.image,
-        withData: kIsWeb,
-      );
-      if (result == null || result.files.isEmpty) return;
-
-      final file = result.files.first;
-      if (file.bytes == null && file.path == null) {
-        return _showErrorSnackbar('Unable to read image file.');
-      }
-
-      final extension = file.extension?.toLowerCase();
-      if (extension == null ||
-          !['jpg', 'jpeg', 'png', 'webp', 'gif'].contains(extension)) {
-        return _showErrorSnackbar(
-          'Unsupported format. Use JPG, PNG, WebP, GIF.',
-        );
-      }
-
-      // Crop image according to YouTube standard
-      CroppedFile? croppedFile;
-      if (file.path != null && file.path!.isNotEmpty) {
-        croppedFile = isBanner
-            ? await ImageCropperService.cropChannelBanner(
-                imagePath: file.path!,
-                context: Get.context,
-              )
-            : await ImageCropperService.cropChannelAvatar(
-                imagePath: file.path!,
-                context: Get.context,
-              );
-      }
-
-      // If user cancels cropping, abort gracefully
-      if (croppedFile == null && file.path != null) return;
-
-      final Uint8List croppedBytes;
-      if (croppedFile != null) {
-        croppedBytes = await croppedFile.readAsBytes();
-      } else if (file.bytes != null) {
-        croppedBytes = file.bytes!;
-      } else if (file.path != null && io.File(file.path!).existsSync()) {
-        croppedBytes = await io.File(file.path!).readAsBytes();
-      } else {
-        return _showErrorSnackbar('Unable to read image data.');
-      }
-      final croppedPath = croppedFile?.path ?? file.path;
-
-      final maxSize = isBanner ? maxBannerSize : maxAvatarSize;
-      if (croppedBytes.length > maxSize) {
-        return _showErrorSnackbar(
-          'Image exceeds ${(maxSize / (1024 * 1024)).toStringAsFixed(1)}MB.',
-        );
-      }
-
-      dynamic image;
-      try {
-        image = await decodeImageFromList(croppedBytes);
-      } catch (e) {
-        return _showErrorSnackbar('Invalid image: $e');
-      }
-      if (image == null) return _showErrorSnackbar('Unable to decode image.');
-
-      final imageData = ImageData(
-        bytes: croppedBytes,
-        name: file.name,
-        size: croppedBytes.length,
-        aspectRatio: image.width / image.height,
-      );
-
-      final uploadFile = PlatformFile(
-        name: file.name,
-        path: croppedPath,
-        bytes: croppedBytes,
-        size: croppedBytes.length,
-      );
-
-      if (isBanner) {
-        bannerImageData.value = imageData;
-        isUploadingBanner.value = true;
-        bannerUploadProgress.value = 0.0;
-      } else {
-        avatarImageData.value = imageData;
-        isUploadingAvatar.value = true;
-        avatarUploadProgress.value = 0.0;
-      }
-
-      // Delete previous image
-      final oldUrl = isBanner ? bannerUrl.value : avatarUrl.value;
-      if (oldUrl.isNotEmpty) {
-        try {
-          await _storage.refFromURL(oldUrl).delete();
-        } catch (_) {}
-      }
-
-      final user = _auth.currentUser;
-      if (user == null) return _showErrorSnackbar('Login required.');
-
-      final uploadData = await uploadImage(
-        uploadFile,
-        isBanner ? 'banners' : 'avatars',
-        user.uid,
-        onProgress: (progress) {
-          if (isBanner) {
-            bannerUploadProgress.value = progress;
-          } else {
-            avatarUploadProgress.value = progress;
-          }
-        },
-      );
-
-      if (uploadData == null) {
-        if (isBanner) {
-          isUploadingBanner.value = false;
-          bannerStatus.value = 'ERROR';
-        } else {
-          isUploadingAvatar.value = false;
-          avatarStatus.value = 'ERROR';
-        }
-        return _showErrorSnackbar('Upload failed. Please try again.');
-      }
-
-      final uploadedUrl = uploadData['url']!;
-      final fileName = uploadData['fileName']!;
-
-      if (isBanner) {
-        bannerUrl.value = uploadedUrl;
-        bannerFileId.value = fileName;
-        isUploadingBanner.value = false;
-        startBannerModerationListener(fileName);
-      } else {
-        avatarUrl.value = uploadedUrl;
-        avatarFileId.value = fileName;
-        isUploadingAvatar.value = false;
-        startAvatarModerationListener(fileName);
-      }
-    } catch (e) {
-      debugPrint('Error in pickImage: $e');
-      _showErrorSnackbar('Failed to process local image.');
-    } finally {
-      if (isBanner) {
-        isUploadingBanner.value = false;
-      } else {
-        isUploadingAvatar.value = false;
-      }
-    }
-  }
-
-  void startBannerModerationListener(String docId) {
-    _startModerationListener(docId, true);
-  }
-
-  void startAvatarModerationListener(String docId) {
-    _startModerationListener(docId, false);
-  }
-
-  void _startModerationListener(String docId, bool isBanner) {
-    if (docId.trim().isEmpty) return;
-    debugPrint(
-      '🔍 Starting moderation listener for ${isBanner ? "banner" : "avatar"}: $docId',
-    );
-
-    // Cancel existing listener & timer if any
-    final key = isBanner ? 'banner' : 'avatar';
-    _moderationListeners[key]?.cancel();
-    _moderationTimers[key]?.cancel();
-
-    if (isBanner) {
-      bannerStatus.value = 'PENDING';
-      bannerStatusReason.value = 'Verifying banner image...';
-    } else {
-      avatarStatus.value = 'PENDING';
-      avatarStatusReason.value = 'Verifying avatar image...';
-    }
-
-    // Safety timeout: 6 seconds max fallback to optimistic approval
-    _moderationTimers[key] = Timer(const Duration(seconds: 6), () {
-      if (isBanner) {
-        if (bannerStatus.value == 'PENDING' || bannerStatus.value == 'ERROR') {
-          bannerStatus.value = 'APPROVED';
-          bannerStatusReason.value = 'Pre-filter approved';
-          debugPrint('⏱️ Banner moderation safety timeout: marked as APPROVED');
-        }
-      } else {
-        if (avatarStatus.value == 'PENDING' || avatarStatus.value == 'ERROR') {
-          avatarStatus.value = 'APPROVED';
-          avatarStatusReason.value = 'Pre-filter approved';
-          debugPrint('⏱️ Avatar moderation safety timeout: marked as APPROVED');
-        }
-      }
-    });
-
-    _moderationListeners[key] = _imageVerificationService
-        .streamVerificationStatus(docId)
-        .listen((result) {
-          debugPrint(
-            '✅ Received status for $key: ${result.status} - ${result.reason}',
-          );
-
-          final statusStr = result.status.name.toUpperCase();
-          if (isBanner) {
-            bannerStatus.value = statusStr;
-            bannerStatusReason.value = result.reason;
-
-            if (result.status == VerificationStatus.rejected) {
-              _moderationTimers[key]?.cancel();
-              Get.snackbar(
-                'Banner Rejected',
-                result.reason,
-                backgroundColor: AppColors.error,
-                colorText: AppColors.textPrimary,
-                icon: const Icon(Icons.error_outline, color: Colors.white),
-              );
-            } else if (result.status == VerificationStatus.approved) {
-              _moderationTimers[key]?.cancel();
-            }
-          } else {
-            avatarStatus.value = statusStr;
-            avatarStatusReason.value = result.reason;
-
-            if (result.status == VerificationStatus.rejected) {
-              _moderationTimers[key]?.cancel();
-              Get.snackbar(
-                'Avatar Rejected',
-                result.reason,
-                backgroundColor: AppColors.error,
-                colorText: AppColors.textPrimary,
-                icon: const Icon(Icons.error_outline, color: Colors.white),
-              );
-            } else if (result.status == VerificationStatus.approved) {
-              _moderationTimers[key]?.cancel();
-            }
-          }
-        }, onError: (error) {
-          debugPrint('Moderation stream error for $key: $error');
-          _moderationTimers[key]?.cancel();
-          if (isBanner) {
-            bannerStatus.value = 'APPROVED';
-            bannerStatusReason.value = 'Pre-filter approved';
-          } else {
-            avatarStatus.value = 'APPROVED';
-            avatarStatusReason.value = 'Pre-filter approved';
-          }
-        });
-
-    // Track for cleanup
-    if (!uploadedDocIds.contains(docId)) {
-      uploadedDocIds.add(docId);
-    }
-  }
-
-  // ==========================================================================
-  // CREATE CHANNEL
-  // ==========================================================================
-
-  Future<void> createChannel() async {
-    if (isSubmitting.value) return;
-    isSubmitting.value = true;
-
-    try {
-      final user = _auth.currentUser;
-      if (user == null) {
-        _showErrorSnackbar('You must be signed in to create a channel.');
-        isSubmitting.value = false;
-        return;
-      }
-      final uid = user.uid;
-
-      // 0. Strict 1-Channel Limit Check per Google Account
-      // Check existing channels collection in Firestore directly first
-      try {
-        final existingChannelsSnap = await _firestore
-            .collection(_channelsCol)
-            .where('ownerId', isEqualTo: uid)
-            .get();
-
-        final activeExistingChannels = existingChannelsSnap.docs
-            .map(Channel.fromDocumentSnapshot)
-            .where((c) => c.status != ChannelStatus.deleted)
-            .toList();
-
-        if (activeExistingChannels.isNotEmpty) {
-          final existing = activeExistingChannels.first;
-          channels.assignAll(activeExistingChannels);
-          AuthService.to.setUserChannel(existing);
-          _showErrorSnackbar(
-            'You already have a channel. Only one channel is allowed per Google account.',
-          );
-          isSubmitting.value = false;
-          Get.offAllNamed('/studio', arguments: {'channel': existing});
-          return;
-        }
-      } catch (e) {
-        if (kDebugMode) debugPrint('⚠️ Checking existing owner channels note: $e');
-      }
-
-      // Check user document directly in Firestore to guarantee no second channel
-      try {
-        final userDoc = await _firestore
-            .collection(FirestoreCollections.users)
-            .doc(uid)
-            .get();
-        final userData = userDoc.data() ?? {};
-        final existingChannelId = userData['channelId'] as String?;
-
-        if (existingChannelId != null && existingChannelId.isNotEmpty) {
-          final existingChDoc = await _firestore
-              .collection(_channelsCol)
-              .doc(existingChannelId)
-              .get();
-
-          if (existingChDoc.exists &&
-              existingChDoc.data()?['status'] != 'deleted') {
-            final existingCh = Channel.fromDocumentSnapshot(existingChDoc);
-            channels.assignAll([existingCh]);
-            AuthService.to.setUserChannel(existingCh);
-            _showErrorSnackbar(
-              'You already have a channel. Only one channel is allowed per Google account.',
-            );
-            isSubmitting.value = false;
-            Get.offAllNamed('/studio', arguments: {'channel': existingCh});
-            return;
-          } else {
-            // Orphaned/stale channel reference on user doc — clean it up so creation can proceed
-            await _firestore
-                .collection(FirestoreCollections.users)
-                .doc(uid)
-                .set({
-              'channelId': null,
-              'hasChannel': false,
-            }, SetOptions(merge: true));
-          }
-        }
-      } catch (e) {
-        if (kDebugMode) debugPrint('⚠️ Checking existing channel doc note: $e');
-      }
-
-      // 1. Validation for requirements
-      if (bannerUrl.value.isEmpty) {
-        _showErrorSnackbar('Please select and upload a Channel Banner image.');
-        isSubmitting.value = false;
-        return;
-      }
-      if (bannerFileId.value.isEmpty) {
-        bannerFileId.value = 'banner_${uid}_${DateTime.now().millisecondsSinceEpoch}';
-      }
-
-      if (avatarUrl.value.isEmpty) {
-        _showErrorSnackbar('Please select and upload a Channel Avatar image.');
-        isSubmitting.value = false;
-        return;
-      }
-      if (avatarFileId.value.isEmpty) {
-        avatarFileId.value = 'avatar_${uid}_${DateTime.now().millisecondsSinceEpoch}';
-      }
-
-      if (channelName.text.trim().isEmpty) {
-        _showErrorSnackbar('Please enter a Channel Name.');
-        isSubmitting.value = false;
-        return;
-      }
-
-      final nameValidation = await validateContent(channelName.text, fieldName: 'Channel Name');
-      if (!nameValidation.isValid) {
-        _showErrorSnackbar('Please avoid offensive or profane language in Channel Name.');
-        isSubmitting.value = false;
-        return;
-      }
-
-      if (customUrl.text.trim().isEmpty) {
-        _showErrorSnackbar('Please enter a Channel Handle.');
-        isSubmitting.value = false;
-        return;
-      }
-
-      final handleValidation = await validateContent(customUrl.text, fieldName: 'Channel Handle');
-      if (!handleValidation.isValid) {
-        _showErrorSnackbar('Please avoid offensive or profane language in Channel Handle.');
-        isSubmitting.value = false;
-        return;
-      }
-
-      if (description.text.trim().isEmpty) {
-        _showErrorSnackbar('Please enter a Channel Description.');
-        isSubmitting.value = false;
-        return;
-      }
-
-      final descValidation = await validateContent(description.text, fieldName: 'Channel Description');
-      if (!descValidation.isValid) {
-        _showErrorSnackbar('Please avoid offensive or profane language in Channel Description.');
-        isSubmitting.value = false;
-        return;
-      }
-
-      final checkTags = tags.text
-          .split(',')
-          .map((t) => t.trim())
-          .where((t) => t.isNotEmpty)
-          .toList();
-      if (checkTags.isEmpty) {
-        _showErrorSnackbar('Please add at least 1 Tag.');
-        isSubmitting.value = false;
-        return;
-      }
-
-      final tagsValidation = await validateTags(checkTags);
-      if (!tagsValidation.isValid) {
-        _showErrorSnackbar('Please avoid offensive or profane language in Channel Tags.');
-        isSubmitting.value = false;
-        return;
-      }
-
-      // Profanity check on websiteUrl and contactEmail
-      if (websiteUrl.text.trim().isNotEmpty) {
-        final webValidation = await validateContent(websiteUrl.text.trim(), fieldName: 'Website');
-        if (!webValidation.isValid) {
-          _showErrorSnackbar('Please avoid offensive or profane language in Website.');
-          isSubmitting.value = false;
-          return;
-        }
-      }
-
-      if (contactEmail.text.trim().isNotEmpty) {
-        final emailValidation = await validateContent(contactEmail.text.trim(), fieldName: 'Contact Email');
-        if (!emailValidation.isValid) {
-          _showErrorSnackbar('Please avoid offensive or profane language in Contact Email.');
-          isSubmitting.value = false;
-          return;
-        }
-      }
-
-      // Profanity check on all social links
-      for (final entry in socialLinks.entries) {
-        if (entry.value.trim().isNotEmpty) {
-          final linkValidation = await validateContent(entry.value.trim(), fieldName: 'Link (${entry.key})');
-          if (!linkValidation.isValid) {
-            _showErrorSnackbar('Please avoid offensive or profane language in ${entry.key} link.');
-            isSubmitting.value = false;
-            return;
-          }
-        }
-      }
-
-      if (selectedCategory.value == null ||
-          selectedCategory.value!.trim().isEmpty ||
-          selectedCategories.isEmpty) {
-        if (selectedCategories.isNotEmpty) {
-          selectedCategory.value = selectedCategories.first;
-        } else {
-          _showErrorSnackbar('Please select at least 1 Category.');
-          isSubmitting.value = false;
-          return;
-        }
-      }
-
-      if (selectedPlan.value.isEmpty) {
-        selectedPlan.value = 'standard';
-      }
-      planSelectionError.value = false;
-
-      if (!agreeTerms.value || !agreeGuidelines.value) {
-        _showErrorSnackbar('Please agree to both Terms & Conditions and Community Guidelines.');
-        isSubmitting.value = false;
-        return;
-      }
-
-      if (channelTypeCategory.value == 'Organization / Company') {
-        final emailText = socialLinks['email'] ?? contactEmail.text;
-        if (emailText.trim().isEmpty) {
-          _showErrorSnackbar('Please enter a custom business domain email (e.g. contact@company.com).');
-          isSubmitting.value = false;
-          return;
-        }
-        if (!isCustomBusinessEmail(emailText)) {
-          _showErrorSnackbar('Please enter a custom business domain email. Free email services (@gmail.com, @yahoo.com) are not allowed.');
-          isSubmitting.value = false;
-          return;
-        }
-      }
-
-      if (!formKey.currentState!.validate()) {
-        _showErrorSnackbar('Please fill in all required fields correctly.');
-        isSubmitting.value = false;
-        return;
-      }
-
-      // 2. Moderation checks (Background verification does not block creation if status is PENDING or optimistic approved)
-      if (avatarUrl.value.isNotEmpty && avatarStatus.value == 'REJECTED') {
-        _showErrorSnackbar(
-          'Your avatar was rejected: ${avatarStatusReason.value}. Please select a different image.',
-        );
-        isSubmitting.value = false;
-        return;
-      }
-
-      if (bannerUrl.value.isNotEmpty && bannerStatus.value == 'REJECTED') {
-        _showErrorSnackbar(
-          'Your banner was rejected: ${bannerStatusReason.value}. Please select a different image.',
-        );
-        isSubmitting.value = false;
-        return;
-      }
-
-      // Animation
-      try {
-        await buttonAnimationController.forward();
-        await buttonAnimationController.reverse();
-      } catch (_) {}
-
-      // Prepare data
-      final parsedTags = tags.text
-          .split(',')
-          .map((t) => t.trim())
-          .where((t) => t.isNotEmpty)
-          .toList();
-
-      if (parsedTags.length > 5) {
-        _showErrorSnackbar('Maximum 5 tags allowed. Please reduce the number of tags.');
-        isSubmitting.value = false;
-        return;
-      }
-
-      final tagsList = parsedTags.take(5).toList();
-
-      final channelNameText = channelName.text.trim();
-      final customUrlText = customUrl.text.trim();
-      final cleanHandle = customUrlText.startsWith('@')
-          ? customUrlText.substring(1).trim()
-          : customUrlText.trim();
-      final handleLower = cleanHandle.toLowerCase();
-
-      // 1. Check handle availability against existing channels collection
-      final handleQuery = await _firestore
-          .collection(_channelsCol)
-          .where('handleLowercase', isEqualTo: handleLower)
-          .limit(1)
-          .get();
-
-      if (handleQuery.docs.isNotEmpty) {
-        _showErrorSnackbar('Handle "@$cleanHandle" is already taken. Please choose a different handle.');
-        isSubmitting.value = false;
-        return;
-      }
-
-      // Also check channel_handles collection
-      try {
-        final existingHandleDoc = await _firestore
-            .collection('channel_handles')
-            .doc(handleLower)
-            .get();
-        if (existingHandleDoc.exists && existingHandleDoc.data()?['ownerId'] != uid) {
-          _showErrorSnackbar('Handle "@$cleanHandle" is already claimed. Please choose a different handle.');
-          isSubmitting.value = false;
-          return;
-        }
-      } catch (e) {
-        if (kDebugMode) debugPrint('⚠️ Handle registry check note: $e');
-      }
-
-      // 2. Create Channel Document in Firestore
-      final channelRef = _firestore.collection(_channelsCol).doc();
-      final newChannelId = channelRef.id;
-      final now = FieldValue.serverTimestamp();
-
-      final channelData = {
-        'id': newChannelId,
-        // Core fields matching Channel model (V2)
-        'channelType': selectedChannelType.value.name,
-        'name': channelNameText,
-        'nameLowercase': channelNameText.toLowerCase(),
-        'channelName': channelNameText,
-        'channelNameLowercase': channelNameText.toLowerCase(),
-        'description': description.text.trim(),
-        'bannerUrl': bannerUrl.value,
-        'avatarUrl': avatarUrl.value,
-        'avatarFileId': avatarFileId.value,
-        'avatarStatus': avatarUrl.value.isNotEmpty
-            ? (avatarStatus.value == 'REJECTED' || avatarStatus.value == 'FLAGGED'
-                ? avatarStatus.value
-                : 'APPROVED')
-            : '',
-        'bannerStatus': bannerUrl.value.isNotEmpty
-            ? (bannerStatus.value == 'REJECTED' || bannerStatus.value == 'FLAGGED'
-                ? bannerStatus.value
-                : 'APPROVED')
-            : '',
-        'avatarStatusReason': avatarStatusReason.value,
-        'bannerStatusReason': bannerStatusReason.value,
-        'ownerId': uid,
-        'userId': uid,
-        'isArchived': false,
-        'geminiApproved': true,
-        'createdAt': now,
-        'updatedAt': now,
-
-        // Public settings
-        'channelPlan': selectedPlan.value,
-        'customPricingTier': customPricingTier.value,
-        'isPublic': isPublic.value,
-        'isVerified': false,
-        'subscriberCount': 0,
-        'videoCount': 0,
-        'language': language.value.isNotEmpty ? language.value : 'en',
-        'country': country.value,
-        'channelTypeCategory': channelTypeCategory.value,
-        'entityType': channelTypeCategory.value,
-        'tags': tagsList,
-
-        // Custom URL mapped to handle
-        'handle': cleanHandle,
-        'handleLowercase': handleLower,
-        'customUrl': cleanHandle,
-        'customUrlLowercase': handleLower,
-
-        // Moderation lists
-        'moderatorIds': [],
-        'blockedUserIds': [],
-
-        // Optional fields
-        'category': selectedCategories.isEmpty
-            ? (selectedCategory.value ?? 'other')
-            : selectedCategories.join(', '),
-        'categories': selectedCategories.isEmpty
-            ? [(selectedCategory.value ?? 'other')]
-            : selectedCategories.toList(),
-        'contactEmail': contactEmail.text.trim(),
-        'websiteUrl': websiteUrl.text.trim(),
-        'socialLinks': Map<String, dynamic>.from(socialLinks),
-
-        // Advanced settings from form
-        'allowComments': advancedSettings['allowComments'] ?? true,
-        'allowSubscriptions': advancedSettings['allowSubscriptions'] ?? true,
-        'showSubscriberCount': advancedSettings['showSubscriberCount'] ?? true,
-
-        // Branding
-        'brandingSettings': {
-          'primaryColor': '#6B46C1',
-          'secondaryColor': '#9333EA',
-          'bannerStyle': 'gradient',
-        },
-
-        // Status & Metrics
-        'status': ChannelStatus.active.name,
-        'isLive': false,
-        'metrics': {
-          'totalViews': 0,
-          'totalWatchTimeMinutes': 0,
-          'averageRetention': 0.0,
-        },
-      };
-
-      await channelRef.set(channelData);
-
-      // 3. Update User Document
-      try {
-        final userRef = _firestore.collection(FirestoreCollections.users).doc(uid);
-        await userRef.set({
-          'channelId': newChannelId,
-          'hasChannel': true,
-          'channelsCount': 1,
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      } catch (e) {
-        if (kDebugMode) debugPrint('⚠️ User doc update note: $e');
-      }
-
-      // 4. Update Handle Registry
-      try {
-        final handleRef = _firestore.collection('channel_handles').doc(handleLower);
-        await handleRef.set({
-          'channelId': newChannelId,
-          'ownerId': uid,
-          'claimedAt': FieldValue.serverTimestamp(),
-        });
-      } catch (e) {
-        if (kDebugMode) debugPrint('⚠️ Handle registry note: $e');
-      }
-
-      // 5. Clean up drafts if any
-      if (draftId.value != null && draftId.value!.isNotEmpty) {
-        try {
-          final draftRef = _firestore.collection('channel_drafts').doc(draftId.value);
-          await draftRef.delete();
-        } catch (e) {
-          if (kDebugMode) debugPrint('⚠️ Draft cleanup note: $e');
-        }
-      }
-
-      // Success
-      hasDraft.value = false;
-      draftId.value = null;
-
-      // Increment tag usage counts
-      await _incrementTagUsageCounts(tagsList);
-
-      final createdChannel = Channel.fromMap(
-        {
-          ...channelData,
-          'id': newChannelId,
-          'createdAt': Timestamp.now(),
-          'updatedAt': Timestamp.now(),
-        },
-        newChannelId,
-      );
-
-      // Immediately sync memory state
-      AuthService.to.setUserChannel(createdChannel);
-      AuthService.to.hasChannel.value = true;
-      AuthService.to.rxUserChannel.value = createdChannel;
-      channels.assignAll([createdChannel]);
-
-      _showSuccessSnackbar('Channel "$channelNameText" created successfully!');
-      if (kDebugMode) {
-        debugPrint('✅ Channel created with ID: $newChannelId');
-        debugPrint('📌 Channel name: $channelNameText');
-      }
-
-      _resetForm();
-
-      // Navigate directly to Creator Studio with the resolved channel
-      Get.offAllNamed('/studio', arguments: {
-        'channel': createdChannel,
-      });
-    } on FirebaseException catch (e) {
-      if (kDebugMode) debugPrint('❌ FirebaseException creating channel: [${e.code}] ${e.message}');
-      final userMessage = _mapFirebaseError(e.code);
-      _showErrorSnackbar(userMessage);
-    } catch (e, stackTrace) {
-      dynamic unboxed = e;
-      try {
-        unboxed = (e as dynamic).error ?? e;
-      } catch (_) {}
-      if (kDebugMode) debugPrint('❌ Error creating channel: $unboxed (raw: $e)\n$stackTrace');
-      _showErrorSnackbar('Something went wrong while creating your channel. Please try again.');
-    } finally {
-      isSubmitting.value = false;
-    }
-  }
-
-  // ==========================================================================
-  // FIREBASE ERROR MAPPER — never expose raw error codes/messages to users
-  // ==========================================================================
-  String _mapFirebaseError(String code) {
-    switch (code) {
-      case 'permission-denied':
-        return 'You do not have permission to perform this action. Please contact support.';
-      case 'unavailable':
-        return 'The service is temporarily unavailable. Please try again in a moment.';
-      case 'deadline-exceeded':
-        return 'The request timed out. Please check your connection and try again.';
-      case 'already-exists':
-        return 'A channel with this handle already exists. Please choose a different handle.';
-      case 'resource-exhausted':
-        return 'Too many requests. Please wait a moment and try again.';
-      case 'unauthenticated':
-        return 'Your session has expired. Please sign in again.';
-      case 'not-found':
-        return 'Required data was not found. Please refresh and try again.';
-      case 'cancelled':
-        return 'The operation was cancelled. Please try again.';
-      default:
-        return 'Something went wrong while creating your channel. Please try again.';
-    }
-  }
-
-  Future<void> _incrementTagUsageCounts(List<String> tagsList) async {
-    try {
-      final batch = _firestore.batch();
-      for (final rawTag in tagsList) {
-        final tagClean = rawTag.trim();
-        if (tagClean.isEmpty) continue;
-        final docId = tagClean.toLowerCase();
-        final tagRef = _firestore.collection(FirestoreCollections.hashtags).doc(docId);
-        batch.set(
-          tagRef,
-          {
-            'name': tagClean,
-            'count': FieldValue.increment(1),
-            'lastUsed': FieldValue.serverTimestamp(),
-          },
-          SetOptions(merge: true),
-        );
-      }
-      await batch.commit();
-    } catch (e) {
-      if (kDebugMode) debugPrint('Error incrementing tag usage counts: $e');
-    }
-  }
-
-  // ==========================================================================
-  // CHANNEL OPERATIONS
-  // ==========================================================================
-
-  Future<bool> archiveChannel(String channelId) async {
-    try {
-      await _firestore.collection(_channelsCol).doc(channelId).update({
-        'status': 'deleted',
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-      _showSuccessSnackbar('Channel archived successfully');
-      return true;
-    } catch (e) {
-      _showErrorSnackbar('Failed to archive channel: $e');
-      return false;
-    }
-  }
-
-  Future<bool> updateChannel(
-    String channelId,
-    Map<String, dynamic> updates,
-  ) async {
-    try {
-      updates['updatedAt'] = FieldValue.serverTimestamp();
-      await _firestore.collection(_channelsCol).doc(channelId).update(updates);
-      _showSuccessSnackbar('Channel updated successfully');
-      return true;
-    } catch (e) {
-      _showErrorSnackbar('Failed to update channel: $e');
-      return false;
-    }
-  }
-
-  // ==========================================================================
-  // SUBSCRIPTIONS
-  // ==========================================================================
-
-  Future<bool> subscribeToChannel(String channelId) => _subController.subscribeToChannel(channelId);
-
-  Future<bool> unsubscribeFromChannel(String channelId) => _subController.unsubscribeFromChannel(channelId);
-
-  Future<void> toggleSubscription(String channelId) => _subController.toggleSubscription(channelId);
-  Future<void> fetchSubscribedChannels() => _subController.fetchSubscribedChannels();
-
-  bool isNewSubscriber(String channelId) => _subController.isNewSubscriber(channelId);
-
-  void listenSubscription(String channelId) => _subController.listenSubscription(channelId);
-
-  Future<void> updateNotificationPreference(String channelId, String option) => _subController.updateNotificationPreference(channelId, option);
-
-  /// Check if current user is subscribed to a specific channel (reactive)
-  RxBool isSubscribedTo(String channelId) => _subController.isSubscribedTo(channelId);
-
-  void fetchSubscriberCount(String channelId) => _subController.fetchSubscriberCount(channelId);
-
-  String get formattedSubscribers => FormatUtils.formatCount(subscriberCount.value);
-
-  // ==========================================================================
-  // MODERATION
-  // ==========================================================================
-
-  Future<bool> addModerator(String channelId, String userId) async {
-    try {
-      await _firestore
-          .collection(_channelsCol)
-          .doc(channelId)
-          .collection('moderators')
-          .doc(userId)
-          .set({
-            'userId': userId,
-            'addedAt': FieldValue.serverTimestamp(),
-          });
-      _showSuccessSnackbar('Moderator added successfully');
-      return true;
-    } catch (e) {
-      _showErrorSnackbar('Failed to add moderator: $e');
-      return false;
-    }
-  }
-
-  Future<bool> removeModerator(String channelId, String userId) async {
-    try {
-      await _firestore
-          .collection(_channelsCol)
-          .doc(channelId)
-          .collection('moderators')
-          .doc(userId)
-          .delete();
-      _showSuccessSnackbar('Moderator removed successfully');
-      return true;
-    } catch (e) {
-      _showErrorSnackbar('Failed to remove moderator: $e');
-      return false;
-    }
-  }
-
-  Future<bool> blockUser(String channelId, String userId) async {
-    try {
-      await _firestore
-          .collection(_channelsCol)
-          .doc(channelId)
-          .collection('blocked_users')
-          .doc(userId)
-          .set({
-            'userId': userId,
-            'blockedAt': FieldValue.serverTimestamp(),
-          });
-      _showSuccessSnackbar('User blocked successfully');
-      return true;
-    } catch (e) {
-      _showErrorSnackbar('Failed to block user: $e');
-      return false;
-    }
-  }
-
-  Future<bool> unblockUser(String channelId, String userId) async {
-    try {
-      await _firestore
-          .collection(_channelsCol)
-          .doc(channelId)
-          .collection('blocked_users')
-          .doc(userId)
-          .delete();
-      _showSuccessSnackbar('User unblocked successfully');
-      return true;
-    } catch (e) {
-      _showErrorSnackbar('Failed to unblock user: $e');
-      return false;
-    }
-  }
-
-  // ==========================================================================
-  // NOTIFICATION PREFERENCES
-  // ==========================================================================
-
-  Future<void> saveNotificationPreferences(String channelId) async {
-    final user = _auth.currentUser;
-    if (user == null) return;
-
-    try {
-      final prefsRef = _firestore
-          .collection('notification_preferences')
-          .doc('${channelId}_${user.uid}');
-
-      await prefsRef.set({
-        'userId': user.uid,
-        'channelId': channelId,
-        'notificationAll': notificationAll.value,
-        'notificationPersonalized': notificationPersonalized.value,
-        'notificationNew': notificationNew.value,
-        'notificationLive': notificationLive.value,
-        'notificationPlaylist': notificationPlaylist.value,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      debugPrint('âœ… Notification preferences saved');
-    } catch (e) {
-      debugPrint('âŒ Error saving notification preferences: $e');
-    }
-  }
-
-  Future<void> loadNotificationPreferences(String channelId) async {
-    final user = _auth.currentUser;
-    if (user == null) return;
-
-    try {
-      final prefsRef = _firestore
-          .collection('notification_preferences')
-          .doc('${channelId}_${user.uid}');
-
-      final doc = await prefsRef.get();
-
-      if (doc.exists) {
-        final data = doc.data();
-        notificationAll.value = data?['notificationAll'] ?? true;
-        notificationPersonalized.value =
-            data?['notificationPersonalized'] ?? true;
-        notificationNew.value = data?['notificationNew'] ?? true;
-        notificationLive.value = data?['notificationLive'] ?? true;
-        notificationPlaylist.value = data?['notificationPlaylist'] ?? false;
-        debugPrint('âœ… Notification preferences loaded');
-      }
-    } catch (e) {
-      debugPrint('âŒ Error loading notification preferences: $e');
-    }
-  }
-
-  // ==========================================================================
-  // DRAFT MANAGEMENT
-  // ==========================================================================
-
-  Future<void> _loadDraft() async {
-    try {
-      final user = _auth.currentUser;
-      if (user == null) return;
-
-      final draftSnapshot = await _firestore
-          .collection('channel_drafts')
-          .where('ownerId', isEqualTo: user.uid)
-          .limit(1)
-          .get();
-
-      if (draftSnapshot.docs.isNotEmpty) {
-        final draftData = draftSnapshot.docs.first.data();
-        draftId.value = draftSnapshot.docs.first.id;
-
-        // Restore form data
-        channelName.text = draftData['channelName'] ?? '';
-        description.text = draftData['description'] ?? '';
-        customUrl.text = draftData['customUrl'] ?? '';
-        tags.text = draftData['tags'] ?? '';
-        contactEmail.text = draftData['contactEmail'] ?? '';
-        websiteUrl.text = draftData['websiteUrl'] ?? '';
-        isPublic.value = draftData['isPublic'] ?? true;
-        language.value = draftData['language'] ?? 'en';
-        selectedPlan.value = draftData['channelPlan'] ?? draftData['selectedPlan'] ?? 'standard';
-        selectedCategories.value = List<String>.from(
-          draftData['categories'] ?? [],
-        );
-
-        if (draftData['socialLinks'] != null) {
-          socialLinks.value = Map<String, String>.from(
-            draftData['socialLinks'],
-          );
-        }
-
-        if (draftData['advancedSettings'] != null) {
-          advancedSettings.value = Map<String, dynamic>.from(
-            draftData['advancedSettings'],
-          );
-        }
-
-        if (draftData['channelType'] != null) {
-          final typeStr = draftData['channelType'] as String;
-          selectedChannelType.value = ChannelType.values.firstWhere(
-            (e) => e.name == typeStr,
-            orElse: () => ChannelType.standard,
-          );
-        }
-
-        bannerUrl.value = draftData['bannerUrl'] ?? '';
-        avatarUrl.value = draftData['avatarUrl'] ?? '';
-        bannerFileId.value = draftData['bannerFileId'] ?? '';
-        avatarFileId.value = draftData['avatarFileId'] ?? '';
-        bannerStatus.value = draftData['bannerStatus'] ?? '';
-        avatarStatus.value = draftData['avatarStatus'] ?? '';
-        bannerStatusReason.value = draftData['bannerStatusReason'] ?? '';
-        avatarStatusReason.value = draftData['avatarStatusReason'] ?? '';
-
-        if (avatarFileId.value.isNotEmpty &&
-            (avatarStatus.value == 'PENDING' || avatarStatus.value.isEmpty)) {
-          startAvatarModerationListener(avatarFileId.value);
-        }
-        if (bannerFileId.value.isNotEmpty &&
-            (bannerStatus.value == 'PENDING' || bannerStatus.value.isEmpty)) {
-          startBannerModerationListener(bannerFileId.value);
-        }
-
-        hasDraft.value = true;
-        lastDraftSaveTime.value = (draftData['updatedAt'] as Timestamp?)
-            ?.toDate();
-      }
-    } catch (e) {
-      debugPrint('Error loading draft: $e');
-    }
-  }
-
-  Future<void> saveDraft({int? currentStep}) async {
-    try {
-      final user = _auth.currentUser;
-      if (user == null) {
-        debugPrint('❌ Cannot save draft: No user logged in');
-        return;
-      }
-
-      debugPrint('💾 Saving draft for user: ${user.uid}');
-      isSavingDraft.value = true;
-
-      final draftData = {
-        'ownerId': user.uid,
-        'channelType': selectedChannelType.value.name,
-        'channelName': channelName.text.trim(),
-        'description': description.text.trim(),
-        'customUrl': customUrl.text.trim(),
-        'tags': tags.text.trim(),
-        'contactEmail': contactEmail.text.trim(),
-        'websiteUrl': websiteUrl.text.trim(),
-        'isPublic': isPublic.value,
-        'language': language.value,
-        'channelPlan': selectedPlan.value,
-        'selectedPlan': selectedPlan.value,
-        'categories': selectedCategories.toList(),
-        'socialLinks': Map<String, dynamic>.from(socialLinks),
-        'advancedSettings': Map<String, dynamic>.from(advancedSettings),
-        'bannerUrl': bannerUrl.value,
-        'avatarUrl': avatarUrl.value,
-        'bannerFileId': bannerFileId.value,
-        'avatarFileId': avatarFileId.value,
-        'bannerStatus': bannerStatus.value,
-        'avatarStatus': avatarStatus.value,
-        'bannerStatusReason': bannerStatusReason.value,
-        'avatarStatusReason': avatarStatusReason.value,
-        'currentStep': currentStep ?? 0,
-        'updatedAt': FieldValue.serverTimestamp(),
-        'createdAt': draftId.value == null
-            ? FieldValue.serverTimestamp()
-            : null,
-      };
-
-      if (draftId.value != null) {
-        draftData.remove('createdAt');
-      }
-
-      if (draftId.value == null) {
-        debugPrint('ðŸ“ Creating new draft document...');
-        final docRef = await _firestore
-            .collection('channel_drafts')
-            .add(draftData);
-        draftId.value = docRef.id;
-        debugPrint('âœ… Draft created with ID: ${docRef.id}');
-      } else {
-        debugPrint('ðŸ“ Updating draft: ${draftId.value}');
-        await _firestore
-            .collection('channel_drafts')
-            .doc(draftId.value)
-            .update(draftData);
-        debugPrint('âœ… Draft updated successfully');
-      }
-
-      hasDraft.value = true;
-      lastDraftSaveTime.value = DateTime.now();
-      isSavingDraft.value = false;
-
-      // Silent draft save - no snackbar
-    } catch (e) {
-      isSavingDraft.value = false;
-      debugPrint('âŒ Error saving draft: $e');
-      // Silent error - draft save is automatic
-    }
-  }
-
-  Future<void> deleteDraft() async {
-    try {
-      final user = _auth.currentUser;
-      if (user == null || draftId.value == null) return;
-
-      // Delete uploaded images
-      if (bannerUrl.value.isNotEmpty) {
-        try {
-          await _storage.refFromURL(bannerUrl.value).delete();
-        } catch (e) {
-          debugPrint('Error deleting banner: $e');
-        }
-      }
-
-      if (avatarUrl.value.isNotEmpty) {
-        try {
-          await _storage.refFromURL(avatarUrl.value).delete();
-        } catch (e) {
-          debugPrint('Error deleting avatar: $e');
-        }
-      }
-
-      // Delete draft document
-      await _firestore.collection('channel_drafts').doc(draftId.value).delete();
-
-      hasDraft.value = false;
-      draftId.value = null;
-      lastDraftSaveTime.value = null;
-    } catch (e) {
-      debugPrint('Error deleting draft: $e');
-      _showErrorSnackbar('Failed to delete draft: $e');
-    }
-  }
-
-  // ==========================================================================
-  // UTILITY METHODS
-  // ==========================================================================
-
-  void _resetForm() {
+  @override
+  void resetForm() {
     selectedChannelType.value = ChannelType.standard;
     channelName.clear();
     description.clear();
@@ -2178,605 +576,29 @@ class ChannelController extends BaseController
     selectedCategory.value = null;
     selectedCategories.clear();
     isAgreed.value = false;
-    for (final timer in _moderationTimers.values) {
+    for (final timer in moderationTimers.values) {
       timer.cancel();
     }
-    _moderationTimers.clear();
-    for (final sub in _moderationListeners.values) {
+    moderationTimers.clear();
+    for (final sub in moderationListeners.values) {
       sub.cancel();
     }
-    _moderationListeners.clear();
+    moderationListeners.clear();
     resetAvailabilityStatus();
   }
 
-  void _showErrorSnackbar(String message) {
-    Get.snackbar(
-      'Error',
-      message,
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: AppColors.brand,
-      colorText: AppColors.textPrimary,
-      margin: const EdgeInsets.all(16),
-      borderRadius: 12,
-      icon: const Icon(Icons.star, color: AppColors.textPrimary),
-    );
+
+
+  @override
+  void showErrorSnackbar(String message) {
+    AppSnackbar.error(message);
   }
 
-  void _showSuccessSnackbar(String message) {
-    Get.snackbar(
-      'Success',
-      message,
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: AppColors.success,
-      colorText: AppColors.textPrimary,
-      margin: const EdgeInsets.all(16),
-      borderRadius: 12,
-      icon: const Icon(Icons.star, color: AppColors.textPrimary),
-    );
+  @override
+  void showSuccessSnackbar(String message) {
+    AppSnackbar.success(message);
   }
 
-  void fetchChannel(String channelId) {
-    rxIsLoading.value = true;
-    _firestore
-        .collection(_channelsCol)
-        .doc(channelId)
-        .get()
-        .then((doc) {
-          if (doc.exists) {
-            selectedChannel.value = Channel.fromDocumentSnapshot(doc);
-          }
-          rxIsLoading.value = false;
-        })
-        .catchError((e) {
-          rxErrorMessage.value = e.toString();
-          rxIsLoading.value = false;
-        });
-  }
 
-  Future<void> shareChannel(String channelId) async {
-    final channel = selectedChannel.value;
-    if (channel == null) return;
-
-    Get.find<MainController>().shareChannel(
-      channelId,
-      channel.channelName,
-      avatarUrl: channel.avatarUrl.isNotEmpty ? channel.avatarUrl : null,
-      bannerUrl: channel.bannerUrl.isNotEmpty ? channel.bannerUrl : null,
-      handle: channel.handle,
-      subscriberCount: channel.subscriberCount,
-      videoCount: channel.videoCount,
-      subtitle: channel.description.isNotEmpty ? channel.description : null,
-    );
-  }
-
-  // Methods for Channel Details Page
-  Future<void> loadChannelFromDeepLink(String channelIdOrHandle) async {
-    final cached = DeepLinkService.instance.getChannelFromCache(channelIdOrHandle);
-    if (cached != null) {
-      debugPrint('[ChannelController] ⚡ 0ms instant cache hit for channel: $channelIdOrHandle');
-      initForChannelDetails(cached);
-      return;
-    }
-
-    try {
-      debugPrint('[ChannelController] ⏳ Loading deep-linked channel from Firestore: $channelIdOrHandle');
-      final channel = await DeepLinkService.instance.loadChannel(channelIdOrHandle);
-      if (channel != null) {
-        DeepLinkService.instance.cacheChannel(channel);
-        initForChannelDetails(channel);
-      } else {
-        Get.snackbar(
-          'Channel Not Found',
-          'No channel found for $channelIdOrHandle',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: AppColors.bgSurface,
-          colorText: AppColors.textPrimary,
-        );
-      }
-    } catch (e) {
-      debugPrint('[ChannelController] Error loading deep link channel: $e');
-    }
-  }
-
-  void initForChannelDetails(Channel channel) {
-    DeepLinkService.instance.cacheChannel(channel);
-    if (selectedChannel.value?.channelId == channel.channelId) {
-      // Already initialized for this channel, just ensure listeners are attached
-      _attachScrollListener();
-      return;
-    }
-
-    // Clear previous state first
-    clearChannelDetailsState();
-
-    selectedChannel.value = channel;
-
-    // Set initial values from the channel document
-    detailsAvatarStatus.value = channel.avatarStatus ?? '';
-    detailsBannerStatus.value = channel.bannerStatus ?? '';
-    detailsAvatarReason.value = '';
-    detailsBannerReason.value = '';
-
-    _detailsAvatarSub?.cancel();
-    _detailsBannerSub?.cancel();
-
-    final currentUser = _auth.currentUser;
-    if (currentUser != null && channel.ownerId == currentUser.uid) {
-      if (channel.avatarFileId != null &&
-          channel.avatarFileId!.isNotEmpty &&
-          channel.avatarStatus != 'APPROVED') {
-        detailsAvatarStatus.value = channel.avatarStatus ?? 'PENDING';
-        _detailsAvatarSub = _imageVerificationService
-            .streamVerificationStatus(channel.avatarFileId!)
-            .listen((result) {
-              detailsAvatarStatus.value = result.status.name.toUpperCase();
-              detailsAvatarReason.value = result.reason;
-              if (result.status == VerificationStatus.approved ||
-                  result.status == VerificationStatus.rejected ||
-                  result.status == VerificationStatus.flagged) {
-                _firestore
-                    .collection(_channelsCol)
-                    .doc(channel.id)
-                    .update({
-                      'avatarStatus': result.status.name.toUpperCase(),
-                    })
-                    .catchError((_) {});
-              }
-            });
-      }
-
-      if (channel.bannerFileId != null &&
-          channel.bannerFileId!.isNotEmpty &&
-          channel.bannerStatus != 'APPROVED') {
-        detailsBannerStatus.value = channel.bannerStatus ?? 'PENDING';
-        _detailsBannerSub = _imageVerificationService
-            .streamVerificationStatus(channel.bannerFileId!)
-            .listen((result) {
-              detailsBannerStatus.value = result.status.name.toUpperCase();
-              detailsBannerReason.value = result.reason;
-              if (result.status == VerificationStatus.approved ||
-                  result.status == VerificationStatus.rejected ||
-                  result.status == VerificationStatus.flagged) {
-                _firestore
-                    .collection(_channelsCol)
-                    .doc(channel.id)
-                    .update({
-                      'bannerStatus': result.status.name.toUpperCase(),
-                    })
-                    .catchError((_) {});
-              }
-            });
-      }
-    }
-
-    listenSubscription(channel.channelId);
-    fetchSubscriberCount(channel.channelId);
-    fetchChannelVideoCount(channel.channelId);
-    _attachScrollListener();
-    loadInitialVideos();
-    checkChannelContent(channel.channelId);
-  }
-
-  Future<void> requestManualReview({
-    required String channelId,
-    required bool isBanner,
-    String? reason,
-  }) async {
-    try {
-      final statusField = isBanner ? 'bannerStatus' : 'avatarStatus';
-      final reasonField =
-          isBanner ? 'bannerStatusReason' : 'avatarStatusReason';
-      final userReason = reason ?? 'Creator requested manual review.';
-
-      await _firestore.collection(_channelsCol).doc(channelId).update({
-        statusField: 'MANUAL_REVIEW',
-        reasonField: userReason,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-
-      if (isBanner) {
-        detailsBannerStatus.value = 'MANUAL_REVIEW';
-        detailsBannerReason.value = userReason;
-      } else {
-        detailsAvatarStatus.value = 'MANUAL_REVIEW';
-        detailsAvatarReason.value = userReason;
-      }
-
-      Get.snackbar(
-        'Manual Review Requested',
-        'Your image has been queued for manual admin review.',
-        backgroundColor: AppColors.success,
-        colorText: AppColors.textPrimary,
-      );
-    } catch (e) {
-      debugPrint('Error requesting manual review: $e');
-      Get.snackbar(
-        'Error',
-        'Failed to request manual review: $e',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
-      );
-    }
-  }
-
-  void _attachScrollListener() {
-    // Only add if not already attached
-    scrollController.removeListener(_onScrollListener);
-    scrollController.addListener(_onScrollListener);
-  }
-
-  void _onScrollListener() {
-    if (!scrollController.hasClients) return;
-    onScroll(scrollController);
-  }
-
-  void onScroll(ScrollController scrollController) {
-    if (!scrollController.hasClients || scrollController.positions.length != 1) return;
-
-    final offset = scrollController.offset;
-    final isExpanded = offset > 200;
-
-    if (isExpanded != isAppBarExpanded.value) {
-      isAppBarExpanded.value = isExpanded;
-    }
-
-    if (scrollController.position.extentAfter < 200 && !isLoadingMore.value) {
-      loadMoreVideos();
-    }
-  }
-
-  Future<void> loadInitialVideos() async {
-    if (selectedChannel.value == null) return;
-    isLoadingVideos.value = true;
-    try {
-      var query = _firestore
-          .collection(FirestoreCollections.videos)
-          .where('channelId', isEqualTo: selectedChannel.value!.channelId);
-
-      // Apply Filters
-      if (videoSortFilter.value == 'Short video') {
-        query = query.where('isShort', isEqualTo: true);
-      } else if (videoSortFilter.value == 'Long video') {
-        query = query.where('isShort', isEqualTo: false);
-      }
-
-      // Apply Sorting
-      if (videoSortFilter.value == 'Popular') {
-        query = query.orderBy('views', descending: true);
-      } else if (videoSortFilter.value == 'Oldest') {
-        query = query.orderBy('uploadedAt', descending: false);
-      } else if (videoSortFilter.value == 'Latest') {
-        query = query.orderBy('uploadedAt', descending: true);
-      } else {
-        // Default sorting for other filters (Short/Long)
-        query = query.orderBy('uploadedAt', descending: true);
-      }
-
-      final snapshot = await query.limit(12).get();
-
-      if (snapshot.docs.isNotEmpty) {
-        videos.value = snapshot.docs
-            .map(Video.fromDocumentSnapshot)
-            .where(VideoVisibilityPolicy.isValidVideo)
-            .toList();
-        lastVideoDocument.value = snapshot.docs.last;
-        hasVideos.value = videos.isNotEmpty;
-        if (channelVideoCount.value == 0) {
-          channelVideoCount.value = videos.length;
-        }
-      } else {
-        videos.clear();
-        lastVideoDocument.value = null;
-      }
-    } catch (error) {
-      debugPrint('Error loading videos: $error');
-      _showErrorSnackbar('Failed to load videos: $error');
-    } finally {
-      isLoadingVideos.value = false;
-    }
-  }
-
-  void setVideoSortFilter(String filter) {
-    if (videoSortFilter.value == filter) return;
-    videoSortFilter.value = filter;
-    loadInitialVideos();
-  }
-
-  Future<void> loadMoreVideos() async {
-    if (lastVideoDocument.value == null ||
-        isLoadingMore.value ||
-        selectedChannel.value == null) {
-      return;
-    }
-    isLoadingMore.value = true;
-    try {
-      var query = _firestore
-          .collection(FirestoreCollections.videos)
-          .where('channelId', isEqualTo: selectedChannel.value!.channelId);
-
-      // Apply Filters Same as loadInitialVideos
-      if (videoSortFilter.value == 'Short video') {
-        query = query.where('isShort', isEqualTo: true);
-      } else if (videoSortFilter.value == 'Long video') {
-        query = query.where('isShort', isEqualTo: false);
-      }
-
-      // Apply Sorting Same as loadInitialVideos
-      if (videoSortFilter.value == 'Popular') {
-        query = query.orderBy('views', descending: true);
-      } else if (videoSortFilter.value == 'Oldest') {
-        query = query.orderBy('uploadedAt', descending: false);
-      } else if (videoSortFilter.value == 'Latest') {
-        query = query.orderBy('uploadedAt', descending: true);
-      } else {
-        query = query.orderBy('uploadedAt', descending: true);
-      }
-
-      final snapshot = await query
-          .startAfterDocument(lastVideoDocument.value!)
-          .limit(12)
-          .get();
-      if (snapshot.docs.isNotEmpty) {
-        videos.addAll(
-          snapshot.docs
-              .map(Video.fromDocumentSnapshot)
-              .where(VideoVisibilityPolicy.isValidVideo)
-              .toList(),
-        );
-        lastVideoDocument.value = snapshot.docs.last;
-      }
-    } catch (error) {
-      _showErrorSnackbar('Failed to load more videos: $error');
-    } finally {
-      isLoadingMore.value = false;
-    }
-  }
-
-  void clearChannelDetailsState() {
-    scrollController.removeListener(_onScrollListener);
-    if (scrollController.hasClients) {
-      scrollController.jumpTo(0);
-    }
-    isAppBarExpanded.value = false;
-    isDescriptionExpanded.value = false;
-    videos.clear();
-    lastVideoDocument.value = null;
-    isLoadingMore.value = false;
-    isLoadingVideos.value = false;
-    selectedChannel.value = null;
-    videoSortFilter.value = 'Latest';
-    _detailsAvatarSub?.cancel();
-    _detailsBannerSub?.cancel();
-    detailsAvatarStatus.value = '';
-    detailsBannerStatus.value = '';
-    detailsAvatarReason.value = '';
-    detailsBannerReason.value = '';
-    hasVideos.value = false;
-    hasPlaylists.value = false;
-    hasPosts.value = false;
-    hasTopics.value = false;
-    channelVideoCount.value = 0;
-    selectedChannelTopic.value = null;
-    topicVideosMap.clear();
-    isLoadingVideosMap.clear();
-    topicPostsMap.clear();
-    isLoadingPostsMap.clear();
-  }
-
-  Future<void> fetchChannelVideoCount(String channelId) async {
-    try {
-      final countSnap = await _firestore
-          .collection(FirestoreCollections.videos)
-          .where('channelId', isEqualTo: channelId)
-          .count()
-          .get();
-      channelVideoCount.value = countSnap.count ?? 0;
-    } catch (e) {
-      debugPrint('Error fetching channel video count: $e');
-    }
-  }
-
-  Future<void> checkChannelContent(String channelId) async {
-    try {
-      final currentUser = _auth.currentUser;
-      final isOwner =
-          currentUser != null &&
-          selectedChannel.value?.ownerId == currentUser.uid;
-
-      var postQuery = _firestore
-          .collection(FirestoreCollections.community)
-          .where('channelId', isEqualTo: channelId);
-
-      if (isOwner) {
-        postQuery = postQuery.where('ownerId', isEqualTo: currentUser.uid);
-      } else {
-        postQuery = postQuery.where('visibility', isEqualTo: 'Public');
-      }
-
-      final results = await Future.wait([
-        _firestore
-            .collection(FirestoreCollections.videos)
-            .where('channelId', isEqualTo: channelId)
-            .limit(1)
-            .get(),
-        _firestore
-            .collection('public_playlists')
-            .where('channelId', isEqualTo: channelId)
-            .limit(1)
-            .get(),
-        postQuery.limit(1).get(),
-        _firestore
-            .collection(FirestoreCollections.topics)
-            .where('channelId', isEqualTo: channelId)
-            .where('status', isEqualTo: 'active')
-            .limit(5)
-            .get(),
-      ]);
-
-      hasVideos.value = results[0].docs.isNotEmpty;
-      hasPlaylists.value = results[1].docs.isNotEmpty;
-      hasPosts.value = results[2].docs.isNotEmpty;
-      hasTopics.value = results[3].docs.any((doc) {
-        final data = doc.data() as Map<String, dynamic>?;
-        final vCount = (data?['videoCount'] as num?)?.toInt() ?? 0;
-        final featVids = data?['featuredVideoIds'] as List?;
-        return vCount > 0 || (featVids != null && featVids.isNotEmpty);
-      });
-    } catch (e) {
-      debugPrint('Error checking channel content: $e');
-    }
-  }
-
-  Stream<QuerySnapshot>? _channelPlaylistsStream;
-  String? _channelPlaylistsId;
-  Stream<QuerySnapshot> getPlaylistsStream(String channelId) {
-    if (_channelPlaylistsStream == null || _channelPlaylistsId != channelId) {
-      _channelPlaylistsId = channelId;
-      _channelPlaylistsStream = _firestore
-          .collection('public_playlists')
-          .where('channelId', isEqualTo: channelId)
-          .limit(50)
-          .snapshots();
-    }
-    return _channelPlaylistsStream!;
-  }
-
-  Stream<QuerySnapshot>? _channelTopicsStream;
-  String? _channelTopicsId;
-  Stream<QuerySnapshot> getTopicsStream(String channelId) {
-    if (_channelTopicsStream == null || _channelTopicsId != channelId) {
-      _channelTopicsId = channelId;
-      _channelTopicsStream = _firestore
-          .collection(FirestoreCollections.topics)
-          .where('channelId', isEqualTo: channelId)
-          .snapshots();
-    }
-    return _channelTopicsStream!;
-  }
-
-  Stream<QuerySnapshot>? _channelCommunityStream;
-  String? _channelCommunityId;
-  Stream<QuerySnapshot> getCommunityStream(String channelId) {
-    if (_channelCommunityStream == null || _channelCommunityId != channelId) {
-      _channelCommunityId = channelId;
-      _channelCommunityStream = _firestore
-          .collection(FirestoreCollections.community)
-          .where('channelId', isEqualTo: channelId)
-          .snapshots();
-    }
-    return _channelCommunityStream!;
-  }
-
-  /// Updates channel monetization tier / channel type (Standard vs Custom)
-  Future<bool> updateChannelType(
-    String channelId,
-    ChannelType newType, {
-    CustomChannelInfraConfig? config,
-  }) async {
-    try {
-      final updateData = <String, dynamic>{
-        'channelType': newType.name,
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-
-      if (newType == ChannelType.custom) {
-        final infra =
-            config ??
-            CustomChannelInfraConfig(
-              stripeConnectAccountId: 'acct_demo_${channelId.substring(0, 6)}',
-              subscriptionId: 'sub_demo_${channelId.substring(0, 6)}',
-              flatPlatformFee: 25.0,
-            );
-        updateData['infraConfig'] = infra.toMap();
-      }
-
-      await _firestore
-          .collection(FirestoreCollections.channels)
-          .doc(channelId)
-          .update(updateData);
-
-      if (selectedChannel.value?.id == channelId) {
-        final updatedDoc = await _firestore
-            .collection(FirestoreCollections.channels)
-            .doc(channelId)
-            .get();
-        if (updatedDoc.exists) {
-          selectedChannel.value = Channel.fromDocumentSnapshot(updatedDoc);
-        }
-      }
-      return true;
-    } catch (e) {
-      debugPrint('Error updating channel type: $e');
-      return false;
-    }
-  }
-
-  /// Schedules a channel type change to take effect on the 1st of next month (Next Billing Cycle)
-  Future<bool> scheduleChannelTypeChange(
-    String channelId,
-    ChannelType targetType,
-  ) async {
-    try {
-      final now = DateTime.now();
-      // Calculate 1st of next month (e.g. July 10 -> August 1)
-      final effectiveDate = DateTime(now.year, now.month + 1);
-      final effectiveTimestamp = Timestamp.fromDate(effectiveDate);
-
-      final updateData = <String, dynamic>{
-        'pendingChannelType': targetType.name,
-        'pendingTypeEffectiveDate': effectiveTimestamp,
-        'nextBillingCycleDate': effectiveTimestamp,
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-
-      await _firestore
-          .collection(FirestoreCollections.channels)
-          .doc(channelId)
-          .update(updateData);
-
-      if (selectedChannel.value?.id == channelId) {
-        final updatedDoc = await _firestore
-            .collection(FirestoreCollections.channels)
-            .doc(channelId)
-            .get();
-        if (updatedDoc.exists) {
-          selectedChannel.value = Channel.fromDocumentSnapshot(updatedDoc);
-        }
-      }
-      return true;
-    } catch (e) {
-      debugPrint('Error scheduling channel type change: $e');
-      return false;
-    }
-  }
-
-  /// Cancels a pending scheduled channel type change
-  Future<bool> cancelScheduledChannelTypeChange(String channelId) async {
-    try {
-      final updateData = <String, dynamic>{
-        'pendingChannelType': FieldValue.delete(),
-        'pendingTypeEffectiveDate': FieldValue.delete(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-
-      await _firestore
-          .collection(FirestoreCollections.channels)
-          .doc(channelId)
-          .update(updateData);
-
-      if (selectedChannel.value?.id == channelId) {
-        final updatedDoc = await _firestore
-            .collection(FirestoreCollections.channels)
-            .doc(channelId)
-            .get();
-        if (updatedDoc.exists) {
-          selectedChannel.value = Channel.fromDocumentSnapshot(updatedDoc);
-        }
-      }
-      return true;
-    } catch (e) {
-      debugPrint('Error canceling scheduled channel type change: $e');
-      return false;
-    }
-  }
+  void _resetForm() => resetForm();
 }

@@ -6,13 +6,15 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
-
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/algorithm/scored_video.dart';
 import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/services/video_visibility_policy.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/data/models/subscription_content.dart';
@@ -81,31 +83,44 @@ class SubscriptionController extends BaseController {
     refresh();
 
     // Setup auth listener to automatically refresh on auth status change
-    ever(AuthService.to.currentUser, (user) {
-      debugPrint(
-        '[SubscriptionController] Auth state changed. Refreshing subscriptions...',
-      );
-      refresh();
-    });
+    addWorker(
+      ever(AuthService.to.currentUser, (user) {
+        debugPrint(
+          '[SubscriptionController] Auth state changed. Refreshing subscriptions...',
+        );
+        refresh();
+      }),
+    );
 
     // Setup connectivity listener for automatic recovery
     try {
       if (Get.isRegistered<ConnectivityService>()) {
         _connectivitySubscription = Get.find<ConnectivityService>()
             .onConnectivityChanged
-            .listen((results) {
-              if (results.isNotEmpty &&
-                  results.first != ConnectivityResult.none) {
-                debugPrint(
-                  '[SubscriptionController] Network restored. Refreshing subscriptions...',
+            .listen(
+              (results) {
+                if (results.isNotEmpty &&
+                    results.first != ConnectivityResult.none) {
+                  debugPrint(
+                    '[SubscriptionController] Network restored. Refreshing subscriptions...',
+                  );
+                  refresh();
+                }
+              },
+              onError: (error, stackTrace) {
+                ErrorHandler.log(
+                  error,
+                  stackTrace: stackTrace,
+                  tag: 'SubscriptionController.connectivity',
                 );
-                refresh();
-              }
-            });
+              },
+            );
       }
-    } on Object catch (e) {
-      debugPrint(
-        '[SubscriptionController] Connectivity listener setup skipped: $e',
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'SubscriptionController.connectivitySetup',
       );
     }
   }
@@ -134,12 +149,14 @@ class SubscriptionController extends BaseController {
       await loadSubscribedChannels();
       await loadAllContent();
       applyFilters();
-    } on Object catch (e) {
+    } on Object catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'SubscriptionController.refresh',
+      );
       hasError.value = true;
-      rxErrorMessage.value = e.toString().contains('permission')
-          ? 'Permission denied. Please check your login status.'
-          : 'Something went wrong. Pull to retry.';
-      debugPrint('Error in refresh: $e');
+      rxErrorMessage.value = AppException.from(e, stackTrace).displayMessage;
     } finally {
       rxIsLoading.value = false;
     }
@@ -168,9 +185,11 @@ class SubscriptionController extends BaseController {
             subMap[sub.channelId] = sub;
           }
         }
-      } on Object catch (e) {
-        debugPrint(
-          '[SubscriptionController] Query primary subscriptions failed: $e',
+      } on Object catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'SubscriptionController.loadSubscriptions.primary',
         );
       }
 
@@ -189,7 +208,13 @@ class SubscriptionController extends BaseController {
             subMap[chId] = Subscription(userId: uid, channelId: chId);
           }
         }
-      } on Object catch (_) {}
+      } on Object catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'SubscriptionController.loadSubscriptions.alternativeList',
+        );
+      }
 
       // 3. Alternative: userCache (userCache/{uid}/subscriptions)
       try {
@@ -206,7 +231,13 @@ class SubscriptionController extends BaseController {
             subMap[chId] = Subscription(userId: uid, channelId: chId);
           }
         }
-      } on Object catch (_) {}
+      } on Object catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'SubscriptionController.loadSubscriptions.alternativeUserCache',
+        );
+      }
 
       // 4. Alternative: users subcollection (users/{uid}/subscriptions)
       try {
@@ -223,12 +254,22 @@ class SubscriptionController extends BaseController {
             subMap[chId] = Subscription(userId: uid, channelId: chId);
           }
         }
-      } on Object catch (_) {}
+      } on Object catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'SubscriptionController.loadSubscriptions.alternativeUsersSubcollection',
+        );
+      }
 
       subscriptions.value = subMap.values.toList();
-    } on Object catch (e) {
-      debugPrint('Error loading subscriptions: $e');
-      throw Exception('Failed loading subscriptions: $e');
+    } on Object catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'SubscriptionController.loadSubscriptions',
+      );
+      throw AppException.from(e, stackTrace);
     }
   }
 
@@ -253,9 +294,11 @@ class SubscriptionController extends BaseController {
                 .where(FieldPath.documentId, whereIn: batch)
                 .get();
             return snapshot.docs.map(Channel.fromDocumentSnapshot).toList();
-          } on Object catch (e) {
-            debugPrint(
-              '[SubscriptionController] Batch channel fetch failed for $batch: $e',
+          } on Object catch (e, stackTrace) {
+            ErrorHandler.log(
+              e,
+              stackTrace: stackTrace,
+              tag: 'SubscriptionController.loadSubscribedChannels.batch',
             );
             return <Channel>[];
           }
@@ -263,8 +306,12 @@ class SubscriptionController extends BaseController {
       }
       final results = await Future.wait(batchFutures);
       subscribedChannels.value = results.expand((c) => c).toList();
-    } on Object catch (e) {
-      debugPrint('Error loading subscribed channels: $e');
+    } on Object catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'SubscriptionController.loadSubscribedChannels',
+      );
     }
   }
 
@@ -287,8 +334,12 @@ class SubscriptionController extends BaseController {
           final content = SubscriptionContent.fromVideo(v);
           contentMap[content.id] = content;
         }
-      } on Object catch (e) {
-        debugPrint('Error loading subscription videos: $e');
+      } on Object catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'SubscriptionController.loadAllContent.videos',
+        );
       }
 
       // Load playlists
@@ -298,8 +349,12 @@ class SubscriptionController extends BaseController {
           final content = SubscriptionContent.fromPlaylist(p);
           contentMap[content.id] = content;
         }
-      } on Object catch (e) {
-        debugPrint('Error loading subscription playlists: $e');
+      } on Object catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'SubscriptionController.loadAllContent.playlists',
+        );
       }
 
       // Load community posts
@@ -309,8 +364,12 @@ class SubscriptionController extends BaseController {
           final content = SubscriptionContent.fromCommunityPost(cp);
           contentMap[content.id] = content;
         }
-      } on Object catch (e) {
-        debugPrint('Error loading subscription community posts: $e');
+      } on Object catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'SubscriptionController.loadAllContent.communityPosts',
+        );
       }
 
       // Load topics
@@ -320,16 +379,24 @@ class SubscriptionController extends BaseController {
           final content = SubscriptionContent.fromTopic(t);
           contentMap[content.id] = content;
         }
-      } on Object catch (e) {
-        debugPrint('Error loading subscription topics: $e');
+      } on Object catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'SubscriptionController.loadAllContent.topics',
+        );
       }
 
       final contentList = contentMap.values.toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
       allContent.value = contentList;
-    } on Object catch (e) {
-      debugPrint('Error loading content: $e');
+    } on Object catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'SubscriptionController.loadAllContent',
+      );
     } finally {
       rxIsLoading.value = false;
     }
@@ -357,9 +424,11 @@ class SubscriptionController extends BaseController {
             .limit(50)
             .get();
         docs.addAll(snapshot.docs);
-      } on Object catch (e) {
-        debugPrint(
-          '[SubscriptionController] Batch video query failed ($e). Falling back to per-channel query.',
+      } on Object catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'SubscriptionController._loadVideos.batch',
         );
         for (final cid in batch) {
           try {
@@ -369,9 +438,11 @@ class SubscriptionController extends BaseController {
                 .limit(20)
                 .get();
             docs.addAll(snap.docs);
-          } on Object catch (err) {
-            debugPrint(
-              '[SubscriptionController] Per-channel video query failed for $cid: $err',
+          } on Object catch (err, stackTrace) {
+            ErrorHandler.log(
+              err,
+              stackTrace: stackTrace,
+              tag: 'SubscriptionController._loadVideos.perChannel',
             );
           }
         }
@@ -383,8 +454,12 @@ class SubscriptionController extends BaseController {
           if (VideoVisibilityPolicy.isVisibleForFeed(video)) {
             videos.add(video);
           }
-        } on Object catch (e) {
-          debugPrint('Error parsing video doc ${doc.id}: $e');
+        } on Object catch (e, stackTrace) {
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'SubscriptionController._loadVideos.parseDoc',
+          );
         }
       }
     }
@@ -413,8 +488,12 @@ class SubscriptionController extends BaseController {
             .limit(30)
             .get();
         docs.addAll(snapshot.docs);
-      } on Object catch (e) {
-        debugPrint('[SubscriptionController] Batch playlist query failed: $e');
+      } on Object catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'SubscriptionController._loadPlaylists.batch',
+        );
         for (final cid in batch) {
           try {
             final snap = await _firestore
@@ -424,7 +503,13 @@ class SubscriptionController extends BaseController {
                 .limit(10)
                 .get();
             docs.addAll(snap.docs);
-          } on Object catch (_) {}
+          } on Object catch (e, stackTrace) {
+            ErrorHandler.log(
+              e,
+              stackTrace: stackTrace,
+              tag: 'SubscriptionController._loadPlaylists.perChannel',
+            );
+          }
         }
       }
 
@@ -434,8 +519,12 @@ class SubscriptionController extends BaseController {
           if (playlist.isPublic) {
             playlists.add(playlist);
           }
-        } on Object catch (e) {
-          debugPrint('Error parsing playlist doc ${doc.id}: $e');
+        } on Object catch (e, stackTrace) {
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'SubscriptionController._loadPlaylists.parseDoc',
+          );
         }
       }
     }
@@ -465,9 +554,11 @@ class SubscriptionController extends BaseController {
             .limit(30)
             .get();
         docs.addAll(snapshot.docs);
-      } on Object catch (e) {
-        debugPrint(
-          '[SubscriptionController] Batch community post query failed: $e',
+      } on Object catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'SubscriptionController._loadCommunityPosts.batch',
         );
         for (final cid in batch) {
           try {
@@ -477,7 +568,13 @@ class SubscriptionController extends BaseController {
                 .limit(10)
                 .get();
             docs.addAll(snap.docs);
-          } on Object catch (_) {}
+          } on Object catch (e, stackTrace) {
+            ErrorHandler.log(
+              e,
+              stackTrace: stackTrace,
+              tag: 'SubscriptionController._loadCommunityPosts.perChannel',
+            );
+          }
         }
       }
 
@@ -495,8 +592,12 @@ class SubscriptionController extends BaseController {
               ownerId == currentUid) {
             posts.add(post);
           }
-        } on Object catch (e) {
-          debugPrint('Error parsing community post doc ${doc.id}: $e');
+        } on Object catch (e, stackTrace) {
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'SubscriptionController._loadCommunityPosts.parseDoc',
+          );
         }
       }
     }
@@ -525,8 +626,12 @@ class SubscriptionController extends BaseController {
             .limit(30)
             .get();
         docs.addAll(snapshot.docs);
-      } on Object catch (e) {
-        debugPrint('[SubscriptionController] Batch topics query failed: $e');
+      } on Object catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'SubscriptionController._loadTopics.batch',
+        );
         for (final cid in batch) {
           try {
             final snap = await _firestore
@@ -536,7 +641,13 @@ class SubscriptionController extends BaseController {
                 .limit(10)
                 .get();
             docs.addAll(snap.docs);
-          } on Object catch (_) {}
+          } on Object catch (e, stackTrace) {
+            ErrorHandler.log(
+              e,
+              stackTrace: stackTrace,
+              tag: 'SubscriptionController._loadTopics.perChannel',
+            );
+          }
         }
       }
 
@@ -546,8 +657,12 @@ class SubscriptionController extends BaseController {
           if (topic.isValidTopic && topic.videoCount > 0) {
             topics.add(topic);
           }
-        } on Object catch (e) {
-          debugPrint('Error parsing topic doc ${doc.id}: $e');
+        } on Object catch (e, stackTrace) {
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'SubscriptionController._loadTopics.parseDoc',
+          );
         }
       }
     }
@@ -721,13 +836,13 @@ class SubscriptionController extends BaseController {
 
   Future<void> subscribeToChannel(String channelId) async {
     if (currentUserId == null) {
-      Get.snackbar('Error', 'Please sign in to subscribe');
+      AppSnackbar.warning('Please sign in to subscribe.');
       return;
     }
 
     try {
       if (subscriptions.any((s) => s.channelId == channelId)) {
-        Get.snackbar('Info', 'Already subscribed to this channel');
+        AppSnackbar.info('Already subscribed to this channel.');
         return;
       }
 
@@ -766,10 +881,10 @@ class SubscriptionController extends BaseController {
       await loadAllContent();
       applyFilters();
 
-      Get.snackbar('Success', 'Subscribed successfully');
+      AppSnackbar.success('Subscribed successfully');
     } on Object catch (e) {
-      debugPrint('Error subscribing: $e');
-      Get.snackbar('Error', 'Failed to subscribe: $e');
+      ErrorHandler.log(e, context: 'SubscriptionController.subscribeToChannel');
+      AppSnackbar.error('Unable to subscribe to channel. Please try again.');
     }
   }
 
@@ -821,10 +936,10 @@ class SubscriptionController extends BaseController {
       await loadAllContent();
       applyFilters();
 
-      Get.snackbar('Success', 'Unsubscribed successfully');
+      AppSnackbar.success('Unsubscribed successfully');
     } on Object catch (e) {
-      debugPrint('Error unsubscribing: $e');
-      Get.snackbar('Error', 'Failed to unsubscribe: $e');
+      ErrorHandler.log(e, context: 'SubscriptionController.unsubscribeFromChannel');
+      AppSnackbar.error('Unable to unsubscribe from channel. Please try again.');
     }
   }
 

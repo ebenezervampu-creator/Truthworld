@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
@@ -32,7 +34,10 @@ class _VideoLoaderScreenState extends State<VideoLoaderScreen>
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
+    );
+    if (!Get.testMode) {
+      _controller.repeat(reverse: true);
+    }
     _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -50,7 +55,7 @@ class _VideoLoaderScreenState extends State<VideoLoaderScreen>
     final videoId = Get.parameters['v'] ?? Get.parameters['videoId'];
 
     if (videoId == null) {
-      _showErrorSnackbar('Error', 'No video ID found in URL');
+      _showErrorSnackbar('Video Unavailable', 'No video ID was found in the URL.');
       return;
     }
 
@@ -101,7 +106,7 @@ class _VideoLoaderScreenState extends State<VideoLoaderScreen>
             .get();
 
         if (!doc.exists) {
-          _showErrorSnackbar('Error', 'Video not found');
+          _showErrorSnackbar('Video Unavailable', 'This video is currently unavailable.');
           return;
         }
 
@@ -158,25 +163,17 @@ class _VideoLoaderScreenState extends State<VideoLoaderScreen>
       Get.offNamed<void>('/watch?v=${video.id}', arguments: args);
       debugPrint('🧭 Video loaded and navigating to video screen');
     } catch (e) {
-      _showErrorSnackbar('Error', 'Something went wrong: $e');
-      debugPrint('❌ Error loading video: $e');
+      ErrorHandler.log(e, context: 'VideoLoaderScreen._loadVideo');
+      _showErrorSnackbar('Unable to load video', 'Unable to load video. Please try again.');
     }
   }
 
   void _showErrorSnackbar(String title, String message) {
-    Get.snackbar(
-      title,
-      message,
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Get.theme.colorScheme.errorContainer,
-      colorText: Get.theme.colorScheme.onErrorContainer,
-      margin: const EdgeInsets.all(kMediumPadding),
-      borderRadius: kBorderRadius,
-      icon: Icon(
-        Icons.error_rounded,
-        color: Get.theme.colorScheme.onErrorContainer,
-      ),
-    );
+    if (Get.testMode) {
+      debugPrint('[$title] $message');
+      return;
+    }
+    AppSnackbar.error(message);
   }
 
   @override

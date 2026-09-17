@@ -42,4 +42,37 @@ void main() {
     expect(() => sanitized.sort((a, b) => b.views.compareTo(a.views)), returnsNormally);
     expect(sanitized.first.id, equals('v2'));
   });
+
+  test('Video.fromMap retains VideoStatus.ready for already-published video with processing status', () {
+    final rawData = <String, dynamic>{
+      'id': '374f8794-5f4f-4e1d-af43-ce91e0bb379e',
+      'title': 'Zerodha vs Angel One: The Broker War India Needs to Watch',
+      'description': 'Description here',
+      'thumbnailUrl': 'https://firebasestorage.googleapis.com/thumbnail.png',
+      'videoUrl': 'https://storage.googleapis.com/video.mp4',
+      'originalUrl': 'https://storage.googleapis.com/video.mp4',
+      'status': 'processing',
+      'visibility': 'public',
+      'publishedAt': 1787292275642,
+      'aiFeatures': {
+        'pipelineStage': 'published',
+      },
+      'moderation': {
+        'status': 'approved',
+        'policyAction': 'allow',
+      },
+      'gatewayStatus': 'APPROVED',
+      'ownerId': 'owner123',
+      'channelId': 'chan123',
+      'channelName': 'Channel ABC',
+    };
+
+    final video = Video.fromMap(rawData);
+    expect(video.status, equals(VideoStatus.ready));
+    expect(video.isApprovedByGeminiOrManual, isTrue);
+
+    final feed = VideoSanitizer.sanitizeForFeed([video]);
+    expect(feed.length, equals(1));
+    expect(feed.first.id, equals('374f8794-5f4f-4e1d-af43-ce91e0bb379e'));
+  });
 }

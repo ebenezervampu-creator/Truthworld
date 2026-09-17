@@ -11,6 +11,7 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/services/media_crypto_service.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
@@ -55,8 +56,9 @@ class DownloadsController extends BaseController {
 
       // Sort locally based on downloadedAt
       videos.sort((a, b) => b.downloadedAt.compareTo(a.downloadedAt));
-    } catch (e) {
-      rxErrorMessage.value = e.toString();
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.loadVideos');
+      rxErrorMessage.value = 'Unable to load offline videos. Please try again.';
     }
     rxIsLoading.value = false;
   }
@@ -64,12 +66,9 @@ class DownloadsController extends BaseController {
   Future<void> deleteVideoItem(String id) async {
     await deleteVideo(id);
     await loadVideos();
-    Get.snackbar(
-      'Deleted',
+    AppSnackbar.info(
       'Video removed from downloads.',
-      snackPosition: SnackPosition.TOP,
-      backgroundColor: const Color(0xFF6366F1),
-      colorText: AppColors.textPrimary,
+      title: 'Removed',
     );
   }
 
@@ -271,7 +270,8 @@ class DownloadsController extends BaseController {
                     downloadUrl = await FirebaseStorage.instance
                         .ref(outputPath)
                         .getDownloadURL();
-                  } catch (_) {
+                  } catch (e, s) {
+                    ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.getAvailableResolutions.getDownloadURL');
                     downloadUrl = StorageUtils.getFastDownloadUrl(outputPath);
                   }
                   return VideoResolutionV2(
@@ -282,7 +282,8 @@ class DownloadsController extends BaseController {
                         _inferHeightFromLabel(label),
                     bitrate: (variantData['bitrateKbps'] as num?)?.toInt() ?? 0,
                   );
-                } catch (_) {
+                } catch (e, s) {
+                  ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.getAvailableResolutions.fetchTask');
                   return null;
                 }
               }());
@@ -295,7 +296,9 @@ class DownloadsController extends BaseController {
           resolvedResolutions.addAll(results.whereType<VideoResolutionV2>());
         }
       }
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.getAvailableResolutions.transcoding');
+    }
 
     // 2. Check video.adaptiveResolutions
     if (resolvedResolutions.isEmpty && video.adaptiveResolutions.isNotEmpty) {
@@ -335,7 +338,9 @@ class DownloadsController extends BaseController {
               ),
             );
           }
-        } catch (_) {}
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.getAvailableResolutions.probePaths');
+        }
       }
     }
 
@@ -435,14 +440,17 @@ class DownloadsController extends BaseController {
     if (urlOrPath.startsWith('gs://')) {
       try {
         return FirebaseStorage.instance.refFromURL(urlOrPath);
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.getStorageRef.gs');
+      }
     }
     if (urlOrPath.startsWith('http://') || urlOrPath.startsWith('https://')) {
       if (urlOrPath.contains('firebasestorage.googleapis.com') ||
           urlOrPath.contains('storage.googleapis.com')) {
         try {
           return FirebaseStorage.instance.refFromURL(urlOrPath);
-        } catch (_) {
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.getStorageRef.refFromURL');
           try {
             final uri = Uri.parse(urlOrPath);
             final segments = uri.pathSegments;
@@ -452,7 +460,9 @@ class DownloadsController extends BaseController {
               final decodedPath = Uri.decodeComponent(encodedPath);
               return FirebaseStorage.instance.ref(decodedPath);
             }
-          } catch (_) {}
+          } catch (e2, s2) {
+            ErrorHandler.log(e2, stackTrace: s2, tag: 'DownloadsController.getStorageRef.decodePath');
+          }
         }
       }
     } else {
@@ -484,7 +494,9 @@ class DownloadsController extends BaseController {
             try {
               final signed = await ref.getDownloadURL();
               if (signed.isNotEmpty) return signed;
-            } catch (_) {}
+            } catch (e, s) {
+              ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.resolveDownloadUrl.audioTrackSigned');
+            }
           }
           return StorageUtils.getFastDownloadUrl(track);
         }
@@ -504,7 +516,9 @@ class DownloadsController extends BaseController {
             try {
               final signed = await ref.getDownloadURL();
               if (signed.isNotEmpty) return signed;
-            } catch (_) {}
+            } catch (e, s) {
+              ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.resolveDownloadUrl.adaptiveSigned');
+            }
           }
           return StorageUtils.getFastDownloadUrl(url);
         }
@@ -521,7 +535,9 @@ class DownloadsController extends BaseController {
         try {
           final signed = await ref.getDownloadURL();
           if (signed.isNotEmpty) return signed;
-        } catch (_) {}
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.resolveDownloadUrl.resolutionSigned');
+        }
       }
       return StorageUtils.getFastDownloadUrl(resolution.url);
     }
@@ -555,14 +571,18 @@ class DownloadsController extends BaseController {
                 try {
                   final signedUrl = await ref.getDownloadURL();
                   if (signedUrl.isNotEmpty) return signedUrl;
-                } catch (_) {}
+                } catch (e, s) {
+                  ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.resolveDownloadUrl.outputPathSigned');
+                }
               }
               return StorageUtils.getFastDownloadUrl(outputPath);
             }
           }
         }
       }
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.resolveDownloadUrl.resolutionJobs');
+    }
 
     // 4. Check video adaptive resolutions
     if (video.adaptiveResolutions.isNotEmpty) {
@@ -584,7 +604,9 @@ class DownloadsController extends BaseController {
           try {
             final signed = await ref.getDownloadURL();
             if (signed.isNotEmpty) return signed;
-          } catch (_) {}
+          } catch (e, s) {
+            ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.resolveDownloadUrl.mp4ResSigned');
+          }
         }
         return StorageUtils.getFastDownloadUrl(url);
       }
@@ -599,7 +621,9 @@ class DownloadsController extends BaseController {
         try {
           final signed = await ref.getDownloadURL();
           if (signed.isNotEmpty) return signed;
-        } catch (_) {}
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.resolveDownloadUrl.originalUrlSigned');
+        }
       }
       return StorageUtils.getFastDownloadUrl(video.originalUrl);
     }
@@ -613,7 +637,9 @@ class DownloadsController extends BaseController {
         try {
           final signed = await ref.getDownloadURL();
           if (signed.isNotEmpty) return signed;
-        } catch (_) {}
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.resolveDownloadUrl.videoUrlSigned');
+        }
       }
       return StorageUtils.getFastDownloadUrl(video.videoUrl);
     }
@@ -634,7 +660,9 @@ class DownloadsController extends BaseController {
       try {
         final url = await FirebaseStorage.instance.ref(path).getDownloadURL();
         if (url.isNotEmpty) return url;
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.resolveDownloadUrl.probePaths');
+      }
     }
 
     return '';
@@ -731,16 +759,10 @@ class DownloadsController extends BaseController {
         borderRadius: 16,
       );
       return true;
-    } catch (e) {
-      final message = e.toString().replaceFirst('Exception: ', '');
-      AppSnackbar.show(
-        'Download Failed',
-        'Could not download: $message',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.error.withValues(alpha: 0.85),
-        colorText: AppColors.textPrimary,
-        margin: const EdgeInsets.all(16),
-        borderRadius: 16,
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.downloadVideoOffline');
+      AppSnackbar.error(
+        'Unable to download video. Please check your connection and try again.',
       );
       return false;
     } finally {
@@ -764,7 +786,9 @@ class DownloadsController extends BaseController {
     if (await tempFile.exists()) {
       try {
         await tempFile.delete();
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.downloadNative.deleteTemp');
+      }
     }
 
     var downloadSucceeded = false;
@@ -777,7 +801,9 @@ class DownloadsController extends BaseController {
           activeUrl = await FirebaseStorage.instance
               .refFromURL(activeUrl)
               .getDownloadURL();
-        } catch (_) {}
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.downloadNative.gsUrl');
+        }
       }
 
       if (activeUrl.startsWith('http://') || activeUrl.startsWith('https://')) {
@@ -823,14 +849,19 @@ class DownloadsController extends BaseController {
                 final ref = FirebaseStorage.instance.refFromURL(activeUrl);
                 activeUrl = await ref.getDownloadURL();
                 continue;
-              } catch (_) {}
+              } catch (e, s) {
+                ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.downloadNative.refreshToken');
+              }
             }
           }
-        } catch (_) {
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.downloadNative.httpStream');
           if (sink != null) {
             try {
               await sink.close();
-            } catch (_) {}
+            } catch (e2, s2) {
+              ErrorHandler.log(e2, stackTrace: s2, tag: 'DownloadsController.downloadNative.closeSink');
+            }
             sink = null;
           }
         } finally {
@@ -848,7 +879,9 @@ class DownloadsController extends BaseController {
             targetUrl.startsWith('https://storage.googleapis.com')) {
           try {
             storageRef = FirebaseStorage.instance.refFromURL(targetUrl);
-          } catch (_) {}
+          } catch (e, s) {
+            ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.downloadNative.storageRefFromURL');
+          }
         }
 
         if (storageRef == null) {
@@ -867,26 +900,37 @@ class DownloadsController extends BaseController {
               await testRef.getMetadata();
               storageRef = testRef;
               break;
-            } catch (_) {}
+            } catch (e, s) {
+              ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.downloadNative.probeMetadata');
+            }
           }
         }
 
         if (storageRef != null) {
           final downloadTask = storageRef.writeToFile(tempFile);
-          downloadTask.snapshotEvents.listen((event) {
-            if (event.totalBytes > 0) {
-              final prog =
-                  (event.bytesTransferred / event.totalBytes).clamp(0.0, 1.0);
-              downloadProgressMap[video.id] = prog;
-              onProgress?.call(prog);
-            }
-          });
+          downloadTask.snapshotEvents.listen(
+            (event) {
+              if (event.totalBytes > 0) {
+                final prog =
+                    (event.bytesTransferred / event.totalBytes).clamp(0.0, 1.0);
+                downloadProgressMap[video.id] = prog;
+                onProgress?.call(prog);
+              }
+            },
+            onError: (e, stackTrace) => ErrorHandler.log(
+              e,
+              stackTrace: stackTrace,
+              tag: 'DownloadsController.downloadSnapshotEvents',
+            ),
+          );
           await downloadTask;
           if (await tempFile.exists() && (await tempFile.length()) >= 512) {
             downloadSucceeded = true;
           }
         }
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.downloadNative.storageWriteToFile');
+      }
     }
 
     if (!downloadSucceeded ||
@@ -895,7 +939,9 @@ class DownloadsController extends BaseController {
       if (await tempFile.exists()) {
         try {
           await tempFile.delete();
-        } catch (_) {}
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.downloadNative.deleteTempPart');
+        }
       }
       throw Exception('Media stream download failed or is too small.');
     }
@@ -922,7 +968,9 @@ class DownloadsController extends BaseController {
     if (await tempEncryptedFile.exists()) {
       try {
         await tempEncryptedFile.delete();
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.downloadNative.deleteTempEncrypted');
+      }
     }
 
     await MediaCryptoService.instance.encryptFile(
@@ -942,7 +990,9 @@ class DownloadsController extends BaseController {
       if (await targetFile.exists()) {
         await targetFile.delete();
       }
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.downloadNative.deleteTempAndTarget');
+    }
 
     await saveOfflineVideoMetadata(video.id, offlineVideo);
   }
@@ -963,7 +1013,9 @@ class DownloadsController extends BaseController {
           activeUrl = await FirebaseStorage.instance
               .refFromURL(activeUrl)
               .getDownloadURL();
-        } catch (_) {}
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.downloadWeb.gsUrl');
+        }
       }
 
       if (activeUrl.startsWith('http://') || activeUrl.startsWith('https://')) {
@@ -1002,10 +1054,14 @@ class DownloadsController extends BaseController {
                 final ref = FirebaseStorage.instance.refFromURL(activeUrl);
                 activeUrl = await ref.getDownloadURL();
                 continue;
-              } catch (_) {}
+              } catch (e, s) {
+                ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.downloadWeb.refreshToken');
+              }
             }
           }
-        } catch (_) {} finally {
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.downloadWeb.httpStream');
+        } finally {
           client?.close();
         }
       }
@@ -1020,7 +1076,9 @@ class DownloadsController extends BaseController {
             targetUrl.startsWith('https://storage.googleapis.com')) {
           try {
             storageRef = FirebaseStorage.instance.refFromURL(targetUrl);
-          } catch (_) {}
+          } catch (e, s) {
+            ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.downloadWeb.storageRefFromURL');
+          }
         }
         if (storageRef == null) {
           final probePaths = [
@@ -1038,14 +1096,18 @@ class DownloadsController extends BaseController {
               await testRef.getMetadata();
               storageRef = testRef;
               break;
-            } catch (_) {}
+            } catch (e, s) {
+              ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.downloadWeb.probeMetadata');
+            }
           }
         }
 
         if (storageRef != null) {
           fileBytes = await storageRef.getData(500 * 1024 * 1024);
         }
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.downloadWeb.getData');
+      }
     }
 
     if (fileBytes == null || fileBytes.length < 512) {

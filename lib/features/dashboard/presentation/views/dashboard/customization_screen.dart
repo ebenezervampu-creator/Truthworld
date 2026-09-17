@@ -1,8 +1,8 @@
-import 'dart:typed_data';
-
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/customization_controller.dart';
 import 'package:truthworld/theme/app_colors.dart';
 
@@ -521,6 +521,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
             label: 'Contact Email',
             hint: 'contact@example.com',
             keyboardType: TextInputType.emailAddress,
+            inputFormatters: const [],
           ),
           const SizedBox(height: 16),
           _buildTextField(
@@ -645,12 +646,14 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
     Widget? prefix,
     IconData? prefixIcon,
     TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
     String? Function(String?)? validator,
   }) {
     return TextFormField(
       controller: controller,
       maxLines: maxLines,
       keyboardType: keyboardType,
+      inputFormatters: inputFormatters ?? TruthworldTextInputFormatters.standard,
       validator: validator,
       style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
       decoration: InputDecoration(

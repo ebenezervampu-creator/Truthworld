@@ -1,7 +1,8 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Helper utility for opening Truthworld Studio:
@@ -24,20 +25,20 @@ class StudioLauncher {
 
       // 1. Verify Authentication
       if (!authService.isAuthenticated.value) {
-        if (Get.context != null) {
-          Get.snackbar(
-            'Sign In Required',
-            'Please sign in to access Truthworld Studio.',
-            backgroundColor: const Color(0xFF222222),
-            colorText: Colors.white,
-            snackPosition: SnackPosition.BOTTOM,
-          );
-        }
+        AppSnackbar.warning(
+          'Please sign in to access Truthworld Studio.',
+          title: 'Sign In Required',
+        );
         return;
       }
 
       // 2. Verify Channel Existence
-      if (!authService.hasChannel.value && authService.userChannel == null) {
+      var channel = authService.userChannel;
+      if (channel == null && !authService.hasChannel.value) {
+        channel = await authService.ensureChannelLoaded();
+      }
+
+      if (channel == null && !authService.hasChannel.value) {
         Get.toNamed('/channelscreen');
         return;
       }
@@ -114,15 +115,21 @@ class StudioLauncher {
           mode: LaunchMode.externalApplication,
         );
       }
-    } catch (e) {
-      debugPrint('Error launching Studio app: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'StudioLauncher.openStudio');
       try {
         final webUri = Uri.parse(studioWebUrlProduction);
         await launchUrl(
           webUri,
           mode: LaunchMode.externalApplication,
         );
-      } catch (_) {}
+      } catch (err, stack) {
+        ErrorHandler.log(
+          err,
+          stackTrace: stack,
+          tag: 'StudioLauncher.openStudioFallback',
+        );
+      }
     }
   }
 }

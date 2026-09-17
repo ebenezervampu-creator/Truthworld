@@ -22,32 +22,28 @@ const Color primaryText = AppColors.textPrimary;
 const Color secondaryText = AppColors.textSecondary;
 const Color buttonBg = AppColors.bgSurfaceHover;
 
-class WatchHistory extends StatelessWidget {
+class WatchHistory extends GetView<WatchHistoryController> {
   const WatchHistory({super.key, this.isDashboard = false});
   final bool isDashboard;
 
-  WatchHistoryController get _controller =>
-      Get.isRegistered<WatchHistoryController>()
-          ? Get.find<WatchHistoryController>()
-          : Get.put(WatchHistoryController());
+  WatchHistoryController get _controller => controller;
 
   @override
   Widget build(BuildContext context) {
-    return Obx(() {
-      final userId = AuthService.to.currentUser.value?.uid;
+    return Scaffold(
+      backgroundColor: bgColor,
+      body: SafeArea(
+        child: Obx(() {
+          final userId = AuthService.to.currentUser.value?.uid;
 
-      if (userId == null || userId.isEmpty) {
-        return Scaffold(
-          backgroundColor: bgColor,
-          body: SafeArea(child: _buildNotLoggedInWidget(context)),
-        );
-      }
+          if (userId == null || userId.isEmpty) {
+            return _buildNotLoggedInWidget(context);
+          }
 
-      return Scaffold(
-        backgroundColor: bgColor,
-        body: SafeArea(child: _buildMainContent(userId)),
-      );
-    });
+          return _buildMainContent(userId);
+        }),
+      ),
+    );
   }
 
   Widget _buildMainContent(String userId) {
@@ -317,7 +313,7 @@ class WatchHistory extends StatelessWidget {
                 onPressed: () => Get.toNamed('/auth'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.textPrimary,
-                  foregroundColor: AppColors.textPrimary,
+                  foregroundColor: Colors.black,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 32,
                     vertical: 16,
@@ -337,16 +333,16 @@ class WatchHistory extends StatelessWidget {
 
   void _showHistorySettingsBottomSheet() {
     Get.bottomSheet(
-      Container(
-        padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: surfaceColor,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      Material(
+        color: surfaceColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             Center(
               child: Container(
                 width: 40,
@@ -419,7 +415,7 @@ class WatchHistory extends StatelessWidget {
                 ),
                 child: const Icon(
                   Icons.history_toggle_off_rounded,
-                  color: AppColors.warning,
+                  color: Colors.white,
                 ),
               ),
               title: const Text(
@@ -445,7 +441,7 @@ class WatchHistory extends StatelessWidget {
                 ),
                 child: const Icon(
                   Icons.delete_sweep_rounded,
-                  color: AppColors.error,
+                  color: Colors.white,
                 ),
               ),
               title: const Text(
@@ -464,7 +460,9 @@ class WatchHistory extends StatelessWidget {
           ],
         ),
       ),
+    ),
       isScrollControlled: true,
+      backgroundColor: Colors.transparent,
     );
   }
 }

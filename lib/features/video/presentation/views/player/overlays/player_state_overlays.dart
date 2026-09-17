@@ -1,9 +1,12 @@
 import 'dart:math';
 import 'dart:ui';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/features/video/data/models/claim_verdict_helper.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/features/video/presentation/controllers/adaptive_bitrate_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
@@ -293,7 +296,13 @@ class StateOverlay extends StatelessWidget {
           isAutoSwitch = vc.isAutoSwitching.value;
           isRecovering = vc.isRecoveringFromFormatError;
         }
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'PlaybackStateOverlay.checkAutoSwitching',
+        );
+      }
       if (isAutoSwitch || isRecovering) return const SizedBox.shrink();
 
       if (hasError) return _buildError();
@@ -585,22 +594,7 @@ class SeekPreviewTooltip extends StatelessWidget {
   }
 
   Color _getVerdictColor(String verdict) {
-    switch (verdict.toLowerCase()) {
-      case 'verified_true':
-      case 'mostly_true':
-        return AppColors.success;
-      case 'false_claim':
-      case 'misleading':
-      case 'disputed':
-        return AppColors.error;
-      case 'unproven':
-      case 'inconclusive':
-      case 'limited_support':
-      case 'verification_timeout':
-        return AppColors.brandHover;
-      default:
-        return AppColors.info;
-    }
+    return ClaimVerdictHelper.resolveVerdictString(verdict).color;
   }
 
   @override
@@ -680,18 +674,23 @@ class SeekPreviewTooltip extends StatelessWidget {
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(8),
                           child: thumbUrl != null && thumbUrl.isNotEmpty
-                              ? Image.network(
-                                  thumbUrl,
+                              ? CachedNetworkImage(
+                                  imageUrl: thumbUrl,
                                   fit: BoxFit.cover,
-                                  errorBuilder:
-                                      (context, error, stackTrace) =>
-                                          const Center(
-                                            child: Icon(
-                                              Icons.movie_creation_rounded,
-                                              color: AppColors.textPrimary,
-                                              size: 24,
-                                            ),
-                                          ),
+                                  placeholder: (context, url) => const Center(
+                                    child: Icon(
+                                      Icons.movie_creation_rounded,
+                                      color: AppColors.textPrimary,
+                                      size: 24,
+                                    ),
+                                  ),
+                                  errorWidget: (context, url, error) => const Center(
+                                    child: Icon(
+                                      Icons.movie_creation_rounded,
+                                      color: AppColors.textPrimary,
+                                      size: 24,
+                                    ),
+                                  ),
                                 )
                               : const Center(
                                   child: Icon(

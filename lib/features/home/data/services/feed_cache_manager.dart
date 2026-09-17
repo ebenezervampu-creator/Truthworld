@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/video_sanitizer.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
@@ -48,26 +49,40 @@ class FeedCacheManager {
   FeedCacheManager([GetStorage? storage]) : _storage = storage ?? GetStorage();
   final GetStorage _storage;
   static const int currentSchemaVersion = 3;
-  static const Duration defaultTTL = Duration(minutes: 15);
+  static const Duration defaultTTL = Duration(minutes: 3);
 
   // Scoped Cache Key Constants
   static const String keyHomeFeed = 'feed_home';
+  static const String keyUnexploredFeed = 'feed_unexplored';
   static const String keyTrendingFeed = 'feed_trending';
   static const String keyPopularFeed = 'feed_popular';
   static const String keyNewFeed = 'feed_new';
   static const String keyFlipCoinFeed = 'feed_flip_coin';
   static const String keyMusicFeed = 'feed_music';
 
-  /// Resolve a normalized cache key for any category or home tab.
-  static String cacheKeyForCategory(String category) {
+  /// Resolve a normalized cache key for any category or home tab, scoped by userId.
+  static String cacheKeyForCategory(String category, {String? userId}) {
     final cat = category.trim();
-    if (cat.isEmpty || cat == 'All') return keyHomeFeed;
-    if (cat == '🔥 Trending' || cat == 'Trending') return keyTrendingFeed;
-    if (cat == '⭐ Popular' || cat == 'Popular') return keyPopularFeed;
-    if (cat == '✨ New' || cat == 'New') return keyNewFeed;
-    if (cat == 'Flip Coin' || cat == '🪙 Flip Coin') return keyFlipCoinFeed;
-    if (cat == 'Music') return keyMusicFeed;
-    return 'feed_cat_${cat.toLowerCase().replaceAll(RegExp('[^a-z0-9_]'), '_')}';
+    final userSuffix = (userId != null && userId.isNotEmpty) ? '_$userId' : '';
+    String baseKey;
+    if (cat.isEmpty || cat == 'All') {
+      baseKey = keyHomeFeed;
+    } else if (cat == 'Unexplored' || cat == '🧭 Unexplored') {
+      baseKey = keyUnexploredFeed;
+    } else if (cat == '🔥 Trending' || cat == 'Trending') {
+      baseKey = keyTrendingFeed;
+    } else if (cat == '⭐ Popular' || cat == 'Popular') {
+      baseKey = keyPopularFeed;
+    } else if (cat == '✨ New' || cat == 'New') {
+      baseKey = keyNewFeed;
+    } else if (cat == 'Flip Coin' || cat == '🪙 Flip Coin') {
+      baseKey = keyFlipCoinFeed;
+    } else if (cat == 'Music') {
+      baseKey = keyMusicFeed;
+    } else {
+      baseKey = 'feed_cat_${cat.toLowerCase().replaceAll(RegExp('[^a-z0-9_]'), '_')}';
+    }
+    return '$baseKey$userSuffix';
   }
 
   /// Retrieve valid, non-expired, and sanitized videos from local storage for a given cache key.
@@ -118,8 +133,12 @@ class FeedCacheManager {
         '[FeedCacheManager] Loaded ${sanitized.length} valid cached videos for $cacheKey',
       );
       return sanitized;
-    } catch (e) {
-      debugPrint('[FeedCacheManager] Error loading cache for $cacheKey: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'FeedCacheManager.loadFeedFromCache',
+      );
       return null;
     }
   }
@@ -156,13 +175,23 @@ class FeedCacheManager {
       debugPrint(
         '[FeedCacheManager] Saved ${sanitizedVideos.length} videos to cache key: $cacheKey',
       );
-    } catch (e) {
-      debugPrint('[FeedCacheManager] Error saving cache for $cacheKey: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'FeedCacheManager.saveFeedToCache',
+      );
     }
   }
 
   /// Manually evict cache key
   void invalidate(String cacheKey) {
     _storage.remove(cacheKey);
+  }
+
+  /// Evict cache for a specific category and user
+  void invalidateCategory(String category, {String? userId}) {
+    final key = cacheKeyForCategory(category, userId: userId);
+    _storage.remove(key);
   }
 }

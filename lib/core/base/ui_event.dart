@@ -12,8 +12,8 @@ abstract class UiEvent {
 /// Event to display a snackbar in the UI.
 class UiEventShowSnackbar extends UiEvent {
   const UiEventShowSnackbar({
-    required this.title,
     required this.message,
+    this.title = '',
     this.isError = false,
     this.isWarning = false,
     this.actionLabel,

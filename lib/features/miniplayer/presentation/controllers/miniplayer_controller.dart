@@ -9,6 +9,7 @@ import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/core/utils/subtitle_parser.dart';
@@ -109,8 +110,10 @@ class MiniplayerController extends BaseController
   // ═══════════════════════════════════════════════════════════════════════════
 
   VideoPlayerController? _vpc;
+  String? _currentPlayingUrl;
   Timer? _positionTimer;
   Timer? _hideControlsTimer;
+  Timer? _transitionTimer;
   bool _isClosed = false;
   StreamSubscription? _connectivitySubscription;
 
@@ -132,15 +135,22 @@ class MiniplayerController extends BaseController
     trackSubscription(
       _connectivitySubscription = Get.find<ConnectivityService>()
           .onConnectivityChanged
-          .listen((results) {
-            final isConnected = results.any((r) => r != ConnectivityResult.none);
-            if (isConnected && error.value.isNotEmpty) {
-              debugPrint(
-                '[MiniplayerController] 🌐 Internet restored. Attempting recovery...',
-              );
-              attemptRecovery();
-            }
-          }),
+          .listen(
+            (results) {
+              final isConnected = results.any((r) => r != ConnectivityResult.none);
+              if (isConnected && error.value.isNotEmpty) {
+                debugPrint(
+                  '[MiniplayerController] 🌐 Internet restored. Attempting recovery...',
+                );
+                attemptRecovery();
+              }
+            },
+            onError: (e, stackTrace) => ErrorHandler.log(
+              e,
+              stackTrace: stackTrace,
+              tag: 'MiniplayerController.connectivityListener',
+            ),
+          ),
     );
   }
 
@@ -150,6 +160,7 @@ class MiniplayerController extends BaseController
     _recoveryDebounceTimer?.cancel();
     _stopPositionTimer();
     _hideControlsTimer?.cancel();
+    _transitionTimer?.cancel();
     _connectivitySubscription?.cancel();
     _disposeVideoControllers();
     super.onClose();
@@ -240,7 +251,13 @@ class MiniplayerController extends BaseController
             !streaming.hlsUrl.contains('/original/')) {
           targetUrl = streaming.hlsUrl;
         }
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'MiniplayerController.resolvePlayableUrl',
+        );
+      }
     }
 
     // Absolute fallback: check video.videoUrl, video.originalUrl, or video.hlsUrl
@@ -287,12 +304,14 @@ class MiniplayerController extends BaseController
       return;
     }
     _recoveryDebounceTimer?.cancel();
-    _recoveryDebounceTimer = Timer(const Duration(milliseconds: 600), () {
-      if (!_isClosed && currentVideo.value != null) {
-        _recoveryAttempts++;
-        attemptRecovery();
-      }
-    });
+    _recoveryDebounceTimer = trackTimer(
+      Timer(const Duration(milliseconds: 600), () {
+        if (!_isClosed && currentVideo.value != null) {
+          _recoveryAttempts++;
+          attemptRecovery();
+        }
+      }),
+    );
   }
 
   void _vpcListener() {
@@ -317,7 +336,13 @@ class MiniplayerController extends BaseController
           _scheduleAutoRecovery();
         }
       }
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'MiniplayerController.vpcListener',
+      );
+    }
   }
 
   /// Load a [video] into the miniplayer and begin playback.
@@ -341,13 +366,25 @@ class MiniplayerController extends BaseController
         HoverPreviewCoordinator.globalMute.value = true;
         await _vpc!.play();
         isPlaying.value = true;
-      } catch (e) {
+      } catch (e, s) {
         if (!_isIgnorablePlaybackError(e.toString())) {
           try {
             await _vpc!.setVolume(0);
             await _vpc!.play();
             isPlaying.value = true;
-          } catch (_) {}
+          } catch (e2, s2) {
+            ErrorHandler.log(
+              e2,
+              stackTrace: s2,
+              tag: 'MiniplayerController.resumeMutedFallback',
+            );
+          }
+        } else {
+          ErrorHandler.log(
+            e,
+            stackTrace: s,
+            tag: 'MiniplayerController.sameVideoPlay',
+          );
         }
       }
       return;
@@ -396,17 +433,31 @@ class MiniplayerController extends BaseController
           '[MiniplayerController] Found active handoff controller for: ${video.id}',
         );
         vpc = handoffVpc;
+        _currentPlayingUrl = handoffVpc.dataSource;
         try {
           await vpc.setLooping(false);
           await vpc.setVolume(1.0);
-        } catch (_) {}
+        } catch (e, s) {
+          ErrorHandler.log(
+            e,
+            stackTrace: s,
+            tag: 'MiniplayerController.setupHandoffVpc',
+          );
+        }
       } else {
         if (handoffVpc != null) {
           try {
             handoffVpc.dispose();
-          } catch (_) {}
+          } catch (e, s) {
+            ErrorHandler.log(
+              e,
+              stackTrace: s,
+              tag: 'MiniplayerController.disposeUnusedHandoffVpc',
+            );
+          }
         }
         final targetUrl = await _resolvePlayableUrl(video, overrideUrl);
+        _currentPlayingUrl = targetUrl;
         if (targetUrl.isEmpty) {
           debugPrint('[MiniplayerController] Video URL is empty');
           error.value = 'Video unavailable';
@@ -447,27 +498,36 @@ class MiniplayerController extends BaseController
       try {
         await vpc.play();
         isPlaying.value = true;
-      } catch (e) {
-        final errorMsg = e.toString();
-        debugPrint(
-          '[MiniplayerController] Play error, attempting muted autoplay fallback: $errorMsg',
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'MiniplayerController.playAutoplayFallback',
         );
         try {
           await vpc.setVolume(0);
           await vpc.play();
           isPlaying.value = true;
-        } catch (e2) {
-          debugPrint('[MiniplayerController] Play fallback failed: $e2');
+        } catch (e2, s2) {
+          ErrorHandler.log(
+            e2,
+            stackTrace: s2,
+            tag: 'MiniplayerController.playFallbackFailed',
+          );
           // If browser blocked playback, leave paused without showing error
           isPlaying.value = false;
         }
       }
 
       _startPositionTimer();
-    } catch (e) {
+    } catch (e, s) {
       if (_isClosed) return;
       final errorMsg = e.toString();
-      debugPrint('[MiniplayerController] Init error: $e');
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'MiniplayerController.initVpc',
+      );
 
       isBuffering.value = false;
       isVideoReady.value = false;
@@ -543,7 +603,13 @@ class MiniplayerController extends BaseController
         if (response.statusCode == 200) {
           content = utf8.decode(response.bodyBytes, allowMalformed: true);
         }
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'MiniplayerController.fetchSubtitlesHttp',
+        );
+      }
 
       if (content == null || content.isEmpty) {
         try {
@@ -558,14 +624,24 @@ class MiniplayerController extends BaseController
           if (data != null && data.isNotEmpty) {
             content = utf8.decode(data, allowMalformed: true);
           }
-        } catch (_) {}
+        } catch (e, s) {
+          ErrorHandler.log(
+            e,
+            stackTrace: s,
+            tag: 'MiniplayerController.fetchSubtitlesStorage',
+          );
+        }
       }
 
       if (content != null && content.isNotEmpty) {
         subtitleSegments.assignAll(SubtitleParser.parse(content));
       }
-    } catch (e) {
-      debugPrint('[MiniplayerController] Subtitle error: $e');
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'MiniplayerController.parseSubtitles',
+      );
       subtitleSegments.clear();
     }
   }
@@ -589,13 +665,23 @@ class MiniplayerController extends BaseController
       try {
         await vpc.play();
         isPlaying.value = true;
-      } catch (e) {
-        debugPrint('[MiniplayerController] togglePlayPause error: $e');
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'MiniplayerController.togglePlayPause',
+        );
         try {
           await vpc.setVolume(0);
           await vpc.play();
           isPlaying.value = true;
-        } catch (_) {}
+        } catch (e2, s2) {
+          ErrorHandler.log(
+            e2,
+            stackTrace: s2,
+            tag: 'MiniplayerController.togglePlayPauseMutedFallback',
+          );
+        }
       }
     }
   }
@@ -640,11 +726,13 @@ class MiniplayerController extends BaseController
     showMobileControls.value = !showMobileControls.value;
     _hideControlsTimer?.cancel();
     if (showMobileControls.value) {
-      _hideControlsTimer = Timer(const Duration(seconds: 3), () {
-        if (!_isClosed) {
-          showMobileControls.value = false;
-        }
-      });
+      _hideControlsTimer = trackTimer(
+        Timer(const Duration(seconds: 3), () {
+          if (!_isClosed) {
+            showMobileControls.value = false;
+          }
+        }),
+      );
     }
   }
 
@@ -744,10 +832,15 @@ class MiniplayerController extends BaseController
   }
 
   Offset _defaultDockOffset(Size cardSize, Size screenSize) {
-    const inset = MiniplayerConfig.dockInset;
+    final isMobile = MiniplayerConfig.isMobileLayout(screenSize.width);
+    final insetX =
+        isMobile ? MiniplayerConfig.mobileDockInset : MiniplayerConfig.dockInset;
+    final insetY = isMobile
+        ? MiniplayerConfig.mobileDockBottomInset
+        : MiniplayerConfig.dockInset;
     return Offset(
-      (screenSize.width - cardSize.width - inset).clamp(0.0, double.infinity),
-      (screenSize.height - cardSize.height - inset).clamp(0.0, double.infinity),
+      (screenSize.width - cardSize.width - insetX).clamp(0.0, double.infinity),
+      (screenSize.height - cardSize.height - insetY).clamp(0.0, double.infinity),
     );
   }
 
@@ -773,7 +866,9 @@ class MiniplayerController extends BaseController
     if (_vpc != null && !kIsWeb) {
       try {
         _vpc!.removeListener(_vpcListener);
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'MiniplayerController.openFullScreen.removeListener');
+      }
       VideoPlaybackHandoff.registerActiveController(video.id, _vpc!, position: pos);
       // Set to null so dismiss() won't dispose it while handing over!
       _vpc = null;
@@ -787,6 +882,8 @@ class MiniplayerController extends BaseController
       'resumePosition': pos.inMilliseconds,
       'initialPosition': pos,
       'isFromMiniplayer': true,
+      if (_currentPlayingUrl != null && _currentPlayingUrl!.isNotEmpty)
+        'overrideUrl': _currentPlayingUrl,
     };
 
     final currentRoute = Get.currentRoute.toLowerCase();
@@ -803,11 +900,14 @@ class MiniplayerController extends BaseController
 
     // Give navigation transition 600ms to complete smoothly before cleaning up transitioning state.
     // VideoScreen's postFrameCallback will also call dismiss() once mounted.
-    Future.delayed(const Duration(milliseconds: 600), () {
-      if (!_isClosed && mode.value == MiniplayerMode.transitioning) {
-        dismiss();
-      }
-    });
+    _transitionTimer?.cancel();
+    _transitionTimer = trackTimer(
+      Timer(const Duration(milliseconds: 600), () {
+        if (!_isClosed && mode.value == MiniplayerMode.transitioning) {
+          dismiss();
+        }
+      }),
+    );
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -835,19 +935,21 @@ class MiniplayerController extends BaseController
   /// Much cheaper than a per-frame listener on the VideoPlayerController.
   void _startPositionTimer() {
     _stopPositionTimer();
-    _positionTimer = Timer.periodic(const Duration(milliseconds: 250), (_) {
-      final vpc = _vpc;
-      if (vpc == null || _isClosed) return;
+    _positionTimer = trackTimer(
+      Timer.periodic(const Duration(milliseconds: 250), (_) {
+        final vpc = _vpc;
+        if (vpc == null || _isClosed) return;
 
-      final VideoPlayerValue val;
-      try {
-        val = vpc.value;
-      } catch (_) {
-        return;
-      }
-      isPlaying.value = val.isPlaying;
-      currentPosition.value = val.position;
-      isBuffering.value = val.isBuffering;
+        final VideoPlayerValue val;
+        try {
+          val = vpc.value;
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'MiniplayerController.positionTimer.vpcValue');
+          return;
+        }
+        isPlaying.value = val.isPlaying;
+        currentPosition.value = val.position;
+        isBuffering.value = val.isBuffering;
 
       // Subtitle lookup
       if (subtitlesEnabled.value && subtitleSegments.isNotEmpty) {
@@ -864,8 +966,9 @@ class MiniplayerController extends BaseController
           !val.isPlaying) {
         isPlaying.value = false;
       }
-    });
-  }
+    }),
+  );
+}
 
   void _stopPositionTimer() {
     _positionTimer?.cancel();
@@ -877,13 +980,19 @@ class MiniplayerController extends BaseController
     if (_vpc != null) {
       try {
         _vpc!.removeListener(_vpcListener);
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'MiniplayerController.dispose.removeListener');
+      }
       try {
         _vpc!.pause();
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'MiniplayerController.dispose.pause');
+      }
       try {
         _vpc!.dispose();
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'MiniplayerController.dispose.dispose');
+      }
       _vpc = null;
     }
   }
@@ -929,16 +1038,19 @@ class MiniplayerController extends BaseController
         try {
           await _vpc!.play();
           isPlaying.value = true;
-        } catch (_) {
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'MiniplayerController.attemptRecovery.play');
           try {
             await _vpc!.setVolume(0);
             await _vpc!.play();
             isPlaying.value = true;
-          } catch (_) {}
+          } catch (e2, s2) {
+            ErrorHandler.log(e2, stackTrace: s2, tag: 'MiniplayerController.attemptRecovery.mutedPlay');
+          }
         }
       }
-    } catch (e) {
-      debugPrint('[MiniplayerController] ❌ Recovery failed: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'MiniplayerController.attemptRecovery');
       if (_recoveryAttempts >= _maxRecoveryAttempts) {
         error.value = 'Playback error. Tap to retry.';
       }

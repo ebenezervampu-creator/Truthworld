@@ -8,8 +8,12 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/ai/ai_search_service.dart';
+import 'package:truthworld/core/services/ai/models/ai_search_intent.dart';
 import 'package:truthworld/core/services/algorithm/user_signal_tracker.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
@@ -127,6 +131,10 @@ class SearchController extends BaseController {
   final RxList<SearchSuggestion> richSuggestions = <SearchSuggestion>[].obs;
   final RxBool showSuggestions = false.obs;
   final RxBool isShowingFallback = false.obs;
+  final Rx<AiSearchIntent?> activeAiIntent = Rx<AiSearchIntent?>(null);
+  final RxBool isAiSearching = false.obs;
+  final RxList<SearchResult> broadenedResults = <SearchResult>[].obs;
+  final RxBool isBroadenedView = false.obs;
   final RxString selectedFilter = 'All'.obs;
   final RxSet<String> watchedVideoIds = <String>{}.obs;
   final RxBool isNavigating = false.obs;
@@ -143,14 +151,9 @@ class SearchController extends BaseController {
   // REQUEST CANCELLATION & SNAPPY DEBOUNCE
   // ══════════════════════════════════════════════════════════════
 
-  /// Timer for debouncing user input
-  Timer? _debounceTimer;
-
-  /// Snappy 250ms debounce delay
+  /// Snappy 250ms debounce delay — registered as GetX worker in onInit()
   final Duration debounceDelay = const Duration(milliseconds: 250);
 
-  /// Request cancellation token
-  bool _shouldCancelRequest = false;
 
   /// Counter to prevent out-of-order async updates on search results
   int _searchToken = 0;
@@ -224,6 +227,26 @@ class SearchController extends BaseController {
     _initRealtimeTrendingSubscription();
     if (_trendingSubscription != null) trackSubscription(_trendingSubscription!);
     unawaited(fetchRecommendedForFilter(selectedFilter.value));
+
+    // GetX worker replaces manual Timer debounce — auto-disposed in BaseController.onClose()
+    addWorker(
+      debounce(
+        searchQuery,
+        _onQueryDebounced,
+        time: debounceDelay,
+      ),
+    );
+  }
+
+  /// Called by GetX debounce worker after [debounceDelay] of inactivity.
+  void _onQueryDebounced(String query) {
+    final (isValid, sanitized, errorMsg) = _validateQuery(query);
+    if (!isValid && query.isNotEmpty) {
+      rxErrorMessage.value = errorMsg;
+      return;
+    }
+    if (query.isEmpty) return;
+    _fetchRichSuggestions(sanitized);
   }
 
   /// Fetch recommended content for empty search state per filter with caching
@@ -245,8 +268,8 @@ class SearchController extends BaseController {
       if (selectedFilter.value == filter) {
         recommendedResults.assignAll(recs);
       }
-    } catch (e) {
-      debugPrint('⚠️ [Search] Failed to fetch recommended for $filter: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'SearchController.fetchRecommendedForFilter');
     } finally {
       isRecommendedLoading.value = false;
     }
@@ -257,11 +280,12 @@ class SearchController extends BaseController {
       _trendingSubscription?.cancel();
       isRealtimeTrendingLoading.value = true;
 
-      _trendingSubscription = FirebaseFirestore.instance
-          .collection('trending_searches')
-          .limit(10)
-          .snapshots()
-          .listen(
+      _trendingSubscription = trackSubscription(
+        FirebaseFirestore.instance
+            .collection('trending_searches')
+            .limit(10)
+            .snapshots()
+            .listen(
             (snapshot) {
               if (snapshot.docs.isNotEmpty) {
                 final items = <TrendingItem>[];
@@ -306,13 +330,14 @@ class SearchController extends BaseController {
                 _fallbackRealtimeTrending();
               }
             },
-            onError: (e) {
-              debugPrint('⚠️ [Search] Realtime trending stream error: $e');
+            onError: (e, s) {
+              ErrorHandler.log(e, stackTrace: s, tag: 'SearchController.trendingStream');
               _fallbackRealtimeTrending();
             },
-          );
-    } catch (e) {
-      debugPrint('⚠️ [Search] Realtime trending setup failed: $e');
+          ),
+      );
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'SearchController.initTrending');
       _fallbackRealtimeTrending();
     }
   }
@@ -329,13 +354,16 @@ class SearchController extends BaseController {
             .orderBy('views', descending: true)
             .limit(5)
             .get();
-      } catch (_) {
+      } catch (e1, s1) {
+        ErrorHandler.log(e1, stackTrace: s1, tag: 'SearchController.fallbackTrending.videosOrdered');
         try {
           videosSnap = await FirebaseFirestore.instance
               .collection(FirestoreCollections.videos)
               .limit(5)
               .get();
-        } catch (_) {}
+        } catch (e2, s2) {
+          ErrorHandler.log(e2, stackTrace: s2, tag: 'SearchController.fallbackTrending.videosUnordered');
+        }
       }
 
       var rank = 1;
@@ -401,7 +429,9 @@ class SearchController extends BaseController {
           rank++;
           if (items.where((i) => i.category == 'topic').length >= 3) break;
         }
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'SearchController.fallbackTrending.topics');
+      }
 
       if (items.length < 5) {
         final defaultTrends = [
@@ -466,8 +496,8 @@ class SearchController extends BaseController {
 
       realtimeTrendingItems.assignAll(items);
       isRealtimeTrendingLoading.value = false;
-    } catch (e) {
-      debugPrint('⚠️ [Search] Fallback realtime trending failed: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'SearchController.fallbackRealtimeTrending');
       isRealtimeTrendingLoading.value = false;
     }
   }
@@ -514,8 +544,8 @@ class SearchController extends BaseController {
             .toList();
       }
       debugPrint('💾 [Search] Persistent cache loaded');
-    } catch (e) {
-      debugPrint('⚠️ [Search] Failed to load persistent cache: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'SearchController.loadPersistentCache');
     }
   }
 
@@ -524,11 +554,20 @@ class SearchController extends BaseController {
     try {
       final cacheString = jsonEncode(
         _allResults.map((r) => r.toMap()).toList(),
+        toEncodable: (nonEncodable) {
+          if (nonEncodable is Timestamp) {
+            return nonEncodable.toDate().toIso8601String();
+          }
+          if (nonEncodable is DateTime) {
+            return nonEncodable.toIso8601String();
+          }
+          return nonEncodable.toString();
+        },
       );
       debugPrint('💾 [Search] Cache saved (Size: ${cacheString.length} chars)');
       await GetStorage().write(_cacheStorageKey, cacheString);
-    } catch (e) {
-      debugPrint('⚠️ [Search] Failed to save cache: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'SearchController.savePersistentCache');
     }
   }
 
@@ -538,8 +577,8 @@ class SearchController extends BaseController {
       final recent = GetStorage().read(_recentSearchesKey) as List?;
       recentSearches.value = (recent ?? []).cast<String>();
       debugPrint('📝 [Search] Recent searches loaded');
-    } catch (e) {
-      debugPrint('⚠️ [Search] Failed to load recent searches: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'SearchController.loadRecentSearches');
     }
   }
 
@@ -548,8 +587,8 @@ class SearchController extends BaseController {
     try {
       await GetStorage().write(_recentSearchesKey, recentSearches.toList());
       debugPrint('📝 [Search] Recent searches saved');
-    } catch (e) {
-      debugPrint('⚠️ [Search] Failed to save recent searches: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'SearchController.saveRecentSearches');
     }
   }
 
@@ -645,8 +684,8 @@ class SearchController extends BaseController {
       debugPrint(
         '📊 [Search] Analytics tracked: "$query" ($resultCount results)',
       );
-    } catch (e) {
-      debugPrint('⚠️ [Search] Failed to track analytics: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'SearchController.trackAnalytics');
     }
   }
 
@@ -688,34 +727,21 @@ class SearchController extends BaseController {
 
   /// 🔑 MAIN ENTRY POINT: Called when user types
   ///
-  /// This method demonstrates the debouncing optimization:
-  /// - Without debounce: 10-15 queries per typing
-  /// - With debounce: 1 query per search
-  /// 🔑 MAIN ENTRY POINT: Called when user types
-  ///
-  /// This method demonstrates the debouncing optimization:
-  /// - Without debounce: 10-15 queries per typing
-  /// - With debounce: 1 query per search
+  /// Sets the reactive [searchQuery] value. The GetX debounce worker (registered
+  /// in onInit) fires [_onQueryDebounced] 250ms after the last change —
+  /// eliminating 10-15 queries per keystroke burst down to 1 query per search.
   void onSearchChanged(String query) {
-    // Validate input
-    final (isValid, sanitized, errorMsg) = _validateQuery(query);
+    // Validate input before updating reactive state
+    final (isValid, _, errorMsg) = _validateQuery(query);
     if (!isValid && query.isNotEmpty) {
       rxErrorMessage.value = errorMsg;
       debugPrint('⚠️ [Search] Validation error: $errorMsg');
       return;
     }
 
-    searchQuery.value = query;
-
-    // Cancel previous timer if still active (Problem 1: Request Cancellation)
-    if (_debounceTimer?.isActive ?? false) {
-      _debounceTimer!.cancel();
-      _shouldCancelRequest = true;
-      debugPrint('⏰ [Search] Previous debounce cancelled');
-    }
-
-    // If query is empty, clear results and stop
+    // If query is empty, clear results immediately — no need to wait for debounce
     if (query.isEmpty) {
+      searchQuery.value = query;
       _clearResults();
       richSuggestions.clear();
       showSuggestions.value = false;
@@ -723,17 +749,8 @@ class SearchController extends BaseController {
     }
 
     showSuggestions.value = true;
-    _shouldCancelRequest = false;
-
-    _debounceTimer = Timer(debounceDelay, () {
-      // Check if request was cancelled
-      if (_shouldCancelRequest) {
-        debugPrint('❌ [Search] Request cancelled before execution');
-        return;
-      }
-
-      _fetchRichSuggestions(sanitized);
-    });
+    // Setting searchQuery triggers the GetX debounce worker
+    searchQuery.value = query;
   }
 
   /// Fetch rich suggestions including matching videos, channels, playlists, topics and history
@@ -806,8 +823,8 @@ class SearchController extends BaseController {
           }
         }
       }
-    } catch (e) {
-      debugPrint('⚠️ [Search] Local suggestion cache lookup failed: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'SearchController.localSuggestions');
     }
 
     // 3. Remote Firestore queries across content types (videos, channels, topics)
@@ -942,8 +959,8 @@ class SearchController extends BaseController {
             );
           }
         }
-      } catch (e) {
-        debugPrint('⚠️ [Search] Failed to fetch remote suggestions: $e');
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'SearchController.remoteSuggestions');
       }
     }
 
@@ -956,7 +973,6 @@ class SearchController extends BaseController {
   /// Execute search and close suggestions
   Future<void> performSearch(String query) async {
     showSuggestions.value = false;
-    _debounceTimer?.cancel();
     searchQuery.value = query;
     await _executeSearch(query);
   }
@@ -977,8 +993,8 @@ class SearchController extends BaseController {
       final ids = snapshot.docs.map((doc) => doc.id).toSet();
       watchedVideoIds.assignAll(ids);
       debugPrint('📺 [Search] Loaded ${ids.length} watched video IDs');
-    } catch (e) {
-      debugPrint('⚠️ [Search] Failed to fetch watch history: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'SearchController.fetchWatchedVideoIds');
     }
   }
 
@@ -1080,10 +1096,9 @@ class SearchController extends BaseController {
     if (_isRateLimitExceeded()) {
       rxErrorMessage.value =
           'Too many searches. Please slow down and try again in a moment.';
-      Get.snackbar(
-        'Rate Limited',
-        'Please wait a moment before searching again',
-        snackPosition: SnackPosition.BOTTOM,
+      AppSnackbar.warning(
+        'Please wait a moment before searching again.',
+        title: 'Rate Limited',
       );
       return;
     }
@@ -1102,15 +1117,36 @@ class SearchController extends BaseController {
     final stopwatch = Stopwatch()..start();
 
     try {
+      // Parse AI intent (instant deterministic parser + Cloud Function fallback)
+      isAiSearching.value = true;
+      final intent = await AiSearchService.instance.parseQuery(
+        cleanQuery,
+      );
+      activeAiIntent.value = intent.hasCriteria ? intent : null;
+      isBroadenedView.value = false;
+      broadenedResults.clear();
+
       // Execute search with retry logic (Problem 6)
       var results = await _retryWithBackoff(
-        () => _searchService.search(normalized),
+        () => _searchService.search(normalized, intent: activeAiIntent.value),
       );
 
       // Stale query check
       if (token != _searchToken) {
         debugPrint('⏰ [Search] Stale search query results ignored');
         return;
+      }
+
+      // If language criteria was specified, prepare broadened fallback
+      if (activeAiIntent.value != null &&
+          activeAiIntent.value!.detectedLanguage != null &&
+          activeAiIntent.value!.broadenPrompt != null) {
+        final broadIntent = activeAiIntent.value!.copyWith(clearLanguage: true);
+        final broadResults = await _searchService.search(
+          normalized,
+          intent: broadIntent,
+        );
+        broadenedResults.assignAll(broadResults);
       }
 
       stopwatch.stop();
@@ -1178,12 +1214,16 @@ class SearchController extends BaseController {
           '✅ [Search] Found ${results.length} results ${isShowingFallback.value ? "(fallback)" : ""}',
         );
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'SearchController.executeSearch',
+      );
       if (token != _searchToken) return;
 
       stopwatch.stop();
 
-      rxIsLoading.value = false;
       rxErrorMessage.value = 'Search failed. Please try again.';
 
       // Track error to analytics
@@ -1194,8 +1234,11 @@ class SearchController extends BaseController {
         false,
         e.toString(),
       );
-
-      debugPrint('❌ [Search] Error: $e');
+    } finally {
+      if (token == _searchToken) {
+        rxIsLoading.value = false;
+        isAiSearching.value = false;
+      }
     }
   }
 
@@ -1229,6 +1272,10 @@ class SearchController extends BaseController {
   void _clearResults() {
     searchResults.clear();
     _allResults.clear();
+    activeAiIntent.value = null;
+    isAiSearching.value = false;
+    broadenedResults.clear();
+    isBroadenedView.value = false;
     rxErrorMessage.value = '';
     rxIsLoading.value = false;
     searchQuery.value = '';
@@ -1236,6 +1283,23 @@ class SearchController extends BaseController {
     hasMoreResults.value = false;
     isShowingFallback.value = false;
     debugPrint('🧹 [Search] Results cleared');
+  }
+
+  /// Broaden search across all languages when regional results are limited
+  void broadenSearch() {
+    if (broadenedResults.isNotEmpty) {
+      isBroadenedView.value = true;
+      _allResults = List<SearchResult>.from(broadenedResults);
+      _loadPage(0);
+    }
+  }
+
+  /// Clear AI intent and reset to standard search view
+  void clearAiSearch() {
+    activeAiIntent.value = null;
+    isBroadenedView.value = false;
+    broadenedResults.clear();
+    clearSearch();
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -1287,8 +1351,6 @@ class SearchController extends BaseController {
 
   /// Clear current search (reset to initial state)
   void clearSearch() {
-    _debounceTimer?.cancel();
-    _shouldCancelRequest = true;
     _clearResults();
     searchQuery.value = '';
     richSuggestions.clear();
@@ -1323,8 +1385,8 @@ class SearchController extends BaseController {
 
       // Fetch recommended content for current active filter
       await fetchRecommendedForFilter(selectedFilter.value);
-    } catch (e) {
-      debugPrint('⚠️ [Search] Failed to load trending: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'SearchController.fetchTrendingSuggestions');
     }
   }
 
@@ -1394,10 +1456,8 @@ class SearchController extends BaseController {
 
       if (!doc.exists) {
         final typeName = result.type.toString().split('.').last;
-        Get.snackbar(
-          'Error',
-          '${typeName.capitalizeFirst} not found',
-          snackPosition: SnackPosition.BOTTOM,
+        AppSnackbar.warning(
+          '${typeName.capitalizeFirst} is no longer available.',
         );
         return;
       }
@@ -1433,16 +1493,22 @@ class SearchController extends BaseController {
         case ResultType.topic:
           final topic = Topic.fromDocumentSnapshot(doc);
           if (!topic.isValidTopic || topic.videoCount <= 0) {
-            Get.snackbar('Unavailable', 'This topic is currently unavailable or has no videos.');
+            AppSnackbar.warning('This topic is currently unavailable or has no videos.');
             return;
           }
           Get.toNamed(topic.topicRoute, arguments: {'topic': topic});
       }
     } catch (e) {
-      debugPrint('❌ [Search] Navigation failed: $e');
-      Get.snackbar('Navigation Error', 'Could not open result: $e');
+      ErrorHandler.log(e, context: 'search_controller.onResultTap');
+      AppSnackbar.error('Unable to open this result. Please try again.');
     } finally {
       isNavigating.value = false;
     }
+  }
+
+  @override
+  void onClose() {
+    _trendingSubscription?.cancel();
+    super.onClose();
   }
 }

@@ -9,6 +9,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart'
     as app_exceptions;
 import 'package:truthworld/core/services/auth_service.dart';
@@ -121,10 +122,8 @@ class UserSessionController extends BaseController {
       if (kDebugMode) {
         debugPrint('[Like] Video $videoId toggled successfully');
       }
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('[Like] Error: $e');
-      }
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'UserSessionController.likeVideo');
       throw app_exceptions.FirestoreException(
         message: 'Failed to update like status',
         originalException: e,
@@ -165,13 +164,13 @@ class UserSessionController extends BaseController {
         final dislikedDoc = await transaction.get(userDislikedRef);
 
         if (dislikedDoc.exists) {
-          // Remove dislike
+          // Undislike
           transaction.delete(userDislikedRef);
           transaction.update(videoRef, {
             'dislikeCount': FieldValue.increment(-1),
           });
         } else {
-          // Add dislike
+          // Dislike
           transaction.set(userDislikedRef, {
             'videoId': videoId,
             'timestamp': FieldValue.serverTimestamp(),
@@ -193,10 +192,8 @@ class UserSessionController extends BaseController {
       if (kDebugMode) {
         debugPrint('[Dislike] Video $videoId toggled successfully');
       }
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('[Dislike] Error: $e');
-      }
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'UserSessionController.dislikeVideo');
       throw app_exceptions.FirestoreException(
         message: 'Failed to update dislike status',
         originalException: e,
@@ -269,10 +266,8 @@ class UserSessionController extends BaseController {
       if (kDebugMode) {
         debugPrint('MainController: Video $videoId share sheet opened');
       }
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Error sharing video: $e');
-      }
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'UserSessionController.shareVideo');
       showWarning('Failed to open share options');
     }
   }
@@ -305,10 +300,8 @@ class UserSessionController extends BaseController {
         subtitle: subtitle,
         type: 'channel',
       );
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Error sharing channel: $e');
-      }
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'UserSessionController.shareChannel');
       showWarning('Failed to share channel');
     }
   }
@@ -334,10 +327,8 @@ class UserSessionController extends BaseController {
         subtitle: subtitle,
         type: 'playlist',
       );
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Error sharing playlist: $e');
-      }
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'UserSessionController.sharePlaylist');
       showWarning('Failed to share playlist');
     }
   }
@@ -364,10 +355,8 @@ class UserSessionController extends BaseController {
         subtitle: subtitle,
         type: 'topic',
       );
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Error sharing topic: $e');
-      }
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'UserSessionController.shareTopic');
       showWarning('Failed to share topic');
     }
   }
@@ -728,11 +717,8 @@ class UserSessionController extends BaseController {
       rethrow;
     } on app_exceptions.ValidationException {
       rethrow;
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Error adding comment: $e');
-      }
-
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'UserSessionController._addCommentInternal');
       throw app_exceptions.FirestoreException(
         message: 'Failed to add comment',
         originalException: e,
@@ -828,11 +814,8 @@ class UserSessionController extends BaseController {
       rethrow;
     } on app_exceptions.ValidationException {
       rethrow;
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Error adding reply: $e');
-      }
-
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'UserSessionController._addReplyInternal');
       throw app_exceptions.FirestoreException(
         message: 'Failed to add reply',
         originalException: e,
@@ -1057,11 +1040,8 @@ class UserSessionController extends BaseController {
       rethrow;
     } on app_exceptions.ValidationException {
       rethrow;
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Error reporting video: $e');
-      }
-
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'UserSessionController.reportVideo');
       throw app_exceptions.FirestoreException(
         message: 'Failed to submit report',
         originalException: e,
@@ -1102,11 +1082,8 @@ class UserSessionController extends BaseController {
       if (kDebugMode) {
         debugPrint('MainController: Video $videoId added to watch later');
       }
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Error adding to watch later: $e');
-      }
-
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'UserSessionController._addToWatchLaterInternal');
       throw app_exceptions.FirestoreException(
         message: 'Failed to add video to Watch Later',
         originalException: e,

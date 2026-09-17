@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/studio_launcher.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_discovery_controller.dart';
 
@@ -39,7 +41,20 @@ class HomeNavigationController extends BaseController with GetTickerProviderStat
   final selectedPlaylist = Rxn<dynamic>();
   final selectedChannelForDetail = Rxn<Channel>();
   
-  late TabController tabController;
+  TabController? _tabController;
+  bool _isTabControllerDisposed = true;
+
+  TabController get tabController {
+    if ((_tabController == null || _isTabControllerDisposed) && !_isDisposed) {
+      _initializeTabController();
+    }
+    if (_tabController == null) {
+      _tabController = TabController(length: 1, vsync: this);
+      _isTabControllerDisposed = false;
+      _tabController!.addListener(_onTabChanged);
+    }
+    return _tabController!;
+  }
   
   final RxBool isLoadingAuth = false.obs;
   final RxBool isNavigating = false.obs;
@@ -60,24 +75,25 @@ class HomeNavigationController extends BaseController with GetTickerProviderStat
   @override
   void onInit() {
     super.onInit();
+    _isDisposed = false;
     _initializeAnimations();
     _setupBottomNavSync();
+    _initializeTabController();
   }
 
   @override
   void onReady() {
     super.onReady();
-    _initializeTabController();
+    if (_tabController == null || _isTabControllerDisposed) {
+      _initializeTabController();
+    }
   }
 
   @override
   void onClose() {
     _isDisposed = true;
     _disposeAnimations();
-    if (Get.isRegistered<HomeDiscoveryController>()) {
-      tabController.removeListener(_onTabChanged);
-    }
-    tabController.dispose();
+    _disposeTabController();
     super.onClose();
   }
 
@@ -103,27 +119,74 @@ class HomeNavigationController extends BaseController with GetTickerProviderStat
   }
 
   void _initializeTabController() {
-    if (!Get.isRegistered<HomeDiscoveryController>()) return;
-    final availableCategories = Get.find<HomeDiscoveryController>().availableCategories;
-    final len = availableCategories.isNotEmpty ? availableCategories.length : 1;
-    tabController = TabController(length: len, vsync: this);
-    tabController.addListener(_onTabChanged);
+    if (_isDisposed) return;
+    try {
+      var len = 1;
+      if (Get.isRegistered<HomeDiscoveryController>()) {
+        final availableCategories = Get.find<HomeDiscoveryController>().availableCategories;
+        if (availableCategories.isNotEmpty) {
+          len = availableCategories.length;
+        }
+      }
+      _disposeTabController();
+      _tabController = TabController(length: len, vsync: this);
+      _isTabControllerDisposed = false;
+      _tabController!.addListener(_onTabChanged);
+    } catch (e, s) {
+      _isTabControllerDisposed = true;
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'HomeNavigationController.initializeTabController',
+      );
+    }
+  }
+
+  void _disposeTabController() {
+    if (_tabController != null && !_isTabControllerDisposed) {
+      try {
+        _tabController!.removeListener(_onTabChanged);
+        _tabController!.dispose();
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'HomeNavigationController.disposeTabController',
+        );
+      } finally {
+        _isTabControllerDisposed = true;
+      }
+    }
   }
 
   void reinitializeTabController() {
+    if (_isDisposed) return;
     try {
-      if (!Get.isRegistered<HomeDiscoveryController>()) return;
-      final availableCategories = Get.find<HomeDiscoveryController>().availableCategories;
-      final newLength = availableCategories.isNotEmpty ? availableCategories.length : 1;
-      if (tabController.length != newLength) {
-        final currentIndex = tabController.index.clamp(0, newLength - 1);
-        tabController.removeListener(_onTabChanged);
-        tabController.dispose();
-        tabController = TabController(length: newLength, initialIndex: currentIndex, vsync: this);
-        tabController.addListener(_onTabChanged);
+      var newLength = 1;
+      if (Get.isRegistered<HomeDiscoveryController>()) {
+        final availableCategories = Get.find<HomeDiscoveryController>().availableCategories;
+        if (availableCategories.isNotEmpty) {
+          newLength = availableCategories.length;
+        }
       }
-    } catch (e) {
-      debugPrint('HomeNavigationController: Error reinitializing TabController: $e');
+      if (_tabController == null || _isTabControllerDisposed) {
+        _initializeTabController();
+        return;
+      }
+      if (_tabController!.length != newLength) {
+        final currentIndex = _tabController!.index.clamp(0, newLength - 1);
+        _disposeTabController();
+        _tabController = TabController(length: newLength, initialIndex: currentIndex, vsync: this);
+        _isTabControllerDisposed = false;
+        _tabController!.addListener(_onTabChanged);
+      }
+    } catch (e, s) {
+      _isTabControllerDisposed = true;
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'HomeNavigationController.reinitializeTabController',
+      );
     }
   }
 
@@ -143,35 +206,68 @@ class HomeNavigationController extends BaseController with GetTickerProviderStat
   }
 
   void _onTabChanged() {
-    if (tabController.indexIsChanging && Get.isRegistered<HomeDiscoveryController>()) {
-      final categoryIndex = tabController.index;
-      final discovery = Get.find<HomeDiscoveryController>();
-      if (categoryIndex >= 0 && categoryIndex < discovery.availableCategories.length) {
-        discovery.selectCategory(discovery.availableCategories[categoryIndex]);
+    if (_isDisposed || _isTabControllerDisposed || _tabController == null) return;
+    try {
+      if (_tabController!.indexIsChanging && Get.isRegistered<HomeDiscoveryController>()) {
+        final categoryIndex = _tabController!.index;
+        final discovery = Get.find<HomeDiscoveryController>();
+        if (categoryIndex >= 0 && categoryIndex < discovery.availableCategories.length) {
+          discovery.selectCategory(discovery.availableCategories[categoryIndex]);
+        }
       }
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'HomeNavigationController._onTabChanged',
+      );
     }
   }
 
   void onTabChanged(int index) {
+    if (_isDisposed) return;
     if (!Get.isRegistered<HomeDiscoveryController>()) return;
     final discovery = Get.find<HomeDiscoveryController>();
-    if (tabController.length != discovery.availableCategories.length) {
+    if (_tabController == null || _isTabControllerDisposed) {
+      _initializeTabController();
+    } else if (_tabController!.length != discovery.availableCategories.length) {
       reinitializeTabController();
     }
-    if (index >= 0 && index < tabController.length) {
-      tabController.animateTo(index);
+    if (_isDisposed || _isTabControllerDisposed || _tabController == null) return;
+    if (index >= 0 && index < _tabController!.length) {
+      try {
+        _tabController!.animateTo(index);
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'HomeNavigationController.onTabChanged.animateTo',
+        );
+      }
     }
   }
 
   void syncTabToCategory(String category) {
+    if (_isDisposed) return;
     if (!Get.isRegistered<HomeDiscoveryController>()) return;
     final discovery = Get.find<HomeDiscoveryController>();
-    if (tabController.length != discovery.availableCategories.length) {
+    if (_tabController == null || _isTabControllerDisposed) {
+      _initializeTabController();
+    } else if (_tabController!.length != discovery.availableCategories.length) {
       reinitializeTabController();
     }
+    if (_isDisposed || _isTabControllerDisposed || _tabController == null) return;
     final categoryIndex = discovery.availableCategories.indexOf(category);
-    if (categoryIndex >= 0 && categoryIndex < tabController.length) {
-      tabController.animateTo(categoryIndex);
+    if (categoryIndex >= 0 && categoryIndex < _tabController!.length) {
+      try {
+        _tabController!.animateTo(categoryIndex);
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'HomeNavigationController.syncTabToCategory.animateTo',
+        );
+      }
     }
   }
 
@@ -210,7 +306,13 @@ class HomeNavigationController extends BaseController with GetTickerProviderStat
     try {
       _scaleAnimationController.reset();
       _scaleAnimationController.forward();
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'HomeNavigationController.triggerSelectionAnimation',
+      );
+    }
   }
 
   void navigateToPlaylistDetail(dynamic playlist) {
@@ -229,16 +331,12 @@ class HomeNavigationController extends BaseController with GetTickerProviderStat
     sideNavSelectedIndex.value = previousIndex;
   }
 
-  void navigateToYourChannel() {
+  Future<void> navigateToYourChannel() async {
     if (!_authService.isAuthenticated.value) {
       showSignInSnackbar();
       return;
     }
-    if (AuthService.to.hasChannel.value || AuthService.to.userChannel != null) {
-      StudioLauncher.openStudio();
-    } else {
-      Get.toNamed('/channelscreen');
-    }
+    await StudioLauncher.openStudio();
   }
 
   Future<void> navigateToWatchLater() async {
@@ -251,10 +349,9 @@ class HomeNavigationController extends BaseController with GetTickerProviderStat
 
   void showSignInSnackbar() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Get.snackbar(
-        'Warning',
-        'Please sign in to continue',
-        snackPosition: SnackPosition.BOTTOM,
+      AppSnackbar.info(
+        'Please sign in to continue.',
+        title: 'Sign-In Required',
       );
     });
   }

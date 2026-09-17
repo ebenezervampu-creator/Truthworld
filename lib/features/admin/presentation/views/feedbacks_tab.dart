@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -541,12 +542,20 @@ class FeedbacksTab extends StatelessWidget {
                       );
                       return ClipRRect(
                         borderRadius: BorderRadius.circular(12),
-                        child: Image.network(
-                          imgUrl,
+                        child: CachedNetworkImage(
+                          imageUrl: imgUrl,
                           width: 120,
                           height: 120,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => Container(
+                          placeholder: (context, url) => Container(
+                            width: 120,
+                            height: 120,
+                            decoration: BoxDecoration(
+                              color: AppColors.bgElevated,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          errorWidget: (_, _, _) => Container(
                             width: 120,
                             height: 120,
                             decoration: BoxDecoration(

@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -531,10 +532,13 @@ class TopicPage extends StatelessWidget {
               fit: StackFit.expand,
               children: [
                 // Thumbnail
-                Image.network(
-                  video.thumbnailUrl ?? '',
+                CachedNetworkImage(
+                  imageUrl: video.thumbnailUrl ?? '',
                   fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => const ColoredBox(
+                  placeholder: (context, url) => const ColoredBox(
+                    color: AppColors.bgSurfaceContainerHighest,
+                  ),
+                  errorWidget: (context, url, error) => const ColoredBox(
                     color: AppColors.bgSurfaceContainerHighest,
                     child: Icon(
                       Icons.videocam_off_rounded,

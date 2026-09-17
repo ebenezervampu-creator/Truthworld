@@ -2,11 +2,11 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/domain/repositories/library_repository.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
@@ -55,16 +55,24 @@ class SavedVideosController extends BaseController {
       if (rawSaved != null) {
         savedVideoIds.assignAll(rawSaved.map((e) => e.toString()));
       }
-    } catch (e) {
-      debugPrint('[SavedVideosController] Error reading local storage: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'SavedVideosController.readLocalStorage',
+      );
     }
   }
 
   Future<void> _saveToLocalStorage() async {
     try {
       await _storage.write(_keySavedVideoIds, savedVideoIds.toList());
-    } catch (e) {
-      debugPrint('[SavedVideosController] Error saving to storage: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'SavedVideosController.saveLocalStorage',
+      );
     }
   }
 
@@ -115,8 +123,12 @@ class SavedVideosController extends BaseController {
                         doc.id,
                       ),
                     );
-                  } catch (e) {
-                    debugPrint('Error parsing videoData for ${doc.id}: $e');
+                  } catch (e, stackTrace) {
+                    ErrorHandler.log(
+                      e,
+                      stackTrace: stackTrace,
+                      tag: 'SavedVideosController.parseVideoData',
+                    );
                     missingIds.add(doc.id);
                   }
                 } else {
@@ -237,8 +249,12 @@ class SavedVideosController extends BaseController {
             .where(FieldPath.documentId, whereIn: chunk)
             .get();
         results.addAll(snap.docs.map(Video.fromDocumentSnapshot));
-      } catch (e) {
-        debugPrint('Error fetching saved videos chunk: $e');
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'SavedVideosController.fetchVideosChunk',
+        );
       }
     }
     return results;

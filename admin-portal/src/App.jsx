@@ -123,6 +123,17 @@ function App() {
   const [auditLogs, setAuditLogs] = useState([]);
   const [reports, setReports] = useState([]);
   const [adminMembers, setAdminMembers] = useState([]);
+  const [usersList, setUsersList] = useState([]);
+  const [languageRequests, setLanguageRequests] = useState([]);
+  const [langReqFilter, setLangReqFilter] = useState("all");
+  const [langReqSearch, setLangReqSearch] = useState("");
+  const [userSearch, setUserSearch] = useState("");
+  const [userStatusFilter, setUserStatusFilter] = useState("all");
+  const [avatarInspectItem, setAvatarInspectItem] = useState(null);
+  const [avatarVisionDoc, setAvatarVisionDoc] = useState(null);
+  const [loadingAvatarVision, setLoadingAvatarVision] = useState(false);
+  const [avatarRejectReason, setAvatarRejectReason] = useState("");
+  const [showAvatarRejectPrompt, setShowAvatarRejectPrompt] = useState(false);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [newMemberEmail, setNewMemberEmail] = useState("");
@@ -134,9 +145,18 @@ function App() {
   const [confirmPasswordInput, setConfirmPasswordInput] = useState("");
   const [revealedPasswords, setRevealedPasswords] = useState({});
 
+  const isOwner = Boolean(
+    user &&
+    user.email &&
+    (user.email.toLowerCase() === OWNER_EMAIL ||
+     user.email.toLowerCase() === "ebenezervampu@towervsp.com" ||
+     user.email.toLowerCase() === "ebenezervampu4@gmail.com")
+  );
+
   // Tab Permission Evaluation
   const isTabAllowed = (tabId) => {
     if (!user) return false;
+    if (tabId === "language_requests") return isOwner;
     const email = user.email?.toLowerCase();
     if (email === OWNER_EMAIL || AUTHORIZED_ADMIN_EMAILS.includes(email)) return true;
 
@@ -163,7 +183,8 @@ function App() {
   };
 
   const getAllowedTabs = () => {
-    const allTabs = ["dashboard", "videos", "topics", "channels", "images", "reports", "logs", "team"];
+    const allTabs = ["dashboard", "videos", "topics", "channels", "images", "reports", "logs", "team", "users"];
+    if (isOwner) allTabs.push("language_requests");
     const allowed = allTabs.filter(t => isTabAllowed(t));
     return allowed.length > 0 ? allowed : ["team"];
   };
@@ -505,6 +526,36 @@ function App() {
       console.warn("admin_members subscription warning:", err);
     });
 
+    // 9. Listen to Users collection
+    const usersQuery = query(collection(db, "users"), limit(100));
+    const unsubUsers = onSnapshot(usersQuery, (snapshot) => {
+      const list = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setUsersList(list);
+    }, (err) => {
+      console.warn("Users subscription warning:", err);
+    });
+
+    let unsubLangReqs = () => {};
+    if (isOwner) {
+      const langReqsQuery = query(
+        collection(db, "channel_language_requests"),
+        orderBy("createdAt", "desc"),
+        limit(200)
+      );
+      unsubLangReqs = onSnapshot(langReqsQuery, (snapshot) => {
+        const list = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setLanguageRequests(list);
+      }, (err) => {
+        console.warn("Language requests subscription warning:", err);
+      });
+    }
+
     return () => {
       unsubModes();
       unsubVideos();
@@ -514,8 +565,10 @@ function App() {
       unsubLogs();
       unsubReports();
       unsubMembers();
+      unsubUsers();
+      unsubLangReqs();
     };
-  }, [user, isAdmin]);
+  }, [user, isAdmin, isOwner]);
 
   // Toggle Moderation Mode (Bypass Gemini AI vs Send to Gemini)
   const handleToggleMode = async (modeKey) => {
@@ -903,6 +956,155 @@ function App() {
     }
   };
 
+  // Open Avatar Cloud Vision Inspection Modal
+  const openAvatarVisionModal = async (item) => {
+    setAvatarInspectItem(item);
+    setLoadingAvatarVision(true);
+    setAvatarVisionDoc(null);
+    setAvatarRejectReason("");
+    setShowAvatarRejectPrompt(false);
+
+    try {
+      const fileId = item.avatarFileId || item.id;
+      if (fileId) {
+        const snap = await getDoc(doc(db, "image_verification", fileId));
+        if (snap.exists()) {
+          setAvatarVisionDoc({ id: snap.id, ...snap.data() });
+          setLoadingAvatarVision(false);
+          return;
+        }
+      }
+
+      const uid = item.userId || item.ownerId || item.id;
+      if (uid) {
+        const userDocSnap = await getDoc(doc(db, "image_verification", uid));
+        if (userDocSnap.exists()) {
+          setAvatarVisionDoc({ id: userDocSnap.id, ...userDocSnap.data() });
+        }
+      }
+    } catch (err) {
+      console.warn("Could not fetch image verification doc:", err);
+    } finally {
+      setLoadingAvatarVision(false);
+    }
+  };
+
+  // Authoritatively moderate user avatar
+  const handleModerateAvatar = async (action, customReason) => {
+    if (!avatarInspectItem) return;
+    setIsSubmitting(true);
+    try {
+      const isApprove = action === "approve";
+      const newStatus = isApprove ? "APPROVED" : "REJECTED";
+      const modReason = customReason || (isApprove ? "Approved by Administrator" : "Rejected due to safety standards");
+      const targetUserId = avatarInspectItem.userId || avatarInspectItem.ownerId || avatarInspectItem.id;
+      
+      // 1. Update users document
+      const userRef = doc(db, "users", targetUserId);
+      const userUpdates = {
+        avatarStatus: newStatus,
+        avatarStatusReason: modReason,
+        updatedAt: new Date(),
+      };
+      if (!isApprove) {
+        userUpdates.photoURL = "";
+        userUpdates.avatarUrl = "";
+      }
+      await updateDoc(userRef, userUpdates).catch(async () => {
+        await setDoc(userRef, userUpdates, { merge: true });
+      });
+
+      // 2. Update image_verification doc if exists
+      const verifDocId = avatarInspectItem.avatarFileId || avatarVisionDoc?.id;
+      if (verifDocId) {
+        try {
+          const verifRef = doc(db, "image_verification", verifDocId);
+          await updateDoc(verifRef, {
+            status: newStatus,
+            adminReason: modReason,
+            reviewedAt: new Date(),
+            reviewedBy: user.uid,
+          });
+        } catch (_) {}
+      }
+
+      // 3. Log to admin actions
+      try {
+        await setDoc(doc(collection(db, "admin_actions_log")), {
+          adminId: user.uid,
+          adminEmail: user.email,
+          userId: targetUserId,
+          action: isApprove ? "approve_avatar" : "reject_avatar",
+          reason: modReason,
+          timestamp: new Date(),
+        });
+      } catch (_) {}
+
+      setSuccessMsg(`Avatar has been successfully ${newStatus.toLowerCase()}.`);
+      setAvatarInspectItem(null);
+      setAvatarVisionDoc(null);
+      setShowAvatarRejectPrompt(false);
+      setAvatarRejectReason("");
+      setTimeout(() => setSuccessMsg(""), 4000);
+    } catch (err) {
+      console.error("Avatar moderation error:", err);
+      setError(err instanceof Error ? err.message : "Failed to moderate avatar.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Moderate Language Request (Primary Platform Owner Only)
+  const handleUpdateLanguageRequestStatus = async (requestId, newStatus) => {
+    if (!isOwner) return;
+    setIsSubmitting(true);
+    setError("");
+    try {
+      const reqRef = doc(db, "channel_language_requests", requestId);
+      await updateDoc(reqRef, {
+        status: newStatus,
+        reviewedAt: new Date(),
+        reviewedBy: user.email || user.uid,
+      });
+
+      // Audit trail
+      try {
+        await setDoc(doc(collection(db, "admin_actions_log")), {
+          adminId: user.uid,
+          adminEmail: user.email,
+          targetId: requestId,
+          action: `language_request_${newStatus}`,
+          timestamp: new Date(),
+        });
+      } catch (_) {}
+
+      setSuccessMsg(`Language request marked as ${newStatus}.`);
+      setTimeout(() => setSuccessMsg(""), 4000);
+    } catch (err) {
+      console.error("Language request update error:", err);
+      setError(err instanceof Error ? err.message : "Failed to update language request.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteLanguageRequest = async (requestId) => {
+    if (!isOwner) return;
+    if (!window.confirm("Are you sure you want to permanently delete this language request?")) return;
+    setIsSubmitting(true);
+    setError("");
+    try {
+      await deleteDoc(doc(db, "channel_language_requests", requestId));
+      setSuccessMsg("Language request permanently deleted.");
+      setTimeout(() => setSuccessMsg(""), 4000);
+    } catch (err) {
+      console.error("Language request delete error:", err);
+      setError(err instanceof Error ? err.message : "Failed to delete language request.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (authChecking) {
     return (
       <div className="auth-wrapper">
@@ -1077,6 +1279,51 @@ function App() {
     return true;
   });
 
+  const filteredUsers = usersList.filter(u => {
+    const q = userSearch.trim().toLowerCase();
+    const name = (u.displayName || u.name || '').toLowerCase();
+    const email = (u.email || '').toLowerCase();
+    const uid = (u.id || u.uid || '').toLowerCase();
+    const matchesQuery = !q || name.includes(q) || email.includes(q) || uid.includes(q);
+    if (!matchesQuery) return false;
+
+    const status = (u.status || u.accountStatus || 'active').toLowerCase();
+    const avatarStatus = (u.avatarStatus || '').toUpperCase();
+
+    if (userStatusFilter === 'active') return status === 'active';
+    if (userStatusFilter === 'banned') return status === 'banned' || u.isBanned === true;
+    if (userStatusFilter === 'suspended') return status === 'suspended';
+    if (userStatusFilter === 'pending_avatar') return avatarStatus === 'PENDING' || avatarStatus === 'FLAGGED' || avatarStatus === 'MANUAL_REVIEW';
+    if (userStatusFilter === 'rejected_avatar') return avatarStatus === 'REJECTED';
+    if (userStatusFilter === 'approved_avatar') return avatarStatus === 'APPROVED';
+    return true;
+  });
+
+  const filteredLanguageRequests = languageRequests.filter((req) => {
+    const q = langReqSearch.trim().toLowerCase();
+    const lang = (req.languageName || "").toLowerCase();
+    const nativeName = (req.languageNative || "").toLowerCase();
+    const code = (req.languageCode || "").toLowerCase();
+    const email = (req.userEmail || "").toLowerCase();
+    const name = (req.userName || "").toLowerCase();
+    const draft = (req.channelNameDraft || "").toLowerCase();
+
+    const matchesQuery = !q || 
+      lang.includes(q) || 
+      nativeName.includes(q) || 
+      code.includes(q) || 
+      email.includes(q) || 
+      name.includes(q) || 
+      draft.includes(q);
+    if (!matchesQuery) return false;
+
+    const status = (req.status || "pending").toLowerCase();
+    if (langReqFilter === "pending") return status === "pending";
+    if (langReqFilter === "approved") return status === "approved";
+    if (langReqFilter === "rejected") return status === "rejected";
+    return true;
+  });
+
   return (
     <div className="app-container">
       {/* Sidebar */}
@@ -1195,6 +1442,20 @@ function App() {
                 </button>
               </li>
             )}
+            {isTabAllowed("users") && (
+              <li>
+                <button 
+                  className={`nav-item ${currentTab === "users" ? "active" : ""}`}
+                  onClick={() => { setCurrentTab("users"); setSelectedItem(null); setSelectedType(null); }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                  </svg>
+                  <span>Users & Avatars ({usersList.length})</span>
+                </button>
+              </li>
+            )}
             {isTabAllowed("team") && (
               <li>
                 <button 
@@ -1208,6 +1469,21 @@ function App() {
                     <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
                   </svg>
                   <span>Team Members ({adminMembers.length})</span>
+                </button>
+              </li>
+            )}
+            {isOwner && (
+              <li>
+                <button 
+                  className={`nav-item ${currentTab === "language_requests" ? "active" : ""}`}
+                  onClick={() => { setCurrentTab("language_requests"); setSelectedItem(null); setSelectedType(null); }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="2" y1="12" x2="22" y2="12"/>
+                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                  </svg>
+                  <span>Language Requests ({languageRequests.filter(r => (r.status || 'pending') === 'pending').length})</span>
                 </button>
               </li>
             )}
@@ -1270,6 +1546,7 @@ function App() {
               {currentTab === "reports" && "Video & Content Reports"}
               {currentTab === "logs" && "Audit Logs & Actions History"}
               {currentTab === "team" && "Team Access & Member Management"}
+              {currentTab === "language_requests" && "Channel Language Requests (Owner Only)"}
             </h1>
             <p>
               {currentTab === "dashboard" && "Toggle moderation routing modes (Gemini AI vs Admin Only) and monitor platform health."}
@@ -1280,6 +1557,7 @@ function App() {
               {currentTab === "reports" && "User-submitted reports for videos, comments, and channels."}
               {currentTab === "logs" && "History of quarantined resources and manual administrator decisions."}
               {currentTab === "team" && "Add members with custom credentials, copy/share login access, and change passwords."}
+              {currentTab === "language_requests" && "Review creator requests to launch channels in invite-only languages."}
             </p>
           </div>
         </header>
@@ -1732,12 +2010,34 @@ function App() {
                       ) : (
                         <div className="channel-preview-banner-empty">No Banner Uploaded</div>
                       )}
-                      <div className="channel-preview-avatar-overlay">
+                      <div 
+                        className="channel-preview-avatar-overlay"
+                        onClick={() => openAvatarVisionModal(selectedItem)}
+                        title="Click to inspect Avatar with Google Cloud Vision AI"
+                        style={{ cursor: "pointer", position: "relative" }}
+                      >
                         {selectedItem.avatarUrl || selectedItem.photoURL ? (
                           <img src={getFastDownloadUrl(selectedItem.avatarUrl || selectedItem.photoURL)} alt="Avatar" />
                         ) : (
                           <div className="avatar-placeholder-large">{(selectedItem.displayName || selectedItem.channelName || "C")[0]}</div>
                         )}
+                        <div style={{
+                          position: "absolute",
+                          bottom: "0",
+                          right: "0",
+                          background: "#1e1e1e",
+                          border: "1px solid rgba(255,255,255,0.4)",
+                          borderRadius: "50%",
+                          padding: "3px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center"
+                        }}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                            <circle cx="12" cy="12" r="3"/>
+                          </svg>
+                        </div>
                       </div>
                     </div>
 
@@ -2423,6 +2723,453 @@ function App() {
               </div>
             </div>
           )}
+
+          {/* TAB 8: USERS & AVATAR MODERATION */}
+          {currentTab === "users" && (
+            <div>
+              {/* Header Banner */}
+              <div className="page-controls-banner glass">
+                <div className="banner-left">
+                  <div className="banner-title">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                      <circle cx="12" cy="7" r="4"/>
+                    </svg>
+                    <h2>Users & Avatar Moderation</h2>
+                  </div>
+                  <p>Audit registered platform user accounts, verify safety compliance with Google Cloud Vision AI, and moderate profile avatars.</p>
+                </div>
+              </div>
+
+              {/* Search and Filters Bar */}
+              <div style={{ display: "flex", gap: "16px", marginBottom: "20px", flexWrap: "wrap", alignItems: "center" }}>
+                <div style={{ flex: 1, minWidth: "260px" }}>
+                  <input
+                    type="text"
+                    placeholder="Search users by name, email, or UID..."
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "10px 14px",
+                      background: "rgba(255, 255, 255, 0.05)",
+                      border: "1px solid rgba(255, 255, 255, 0.12)",
+                      borderRadius: "8px",
+                      color: "#ffffff",
+                      fontSize: "0.9rem"
+                    }}
+                  />
+                </div>
+                <div className="filter-bar" style={{ margin: 0 }}>
+                  <button 
+                    className={`filter-pill ${userStatusFilter === "all" ? "active" : ""}`}
+                    onClick={() => setUserStatusFilter("all")}
+                  >
+                    All Users ({usersList.length})
+                  </button>
+                  <button 
+                    className={`filter-pill ${userStatusFilter === "active" ? "active" : ""}`}
+                    onClick={() => setUserStatusFilter("active")}
+                  >
+                    Active
+                  </button>
+                  <button 
+                    className={`filter-pill ${userStatusFilter === "pending_avatar" ? "active" : ""}`}
+                    onClick={() => setUserStatusFilter("pending_avatar")}
+                  >
+                    Pending / Flagged Avatars
+                  </button>
+                  <button 
+                    className={`filter-pill ${userStatusFilter === "rejected_avatar" ? "active" : ""}`}
+                    onClick={() => setUserStatusFilter("rejected_avatar")}
+                  >
+                    Rejected Avatars
+                  </button>
+                  <button 
+                    className={`filter-pill ${userStatusFilter === "approved_avatar" ? "active" : ""}`}
+                    onClick={() => setUserStatusFilter("approved_avatar")}
+                  >
+                    Approved Avatars
+                  </button>
+                  <button 
+                    className={`filter-pill ${userStatusFilter === "banned" ? "active" : ""}`}
+                    onClick={() => setUserStatusFilter("banned")}
+                  >
+                    Banned
+                  </button>
+                </div>
+              </div>
+
+              {/* Users Table */}
+              <div className="glass" style={{ padding: "24px", borderRadius: "16px" }}>
+                <div className="audit-table-wrapper">
+                  <table className="audit-table">
+                    <thead>
+                      <tr>
+                        <th>User Avatar</th>
+                        <th>User Details</th>
+                        <th>Account Status</th>
+                        <th>Avatar Status (Vision AI)</th>
+                        <th>Created Date</th>
+                        <th style={{ textAlign: "right" }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredUsers.length === 0 ? (
+                        <tr>
+                          <td colSpan="6" style={{ textAlign: "center", color: "var(--text-muted)", padding: "40px" }}>
+                            No users found matching current filters.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredUsers.map((u) => {
+                          const photoUrl = u.photoURL || u.avatarUrl || "";
+                          const name = u.displayName || u.name || "Unnamed User";
+                          const email = u.email || "No email";
+                          const uid = u.id || u.uid || "";
+                          const accStatus = (u.status || u.accountStatus || "active").toLowerCase();
+                          const avatarStatus = (u.avatarStatus || "UNVERIFIED").toUpperCase();
+                          const avatarReason = u.avatarStatusReason || "";
+
+                          return (
+                            <tr key={uid}>
+                              <td>
+                                <div 
+                                  onClick={() => openAvatarVisionModal(u)}
+                                  title="Click to inspect avatar with Google Cloud Vision AI"
+                                  style={{
+                                    width: "44px",
+                                    height: "44px",
+                                    borderRadius: "50%",
+                                    overflow: "hidden",
+                                    background: "#2a2a2a",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    cursor: "pointer",
+                                    position: "relative",
+                                    border: `2px solid ${
+                                      avatarStatus === "APPROVED" 
+                                        ? "#2ba640" 
+                                        : (avatarStatus === "REJECTED" ? "#ef4444" : (avatarStatus === "PENDING" ? "#3b82f6" : "rgba(255,255,255,0.2)"))
+                                    }`
+                                  }}
+                                >
+                                  {photoUrl ? (
+                                    <img src={getFastDownloadUrl(photoUrl)} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                  ) : (
+                                    <span style={{ fontWeight: "bold", fontSize: "1.1rem", color: "#ffffff" }}>
+                                      {name ? name[0].toUpperCase() : "U"}
+                                    </span>
+                                  )}
+                                  <div style={{
+                                    position: "absolute",
+                                    bottom: 0,
+                                    right: 0,
+                                    background: "#1e1e1e",
+                                    borderRadius: "50%",
+                                    padding: "2px",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center"
+                                  }}>
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.5">
+                                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                      <circle cx="12" cy="12" r="3"/>
+                                    </svg>
+                                  </div>
+                                </div>
+                              </td>
+                              <td>
+                                <div style={{ fontWeight: 600, color: "#ffffff", fontSize: "0.95rem" }}>{name}</div>
+                                <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>{email}</div>
+                                <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", fontFamily: "monospace" }}>
+                                  UID: {uid}
+                                </div>
+                              </td>
+                              <td>
+                                <span className={`badge ${accStatus === "active" ? "active" : (accStatus === "banned" ? "rejected" : "pending")}`}>
+                                  {accStatus.toUpperCase()}
+                                </span>
+                              </td>
+                              <td>
+                                <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                                  <span className={`badge ${
+                                    avatarStatus === "APPROVED" 
+                                      ? "active" 
+                                      : (avatarStatus === "REJECTED" ? "rejected" : (avatarStatus === "PENDING" ? "pending" : "neutral"))
+                                  }`}>
+                                    {avatarStatus}
+                                  </span>
+                                  {avatarReason && (
+                                    <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                      {avatarReason}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td>
+                                <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                                  {formatDate(u.createdAt)}
+                                </span>
+                              </td>
+                              <td style={{ textAlign: "right" }}>
+                                <button
+                                  type="button"
+                                  className="btn-secondary"
+                                  style={{
+                                    padding: "6px 12px",
+                                    fontSize: "0.8rem",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "6px",
+                                    background: "rgba(255, 255, 255, 0.08)",
+                                    border: "1px solid rgba(255, 255, 255, 0.15)",
+                                    color: "#ffffff",
+                                    borderRadius: "6px",
+                                    cursor: "pointer"
+                                  }}
+                                  onClick={() => openAvatarVisionModal(u)}
+                                >
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                  </svg>
+                                  <span>Inspect Avatar</span>
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: OWNER-ONLY CHANNEL LANGUAGE REQUESTS */}
+          {currentTab === "language_requests" && isOwner && (
+            <div>
+              {/* Header Banner */}
+              <div className="page-controls-banner glass">
+                <div className="banner-left">
+                  <div className="banner-title">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <line x1="2" y1="12" x2="22" y2="12"/>
+                      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                    </svg>
+                    <h2>Channel Language Requests (Owner Only)</h2>
+                  </div>
+                  <p>Exclusive queue for channel creators requesting languages currently in invite-only status. Accessible exclusively by the primary platform owner.</p>
+                </div>
+              </div>
+
+              {/* Metric Summary Cards */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "16px", marginBottom: "20px" }}>
+                <div className="glass" style={{ padding: "16px 20px", borderRadius: "12px", borderLeft: "4px solid #6366f1" }}>
+                  <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Total Requests</div>
+                  <div style={{ fontSize: "1.8rem", fontWeight: "700", color: "#ffffff", marginTop: "4px" }}>{languageRequests.length}</div>
+                </div>
+                <div className="glass" style={{ padding: "16px 20px", borderRadius: "12px", borderLeft: "4px solid #f59e0b" }}>
+                  <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Pending Review</div>
+                  <div style={{ fontSize: "1.8rem", fontWeight: "700", color: "#f59e0b", marginTop: "4px" }}>
+                    {languageRequests.filter(r => (r.status || "pending") === "pending").length}
+                  </div>
+                </div>
+                <div className="glass" style={{ padding: "16px 20px", borderRadius: "12px", borderLeft: "4px solid #10b981" }}>
+                  <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Approved</div>
+                  <div style={{ fontSize: "1.8rem", fontWeight: "700", color: "#10b981", marginTop: "4px" }}>
+                    {languageRequests.filter(r => (r.status || "").toLowerCase() === "approved").length}
+                  </div>
+                </div>
+                <div className="glass" style={{ padding: "16px 20px", borderRadius: "12px", borderLeft: "4px solid #ef4444" }}>
+                  <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Rejected</div>
+                  <div style={{ fontSize: "1.8rem", fontWeight: "700", color: "#ef4444", marginTop: "4px" }}>
+                    {languageRequests.filter(r => (r.status || "").toLowerCase() === "rejected").length}
+                  </div>
+                </div>
+              </div>
+
+              {/* Search and Filters Bar */}
+              <div style={{ display: "flex", gap: "16px", marginBottom: "20px", flexWrap: "wrap", alignItems: "center" }}>
+                <div style={{ flex: 1, minWidth: "260px" }}>
+                  <input
+                    type="text"
+                    placeholder="Search by language, code, user email, or channel draft..."
+                    value={langReqSearch}
+                    onChange={(e) => setLangReqSearch(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "10px 14px",
+                      background: "rgba(255, 255, 255, 0.05)",
+                      border: "1px solid rgba(255, 255, 255, 0.12)",
+                      borderRadius: "8px",
+                      color: "#ffffff",
+                      fontSize: "0.9rem"
+                    }}
+                  />
+                </div>
+                <div className="filter-bar" style={{ margin: 0 }}>
+                  <button 
+                    className={`filter-pill ${langReqFilter === "all" ? "active" : ""}`}
+                    onClick={() => setLangReqFilter("all")}
+                  >
+                    All ({languageRequests.length})
+                  </button>
+                  <button 
+                    className={`filter-pill ${langReqFilter === "pending" ? "active" : ""}`}
+                    onClick={() => setLangReqFilter("pending")}
+                  >
+                    Pending ({languageRequests.filter(r => (r.status || "pending") === "pending").length})
+                  </button>
+                  <button 
+                    className={`filter-pill ${langReqFilter === "approved" ? "active" : ""}`}
+                    onClick={() => setLangReqFilter("approved")}
+                  >
+                    Approved
+                  </button>
+                  <button 
+                    className={`filter-pill ${langReqFilter === "rejected" ? "active" : ""}`}
+                    onClick={() => setLangReqFilter("rejected")}
+                  >
+                    Rejected
+                  </button>
+                </div>
+              </div>
+
+              {/* Table */}
+              <div className="glass" style={{ padding: "24px", borderRadius: "16px" }}>
+                <div className="audit-table-wrapper">
+                  <table className="audit-table">
+                    <thead>
+                      <tr>
+                        <th>Language Requested</th>
+                        <th>User / Creator</th>
+                        <th>Channel Name Draft</th>
+                        <th>Status</th>
+                        <th>Requested Date</th>
+                        <th style={{ textAlign: "right" }}>Owner Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredLanguageRequests.length === 0 ? (
+                        <tr>
+                          <td colSpan="6" style={{ textAlign: "center", color: "var(--text-muted)", padding: "40px" }}>
+                            No language requests found matching current filters.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredLanguageRequests.map((req) => {
+                          const status = (req.status || "pending").toLowerCase();
+                          return (
+                            <tr key={req.id}>
+                              <td>
+                                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                  <div style={{
+                                    width: "36px",
+                                    height: "36px",
+                                    borderRadius: "8px",
+                                    background: "rgba(99, 102, 241, 0.15)",
+                                    border: "1px solid rgba(99, 102, 241, 0.3)",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    fontSize: "0.75rem",
+                                    fontWeight: "700",
+                                    color: "#a5b4fc",
+                                    textTransform: "uppercase"
+                                  }}>
+                                    {req.languageCode || "—"}
+                                  </div>
+                                  <div>
+                                    <div style={{ fontWeight: "600", color: "#ffffff" }}>
+                                      {req.languageName || "Unknown"}
+                                      {req.languageNative && req.languageNative !== req.languageName && (
+                                        <span style={{ color: "var(--text-muted)", marginLeft: "6px", fontSize: "0.85rem", fontWeight: "normal" }}>
+                                          ({req.languageNative})
+                                        </span>
+                                      )}
+                                    </div>
+                                    {req.speakers && (
+                                      <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+                                        {req.speakers} speakers {req.rank ? `• Rank #${req.rank}` : ""}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+                              <td>
+                                <div style={{ fontWeight: "500", color: "#ffffff" }}>{req.userName || "Anonymous Creator"}</div>
+                                <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>{req.userEmail || req.userId || "—"}</div>
+                              </td>
+                              <td>
+                                <div style={{ color: req.channelNameDraft ? "#ffffff" : "var(--text-muted)", fontStyle: req.channelNameDraft ? "normal" : "italic" }}>
+                                  {req.channelNameDraft || "Not specified yet"}
+                                </div>
+                              </td>
+                              <td>
+                                <span className={`badge badge-${status === "approved" ? "approved" : status === "rejected" ? "rejected" : "pending"}`}>
+                                  {status.toUpperCase()}
+                                </span>
+                              </td>
+                              <td style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                                {formatDate(req.createdAt)}
+                              </td>
+                              <td style={{ textAlign: "right" }}>
+                                <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                                  {status !== "approved" && (
+                                    <button
+                                      type="button"
+                                      className="btn-action btn-approve"
+                                      title="Approve language request"
+                                      disabled={isSubmitting}
+                                      onClick={() => handleUpdateLanguageRequestStatus(req.id, "approved")}
+                                    >
+                                      Approve
+                                    </button>
+                                  )}
+                                  {status !== "rejected" && (
+                                    <button
+                                      type="button"
+                                      className="btn-action btn-reject"
+                                      title="Reject language request"
+                                      disabled={isSubmitting}
+                                      onClick={() => handleUpdateLanguageRequestStatus(req.id, "rejected")}
+                                    >
+                                      Reject
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    title="Permanently delete request"
+                                    disabled={isSubmitting}
+                                    style={{
+                                      padding: "6px 10px",
+                                      background: "rgba(239, 68, 68, 0.1)",
+                                      border: "1px solid rgba(239, 68, 68, 0.25)",
+                                      color: "#ef4444",
+                                      borderRadius: "6px",
+                                      cursor: "pointer"
+                                    }}
+                                    onClick={() => handleDeleteLanguageRequest(req.id)}
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </main>
 
@@ -2686,6 +3433,213 @@ function App() {
               >
                 {isSubmitting ? "Processing..." : `Confirm ${modalAction}`}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Avatar Cloud Vision Inspection Modal */}
+      {avatarInspectItem && (
+        <div className="modal-overlay">
+          <div className="modal-content glass" style={{ maxWidth: "540px" }}>
+            <div className="modal-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+                <span>Google Cloud Vision AI Inspection</span>
+              </div>
+              <button 
+                type="button" 
+                style={{ background: "none", border: "none", color: "#ffffff", fontSize: "1.2rem", cursor: "pointer" }}
+                onClick={() => { setAvatarInspectItem(null); setAvatarVisionDoc(null); setShowAvatarRejectPrompt(false); }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="modal-body">
+              {/* Large Avatar Preview with Status Indicator */}
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: "20px" }}>
+                <div style={{
+                  width: "130px",
+                  height: "130px",
+                  borderRadius: "50%",
+                  overflow: "hidden",
+                  background: "#2a2a2a",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginBottom: "12px",
+                  border: `3px solid ${
+                    (avatarInspectItem.avatarStatus || "").toUpperCase() === "APPROVED"
+                      ? "#2ba640"
+                      : ((avatarInspectItem.avatarStatus || "").toUpperCase() === "REJECTED" ? "#ef4444" : "#3b82f6")
+                  }`
+                }}>
+                  {avatarInspectItem.photoURL || avatarInspectItem.avatarUrl ? (
+                    <img 
+                      src={getFastDownloadUrl(avatarInspectItem.photoURL || avatarInspectItem.avatarUrl)} 
+                      alt="Avatar" 
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    />
+                  ) : (
+                    <span style={{ fontSize: "3rem", fontWeight: "bold", color: "#ffffff" }}>
+                      {(avatarInspectItem.displayName || avatarInspectItem.name || avatarInspectItem.channelName || "U")[0]?.toUpperCase()}
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ fontWeight: 600, fontSize: "1.1rem", color: "#ffffff" }}>
+                  {avatarInspectItem.displayName || avatarInspectItem.name || avatarInspectItem.channelName || "User"}
+                </div>
+                <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "8px" }}>
+                  {avatarInspectItem.email || `UID: ${avatarInspectItem.id || avatarInspectItem.uid || ""}`}
+                </div>
+
+                <span className={`badge ${
+                  (avatarInspectItem.avatarStatus || "").toUpperCase() === "APPROVED"
+                    ? "active"
+                    : ((avatarInspectItem.avatarStatus || "").toUpperCase() === "REJECTED" ? "rejected" : "pending")
+                }`}>
+                  {(avatarInspectItem.avatarStatus || "UNVERIFIED").toUpperCase()}
+                </span>
+
+                {avatarInspectItem.avatarStatusReason && (
+                  <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginTop: "6px", textAlign: "center" }}>
+                    {avatarInspectItem.avatarStatusReason}
+                  </p>
+                )}
+              </div>
+
+              {/* SafeSearch Analysis Scores */}
+              <div style={{ marginBottom: "20px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                  <h4 style={{ color: "var(--text-secondary)", margin: 0 }}>SafeSearch Criteria Violations</h4>
+                  {avatarVisionDoc && (
+                    <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                      Severity: {avatarVisionDoc.score ?? 0} / 5
+                    </span>
+                  )}
+                </div>
+
+                {loadingAvatarVision ? (
+                  <div style={{ textAlign: "center", padding: "20px", color: "var(--text-secondary)" }}>
+                    <div className="spinner" style={{ width: "24px", height: "24px", margin: "0 auto 8px auto" }}></div>
+                    Loading Cloud Vision AI analysis...
+                  </div>
+                ) : (
+                  <div className="scores-grid">
+                    <div className="score-badge">
+                      <span className="score-name">Adult</span>
+                      <span className={`score-value val-${avatarVisionDoc?.detailedScores?.adult || 0}`}>
+                        {avatarVisionDoc?.detailedScores?.adult ?? 0}
+                      </span>
+                    </div>
+                    <div className="score-badge">
+                      <span className="score-name">Racy</span>
+                      <span className={`score-value val-${avatarVisionDoc?.detailedScores?.racy || 0}`}>
+                        {avatarVisionDoc?.detailedScores?.racy ?? 0}
+                      </span>
+                    </div>
+                    <div className="score-badge">
+                      <span className="score-name">Violence</span>
+                      <span className={`score-value val-${avatarVisionDoc?.detailedScores?.violence || 0}`}>
+                        {avatarVisionDoc?.detailedScores?.violence ?? 0}
+                      </span>
+                    </div>
+                    <div className="score-badge">
+                      <span className="score-name">Medical</span>
+                      <span className={`score-value val-${avatarVisionDoc?.detailedScores?.medical || 0}`}>
+                        {avatarVisionDoc?.detailedScores?.medical ?? 0}
+                      </span>
+                    </div>
+                    <div className="score-badge">
+                      <span className="score-name">Spoof</span>
+                      <span className={`score-value val-${avatarVisionDoc?.detailedScores?.spoof || 0}`}>
+                        {avatarVisionDoc?.detailedScores?.spoof ?? 0}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Optional Reject Prompt Input */}
+              {showAvatarRejectPrompt && (
+                <div style={{ marginBottom: "16px", padding: "12px", background: "rgba(239, 68, 68, 0.1)", borderRadius: "8px", border: "1px solid rgba(239, 68, 68, 0.3)" }}>
+                  <label style={{ display: "block", marginBottom: "6px", fontSize: "0.85rem", color: "#ef4444", fontWeight: 600 }}>
+                    Rejection Reason (SafeSearch violation description):
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Inappropriate adult content, spoof or safety violation"
+                    value={avatarRejectReason}
+                    onChange={(e) => setAvatarRejectReason(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px",
+                      background: "rgba(0, 0, 0, 0.3)",
+                      border: "1px solid rgba(239, 68, 68, 0.4)",
+                      borderRadius: "6px",
+                      color: "#ffffff",
+                      fontSize: "0.85rem",
+                      marginBottom: "8px"
+                    }}
+                  />
+                  <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      style={{ padding: "6px 12px", fontSize: "0.8rem", color: "#ffffff" }}
+                      onClick={() => setShowAvatarRejectPrompt(false)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-reject"
+                      style={{ padding: "6px 12px", fontSize: "0.8rem" }}
+                      disabled={isSubmitting}
+                      onClick={() => handleModerateAvatar("reject", avatarRejectReason)}
+                    >
+                      Confirm Rejection
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              {!showAvatarRejectPrompt && (
+                <div className="action-bar" style={{ display: "flex", gap: "12px", marginTop: "16px" }}>
+                  <button
+                    type="button"
+                    className="btn-reject"
+                    style={{ flex: 1, padding: "12px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
+                    disabled={isSubmitting}
+                    onClick={() => setShowAvatarRejectPrompt(true)}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <line x1="15" y1="9" x2="9" y2="15"/>
+                      <line x1="9" y1="9" x2="15" y2="15"/>
+                    </svg>
+                    <span>Reject Avatar</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn-approve"
+                    style={{ flex: 1, padding: "12px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
+                    disabled={isSubmitting}
+                    onClick={() => handleModerateAvatar("approve")}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    <span>Approve Avatar</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

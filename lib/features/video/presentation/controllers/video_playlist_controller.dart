@@ -1,8 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
@@ -64,8 +64,12 @@ class VideoPlaylistController extends BaseController {
       } else {
         currentPlaylistIndex.value = 0;
       }
-    } catch (e) {
-      debugPrint('Error fetching full playlist videos: $e');
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'VideoPlaylistController.fetchFullPlaylistVideos',
+      );
     }
   }
 

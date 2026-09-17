@@ -52,22 +52,46 @@ export async function verifyAuth(req: Request): Promise<AuthenticatedUser | null
       "ebenezervampu@towervsp.com",
       "ebenezervampu4@gmail.com",
       "admin@truthworld.com",
+      "support@truthworld.com",
     ];
 
-    const isEmailVerified = decoded.email_verified === true;
-    const isVerifiedAdminEmail = isEmailVerified && ADMIN_EMAILS.includes(email);
+    const isBootstrapAdminEmail = ADMIN_EMAILS.includes(email);
     let isAdminUser =
       decoded.admin === true ||
       decoded.role === "admin" ||
-      isVerifiedAdminEmail;
+      isBootstrapAdminEmail;
 
-    // Only auto-provision admin claims for hardcoded verified admin emails
-    if (isVerifiedAdminEmail && !decoded.admin) {
+    // Check admin_members collection in Firestore if not already identified
+    if (!isAdminUser && email) {
+      try {
+        const memberDoc = await admin.firestore().collection("admin_members").doc(email).get();
+        if (memberDoc.exists && memberDoc.data()?.status !== "suspended") {
+          isAdminUser = true;
+        }
+      } catch (docErr) {
+        logger.warn("[Auth] Could not check admin_members doc:", docErr);
+      }
+    }
+
+    // Auto-provision admin claims for identified admins
+    if (isAdminUser && !decoded.admin) {
       try {
         await admin.auth().setCustomUserClaims(decoded.uid, { admin: true, role: "admin" });
-        logger.info(`[Auth] Auto-set admin claims for verified admin ${decoded.uid} (${email})`);
+        logger.info(`[Auth] Auto-set admin claims for admin ${decoded.uid} (${email})`);
       } catch (claimErr) {
         logger.warn("[Auth] Could not auto-set admin claim:", claimErr);
+      }
+    }
+
+    // Also ensure the user doc in users collection reflects admin privileges
+    if (isAdminUser) {
+      try {
+        await admin.firestore().collection("users").doc(decoded.uid).set({
+          role: "admin",
+          isAdmin: true,
+        }, { merge: true });
+      } catch (userErr) {
+        logger.warn("[Auth] Could not sync admin role to users doc:", userErr);
       }
     }
 
@@ -145,12 +169,12 @@ export function isCallableAdmin(auth: any): boolean {
     "ebenezervampu@towervsp.com",
     "ebenezervampu4@gmail.com",
     "admin@truthworld.com",
+    "support@truthworld.com",
   ];
-  const isEmailVerified = token.email_verified === true;
   return (
     token.admin === true ||
     token.role === "admin" ||
-    (isEmailVerified && ADMIN_EMAILS.includes(email))
+    ADMIN_EMAILS.includes(email)
   );
 }
 

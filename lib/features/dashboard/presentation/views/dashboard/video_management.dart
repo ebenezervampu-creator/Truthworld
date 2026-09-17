@@ -7,17 +7,17 @@ import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/config/app_config.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:video_player/video_player.dart';
 
@@ -53,6 +53,10 @@ class VideoManagementController extends BaseController with ContentValidationMix
     listenToCommunityPosts(targetId);
   }
 
+  String get activeChannelId => _activeChannelId ?? '';
+  void refreshChannelVideos() => fetchChannelVideos();
+  void refreshCommunityPosts() => fetchCommunityPosts();
+
   void listenToChannelVideos(String channelId) {
     isLoadingChannelVideos.value = true;
     channelVideosError.value = '';
@@ -72,9 +76,13 @@ class VideoManagementController extends BaseController with ContentValidationMix
         channelVideos.assignAll(videos);
         isLoadingChannelVideos.value = false;
       },
-      onError: (e) {
-        debugPrint('❌ Error loading channel videos: $e');
-        channelVideosError.value = e.toString();
+      onError: (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'VideoManagementController.listenToChannelVideos',
+        );
+        channelVideosError.value = 'Unable to load videos. Please check your connection and try again.';
         isLoadingChannelVideos.value = false;
       },
     );
@@ -107,13 +115,33 @@ class VideoManagementController extends BaseController with ContentValidationMix
             communityPosts.assignAll(posts);
             isLoadingPosts.value = false;
           },
-          onError: (e) {
-            debugPrint('❌ Error loading community posts: $e');
-            postsError.value = e.toString();
+          onError: (e, stackTrace) {
+            ErrorHandler.log(
+              e,
+              stackTrace: stackTrace,
+              tag: 'VideoManagementController.listenToCommunityPosts',
+            );
+            postsError.value = 'Unable to load community posts. Please check your connection and try again.';
             isLoadingPosts.value = false;
           },
         );
     trackSubscription(_postsSub!);
+  }
+
+  void fetchChannelVideos([String? channelId]) {
+    final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final targetId = (channelId != null && channelId.isNotEmpty)
+        ? channelId
+        : (_activeChannelId?.isNotEmpty == true ? _activeChannelId! : currentUid);
+    listenToChannelVideos(targetId);
+  }
+
+  void fetchCommunityPosts([String? channelId]) {
+    final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final targetId = (channelId != null && channelId.isNotEmpty)
+        ? channelId
+        : (_activeChannelId?.isNotEmpty == true ? _activeChannelId! : currentUid);
+    listenToCommunityPosts(targetId);
   }
 
   @override
@@ -141,25 +169,16 @@ class VideoManagementController extends BaseController with ContentValidationMix
     required bool allowRatings,
   }) async {
     if (videoFile.bytes == null || imageFile.bytes == null) {
-      Get.snackbar(
-        'Error',
-        'Video or thumbnail data is missing.',
-        backgroundColor: const Color(0xFFEF4444),
-        colorText: AppColors.textPrimary,
-        icon: const Icon(Icons.error_outline, color: Colors.white),
+      AppSnackbar.warning(
+        'Video or thumbnail data is missing. Please select both files.',
       );
       return;
     }
 
     final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
     uploadProgress.value = 0.0;
-    Get.snackbar(
-      'Upload Started',
+    AppSnackbar.info(
       'Your video upload is in progress.',
-      showProgressIndicator: true,
-      backgroundColor: AppColors.bgSurface,
-      colorText: AppColors.textPrimary,
-      icon: const Icon(Icons.cloud_upload_outlined, color: Colors.white),
     );
 
     try {
@@ -209,17 +228,31 @@ class VideoManagementController extends BaseController with ContentValidationMix
         }
       }
 
-      videoUploadTask.snapshotEvents.listen((event) {
-        uploadProgress.value =
-            (event.bytesTransferred / event.totalBytes) * 0.7;
-      });
+      videoUploadTask.snapshotEvents.listen(
+        (event) {
+          uploadProgress.value =
+              (event.bytesTransferred / event.totalBytes) * 0.7;
+        },
+        onError: (e, stackTrace) => ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'VideoManagementController.videoUpload',
+        ),
+      );
 
       await videoUploadTask;
 
-      imageUploadTask.snapshotEvents.listen((event) {
-        uploadProgress.value =
-            0.7 + (event.bytesTransferred / event.totalBytes) * 0.3;
-      });
+      imageUploadTask.snapshotEvents.listen(
+        (event) {
+          uploadProgress.value =
+              0.7 + (event.bytesTransferred / event.totalBytes) * 0.3;
+        },
+        onError: (e, stackTrace) => ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'VideoManagementController.imageUpload',
+        ),
+      );
 
       final videoSnapshot = await videoUploadTask;
       final imageSnapshot = await imageUploadTask;
@@ -259,27 +292,19 @@ class VideoManagementController extends BaseController with ContentValidationMix
 
       uploadProgress.value = 0.0;
       Get.offAllNamed('/studio');
-      Get.snackbar(
-        'Success',
+      AppSnackbar.success(
         'Video uploaded successfully!',
-        backgroundColor: const Color(0xFF10B981),
-        colorText: AppColors.textPrimary,
-        icon: const Icon(Icons.check_circle_outline, color: Colors.white),
       );
     } catch (e) {
       uploadProgress.value = 0.0;
-      Get.snackbar(
-        'Error',
-        'Failed to upload video: $e',
-        backgroundColor: const Color(0xFFEF4444),
-        colorText: AppColors.textPrimary,
-        icon: const Icon(Icons.error_outline, color: Colors.white),
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to upload video. Please try again.',
       );
-      debugPrint('Error uploading video: $e');
     }
   }
 
-  Stream<List<Video>> fetchChannelVideos(String channelId) {
+  Stream<List<Video>> streamChannelVideos(String channelId) {
     return _firestore
         .collection('videos')
         .where('channelId', isEqualTo: channelId)
@@ -289,12 +314,9 @@ class VideoManagementController extends BaseController with ContentValidationMix
           return snapshot.docs.map(Video.fromDocumentSnapshot).toList();
         })
         .handleError((error) {
-          Get.snackbar(
-            'Error',
-            'Failed to fetch videos: $error',
-            backgroundColor: const Color(0xFFEF4444),
-            colorText: AppColors.textPrimary,
-            icon: const Icon(Icons.error_outline, color: Colors.white),
+          ErrorHandler.log(error);
+          AppSnackbar.error(
+            'Unable to load videos. Please try again.',
           );
           return [];
         });
@@ -309,7 +331,13 @@ class VideoManagementController extends BaseController with ContentValidationMix
       if (video.isShort) {
         try {
           await _firestore.collection('shorts').doc(video.id).delete();
-        } catch (_) {}
+        } catch (e, stackTrace) {
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'VideoManagement.deleteShortDoc',
+          );
+        }
       }
 
       // Immediately remove from local list for snappy UI feedback
@@ -324,28 +352,14 @@ class VideoManagementController extends BaseController with ContentValidationMix
         await _safeDeleteStorageUrl(video.originalUrl);
       }
 
-      Get.snackbar(
-        'Success',
+      AppSnackbar.success(
         "Video '${video.title.isNotEmpty ? video.title : 'Selected video'}' deleted successfully.",
-        backgroundColor: const Color(0xFF10B981),
-        colorText: AppColors.textPrimary,
-        icon: const Icon(Icons.check_circle_outline, color: Colors.white),
-        snackPosition: SnackPosition.TOP,
-        margin: const EdgeInsets.all(16),
-        borderRadius: 12,
       );
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to delete video: $e',
-        backgroundColor: const Color(0xFFEF4444),
-        colorText: AppColors.textPrimary,
-        icon: const Icon(Icons.error_outline, color: Colors.white),
-        snackPosition: SnackPosition.TOP,
-        margin: const EdgeInsets.all(16),
-        borderRadius: 12,
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to delete video. Please try again.',
       );
-      debugPrint('Error deleting video: $e');
     }
   }
 
@@ -361,9 +375,12 @@ class VideoManagementController extends BaseController with ContentValidationMix
           !clean.startsWith('assets/')) {
         await _firebaseStorage.ref(clean).delete();
       }
-    } catch (e) {
-      // Storage deletion error is safely ignored on client (already handled or cleaned up)
-      debugPrint('Safe storage delete note for $clean: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'VideoManagement.safeDeleteStorageUrl',
+      );
     }
   }
 
@@ -380,7 +397,13 @@ class VideoManagementController extends BaseController with ContentValidationMix
           'visibility': normalizedVisibility,
           'updatedAt': FieldValue.serverTimestamp(),
         });
-      } catch (_) {}
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'VideoManagement.updateShortVisibility',
+        );
+      }
 
       // Update local list for instant UI feedback
       final index = channelVideos.indexWhere((v) => v.id == videoId);
@@ -407,28 +430,14 @@ class VideoManagementController extends BaseController with ContentValidationMix
           displayName = visibility;
       }
 
-      Get.snackbar(
-        'Visibility Updated',
+      AppSnackbar.success(
         'Video access is now set to "$displayName".',
-        backgroundColor: const Color(0xFF10B981),
-        colorText: AppColors.textPrimary,
-        icon: const Icon(Icons.check_circle_outline, color: Colors.white),
-        snackPosition: SnackPosition.TOP,
-        margin: const EdgeInsets.all(16),
-        borderRadius: 12,
       );
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to update visibility: $e',
-        backgroundColor: const Color(0xFFEF4444),
-        colorText: AppColors.textPrimary,
-        icon: const Icon(Icons.error_outline, color: Colors.white),
-        snackPosition: SnackPosition.TOP,
-        margin: const EdgeInsets.all(16),
-        borderRadius: 12,
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to update video visibility. Please try again.',
       );
-      debugPrint('Error updating visibility: $e');
     }
   }
 
@@ -438,12 +447,8 @@ class VideoManagementController extends BaseController with ContentValidationMix
         final title = (data['title'] as String? ?? '').trim();
         final titleVal = await validateContent(title, fieldName: 'Title');
         if (!titleVal.isValid) {
-          Get.snackbar(
-            'Inappropriate Content',
+          AppSnackbar.warning(
             titleVal.message,
-            backgroundColor: const Color(0xFFEF4444),
-            colorText: AppColors.textPrimary,
-            icon: const Icon(Icons.error_outline, color: Colors.white),
           );
           return;
         }
@@ -454,12 +459,8 @@ class VideoManagementController extends BaseController with ContentValidationMix
         if (desc.isNotEmpty) {
           final descVal = await validateContent(desc, fieldName: 'Description');
           if (!descVal.isValid) {
-            Get.snackbar(
-              'Inappropriate Content',
+            AppSnackbar.warning(
               descVal.message,
-              backgroundColor: const Color(0xFFEF4444),
-              colorText: AppColors.textPrimary,
-              icon: const Icon(Icons.error_outline, color: Colors.white),
             );
             return;
           }
@@ -471,12 +472,8 @@ class VideoManagementController extends BaseController with ContentValidationMix
         if (tags.isNotEmpty) {
           final tagsVal = await validateTags(tags);
           if (!tagsVal.isValid) {
-            Get.snackbar(
-              'Inappropriate Content',
+            AppSnackbar.warning(
               tagsVal.message,
-              backgroundColor: const Color(0xFFEF4444),
-              colorText: AppColors.textPrimary,
-              icon: const Icon(Icons.error_outline, color: Colors.white),
             );
             return;
           }
@@ -484,22 +481,14 @@ class VideoManagementController extends BaseController with ContentValidationMix
       }
 
       await _firestore.collection('videos').doc(videoId).update(data);
-      Get.snackbar(
-        'Success',
+      AppSnackbar.success(
         'Video updated successfully.',
-        backgroundColor: const Color(0xFF10B981),
-        colorText: AppColors.textPrimary,
-        icon: const Icon(Icons.check_circle_outline, color: Colors.white),
       );
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to update video: $e',
-        backgroundColor: const Color(0xFFEF4444),
-        colorText: AppColors.textPrimary,
-        icon: const Icon(Icons.error_outline, color: Colors.white),
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to update video. Please try again.',
       );
-      debugPrint('Error updating video: $e');
     }
   }
 
@@ -569,18 +558,12 @@ class VideoManagementController extends BaseController with ContentValidationMix
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) {
-        Get.snackbar(
-          'Auth Error',
-          'You must be logged in to generate AI features.',
-        );
+        AppSnackbar.warning('Please sign in to generate AI features.');
         return;
       }
 
-      Get.snackbar(
-        'Generating AI Features',
+      AppSnackbar.info(
         'Requesting ${features.join(", ")} in ${targetLanguages.join(", ").toUpperCase()}...',
-        showProgressIndicator: true,
-        duration: const Duration(seconds: 4),
       );
 
       final token = await currentUser.getIdToken();
@@ -605,11 +588,8 @@ class VideoManagementController extends BaseController with ContentValidationMix
       );
 
       if (response.statusCode == 200) {
-        Get.snackbar(
-          'AI Processing Started',
+        AppSnackbar.success(
           'AI features generation is underway. Subtitles and audio tracks will update automatically!',
-          backgroundColor: const Color(0xFF1E293B),
-          colorText: const Color(0xFFF8FAFC),
         );
       } else {
         // Fallback: update Firestore document directly
@@ -646,16 +626,13 @@ class VideoManagementController extends BaseController with ContentValidationMix
           'updatedAt': FieldValue.serverTimestamp(),
         });
 
-        Get.snackbar(
-          'AI Features Enqueued',
+        AppSnackbar.success(
           'Pipeline job updated successfully for video.',
-          backgroundColor: const Color(0xFF1E293B),
-          colorText: const Color(0xFFF8FAFC),
         );
       }
     } catch (e) {
-      debugPrint('Error triggering AI features: $e');
-      Get.snackbar('Notice', 'AI feature pipeline initiated: $e');
+      ErrorHandler.log(e, tag: 'VideoManagement');
+      AppSnackbar.error('Unable to initiate AI feature pipeline. Please try again.');
     }
   }
 }

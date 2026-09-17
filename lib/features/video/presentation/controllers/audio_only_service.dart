@@ -10,6 +10,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:universal_html/js.dart' show JsObject, context;
 
@@ -62,30 +63,55 @@ class AudioOnlyService extends GetxService {
     try {
       _nativePlayer = AudioPlayer();
 
-      _playerStateSub = _nativePlayer!.playerStateStream.listen((state) {
-        isPlaying.value = state.playing;
-        isBuffering.value = state.processingState == ProcessingState.buffering ||
-            state.processingState == ProcessingState.loading;
+      _playerStateSub = _nativePlayer!.playerStateStream.listen(
+        (state) {
+          isPlaying.value = state.playing;
+          isBuffering.value = state.processingState == ProcessingState.buffering ||
+              state.processingState == ProcessingState.loading;
 
-        if (state.processingState == ProcessingState.completed) {
-          isPlaying.value = false;
-          _onTrackEnded();
-        }
-      });
+          if (state.processingState == ProcessingState.completed) {
+            isPlaying.value = false;
+            _onTrackEnded();
+          }
+        },
+        onError: (e, stackTrace) => ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'AudioOnlyService.playerStateStream',
+        ),
+      );
 
-      _positionSub = _nativePlayer!.positionStream.listen((pos) {
-        position.value = pos.inMilliseconds / 1000.0;
-      });
+      _positionSub = _nativePlayer!.positionStream.listen(
+        (pos) {
+          position.value = pos.inMilliseconds / 1000.0;
+        },
+        onError: (e, stackTrace) => ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'AudioOnlyService.positionStream',
+        ),
+      );
 
-      _durationSub = _nativePlayer!.durationStream.listen((dur) {
-        if (dur != null) {
-          duration.value = dur.inMilliseconds / 1000.0;
-        }
-      });
+      _durationSub = _nativePlayer!.durationStream.listen(
+        (dur) {
+          if (dur != null) {
+            duration.value = dur.inMilliseconds / 1000.0;
+          }
+        },
+        onError: (e, stackTrace) => ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'AudioOnlyService.durationStream',
+        ),
+      );
 
       debugPrint('[AudioOnly] Native AudioPlayer initialized successfully');
-    } catch (e) {
-      debugPrint('[AudioOnly] Native init error: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'AudioOnlyService.initNativeAudio',
+      );
     }
   }
 
@@ -108,9 +134,11 @@ class AudioOnlyService extends GetxService {
       _audioElement!.onWaiting.listen((_) => isBuffering.value = true);
       _audioElement!.onCanPlay.listen((_) => isBuffering.value = false);
       _audioElement!.onError.listen((e) {
-        error.value =
-            'Audio error: ${_audioElement?.error?.message ?? "Unknown"}';
-        debugPrint('[AudioOnly] Error: ${error.value}');
+        error.value = 'Unable to play audio. Please check your connection and try again.';
+        ErrorHandler.log(
+          'Audio element error: ${_audioElement?.error?.message ?? "Unknown"}',
+          tag: 'AudioOnlyService.webAudio',
+        );
       });
       _audioElement!.onDurationChange.listen((_) {
         duration.value = (_audioElement?.duration ?? 0).toDouble();
@@ -118,8 +146,12 @@ class AudioOnlyService extends GetxService {
 
       html.document.body?.append(_audioElement!);
       debugPrint('[AudioOnly] Web Audio API initialized');
-    } catch (e) {
-      debugPrint('[AudioOnly] Init error: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'AudioOnlyService.initWebAudioAPI',
+      );
     }
   }
 
@@ -138,8 +170,12 @@ class AudioOnlyService extends GetxService {
       _registerMediaSessionAction('nexttrack', _onNextTrack);
 
       debugPrint('[AudioOnly] Media Session API registered');
-    } catch (e) {
-      debugPrint('[AudioOnly] Media Session setup error: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'AudioOnlyService.setupMediaSessionAPI',
+      );
     }
   }
 
@@ -150,9 +186,12 @@ class AudioOnlyService extends GetxService {
         action,
         handler,
       ]);
-    } catch (e) {
-      final dynamic err = e;
-      debugPrint('[AudioOnly] Failed to register $action: $err');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'AudioOnlyService.registerMediaSessionAction.$action',
+      );
     }
   }
 
@@ -212,9 +251,14 @@ class AudioOnlyService extends GetxService {
         _updateMediaSessionMetadata(title: title, artworkUrl: artworkUrl);
 
         debugPrint('[AudioOnly] Web Audio Playing: $audioUrl');
-      } catch (e) {
-        error.value = 'Failed to start web audio: $e';
-        debugPrint('[AudioOnly] Play error: $e');
+      } catch (e, stackTrace) {
+        error.value =
+            'Unable to start audio stream. Please check your connection and try again.';
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'AudioOnlyService.playAudioUrlWeb',
+        );
       }
     } else {
       try {
@@ -234,9 +278,14 @@ class AudioOnlyService extends GetxService {
         }
         await _nativePlayer?.play();
         debugPrint('[AudioOnly] Native Audio Playing: $audioUrl');
-      } catch (e) {
-        error.value = 'Failed to start native audio: $e';
-        debugPrint('[AudioOnly] Native Play error: $e');
+      } catch (e, stackTrace) {
+        error.value =
+            'Unable to start audio stream. Please check your connection and try again.';
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'AudioOnlyService.playAudioUrlNative',
+        );
       }
     }
   }
@@ -252,8 +301,12 @@ class AudioOnlyService extends GetxService {
       } else {
         await _nativePlayer?.play();
       }
-    } catch (e) {
-      debugPrint('[AudioOnly] Play error: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'AudioOnlyService.play',
+      );
     }
   }
 
@@ -264,8 +317,12 @@ class AudioOnlyService extends GetxService {
       } else {
         await _nativePlayer?.pause();
       }
-    } catch (e) {
-      debugPrint('[AudioOnly] Pause error: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'AudioOnlyService.pause',
+      );
     }
   }
 
@@ -389,9 +446,12 @@ class AudioOnlyService extends GetxService {
           ],
         );
       }
-    } catch (e) {
-      final dynamic err = e;
-      debugPrint('[AudioOnly] MediaMetadata error: $err');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'AudioOnlyService.updateMediaSessionMetadata',
+      );
     }
   }
 
@@ -410,7 +470,13 @@ class AudioOnlyService extends GetxService {
           }),
         ]);
       }
-    } catch (_) {}
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'AudioOnlyService.updateMediaSessionPositionState',
+      );
+    }
   }
 
   // ── Callbacks ──────────────────────────────────────────────

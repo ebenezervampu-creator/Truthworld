@@ -12,40 +12,9 @@ class SavedCommunityPostsScreen
 
   @override
   Widget build(BuildContext context) {
-    return Obx(() {
-      final currentUser = AuthService.to.currentUser.value;
-
-      if (currentUser == null) {
-        return Scaffold(
-          backgroundColor: AppColors.bgPage,
-          appBar: AppBar(
-            backgroundColor: AppColors.bgPage,
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
-              onPressed: () => Get.back<void>(),
-            ),
-            title: Text(
-              'Saved Posts',
-              style: GoogleFonts.roboto(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
-              ),
-            ),
-          ),
-          body: const Center(
-            child: Text(
-              'Please sign in to view your saved posts',
-              style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
-            ),
-          ),
-        );
-      }
-
-      return Scaffold(
-        backgroundColor: AppColors.bgPage,
-        appBar: AppBar(
+    return Scaffold(
+      backgroundColor: AppColors.bgPage,
+      appBar: AppBar(
         backgroundColor: AppColors.bgPage,
         elevation: 0,
         leading: IconButton(
@@ -53,46 +22,59 @@ class SavedCommunityPostsScreen
           onPressed: () => Get.back<void>(),
         ),
         title: Obx(() {
-          if (controller.isSearching.value) {
-            return TextField(
-              autofocus: true,
-              style: const TextStyle(
+          final currentUser = AuthService.to.currentUser.value;
+          if (currentUser == null || !controller.isSearching.value) {
+            return Text(
+              'Saved Posts',
+              style: GoogleFonts.roboto(
                 color: AppColors.textPrimary,
-                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
               ),
-              decoration: const InputDecoration(
-                hintText: 'Search saved posts...',
-                hintStyle: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 16,
-                ),
-                border: InputBorder.none,
-              ),
-              onChanged: controller.setSearchQuery,
             );
           }
-          return Text(
-            'Saved Posts',
-            style: GoogleFonts.roboto(
+          return TextField(
+            autofocus: true,
+            style: const TextStyle(
               color: AppColors.textPrimary,
-              fontWeight: FontWeight.bold,
-              fontSize: 20,
+              fontSize: 16,
             ),
+            decoration: const InputDecoration(
+              hintText: 'Search saved posts...',
+              hintStyle: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 16,
+              ),
+              border: InputBorder.none,
+            ),
+            onChanged: controller.setSearchQuery,
           );
         }),
         actions: [
-          Obx(
-            () => IconButton(
+          Obx(() {
+            final currentUser = AuthService.to.currentUser.value;
+            if (currentUser == null) return const SizedBox.shrink();
+            return IconButton(
               icon: Icon(
                 controller.isSearching.value ? Icons.close : Icons.search,
                 color: AppColors.textPrimary,
               ),
               onPressed: controller.toggleSearching,
-            ),
-          ),
+            );
+          }),
         ],
       ),
       body: Obx(() {
+        final currentUser = AuthService.to.currentUser.value;
+        if (currentUser == null) {
+          return const Center(
+            child: Text(
+              'Please sign in to view your saved posts',
+              style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
+            ),
+          );
+        }
+
         if (controller.isLoading) {
           return const Center(
             child: CircularProgressIndicator(color: AppColors.brand),
@@ -106,7 +88,7 @@ class SavedCommunityPostsScreen
               children: [
                 const Icon(
                   Icons.error_outline,
-                  color: AppColors.error,
+                  color: Colors.white,
                   size: 48,
                 ),
                 const SizedBox(height: 16),
@@ -197,6 +179,5 @@ class SavedCommunityPostsScreen
         );
       }),
     );
-    });
   }
 }

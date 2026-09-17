@@ -1,0 +1,31 @@
+# Truthworld Full Documentation
+
+> Truthworld is a high-integrity, family-safe video streaming and creator monetization platform featuring automated AI-powered fact checking, localization and dubbing across 70+ languages, 100+ subtitle options, and 100% ad revenue share for creators.
+
+## Architecture & Overview
+Truthworld is designed from the ground up for transparency, credibility, and global content reach. The platform incorporates multi-agent AI verification pipelines to fact-check claim statements within video content, generate synchronized dubbing across 70+ languages, and support high-quality subtitles in over 100 languages.
+
+### Key Pillars
+1. **Automated AI Fact Checking**: Every video uploaded through Truthworld is ingested through a multi-stage verification pipeline:
+   - Video transcription and audio extraction.
+   - Atomic factual claim extraction.
+   - Web citation search and authoritative cross-checking.
+   - Credibility scoring and context overlay annotations displayed directly on the video player.
+2. **Global Localization**:
+   - Neural voice dubbing in 70+ international and regional languages.
+   - Synchronized multilingual subtitles in 100+ languages.
+   - Dual and multi-audio track selection within the Truthworld player.
+3. **100% Creator Monetization**:
+   - Creators retain 100% of their advertising revenue.
+   - Built-in transparent ad placement bidding and impression metrics.
+4. **Family-Safe Community Integrity**:
+   - Automated content safety classifiers preventing harmful, explicit, or misleading content.
+   - Community fact-checking and discussion forums.
+
+## Key Sections & URLs
+- **Home**: [https://www.truthworld.in/](https://www.truthworld.in/) - Main user landing feed, curated stories, and personalized recommendations.
+- **Creator Studio**: [https://www.truthworld.in/studio](https://www.truthworld.in/studio) - Content creator dashboard, video upload pipeline, subtitle/dub editor, and monetization payouts.
+- **Advertiser Portal**: [https://www.truthworld.in/advertisements](https://www.truthworld.in/advertisements) - Campaign creation, ad targeting, budget allocation, and analytics.
+- **Trending**: [https://www.truthworld.in/trending](https://www.truthworld.in/trending) - Most watched and discussed videos and claims.
+- **Browse Topics**: [https://www.truthworld.in/browse](https://www.truthworld.in/browse) - Channel discovery, topic hubs, and category archives.
+- **Community**: [https://www.truthworld.in/community](https://www.truthworld.in/community) - User discussions, community posts, and fact-check challenges.

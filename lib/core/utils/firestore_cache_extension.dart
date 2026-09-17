@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 
 extension DocumentReferenceCacheExtension<T> on DocumentReference<T> {
   /// Attempts to fetch the document from cache first to avoid Firestore read costs.
@@ -9,12 +10,21 @@ extension DocumentReferenceCacheExtension<T> on DocumentReference<T> {
       if (cacheDoc.exists && cacheDoc.data() != null) {
         return cacheDoc;
       }
-    } catch (_) {
-      // Fallback on cache miss/error
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'DocumentReferenceCacheExtension.getCacheFirst.cacheMiss',
+      );
     }
     try {
       return await get();
-    } catch (_) {
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'DocumentReferenceCacheExtension.getCacheFirst.serverFallback',
+      );
       return get(const GetOptions(source: Source.cache));
     }
   }
@@ -29,12 +39,21 @@ extension QueryCacheExtension<T> on Query<T> {
       if (cacheQuery.docs.isNotEmpty) {
         return cacheQuery;
       }
-    } catch (_) {
-      // Fallback on cache miss/error
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'QueryCacheExtension.getCacheFirst.cacheMiss',
+      );
     }
     try {
       return await get();
-    } catch (_) {
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'QueryCacheExtension.getCacheFirst.serverFallback',
+      );
       return get(const GetOptions(source: Source.cache));
     }
   }

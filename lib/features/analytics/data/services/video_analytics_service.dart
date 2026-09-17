@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/features/analytics/data/models/watch_event_model.dart';
 import 'package:truthworld/features/analytics/data/services/video_presence_service.dart';
@@ -844,7 +845,13 @@ class VideoAnalyticsService extends GetxService {
           if (watchTimeSec == 0 && aggregatedWatchSec > 0) {
             watchTimeSec = aggregatedWatchSec;
           }
-        } catch (_) {}
+        } catch (e, s) {
+          ErrorHandler.log(
+            e,
+            stackTrace: s,
+            tag: 'VideoAnalyticsService.aggregateChannelMetrics',
+          );
+        }
       }
 
       return ChannelAnalyticsSnapshot(

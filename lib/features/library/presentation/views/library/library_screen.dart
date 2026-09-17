@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
@@ -659,12 +660,14 @@ class LibraryScreenState extends State<LibraryScreen>
                 final isPremium = AuthService.to.isPremiumUser.value;
                 final planId = AuthService.to.premiumPlanId.value;
                 var planLabel = 'Premium Taken';
-                if (planId == 'family_monthly') {
-                  planLabel = r'Premium Taken ($5 Family)';
-                } else if (planId == '4k_factchecked_monthly') {
-                  planLabel = r'Premium Taken ($10 4K & Fact-Checked)';
+                if (planId == 'audio_monthly') {
+                  planLabel = r'Premium Taken ($0.50 Audio / ₹40)';
                 } else if (planId == 'individual_monthly') {
-                  planLabel = r'Premium Taken ($2 Individual)';
+                  planLabel = r'Premium Taken ($2 Premium)';
+                } else if (planId == '4k_factchecked_monthly') {
+                  planLabel = r'Premium Taken ($3 Fact-Checked)';
+                } else if (planId == 'family_monthly') {
+                  planLabel = r'Premium Taken ($5 Family)';
                 }
 
                 return _buildLibraryListTile(
@@ -835,6 +838,7 @@ class LibraryScreenState extends State<LibraryScreen>
           ),
         ),
         content: TextField(
+          inputFormatters: [TruthworldTextInputFormatters.englishOnly],
           style: const TextStyle(color: primaryText),
           decoration: InputDecoration(
             hintText: 'Search videos, playlists...',
@@ -1019,13 +1023,7 @@ class LibraryScreenState extends State<LibraryScreen>
     return Row(
       children: [
         InkWell(
-          onTap: () {
-            if (authService.hasChannel.value || authService.userChannel != null) {
-              StudioLauncher.openStudio();
-            } else {
-              Get.toNamed('/channelscreen');
-            }
-          },
+          onTap: StudioLauncher.openStudio,
           child: UserAvatar(
             radius: 24,
             photoUrl: authService.activePhotoUrl,
@@ -1072,13 +1070,14 @@ class LibraryScreenState extends State<LibraryScreen>
         color: buttonBg,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: const TextField(
-        style: TextStyle(color: primaryText, fontSize: 14),
-        decoration: InputDecoration(
+      child: TextField(
+        inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+        style: const TextStyle(color: primaryText, fontSize: 14),
+        decoration: const InputDecoration(
           hintText: 'Search in library...',
           hintStyle: TextStyle(color: secondaryText),
           border: InputBorder.none,
-          icon: Icon(Icons.search_rounded, color: secondaryText, size: 20),
+          icon: Icon(Icons.search_rounded, color: AppColors.textPrimary, size: 20),
           contentPadding: EdgeInsets.symmetric(vertical: 12),
         ),
       ),

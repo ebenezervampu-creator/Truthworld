@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Non-web fallback implementation for file downloading
@@ -14,8 +15,12 @@ Future<void> downloadFileFromBytesImpl(
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
-  } catch (e) {
-    debugPrint('Download stub error: $e');
+  } catch (e, stackTrace) {
+    ErrorHandler.log(
+      e,
+      stackTrace: stackTrace,
+      tag: 'DownloadHelperStub.downloadFileFromBytesImpl',
+    );
   }
 }
 
@@ -26,7 +31,11 @@ Future<void> downloadFileFromUrlImpl(String url, String fileName) async {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
-  } catch (e) {
-    debugPrint('Download URL stub error: $e');
+  } catch (e, stackTrace) {
+    ErrorHandler.log(
+      e,
+      stackTrace: stackTrace,
+      tag: 'DownloadHelperStub.downloadFileFromUrlImpl',
+    );
   }
 }

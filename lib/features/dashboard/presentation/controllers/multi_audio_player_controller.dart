@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:video_player/video_player.dart';
@@ -163,7 +164,7 @@ class MultiAudioPlayerController extends BaseController {
         tag: _tag,
       );
       hasError.value = true;
-      rxErrorMessage.value = e.toString();
+      rxErrorMessage.value = AppException.from(e, s).displayMessage;
       isInitializing.value = false;
     }
   }

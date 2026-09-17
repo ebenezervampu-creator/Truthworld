@@ -1,4 +1,5 @@
 import 'package:get/get.dart';
+import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audience_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/category_insights_controller.dart';
@@ -6,6 +7,7 @@ import 'package:truthworld/features/dashboard/presentation/controllers/chapters_
 import 'package:truthworld/features/dashboard/presentation/controllers/creator_intelligence_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/customization_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_comments_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/drafts_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/multi_audio_player_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/playlists_management_controller.dart';
@@ -13,6 +15,7 @@ import 'package:truthworld/features/dashboard/presentation/controllers/studio_se
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/topic_management_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/trash_restore_screen.dart';
+import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 
 /// Binding for the Creator Dashboard feature.
 ///
@@ -21,6 +24,11 @@ import 'package:truthworld/features/dashboard/presentation/views/dashboard/trash
 class DashboardBinding extends Bindings {
   @override
   void dependencies() {
+    // Core controllers
+    Get.lazyPut<HomeController>(HomeController.new, fenix: true);
+    Get.lazyPut<ChannelController>(ChannelController.new, fenix: true);
+    Get.lazyPut<DashboardController>(DashboardController.new, fenix: true);
+
     // Core dashboard controllers
     Get.lazyPut(DashboardCommentsController.new, fenix: true);
     Get.lazyPut(SubtitlesController.new, fenix: true);

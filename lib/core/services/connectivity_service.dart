@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 
 /// Service to monitor network connectivity across the entire application.
 /// Essential for high-scale apps to handle offline states and retry logic.
@@ -27,15 +29,18 @@ class ConnectivityService extends GetxService {
     // If we start offline, we want to know so the next 'online' event shows the snackbar
     _isInitial = initialResult != ConnectivityResult.none;
 
-    _subscription = _connectivity.onConnectivityChanged.listen((
-      results,
-    ) {
-      final result = _getFirstResult(results);
-      final previousStatus = _connectionStatus.value;
-      _connectionStatus.value = result;
+    _subscription = _connectivity.onConnectivityChanged.listen(
+      (results) {
+        final result = _getFirstResult(results);
+        final previousStatus = _connectionStatus.value;
+        _connectionStatus.value = result;
 
-      _handleStatusChange(result, previousStatus);
-    });
+        _handleStatusChange(result, previousStatus);
+      },
+      onError: (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'ConnectivityService.onConnectivityChanged');
+      },
+    );
 
     return this;
   }
@@ -50,22 +55,15 @@ class ConnectivityService extends GetxService {
     ConnectivityResult previousStatus,
   ) {
     if (result == ConnectivityResult.none) {
-      Get.snackbar(
-        'Offline',
+      AppSnackbar.warning(
         'You are currently offline. Some features may be unavailable.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Get.theme.colorScheme.errorContainer,
-        colorText: Get.theme.colorScheme.onErrorContainer,
+        title: 'Offline',
         duration: const Duration(seconds: 5),
       );
     } else if (previousStatus == ConnectivityResult.none && !_isInitial) {
-      if (Get.isSnackbarOpen) Get.back();
-      Get.snackbar(
-        'Online',
+      AppSnackbar.success(
         'Your connection has been restored.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Get.theme.colorScheme.primaryContainer,
-        colorText: Get.theme.colorScheme.onPrimaryContainer,
+        title: 'Online',
         duration: const Duration(seconds: 2),
       );
     }

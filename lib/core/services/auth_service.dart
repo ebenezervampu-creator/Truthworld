@@ -12,6 +12,7 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:truthworld/components/ui/google_onboarding_sheet.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/google_signin_exception_handler.dart';
 import 'package:truthworld/core/services/logger_service.dart';
@@ -21,8 +22,9 @@ import 'package:truthworld/data/models/user_model.dart';
 
 class AuthService extends GetxService {
   static AuthService get to => Get.find<AuthService>();
-
-  late FirebaseAuth _auth;
+  FirebaseAuth? _authOverride;
+  FirebaseAuth get _auth => _authOverride ?? FirebaseAuth.instance;
+  set _auth(FirebaseAuth val) => _authOverride = val;
 
   final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
 
@@ -49,11 +51,107 @@ class AuthService extends GetxService {
   void setUserChannel(Channel? channel) {
     _userChannel.value = channel;
     _hasChannel.value = channel != null && channel.status != ChannelStatus.deleted;
+    final uid = _user.value?.uid;
+    if (uid != null) {
+      GetStorage().write('hasChannel_$uid', _hasChannel.value);
+    }
   }
 
   void clearUserChannel() {
     _userChannel.value = null;
     _hasChannel.value = false;
+    final uid = _user.value?.uid;
+    if (uid != null) {
+      GetStorage().write('hasChannel_$uid', false);
+    }
+  }
+
+  /// Asynchronously guarantees that the user's channel is resolved from Firestore.
+  /// Checks ownerId, userId, userDoc channelId, and email fallback.
+  Future<Channel?> ensureChannelLoaded() async {
+    if (_hasChannel.value && _userChannel.value != null) {
+      return _userChannel.value;
+    }
+    var u = _user.value;
+    if (u == null) {
+      try {
+        u = _auth.currentUser;
+      } catch (_) {
+        u = null;
+      }
+    }
+    if (u == null || u.isAnonymous) return null;
+
+    try {
+      // 1. Direct check by ownerId
+      var snap = await FirebaseFirestore.instance
+          .collection(FirestoreCollections.channels)
+          .where('ownerId', isEqualTo: u.uid)
+          .limit(1)
+          .get();
+
+      if (snap.docs.isEmpty) {
+        // 2. Direct check by userId
+        snap = await FirebaseFirestore.instance
+            .collection(FirestoreCollections.channels)
+            .where('userId', isEqualTo: u.uid)
+            .limit(1)
+            .get();
+      }
+
+      if (snap.docs.isNotEmpty) {
+        final activeChannels = snap.docs
+            .map(Channel.fromDocumentSnapshot)
+            .where((c) => c.status != ChannelStatus.deleted)
+            .toList();
+        if (activeChannels.isNotEmpty) {
+          final ch = activeChannels.first;
+          setUserChannel(ch);
+          return ch;
+        }
+      }
+
+      // 3. Direct check user doc for channelId
+      final userDoc = await FirebaseFirestore.instance
+          .collection(FirestoreCollections.users)
+          .doc(u.uid)
+          .get();
+      final chId = userDoc.data()?['channelId'] as String?;
+      if (chId != null && chId.isNotEmpty) {
+        final chDoc = await FirebaseFirestore.instance
+            .collection(FirestoreCollections.channels)
+            .doc(chId)
+            .get();
+        if (chDoc.exists && chDoc.data() != null) {
+          final ch = Channel.fromDocumentSnapshot(chDoc);
+          if (ch.status != ChannelStatus.deleted) {
+            setUserChannel(ch);
+            return ch;
+          }
+        }
+      }
+
+      // 4. Direct check by email if available
+      if (u.email != null && u.email!.isNotEmpty) {
+        final emailSnap = await FirebaseFirestore.instance
+            .collection(FirestoreCollections.channels)
+            .where('email', isEqualTo: u.email)
+            .limit(1)
+            .get();
+        final emailChannels = emailSnap.docs
+            .map(Channel.fromDocumentSnapshot)
+            .where((c) => c.status != ChannelStatus.deleted)
+            .toList();
+        if (emailChannels.isNotEmpty) {
+          final ch = emailChannels.first;
+          setUserChannel(ch);
+          return ch;
+        }
+      }
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'AuthService.ensureChannelLoaded');
+    }
+    return _userChannel.value;
   }
 
   StreamSubscription? _channelSubscription;
@@ -68,6 +166,20 @@ class AuthService extends GetxService {
     return DateTime.now().millisecondsSinceEpoch > exp;
   }
 
+  /// Whether user is specifically subscribed to the Audio Premium tier (₹40/mo)
+  bool get isAudioPremiumOnly =>
+      isPremiumUser.value && premiumPlanId.value == 'audio_monthly';
+
+  /// Whether user is subscribed to full TruthWorld Premium ($2/mo or higher)
+  bool get hasFullPremium =>
+      isPremiumUser.value && premiumPlanId.value != 'audio_monthly';
+
+  /// Whether user has the $3 tier including on-demand & every video fact-checking
+  bool get hasFactCheckPremium =>
+      isPremiumUser.value &&
+      (premiumPlanId.value == '4k_factchecked_monthly' ||
+          premiumPlanId.value == 'factcheck_monthly');
+
   void checkTrialExpiry() {
     final exp = premiumExpiresAt.value;
     if (exp != null && DateTime.now().millisecondsSinceEpoch > exp) {
@@ -76,7 +188,9 @@ class AuthService extends GetxService {
         try {
           final box = GetStorage();
           box.write('isPremiumUser', false);
-        } catch (_) {}
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'AuthService.checkTrialExpiry');
+        }
       }
     }
   }
@@ -113,6 +227,13 @@ class AuthService extends GetxService {
       return '${diff.inMinutes} mins remaining';
     }
   }
+  final RxnString userDisplayName = RxnString();
+  final RxnString userHandle = RxnString();
+  final RxnString userBio = RxnString();
+  final RxnString userPhotoUrl = RxnString();
+  final RxnString userAvatarStatus = RxnString();
+  final RxnString userAvatarStatusReason = RxnString();
+  final RxnString userAvatarFileId = RxnString();
   final RxnString userGender = RxnString();
   final RxnInt userAge = RxnInt();
   final RxnString userAgeGroup = RxnString();
@@ -126,7 +247,10 @@ class AuthService extends GetxService {
   StreamSubscription? _userDocSubscription;
 
   String get activeDisplayName {
-    if (hasChannel.value && userChannel != null) {
+    if (userDisplayName.value != null && userDisplayName.value!.trim().isNotEmpty) {
+      return userDisplayName.value!.trim();
+    }
+    if (hasChannel.value && userChannel != null && userChannel!.name.isNotEmpty) {
       return userChannel!.name;
     }
     if (user != null && !user!.isAnonymous && user!.displayName?.isNotEmpty == true) {
@@ -136,7 +260,10 @@ class AuthService extends GetxService {
   }
 
   String get activePhotoUrl {
-    if (hasChannel.value && userChannel != null) {
+    if (userPhotoUrl.value != null && userPhotoUrl.value!.isNotEmpty) {
+      return userPhotoUrl.value!;
+    }
+    if (hasChannel.value && userChannel != null && userChannel!.avatarUrl.isNotEmpty) {
       return userChannel!.avatarUrl;
     }
     if (user != null && !user!.isAnonymous && user!.photoURL?.isNotEmpty == true) {
@@ -146,7 +273,11 @@ class AuthService extends GetxService {
   }
 
   String get activeHandle {
-    if (hasChannel.value && userChannel != null) {
+    if (userHandle.value != null && userHandle.value!.trim().isNotEmpty) {
+      final handle = userHandle.value!.trim();
+      return handle.startsWith('@') ? handle : '@$handle';
+    }
+    if (hasChannel.value && userChannel != null && userChannel!.handle.isNotEmpty) {
       final handle = userChannel!.handle;
       return handle.startsWith('@') ? handle : '@$handle';
     }
@@ -155,6 +286,16 @@ class AuthService extends GetxService {
       return "@${email.split('@')[0]}";
     }
     return '@user';
+  }
+
+  String get activeBio {
+    if (userBio.value != null && userBio.value!.isNotEmpty) {
+      return userBio.value!;
+    }
+    if (hasChannel.value && userChannel != null && userChannel!.description.isNotEmpty) {
+      return userChannel!.description;
+    }
+    return '';
   }
 
   /// ✅ SAFE async initialization (no Firebase calls before this)
@@ -181,8 +322,22 @@ class AuthService extends GetxService {
         isPremiumUser.value = savedIsPremium;
         premiumPlanId.value = savedPlanId;
       }
-    } catch (e) {
-      debugPrint('AuthService: error loading cached premium status: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'AuthService.loadCachedPremiumStatus');
+    }
+
+    // Load locally cached Channel status synchronously
+    try {
+      final box = GetStorage();
+      final currentUid = _auth.currentUser?.uid;
+      if (currentUid != null) {
+        final savedHasChannel = box.read('hasChannel_$currentUid') as bool?;
+        if (savedHasChannel != null) {
+          _hasChannel.value = savedHasChannel;
+        }
+      }
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'AuthService.loadCachedChannelStatus');
     }
 
     // Google Sign-In v7 requires explicit initialization
@@ -200,9 +355,9 @@ class AuthService extends GetxService {
               '768266102263-f1bou7fgaqn2rkqh0cn5p6voksb163qt.apps.googleusercontent.com',
         );
       }
-    } catch (e) {
+    } catch (e, s) {
       // On some platforms, this might not be implemented or handled automatically.
-      debugPrint('AuthService: GoogleSignIn.initialize() error: $e');
+      ErrorHandler.log(e, stackTrace: s, tag: 'AuthService.googleSignInInitialize');
     }
 
     // Purge any lingering anonymous session so guests are never treated as having an account
@@ -210,8 +365,8 @@ class AuthService extends GetxService {
       if (_auth.currentUser != null && _auth.currentUser!.isAnonymous) {
         await _auth.signOut();
       }
-    } catch (e) {
-      debugPrint('AuthService: error purging anonymous user: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'AuthService.purgeAnonymousUser');
     }
 
     _user.bindStream(_auth.authStateChanges());
@@ -269,6 +424,7 @@ class AuthService extends GetxService {
             if (activeChannels.isNotEmpty) {
               _hasChannel.value = true;
               _userChannel.value = activeChannels.first;
+              GetStorage().write('hasChannel_${user.uid}', true);
               return;
             }
 
@@ -285,10 +441,11 @@ class AuthService extends GetxService {
               if (userChannels.isNotEmpty) {
                 _hasChannel.value = true;
                 _userChannel.value = userChannels.first;
+                GetStorage().write('hasChannel_${user.uid}', true);
                 return;
               }
-            } catch (e) {
-              debugPrint('AuthService: fallback channel check by userId error: $e');
+            } catch (e, s) {
+              ErrorHandler.log(e, stackTrace: s, tag: 'AuthService.fallbackChannelByUserId');
             }
 
             // Fallback 2: Check user document for channelId reference
@@ -300,20 +457,21 @@ class AuthService extends GetxService {
               final chId = userDoc.data()?['channelId'] as String?;
               if (chId != null && chId.isNotEmpty) {
                 final chDoc = await FirebaseFirestore.instance
-                    .collection(FirestoreCollections.channels)
-                    .doc(chId)
-                    .get();
+                  .collection(FirestoreCollections.channels)
+                  .doc(chId)
+                  .get();
                 if (chDoc.exists && chDoc.data() != null) {
                   final ch = Channel.fromDocumentSnapshot(chDoc);
                   if (ch.status != ChannelStatus.deleted) {
                     _hasChannel.value = true;
                     _userChannel.value = ch;
+                    GetStorage().write('hasChannel_${user.uid}', true);
                     return;
                   }
                 }
               }
-            } catch (e) {
-              debugPrint('AuthService: fallback channel check by user doc error: $e');
+            } catch (e, s) {
+              ErrorHandler.log(e, stackTrace: s, tag: 'AuthService.fallbackChannelByUserDoc');
             }
 
             // Fallback 3: Check channels by email to ensure channel is never lost
@@ -331,6 +489,7 @@ class AuthService extends GetxService {
                   final ch = emailChannels.first;
                   _hasChannel.value = true;
                   _userChannel.value = ch;
+                  GetStorage().write('hasChannel_${user.uid}', true);
                   // Update channel ownerId and userId to current active uid
                   try {
                     await FirebaseFirestore.instance
@@ -341,35 +500,22 @@ class AuthService extends GetxService {
                       'userId': user.uid,
                       'updatedAt': FieldValue.serverTimestamp(),
                     });
-                  } catch (_) {}
+                  } catch (e, s) {
+                    ErrorHandler.log(e, stackTrace: s, tag: 'AuthService.updateChannelOwner');
+                  }
                   return;
                 }
-              } catch (e) {
-                debugPrint('AuthService: fallback channel check by email error: $e');
+              } catch (e, s) {
+                ErrorHandler.log(e, stackTrace: s, tag: 'AuthService.fallbackChannelByEmail');
               }
             }
 
             _hasChannel.value = false;
             _userChannel.value = null;
-            // Clean up any stale user doc flags if orphaned
-            try {
-              final uDoc = await FirebaseFirestore.instance
-                  .collection(FirestoreCollections.users)
-                  .doc(user.uid)
-                  .get();
-              if (uDoc.exists && (uDoc.data()?['hasChannel'] == true || uDoc.data()?['channelId'] != null)) {
-                await FirebaseFirestore.instance
-                    .collection(FirestoreCollections.users)
-                    .doc(user.uid)
-                    .set({
-                  'hasChannel': false,
-                  'channelId': null,
-                }, SetOptions(merge: true));
-              }
-            } catch (_) {}
+            GetStorage().write('hasChannel_${user.uid}', false);
           },
-          onError: (error) {
-            debugPrint('AuthService Firestore error: $error');
+          onError: (error, stackTrace) {
+            ErrorHandler.log(error, stackTrace: stackTrace, tag: 'AuthService.channelSubscription');
           },
         );
   }
@@ -395,6 +541,13 @@ class AuthService extends GetxService {
         premiumPlanId.value = cachedPlanId;
       }
 
+      userDisplayName.value = null;
+      userHandle.value = null;
+      userBio.value = null;
+      userPhotoUrl.value = null;
+      userAvatarStatus.value = null;
+      userAvatarStatusReason.value = null;
+      userAvatarFileId.value = null;
       userGender.value = null;
       userAge.value = null;
       userAgeGroup.value = null;
@@ -428,6 +581,7 @@ class AuthService extends GetxService {
               if (data.containsKey('isPremium')) {
                 final isPrem = data['isPremium'] as bool? ?? false;
                 final planId = data['premiumPlanId'] as String?;
+                final oldIsPremium = isPremiumUser.value;
 
                 if (isExpired) {
                   isPremiumUser.value = false;
@@ -437,6 +591,10 @@ class AuthService extends GetxService {
                   isPremiumUser.value = isPrem;
                   premiumPlanId.value = planId;
                   box.write('isPremiumUser', isPrem);
+                }
+
+                if (oldIsPremium != isPremiumUser.value) {
+                  unawaited(forceRefreshToken());
                 }
 
                 if (planId != null) {
@@ -452,6 +610,13 @@ class AuthService extends GetxService {
                 }
                 premiumPlanId.value = cachedPlanId;
               }
+              userDisplayName.value = (data['displayName'] as String?) ?? (data['name'] as String?);
+              userHandle.value = data['handle'] as String?;
+              userBio.value = data['bio'] as String?;
+              userPhotoUrl.value = (data['photoURL'] as String?) ?? (data['photoUrl'] as String?) ?? (data['avatarUrl'] as String?);
+              userAvatarStatus.value = data['avatarStatus'] as String?;
+              userAvatarStatusReason.value = data['avatarStatusReason'] as String?;
+              userAvatarFileId.value = data['avatarFileId'] as String?;
               userGender.value = data['gender'] as String?;
               userAge.value = (data['age'] as num?)?.toInt();
               userAgeGroup.value = data['ageGroup'] as String?;
@@ -471,6 +636,13 @@ class AuthService extends GetxService {
               premiumPlanId.value = cachedPlanId;
               premiumStartedAt.value = cachedStartedAt;
               premiumExpiresAt.value = cachedExpiresAt;
+              userDisplayName.value = null;
+              userHandle.value = null;
+              userBio.value = null;
+              userPhotoUrl.value = null;
+              userAvatarStatus.value = null;
+              userAvatarStatusReason.value = null;
+              userAvatarFileId.value = null;
               userGender.value = null;
               userAge.value = null;
               userAgeGroup.value = null;
@@ -482,8 +654,8 @@ class AuthService extends GetxService {
               needsOnboarding.value = false;
             }
           },
-          onError: (e) {
-            debugPrint('Error listening to user document: $e');
+          onError: (e, stackTrace) {
+            ErrorHandler.log(e, stackTrace: stackTrace, tag: 'AuthService.userDocSubscription');
           },
         );
   }
@@ -493,6 +665,18 @@ class AuthService extends GetxService {
     _channelSubscription?.cancel();
     _userDocSubscription?.cancel();
     super.onClose();
+  }
+
+  /// Force-refreshes the Firebase Auth ID token and custom claims (for billing/premium updates)
+  Future<String?> forceRefreshToken() async {
+    try {
+      final token = await _auth.currentUser?.getIdToken(true);
+      logger.info('Firebase Auth token & custom claims force-refreshed successfully', tag: 'Auth');
+      return token;
+    } catch (e) {
+      logger.warning('Failed to force-refresh Firebase Auth token: $e', tag: 'Auth');
+      return null;
+    }
   }
 
   Future<void> cancelPremiumSubscription() async {
@@ -519,8 +703,10 @@ class AuthService extends GetxService {
             'premiumStartedAt': FieldValue.delete(),
             'premiumExpiresAt': FieldValue.delete(),
           });
-    } catch (e) {
-      debugPrint('Error cancelling premium subscription: $e');
+      // Force refresh claims on billing cancellation
+      await forceRefreshToken();
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'AuthService.cancelPremiumSubscription');
     }
   }
 
@@ -548,10 +734,7 @@ class AuthService extends GetxService {
           debugPrint('ℹ️ [GoogleSignIn] Sign-in cancelled by user.');
         }
       } else {
-        if (kDebugMode) {
-          debugPrint('AuthService: Google Sign-In Error: $e');
-          debugPrint('AuthService: StackTrace: $st');
-        }
+        ErrorHandler.log(e, stackTrace: st, tag: 'AuthService.signInWithGoogle');
         GoogleSignInExceptionHandler.log(mapped, stackTrace: st);
       }
       throw mapped;
@@ -571,7 +754,9 @@ class AuthService extends GetxService {
   Future<UserCredential> _signInWithGoogleMobile() async {
     try {
       await _googleSignIn.signOut();
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'AuthService.googleSignInMobileSignOut');
+    }
 
     final googleUser = await _googleSignIn.authenticate();
     final googleAuth = googleUser.authentication;
@@ -645,7 +830,9 @@ class AuthService extends GetxService {
               isApproximate = true;
             }
           }
-        } catch (_) {}
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'AuthService.fetchGooglePeople.ipLookup');
+        }
       }
 
       return {
@@ -655,9 +842,11 @@ class AuthService extends GetxService {
         'country': country,
         'isApproximateLocation': isApproximate,
       };
-    } catch (e) {
-      debugPrint(
-        'AuthService: Error fetching Google People API profile data: $e',
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'AuthService.fetchGooglePeople',
       );
     }
     return {};
@@ -731,12 +920,14 @@ class AuthService extends GetxService {
                 .update({
               'status': 'deleted',
               'updatedAt': FieldValue.serverTimestamp(),
-            }).catchError((_) {});
+            }).catchError((e, s) {
+              ErrorHandler.log(e, stackTrace: s is StackTrace ? s : null, tag: 'AuthService.deleteAccount.channel');
+            });
           }
           await userDocRef.delete();
         }
-      } catch (e) {
-        debugPrint('AuthService: Error deleting user Firestore record: $e');
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'AuthService.deleteAccount.firestore');
       }
 
       // 2. Delete the Firebase Auth user
@@ -835,8 +1026,8 @@ class AuthService extends GetxService {
                       'updatedAt': FieldValue.serverTimestamp(),
                     });
                     debugPrint('AuthService: [SYNC] Re-linked channel $oldChannelId to new UID ${user.uid}');
-                  } catch (chErr) {
-                    debugPrint('AuthService: [SYNC] Error re-linking channel $oldChannelId: $chErr');
+                  } catch (chErr, chStack) {
+                    ErrorHandler.log(chErr, stackTrace: chStack, tag: 'AuthService.syncUser.relinkChannel');
                   }
                 }
 
@@ -844,13 +1035,13 @@ class AuthService extends GetxService {
                 try {
                   await oldDoc.reference.delete();
                   debugPrint('AuthService: [SYNC] Cleaned up legacy user doc ${oldDoc.id}');
-                } catch (delErr) {
-                  debugPrint('AuthService: [SYNC] Error deleting legacy user doc ${oldDoc.id}: $delErr');
+                } catch (delErr, delStack) {
+                  ErrorHandler.log(delErr, stackTrace: delStack, tag: 'AuthService.syncUser.deleteLegacyDoc');
                 }
               }
             }
-          } catch (e) {
-            debugPrint('AuthService: [SYNC] Error during email consolidation query: $e');
+          } catch (e, s) {
+            ErrorHandler.log(e, stackTrace: s, tag: 'AuthService.syncUser.legacyQuery');
           }
         }
 
@@ -891,7 +1082,29 @@ class AuthService extends GetxService {
                 docData['birthdate'].toString().isNotEmpty);
         needsOnboarding.value = !hasCompletedOnboarding;
 
+        final existingName = (docData['displayName'] as String?) ?? (docData['name'] as String?);
+        final existingPhoto = (docData['photoURL'] as String?) ?? (docData['photoUrl'] as String?) ?? (docData['avatarUrl'] as String?);
+        final resolvedName = (existingName != null && existingName.isNotEmpty) ? existingName : (user.displayName ?? '');
+        final resolvedPhoto = (existingPhoto != null && existingPhoto.isNotEmpty) ? existingPhoto : (user.photoURL ?? '');
+
+        if (existingName != null && existingName.isNotEmpty && user.displayName != existingName) {
+          try {
+            await user.updateDisplayName(existingName);
+          } catch (e, s) {
+            ErrorHandler.log(e, stackTrace: s, tag: 'AuthService.syncUser.updateDisplayName');
+          }
+        }
+        if (existingPhoto != null && existingPhoto.isNotEmpty && user.photoURL != existingPhoto) {
+          try {
+            await user.updatePhotoURL(existingPhoto);
+          } catch (e, s) {
+            ErrorHandler.log(e, stackTrace: s, tag: 'AuthService.syncUser.updatePhotoURL');
+          }
+        }
+
         final currentUser = UserModel.fromFirebaseUser(user).copyWith(
+          displayName: resolvedName,
+          photoURL: resolvedPhoto,
           metadata: metadata,
           age: _lastGooglePeopleData?['age'],
           birthdate: _lastGooglePeopleData?['birthdate'],
@@ -904,14 +1117,21 @@ class AuthService extends GetxService {
 
         final updateData = currentUser.toFirestoreUpdate();
         updateData['metadata'] = metadata;
+        if (existingName != null && existingName.isNotEmpty) {
+          updateData['displayName'] = existingName;
+          updateData['name'] = existingName;
+        }
+        if (existingPhoto != null && existingPhoto.isNotEmpty) {
+          updateData['photoURL'] = existingPhoto;
+        }
 
         await userDoc.update(updateData);
         debugPrint(
-          'AuthService: [SYNC] ✅ EXISTING user record updated successfully',
+          'AuthService: [SYNC] ✅ EXISTING user record updated successfully (preserved custom profile)',
         );
       }
-    } catch (e) {
-      debugPrint('AuthService: [SYNC] ⚠️ Sync Warning/Error: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'AuthService.syncUser');
       logger.error('Sync failure for ${user.uid}: $e', tag: 'AUTH');
 
       // Critical Fallback: Use idempotent set() with merge if get() or update() failed
@@ -932,9 +1152,11 @@ class AuthService extends GetxService {
           SetOptions(merge: true),
         );
         debugPrint('AuthService: [SYNC] ✅ Idempotent fallback successful');
-      } catch (fallbackError) {
-        debugPrint(
-          'AuthService: [SYNC] ❌ CRITICAL: Fallback also failed: $fallbackError',
+      } catch (fallbackError, fallbackStack) {
+        ErrorHandler.log(
+          fallbackError,
+          stackTrace: fallbackStack,
+          tag: 'AuthService.syncUser.fallback',
         );
       }
     } finally {
@@ -943,7 +1165,7 @@ class AuthService extends GetxService {
     }
   }
 
-  /// Updates profile with optional Age Group and optional Gender after Google Sign-In
+  /// Updates profile with optional Age Group and optional Gender after Google Sign-In or Settings update
   Future<void> updateUserProfileOnboarding({
     String? ageGroup,
     String? gender,
@@ -956,17 +1178,27 @@ class AuthService extends GetxService {
     };
 
     if (ageGroup != null && ageGroup.trim().isNotEmpty) {
-      updateData['ageGroup'] = ageGroup.trim();
+      final trimmedAge = ageGroup.trim();
+      updateData['ageGroup'] = trimmedAge;
+      userAgeGroup.value = trimmedAge;
+    } else {
+      updateData['ageGroup'] = FieldValue.delete();
+      userAgeGroup.value = null;
     }
 
     if (gender != null && gender.trim().isNotEmpty) {
-      updateData['gender'] = gender.trim();
+      final trimmedGender = gender.trim();
+      updateData['gender'] = trimmedGender;
+      userGender.value = trimmedGender;
+    } else {
+      updateData['gender'] = FieldValue.delete();
+      userGender.value = null;
     }
 
     await FirebaseFirestore.instance
         .collection(FirestoreCollections.users)
         .doc(currentUser.uid)
-        .update(updateData);
+        .set(updateData, SetOptions(merge: true));
 
     needsOnboarding.value = false;
   }

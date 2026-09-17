@@ -40,6 +40,7 @@ import * as admin             from "firebase-admin";
 import * as logger            from "firebase-functions/logger";
 import * as crypto              from "crypto";
 import { requireAdmin } from "../utils/auth";
+import { notifyUser } from "../notifications/notifications";
 
 if (!admin.apps.length) {
   admin.initializeApp({
@@ -1152,6 +1153,9 @@ export const ingestUploadedImage = onObjectFinalized(INGEST_CONFIG, async (event
   }
 
   const metadata = extractMetadata(filePath, object.bucket, Number(object.size ?? 0), object.contentType ?? undefined);
+  if (metadata && !metadata.userId && (object.metadata?.uploaderId || object.metadata?.userId)) {
+    metadata.userId = object.metadata.uploaderId || object.metadata.userId;
+  }
   if (!metadata) {
     // ❌ CRITICAL: Unrecognized path — log as error and track in Firestore for observability
     logger.error(`[Ingest] ❌ CRITICAL: Unrecognized path pattern — ${filePath}`);
@@ -1359,7 +1363,33 @@ async function doReject(
   const result: ValidationResult = { status: "REJECTED", reason: opts.reason, score: opts.score, timestamp: Date.now(), processedAt: Date.now() };
   await updateVerificationDoc(docId, metadata, result);
   await quarantineFile(bucket, metadata, result);
-  if (metadata.userId) await updateUserTrust(metadata.userId, "REJECTED");
+  if (metadata.userId) {
+    await updateUserTrust(metadata.userId, "REJECTED");
+    const isCommunity = metadata.category === "community";
+    const itemLabel = isCommunity
+      ? "community post image"
+      : metadata.category === "avatar"
+      ? "channel avatar"
+      : metadata.category === "banner"
+      ? "channel banner"
+      : "thumbnail";
+    const title = isCommunity
+      ? "Community Image Rejected"
+      : metadata.category === "avatar"
+      ? "Avatar Rejected"
+      : metadata.category === "banner"
+      ? "Banner Rejected"
+      : "Thumbnail Verification Rejected";
+    await notifyUser({
+      userId: metadata.userId,
+      type: "verification_result",
+      severity: "priority",
+      title,
+      message: `Your ${itemLabel} was rejected: ${opts.reason}. Please upload a new image to proceed.`,
+      actionUrl: isCommunity ? "/community" : "/studio",
+      metadata: { docId, reason: opts.reason, itemType: isCommunity ? "community_image" : metadata.category },
+    }).catch(err => logger.error("[Verification] Failed to notify user in doReject:", err));
+  }
   await logMetrics(metadata, result, Date.now() - start, "prefilter", reason);
   logger.info(`[Prefilter] REJECTED (${reason}) → ${metadata.filePath}`);
 }
@@ -1568,6 +1598,32 @@ const createModerationWorker = (
 
       if (result.status === "REJECTED") {
         await quarantineFile(bucket, metadata, result);
+        if (metadata.userId) {
+          const isCommunity = metadata.category === "community";
+          const itemLabel = isCommunity
+            ? "community post image"
+            : metadata.category === "avatar"
+            ? "channel avatar"
+            : metadata.category === "banner"
+            ? "channel banner"
+            : "thumbnail";
+          const title = isCommunity
+            ? "Community Image Rejected"
+            : metadata.category === "avatar"
+            ? "Avatar Rejected"
+            : metadata.category === "banner"
+            ? "Banner Rejected"
+            : "Thumbnail Verification Rejected";
+          await notifyUser({
+            userId: metadata.userId,
+            type: "verification_result",
+            severity: "priority",
+            title,
+            message: `Your ${itemLabel} was rejected: ${result.reason}. Please upload a new image to proceed.`,
+            actionUrl: isCommunity ? "/community" : "/studio",
+            metadata: { docId, reason: result.reason, itemType: isCommunity ? "community_image" : metadata.category },
+          }).catch(err => logger.error("[Verification] Failed to notify user in moderationWorker:", err));
+        }
       } else if (result.status === "FLAGGED") {
         await logFlaggedImage(metadata, result);
       }

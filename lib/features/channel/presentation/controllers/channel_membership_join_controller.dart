@@ -5,9 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/cashfree_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/memberships_controller.dart';
 
 /// 100% GetX Controller managing viewer-facing Channel Membership joins, perks, and status.
@@ -85,6 +88,7 @@ class ChannelMembershipJoinController extends BaseController {
 
         tiers.value = list;
         isLoadingTiers.value = false;
+        _syncSelectedTierToCurrentMembership();
       },
       onError: (err) {
         isLoadingTiers.value = false;
@@ -116,16 +120,54 @@ class ChannelMembershipJoinController extends BaseController {
           if (status == 'active') {
             isMember.value = true;
             currentMembership.value = ChannelMember.fromMap(data, doc.id);
+            _syncSelectedTierToCurrentMembership();
             return;
           }
         }
-        isMember.value = false;
-        currentMembership.value = null;
+        _checkUserMembershipFallback(uid);
       },
       onError: (err) {
         debugPrint('[ChannelMembershipJoinController] Error checking membership: $err');
+        _checkUserMembershipFallback(uid);
       },
     );
+  }
+
+  void _checkUserMembershipFallback(String uid) {
+    _firestore
+        .collection(FirestoreCollections.users)
+        .doc(uid)
+        .collection('channel_memberships')
+        .doc(channelId)
+        .get()
+        .then((doc) {
+          if (doc.exists && doc.data() != null) {
+            final data = doc.data()!;
+            final status = (data['status'] ?? 'active').toString().toLowerCase();
+            if (status == 'active') {
+              isMember.value = true;
+              currentMembership.value = ChannelMember.fromMap(data, doc.id);
+              _syncSelectedTierToCurrentMembership();
+              return;
+            }
+          }
+          isMember.value = false;
+          currentMembership.value = null;
+        })
+        .catchError((_) {
+          isMember.value = false;
+          currentMembership.value = null;
+        });
+  }
+
+  void _syncSelectedTierToCurrentMembership() {
+    final curTierId = currentMembership.value?.tierId;
+    if (curTierId != null && curTierId.isNotEmpty && tiers.isNotEmpty) {
+      final idx = tiers.indexWhere((t) => t.id == curTierId);
+      if (idx != -1) {
+        selectedTierIndex.value = idx;
+      }
+    }
   }
 
   void selectTier(int index) {
@@ -146,7 +188,7 @@ class ChannelMembershipJoinController extends BaseController {
 
     final tier = selectedTier;
     if (tier == null) {
-      AppSnackbar.show('Error', 'Please select a valid membership tier.');
+      AppSnackbar.warning('Please select a membership tier to continue.');
       return;
     }
 
@@ -161,8 +203,41 @@ class ChannelMembershipJoinController extends BaseController {
       return;
     }
 
+    final isUpgrading = isMember.value && currentMembership.value?.tierId != tier.id;
+    final previousTierId = currentMembership.value?.tierId;
+
     isProcessing.value = true;
     try {
+      final amountINR = tier.currency.toUpperCase() == 'INR'
+          ? tier.price
+          : (tier.price * 85.0).roundToDouble();
+      final paymentResult = await CashfreePaymentService.to.startPayment(
+        amount: amountINR,
+        purpose: 'channel_membership',
+        orderNote: isUpgrading
+            ? 'Upgrade Membership: ${channel?.name ?? "Channel"} - ${tier.name}'
+            : 'Membership: ${channel?.name ?? "Channel"} - ${tier.name}',
+        metadata: {
+          'channelId': channelId,
+          'channelName': channel?.name ?? '',
+          'tierId': tier.id,
+          'tierName': tier.name,
+          'currency': tier.currency,
+          'isUpgrade': isUpgrading ? 'true' : 'false',
+          'previousTierId': previousTierId ?? '',
+          'userName': user.displayName ?? 'Channel Supporter',
+          'userAvatarUrl': user.photoURL ?? '',
+        },
+      );
+
+      if (!paymentResult.success) {
+        if (paymentResult.errorMessage != null &&
+            !paymentResult.errorMessage!.toLowerCase().contains('cancel')) {
+          AppSnackbar.error(paymentResult.errorMessage!);
+        }
+        return;
+      }
+
       final batch = _firestore.batch();
 
       // 1. Write or update member document in channel's members subcollection
@@ -179,24 +254,13 @@ class ChannelMembershipJoinController extends BaseController {
         tierId: tier.id,
         tierName: tier.name,
         price: tier.price,
+        currency: tier.currency,
         joinedAt: DateTime.now(),
       );
 
       batch.set(memberRef, memberData.toMap());
 
-      // 2. Increment member count on the tier document
-      final tierRef = _firestore
-          .collection(FirestoreCollections.channels)
-          .doc(channelId)
-          .collection('membership_tiers')
-          .doc(tier.id);
-
-      batch.update(tierRef, {
-        'memberCount': FieldValue.increment(1),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-
-      // 3. Record membership in user's joined_memberships subcollection
+      // 2. Record membership in user's channel_memberships subcollection
       final userMembershipRef = _firestore
           .collection(FirestoreCollections.users)
           .doc(user.uid)
@@ -210,23 +274,49 @@ class ChannelMembershipJoinController extends BaseController {
         'tierId': tier.id,
         'tierName': tier.name,
         'price': tier.price,
+        'currency': tier.currency,
         'badgeColorHex': tier.badgeColorHex,
         'badgeIcon': tier.badgeIcon,
         'status': 'active',
         'joinedAt': FieldValue.serverTimestamp(),
       });
 
+      // 3. If upgrading from another tier, decrement previous tier's memberCount
+      if (isUpgrading && previousTierId != null && previousTierId.isNotEmpty) {
+        final prevTierRef = _firestore
+            .collection(FirestoreCollections.channels)
+            .doc(channelId)
+            .collection('membership_tiers')
+            .doc(previousTierId);
+        batch.update(prevTierRef, {
+          'memberCount': FieldValue.increment(-1),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
       await batch.commit();
 
-      AppSnackbar.show(
-        'Welcome to the Family!',
-        'You have successfully joined the ${tier.name} tier! Enjoy your loyalty badge and member perks.',
+      isMember.value = true;
+      currentMembership.value = memberData;
+      _syncSelectedTierToCurrentMembership();
+
+      if (Get.isRegistered<ChannelSubscriptionController>()) {
+        final sub = Get.find<ChannelSubscriptionController>();
+        sub.isChannelMember.value = true;
+        sub.currentMembership.value = memberData;
+      }
+
+      AppSnackbar.success(
+        isUpgrading
+            ? 'You have successfully upgraded to the ${tier.name} tier! Enjoy your enhanced perks.'
+            : 'You have successfully joined the ${tier.name} tier! Enjoy your loyalty badge and member perks.',
+        title: isUpgrading ? 'Membership Upgraded!' : 'Welcome to the Family!',
       );
 
       Get.back<void>();
     } catch (e) {
-      debugPrint('[ChannelMembershipJoinController] Error joining tier: $e');
-      AppSnackbar.show('Membership Error', 'Failed to join tier: $e');
+      ErrorHandler.log(e, tag: 'ChannelMembershipJoinController');
+      AppSnackbar.error('Unable to join membership tier. Please try again.');
     } finally {
       isProcessing.value = false;
     }
@@ -284,8 +374,8 @@ class ChannelMembershipJoinController extends BaseController {
       );
       Get.back<void>();
     } catch (e) {
-      debugPrint('[ChannelMembershipJoinController] Error cancelling membership: $e');
-      AppSnackbar.show('Error', 'Failed to cancel membership: $e');
+      ErrorHandler.log(e, tag: 'ChannelMembershipJoinController');
+      AppSnackbar.error('Unable to cancel membership. Please try again.');
     } finally {
       isProcessing.value = false;
     }

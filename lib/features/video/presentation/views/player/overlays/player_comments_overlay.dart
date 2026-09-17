@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
@@ -336,6 +338,17 @@ class _FullscreenCommentInputState extends State<FullscreenCommentInput> {
   Future<void> _submit() async {
     final text = _textCtrl.text.trim();
     if (text.isEmpty) return;
+
+    final validation = ContentValidator.validate(
+      text,
+      fieldName: 'Comment',
+      maxLength: 1000,
+    );
+    if (!validation.isValid) {
+      AppSnackbar.warning(validation.message);
+      return;
+    }
+
     _isSubmitting.value = true;
     try {
       if (!AuthService.to.isAuthenticated.value) {
@@ -367,11 +380,8 @@ class _FullscreenCommentInputState extends State<FullscreenCommentInput> {
       _textCtrl.clear();
       _focusNode.unfocus();
     } catch (e) {
-      AppSnackbar.show(
-        'Error',
-        'Failed to post comment: $e',
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      ErrorHandler.log(e);
+      AppSnackbar.error('Unable to post comment. Please try again.');
     } finally {
       _isSubmitting.value = false;
     }
@@ -440,6 +450,7 @@ class _FullscreenCommentInputState extends State<FullscreenCommentInput> {
               child: TextField(
                 controller: _textCtrl,
                 focusNode: _focusNode,
+                inputFormatters: TruthworldTextInputFormatters.standard,
                 style: const TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 13,

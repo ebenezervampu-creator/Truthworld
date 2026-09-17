@@ -4,7 +4,9 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -60,15 +62,17 @@ class WatchHistoryController extends BaseController {
     isHistoryPaused.value = !isHistoryPaused.value;
     final storage = GetStorage();
     storage.write('watch_history_paused', isHistoryPaused.value);
-    Get.snackbar(
-      isHistoryPaused.value ? 'History Paused' : 'History Resumed',
-      isHistoryPaused.value
-          ? 'Your viewing history will no longer be saved.'
-          : 'Your viewing history will now be saved.',
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: AppTheme.colors.surface.withValues(alpha: 0.9),
-      colorText: AppTheme.colors.textPrimary,
-    );
+    if (isHistoryPaused.value) {
+      AppSnackbar.info(
+        'Your viewing history will no longer be saved.',
+        title: 'History Paused',
+      );
+    } else {
+      AppSnackbar.success(
+        'Your viewing history will now be saved.',
+        title: 'History Resumed',
+      );
+    }
   }
 
   Future<void> deleteHistoryItem(String videoId) async {
@@ -83,13 +87,10 @@ class WatchHistoryController extends BaseController {
           .doc(videoId)
           .delete();
 
-      Get.snackbar(
-        'Item Removed',
-        'Video removed from watch history',
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      AppSnackbar.success('Video removed from watch history');
     } catch (e) {
-      Get.snackbar('Error', 'Failed to remove item: $e');
+      ErrorHandler.log(e, context: 'WatchHistoryController.removeItem');
+      AppSnackbar.error('Unable to remove video from history. Please try again.');
     }
   }
 
@@ -124,9 +125,10 @@ class WatchHistoryController extends BaseController {
                 }
 
                 await batch.commit();
-                Get.snackbar('Success', 'Watch history cleared');
+                AppSnackbar.success('Watch history cleared');
               } catch (e) {
-                Get.snackbar('Error', 'Failed to clear history: $e');
+                ErrorHandler.log(e, context: 'WatchHistoryController.clearAllHistory');
+                AppSnackbar.error('Unable to clear watch history. Please try again.');
               }
             },
             child: const Text(
@@ -161,7 +163,7 @@ class WatchHistoryController extends BaseController {
 
       if (snapshots.docs.isEmpty) {
         setViewState(ViewState.idle);
-        Get.snackbar('History', 'No history found for $label');
+        AppSnackbar.info('No history found for $label');
         return;
       }
 
@@ -172,10 +174,11 @@ class WatchHistoryController extends BaseController {
 
       await batch.commit();
       setViewState(ViewState.idle);
-      Get.snackbar('Success', 'Cleared history for $label');
+      AppSnackbar.success('Cleared history for $label');
     } catch (e) {
       setViewState(ViewState.idle);
-      Get.snackbar('Error', 'Failed to clear history: $e');
+      ErrorHandler.log(e, context: 'WatchHistoryController.deleteHistoryRange');
+      AppSnackbar.error('Unable to clear history. Please try again.');
     }
   }
 
@@ -308,25 +311,31 @@ class WatchHistoryController extends BaseController {
   Map<String, List<Video>> groupVideosByDate(List<Video> videos) {
     final groups = <String, List<Video>>{};
     final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
+    final todayYear = now.year;
+    final todayMonth = now.month;
+    final todayDay = now.day;
+
+    final yesterday = DateTime(todayYear, todayMonth, todayDay).subtract(const Duration(days: 1));
+    final yesterdayYear = yesterday.year;
+    final yesterdayMonth = yesterday.month;
+    final yesterdayDay = yesterday.day;
 
     for (final video in videos) {
       final uploadDate = video.uploadedAt.toDate();
-      final date = DateTime(uploadDate.year, uploadDate.month, uploadDate.day);
-      String key;
-      if (date == today) {
+      final uYear = uploadDate.year;
+      final uMonth = uploadDate.month;
+      final uDay = uploadDate.day;
+
+      final String key;
+      if (uYear == todayYear && uMonth == todayMonth && uDay == todayDay) {
         key = 'Today';
-      } else if (date == yesterday) {
+      } else if (uYear == yesterdayYear && uMonth == yesterdayMonth && uDay == yesterdayDay) {
         key = 'Yesterday';
       } else {
-        key = '${date.day} ${_getMonthName(date.month)} ${date.year}';
+        key = '$uDay ${_getMonthName(uMonth)} $uYear';
       }
 
-      if (!groups.containsKey(key)) {
-        groups[key] = [];
-      }
-      groups[key]!.add(video);
+      groups.putIfAbsent(key, () => <Video>[]).add(video);
     }
     return groups;
   }

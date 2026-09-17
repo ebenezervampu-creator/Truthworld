@@ -1,6 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:flutter/foundation.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/firebase_options.dart';
 
 /// Returns a safely initialized [FirebaseDatabase] instance configured with
@@ -15,8 +15,12 @@ FirebaseDatabase getSafeFirebaseDatabase() {
         databaseURL: dbUrl,
       );
     }
-  } catch (e) {
-    debugPrint('[FirebaseRTDB] Warning initializing instanceFor: $e');
+  } catch (e, stackTrace) {
+    ErrorHandler.log(
+      e,
+      stackTrace: stackTrace,
+      tag: 'FirebaseRTDBHelper.getSafeFirebaseDatabase',
+    );
   }
   return FirebaseDatabase.instance;
 }

@@ -1,10 +1,10 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 
 class CategoryStats {
   final String category;
@@ -290,9 +290,13 @@ class CategoryInsightsController extends BaseController {
           ? maxGrowthCat.category
           : 'None yet';
     } catch (e, stack) {
-      debugPrint('Error fetching category insights: $e\n$stack');
+      ErrorHandler.log(
+        e,
+        stackTrace: stack,
+        tag: 'CategoryInsightsController.fetchCategoryInsights',
+      );
       rxErrorMessage.value =
-          'Failed to load category insights data. Please try again.';
+          'Unable to load category insights. Please try again.';
     } finally {
       rxIsLoading.value = false;
     }

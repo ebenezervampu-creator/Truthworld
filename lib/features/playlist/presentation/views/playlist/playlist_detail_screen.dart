@@ -8,6 +8,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
@@ -1156,8 +1157,12 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
 
       final videoMap = {for (final v in videos) v.id: v};
       return videoIds.map((id) => videoMap[id]).whereType<Video>().toList();
-    } catch (e) {
-      debugPrint('Error fetching playlist videos: $e');
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'PlaylistDetailScreen._fetchPlaylistVideos',
+      );
       return [];
     }
   }

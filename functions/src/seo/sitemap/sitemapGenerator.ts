@@ -30,7 +30,6 @@ export async function generateStaticSitemap(): Promise<string> {
     { path: "", priority: "1.0" },
     { path: "/home", priority: "1.0" },
     { path: "/studio", priority: "0.9" },
-    { path: "/advertiser", priority: "0.9" },
     { path: "/advertisements", priority: "0.9" },
     { path: "/browse", priority: "0.8" },
     { path: "/trending", priority: "0.8" },
@@ -65,7 +64,9 @@ export async function generateVideosSitemapShard(db: admin.firestore.Firestore, 
         xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">`;
 
   try {
-    let snap: admin.firestore.QuerySnapshot;
+    let snap: admin.firestore.QuerySnapshot | null = null;
+
+    // Tier 1: Try public visibility
     try {
       let query = db
         .collection("videos")
@@ -75,32 +76,78 @@ export async function generateVideosSitemapShard(db: admin.firestore.Firestore, 
       if (shardIndex > 1) {
         query = query.offset((shardIndex - 1) * SHARD_SIZE);
       }
-      snap = await query.get();
-    } catch (indexErr) {
-      console.warn("Visibility query failed in video sitemap, running broad query", indexErr);
-      let fallbackQuery = db
-        .collection("videos")
-        .limit(SHARD_SIZE);
-      snap = await fallbackQuery.get();
+      const testSnap = await query.get();
+      if (!testSnap.empty) {
+        snap = testSnap;
+      }
+    } catch (e) {
+      console.warn("Tier 1 video sitemap query failed:", e);
     }
 
-    snap.forEach((doc) => {
-      const data = doc.data();
-      const status = (data.status || "").toLowerCase();
-      const visibility = (data.visibility || "public").toLowerCase();
+    // Tier 2: Try published/ready status
+    if (!snap || snap.empty) {
+      try {
+        let query = db
+          .collection("videos")
+          .where("status", "in", ["published", "ready", "active"])
+          .limit(SHARD_SIZE);
 
-      // Ensure video is not deleted, rejected, flagged, draft, or private
-      if (
-        (visibility === "public" || visibility === "") &&
-        status !== "deleted" &&
-        status !== "rejected" &&
-        status !== "flagged" &&
-        status !== "draft" &&
-        status !== "private"
-      ) {
-        const title = escapeHtml((data.title || "Video").trim());
-        const description = escapeHtml((data.description || `Watch ${data.title} on Truthworld.`).trim());
-        
+        if (shardIndex > 1) {
+          query = query.offset((shardIndex - 1) * SHARD_SIZE);
+        }
+        const testSnap = await query.get();
+        if (!testSnap.empty) {
+          snap = testSnap;
+        }
+      } catch (e) {
+        console.warn("Tier 2 video sitemap query failed:", e);
+      }
+    }
+
+    // Tier 3: Broad fallback query without restrictive filter
+    if (!snap || snap.empty) {
+      try {
+        let query = db
+          .collection("videos")
+          .limit(SHARD_SIZE);
+
+        if (shardIndex > 1) {
+          query = query.offset((shardIndex - 1) * SHARD_SIZE);
+        }
+        snap = await query.get();
+      } catch (e) {
+        console.error("Tier 3 broad video sitemap query failed:", e);
+      }
+    }
+
+    if (snap && !snap.empty) {
+      snap.forEach((doc) => {
+        const data = doc.data();
+        const status = (data.status || "").toLowerCase();
+        const visibility = (data.visibility || "public").toLowerCase();
+        const rawTitle = (data.title || "").trim();
+        const lowerTitle = rawTitle.toLowerCase();
+
+        // Strict validation: exclude deleted, rejected, flagged, draft, private, or untitled
+        if (
+          visibility === "private" ||
+          visibility === "draft" ||
+          status === "deleted" ||
+          status === "rejected" ||
+          status === "flagged" ||
+          status === "draft" ||
+          status === "private" ||
+          !rawTitle ||
+          lowerTitle === "untitled" ||
+          lowerTitle.startsWith("untitled") ||
+          lowerTitle.startsWith("uploading")
+        ) {
+          return;
+        }
+
+        const title = escapeHtml(rawTitle);
+        const description = escapeHtml((data.description || `Watch ${rawTitle} on Truthworld.`).trim());
+
         let rawThumbnail = data.thumbnailUrl || data.thumbnail || `${DOMAIN}/icons/og-image.png`;
         if (rawThumbnail.startsWith("/")) rawThumbnail = `${DOMAIN}${rawThumbnail}`;
         const thumbnail = escapeHtml(rawThumbnail);
@@ -138,8 +185,8 @@ export async function generateVideosSitemapShard(db: admin.firestore.Firestore, 
       <video:uploader info="${channelUrl}">${channelName}</video:uploader>
     </video:video>
   </url>`;
-      }
-    });
+      });
+    }
   } catch (err) {
     console.error("Error generating video sitemap shard", err);
   }
@@ -154,10 +201,7 @@ export async function generateChannelsSitemapShard(db: admin.firestore.Firestore
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`;
 
   try {
-    let query = db
-      .collection("channels")
-      .where("status", "==", "active")
-      .limit(SHARD_SIZE);
+    let query: admin.firestore.Query = db.collection("channels").limit(SHARD_SIZE);
 
     if (shardIndex > 1) {
       query = query.offset((shardIndex - 1) * SHARD_SIZE);
@@ -167,7 +211,17 @@ export async function generateChannelsSitemapShard(db: admin.firestore.Firestore
 
     snap.forEach((doc) => {
       const data = doc.data();
+      const status = (data.status || "").toLowerCase();
+      if (status === "suspended" || status === "banned" || status === "deleted") {
+        return;
+      }
+
       let handle = data.handleLowercase || data.handle;
+      const rawName = (data.displayName || data.name || data.channelName || "").trim();
+      if (rawName.toLowerCase().startsWith("untitled") && !handle) {
+        return;
+      }
+
       const lastmod = formatDate(data.updatedAt || data.createdAt).split("T")[0];
       if (handle) {
         if (handle.startsWith("@")) {
@@ -205,21 +259,21 @@ export async function generateTopicsSitemap(db: admin.firestore.Firestore): Prom
   try {
     const snap = await db
       .collection("topics")
-      .where("status", "==", "active")
       .limit(2000)
       .get();
 
     snap.forEach((doc) => {
       const data = doc.data();
+      const status = (data.status || "").toLowerCase();
+      if (status === "deleted" || status === "inactive") return;
+
       const slug = (data.slug || doc.id).trim();
       const title = (data.title || data.name || "").trim().toLowerCase();
       const lowerSlug = slug.toLowerCase();
 
-      const videoCount = Number(data.videoCount) || (Array.isArray(data.featuredVideoIds) ? data.featuredVideoIds.length : 0);
       if (
         !slug ||
         !title ||
-        videoCount <= 0 ||
         lowerSlug === "topic" ||
         lowerSlug === "featured-topic" ||
         lowerSlug.startsWith("untitled") ||
@@ -252,59 +306,55 @@ export async function generatePlaylistsSitemap(db: admin.firestore.Firestore): P
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`;
 
   try {
-    let snap: admin.firestore.QuerySnapshot;
+    let snap: admin.firestore.QuerySnapshot | null = null;
     try {
-      snap = await db
-        .collection("playlists")
-        .where("visibility", "in", ["public", "Public"])
-        .limit(2000)
-        .get();
-      if (snap.empty) {
-        snap = await db
-          .collection("playlists")
-          .where("isPublic", "==", true)
-          .limit(2000)
-          .get();
-      }
-      if (snap.empty) {
-        snap = await db
-          .collection("playlists")
-          .limit(2000)
-          .get();
+      const pSnap = await db.collection("playlists").limit(2000).get();
+      if (!pSnap.empty) {
+        snap = pSnap;
       }
     } catch (e) {
-      snap = await db
-        .collection("public_playlists")
-        .limit(2000)
-        .get();
+      console.warn("Query playlists collection failed:", e);
     }
 
-    snap.forEach((doc) => {
-      const data = doc.data();
-      const isPublic = data.visibility === "public" || data.visibility === "Public" || data.isPublic === true;
-      if (data.visibility && !isPublic) return;
-      if (data.status === "deleted") return;
-
-      const name = (data.name || data.playlistName || data.title || "").trim().toLowerCase();
-
-      if (
-        !name ||
-        name === "playlist" ||
-        name === "truthworld playlist" ||
-        name.startsWith("untitled")
-      ) {
-        return;
+    if (!snap || snap.empty) {
+      try {
+        const pubSnap = await db.collection("public_playlists").limit(2000).get();
+        if (!pubSnap.empty) {
+          snap = pubSnap;
+        }
+      } catch (e) {
+        console.warn("Query public_playlists collection failed:", e);
       }
+    }
 
-      const lastmod = formatDate(data.updatedAt || data.createdAt).split("T")[0];
-      xml += `
+    if (snap && !snap.empty) {
+      snap.forEach((doc) => {
+        const data = doc.data();
+        const isPublic = data.visibility === "public" || data.visibility === "Public" || data.isPublic === true || data.visibility === undefined;
+        if (!isPublic) return;
+        if (data.status === "deleted") return;
+
+        const name = (data.name || data.playlistName || data.title || "").trim().toLowerCase();
+
+        if (
+          !name ||
+          name === "playlist" ||
+          name === "truthworld playlist" ||
+          name.startsWith("untitled")
+        ) {
+          return;
+        }
+
+        const lastmod = formatDate(data.updatedAt || data.createdAt).split("T")[0];
+        xml += `
   <url>
     <loc>${DOMAIN}/playlist?list=${doc.id}</loc>
     <lastmod>${lastmod}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>`;
-    });
+      });
+    }
   } catch (err) {
     console.error("Error generating playlists sitemap", err);
   }
@@ -319,52 +369,53 @@ export async function generateCommunityPostsSitemapShard(db: admin.firestore.Fir
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`;
 
   try {
-    let snap: admin.firestore.QuerySnapshot;
+    let snap: admin.firestore.QuerySnapshot | null = null;
     try {
-      let query = db
-        .collection("Community")
-        .where("visibility", "in", ["public", "Public"])
-        .limit(SHARD_SIZE);
+      let query = db.collection("Community").limit(SHARD_SIZE);
       if (shardIndex > 1) {
         query = query.offset((shardIndex - 1) * SHARD_SIZE);
       }
-      snap = await query.get();
+      const cSnap = await query.get();
+      if (!cSnap.empty) {
+        snap = cSnap;
+      }
     } catch (e) {
+      console.warn("Query Community collection failed:", e);
+    }
+
+    if (!snap || snap.empty) {
       try {
-        let query = db
-          .collection("Community")
-          .limit(SHARD_SIZE);
+        let query = db.collection("community_posts").limit(SHARD_SIZE);
         if (shardIndex > 1) {
           query = query.offset((shardIndex - 1) * SHARD_SIZE);
         }
-        snap = await query.get();
-      } catch (err2) {
-        let query = db
-          .collection("community_posts")
-          .limit(SHARD_SIZE);
-        if (shardIndex > 1) {
-          query = query.offset((shardIndex - 1) * SHARD_SIZE);
+        const cpSnap = await query.get();
+        if (!cpSnap.empty) {
+          snap = cpSnap;
         }
-        snap = await query.get();
+      } catch (e) {
+        console.warn("Query community_posts collection failed:", e);
       }
     }
 
-    snap.forEach((doc) => {
-      const data = doc.data();
-      const status = (data.status || "").toLowerCase();
-      const visibility = (data.visibility || "").toLowerCase();
-      if (status === "deleted" || status === "rejected") return;
-      if (visibility === "private") return;
+    if (snap && !snap.empty) {
+      snap.forEach((doc) => {
+        const data = doc.data();
+        const status = (data.status || "").toLowerCase();
+        const visibility = (data.visibility || "").toLowerCase();
+        if (status === "deleted" || status === "rejected") return;
+        if (visibility === "private") return;
 
-      const lastmod = formatDate(data.timestamp || data.uploadedAt || data.createdAt).split("T")[0];
-      xml += `
+        const lastmod = formatDate(data.timestamp || data.uploadedAt || data.createdAt).split("T")[0];
+        xml += `
   <url>
     <loc>${DOMAIN}/post/${doc.id}</loc>
     <lastmod>${lastmod}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>`;
-    });
+      });
+    }
   } catch (err) {
     console.error("Error generating community posts sitemap shard", err);
   }

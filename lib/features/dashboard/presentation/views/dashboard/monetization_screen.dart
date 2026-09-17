@@ -1,4 +1,6 @@
 import 'dart:async';
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -7,6 +9,7 @@ import 'package:intl/intl.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/channel_plan_selection_screen.dart';
 import 'package:truthworld/features/channel/presentation/views/channel_monetization_dashboard_view.dart';
@@ -872,7 +875,18 @@ class MonetizationScreen extends StatelessWidget {
                 height: 35,
                 color: AppColors.bgInput,
                 child: video.thumbnailUrl.isNotEmpty
-                    ? Image.network(video.thumbnailUrl, fit: BoxFit.cover)
+                    ? CachedNetworkImage(
+                        imageUrl: video.thumbnailUrl,
+                        fit: BoxFit.cover,
+                        width: 50,
+                        height: 35,
+                        placeholder: (context, url) => const ColoredBox(color: AppColors.bgInput),
+                        errorWidget: (context, url, error) => const Icon(
+                          Icons.play_circle_fill_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      )
                     : const Icon(
                         Icons.play_circle_fill_rounded,
                         color: Colors.white,
@@ -1091,12 +1105,8 @@ class MonetizationScreen extends StatelessWidget {
                     targetLanguages: ['en'],
                   );
 
-                  Get.snackbar(
-                    'Fact-Check Enqueued!',
+                  AppSnackbar.success(
                     'Channel balance applied for Fact-Checking & Credibility verification on "$videoTitle"!',
-                    snackPosition: SnackPosition.BOTTOM,
-                    backgroundColor: AppColors.bgSurfaceHigh,
-                    colorText: Colors.white,
                   );
                 },
               ),
@@ -1125,12 +1135,8 @@ class MonetizationScreen extends StatelessWidget {
                     targetLanguages: ['te', 'hi', 'en'],
                   );
 
-                  Get.snackbar(
-                    'AI Subtitles Enqueued!',
+                  AppSnackbar.success(
                     'Channel balance applied for AI Subtitles on "$videoTitle"!',
-                    snackPosition: SnackPosition.BOTTOM,
-                    backgroundColor: AppColors.bgSurfaceHigh,
-                    colorText: Colors.white,
                   );
                 },
               ),
@@ -1159,12 +1165,8 @@ class MonetizationScreen extends StatelessWidget {
                     targetLanguages: ['te', 'hi', 'en'],
                   );
 
-                  Get.snackbar(
-                    'AI Dubbing Enqueued!',
+                  AppSnackbar.success(
                     'Channel balance applied for AI Multilingual Dubbing on "$videoTitle"!',
-                    snackPosition: SnackPosition.BOTTOM,
-                    backgroundColor: AppColors.bgSurfaceHigh,
-                    colorText: Colors.white,
                   );
                 },
               ),
@@ -1193,12 +1195,8 @@ class MonetizationScreen extends StatelessWidget {
                     targetLanguages: ['en'],
                   );
 
-                  Get.snackbar(
-                    'AI Chapters Enqueued!',
+                  AppSnackbar.success(
                     'Channel balance applied for AI Chapters & Summary!',
-                    snackPosition: SnackPosition.BOTTOM,
-                    backgroundColor: AppColors.bgSurfaceHigh,
-                    colorText: Colors.white,
                   );
                 },
               ),
@@ -1234,12 +1232,8 @@ class MonetizationScreen extends StatelessWidget {
                     pack: pack,
                   );
 
-                  Get.snackbar(
-                    'Storage Expanded!',
+                  AppSnackbar.success(
                     '+50 GB storage added to your channel from balance!',
-                    snackPosition: SnackPosition.BOTTOM,
-                    backgroundColor: AppColors.bgSurfaceHigh,
-                    colorText: Colors.white,
                   );
                 },
               ),
@@ -1263,12 +1257,8 @@ class MonetizationScreen extends StatelessWidget {
                     pack: pack,
                   );
 
-                  Get.snackbar(
-                    'Bandwidth Expanded!',
+                  AppSnackbar.success(
                     '+250 GB streaming bandwidth added to your channel from balance!',
-                    snackPosition: SnackPosition.BOTTOM,
-                    backgroundColor: AppColors.bgSurfaceHigh,
-                    colorText: Colors.white,
                   );
                 },
               ),
@@ -1287,12 +1277,13 @@ class MonetizationScreen extends StatelessWidget {
     required String costText,
     required VoidCallback onSelect,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.bgInput,
+    return Material(
+      color: AppColors.bgInput,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.bgDivider),
+        side: const BorderSide(color: AppColors.bgDivider),
       ),
+      clipBehavior: Clip.antiAlias,
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: Container(
@@ -1337,7 +1328,7 @@ class MonetizationScreen extends StatelessWidget {
         trailing: const Icon(
           Icons.arrow_forward_ios_rounded,
           size: 14,
-          color: AppColors.textSecondary,
+          color: Colors.white,
         ),
         onTap: onSelect,
       ),

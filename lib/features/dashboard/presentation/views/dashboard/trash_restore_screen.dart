@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -130,8 +131,12 @@ class TrashRestoreController extends BaseController {
       );
 
       trashItems.value = loadedItems;
-    } catch (e) {
-      debugPrint('Error loading trash items: $e');
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'TrashRestoreController.loadTrashItems',
+      );
     } finally {
       rxIsLoading.value = false;
     }
@@ -194,24 +199,17 @@ class TrashRestoreController extends BaseController {
       // Close loading dialog
       Get.back();
 
-      AppSnackbar.show(
-        'Item Restored',
+      AppSnackbar.success(
         '${item['title']} has been successfully restored.',
-        backgroundColor: AppColors.success,
-        colorText: AppColors.textPrimary,
-        snackPosition: SnackPosition.BOTTOM,
       );
 
       // Reload list
       loadTrashItems();
     } catch (e) {
       Get.back(); // Close loading dialog
-      AppSnackbar.show(
-        'Restoration Failed',
-        'Failed to restore item: $e',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
-        snackPosition: SnackPosition.BOTTOM,
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to restore item. Please try again.',
       );
     }
   }
@@ -239,93 +237,102 @@ class TrashRestoreScreen extends StatelessWidget {
       tag: channelId,
     );
 
-    return Container(
-      color: isDarkMode ? AppColors.bgPage : AppColors.bgPage,
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Scaffold(
+      backgroundColor: isDarkMode ? AppColors.bgPage : AppColors.bgPage,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Header
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  if (Navigator.canPop(context)) ...[
-                    IconButton(
-                      icon: const Icon(
-                        Icons.arrow_back_rounded,
-                        color: Colors.white,
-                      ),
-                      onPressed: () => Navigator.of(context).pop(),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        if (Navigator.canPop(context)) ...[
+                          IconButton(
+                            icon: const Icon(
+                              Icons.arrow_back_rounded,
+                              color: Colors.white,
+                            ),
+                            onPressed: () => Navigator.of(context).pop(),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Trash & Restoration',
+                                style: TextStyle(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDarkMode
+                                      ? AppColors.textPrimary
+                                      : Colors.black,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Deleted channels, videos, topics, and playlists are retained for 30 days before permanent deletion.',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: isDarkMode
+                                      ? AppColors.textSecondary
+                                      : Colors.black,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 8),
-                  ],
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Trash & Restoration',
-                        style: TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.bold,
-                          color: isDarkMode
-                              ? AppColors.textPrimary
-                              : Colors.black,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Deleted channels, videos, topics, and playlists are retained for 30 days before permanent deletion.',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: isDarkMode
-                              ? AppColors.textSecondary
-                              : Colors.black,
-                        ),
-                      ),
-                    ],
+                  ),
+                  const SizedBox(width: 16),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.refresh_rounded,
+                      color: Colors.white,
+                    ),
+                    onPressed: controller.loadTrashItems,
+                    tooltip: 'Refresh Trash Bin',
                   ),
                 ],
               ),
-              IconButton(
-                icon: const Icon(
-                  Icons.refresh_rounded,
-                  color: Colors.white,
-                ),
-                onPressed: controller.loadTrashItems,
-                tooltip: 'Refresh Trash Bin',
+              const SizedBox(height: 24),
+
+              // Filters Row
+              _buildFiltersRow(controller),
+              const SizedBox(height: 16),
+
+              // Content Area
+              Expanded(
+                child: Obx(() {
+                  if (controller.rxIsLoading.value) {
+                    return const Center(
+                      child: CircularProgressIndicator(color: Color(0xFF6366F1)),
+                    );
+                  }
+
+                  final filteredList = controller.trashItems.where((item) {
+                    if (controller.selectedFilter.value == 'All') return true;
+                    return item['type'] == controller.selectedFilter.value;
+                  }).toList();
+
+                  if (filteredList.isEmpty) {
+                    return _buildEmptyState();
+                  }
+
+                  return _buildTrashItemsList(controller, filteredList);
+                }),
               ),
             ],
           ),
-          const SizedBox(height: 24),
-
-          // Filters Row
-          _buildFiltersRow(controller),
-          const SizedBox(height: 16),
-
-          // Content Area
-          Expanded(
-            child: Obx(() {
-              if (controller.rxIsLoading.value) {
-                return const Center(
-                  child: CircularProgressIndicator(color: Color(0xFF6366F1)),
-                );
-              }
-
-              final filteredList = controller.trashItems.where((item) {
-                if (controller.selectedFilter.value == 'All') return true;
-                return item['type'] == controller.selectedFilter.value;
-              }).toList();
-
-              if (filteredList.isEmpty) {
-                return _buildEmptyState();
-              }
-
-              return _buildTrashItemsList(controller, filteredList);
-            }),
-          ),
-        ],
+        ),
       ),
     );
   }

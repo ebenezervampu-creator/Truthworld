@@ -79,6 +79,17 @@ void main() {
       expect(controller.selectedFilter.value, equals('Verified Only'));
     });
 
+    test('selectCategory updates category and resets topic and language filters', () {
+      controller.selectedTopic.value = 'AI & Robotics';
+      controller.selectedLanguage.value = 'Telugu';
+
+      controller.selectCategory('Education');
+
+      expect(controller.selectedCategory.value, equals('Education'));
+      expect(controller.selectedTopic.value, equals('All Topics'));
+      expect(controller.selectedLanguage.value, equals('All Languages'));
+    });
+
     test('subscription state tracking adds and removes channel IDs', () {
       controller.subscribedChannelIds.add('chan_101');
       expect(controller.subscribedChannelIds.contains('chan_101'), isTrue);

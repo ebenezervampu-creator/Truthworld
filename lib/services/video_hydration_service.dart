@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:universal_html/js.dart' as js;
 
 /// Service to handle video data injection from prerendered HTML pages.
@@ -33,8 +34,12 @@ class VideoHydrationService {
       }
 
       return !isUndefined;
-    } catch (e) {
-      debugPrint('⚠️ Error checking injected data: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'VideoHydrationService.hasInjectedData',
+      );
       return false;
     }
   }
@@ -89,8 +94,12 @@ class VideoHydrationService {
 
       debugPrint('✅ Retrieved injected data: ${data['title']}');
       return data;
-    } catch (e) {
-      debugPrint('❌ Error reading injected data: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'VideoHydrationService.getInjectedData',
+      );
       return null;
     }
   }
@@ -110,8 +119,12 @@ class VideoHydrationService {
       }
 
       return data[field];
-    } catch (e) {
-      debugPrint('❌ Error reading field "$field": $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'VideoHydrationService.getInjectedField',
+      );
       return null;
     }
   }
@@ -125,8 +138,12 @@ class VideoHydrationService {
         js.context['__VIDEO_DATA__'] = null;
         debugPrint('✅ Cleared injected data');
       }
-    } catch (e) {
-      debugPrint('⚠️ Error clearing injected data: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'VideoHydrationService.clearInjectedData',
+      );
     }
   }
 
@@ -137,8 +154,12 @@ class VideoHydrationService {
         js.context.deleteProperty('__VIDEO_DATA__');
         debugPrint('✅ Removed __VIDEO_DATA__ from window');
       }
-    } catch (e) {
-      debugPrint('⚠️ Error removing injected data: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'VideoHydrationService.removeInjectedData',
+      );
     }
   }
 

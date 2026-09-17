@@ -1,6 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/utils/content_validator.dart';
+import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -354,6 +357,7 @@ class AppealsTab extends StatelessWidget {
             const SizedBox(height: 8),
             TextField(
               controller: _reasonController,
+              inputFormatters: TruthworldTextInputFormatters.standard,
               style: const TextStyle(
                 fontFamily: TWTypography.uiFamily,
                 color: AppColors.textPrimary,
@@ -380,6 +384,18 @@ class AppealsTab extends StatelessWidget {
             const SizedBox(height: 24),
             Obx(() {
               final isSubmitting = controller.isActionSubmitting.value;
+              void submitDecision(String action) {
+                final reason = _reasonController.text.trim();
+                if (reason.isNotEmpty) {
+                  final val = ContentValidator.validate(reason, checkEnglishOnly: false, fieldName: 'Decision Reason');
+                  if (!val.isValid) {
+                    AppSnackbar.warning(val.message);
+                    return;
+                  }
+                }
+                controller.resolveAppeal(appealId, action, reason);
+              }
+
               return Wrap(
                 spacing: 12,
                 runSpacing: 12,
@@ -391,13 +407,7 @@ class AppealsTab extends StatelessWidget {
                     ),
                     onPressed: isSubmitting
                         ? null
-                        : () {
-                            controller.resolveAppeal(
-                              appealId,
-                              'uphold',
-                              _reasonController.text.trim(),
-                            );
-                          },
+                        : () => submitDecision('uphold'),
                     child: const Text(
                       'Uphold Rejection',
                       style: TextStyle(
@@ -413,13 +423,7 @@ class AppealsTab extends StatelessWidget {
                     ),
                     onPressed: isSubmitting
                         ? null
-                        : () {
-                            controller.resolveAppeal(
-                              appealId,
-                              'overturn',
-                              _reasonController.text.trim(),
-                            );
-                          },
+                        : () => submitDecision('overturn'),
                     child: const Text(
                       'Overturn & Restore',
                       style: TextStyle(
@@ -435,13 +439,7 @@ class AppealsTab extends StatelessWidget {
                     ),
                     onPressed: isSubmitting
                         ? null
-                        : () {
-                            controller.resolveAppeal(
-                              appealId,
-                              'escalate',
-                              _reasonController.text.trim(),
-                            );
-                          },
+                        : () => submitDecision('escalate'),
                     child: const Text(
                       'Escalate to Senior',
                       style: TextStyle(

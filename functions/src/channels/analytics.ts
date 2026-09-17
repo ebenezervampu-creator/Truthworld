@@ -142,16 +142,17 @@ export const getChannelOverview = onCall(
       const subscribersCount = channelData.stats?.subscribersCount || 0;
       const prevSubscribers = channelData.stats?.subscribersCount28DaysAgo || subscribersCount;
 
-      // Get revenue (mock for now, would fetch from revenue_statements)
+      // Fetch authentic revenue from revenue_statements
       const revenueSnap = await db()
         .collection("revenue_statements")
         .where("userId", "==", userId)
         .where("channelId", "==", channelId)
         .orderBy("month", "desc")
-        .limit(1)
+        .limit(2)
         .get();
 
       const currentRevenue = revenueSnap.empty ? 0 : (revenueSnap.docs[0].data().creatorShare || 0);
+      const prevRevenue = revenueSnap.docs.length > 1 ? (revenueSnap.docs[1].data().creatorShare || 0) : 0;
 
       const overview: ChannelOverviewStats = {
         totalViews: currentStats.views,
@@ -162,7 +163,7 @@ export const getChannelOverview = onCall(
         viewsChangePercent: calcChange(currentStats.views, previousStats.views),
         watchtimeChangePercent: calcChange(currentStats.watchTime, previousStats.watchTime),
         subscribersChangePercent: calcChange(subscribersCount, prevSubscribers),
-        revenueChangePercent: 0, // Would calculate from revenue history
+        revenueChangePercent: calcChange(currentRevenue, prevRevenue),
       };
 
       return { success: true, overview };

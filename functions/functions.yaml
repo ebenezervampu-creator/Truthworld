@@ -219,7 +219,7 @@
     },
     "onVideoUploadedForResolution": {
       "platform": "gcfv2",
-      "availableMemoryMb": 128,
+      "availableMemoryMb": 512,
       "timeoutSeconds": 60,
       "minInstances": 0,
       "maxInstances": 2,
@@ -962,7 +962,7 @@
       "availableMemoryMb": 256,
       "timeoutSeconds": null,
       "minInstances": null,
-      "maxInstances": 2,
+      "maxInstances": 15,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
@@ -989,7 +989,7 @@
       "availableMemoryMb": 256,
       "timeoutSeconds": null,
       "minInstances": null,
-      "maxInstances": 2,
+      "maxInstances": 10,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
@@ -1016,7 +1016,7 @@
       "availableMemoryMb": 256,
       "timeoutSeconds": null,
       "minInstances": null,
-      "maxInstances": 2,
+      "maxInstances": 5,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
@@ -1039,11 +1039,38 @@
       },
       "entryPoint": "onCommunityPostCreated"
     },
+    "onCommunityPostUpdated": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 5,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "eventTrigger": {
+        "eventType": "google.cloud.firestore.document.v1.updated",
+        "eventFilters": {
+          "database": "(default)",
+          "namespace": "(default)"
+        },
+        "eventFilterPathPatterns": {
+          "document": "Community/{postId}"
+        },
+        "retry": false
+      },
+      "entryPoint": "onCommunityPostUpdated"
+    },
     "onUserNotificationCreated": {
       "availableMemoryMb": 256,
       "timeoutSeconds": null,
       "minInstances": null,
-      "maxInstances": 2,
+      "maxInstances": 20,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
@@ -1249,7 +1276,7 @@
       },
       "entryPoint": "cleanupProcessedEvents"
     },
-    "scheduledPublishing": {
+    "scheduledVideoPublisher": {
       "availableMemoryMb": 512,
       "timeoutSeconds": 540,
       "minInstances": 0,
@@ -1269,7 +1296,7 @@
         "retryConfig": {},
         "timeZone": "UTC"
       },
-      "entryPoint": "scheduledPublishing"
+      "entryPoint": "scheduledVideoPublisher"
     },
     "syncJobToShard": {
       "availableMemoryMb": 256,
@@ -1393,6 +1420,90 @@
         "retry": false
       },
       "entryPoint": "onChannelSeoWritten"
+    },
+    "onTopicSeoWritten": {
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "eventTrigger": {
+        "eventType": "google.cloud.firestore.document.v1.written",
+        "eventFilters": {
+          "database": "(default)",
+          "namespace": "(default)"
+        },
+        "eventFilterPathPatterns": {
+          "document": "topics/{topicId}"
+        },
+        "retry": false
+      },
+      "entryPoint": "onTopicSeoWritten"
+    },
+    "onCommunityPostSeoWritten": {
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "eventTrigger": {
+        "eventType": "google.cloud.firestore.document.v1.written",
+        "eventFilters": {
+          "database": "(default)",
+          "namespace": "(default)"
+        },
+        "eventFilterPathPatterns": {
+          "document": "Community/{postId}"
+        },
+        "retry": false
+      },
+      "entryPoint": "onCommunityPostSeoWritten"
+    },
+    "onPlaylistSeoWritten": {
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "eventTrigger": {
+        "eventType": "google.cloud.firestore.document.v1.written",
+        "eventFilters": {
+          "database": "(default)",
+          "namespace": "(default)"
+        },
+        "eventFilterPathPatterns": {
+          "document": "playlists/{playlistId}"
+        },
+        "retry": false
+      },
+      "entryPoint": "onPlaylistSeoWritten"
     },
     "onAdCampaignWritten": {
       "availableMemoryMb": null,
@@ -1766,8 +1877,26 @@
       "httpsTrigger": {},
       "entryPoint": "consolidateUserAccounts"
     },
-    "createStripeCheckoutSession": {
+    "aiSearchAssistant": {
       "availableMemoryMb": 256,
+      "timeoutSeconds": 30,
+      "minInstances": null,
+      "maxInstances": 5,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "aiSearchAssistant"
+    },
+    "createCashfreeOrder": {
+      "availableMemoryMb": null,
       "timeoutSeconds": null,
       "minInstances": null,
       "maxInstances": 1,
@@ -1780,11 +1909,97 @@
       "region": [
         "asia-south1"
       ],
+      "secretEnvironmentVariables": [
+        {
+          "key": "CASHFREE_APP_ID"
+        },
+        {
+          "key": "CASHFREE_SECRET_KEY"
+        }
+      ],
       "labels": {},
       "callableTrigger": {},
-      "entryPoint": "createStripeCheckoutSession"
+      "entryPoint": "createCashfreeOrder"
     },
-    "stripeSuccessCallback": {
+    "verifyCashfreePayment": {
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "secretEnvironmentVariables": [
+        {
+          "key": "CASHFREE_APP_ID"
+        },
+        {
+          "key": "CASHFREE_SECRET_KEY"
+        }
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "verifyCashfreePayment"
+    },
+    "cashfreeWebhook": {
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "secretEnvironmentVariables": [
+        {
+          "key": "CASHFREE_APP_ID"
+        },
+        {
+          "key": "CASHFREE_SECRET_KEY"
+        }
+      ],
+      "labels": {},
+      "httpsTrigger": {},
+      "entryPoint": "cashfreeWebhook"
+    },
+    "cashfreeHostedCheckout": {
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "secretEnvironmentVariables": [
+        {
+          "key": "CASHFREE_APP_ID"
+        },
+        {
+          "key": "CASHFREE_SECRET_KEY"
+        }
+      ],
+      "labels": {},
+      "httpsTrigger": {},
+      "entryPoint": "cashfreeHostedCheckout"
+    },
+    "onPayoutRequestCreated": {
       "availableMemoryMb": null,
       "timeoutSeconds": null,
       "minInstances": null,
@@ -1799,8 +2014,46 @@
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {},
-      "entryPoint": "stripeSuccessCallback"
+      "eventTrigger": {
+        "eventType": "google.cloud.firestore.document.v1.created",
+        "eventFilters": {
+          "database": "(default)",
+          "namespace": "(default)"
+        },
+        "eventFilterPathPatterns": {
+          "document": "payout_requests/{requestId}"
+        },
+        "retry": false
+      },
+      "entryPoint": "onPayoutRequestCreated"
+    },
+    "onKycDocumentCreatedOrUpdated": {
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "eventTrigger": {
+        "eventType": "google.cloud.firestore.document.v1.written",
+        "eventFilters": {
+          "database": "(default)",
+          "namespace": "(default)"
+        },
+        "eventFilterPathPatterns": {
+          "document": "creator_kyc/{channelId}"
+        },
+        "retry": false
+      },
+      "entryPoint": "onKycDocumentCreatedOrUpdated"
     },
     "adminBulkModerate": {
       "availableMemoryMb": null,

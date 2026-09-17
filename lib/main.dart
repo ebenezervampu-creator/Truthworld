@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/bindings/initial_binding.dart';
-import 'package:truthworld/core/services/ad_service.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/app_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
@@ -22,7 +22,6 @@ import 'package:truthworld/core/utils/error_handler_utils.dart';
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/utils/url_strategy/url_strategy.dart';
 import 'package:truthworld/core/widgets/truthworld_splash_screen.dart';
-import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/miniplayer/presentation/widgets/miniplayer_overlay_manager.dart';
 import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
 import 'package:truthworld/firebase_options.dart';
@@ -86,21 +85,52 @@ void main() {
 
           // Non-blocking Firebase AppCheck
           unawaited(
-            FirebaseAppCheck.instance.activate(
-              webProvider: ReCaptchaEnterpriseProvider(
-                '6LdsItgsAAAAADh75ccO7IQFSv77Hf4DYc-5G01G',
-              ),
-              androidProvider: kDebugMode
-                  ? AndroidProvider.debug
-                  : AndroidProvider.playIntegrity,
-              appleProvider: kDebugMode
-                  ? AppleProvider.debug
-                  : AppleProvider.deviceCheck,
-            ).then((_) {
-              FirebaseAppCheck.instance.setTokenAutoRefreshEnabled(true);
-            }).catchError((e) {
-              logger.error('Firebase App Check error: $e', tag: 'Startup');
-            }),
+            (() async {
+              try {
+                await FirebaseAppCheck.instance.activate(
+                  webProvider: ReCaptchaEnterpriseProvider(
+                    '6LdsItgsAAAAADh75ccO7IQFSv77Hf4DYc-5G01G',
+                  ),
+                  androidProvider: kDebugMode
+                      ? AndroidProvider.debug
+                      : AndroidProvider.playIntegrity,
+                  appleProvider: kDebugMode
+                      ? AppleProvider.debug
+                      : AppleProvider.deviceCheck,
+                );
+                if (!kIsWeb) {
+                  await FirebaseAppCheck.instance.setTokenAutoRefreshEnabled(true);
+                } else {
+                  // On web, test token retrieval once with a timeout. If web domain is not yet
+                  // registered in Google Cloud ReCaptcha Enterprise console, disable auto-refresh
+                  // to prevent repeated 403 token exchange network thrashing.
+                  try {
+                    final token = await FirebaseAppCheck.instance
+                        .getToken()
+                        .timeout(const Duration(seconds: 4));
+                    if (token != null && token.isNotEmpty) {
+                      await FirebaseAppCheck.instance
+                          .setTokenAutoRefreshEnabled(true);
+                    } else {
+                      await FirebaseAppCheck.instance
+                          .setTokenAutoRefreshEnabled(false);
+                    }
+                  } catch (tokenErr) {
+                    logger.warning(
+                      'Web AppCheck token exchange unavailable (skipping auto-refresh): $tokenErr',
+                      tag: 'Startup',
+                    );
+                    await FirebaseAppCheck.instance
+                        .setTokenAutoRefreshEnabled(false);
+                  }
+                }
+              } catch (e) {
+                logger.warning(
+                  'Firebase App Check error: $e',
+                  tag: 'Startup',
+                );
+              }
+            })(),
           );
 
           final authService = Get.put(AuthService(), permanent: true);
@@ -108,15 +138,22 @@ void main() {
           Get.put(ConnectivityService(), permanent: true);
           Get.put(PushNotificationService(), permanent: true);
           Get.put(UserPreferencesService(), permanent: true);
-          Get.put(AdService(), permanent: true);
-          Get.put(UserSettingsController(), permanent: true);
-          Get.put(MiniplayerController(), tag: 'miniplayer', permanent: true);
 
           // Auth MUST complete before app renders auth-dependent UI
           await authService.init();
 
-          // Set Crashlytics user identifier after auth (non-PII)
-          if (!kIsWeb) {
+          // Set Crashlytics collection & user identifier on supported mobile platforms
+          final isMobile = !kIsWeb &&
+              (defaultTargetPlatform == TargetPlatform.android ||
+                  defaultTargetPlatform == TargetPlatform.iOS);
+          if (isMobile) {
+            await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(
+              !kDebugMode,
+            );
+            FirebaseCrashlytics.instance.setCustomKey(
+              'platform',
+              defaultTargetPlatform.name,
+            );
             final uid = authService.user?.uid;
             if (uid != null) {
               FirebaseCrashlytics.instance.setUserIdentifier(uid);
@@ -146,33 +183,33 @@ void main() {
 
           // Show error UI
           runApp(
-            MaterialApp(
+            const MaterialApp(
               home: Scaffold(
                 body: Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.error_outline,
                         size: 64,
-                        color: AppColors.error,
+                        color: Colors.white,
                       ),
-                      const SizedBox(height: 20),
-                      const Text(
+                      SizedBox(height: 20),
+                      Text(
                         'Application Error',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(height: 10),
+                      SizedBox(height: 10),
                       Text(
-                        'Failed to initialize: $error',
+                        'Truthworld was unable to complete startup. Please check your internet connection and try again.',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 14),
+                        style: TextStyle(fontSize: 14),
                       ),
-                      const SizedBox(height: 30),
-                      const ElevatedButton(
+                      SizedBox(height: 30),
+                      ElevatedButton(
                         onPressed: main,
                         child: Text('Retry'),
                       ),
@@ -201,8 +238,12 @@ void _notifyAppError(String message) {
     if (kIsWeb) {
       debugPrint('App error notification: $message');
     }
-  } catch (e) {
-    debugPrint('Could not notify app error: $e');
+  } catch (e, stackTrace) {
+    ErrorHandler.log(
+      e,
+      stackTrace: stackTrace,
+      tag: 'Main.notifyAppError',
+    );
   }
 }
 

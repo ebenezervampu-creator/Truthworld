@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
@@ -17,6 +18,7 @@ class ChannelMembershipTier {
     required this.name,
     required this.price,
     required this.perks,
+    this.currency = 'USD',
     this.badgeColorHex = '0xFFF59E0B',
     this.badgeIcon = 'star',
     this.description = '',
@@ -28,10 +30,18 @@ class ChannelMembershipTier {
   });
 
   factory ChannelMembershipTier.fromMap(Map<String, dynamic> map, String id) {
+    final rawPrice = (map['price'] as num?)?.toDouble() ?? 4.99;
+    final rawCurrency = (map['currency'] as String?)?.toUpperCase();
+    final inferredCurrency = rawCurrency ?? (rawPrice >= 50 ? 'INR' : 'USD');
+
+    final rawCreated = map['createdAt'];
+    final rawUpdated = map['updatedAt'];
+
     return ChannelMembershipTier(
       id: id,
       name: map['name'] ?? 'Tier Name',
-      price: (map['price'] as num?)?.toDouble() ?? 4.99,
+      price: rawPrice,
+      currency: inferredCurrency,
       perks: List<String>.from(map['perks'] ?? []),
       badgeColorHex: map['badgeColorHex'] ?? '0xFFF59E0B',
       badgeIcon: map['badgeIcon'] ?? 'star',
@@ -39,14 +49,24 @@ class ChannelMembershipTier {
       isEnabled: map['isEnabled'] ?? true,
       memberCount: (map['memberCount'] as num?)?.toInt() ?? 0,
       order: (map['order'] as num?)?.toInt() ?? 0,
-      createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
-      updatedAt: (map['updatedAt'] as Timestamp?)?.toDate(),
+      createdAt: rawCreated is Timestamp ? rawCreated.toDate() : (rawCreated is DateTime ? rawCreated : null),
+      updatedAt: rawUpdated is Timestamp ? rawUpdated.toDate() : (rawUpdated is DateTime ? rawUpdated : null),
     );
   }
+
+  static const double minPriceINR = 10.0;
+  static const double minPriceUSD = 0.10;
+
+  static double minPriceFor(String currency) =>
+      currency.toUpperCase() == 'INR' ? minPriceINR : minPriceUSD;
+
+  static String minPriceLabel(String currency) =>
+      currency.toUpperCase() == 'INR' ? '₹10 (10 rupees)' : r'$0.10 (0.1 dollars)';
 
   final String id;
   final String name;
   final double price;
+  final String currency;
   final List<String> perks;
   final String badgeColorHex;
   final String badgeIcon;
@@ -56,6 +76,16 @@ class ChannelMembershipTier {
   final int order;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+
+  String get currencySymbol => currency.toUpperCase() == 'INR' ? '₹' : r'$';
+
+  String get formattedPrice {
+    if (currency.toUpperCase() == 'INR') {
+      final isWhole = price == price.truncateToDouble();
+      return '₹${isWhole ? price.toInt() : price.toStringAsFixed(2)}';
+    }
+    return '\$${price.toStringAsFixed(2)}';
+  }
 
   Color get badgeColor {
     try {
@@ -69,6 +99,7 @@ class ChannelMembershipTier {
   Map<String, dynamic> toMap() => {
     'name': name,
     'price': price,
+    'currency': currency.toUpperCase(),
     'perks': perks,
     'badgeColorHex': badgeColorHex,
     'badgeIcon': badgeIcon,
@@ -84,6 +115,7 @@ class ChannelMembershipTier {
     String? id,
     String? name,
     double? price,
+    String? currency,
     List<String>? perks,
     String? badgeColorHex,
     String? badgeIcon,
@@ -98,6 +130,7 @@ class ChannelMembershipTier {
       id: id ?? this.id,
       name: name ?? this.name,
       price: price ?? this.price,
+      currency: currency ?? this.currency,
       perks: perks ?? this.perks,
       badgeColorHex: badgeColorHex ?? this.badgeColorHex,
       badgeIcon: badgeIcon ?? this.badgeIcon,
@@ -120,20 +153,28 @@ class ChannelMember {
     required this.tierId,
     required this.tierName,
     required this.price,
+    this.currency = 'USD',
     this.status = 'active',
     this.joinedAt,
   });
 
   factory ChannelMember.fromMap(Map<String, dynamic> map, String id) {
+    final rawPrice = (map['price'] as num?)?.toDouble() ?? 0.0;
+    final rawCurrency = (map['currency'] as String?)?.toUpperCase();
+    final inferredCurrency = rawCurrency ?? (rawPrice >= 50 ? 'INR' : 'USD');
+
+    final rawJoined = map['joinedAt'];
+
     return ChannelMember(
       userId: map['userId'] ?? id,
       userName: map['userName'] ?? map['displayName'] ?? 'Channel Member',
       userAvatarUrl: map['userAvatarUrl'] ?? map['avatarUrl'] ?? '',
       tierId: map['tierId'] ?? '',
       tierName: map['tierName'] ?? 'Member',
-      price: (map['price'] as num?)?.toDouble() ?? 0.0,
+      price: rawPrice,
+      currency: inferredCurrency,
       status: map['status'] ?? 'active',
-      joinedAt: (map['joinedAt'] as Timestamp?)?.toDate(),
+      joinedAt: rawJoined is Timestamp ? rawJoined.toDate() : (rawJoined is DateTime ? rawJoined : null),
     );
   }
 
@@ -143,8 +184,19 @@ class ChannelMember {
   final String tierId;
   final String tierName;
   final double price;
+  final String currency;
   final String status;
   final DateTime? joinedAt;
+
+  String get currencySymbol => currency.toUpperCase() == 'INR' ? '₹' : r'$';
+
+  String get formattedPrice {
+    if (currency.toUpperCase() == 'INR') {
+      final isWhole = price == price.truncateToDouble();
+      return '₹${isWhole ? price.toInt() : price.toStringAsFixed(2)}';
+    }
+    return '\$${price.toStringAsFixed(2)}';
+  }
 
   Map<String, dynamic> toMap() => {
     'userId': userId,
@@ -153,6 +205,7 @@ class ChannelMember {
     'tierId': tierId,
     'tierName': tierName,
     'price': price,
+    'currency': currency.toUpperCase(),
     'status': status,
     'joinedAt': joinedAt != null ? Timestamp.fromDate(joinedAt!) : FieldValue.serverTimestamp(),
   };
@@ -189,6 +242,16 @@ class MembershipsController extends BaseController with ContentValidationMixin {
 
   static MembershipsController get to => Get.find<MembershipsController>();
 
+  static const List<Map<String, dynamic>> presetBadgeColors = [
+    {'hex': '0xFFF59E0B', 'color': Color(0xFFF59E0B)},
+    {'hex': '0xFF3B82F6', 'color': Color(0xFF3B82F6)},
+    {'hex': '0xFF10B981', 'color': Color(0xFF10B981)},
+    {'hex': '0xFF8B5CF6', 'color': Color(0xFF8B5CF6)},
+    {'hex': '0xFFEC4899', 'color': Color(0xFFEC4899)},
+    {'hex': '0xFFEF4444', 'color': Color(0xFFEF4444)},
+  ];
+  static List<Map<String, dynamic>> get availableColors => presetBadgeColors;
+
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // Reactive Channel ID
@@ -220,13 +283,16 @@ class MembershipsController extends BaseController with ContentValidationMixin {
         _subscribeToData();
       }
     });
+    addWorker(_channelIdWorker!);
 
     if (Get.isRegistered<AuthService>()) {
-      ever(AuthService.to.rxUserChannel, (ch) {
-        if (ch != null && ch.id.isNotEmpty && _channelId.value.isEmpty) {
-          _channelId.value = ch.id;
-        }
-      });
+      addWorker(
+        ever(AuthService.to.rxUserChannel, (ch) {
+          if (ch != null && ch.id.isNotEmpty && _channelId.value.isEmpty) {
+            _channelId.value = ch.id;
+          }
+        }),
+      );
     }
 
     if (_channelId.value.isNotEmpty) {
@@ -333,9 +399,28 @@ class MembershipsController extends BaseController with ContentValidationMixin {
 
   // --- Computed Metrics ---
 
-  int get totalActiveMembers =>
-      members.where((m) => m.status.toLowerCase() == 'active').length +
-      tiers.fold<int>(0, (sum, t) => sum + t.memberCount);
+  int get totalActiveMembers {
+    if (members.isNotEmpty) {
+      return members
+          .where((m) => m.status.toLowerCase() == 'active')
+          .map((m) => m.userId)
+          .toSet()
+          .length;
+    }
+    return tiers.fold<int>(0, (sum, t) => sum + t.memberCount);
+  }
+
+  String get primaryCurrencySymbol {
+    final activeMember = members.firstWhereOrNull((m) => m.status.toLowerCase() == 'active');
+    if (activeMember != null) {
+      return activeMember.currencySymbol;
+    }
+    final activeTier = tiers.firstWhereOrNull((t) => t.isEnabled);
+    if (activeTier != null) {
+      return activeTier.currencySymbol;
+    }
+    return r'$';
+  }
 
   double get monthlyRecurringRevenue {
     var total = 0.0;
@@ -373,6 +458,7 @@ class MembershipsController extends BaseController with ContentValidationMixin {
     required String name,
     required double price,
     required List<String> perks,
+    String currency = 'USD',
     String badgeColorHex = '0xFFF59E0B',
     String badgeIcon = 'star',
     String description = '',
@@ -381,25 +467,29 @@ class MembershipsController extends BaseController with ContentValidationMixin {
     _resolveChannelId();
     final activeId = _channelId.value;
     if (activeId.isEmpty) {
-      AppSnackbar.show('Error', 'Unable to resolve channel ID. Please refresh.');
+      AppSnackbar.warning('Unable to resolve channel ID. Please refresh.');
       return false;
     }
 
     final trimmedName = name.trim();
     if (trimmedName.isEmpty) {
-      AppSnackbar.show('Validation Error', 'Tier name is required.');
+      AppSnackbar.warning('Tier name is required.');
       return false;
     }
 
-    if (price <= 0) {
-      AppSnackbar.show('Validation Error', r'Price must be greater than $0.00.');
+    final normalizedCurrency = currency.toUpperCase() == 'INR' ? 'INR' : 'USD';
+    final minAllowed = ChannelMembershipTier.minPriceFor(normalizedCurrency);
+    if (price < minAllowed) {
+      AppSnackbar.warning(
+        'Minimum price for $normalizedCurrency membership plans is ${ChannelMembershipTier.minPriceLabel(normalizedCurrency)}.',
+      );
       return false;
     }
 
     // Validate name
     final nameVal = ContentValidator.validate(trimmedName, fieldName: 'Tier Name');
     if (!nameVal.isValid) {
-      AppSnackbar.show('Content Warning', nameVal.message);
+      AppSnackbar.warning(nameVal.message);
       return false;
     }
 
@@ -407,7 +497,7 @@ class MembershipsController extends BaseController with ContentValidationMixin {
     if (description.trim().isNotEmpty) {
       final descVal = ContentValidator.validate(description.trim(), fieldName: 'Description');
       if (!descVal.isValid) {
-        AppSnackbar.show('Content Warning', descVal.message);
+        AppSnackbar.warning(descVal.message);
         return false;
       }
     }
@@ -415,14 +505,14 @@ class MembershipsController extends BaseController with ContentValidationMixin {
     // Validate perks
     final cleanPerks = perks.map((p) => p.trim()).where((p) => p.isNotEmpty).toList();
     if (cleanPerks.isEmpty) {
-      AppSnackbar.show('Validation Error', 'Please include at least one perk.');
+      AppSnackbar.warning('Please include at least one perk.', title: 'Perks Required');
       return false;
     }
 
     for (final perk in cleanPerks) {
       final pVal = ContentValidator.validate(perk, fieldName: 'Perk');
       if (!pVal.isValid) {
-        AppSnackbar.show('Content Warning', pVal.message);
+        AppSnackbar.warning(pVal.message);
         return false;
       }
     }
@@ -439,6 +529,7 @@ class MembershipsController extends BaseController with ContentValidationMixin {
         id: docRef.id,
         name: trimmedName,
         price: price,
+        currency: normalizedCurrency,
         perks: cleanPerks,
         badgeColorHex: badgeColorHex,
         badgeIcon: badgeIcon,
@@ -450,13 +541,13 @@ class MembershipsController extends BaseController with ContentValidationMixin {
       );
 
       await docRef.set(newTier.toMap());
-      AppSnackbar.show('Success', 'Tier "$trimmedName" created successfully!');
+      AppSnackbar.success('Tier "$trimmedName" created successfully!');
       isSaving.value = false;
       return true;
     } catch (e) {
       isSaving.value = false;
-      debugPrint('[MembershipsController] Error creating tier: $e');
-      AppSnackbar.show('Error', 'Failed to create tier: $e');
+      ErrorHandler.log(e, tag: 'MembershipsController');
+      AppSnackbar.error('Unable to create tier. Please try again.');
       return false;
     }
   }
@@ -468,21 +559,38 @@ class MembershipsController extends BaseController with ContentValidationMixin {
 
     final trimmedName = tier.name.trim();
     if (trimmedName.isEmpty) {
-      AppSnackbar.show('Validation Error', 'Tier name is required.');
+      AppSnackbar.warning('Tier name is required.');
+      return false;
+    }
+
+    final normalizedCurrency = tier.currency.toUpperCase() == 'INR' ? 'INR' : 'USD';
+    final minAllowed = ChannelMembershipTier.minPriceFor(normalizedCurrency);
+    if (tier.price < minAllowed) {
+      AppSnackbar.warning(
+        'Minimum price for $normalizedCurrency membership plans is ${ChannelMembershipTier.minPriceLabel(normalizedCurrency)}.',
+      );
       return false;
     }
 
     final nameVal = ContentValidator.validate(trimmedName, fieldName: 'Tier Name');
     if (!nameVal.isValid) {
-      AppSnackbar.show('Content Warning', nameVal.message);
+      AppSnackbar.warning(nameVal.message);
       return false;
+    }
+
+    if (tier.description.trim().isNotEmpty) {
+      final descVal = ContentValidator.validate(tier.description.trim(), fieldName: 'Description');
+      if (!descVal.isValid) {
+        AppSnackbar.warning(descVal.message);
+        return false;
+      }
     }
 
     final cleanPerks = tier.perks.map((p) => p.trim()).where((p) => p.isNotEmpty).toList();
     for (final perk in cleanPerks) {
       final pVal = ContentValidator.validate(perk, fieldName: 'Perk');
       if (!pVal.isValid) {
-        AppSnackbar.show('Content Warning', pVal.message);
+        AppSnackbar.warning(pVal.message);
         return false;
       }
     }
@@ -494,15 +602,15 @@ class MembershipsController extends BaseController with ContentValidationMixin {
           .doc(activeId)
           .collection('membership_tiers')
           .doc(tier.id)
-          .update(tier.copyWith(perks: cleanPerks).toMap());
+          .update(tier.copyWith(perks: cleanPerks, currency: normalizedCurrency).toMap());
 
-      AppSnackbar.show('Updated', 'Tier "${tier.name}" updated successfully.');
+      AppSnackbar.success('Tier "${tier.name}" updated successfully.');
       isSaving.value = false;
       return true;
     } catch (e) {
       isSaving.value = false;
-      debugPrint('[MembershipsController] Error updating tier: $e');
-      AppSnackbar.show('Error', 'Failed to update tier: $e');
+      ErrorHandler.log(e, tag: 'MembershipsController');
+      AppSnackbar.error('Unable to update tier. Please try again.');
       return false;
     }
   }
@@ -523,12 +631,13 @@ class MembershipsController extends BaseController with ContentValidationMixin {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      AppSnackbar.show(
-        isEnabled ? 'Tier Enabled' : 'Tier Paused',
+      AppSnackbar.info(
         isEnabled ? 'Tier is now active for fans to join.' : 'Tier is paused and hidden from new fans.',
+        title: isEnabled ? 'Tier Enabled' : 'Tier Paused',
       );
     } catch (e) {
-      AppSnackbar.show('Error', 'Failed to update tier status: $e');
+      ErrorHandler.log(e, tag: 'MembershipsController');
+      AppSnackbar.error('Unable to update tier status. Please try again.');
     }
   }
 
@@ -545,9 +654,10 @@ class MembershipsController extends BaseController with ContentValidationMixin {
           .doc(tierId)
           .delete();
 
-      AppSnackbar.show('Deleted', 'Tier "$tierName" has been removed.');
+      AppSnackbar.info('Tier "$tierName" has been removed.');
     } catch (e) {
-      AppSnackbar.show('Error', 'Failed to delete tier: $e');
+      ErrorHandler.log(e, tag: 'MembershipsController');
+      AppSnackbar.error('Unable to delete tier. Please try again.');
     }
   }
 
@@ -556,6 +666,7 @@ class MembershipsController extends BaseController with ContentValidationMixin {
     await createTier(
       name: copyName,
       price: tier.price,
+      currency: tier.currency,
       perks: List<String>.from(tier.perks),
       badgeColorHex: tier.badgeColorHex,
       badgeIcon: tier.badgeIcon,
@@ -723,10 +834,10 @@ class MembershipsController extends BaseController with ContentValidationMixin {
       }
 
       await batch.commit();
-      AppSnackbar.show('Success', 'Configured ${bundle.tiers.length} starter membership tiers!');
+      AppSnackbar.success('Configured ${bundle.tiers.length} starter membership tiers!');
     } catch (e) {
-      debugPrint('[MembershipsController] Error setting up starter bundle: $e');
-      AppSnackbar.show('Error', 'Failed to configure starter tiers: $e');
+      ErrorHandler.log(e, tag: 'MembershipsController');
+      AppSnackbar.error('Unable to configure starter tiers. Please try again.');
     } finally {
       isSaving.value = false;
     }
@@ -745,18 +856,5 @@ class MembershipsController extends BaseController with ContentValidationMixin {
     'Exclusive VIP Discord channel role',
     'Monthly digital wallpapers & downloads',
     'Topic suggestions & content voting rights',
-  ];
-
-  // Preset palette of creator tier badge colors
-  static const List<Map<String, dynamic>> presetBadgeColors = [
-    {'name': 'Amber Gold', 'hex': '0xFFF59E0B', 'color': Color(0xFFF59E0B)},
-    {'name': 'Emerald Green', 'hex': '0xFF10B981', 'color': Color(0xFF10B981)},
-    {'name': 'Sapphire Blue', 'hex': '0xFF3B82F6', 'color': Color(0xFF3B82F6)},
-    {'name': 'Royal Purple', 'hex': '0xFF8B5CF6', 'color': Color(0xFF8B5CF6)},
-    {'name': 'Rose Pink', 'hex': '0xFFEC4899', 'color': Color(0xFFEC4899)},
-    {'name': 'Bronze Copper', 'hex': '0xFFCD7F32', 'color': Color(0xFFCD7F32)},
-    {'name': 'Silver Platinum', 'hex': '0xFF94A3B8', 'color': Color(0xFF94A3B8)},
-    {'name': 'Ruby Red', 'hex': '0xFFEF4444', 'color': Color(0xFFEF4444)},
-    {'name': 'Teal Cyan', 'hex': '0xFF06B6D4', 'color': Color(0xFF06B6D4)},
   ];
 }

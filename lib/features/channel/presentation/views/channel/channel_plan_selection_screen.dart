@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/core/widgets/app_logo.dart';
@@ -73,8 +74,12 @@ class ChannelPlanSelectionController extends BaseController
             }
           }
         }
-      } catch (e) {
-        debugPrint('Error checking user channel rejection lock: $e');
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'ChannelPlanSelectionController.proceedToCreation',
+        );
       }
     }
 

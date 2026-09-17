@@ -6,7 +6,10 @@ import 'package:shimmer/shimmer.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/topic_interaction_controller.dart';
@@ -16,27 +19,12 @@ import 'package:truthworld/features/video/presentation/views/comments/premium_co
 import 'package:truthworld/theme/app_theme.dart';
 
 void _showTopicSignInPrompt(String action) {
-  Get.snackbar(
-    'Sign in required',
+  AppSnackbar.warning(
     'Please sign in with your Google account to $action.',
-    snackPosition: SnackPosition.BOTTOM,
-    backgroundColor: AppColors.bgSurface,
-    colorText: AppColors.textPrimary,
-    margin: const EdgeInsets.all(16),
-    borderRadius: 12,
+    title: 'Sign In Required',
     duration: const Duration(seconds: 4),
-    mainButton: TextButton(
-      onPressed: () {
-        AuthService.to.signInWithGoogle();
-      },
-      child: const Text(
-        'SIGN IN',
-        style: TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    ),
+    actionLabel: 'SIGN IN',
+    onAction: () => AuthService.to.signInWithGoogle(),
   );
 }
 
@@ -105,13 +93,17 @@ class _TopicCommentsSectionState extends State<TopicCommentsSection> {
           arguments: {'channel': channel},
         );
       } else {
-        Get.snackbar('Error', 'Channel not found');
+        AppSnackbar.warning('Channel not found');
       }
-    } catch (e) {
+    } catch (e, s) {
       if (Get.isDialogOpen ?? false) {
         Get.back();
       }
-      debugPrint('Error navigating to channel: $e');
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'TopicCommentsSection.navigateToChannel',
+      );
     }
   }
 
@@ -380,6 +372,16 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
     final text = replyController.text.trim();
     if (text.isEmpty) return;
 
+    final validation = ContentValidator.validate(
+      text,
+      fieldName: 'Reply',
+      maxLength: 1000,
+    );
+    if (!validation.isValid) {
+      AppSnackbar.warning(validation.message);
+      return;
+    }
+
     final commentId = widget.comment.id;
     if (commentId.isEmpty) return;
 
@@ -392,10 +394,10 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
       await widget.controller.addReply(widget.topicId, commentId, text);
       replyController.clear();
       isReplying.value = false;
-      Get.snackbar('Success', 'Reply posted');
+      AppSnackbar.success('Reply posted');
     } catch (e) {
-      debugPrint('Error posting reply: $e');
-      Get.snackbar('Error', 'Failed to post reply');
+      ErrorHandler.log(e, context: 'TopicCommentsSection.postReply');
+      AppSnackbar.error('Unable to post reply. Please try again.');
     }
   }
 
@@ -415,7 +417,7 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
       final docSnap = await docRef.get();
       if (docSnap.exists) {
         await docRef.delete();
-        Get.snackbar('Removed', 'Comment removed from Saved Comments');
+        AppSnackbar.info('Comment removed from Saved Comments');
       } else {
         await docRef.set({
           'text': comment.text,
@@ -427,44 +429,25 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
           'savedAt': FieldValue.serverTimestamp(),
         });
 
-        Get.snackbar(
-          'Saved',
+        AppSnackbar.success(
           'Comment saved to Saved Comments',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: AppColors.bgSurface,
-          colorText: AppColors.textPrimary,
-          margin: const EdgeInsets.all(16),
-          borderRadius: 12,
-          mainButton: TextButton(
-            onPressed: () => Get.toNamed('/saved-comments'),
-            child: const Text(
-              'VIEW',
-              style: TextStyle(
-                color: AppColors.brand,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
+          title: 'Saved',
+          actionLabel: 'VIEW',
+          onAction: () => Get.toNamed('/saved-comments'),
         );
       }
     } catch (e) {
-      Get.snackbar('Error', 'Failed to save comment: $e');
+      ErrorHandler.log(e, context: 'TopicCommentsSection.toggleSaveTopicComment');
+      AppSnackbar.error('Unable to save comment. Please try again.');
     }
   }
 
   void _copyCommentText(String text) {
     Clipboard.setData(ClipboardData(text: text));
     HapticFeedback.lightImpact();
-    Get.snackbar(
-      'Copied',
+    AppSnackbar.info(
       'Comment text copied to clipboard',
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: AppColors.bgSurface,
-      colorText: AppColors.textPrimary,
-      margin: const EdgeInsets.all(16),
-      borderRadius: 12,
-      duration: const Duration(seconds: 2),
-      icon: const Icon(Icons.content_copy_rounded, color: Colors.white),
+      title: 'Copied',
     );
   }
 
@@ -539,7 +522,10 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                   ),
                   onTap: () {
                     Navigator.pop(context);
-                    Get.snackbar('Reported', 'Thank you for your report.');
+                    AppSnackbar.info(
+                      'Thank you for your report.',
+                      title: 'Reported',
+                    );
                   },
                 ),
             ],
@@ -788,6 +774,7 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                       child: TextField(
                         controller: replyController,
                         focusNode: replyFocusNode,
+                        inputFormatters: TruthworldTextInputFormatters.standard,
                         decoration: const InputDecoration(
                           hintText: 'Add a reply...',
                           hintStyle: TextStyle(
@@ -1065,7 +1052,7 @@ class TopicReplyItemWidget extends StatelessWidget {
       final docSnap = await docRef.get();
       if (docSnap.exists) {
         await docRef.delete();
-        Get.snackbar('Removed', 'Reply removed from Saved Comments');
+        AppSnackbar.info('Reply removed from Saved Comments', title: 'Removed');
       } else {
         await docRef.set({
           'text': reply.text,
@@ -1077,28 +1064,16 @@ class TopicReplyItemWidget extends StatelessWidget {
           'savedAt': FieldValue.serverTimestamp(),
         });
 
-        Get.snackbar(
-          'Saved',
+        AppSnackbar.success(
           'Reply saved to Saved Comments',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: AppColors.bgSurface,
-          colorText: AppColors.textPrimary,
-          margin: const EdgeInsets.all(16),
-          borderRadius: 12,
-          mainButton: TextButton(
-            onPressed: () => Get.toNamed('/saved-comments'),
-            child: const Text(
-              'VIEW',
-              style: TextStyle(
-                color: AppColors.brand,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
+          title: 'Saved',
+          actionLabel: 'VIEW',
+          onAction: () => Get.toNamed('/saved-comments'),
         );
       }
     } catch (e) {
-      Get.snackbar('Error', 'Failed to save reply: $e');
+      ErrorHandler.log(e, context: 'TopicCommentsSection.toggleSaveReply');
+      AppSnackbar.error('Unable to save reply. Please try again.');
     }
   }
 
@@ -1134,19 +1109,9 @@ class TopicReplyItemWidget extends StatelessWidget {
                   Navigator.pop(context);
                   Clipboard.setData(ClipboardData(text: reply.text));
                   HapticFeedback.lightImpact();
-                  Get.snackbar(
-                    'Copied',
+                  AppSnackbar.info(
                     'Comment text copied to clipboard',
-                    snackPosition: SnackPosition.BOTTOM,
-                    backgroundColor: AppColors.bgSurface,
-                    colorText: AppColors.textPrimary,
-                    margin: const EdgeInsets.all(16),
-                    borderRadius: 12,
-                    duration: const Duration(seconds: 2),
-                    icon: const Icon(
-                      Icons.content_copy_rounded,
-                      color: Colors.white,
-                    ),
+                    title: 'Copied',
                   );
                 },
               ),
@@ -1188,7 +1153,10 @@ class TopicReplyItemWidget extends StatelessWidget {
                   ),
                   onTap: () {
                     Navigator.pop(context);
-                    Get.snackbar('Reported', 'Thank you for your report.');
+                    AppSnackbar.info(
+                      'Thank you for your report.',
+                      title: 'Reported',
+                    );
                   },
                 ),
             ],

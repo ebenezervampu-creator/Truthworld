@@ -7,8 +7,8 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('Video Sponsor Pre-Roll Bumper Tests', () {
-    test('MockAd correctly holds isSponsorBumper flag', () {
-      const bumperAd = MockAd(
+    test('PlaybackAd correctly holds isSponsorBumper flag', () {
+      const bumperAd = PlaybackAd(
         videoUrl: 'https://example.com/bumper.mp4',
         title: 'This video is brought to you by Brand',
         description: 'Official Video Sponsor Bumper (5s Intro)',
@@ -22,7 +22,7 @@ void main() {
       expect(bumperAd.skippable, isFalse);
       expect(bumperAd.duration.inSeconds, equals(5));
 
-      const standardMidrollAd = MockAd(
+      const standardMidrollAd = PlaybackAd(
         videoUrl: 'https://example.com/midroll.mp4',
         title: 'Brand Midroll',
         description: 'Midroll Ad',
@@ -54,8 +54,8 @@ void main() {
       );
     });
 
-    test('MockAd correctly holds subtitles and audioTracks', () {
-      const adWithAI = MockAd(
+    test('PlaybackAd correctly holds subtitles and audioTracks', () {
+      const adWithAI = PlaybackAd(
         videoUrl: 'https://example.com/video.mp4',
         title: 'Dubbed Video Ad',
         description: 'Multi-lingual video ad',

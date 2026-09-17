@@ -1,6 +1,8 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -308,7 +310,13 @@ class TopicSelectionBottomSheet extends StatelessWidget {
           return results;
         }
       }
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'TopicSelectionBottomSheet.getRankedTopics',
+      );
+    }
 
     // Smart fallback recommendation ranking
     final videoTitle = (controller.titleController?.text ?? '').trim().toLowerCase();
@@ -760,10 +768,10 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                       height: isNarrow ? 100 : 140,
                       color: const Color(0xFF1E293B),
                       child: imageSrc != null && imageSrc.isNotEmpty
-                          ? Image.network(
-                              imageSrc,
+                          ? CachedNetworkImage(
+                              imageUrl: imageSrc,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => _buildFallbackThumbnail(),
+                              errorWidget: (_, _, _) => _buildFallbackThumbnail(),
                             )
                           : _buildFallbackThumbnail(),
                     ),
@@ -1030,10 +1038,10 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                   height: 52,
                   color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
                   child: imageSrc != null && imageSrc.isNotEmpty
-                      ? Image.network(
-                          imageSrc,
+                      ? CachedNetworkImage(
+                          imageUrl: imageSrc,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => _buildFallbackThumbnailSmall(),
+                          errorWidget: (_, _, _) => _buildFallbackThumbnailSmall(),
                         )
                       : _buildFallbackThumbnailSmall(),
                 ),

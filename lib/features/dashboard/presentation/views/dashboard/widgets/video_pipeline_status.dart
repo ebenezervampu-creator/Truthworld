@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -48,8 +49,12 @@ class VideoPipelineStatusWidget extends StatelessWidget {
     try {
       final url = Uri.parse(urlString);
       await launchUrl(url, mode: LaunchMode.externalApplication);
-    } on Object catch (e) {
-      debugPrint('Failed to launch URL: $e');
+    } on Object catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'VideoPipelineStatus._launchURL',
+      );
     }
   }
 

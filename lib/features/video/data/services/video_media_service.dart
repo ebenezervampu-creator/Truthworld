@@ -13,8 +13,8 @@
 // ==========================================================================
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/features/video/data/models/video_media.dart';
 
@@ -52,8 +52,12 @@ class VideoMediaService {
 
       // Fallback: try reading from top-level fields on main video doc
       return await _fallbackLocalization(videoId);
-    } catch (e) {
-      debugPrint('[VideoMediaService] Error fetching localization: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'VideoMediaService.getLocalization',
+      );
       return const VideoMediaLocalization();
     }
   }
@@ -81,8 +85,12 @@ class VideoMediaService {
 
       // Fallback: try reading from legacy fields on main video doc
       return await _fallbackCredibility(videoId);
-    } catch (e) {
-      debugPrint('[VideoMediaService] Error fetching credibility: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'VideoMediaService.getCredibility',
+      );
       return const VideoMediaCredibility();
     }
   }
@@ -110,8 +118,12 @@ class VideoMediaService {
 
       // No streaming subcollection yet — return empty
       return const VideoMediaStreaming();
-    } catch (e) {
-      debugPrint('[VideoMediaService] Error fetching streaming: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'VideoMediaService.getStreaming',
+      );
       return const VideoMediaStreaming();
     }
   }
@@ -215,8 +227,12 @@ class VideoMediaService {
       // Always populate cache to prevent repeating fallback reads
       localizationCache[videoId] = result;
       return result;
-    } catch (e) {
-      debugPrint('[VideoMediaService] Fallback localization error: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'VideoMediaService._fallbackLocalization',
+      );
       const emptyResult = VideoMediaLocalization();
       localizationCache[videoId] = emptyResult;
       return emptyResult;
@@ -240,8 +256,12 @@ class VideoMediaService {
       final result = VideoMediaCredibility.fromMap(data);
       credibilityCache[videoId] = result;
       return result;
-    } catch (e) {
-      debugPrint('[VideoMediaService] Fallback credibility error: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'VideoMediaService._fallbackCredibility',
+      );
       const emptyResult = VideoMediaCredibility();
       credibilityCache[videoId] = emptyResult;
       return emptyResult;

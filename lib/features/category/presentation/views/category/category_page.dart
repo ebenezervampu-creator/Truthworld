@@ -81,6 +81,10 @@ class _CategoryPageState extends State<CategoryPage>
     _initializeAnimations();
   }
 
+  Timer? _fadeTimer;
+  Timer? _slideTimer;
+  Timer? _scaleTimer;
+
   void _initializeAnimations() {
     _fadeAnimationController = AnimationController(
       duration: const Duration(milliseconds: 800),
@@ -133,19 +137,22 @@ class _CategoryPageState extends State<CategoryPage>
 
     // Start animations with staggered timing
     _heroAnimationController.forward();
-    Future.delayed(const Duration(milliseconds: 200), () {
-      _fadeAnimationController.forward();
+    _fadeTimer = Timer(const Duration(milliseconds: 200), () {
+      if (mounted) _fadeAnimationController.forward();
     });
-    Future.delayed(const Duration(milliseconds: 400), () {
-      _slideAnimationController.forward();
+    _slideTimer = Timer(const Duration(milliseconds: 400), () {
+      if (mounted) _slideAnimationController.forward();
     });
-    Future.delayed(const Duration(milliseconds: 600), () {
-      _scaleAnimationController.forward();
+    _scaleTimer = Timer(const Duration(milliseconds: 600), () {
+      if (mounted) _scaleAnimationController.forward();
     });
   }
 
   @override
   void dispose() {
+    _fadeTimer?.cancel();
+    _slideTimer?.cancel();
+    _scaleTimer?.cancel();
     _fadeAnimationController.dispose();
     _slideAnimationController.dispose();
     _scaleAnimationController.dispose();
@@ -1283,10 +1290,10 @@ class _CategoryPageState extends State<CategoryPage>
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
+              const Icon(
                 Icons.error_outline_rounded,
                 size: 36,
-                color: AppColors.brand.withValues(alpha: 0.7),
+                color: Colors.white70,
               ),
               const SizedBox(height: 8),
               Text(

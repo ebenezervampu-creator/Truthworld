@@ -1,10 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/utils/content_validator.dart';
 import 'package:truthworld/data/models/channel.dart';
 
 /// Controller for Studio Settings
@@ -29,7 +30,6 @@ class StudioSettingsController extends BaseController {
     try {
       isLoadingData.value = true;
       final user = _auth.currentUser;
-
       if (user == null) {
         isLoadingData.value = false;
         return;
@@ -45,15 +45,32 @@ class StudioSettingsController extends BaseController {
       }
 
       clearError();
-    } catch (e) {
-      setError('Failed to load user settings');
-      debugPrint('Error loading user data: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'StudioSettingsController.loadUserData',
+      );
+      setError('Unable to load user settings. Please try again.');
     } finally {
       isLoadingData.value = false;
     }
   }
 
   Future<void> updateField(String field, dynamic value) async {
+    if (value is String && (field == 'displayName' || field == 'channelHandle')) {
+      final validation = ContentValidator.validate(
+        value,
+        checkEnglishOnly: false,
+        fieldName: field == 'channelHandle' ? 'Channel Handle' : 'Channel Name',
+      );
+      if (!validation.isValid) {
+        showWarning(validation.message);
+        loadUserData();
+        return;
+      }
+    }
+
     try {
       // Optimistic update
       userData[field] = value;
@@ -61,9 +78,8 @@ class StudioSettingsController extends BaseController {
 
       await _userRef.update({field: value});
     } catch (e) {
-      // Revert if failed (or just notify)
-      // Actually real apps would revert, here we just show error
-      showWarning('Failed to save $field: $e');
+      ErrorHandler.log(e, tag: 'StudioSettingsController');
+      showWarning('Unable to save changes. Please try again.');
       loadUserData(); // Refresh from server
     }
   }
@@ -83,7 +99,8 @@ class StudioSettingsController extends BaseController {
 
       await _userRef.update({parent: updated});
     } catch (e) {
-      showWarning('Failed to save $child: $e');
+      ErrorHandler.log(e, tag: 'StudioSettingsController');
+      showWarning('Unable to save changes. Please try again.');
       loadUserData(); // Refresh
     }
   }
@@ -152,8 +169,12 @@ class StudioSettingsController extends BaseController {
           'hasChannel': false,
           'updatedAt': FieldValue.serverTimestamp(),
         });
-      } catch (e) {
-        debugPrint('Note: Error updating user document during channel deletion: $e');
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'StudioSettingsController.deleteChannel.updateUserDoc',
+        );
       }
 
       // Update AuthService state if available
@@ -164,8 +185,8 @@ class StudioSettingsController extends BaseController {
       showSuccess('Channel deleted successfully.');
       return true;
     } catch (e) {
-      debugPrint('Error deleting channel: $e');
-      showError('Failed to delete channel: $e');
+      ErrorHandler.log(e, tag: 'StudioSettingsController');
+      showError('Unable to delete channel. Please try again.');
       return false;
     } finally {
       isDeletingChannel.value = false;

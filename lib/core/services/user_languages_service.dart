@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
 
@@ -99,8 +100,12 @@ class UserLanguagesService extends GetxService {
           }
         }
       }
-    } catch (e) {
-      debugPrint('[UserLanguagesService] Firestore fetch error: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'UserLanguagesService.loadLanguages',
+      );
     }
   }
 
@@ -131,8 +136,12 @@ class UserLanguagesService extends GetxService {
               'knownLanguages': known,
             }, SetOptions(merge: true));
         debugPrint('[UserLanguagesService] Saved languages to Firestore');
-      } catch (e) {
-        debugPrint('[UserLanguagesService] Firestore save error: $e');
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'UserLanguagesService.saveLanguages',
+        );
       }
     }
   }

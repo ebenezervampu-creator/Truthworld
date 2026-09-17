@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
@@ -49,7 +50,13 @@ class VideoChaptersBottomSheet extends StatelessWidget {
       if (Get.isRegistered<TowerPlayerController>()) {
         return Get.find<TowerPlayerController>();
       }
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'VideoChaptersBottomSheet.getPlayerController',
+      );
+    }
     return null;
   }
 

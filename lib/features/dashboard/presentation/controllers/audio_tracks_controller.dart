@@ -691,15 +691,24 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
 
       final uploadTask = storageRef.putData(fileBytes, metadata);
 
-      // Track progress
-      uploadTask.snapshotEvents.listen((snapshot) {
-        if (snapshot.totalBytes > 0) {
-          uploadProgress.value =
-              snapshot.bytesTransferred / snapshot.totalBytes;
-          uploadStatus.value =
-              'Uploading... ${(uploadProgress.value * 100).toStringAsFixed(0)}%';
-        }
-      });
+      uploadTask.snapshotEvents.listen(
+        (snapshot) {
+          if (snapshot.totalBytes > 0) {
+            uploadProgress.value =
+                snapshot.bytesTransferred / snapshot.totalBytes;
+            uploadStatus.value =
+                'Uploading... ${(uploadProgress.value * 100).toStringAsFixed(0)}%';
+          }
+        },
+        onError: (error, stackTrace) {
+          logger.error(
+            'Upload snapshot event failed',
+            error: error,
+            stackTrace: stackTrace,
+            tag: _tag,
+          );
+        },
+      );
 
       final snapshot = await uploadTask;
       final downloadUrl = await snapshot.ref.getDownloadURL();
@@ -773,7 +782,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
         stackTrace: stack,
         tag: _tag,
       );
-      showError('Failed to upload file: $e');
+      showError('Unable to upload audio file. Please try again.');
       return false;
     } finally {
       isUploading.value = false;
@@ -863,13 +872,23 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
         );
 
         final uploadTask = storageRef.putData(fileBytes, metadata);
-        uploadTask.snapshotEvents.listen((snapshot) {
-          if (snapshot.totalBytes > 0) {
-            item.progress = snapshot.bytesTransferred / snapshot.totalBytes;
-            final overallProgress = (completed + item.progress) / total;
-            uploadProgress.value = overallProgress;
-          }
-        });
+        uploadTask.snapshotEvents.listen(
+          (snapshot) {
+            if (snapshot.totalBytes > 0) {
+              item.progress = snapshot.bytesTransferred / snapshot.totalBytes;
+              final overallProgress = (completed + item.progress) / total;
+              uploadProgress.value = overallProgress;
+            }
+          },
+          onError: (error, stackTrace) {
+            logger.error(
+              'Batch upload snapshot event failed',
+              error: error,
+              stackTrace: stackTrace,
+              tag: _tag,
+            );
+          },
+        );
 
         final snapshot = await uploadTask;
         final downloadUrl = await snapshot.ref.getDownloadURL();
@@ -950,7 +969,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
         stackTrace: stack,
         tag: _tag,
       );
-      showError('Batch upload failed: $e');
+      showError('Unable to complete batch upload. Please try again.');
       return false;
     } finally {
       isUploading.value = false;
@@ -998,8 +1017,14 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
       commentaryTracks.value = commentaryList;
       selectedVideo.refresh();
       showSuccess('Commentary track removed successfully.');
-    } catch (e) {
-      showError('Failed to remove commentary track: $e');
+    } catch (e, stack) {
+      logger.error(
+        'Failed to remove commentary track',
+        error: e,
+        stackTrace: stack,
+        tag: _tag,
+      );
+      showError('Unable to remove commentary track. Please try again.');
     }
   }
 
@@ -1043,12 +1068,22 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
         ),
       );
 
-      uploadTask.snapshotEvents.listen((snapshot) {
-        if (snapshot.totalBytes > 0) {
-          uploadProgress.value =
-              snapshot.bytesTransferred / snapshot.totalBytes;
-        }
-      });
+      uploadTask.snapshotEvents.listen(
+        (snapshot) {
+          if (snapshot.totalBytes > 0) {
+            uploadProgress.value =
+                snapshot.bytesTransferred / snapshot.totalBytes;
+          }
+        },
+        onError: (error, stackTrace) {
+          logger.error(
+            'Voice track upload snapshot event failed',
+            error: error,
+            stackTrace: stackTrace,
+            tag: _tag,
+          );
+        },
+      );
 
       final snapshot = await uploadTask;
       final downloadUrl = await snapshot.ref.getDownloadURL();
@@ -1101,7 +1136,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
         stackTrace: stack,
         tag: _tag,
       );
-      showError('Upload failed: $e');
+      showError('Unable to upload audio dub. Please try again.');
       return false;
     } finally {
       isUploading.value = false;

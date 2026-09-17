@@ -5,6 +5,9 @@ import { submitIndexNow } from "./indexNowService";
 import { DOMAIN, formatDate } from "../schema/schemaConfig";
 import { generateVideoSchema } from "../schema/videoSchema";
 import { generateChannelSchema } from "../schema/channelSchema";
+import { generateTopicSchema } from "../schema/topicSchema";
+import { generatePlaylistSchema } from "../schema/playlistSchema";
+import { generateCommunityPostSchema } from "../schema/communityPostSchema";
 import { generateOrganizationSchema } from "../schema/organizationSchema";
 import { generateBreadcrumbData } from "../render/breadcrumbRenderer";
 import { buildSemanticSsrHtml } from "../render/htmlRenderer";
@@ -153,6 +156,189 @@ export const onChannelSeoWritten = onDocumentWritten(
         eventType: "ssr_render",
         path: channelUrl,
         details: "Pre-rendered channel HTML snapshot and notified IndexNow."
+      });
+    }
+  }
+);
+
+export const onTopicSeoWritten = onDocumentWritten(
+  {
+    document: "topics/{topicId}",
+    region: "asia-south1"
+  },
+  async (event) => {
+    const topicId = event.params.topicId;
+    const afterData = event.data?.after?.data();
+    if (!afterData) return;
+
+    const db = admin.firestore();
+    const status = (afterData.status || "").toLowerCase();
+    const slug = (afterData.slug || topicId).trim();
+    const rawTitle = (afterData.title || afterData.name || "").trim();
+
+    if (status === "active" && slug && rawTitle) {
+      await db.collection("dirty_shards").doc("topics").set({
+        shardId: "topics",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      const cleanSlug = slug.replace(/^(T\/|t\/)/i, "").trim();
+      const topicUrl = `${DOMAIN}/topic/${cleanSlug}`;
+      const cleanTitle = rawTitle.replace(/^[#Tt]\//, "").trim();
+
+      const topVideos: any[] = [];
+      try {
+        const vSnap = await db.collection("videos")
+          .where("topics", "array-contains", cleanSlug)
+          .orderBy("uploadedAt", "desc")
+          .limit(10).get();
+        vSnap.forEach((d) => {
+          const data = d.data();
+          if ((data.visibility || "public").toLowerCase() === "public") {
+            topVideos.push({ id: d.id, title: data.title || "Video" });
+          }
+        });
+      } catch (_) {}
+
+      const topicSchema = generateTopicSchema({ id: topicId, ...afterData }, topicUrl, topVideos);
+      const breadcrumbs = generateBreadcrumbData([
+        { name: `#${cleanTitle}`, url: topicUrl }
+      ]);
+
+      const html = buildSemanticSsrHtml({
+        title: `#${cleanTitle} - Topic | Truthworld`,
+        description: afterData.description || `Explore top videos and discussions in #${cleanTitle} on Truthworld.`,
+        url: topicUrl,
+        image: afterData.coverUrl || afterData.bannerUrl || afterData.imageUrl,
+        type: "website",
+        robots: "index, follow",
+        jsonLd: [topicSchema, breadcrumbs.jsonLd],
+        breadcrumbHtml: breadcrumbs.html,
+        contentHeading: `#${cleanTitle} Topic`,
+        relatedItems: topVideos.map(v => ({ title: v.title, url: `${DOMAIN}/watch?v=${v.id}` }))
+      });
+
+      const cacheKey = `topic_v3_${cleanSlug.toLowerCase()}`;
+      await saveSnapshot(cacheKey, html);
+      await submitIndexNow([topicUrl]);
+
+      logSeoEvent({
+        eventType: "ssr_render",
+        path: topicUrl,
+        details: "Pre-rendered topic HTML snapshot and notified IndexNow."
+      });
+    }
+  }
+);
+
+export const onCommunityPostSeoWritten = onDocumentWritten(
+  {
+    document: "Community/{postId}",
+    region: "asia-south1"
+  },
+  async (event) => {
+    const postId = event.params.postId;
+    const afterData = event.data?.after?.data();
+    if (!afterData) return;
+
+    const db = admin.firestore();
+    const status = (afterData.status || "").toLowerCase();
+    const visibility = (afterData.visibility || "public").toLowerCase();
+
+    if (status !== "deleted" && status !== "rejected" && visibility !== "private") {
+      await db.collection("dirty_shards").doc("community-001").set({
+        shardId: "community-001",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      const postUrl = `${DOMAIN}/post/${postId}`;
+      const postTitle = afterData.title || (afterData.description ? afterData.description.substring(0, 80) : "Community Post");
+      const authorName = afterData.channelName || "Channel";
+      const authorUrl = afterData.channelId ? `${DOMAIN}/channel/${afterData.channelId}` : DOMAIN;
+
+      const postSchema = generateCommunityPostSchema({ id: postId, ...afterData }, postUrl);
+      const breadcrumbs = generateBreadcrumbData([
+        { name: authorName, url: authorUrl },
+        { name: postTitle, url: postUrl }
+      ]);
+
+      const image = (afterData.images && afterData.images.length > 0) ? afterData.images[0] : (afterData.image || afterData.channelImage);
+
+      const html = buildSemanticSsrHtml({
+        title: `${postTitle} - Post by ${authorName} | Truthworld`,
+        description: afterData.description || `Community post by ${authorName} on Truthworld.`,
+        url: postUrl,
+        image: image,
+        type: "article",
+        robots: "index, follow",
+        jsonLd: [postSchema, breadcrumbs.jsonLd],
+        breadcrumbHtml: breadcrumbs.html,
+        contentHeading: postTitle,
+        authorName: authorName,
+        authorUrl: authorUrl
+      });
+
+      const cacheKey = `post_${postId}`;
+      await saveSnapshot(cacheKey, html);
+      await submitIndexNow([postUrl]);
+
+      logSeoEvent({
+        eventType: "ssr_render",
+        path: postUrl,
+        details: "Pre-rendered community post HTML snapshot and notified IndexNow."
+      });
+    }
+  }
+);
+
+export const onPlaylistSeoWritten = onDocumentWritten(
+  {
+    document: "playlists/{playlistId}",
+    region: "asia-south1"
+  },
+  async (event) => {
+    const playlistId = event.params.playlistId;
+    const afterData = event.data?.after?.data();
+    if (!afterData) return;
+
+    const db = admin.firestore();
+    const status = (afterData.status || "").toLowerCase();
+    const visibility = (afterData.visibility || "").toLowerCase();
+    const isPublic = visibility === "public" || afterData.isPublic === true;
+    const name = (afterData.name || afterData.playlistName || afterData.title || "").trim();
+
+    if (isPublic && status !== "deleted" && name && !name.toLowerCase().startsWith("untitled")) {
+      await db.collection("dirty_shards").doc("playlists").set({
+        shardId: "playlists",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      const playlistUrl = `${DOMAIN}/playlist?list=${playlistId}`;
+      const playlistSchema = generatePlaylistSchema({ id: playlistId, ...afterData }, playlistUrl);
+      const breadcrumbs = generateBreadcrumbData([
+        { name: name, url: playlistUrl }
+      ]);
+
+      const html = buildSemanticSsrHtml({
+        title: `${name} - Playlist | Truthworld`,
+        description: afterData.description || `Watch ${name} playlist on Truthworld.`,
+        url: playlistUrl,
+        image: afterData.thumbnailUrl || afterData.thumbnail,
+        type: "website",
+        robots: "index, follow",
+        jsonLd: [playlistSchema, breadcrumbs.jsonLd],
+        breadcrumbHtml: breadcrumbs.html,
+        contentHeading: `${name} Playlist`
+      });
+
+      const cacheKey = `playlist_v3_${playlistId}`;
+      await saveSnapshot(cacheKey, html);
+      await submitIndexNow([playlistUrl]);
+
+      logSeoEvent({
+        eventType: "ssr_render",
+        path: playlistUrl,
+        details: "Pre-rendered playlist HTML snapshot and notified IndexNow."
       });
     }
   }

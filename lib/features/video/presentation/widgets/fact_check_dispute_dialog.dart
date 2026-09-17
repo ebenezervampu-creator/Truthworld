@@ -2,6 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -51,24 +54,20 @@ class _FactCheckDisputeDialogState extends State<FactCheckDisputeDialog> {
 
   Future<void> _submitDispute() async {
     final reason = _reasonController.text.trim();
-    if (reason.isEmpty) {
-      Get.snackbar(
-        'Required Field',
-        'Please state why you believe the fact-checking result is incorrect.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: const Color(0xFFEF4444).withValues(alpha: 0.9),
-        colorText: Colors.white,
-      );
+    final validation = ContentValidator.validate(
+      reason,
+      fieldName: 'Dispute Reason',
+      minLength: 10,
+      maxLength: 2000,
+    );
+    if (!validation.isValid) {
+      AppSnackbar.warning(validation.message);
       return;
     }
 
     if (_additionalSources.isEmpty) {
-      Get.snackbar(
-        'Sources Required',
+      AppSnackbar.warning(
         'Please provide at least one supporting source link for the Credibility System to review.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: const Color(0xFFF59E0B).withValues(alpha: 0.9),
-        colorText: Colors.white,
       );
       return;
     }
@@ -95,24 +94,16 @@ class _FactCheckDisputeDialogState extends State<FactCheckDisputeDialog> {
 
       if (mounted) {
         Navigator.of(context).pop();
-        Get.snackbar(
-          'Dispute Submitted',
+        AppSnackbar.success(
           'Your dispute and sources have been sent to the Credibility System for re-evaluation.',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: const Color(0xFF10B981).withValues(alpha: 0.9),
-          colorText: Colors.white,
-          duration: const Duration(seconds: 4),
         );
       }
     } catch (e) {
+      ErrorHandler.log(e);
       if (mounted) {
         _isSubmitting.value = false;
-        Get.snackbar(
-          'Submission Error',
-          'Failed to submit dispute: $e',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: const Color(0xFFEF4444).withValues(alpha: 0.9),
-          colorText: Colors.white,
+        AppSnackbar.error(
+          'Unable to submit dispute. Please try again.',
         );
       }
     }
@@ -201,6 +192,7 @@ class _FactCheckDisputeDialogState extends State<FactCheckDisputeDialog> {
             const SizedBox(height: 8),
             TextField(
               controller: _reasonController,
+              inputFormatters: TruthworldTextInputFormatters.standard,
               maxLines: 4,
               style: const TextStyle(
                 color: AppColors.textPrimary,

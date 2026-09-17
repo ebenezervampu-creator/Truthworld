@@ -1,0 +1,127 @@
+import 'package:file_picker/file_picker.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/features/video/data/models/ai_features.dart';
+import 'package:truthworld/features/video/presentation/controllers/upload_mixins/upload_controller_base.dart';
+
+mixin UploadAiFeaturesMixin on UploadControllerBase {
+  /// Categories that are non-factual/creative where fact-checking is not needed
+  static const Set<String> categoriesWithoutFactCheck = {
+    'Music',
+    'Entertainment',
+    'Comedy',
+    'Animation',
+    'Movies',
+    'Lifestyle',
+    'Sports',
+    'Pets & Animals',
+    'Fashion',
+    'Food & Cooking',
+    'DIY & How-to',
+  };
+
+  /// Check whether fact checking is relevant for a given category name
+  bool isFactCheckNeededForCategory(String category) {
+    return !categoriesWithoutFactCheck.contains(category);
+  }
+
+  /// Whether Fact Checking is relevant for the currently selected category
+  bool get isFactCheckRelevant =>
+      isFactCheckNeededForCategory(selectedCategory.value);
+
+  /// Select a category and handle fact check toggle availability
+  void selectCategory(String cat) {
+    selectedCategory.value = cat;
+    if (!isFactCheckRelevant) {
+      aiFactCheckEnabled.value = false;
+    }
+  }
+
+  /// Whether sources validation passes (if fact checking is enabled, at least 1 source is required)
+  bool get isFactCheckSourcesValid =>
+      !aiFactCheckEnabled.value || providedSources.isNotEmpty;
+
+  /// Add a source URL provided by the channel
+  void addProvidedSource(String url) {
+    final cleanUrl = url.trim();
+    if (cleanUrl.isNotEmpty && !providedSources.contains(cleanUrl)) {
+      providedSources.add(cleanUrl);
+    }
+  }
+
+  /// Remove a provided source at given index
+  void removeProvidedSource(int index) {
+    if (index >= 0 && index < providedSources.length) {
+      providedSources.removeAt(index);
+    }
+  }
+
+  /// Toggle subtitle language selection.
+  /// Selecting in Subtitles does NOT select for Dubbing.
+  void toggleSubtitleLanguage(String lang) {
+    if (aiTranslationLanguages.contains(lang)) {
+      aiTranslationLanguages.remove(lang);
+      if (aiDubbingLanguages.contains(lang)) {
+        aiDubbingLanguages.remove(lang);
+      }
+    } else {
+      aiTranslationLanguages.add(lang);
+    }
+  }
+
+  /// Toggle dubbing language selection.
+  /// When selected in Dubbing, AUTOMATICALLY select it for Subtitles as well.
+  void toggleDubbingLanguage(String lang) {
+    if (aiDubbingLanguages.contains(lang)) {
+      aiDubbingLanguages.remove(lang);
+    } else {
+      aiDubbingLanguages.add(lang);
+      if (!aiTranslationLanguages.contains(lang)) {
+        aiTranslationLanguages.add(lang);
+      }
+    }
+  }
+
+  /// Build the AI features map for Firestore.
+  @override
+  Map<String, dynamic> buildFeaturesMap({String? pipelineStage}) {
+    final map = AIFeatures(
+      genLangSubs: aiGenerateSubtitles.value,
+      generateDubbing: aiGenerateDubbing.value,
+      translationLanguages: List<String>.from(aiTranslationLanguages),
+      tts: TTSConfig(
+        enabled: aiGenerateDubbing.value,
+        voiceType: aiTTSVoiceType.value == 'cloned'
+            ? 'voice_clone'
+            : 'standard',
+      ),
+      factChecking: aiFactCheckEnabled.value,
+      diarization: aiDiarizationEnabled.value,
+      summary: aiSummaryEnabled.value,
+      autoChapters: aiChaptersEnabled.value,
+      pipelineStage: pipelineStage,
+    ).toMap();
+    map['providedSources'] = List<String>.from(providedSources);
+    map['dubbingLanguages'] = List<String>.from(aiDubbingLanguages);
+    return map;
+  }
+
+  /// Pick a voice sample for TTS cloning.
+  Future<void> pickVoiceSample() async {
+    try {
+      final result = await FilePicker.pickFiles(
+        type: FileType.audio,
+        withData: true,
+      );
+      if (result != null && result.files.isNotEmpty) {
+        voiceSampleFile.value = result.files.first;
+        AppSnackbar.success(
+          'Voice sample selected: ${result.files.first.name}',
+        );
+      }
+    } catch (e) {
+      ErrorHandler.log(e, context: 'UploadController.pickVoiceSample');
+      AppSnackbar.error('Unable to select voice sample. Please try again.');
+    }
+  }
+}

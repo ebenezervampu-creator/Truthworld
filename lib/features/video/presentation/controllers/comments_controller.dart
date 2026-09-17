@@ -1,11 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/mentions_helper.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
 import 'package:truthworld/features/notifications/data/services/user_notification_service.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
@@ -104,21 +106,32 @@ class CommentsController extends BaseController with ContentValidationMixin {
   void toggleCounterArgumentSort() {
     isCounterArgumentFlipped.toggle();
     if (isCounterArgumentFlipped.value) {
+      const contrastKeywords = [
+        'however',
+        'disagree',
+        'perspective',
+        'contrary',
+        'evidence',
+      ];
+
+      // O(N) precomputation pass: memoize contrast match per comment to avoid
+      // repeated string lowercasing and substring search inside O(N log N) comparator.
+      final contrastMap = <String, bool>{};
+      for (final comment in comments) {
+        final text = comment.text.toLowerCase();
+        var hasContrast = false;
+        for (final kw in contrastKeywords) {
+          if (text.contains(kw)) {
+            hasContrast = true;
+            break;
+          }
+        }
+        contrastMap[comment.id] = hasContrast;
+      }
+
       comments.sort((a, b) {
-        final textA = a.text.toLowerCase();
-        final textB = b.text.toLowerCase();
-        final contrastA =
-            textA.contains('however') ||
-            textA.contains('disagree') ||
-            textA.contains('perspective') ||
-            textA.contains('contrary') ||
-            textA.contains('evidence');
-        final contrastB =
-            textB.contains('however') ||
-            textB.contains('disagree') ||
-            textB.contains('perspective') ||
-            textB.contains('contrary') ||
-            textB.contains('evidence');
+        final contrastA = contrastMap[a.id] ?? false;
+        final contrastB = contrastMap[b.id] ?? false;
 
         if (contrastA && !contrastB) return -1;
         if (!contrastA && contrastB) return 1;
@@ -166,8 +179,12 @@ class CommentsController extends BaseController with ContentValidationMixin {
           'isDisliked': type == 'dislike',
         };
       }
-    } catch (e) {
-      debugPrint('[CommentsController] Error loading user interactions: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'CommentsController._loadUserInteractions',
+      );
     }
   }
 
@@ -198,8 +215,12 @@ class CommentsController extends BaseController with ContentValidationMixin {
                   if (targetComment != null) {
                     loadedComments.insert(0, targetComment);
                   }
-                } catch (e) {
-                  debugPrint('⚠️ Error fetching deep-linked comment: $e');
+                } catch (e, stackTrace) {
+                  ErrorHandler.log(
+                    e,
+                    stackTrace: stackTrace,
+                    tag: 'CommentsController._initializeComments.deepLink',
+                  );
                 }
               }
             }
@@ -210,8 +231,13 @@ class CommentsController extends BaseController with ContentValidationMixin {
             hasMoreComments.value = loadedComments.length >= _commentsPerPage;
             commentsError.value = null;
           },
-          onError: (e) {
-            commentsError.value = e.toString();
+          onError: (e, stackTrace) {
+            ErrorHandler.log(
+              e,
+              stackTrace: stackTrace,
+              tag: 'CommentsController._initializeComments',
+            );
+            commentsError.value = AppException.from(e, stackTrace).displayMessage;
             isLoadingComments.value = false;
           },
         ));
@@ -306,8 +332,12 @@ class CommentsController extends BaseController with ContentValidationMixin {
                 'donatedAt': FieldValue.serverTimestamp(),
                 'type': 'super_thanks',
               });
-        } catch (e) {
-          debugPrint('⚠️ Error recording creator donation payout: $e');
+        } catch (e, stackTrace) {
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'CommentsController.recordDonation',
+          );
         }
       }
 
@@ -320,13 +350,23 @@ class CommentsController extends BaseController with ContentValidationMixin {
           videoChannelId: video!.channelId,
           commentId: commentId,
         );
-      } catch (e) {
-        debugPrint('⚠️ Error processing mentions in comment: $e');
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'CommentsController.processMentionsInComment',
+        );
       }
 
       commentError.value = null;
-    } catch (e) {
-      commentError.value = e.toString();
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'CommentsController.addComment',
+      );
+      commentError.value =
+          'Unable to post comment. Please check your connection and try again.';
       rethrow; // Re-throw so the UI can handle it
     } finally {
       isSubmittingComment.value = false;
@@ -433,7 +473,8 @@ class CommentsController extends BaseController with ContentValidationMixin {
             'isDisliked': false,
           };
       comments.refresh();
-      Get.snackbar('Error', 'Failed to update interaction');
+      ErrorHandler.log(e, context: 'CommentsController.toggleCommentLike');
+      AppSnackbar.error('Unable to update interaction. Please try again.');
     }
   }
 
@@ -523,7 +564,8 @@ class CommentsController extends BaseController with ContentValidationMixin {
             'isDisliked': false,
           };
       comments.refresh();
-      Get.snackbar('Error', 'Failed to update interaction');
+      ErrorHandler.log(e, context: 'CommentsController.toggleCommentDislike');
+      AppSnackbar.error('Unable to update interaction. Please try again.');
     }
   }
 
@@ -565,7 +607,8 @@ class CommentsController extends BaseController with ContentValidationMixin {
       await _commentService.deleteComment(video!.id, commentId);
       comments.removeWhere((c) => c.id == commentId);
     } catch (e) {
-      Get.snackbar('Error', 'Failed to delete comment: $e');
+      ErrorHandler.log(e, context: 'CommentsController.deleteComment');
+      AppSnackbar.error('Unable to delete comment. Please try again.');
     }
   }
 
@@ -664,13 +707,23 @@ class CommentsController extends BaseController with ContentValidationMixin {
           commentId: commentId,
           replyId: replyId,
         );
-      } catch (e) {
-        debugPrint('⚠️ Error processing mentions in reply: $e');
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'CommentsController.processMentionsInReply',
+        );
       }
 
       commentError.value = null;
-    } catch (e) {
-      commentError.value = e.toString();
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'CommentsController.addReply',
+      );
+      commentError.value =
+          'Unable to post reply. Please check your connection and try again.';
     } finally {
       isSubmittingComment.value = false;
     }
@@ -733,13 +786,14 @@ class CommentsController extends BaseController with ContentValidationMixin {
         );
       }
     } catch (e) {
+      ErrorHandler.log(e, context: 'CommentsController.toggleReplyLike');
       userCommentInteractions[replyId] =
           currentStatus ??
           {
             'isLiked': false,
             'isDisliked': false,
           };
-      Get.snackbar('Error', 'Failed to like reply');
+      AppSnackbar.error('Unable to like reply. Please try again.');
     }
   }
 
@@ -788,13 +842,14 @@ class CommentsController extends BaseController with ContentValidationMixin {
         );
       }
     } catch (e) {
+      ErrorHandler.log(e, context: 'CommentsController.toggleReplyDislike');
       userCommentInteractions[replyId] =
           currentStatus ??
           {
             'isLiked': false,
             'isDisliked': false,
           };
-      Get.snackbar('Error', 'Failed to dislike reply');
+      AppSnackbar.error('Unable to dislike reply. Please try again.');
     }
   }
 
@@ -813,7 +868,8 @@ class CommentsController extends BaseController with ContentValidationMixin {
     try {
       await _commentService.deleteReply(video!.id, commentId, replyId);
     } catch (e) {
-      Get.snackbar('Error', 'Failed to delete reply: $e');
+      ErrorHandler.log(e, context: 'CommentsController.deleteReply');
+      AppSnackbar.error('Unable to delete reply. Please try again.');
     }
   }
 

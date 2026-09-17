@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 
@@ -45,7 +46,13 @@ class ChannelDetailsRedirectMiddleware extends GetMiddleware {
         if (channelRoute != null && channelRoute.isNotEmpty) {
           return RouteSettings(name: channelRoute, arguments: args);
         }
-      } catch (_) {}
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'ChannelDetailsRedirectMiddleware.redirect',
+        );
+      }
     }
     // No valid channel — redirect to home
     return const RouteSettings(name: '/');
@@ -134,7 +141,13 @@ class PlaylistDetailRedirectMiddleware extends GetMiddleware {
       try {
         final homeController = Get.find<HomeController>();
         homeController.navigateToPlaylistDetail(playlist);
-      } catch (_) {}
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'PlaylistDetailRedirectMiddleware.redirect',
+        );
+      }
 
       return RouteSettings(name: '/', arguments: {'openPlaylist': playlist});
     }
@@ -168,7 +181,13 @@ class TopicRedirectMiddleware extends GetMiddleware {
           if (route == topicRoute) return null;
           return RouteSettings(name: topicRoute, arguments: args);
         }
-      } catch (_) {}
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'TopicRedirectMiddleware.redirect',
+        );
+      }
     }
 
     // Fallback: parse route path parameter
@@ -276,7 +295,13 @@ class AdminAuthGuardMiddleware extends GetMiddleware {
       if (session != null && session['email'] != null) {
         return null;
       }
-    } catch (_) {}
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'AdminAuthGuardMiddleware.redirect',
+      );
+    }
 
     // 3. Fallback check for owner account in Firebase Auth
     final user = FirebaseAuth.instance.currentUser;

@@ -12,6 +12,8 @@ import 'package:truthworld/features/search/presentation/controllers/search_contr
     as app_search;
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 
+export 'package:truthworld/features/dashboard/presentation/bindings/dashboard_binding.dart';
+
 /// Home feature binding (Session lifecycle: fenix = true)
 class HomeBinding extends Bindings {
   @override
@@ -20,15 +22,6 @@ class HomeBinding extends Bindings {
     Get.lazyPut<HomeController>(HomeController.new, fenix: true);
     Get.lazyPut<ChannelController>(ChannelController.new, fenix: true);
     MiniplayerBinding().dependencies();
-  }
-}
-
-/// Dashboard feature binding (Session lifecycle: fenix = true)
-class DashboardBinding extends Bindings {
-  @override
-  void dependencies() {
-    Get.lazyPut<HomeController>(HomeController.new, fenix: true);
-    Get.lazyPut<ChannelController>(ChannelController.new, fenix: true);
   }
 }
 

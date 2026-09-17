@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/studio_launcher.dart';
@@ -353,8 +354,12 @@ Future<void> _handleSignIn() async {
   } else {
     try {
       await AuthService.to.signInWithGoogle();
-    } catch (e) {
-      debugPrint('Sign in error: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'GlobalAppBar.handleSignIn',
+      );
     }
   }
 }
@@ -363,8 +368,11 @@ Widget _buildSignInButton(BuildContext context) {
   return Padding(
     padding: const EdgeInsets.symmetric(horizontal: 8),
     child: Obx(() {
+      final isAuth = Get.isRegistered<AuthService>() &&
+          AuthService.to.isAuthenticated.value;
       final isLoading = Get.isRegistered<HomeController>() &&
           Get.find<HomeController>().isLoadingAuth.value;
+      if (isAuth) return const SizedBox.shrink();
 
       return OutlinedButton.icon(
         icon: const Icon(
@@ -409,12 +417,7 @@ Widget _buildUserMenu(BuildContext context) {
       onSelected: (value) {
         switch (value) {
           case 'studio':
-            if (AuthService.to.hasChannel.value ||
-                AuthService.to.userChannel != null) {
-              StudioLauncher.openStudio();
-            } else {
-              Get.toNamed('/channelscreen');
-            }
+            StudioLauncher.openStudio();
         }
       },
       itemBuilder: (context) => [

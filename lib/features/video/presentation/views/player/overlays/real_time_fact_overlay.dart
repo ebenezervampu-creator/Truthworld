@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:truthworld/features/video/data/models/claim_verdict_helper.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -9,57 +10,11 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
   final ClaimResult claim;
 
   Color _getVerdictColor(String verdict) {
-    switch (verdict.toLowerCase()) {
-      case 'verified_true':
-      case 'mostly_true':
-        return AppColors.success;
-      case 'false_claim':
-      case 'misleading':
-      case 'disputed':
-        return AppColors.error;
-      case 'unproven':
-      case 'inconclusive':
-      case 'limited_support':
-      case 'verification_timeout':
-        return AppColors.brandHover;
-      case 'faith_based_claim':
-      case 'not_historically_verifiable':
-      case 'historical_tradition':
-        return AppColors.brandHover;
-      default:
-        return AppColors.info;
-    }
+    return ClaimVerdictHelper.resolveVerdictString(verdict).color;
   }
 
   String _getVerdictLabel(String verdict) {
-    switch (verdict.toLowerCase()) {
-      case 'verified_true':
-        return 'Verified True';
-      case 'mostly_true':
-        return 'Mostly True';
-      case 'false_claim':
-        return 'False';
-      case 'misleading':
-        return 'Misleading';
-      case 'disputed':
-        return 'Disputed';
-      case 'unproven':
-        return 'Unproven';
-      case 'inconclusive':
-        return 'Inconclusive';
-      case 'limited_support':
-        return 'Limited Support';
-      case 'verification_timeout':
-        return 'Verification Timeout';
-      case 'faith_based_claim':
-        return 'Faith-Based Claim';
-      case 'not_historically_verifiable':
-        return 'Not Historically Verifiable';
-      case 'historical_tradition':
-        return 'Historical Tradition';
-      default:
-        return 'Opinion / Unverified';
-    }
+    return ClaimVerdictHelper.resolveVerdictString(verdict).label;
   }
 
   Widget _buildDetailChip(String label, String value) {

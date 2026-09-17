@@ -9,13 +9,16 @@ import 'package:get/get.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class SendFeedbackController extends BaseController with ContentValidationMixin {
   final formKey = GlobalKey<FormState>();
   final feedbackController = TextEditingController();
+  final emailController = TextEditingController();
   final RxString feedbackType = 'General'.obs;
   final RxInt rating = 0.obs;
   final RxBool isSubmitting = false.obs;
@@ -33,6 +36,11 @@ class SendFeedbackController extends BaseController with ContentValidationMixin 
   void onInit() {
     super.onInit();
     trackTextController(feedbackController);
+    trackTextController(emailController);
+    final user = FirebaseAuth.instance.currentUser;
+    if (user?.email != null && user!.email!.isNotEmpty) {
+      emailController.text = user.email!;
+    }
     _getDeviceInfo();
   }
 
@@ -65,13 +73,22 @@ class SendFeedbackController extends BaseController with ContentValidationMixin 
           'model': iosInfo.model,
         };
       }
-    } catch (e) {
-      debugPrint('Error getting device info: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'SendFeedbackController.initDeviceInfo');
     }
     deviceInfo.assignAll(info);
   }
 
   Future<void> submitFeedback() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      AppSnackbar.warning(
+        'You must be signed in to submit feedback.',
+        title: 'Sign In Required',
+      );
+      return;
+    }
+
     if (!formKey.currentState!.validate() || isSubmitting.value) return;
 
     final text = feedbackController.text.trim();
@@ -81,12 +98,9 @@ class SendFeedbackController extends BaseController with ContentValidationMixin 
       minLength: 5,
     );
     if (!validation.isValid) {
-      Get.snackbar(
-        'Inappropriate Content',
+      AppSnackbar.warning(
         validation.message,
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
+        title: 'Inappropriate Content',
       );
       return;
     }
@@ -94,14 +108,16 @@ class SendFeedbackController extends BaseController with ContentValidationMixin 
     isSubmitting.value = true;
 
     try {
-      final user = FirebaseAuth.instance.currentUser;
+      final userEmail = (user.email != null && user.email!.isNotEmpty)
+          ? user.email!
+          : 'unspecified';
 
-      // Submit to Firestore
+      // Submit to Firestore (strictly authenticated)
       final feedbackData = {
-        'userId': user?.uid ?? 'anonymous',
-        'userEmail': user?.email ?? 'anonymous',
+        'userId': user.uid,
+        'userEmail': userEmail,
         'feedbackType': feedbackType.value,
-        'feedbackText': feedbackController.text,
+        'feedbackText': feedbackController.text.trim(),
         'rating': rating.value,
         'timestamp': FieldValue.serverTimestamp(),
         'status': 'new',
@@ -117,26 +133,11 @@ class SendFeedbackController extends BaseController with ContentValidationMixin 
       feedbackController.clear();
       rating.value = 0;
 
-      Get.snackbar(
-        'Success',
-        'Thank you for your feedback!',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.bgPage,
-        colorText: AppColors.textPrimary,
-        margin: const EdgeInsets.all(16),
-        borderRadius: 12,
-      );
-
-      Future.delayed(const Duration(seconds: 1), Get.back);
+      AppSnackbar.success('Thank you for your feedback!');
+      Get.back();
     } catch (e) {
-      debugPrint('Error submitting feedback: $e');
-      Get.snackbar(
-        'Error',
-        'Failed to submit feedback. $e',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
-      );
+      ErrorHandler.log(e);
+      AppSnackbar.error('Unable to submit feedback. Please try again.');
     } finally {
       isSubmitting.value = false;
     }
@@ -260,6 +261,8 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
                     const SizedBox(height: 24),
                     _buildRatingSection(context),
                     const SizedBox(height: 24),
+                    _buildEmailInput(context),
+                    const SizedBox(height: 24),
                     _buildMessageInput(context),
                     const SizedBox(height: 48),
                     _buildSubmitButton(context),
@@ -295,7 +298,39 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
             color: context.colors.textSecondary,
           ),
         ),
+        _buildAuthNotice(context),
       ],
+    );
+  }
+
+  Widget _buildAuthNotice(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.error.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.lock_outline_rounded, color: Colors.white, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Sign in required: You must be logged in with a TruthWorld account to submit feedback.',
+              style: TextStyle(
+                color: context.colors.textPrimary,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -421,6 +456,52 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
     );
   }
 
+  Widget _buildEmailInput(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'ACCOUNT EMAIL',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary,
+            letterSpacing: 1.2,
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: controller.emailController,
+          enabled: false,
+          style: TextStyle(color: context.colors.textPrimary),
+          decoration: InputDecoration(
+            hintText: user?.email ?? 'Sign in required to submit feedback',
+            hintStyle: TextStyle(
+              color: context.colors.textSecondary.withValues(alpha: 0.5),
+            ),
+            filled: true,
+            fillColor: context.colors.surface,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(
+                color: context.colors.divider.withValues(alpha: 0.1),
+              ),
+            ),
+            disabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(
+                color: context.colors.divider.withValues(alpha: 0.05),
+              ),
+            ),
+            contentPadding: const EdgeInsets.all(20),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildMessageInput(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -438,6 +519,7 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
         TextFormField(
           controller: controller.feedbackController,
           maxLines: 6,
+          inputFormatters: [TruthworldTextInputFormatters.englishOnly],
           style: TextStyle(color: context.colors.textPrimary),
           decoration: InputDecoration(
             hintText: 'Share your thoughts, suggestions or bug details...',
@@ -477,6 +559,9 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
   }
 
   Widget _buildSubmitButton(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final isGuest = user == null;
+
     return Obx(
       () => SizedBox(
         width: double.infinity,
@@ -504,9 +589,9 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
                     strokeWidth: 2.5,
                   ),
                 )
-              : const Text(
-                  'Submit Feedback',
-                  style: TextStyle(
+              : Text(
+                  isGuest ? 'Sign In to Submit Feedback' : 'Submit Feedback',
+                  style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),

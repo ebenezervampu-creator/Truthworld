@@ -110,3 +110,9 @@ remaining_issues.txt
 /full.json
 /latest.json
 /manifest.json
+
+# Web build artifacts in web folder
+web/flutter_service_worker.js
+web/flutter_bootstrap.js
+web/flutter.js.map
+web/assets/

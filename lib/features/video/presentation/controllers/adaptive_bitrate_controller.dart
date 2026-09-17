@@ -10,6 +10,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:universal_html/js.dart' as js;
 import 'package:video_player/video_player.dart';
@@ -267,8 +268,12 @@ class AdaptiveBitrateController extends BaseController {
           }
         }
       }
-    } catch (e) {
-      debugPrint('[ABR] Hint failed: $e');
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'AdaptiveBitrateController.getNetworkInformationHint',
+      );
     }
     return 5000;
   }

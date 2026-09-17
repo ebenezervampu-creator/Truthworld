@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 
 /// Comprehensive, YouTube-grade subtitle and transcript parser.
@@ -31,8 +31,12 @@ class SubtitleParser {
         if (jsonSegments.isNotEmpty) {
           return _finalizeSegments(jsonSegments);
         }
-      } catch (e) {
-        debugPrint('[SubtitleParser] JSON parse error: $e');
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'SubtitleParser.parseJson',
+        );
       }
     }
 

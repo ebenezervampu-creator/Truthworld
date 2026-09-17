@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart' hide SearchBar, SearchController;
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/services/ai/models/ai_search_intent.dart';
 import 'package:truthworld/features/search/presentation/controllers/search_controller.dart';
 import 'package:truthworld/features/search/presentation/widgets/search_widgets.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -134,8 +136,8 @@ class SearchPage extends StatelessWidget {
                       return const SearchResultSkeleton();
                     }
 
-                    // CASE 3: Error state
-                    if (errorMsg.isNotEmpty) {
+                    // CASE 3: Error state (if error and no results and no AI intent)
+                    if (errorMsg.isNotEmpty && results.isEmpty && _searchCtrl.activeAiIntent.value == null) {
                       return Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -166,16 +168,31 @@ class SearchPage extends StatelessWidget {
                       );
                     }
 
-                    // CASE 4: No results
-                    if (results.isEmpty) {
+                    final hasAiBanner = _searchCtrl.activeAiIntent.value != null;
+
+                    // CASE 4: No results and no AI banner
+                    if (!hasAiBanner && results.isEmpty) {
                       return EmptySearchState(
                         query: query,
                         onClearSearch: _searchCtrl.clearSearch,
                       );
                     }
 
-                    // CASE 5: Results List
-                    return _buildResultsList(results, isLoadingMore);
+                    // CASE 5: Active AI Search or Results List
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (hasAiBanner) _buildActiveAiSearchBanner(context),
+                        Expanded(
+                          child: results.isEmpty
+                              ? EmptySearchState(
+                                  query: query,
+                                  onClearSearch: _searchCtrl.clearSearch,
+                                )
+                              : _buildResultsList(results, isLoadingMore),
+                        ),
+                      ],
+                    );
                   }),
                 ),
               ],
@@ -311,62 +328,282 @@ class SearchPage extends StatelessWidget {
     final showFallbackBanner = _searchCtrl.isShowingFallback.value;
     final extraItems = (showFallbackBanner ? 1 : 0) + (isLoadingMore ? 1 : 0);
 
-    return ListView.builder(
-      controller: _scrollController,
-      itemCount: results.length + extraItems,
-      itemBuilder: (context, index) {
-        // 1. Fallback Banner at index 0
-        if (showFallbackBanner && index == 0) {
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            margin: const EdgeInsets.only(bottom: 8),
-            color: const Color(0xFF1E1B2E), // Subtle dark purple background
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.info_outline_rounded,
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1200),
+        child: ListView.builder(
+          controller: _scrollController,
+          itemCount: results.length + extraItems,
+          itemBuilder: (context, index) {
+            // 1. Fallback Banner at index 0
+            if (showFallbackBanner && index == 0) {
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                margin: const EdgeInsets.only(bottom: 8),
+                color: const Color(0xFF1E1B2E), // Subtle dark purple background
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.info_outline_rounded,
+                      color: AppColors.textPrimary,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'No exact matches found for "${_searchCtrl.searchQuery.value}". Showing recommended content instead:',
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          height: 1.3,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            // Adjust index if fallback banner is shown
+            final dataIndex = showFallbackBanner ? index - 1 : index;
+
+            // 2. Loading Indicator at the end
+            if (dataIndex == results.length) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: CircularProgressIndicator(
+                    color: AppColors.brand,
+                    strokeWidth: 2,
+                  ),
+                ),
+              );
+            }
+
+            final result = results[dataIndex];
+            return SearchResultCard(
+              result: result,
+              onTap: () => _searchCtrl.onResultTapped(result),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActiveAiSearchBanner(BuildContext context) {
+    final colors = context.twColors;
+    final intent = _searchCtrl.activeAiIntent.value!;
+    final matchCount = _searchCtrl.searchResults.length;
+    final isBroadened = _searchCtrl.isBroadenedView.value;
+
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1200),
+        child: Container(
+          margin: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: AppColors.textPrimary.withValues(alpha: 0.12),
+            ),
+          ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.textPrimary.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
                   color: AppColors.textPrimary,
                   size: 18,
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'No exact matches found for "${_searchCtrl.searchQuery.value}". Showing recommended content instead:',
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      height: 1.3,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      intent.explanation.isNotEmpty
+                          ? intent.explanation
+                          : 'AI Smart Search',
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$matchCount results found • Mode: ${intent.resultMode == SearchResultMode.exhaustive ? "All Results" : "Top Ranked"}',
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: const Icon(
+                  Icons.close_rounded,
+                  color: AppColors.textPrimary,
+                  size: 18,
+                ),
+                tooltip: 'Clear AI Search',
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  _searchCtrl.clearAiSearch();
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              if (intent.detectedLanguage != null)
+                _buildCriterionChip(
+                  context,
+                  label: intent.detectedLanguage!,
+                  icon: Icons.language_rounded,
+                ),
+              if (intent.detectedCategory != null)
+                _buildCriterionChip(
+                  context,
+                  label: intent.detectedCategory!,
+                  icon: Icons.category_rounded,
+                ),
+              if (intent.cleanKeywords.isNotEmpty)
+                ...intent.cleanKeywords.map(
+                  (k) => _buildCriterionChip(
+                    context,
+                    label: k,
+                    icon: Icons.tag_rounded,
                   ),
                 ),
-              ],
-            ),
-          );
-        }
-
-        // Adjust index if fallback banner is shown
-        final dataIndex = showFallbackBanner ? index - 1 : index;
-
-        // 2. Loading Indicator at the end
-        if (dataIndex == results.length) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 24),
-            child: Center(
-              child: CircularProgressIndicator(
-                color: AppColors.brand,
-                strokeWidth: 2,
+              if (intent.excludedTerms.isNotEmpty)
+                ...intent.excludedTerms.map(
+                  (ex) => _buildCriterionChip(
+                    context,
+                    label: 'No: $ex',
+                    icon: Icons.block_rounded,
+                  ),
+                ),
+              if (intent.resultMode == SearchResultMode.exhaustive)
+                _buildCriterionChip(
+                  context,
+                  label: 'Exhaustive / All',
+                  icon: Icons.all_inclusive_rounded,
+                ),
+            ],
+          ),
+          // Fallback broadening suggestion when language-specific count is low or filtered
+          if (_searchCtrl.broadenedResults.isNotEmpty && !isBroadened) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: colors.background.withValues(alpha: 0.6),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.travel_explore_rounded,
+                    color: AppColors.textPrimary,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Found $matchCount ${intent.detectedLanguage} results. Broaden to all languages?',
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      _searchCtrl.broadenSearch();
+                    },
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Text(
+                      intent.broadenPrompt ?? 'Show All Languages',
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          );
-        }
+          ],
+        ],
+      ),
+    ),
+      ),
+    );
+  }
 
-        final result = results[dataIndex];
-        return SearchResultCard(
-          result: result,
-          onTap: () => _searchCtrl.onResultTapped(result),
-        );
-      },
+  Widget _buildCriterionChip(
+    BuildContext context, {
+    required String label,
+    required IconData icon,
+  }) {
+    final colors = context.twColors;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: colors.background.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: AppColors.textPrimary.withValues(alpha: 0.08),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 12,
+            color: AppColors.textPrimary,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

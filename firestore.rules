@@ -13,8 +13,8 @@ service cloud.firestore {
     }
 
     // Helper function to check if user has administrative privileges.
-    // Prioritizes Firebase Auth custom claims and Firestore document roles,
-    // with designated email bootstrap fallback.
+    // Prioritizes Firebase Auth custom claims, Firestore document roles in users,
+    // active team members in admin_members, and designated email bootstrap fallbacks.
     function isAdmin() {
       return isAuthenticated() && (
         request.auth.token.admin == true || 
@@ -27,8 +27,14 @@ service cloud.firestore {
           request.auth.token.email.lower() == 'ebenezervampy@towervsp.com' ||
           request.auth.token.email.lower() == 'ebenezervampu@towervsp.com' ||
           request.auth.token.email.lower() == 'ebenezervampu4@gmail.com' ||
-          request.auth.token.email.lower() == 'admin@truthworld.com'
-        ))
+          request.auth.token.email.lower() == 'admin@truthworld.com' ||
+          request.auth.token.email.lower() == 'support@truthworld.com'
+        )) ||
+        (request.auth.token.email != null && request.auth.token.email_verified == true &&
+         exists(/databases/$(database)/documents/admin_members/$(request.auth.token.email.lower())) &&
+         get(/databases/$(database)/documents/admin_members/$(request.auth.token.email.lower())).data.status != 'suspended') ||
+        (exists(/databases/$(database)/documents/admin_members/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/admin_members/$(request.auth.uid)).data.status != 'suspended')
       );
     }
 
@@ -81,6 +87,16 @@ service cloud.firestore {
       // Allow users to delete their own drafts
       allow delete: if isAuthenticated() && 
                        (resource.data.ownerId == request.auth.uid || resource.data.userId == request.auth.uid || isAdmin());
+    }
+    
+    // Channel Language Requests Collection
+    match /channel_language_requests/{requestId} {
+      // Users can read their own language requests, Admins can read all
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      // Authenticated users can submit a language request
+      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      // Only admins can update status or delete language requests
+      allow update, delete: if isAdmin();
     }
     
     // Channels Collection
@@ -204,6 +220,36 @@ service cloud.firestore {
             get(/databases/$(database)/documents/channels/$(channelId)).data.userId == request.auth.uid)) ||
           isAdmin()
         );
+      }
+
+      // Payout Settings Subcollection (Bank Account & Transfer Details)
+      match /payout_settings/{settingId} {
+        allow read, write: if isAuthenticated() && (
+          request.auth.uid == channelId ||
+          (exists(/databases/$(database)/documents/channels/$(channelId)) &&
+           (get(/databases/$(database)/documents/channels/$(channelId)).data.ownerId == request.auth.uid ||
+            get(/databases/$(database)/documents/channels/$(channelId)).data.userId == request.auth.uid)) ||
+          isAdmin()
+        );
+      }
+
+      // Creator KYC Verification Subcollection
+      match /kyc/{docId} {
+        allow read: if isAuthenticated() && (
+          request.auth.uid == channelId ||
+          (exists(/databases/$(database)/documents/channels/$(channelId)) &&
+           (get(/databases/$(database)/documents/channels/$(channelId)).data.ownerId == request.auth.uid ||
+            get(/databases/$(database)/documents/channels/$(channelId)).data.userId == request.auth.uid)) ||
+          isAdmin()
+        );
+        allow create, update: if isAuthenticated() && (
+          request.auth.uid == channelId ||
+          (exists(/databases/$(database)/documents/channels/$(channelId)) &&
+           (get(/databases/$(database)/documents/channels/$(channelId)).data.ownerId == request.auth.uid ||
+            get(/databases/$(database)/documents/channels/$(channelId)).data.userId == request.auth.uid)) ||
+          isAdmin()
+        );
+        allow delete: if isAdmin();
       }
     }
     
@@ -1104,9 +1150,9 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Admin Collections
+    // Admin Collections (Strictly protected, accessible only by authenticated administrators)
     match /admin_members/{doc=**} {
-      allow read: if true;
+      allow read: if isAuthenticated();
       allow write: if isAdmin();
     }
     match /content_appeals/{doc=**} {
@@ -1170,6 +1216,12 @@ service cloud.firestore {
       allow write: if false; // Cloud Functions only
     }
 
+    match /payout_requests/{requestId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
     match /channel_wallet_transactions/{txId} {
       allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isAuthenticated() && 
@@ -1185,10 +1237,15 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // User Feedback & Suggestions Collection
+    // User Feedback & Suggestions Collection (Requires Authentication)
     match /feedback/{feedbackId} {
       allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.feedbackText is string &&
+        request.resource.data.feedbackText.size() >= 5 &&
+        request.resource.data.feedbackText.size() <= 5000 &&
+        (!('rating' in request.resource.data) || (request.resource.data.rating is int && request.resource.data.rating >= 0 && request.resource.data.rating <= 5));
       allow update, delete: if isAdmin();
     }
 
@@ -1196,6 +1253,41 @@ service cloud.firestore {
     match /categories/{categoryId} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    // Legal DMCA & Rule 75 Copyright Complaints (Requires Authentication)
+    match /copyright_complaints/{complaintId} {
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow read, update, delete: if isAdmin();
+    }
+
+    // Premium Subscription Plans & User Subscriptions
+    match /premium_plans/{planId} {
+      allow read: if true; // Public catalog of subscription plans
+      allow write: if isAdmin();
+    }
+    match /premiumSubscriptions/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+    }
+
+    // Community Post Drafts
+    match /communityDrafts/{draftId} {
+      allow read, write, delete: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid || resource.data.ownerId == request.auth.uid);
+    }
+
+    // Creator KYC Master Identity & Document Records
+    match /creator_kyc/{channelId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create, update: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Creator Payout Requests (Direct Bank Account & UPI Withdrawals)
+    match /payout_requests/{requestId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
     }
 
     // Default: Deny all other access

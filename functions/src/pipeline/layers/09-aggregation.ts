@@ -24,7 +24,7 @@ function getDownloadUrl(gsOrPath: string, defaultBucket?: string): string {
   if (gsOrPath.startsWith("http://") || gsOrPath.startsWith("https://")) {
     return gsOrPath;
   }
-  let bucketName = defaultBucket || admin.storage().bucket().name;
+  let bucketName = defaultBucket || "truthworld-1.firebasestorage.app";
   let filePath = gsOrPath;
   if (gsOrPath.startsWith("gs://")) {
     const parts = gsOrPath.replace("gs://", "").split("/");
@@ -216,6 +216,21 @@ export class AggregationLayer {
           Promise.all(uniqueLangs.map(lang => transaction.get(db().collection("dubbing_results").doc(`${jobId}_${lang}`)))),
           Promise.all(uniqueLangs.map(lang => transaction.get(db().collection("subtitle_results").doc(`${jobId}_${lang}`))))
         ]);
+
+        // 🚀 READ ALL LINKED VIDEOS UPFRONT (Firestore transaction rule: all reads before all writes)
+        const linkedVideoIds = jobData?.linkedVideoIds || [];
+        if (jobData?.videoId && !linkedVideoIds.includes(jobData.videoId)) {
+          linkedVideoIds.push(jobData.videoId);
+        }
+        const linkedVideoSnaps = await Promise.all(
+          linkedVideoIds.map(vid => transaction.get(db().collection("videos").doc(vid)))
+        );
+        const linkedVideoDataMap = new Map<string, FirebaseFirestore.DocumentData | undefined>();
+        linkedVideoSnaps.forEach((vSnap, idx) => {
+          if (vSnap.exists) {
+            linkedVideoDataMap.set(linkedVideoIds[idx], vSnap.data());
+          }
+        });
 
         // Note: Partial results might be missing if stages were skipped
         const trans = transSnap.exists ? transSnap.data() as any : null;
@@ -464,19 +479,13 @@ export class AggregationLayer {
         }
 
         // 3. 🚀 CRITICAL: Propagate status to ALL linked videos (Deduplication Fix)
-        const linkedVideoIds = jobData?.linkedVideoIds || [];
-        if (jobData?.videoId && !linkedVideoIds.includes(jobData.videoId)) {
-          linkedVideoIds.push(jobData.videoId);
-        }
-
         logger.info("[Aggregation] Propagating 'ready' to linked videos", { 
           jobId, count: linkedVideoIds.length 
         });
 
         for (const vid of linkedVideoIds) {
           const vRef = db().collection("videos").doc(vid);
-          const vSnap = await transaction.get(vRef);
-          const vData = vSnap.data();
+          const vData = linkedVideoDataMap.get(vid);
 
           // If video is scheduled for the future, keep it in 'scheduled' status
           // so the Scheduled Publishing function can flip it to 'published' later.

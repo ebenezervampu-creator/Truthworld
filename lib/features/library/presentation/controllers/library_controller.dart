@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
@@ -59,14 +60,21 @@ class LibraryController extends BaseController
     _initializeAnimations();
 
     rxUser.value = _auth.currentUser;
-    _userSub = _auth.authStateChanges().listen((user) {
-      rxUser.value = user;
-      if (user != null) {
-        _subscribeToUserData(user.uid);
-      } else {
-        _clearUserData();
-      }
-    });
+    _userSub = _auth.authStateChanges().listen(
+      (user) {
+        rxUser.value = user;
+        if (user != null) {
+          _subscribeToUserData(user.uid);
+        } else {
+          _clearUserData();
+        }
+      },
+      onError: (e, stackTrace) => ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'LibraryController._userSub',
+      ),
+    );
     if (_userSub != null) trackSubscription(_userSub!);
 
     if (_auth.currentUser != null) {
@@ -281,8 +289,12 @@ class LibraryController extends BaseController
         allVideos.addAll(docs.docs.map(Video.fromDocumentSnapshot));
       }
       return allVideos;
-    } catch (e) {
-      debugPrint('LibraryController fetch liked videos error: $e');
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'LibraryController.fetchLikedVideos',
+      );
       return [];
     }
   }

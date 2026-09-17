@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
@@ -88,23 +89,49 @@ class MiniplayerConfig {
   final bool enableDrag;
 
   // ── YouTube-style sizing (logical pixels) ──
-  /// Default width of the floating miniplayer card.
+  /// Default width of the floating miniplayer card on desktop.
   static const double defaultWidth = 400;
 
-  /// Minimum width on small viewports.
+  /// Minimum width on desktop viewports.
   static const double minWidth = 280;
 
-  /// Maximum width on large viewports.
+  /// Maximum width on desktop viewports.
   static const double maxWidth = 480;
 
-  /// Height of the info row beneath the 16:9 video frame.
+  /// Height of the info row beneath the 16:9 video frame on desktop.
   static const double infoBarHeight = 56;
 
   /// Aspect ratio of the video portion.
   static const double videoAspectRatio = 16.0 / 9.0;
 
-  /// Edge inset from viewport when docked.
+  /// Edge inset from viewport when docked (desktop).
   static const double dockInset = 16;
+
+  /// Edge inset from right edge on mobile devices.
+  static const double mobileDockInset = 12;
+
+  /// Bottom inset above the mobile bottom navigation bar (~56px bar + ~14px margin).
+  static const double mobileDockBottomInset = 70;
+
+  /// Fraction of screen width on mobile devices (matching YouTube mobile PiP: exactly 50%).
+  static const double mobileWidthFraction = 0.50;
+
+  /// Minimum width on mobile devices.
+  static const double minMobileWidth = 160;
+
+  /// Maximum width on mobile devices.
+  static const double maxMobileWidth = 240;
+
+  /// Checks whether the current platform or viewport represents a mobile layout.
+  /// When [screenWidth] is supplied, it evaluates against the standard mobile breakpoint (<600px),
+  /// allowing tablets on Android and iOS (e.g. iPad Pro, Galaxy Tab) to use the expanded tablet/desktop miniplayer.
+  static bool isMobileLayout([double? screenWidth]) {
+    if (screenWidth != null) {
+      return screenWidth < 600;
+    }
+    return defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+  }
 
   /// Legacy alias — kept for backwards-compat with code that read the old
   /// "collapsed bar" height. New layout computes height from width.
@@ -137,16 +164,27 @@ class MiniplayerConfig {
   static const double borderRadius = 12;
   static const double elevation = 24;
 
-  /// Compute the total panel height for a given width (16:9 video + info row).
-  static double heightForWidth(double width) =>
-      width / videoAspectRatio + infoBarHeight;
+  /// Compute the total panel height for a given width.
+  /// On mobile devices (Android, iOS, Web Android/iOS), the floating miniplayer
+  /// matches the reference image: strictly the 16:9 video frame with no bottom info bar.
+  /// On desktop, the info row beneath the video frame is included.
+  static double heightForWidth(double width, {bool isMobile = false}) {
+    final videoH = width / videoAspectRatio;
+    if (isMobile) return videoH;
+    return videoH + infoBarHeight;
+  }
 
-  /// Compute a responsive miniplayer width clamped between [minWidth]/[maxWidth].
+  /// Compute a responsive miniplayer width.
+  /// On mobile devices (Android, iOS, Web Android/iOS), sets width to 50% of screen width
+  /// (clamped between [minMobileWidth] and [maxMobileWidth]), matching the reference image.
+  /// On desktop, preserves the existing desktop width calculation.
   static double widthForScreen(double screenWidth) {
     if (screenWidth <= 0) return defaultWidth;
-    if (screenWidth < 600) {
-      // Mobile screen optimization
-      return (screenWidth - 24).clamp(260.0, 380.0);
+    if (isMobileLayout(screenWidth)) {
+      return (screenWidth * mobileWidthFraction).clamp(
+        minMobileWidth,
+        maxMobileWidth,
+      );
     }
     final target = screenWidth * 0.30;
     return target.clamp(minWidth, maxWidth);

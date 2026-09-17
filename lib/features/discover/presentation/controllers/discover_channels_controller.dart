@@ -7,6 +7,10 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/ai/ai_search_service.dart';
+import 'package:truthworld/core/services/ai/models/ai_search_intent.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
 
@@ -20,6 +24,14 @@ class DiscoverChannelsController extends BaseController {
   final RxString selectedFilter = 'Top Channels'.obs;
   final RxList<Channel> channels = <Channel>[].obs;
   final RxBool rxIsLoading = false.obs;
+  final RxString rxErrorMessage = ''.obs;
+
+  // AI-Assisted Interactive Search state
+  final Rx<AiSearchIntent?> activeAiIntent = Rx<AiSearchIntent?>(null);
+  final RxBool isAiSearching = false.obs;
+  final RxList<Channel> broadenedChannels = <Channel>[].obs;
+  final RxBool isBroadenedView = false.obs;
+
 
   // Subscription state tracking
   final RxSet<String> subscribedChannelIds = <String>{}.obs;
@@ -138,12 +150,9 @@ class DiscoverChannelsController extends BaseController {
   Future<void> toggleSubscription(Channel channel) async {
     final user = _auth.currentUser;
     if (user == null) {
-      Get.snackbar(
-        'Authentication Required',
+      AppSnackbar.warning(
         'Please log in to subscribe to channels.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.amber.withValues(alpha: 0.2),
-        colorText: Colors.white,
+        title: 'Authentication Required',
       );
       return;
     }
@@ -186,12 +195,9 @@ class DiscoverChannelsController extends BaseController {
             tx.update(channelRef, {'subscriberCount': FieldValue.increment(-1)});
           }
         });
-        Get.snackbar(
-          'Unsubscribed',
+        AppSnackbar.info(
           'You unsubscribed from ${channel.name}',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.black87,
-          colorText: Colors.white,
+          title: 'Unsubscribed',
         );
       } else {
         await _firestore.runTransaction((tx) async {
@@ -205,12 +211,9 @@ class DiscoverChannelsController extends BaseController {
             'subscriberCount': FieldValue.increment(1),
           });
         });
-        Get.snackbar(
-          'Subscribed',
+        AppSnackbar.success(
           'Subscribed to ${channel.name}',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.green.withValues(alpha: 0.8),
-          colorText: Colors.white,
+          title: 'Subscribed',
         );
       }
     } catch (e) {
@@ -222,18 +225,19 @@ class DiscoverChannelsController extends BaseController {
         subscribedChannelIds.remove(channelId);
         channelSubscriberCounts[channelId] = currentCount;
       }
-      Get.snackbar(
-        'Error',
-        'Could not update subscription: $e',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red.withValues(alpha: 0.8),
-        colorText: Colors.white,
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to update subscription. Please try again.',
       );
     }
   }
 
   void selectCategory(String category) {
     selectedCategory.value = category;
+    if (category != 'All') {
+      selectedTopic.value = 'All Topics';
+      selectedLanguage.value = 'All Languages';
+    }
     loadChannels();
   }
 
@@ -255,12 +259,30 @@ class DiscoverChannelsController extends BaseController {
   void onSearchChanged(String query) {
     searchQuery.value = query;
     if (_debounce?.isActive ?? false) _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 500), loadChannels);
+    _debounce = Timer(const Duration(milliseconds: 350), loadChannels);
+  }
+
+
+  void broadenSearch() {
+    if (broadenedChannels.isNotEmpty) {
+      isBroadenedView.value = true;
+      channels.assignAll(broadenedChannels);
+    }
+  }
+
+  void clearAiSearch() {
+    isBroadenedView.value = false;
+    activeAiIntent.value = null;
+    broadenedChannels.clear();
+    clearSearch();
   }
 
   void clearSearch() {
     searchController.clear();
     searchQuery.value = '';
+    activeAiIntent.value = null;
+    isBroadenedView.value = false;
+    broadenedChannels.clear();
     loadChannels();
   }
 
@@ -271,258 +293,203 @@ class DiscoverChannelsController extends BaseController {
           .collection(FirestoreCollections.channels)
           .where('status', isEqualTo: 'active');
 
-      final snapshot = await query.limit(150).get();
+      final snapshot = await query.limit(200).get();
       var loadedChannels = snapshot.docs
           .map(Channel.fromDocumentSnapshot)
           .toList();
 
-      // 1. Smart Intent & Conversational Query Detection (e.g., "a channels which do business case studys")
-      final rawQuery = searchQuery.value.toLowerCase().trim();
-      String? detectedLangInQuery;
-      String? detectedCatInQuery;
-      List<String>? detectedTopicTerms;
-      final textSearchTerms = <String>[];
-
-      final langMap = {
-        'telugu': ['telugu', 'te'],
-        'english': ['english', 'en'],
-        'hindi': ['hindi', 'hi'],
-        'tamil': ['tamil', 'ta'],
-        'kannada': ['kannada', 'kn'],
-        'malayalam': ['malayalam', 'ml'],
-        'spanish': ['spanish', 'es'],
-        'french': ['french', 'fr'],
-        'german': ['german', 'de'],
-      };
-
-      final catMap = {
-        'music': 'music',
-        'news': 'news',
-        'sports': 'sports',
-        'comedy': 'comedy',
-        'tech': 'technology',
-        'technology': 'technology',
-        'education': 'education',
-        'movies': 'movies',
-        'movie': 'movies',
-        'tv': 'tv shows',
-        'vlogs': 'vlogs',
-        'vlog': 'vlogs',
-        'entertainment': 'entertainment',
-        'science': 'science',
-        'travel': 'travel',
-        'lifestyle': 'lifestyle',
-        'diy': 'diy & how-to',
-        'fitness': 'health & fitness',
-        'health': 'health & fitness',
-        'fashion': 'fashion',
-        'food': 'food & cooking',
-        'cooking': 'food & cooking',
-        'business': 'business & finance',
-        'finance': 'business & finance',
-        'gaming': 'gaming',
-      };
-
-      final nicheTopicMap = {
-        'case study': ['case study', 'case studies', 'business', 'analysis', 'breakdown', 'company', 'strategy', 'finance'],
-        'case studies': ['case study', 'case studies', 'business', 'analysis', 'breakdown', 'company', 'strategy', 'finance'],
-        'atheist': ['atheist', 'atheism', 'rationalism', 'secular', 'freethought', 'agnostic', 'philosophy'],
-        'atheism': ['atheist', 'atheism', 'rationalism', 'secular', 'freethought', 'agnostic', 'philosophy'],
-        'rationalism': ['atheist', 'atheism', 'rationalism', 'secular', 'freethought', 'agnostic'],
-        'secular': ['atheist', 'atheism', 'rationalism', 'secular', 'freethought', 'agnostic'],
-        'science': ['science', 'physics', 'astronomy', 'biology', 'space', 'cosmos', 'experiment', 'stem'],
-        'space': ['science', 'physics', 'astronomy', 'biology', 'space', 'cosmos'],
-        'physics': ['science', 'physics', 'astronomy', 'space'],
-        'philosophy': ['philosophy', 'philosophical', 'ethics', 'logic', 'mind', 'atheist'],
-        'ai': ['ai', 'artificial intelligence', 'machine learning', 'tech', 'robotics'],
-        'robotics': ['ai', 'artificial intelligence', 'machine learning', 'tech', 'robotics'],
-        'research': ['research', 'fact-check', 'investigation', 'truth', 'journalism', 'case study'],
-        'investigation': ['research', 'fact-check', 'investigation', 'truth', 'journalism', 'case study'],
-        'geopolitics': ['geopolitics', 'politics', 'diplomacy', 'international', 'world'],
-        'economics': ['economics', 'finance', 'crypto', 'markets', 'stocks', 'business', 'case study'],
-        'history': ['history', 'ancient', 'historical', 'archeology'],
-        'health': ['health', 'fitness', 'nutrition', 'medicine', 'biohacking', 'longevity'],
-      };
+      final rawQuery = searchQuery.value.trim();
 
       if (rawQuery.isNotEmpty) {
-        const fillerWords = {
-          'a',
-          'an',
-          'the',
-          'channel',
-          'channels',
-          'video',
-          'videos',
-          'content',
-          'show',
-          'shows',
-          'which',
-          'that',
-          'do',
-          'does',
-          'doing',
-          'make',
-          'makes',
-          'making',
-          'who',
-          'about',
-          'in',
-          'for',
-          'on',
-          'with',
-          'is',
-          'are',
-          'top',
-          'best',
-          'find',
-          'get',
-          'look',
-          'looking',
-          'like',
-          'etc'
-        };
-
-        // Check for compound phrase "case study" or "case studies" or "case studys"
-        if (rawQuery.contains('case study') || rawQuery.contains('case studies') || rawQuery.contains('case studys')) {
-          detectedTopicTerms = nicheTopicMap['case study'];
-          detectedCatInQuery = 'business & finance';
-        }
-
-        final words = rawQuery
-            .split(RegExp(r'\s+'))
-            .map((w) => w.trim())
-            .where((w) => w.isNotEmpty)
-            .toList();
-
-        for (final word in words) {
-          if (fillerWords.contains(word)) continue;
-
-          // Normalize basic plural typos like 'studys' -> 'study'
-          var normWord = word;
-          if (normWord.endsWith('studys')) {
-            normWord = 'study';
-          } else if (normWord.endsWith('studies')) {
-            normWord = 'study';
-          } else if (normWord.endsWith('es') && normWord.length > 4) {
-            normWord = normWord.substring(0, normWord.length - 2);
-          } else if (normWord.endsWith('s') && !normWord.endsWith('ss') && normWord.length > 3) {
-            normWord = normWord.substring(0, normWord.length - 1);
-          }
-
-          if (langMap.containsKey(normWord) && detectedLangInQuery == null) {
-            detectedLangInQuery = normWord;
-          } else if (nicheTopicMap.containsKey(normWord) && detectedTopicTerms == null) {
-            detectedTopicTerms = nicheTopicMap[normWord];
-          } else if (catMap.containsKey(normWord) && detectedCatInQuery == null) {
-            detectedCatInQuery = catMap[normWord];
-          } else {
-            textSearchTerms.add(normWord);
-          }
-        }
-      }
-
-      // 2. Niche Topic Filter (UI Chip Selection or Query Detection)
-      var effectiveTopicTerms = detectedTopicTerms;
-      if (selectedTopic.value != 'All Topics') {
-        final topicItem = nicheTopics.firstWhere(
-          (t) => t['name'] == selectedTopic.value,
-          orElse: () => {'name': '', 'tag': ''},
+        isAiSearching.value = true;
+        final intent = await AiSearchService.instance.parseQuery(
+          rawQuery,
+          scope: SearchScope.channels,
         );
-        final tag = topicItem['tag'] ?? '';
-        if (tag.isNotEmpty && nicheTopicMap.containsKey(tag)) {
-          effectiveTopicTerms = nicheTopicMap[tag];
-        }
-      }
+        activeAiIntent.value = intent;
 
-      if (effectiveTopicTerms != null && effectiveTopicTerms.isNotEmpty) {
-        loadedChannels = loadedChannels.where((c) {
-          final cName = c.name.toLowerCase();
-          final cDesc = c.description.toLowerCase();
-          final cHandle = c.handle.toLowerCase();
-          final cCat = c.category.toLowerCase();
-          final cCats = c.categories.map((e) => e.toLowerCase()).toList();
-
-          return effectiveTopicTerms!.any((term) =>
-              cName.contains(term) ||
-              cDesc.contains(term) ||
-              cHandle.contains(term) ||
-              cCat.contains(term) ||
-              cCats.any((cat) => cat.contains(term)));
-        }).toList();
-      }
-
-      // 3. Language Filter (UI Chip Selection or Query Detection)
-      final effectiveLang = selectedLanguage.value != 'All Languages'
-          ? selectedLanguage.value.toLowerCase().trim()
-          : (detectedLangInQuery ?? '');
-
-      if (effectiveLang.isNotEmpty) {
-        loadedChannels = loadedChannels.where((c) {
-          final cLang = c.language.toLowerCase().trim();
-          final cName = c.name.toLowerCase();
-          final cDesc = c.description.toLowerCase();
-
-          var matchesLangCode = false;
-          if (effectiveLang == 'telugu' || effectiveLang == 'te') {
-            matchesLangCode = cLang == 'te' || cLang == 'telugu';
-          } else if (effectiveLang == 'english' || effectiveLang == 'en') {
-            matchesLangCode = cLang == 'en' || cLang == 'english';
-          } else if (effectiveLang == 'hindi' || effectiveLang == 'hi') {
-            matchesLangCode = cLang == 'hi' || cLang == 'hindi';
-          } else if (effectiveLang == 'tamil' || effectiveLang == 'ta') {
-            matchesLangCode = cLang == 'ta' || cLang == 'tamil';
-          } else if (effectiveLang == 'kannada' || effectiveLang == 'kn') {
-            matchesLangCode = cLang == 'kn' || cLang == 'kannada';
-          } else if (effectiveLang == 'malayalam' || effectiveLang == 'ml') {
-            matchesLangCode = cLang == 'ml' || cLang == 'malayalam';
-          } else {
-            matchesLangCode = cLang.contains(effectiveLang);
+        if (intent.hasCriteria) {
+          // Score and rank each channel
+          final scored = <MapEntry<Channel, double>>[];
+          for (final ch in loadedChannels) {
+            final score = AiSearchService.instance.scoreChannel(ch, intent);
+            if (score > 0) {
+              scored.add(MapEntry(ch, score));
+            }
           }
 
-          return matchesLangCode ||
-              cName.contains(effectiveLang) ||
-              cDesc.contains(effectiveLang);
-        }).toList();
-      }
+          // Sort by relevance score
+          scored.sort((a, b) => b.value.compareTo(a.value));
+          final matched = scored.map((e) => e.key).toList();
 
-      // 4. Category Filter (UI Card/Chip Selection or Query Detection)
-      final effectiveCat = selectedCategory.value != 'All'
-          ? selectedCategory.value.toLowerCase().trim()
-          : (detectedCatInQuery ?? '');
+          // If language was specified and count is low (e.g. <= 2), prepare broadened fallback
+          if (intent.detectedLanguage != null && intent.broadenPrompt != null) {
+            final broadIntent = intent.copyWith(clearLanguage: true);
+            final broadScored = <MapEntry<Channel, double>>[];
+            for (final ch in loadedChannels) {
+              final score =
+                  AiSearchService.instance.scoreChannel(ch, broadIntent);
+              if (score > 0) {
+                broadScored.add(MapEntry(ch, score));
+              }
+            }
+            broadScored.sort((a, b) => b.value.compareTo(a.value));
+            broadenedChannels.assignAll(broadScored.map((e) => e.key).toList());
+          } else {
+            broadenedChannels.clear();
+          }
 
-      if (effectiveCat.isNotEmpty) {
-        loadedChannels = loadedChannels.where((c) {
-          final mainCategory = c.category.toLowerCase().trim();
-          final categoryList = c.categories.map((e) => e.toLowerCase().trim()).toList();
-          return mainCategory == effectiveCat ||
-              mainCategory.contains(effectiveCat) ||
-              categoryList.contains(effectiveCat) ||
-              c.name.toLowerCase().contains(effectiveCat) ||
-              c.description.toLowerCase().contains(effectiveCat);
-        }).toList();
-      }
+          // Mode-specific sorting
+          if (intent.resultMode == SearchResultMode.ranked) {
+            // Decoupled multi-signal ranking:
+            // 70% Semantic relevance
+            // 15% Verified / Quality signals
+            // 10% Engagement / Activity (catalog size)
+            //  5% Audience size (popularity)
+            final maxSubs = loadedChannels.fold<int>(
+              1,
+              (max, c) =>
+                  getSubscriberCount(c) > max ? getSubscriberCount(c) : max,
+            );
+            final maxVideos = loadedChannels.fold<int>(
+              1,
+              (max, c) => c.videoCount > max ? c.videoCount : max,
+            );
+            final scoreMap = {for (final e in scored) e.key.id: e.value};
+            matched.sort((a, b) {
+              final relA = scoreMap[a.id] ?? 0.0;
+              final relB = scoreMap[b.id] ?? 0.0;
+              final qualityA = a.isVerified ? 1.0 : 0.0;
+              final qualityB = b.isVerified ? 1.0 : 0.0;
+              final activityA = (a.videoCount / maxVideos).clamp(0.0, 1.0);
+              final activityB = (b.videoCount / maxVideos).clamp(0.0, 1.0);
+              final audienceA =
+                  (getSubscriberCount(a) / maxSubs).clamp(0.0, 1.0);
+              final audienceB =
+                  (getSubscriberCount(b) / maxSubs).clamp(0.0, 1.0);
 
-      // 5. Keyword Text Search (if remaining words exist)
-      if (textSearchTerms.isNotEmpty) {
-        loadedChannels = loadedChannels.where((c) {
-          final name = c.name.toLowerCase();
-          final handle = c.handle.toLowerCase();
-          final desc = c.description.toLowerCase();
-          return textSearchTerms.every((term) =>
-              name.contains(term) || handle.contains(term) || desc.contains(term));
-        }).toList();
-      }
+              final rankA = (relA * 0.70) +
+                  (qualityA * 15.0) +
+                  (activityA * 10.0) +
+                  (audienceA * 5.0);
+              final rankB = (relB * 0.70) +
+                  (qualityB * 15.0) +
+                  (activityB * 10.0) +
+                  (audienceB * 5.0);
+              return rankB.compareTo(rankA);
+            });
+          } else if (intent.resultMode == SearchResultMode.trending) {
+            matched.sort((a, b) => b.videoCount.compareTo(a.videoCount));
+          } else if (intent.resultMode == SearchResultMode.recent) {
+            matched.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          }
+          // Note: In exhaustive mode, all matched candidates are preserved
+          // in full without audience size bias, ordered purely by match relevance.
 
-      // 6. Apply Sub-Filters (Top Channels, Emerging, Verified Only, Most Active)
-      switch (selectedFilter.value) {
-        case 'Top Channels':
-          loadedChannels.sort((a, b) => getSubscriberCount(b).compareTo(getSubscriberCount(a)));
-        case 'Emerging':
-          loadedChannels.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        case 'Verified Only':
-          loadedChannels = loadedChannels.where((c) => c.isVerified).toList();
-        case 'Most Active':
-          loadedChannels.sort((a, b) => b.videoCount.compareTo(a.videoCount));
+          loadedChannels = matched;
+        } else {
+          // Plain keyword fallback
+          final clean = rawQuery.toLowerCase();
+          loadedChannels = loadedChannels.where((c) {
+            return c.name.toLowerCase().contains(clean) ||
+                c.handle.toLowerCase().contains(clean) ||
+                c.description.toLowerCase().contains(clean);
+          }).toList();
+        }
+      } else {
+        activeAiIntent.value = null;
+        isBroadenedView.value = false;
+        broadenedChannels.clear();
+
+        // 1. Topic Filter (if non-empty search)
+        if (selectedTopic.value != 'All Topics') {
+          final topicItem = nicheTopics.firstWhere(
+            (t) => t['name'] == selectedTopic.value,
+            orElse: () => {'name': '', 'tag': ''},
+          );
+          final tag = (topicItem['tag'] ?? '').toLowerCase();
+          if (tag.isNotEmpty) {
+            loadedChannels = loadedChannels.where((c) {
+              return c.category.toLowerCase().contains(tag) ||
+                  c.categories.any((cat) => cat.toLowerCase().contains(tag)) ||
+                  c.name.toLowerCase().contains(tag) ||
+                  c.description.toLowerCase().contains(tag);
+            }).toList();
+          }
+        }
+
+        // 2. Language Filter
+        if (selectedLanguage.value != 'All Languages') {
+          final lang = selectedLanguage.value.toLowerCase().trim();
+          loadedChannels = loadedChannels.where((c) {
+            final cLang = c.language.toLowerCase().trim();
+            if (lang == 'telugu') return cLang == 'te' || cLang == 'telugu';
+            if (lang == 'english') return cLang == 'en' || cLang == 'english';
+            if (lang == 'hindi') return cLang == 'hi' || cLang == 'hindi';
+            if (lang == 'tamil') return cLang == 'ta' || cLang == 'tamil';
+            if (lang == 'kannada') return cLang == 'kn' || cLang == 'kannada';
+            if (lang == 'malayalam') return cLang == 'ml' || cLang == 'malayalam';
+            return cLang.contains(lang);
+          }).toList();
+        }
+
+        // 3. Category Filter
+        if (selectedCategory.value != 'All') {
+          final cat = selectedCategory.value.toLowerCase().trim();
+          final catTokens = cat
+              .split(RegExp(r'[\s&/,\-]+'))
+              .where((t) => t.length > 2)
+              .toList();
+
+          loadedChannels = loadedChannels.where((c) {
+            final mainCat = c.category.toLowerCase().trim();
+            final cats =
+                c.categories.map((e) => e.toLowerCase().trim()).toList();
+            final name = c.name.toLowerCase();
+            final desc = c.description.toLowerCase();
+
+            // 1. Exact match on main category or categories list
+            if (mainCat == cat || cats.contains(cat)) return true;
+
+            // 2. Substring match on main category or any category in list
+            if (mainCat.isNotEmpty && mainCat != 'other') {
+              if (mainCat.contains(cat) || cat.contains(mainCat)) return true;
+            }
+            if (cats.any((e) => e.contains(cat) || (e.isNotEmpty && cat.contains(e)))) {
+              return true;
+            }
+
+            // 3. Name or description match with whole category
+            if (name.contains(cat) || desc.contains(cat)) return true;
+
+            // 4. Token match for compound categories (e.g. "Health & Fitness", "DIY & How-to")
+            if (catTokens.isNotEmpty) {
+              final matchesToken = catTokens.any((token) =>
+                  (mainCat.isNotEmpty && mainCat != 'other' && mainCat.contains(token)) ||
+                  cats.any((e) => e.contains(token)) ||
+                  name.contains(token) ||
+                  desc.contains(token));
+              if (matchesToken) return true;
+            }
+
+            return false;
+          }).toList();
+        }
+
+        // 4. Sort Filter
+        switch (selectedFilter.value) {
+          case 'Top Channels':
+            loadedChannels.sort(
+              (a, b) =>
+                  getSubscriberCount(b).compareTo(getSubscriberCount(a)),
+            );
+          case 'Emerging':
+            loadedChannels.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          case 'Verified Only':
+            loadedChannels = loadedChannels.where((c) => c.isVerified).toList();
+          case 'Most Active':
+            loadedChannels.sort((a, b) => b.videoCount.compareTo(a.videoCount));
+        }
       }
 
       // Initialize subscriber count map
@@ -533,10 +500,16 @@ class DiscoverChannelsController extends BaseController {
       }
 
       channels.value = loadedChannels;
-    } catch (e) {
-      Get.log('Error loading channels: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'DiscoverChannelsController.loadChannels',
+      );
+      rxErrorMessage.value = 'Unable to load channels. Please check your connection and try again.';
     } finally {
       rxIsLoading.value = false;
+      isAiSearching.value = false;
     }
   }
 

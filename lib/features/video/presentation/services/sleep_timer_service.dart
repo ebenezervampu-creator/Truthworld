@@ -147,4 +147,10 @@ class SleepTimerService extends GetxService {
 
   bool get isActive => mode.value != SleepTimerMode.off;
   bool get isAtEndOfVideo => mode.value == SleepTimerMode.endOfVideo;
+
+  @override
+  void onClose() {
+    cancelTimer();
+    super.onClose();
+  }
 }

@@ -6,6 +6,7 @@ import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/watch_time_formatter.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:truthworld/features/analytics/presentation/pages/watch_time_page.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/edit_videoscreen.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/myvideos/presentation/controllers/my_videos_controller.dart';
@@ -23,32 +24,28 @@ const Color primaryText = AppColors.textPrimary;
 const Color secondaryText = AppColors.textSecondary;
 const Color buttonBg = AppColors.bgSurfaceHover;
 
-class MyVideos extends StatelessWidget {
+class MyVideos extends GetView<MyVideosController> {
   const MyVideos({super.key, this.isDashboard = false});
   final bool isDashboard;
 
-  MyVideosController get _controller =>
-      Get.isRegistered<MyVideosController>()
-          ? Get.find<MyVideosController>()
-          : Get.put(MyVideosController());
+  MyVideosController get _controller => controller;
 
   @override
   Widget build(BuildContext context) {
-    return Obx(() {
-      final userId = AuthService.to.currentUser.value?.uid;
+    return Scaffold(
+      backgroundColor: bgColor,
+      body: SafeArea(
+        child: Obx(() {
+          final userId = AuthService.to.currentUser.value?.uid;
 
-      if (userId == null || userId.isEmpty) {
-        return Scaffold(
-          backgroundColor: bgColor,
-          body: SafeArea(child: _buildNotLoggedInWidget(context)),
-        );
-      }
+          if (userId == null || userId.isEmpty) {
+            return _buildNotLoggedInWidget(context);
+          }
 
-      return Scaffold(
-        backgroundColor: bgColor,
-        body: SafeArea(child: _buildMainContent(userId)),
-      );
-    });
+          return _buildMainContent(userId);
+        }),
+      ),
+    );
   }
 
   Widget _buildMainContent(String userId) {
@@ -159,12 +156,13 @@ class MyVideos extends StatelessWidget {
                       : const SizedBox.shrink(),
                 ),
                 IconButton(
+                  tooltip: 'Upload video',
                   icon: const Icon(
                     Icons.add_circle_outline,
                     color: primaryText,
                     size: 24,
                   ),
-                  onPressed: () => Get.toNamed('/upload'),
+                  onPressed: _controller.handleUploadTap,
                 ),
               ],
             ),
@@ -185,11 +183,45 @@ class MyVideos extends StatelessWidget {
               hasScrollBody: false,
               child: Center(
                 child: Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Text(
-                    'Error: ${_controller.rxErrorMessage.value}',
-                    style: const TextStyle(color: primaryText),
-                    textAlign: TextAlign.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.info_outline_rounded,
+                        size: 48,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        _controller.rxErrorMessage.value,
+                        style: const TextStyle(
+                          color: primaryText,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: _controller.retryFetch,
+                        icon: const Icon(
+                          Icons.refresh_rounded,
+                          size: 18,
+                          color: Colors.white,
+                        ),
+                        label: const Text(
+                          'Retry',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: buttonBg,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -496,84 +528,97 @@ class _MyVideoListCard extends StatelessWidget {
 
   void _showOptions(BuildContext context) {
     Get.bottomSheet(
-      Container(
-        padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: surfaceColor,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: secondaryText.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
+      Material(
+        color: surfaceColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: secondaryText.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              video.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: primaryText,
+              const SizedBox(height: 24),
+              Text(
+                video.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: primaryText,
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            _buildOptionItem(
-              icon: Icons.analytics_outlined,
-              label: 'Watch Time & Analytics',
-              onTap: () {
-                Get.back();
-                Get.to<dynamic>(
-                  () => const WatchTimePage(),
-                  arguments: {
-                    'channelId': video.channelId,
-                    'videoId': video.id,
-                    'videoTitle': video.title,
-                  },
-                );
-              },
-            ),
-            _buildOptionItem(
-              icon: Icons.lock_open_rounded,
-              label: 'Change visibility',
-              onTap: () {
-                Get.back();
-                _showChangeVisibilityDialog(context);
-              },
-            ),
-            _buildOptionItem(
-              icon: Icons.share_rounded,
-              label: 'Share video',
-              onTap: () {
-                Get.back();
-                VideoOptionsSheet.show(context, video);
-              },
-            ),
-            const Divider(height: 24, color: AppColors.bgDivider),
-            _buildOptionItem(
-              icon: Icons.delete_outline_rounded,
-              label: 'Delete video',
-              color: AppColors.error,
-              onTap: () {
-                Get.back();
-                _showDeleteConfirmation(context);
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
+              const SizedBox(height: 16),
+              _buildOptionItem(
+                icon: Icons.analytics_outlined,
+                label: 'Watch Time & Analytics',
+                onTap: () {
+                  Get.back();
+                  Get.to<dynamic>(
+                    () => const WatchTimePage(),
+                    arguments: {
+                      'channelId': video.channelId,
+                      'videoId': video.id,
+                    },
+                  );
+                },
+              ),
+              _buildOptionItem(
+                icon: Icons.edit_outlined,
+                label: 'Edit details',
+                onTap: () {
+                  Get.back();
+                  Get.to<dynamic>(
+                    () => EditVideoScreen(
+                      video: video,
+                    ),
+                  );
+                },
+              ),
+              _buildOptionItem(
+                icon: Icons.visibility_outlined,
+                label: 'Change visibility',
+                onTap: () {
+                  Get.back();
+                  _showChangeVisibilityDialog(context);
+                },
+              ),
+              _buildOptionItem(
+                icon: Icons.share_rounded,
+                label: 'Share video',
+                onTap: () {
+                  Get.back();
+                  VideoOptionsSheet.show(context, video);
+                },
+              ),
+              const Divider(height: 24, color: AppColors.bgDivider),
+              _buildOptionItem(
+                icon: Icons.delete_outline_rounded,
+                label: 'Delete video',
+                color: AppColors.error,
+                onTap: () {
+                  Get.back();
+                  _showDeleteConfirmation(context);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
       isScrollControlled: true,
+      backgroundColor: Colors.transparent,
     );
   }
 

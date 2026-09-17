@@ -2,7 +2,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_dialog_controller.dart';
@@ -345,6 +347,7 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
           const SizedBox(height: 12),
           TextField(
             controller: newPlaylistCtrl,
+            inputFormatters: [TruthworldTextInputFormatters.englishOnly],
             decoration: InputDecoration(
               hintText: 'Enter playlist name',
               hintStyle: TextStyle(
@@ -780,12 +783,9 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
 
     final nameVal = ContentValidator.validate(name, fieldName: 'Playlist Name');
     if (!nameVal.isValid) {
-      Get.snackbar(
-        'Inappropriate Content',
+      AppSnackbar.warning(
         nameVal.message,
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
+        title: 'Content Notice',
       );
       return;
     }
@@ -794,7 +794,6 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
 
     try {
       final messenger = ScaffoldMessenger.of(context);
-      final theme = Theme.of(context);
       final navigator = Navigator.of(context);
 
       final newPlaylist = await _playlistController.createPlayList(
@@ -810,8 +809,11 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
         if (newPlaylist != null) {
           messenger.showSnackBar(
             SnackBar(
-              content: Text('Playlist "$name" created and video added!'),
-              backgroundColor: theme.colorScheme.secondary,
+              content: Text(
+                'Playlist "$name" created and video added!',
+                style: const TextStyle(color: AppColors.textPrimary),
+              ),
+              backgroundColor: AppColors.bgSurfaceHover,
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -821,18 +823,8 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
         }
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to create playlist: $e'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-        );
-      }
+      ErrorHandler.log(e);
+      AppSnackbar.error('Unable to create playlist. Please try again.');
     } finally {
       if (mounted) {
         _dialogController.setCreatingPlaylist(false);
@@ -848,7 +840,6 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
 
     _dialogController.setAddingToPlaylist(true);
     final messenger = ScaffoldMessenger.of(context);
-    final theme = Theme.of(context);
     final navigator = Navigator.of(context);
 
     try {
@@ -861,8 +852,9 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
             SnackBar(
               content: Text(
                 wasIn ? 'Removed from Watch Later' : 'Added to Watch Later',
+                style: const TextStyle(color: AppColors.textPrimary),
               ),
-              backgroundColor: theme.colorScheme.primary,
+              backgroundColor: AppColors.bgSurfaceHover,
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -885,8 +877,11 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
             navigator.pop();
             messenger.showSnackBar(
               SnackBar(
-                content: const Text('Removed from playlist successfully'),
-                backgroundColor: theme.colorScheme.primary,
+                content: const Text(
+                  'Removed from playlist successfully',
+                  style: TextStyle(color: AppColors.textPrimary),
+                ),
+                backgroundColor: AppColors.bgSurfaceHover,
                 behavior: SnackBarBehavior.floating,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -904,8 +899,11 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
             navigator.pop();
             messenger.showSnackBar(
               SnackBar(
-                content: const Text('Video added to playlist successfully'),
-                backgroundColor: theme.colorScheme.primary,
+                content: const Text(
+                  'Video added to playlist successfully',
+                  style: TextStyle(color: AppColors.textPrimary),
+                ),
+                backgroundColor: AppColors.bgSurfaceHover,
                 behavior: SnackBarBehavior.floating,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -916,14 +914,8 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
         }
       }
     } catch (e) {
-      if (mounted) {
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text('Failed: $e'),
-            backgroundColor: theme.colorScheme.error,
-          ),
-        );
-      }
+      ErrorHandler.log(e);
+      AppSnackbar.error('Unable to update playlist. Please try again.');
     } finally {
       if (mounted) {
         _dialogController.setAddingToPlaylist(false);

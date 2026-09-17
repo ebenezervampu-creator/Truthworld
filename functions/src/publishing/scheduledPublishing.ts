@@ -47,7 +47,7 @@ interface PublishResult {
 
 const BATCH_SIZE = 100; // Firestore batch write limit
 const MAX_CLOCK_SKEW_MS = 5000; // Allow 5 seconds of clock skew for safety
-const FUNCTION_NAME = "scheduledPublishing";
+const FUNCTION_NAME = "scheduledVideoPublisher";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN HANDLER
@@ -59,12 +59,12 @@ const FUNCTION_NAME = "scheduledPublishing";
  *
  * CONFIG:
  *   - minInstances: 0 (scale to zero)
- *   - maxInstances: 5 (low concurrency needed)
+ *   - maxInstances: 1 (low concurrency needed)
  *   - concurrency: 10 (handles multiple batches)
  *   - timeout: 540s (9 minutes for safety)
  *   - memory: 512MiB
  */
-export const scheduledPublishing = onSchedule(
+export const scheduledVideoPublisher = onSchedule(
   {
     schedule: "every 5 minutes",
     region: "asia-south1",
@@ -96,7 +96,7 @@ export const scheduledPublishing = onSchedule(
       );
 
       const snapshot = await db
-        .collectionGroup("videos")
+        .collection("videos")
         .where("status", "==", "scheduled")
         .where("scheduledTime", "<=", cutoffTime)
         .orderBy("scheduledTime", "asc")

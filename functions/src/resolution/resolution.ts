@@ -125,7 +125,7 @@ export const onVideoUploadedForResolution = onObjectFinalized(
   {
     bucket: "truthworld-1.firebasestorage.app",
     region: REGION,
-    memory: "128MiB",       // Ultra low memory for GCS metadata reader
+    memory: "512MiB",       // 512MiB prevents OOM on Node.js 22 SDK initialization
     timeoutSeconds: 60,
     minInstances: 0,
     maxInstances: 2,
@@ -482,11 +482,11 @@ export const handleResolution = onMessagePublished(
         eventId: parsedEvent.eventId,
       });
 
-      // 3. Update overall status to processing (atomic)
-      await db.collection("resolution_jobs").doc(videoId).update({
+      // 3. Update overall status to processing (atomic & idempotent)
+      await db.collection("resolution_jobs").doc(videoId).set({
         status: "processing",
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
+      }, { merge: true });
 
       // 4. PREPARE LOCAL WORKSPACE (Unique subfolder per event to prevent collisions)
       const instanceId = uuidv4().slice(0, 8);

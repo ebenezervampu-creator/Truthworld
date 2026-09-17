@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/media_crypto_service.dart';
 
 /// 🌐 LOCAL PLAYBACK PROXY SERVER
@@ -50,8 +51,12 @@ class LocalPlaybackProxyServer {
       _server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       _server!.listen(
         _handleRequest,
-        onError: (error) {
-          debugPrint('[LocalPlaybackProxy] Server error: $error');
+        onError: (error, stackTrace) {
+          ErrorHandler.log(
+            error,
+            stackTrace: stackTrace,
+            tag: 'LocalPlaybackProxy.serverError',
+          );
         },
       );
 
@@ -59,8 +64,12 @@ class LocalPlaybackProxyServer {
         '[LocalPlaybackProxy] 🚀 Server running at http://127.0.0.1:${_server!.port}',
       );
       _startCompleter!.complete();
-    } catch (e) {
-      debugPrint('[LocalPlaybackProxy] ❌ Failed to start server: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'LocalPlaybackProxy.start',
+      );
       _startCompleter!.completeError(e);
       _startCompleter = null;
       rethrow;
@@ -201,12 +210,22 @@ class LocalPlaybackProxyServer {
 
         await request.response.close();
       }
-    } catch (e) {
-      debugPrint('[LocalPlaybackProxy] Error handling request: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'LocalPlaybackProxyServer.handleRequest',
+      );
       try {
         request.response.statusCode = HttpStatus.internalServerError;
         await request.response.close();
-      } catch (_) {}
+      } catch (err, st) {
+        ErrorHandler.log(
+          err,
+          stackTrace: st,
+          tag: 'LocalPlaybackProxyServer.handleRequest.closeResponse',
+        );
+      }
     }
   }
 

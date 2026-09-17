@@ -1,10 +1,11 @@
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/algorithm/algorithm_remote_config.dart';
 import 'package:truthworld/core/services/video_sanitizer.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
@@ -12,14 +13,19 @@ import 'package:truthworld/features/video/data/models/video.dart';
 /// Falls back to chronological feed on server failure.
 class FeedAlgorithmService extends GetxService {
   /// Server endpoint for personalized home feed.
-  /// Set to empty string until Cloud Function is deployed.
-  /// After deployment: 'https://`region`-`project`.cloudfunctions.net/getHomeFeed'
-  static const String _homeFeedEndpoint = '';
+  /// Resolves dynamically from AlgorithmRemoteConfig, compile-time environment, or empty fallback.
+  static String get homeFeedEndpoint {
+    if (Get.isRegistered<AlgorithmRemoteConfig>()) {
+      final configured = Get.find<AlgorithmRemoteConfig>().homeFeedEndpoint;
+      if (configured.isNotEmpty) return configured;
+    }
+    return const String.fromEnvironment('TRUTHWORLD_HOME_FEED_ENDPOINT');
+  }
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   /// Check if server endpoint is configured and reachable
-  bool get isServerAvailable => _homeFeedEndpoint.isNotEmpty;
+  bool get isServerAvailable => homeFeedEndpoint.isNotEmpty;
 
   /// Fetch personalized home feed from server
   /// Throws on error to let caller fall back
@@ -33,7 +39,7 @@ class FeedAlgorithmService extends GetxService {
       throw Exception('Server not available or missing userId');
     }
 
-    final uri = Uri.parse(_homeFeedEndpoint).replace(
+    final uri = Uri.parse(homeFeedEndpoint).replace(
       queryParameters: {
         'userId': userId,
         'limit': limit.toString(),
@@ -45,14 +51,21 @@ class FeedAlgorithmService extends GetxService {
     http.Response? response;
     try {
       response = await http.get(uri).timeout(const Duration(seconds: 3));
-    } catch (e) {
-      debugPrint(
-        '[FeedAlgorithmService] First attempt failed: $e, retrying...',
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'FeedAlgorithmService.getPersonalizedFeed.firstAttempt',
       );
       try {
         response = await http.get(uri).timeout(const Duration(seconds: 5));
-      } catch (retryError) {
-        throw Exception('Failed to fetch from server after retry: $retryError');
+      } catch (retryError, retryStackTrace) {
+        ErrorHandler.log(
+          retryError,
+          stackTrace: retryStackTrace,
+          tag: 'FeedAlgorithmService.getPersonalizedFeed.retry',
+        );
+        throw Exception('Failed to fetch from server after retry.');
       }
     }
 
@@ -98,8 +111,12 @@ class FeedAlgorithmService extends GetxService {
         'verified': await _fallbackChronologicalFeed(limit: 5),
         'rising': await _fallbackChronologicalFeed(limit: 5),
       };
-    } catch (e) {
-      debugPrint('[FeedAlgorithmService] Error fetching discovery modules: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'FeedAlgorithmService.getDiscoveryModules',
+      );
       return {};
     }
   }
@@ -128,8 +145,12 @@ class FeedAlgorithmService extends GetxService {
       }).toList();
 
       return VideoSanitizer.sanitizeForFeed(videos);
-    } catch (e) {
-      debugPrint('[FeedAlgorithmService] Error fetching fallback feed: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'FeedAlgorithmService.fallbackChronologicalFeed',
+      );
       return [];
     }
   }

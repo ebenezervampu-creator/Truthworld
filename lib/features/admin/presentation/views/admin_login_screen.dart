@@ -4,17 +4,27 @@ import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class AdminLoginScreen extends StatelessWidget {
+class AdminLoginScreen extends GetView<AdminController> {
   AdminLoginScreen({super.key});
 
   final RxBool _obscurePassword = true.obs;
 
-  TextEditingController get _emailController => AdminController.to.emailController;
-  TextEditingController get _passwordController => AdminController.to.passwordController;
+  void _submitLogin(AdminController controller) {
+    final email = controller.emailController.text.trim().isNotEmpty
+        ? controller.emailController.text.trim()
+        : controller.loginEmail.value.trim();
+    final password = controller.passwordController.text.trim().isNotEmpty
+        ? controller.passwordController.text.trim()
+        : controller.loginPassword.value.trim();
+
+    controller.signInWithAdminProtocol(
+      emailInput: email,
+      passwordInput: password,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final controller = AdminController.to;
 
     return Scaffold(
       backgroundColor: AppColors.bgPage,
@@ -191,14 +201,18 @@ class AdminLoginScreen extends StatelessWidget {
 
           // Email Input
           TextField(
-            controller: _emailController,
+            controller: controller.emailController,
             keyboardType: TextInputType.emailAddress,
+            onChanged: (val) {
+              controller.loginEmail.value = val.trim();
+            },
+            onSubmitted: (_) => _submitLogin(controller),
             style: const TextStyle(
               fontFamily: TWTypography.uiFamily,
               color: AppColors.textPrimary,
             ),
             decoration: InputDecoration(
-              hintText: 'ebenezervampy@towervsp.com',
+              hintText: 'ebenezervampu@towervsp.com',
               labelText: 'Admin Email',
               labelStyle: const TextStyle(
                 fontFamily: TWTypography.uiFamily,
@@ -229,8 +243,12 @@ class AdminLoginScreen extends StatelessWidget {
           // Password Input with Visibility Toggle
           Obx(
             () => TextField(
-              controller: _passwordController,
+              controller: controller.passwordController,
               obscureText: _obscurePassword.value,
+              onChanged: (val) {
+                controller.loginPassword.value = val.trim();
+              },
+              onSubmitted: (_) => _submitLogin(controller),
               style: const TextStyle(
                 fontFamily: TWTypography.uiFamily,
                 color: AppColors.textPrimary,
@@ -279,10 +297,7 @@ class AdminLoginScreen extends StatelessWidget {
           ElevatedButton(
             onPressed: controller.isLoading
                 ? null
-                : () => controller.signInWithAdminProtocol(
-                      emailInput: _emailController.text,
-                      passwordInput: _passwordController.text,
-                    ),
+                : () => _submitLogin(controller),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.brand,
               foregroundColor: Colors.black,
@@ -387,15 +402,28 @@ class AdminLoginScreen extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
-            child: const Text(
-              'Authorized Owner: ebenezervampy@towervsp.com',
-              style: TextStyle(
-                fontFamily: TWTypography.uiFamily,
-                color: AppColors.textSecondary,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-              textAlign: TextAlign.center,
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.shield_outlined,
+                  size: 14,
+                  color: Colors.white,
+                ),
+                SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    'Truthworld Unified Administration Portal',
+                    style: TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
             ),
           ),
 

@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:truthworld/features/search/data/models/search_result.dart';
 
 /// In-memory cache for search queries
@@ -5,11 +7,13 @@ import 'package:truthworld/features/search/data/models/search_result.dart';
 /// Benefits:
 /// - <50ms response for repeated searches
 /// - Reduces Firestore hits by ~70%
-/// - Simple LRU-like eviction
+/// - O(1) LRU eviction backed by LinkedHashMap
 class SearchCache {
   static const int maxCacheSize = 50;
-  final Map<String, List<SearchResult>> _cache = {};
-  final List<String> _accessOrder = [];
+
+  /// Backed by LinkedHashMap to maintain O(1) access-order recency and eviction.
+  final LinkedHashMap<String, List<SearchResult>> _cache =
+      LinkedHashMap<String, List<SearchResult>>();
 
   int _totalHits = 0;
   int _totalRequests = 0;
@@ -20,8 +24,10 @@ class SearchCache {
     final normalized = query.toLowerCase().trim();
     if (_cache.containsKey(normalized)) {
       _totalHits++;
-      _updateAccessOrder(normalized);
-      return _cache[normalized];
+      // Re-insert at the tail to mark as most recently used (O(1))
+      final results = _cache.remove(normalized)!;
+      _cache[normalized] = results;
+      return results;
     }
     return null;
   }
@@ -29,26 +35,21 @@ class SearchCache {
   /// Store results in cache
   void put(String query, List<SearchResult> results) {
     final normalized = query.toLowerCase().trim();
-    _cache[normalized] = results;
-    _updateAccessOrder(normalized);
-
-    // Simple LRU: evict least recently used if cache too large
-    if (_cache.length > maxCacheSize) {
-      final lru = _accessOrder.removeAt(0);
-      _cache.remove(lru);
+    if (_cache.containsKey(normalized)) {
+      _cache.remove(normalized);
     }
-  }
+    _cache[normalized] = results;
 
-  /// Update access order for LRU
-  void _updateAccessOrder(String query) {
-    _accessOrder.remove(query);
-    _accessOrder.add(query);
+    // O(1) LRU: evict oldest entry at head if cache exceeds capacity
+    if (_cache.length > maxCacheSize) {
+      final lruKey = _cache.keys.first;
+      _cache.remove(lruKey);
+    }
   }
 
   /// Clear entire cache
   void clear() {
     _cache.clear();
-    _accessOrder.clear();
     _totalHits = 0;
     _totalRequests = 0;
   }

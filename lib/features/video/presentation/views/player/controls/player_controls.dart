@@ -1,9 +1,11 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
-import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/adaptive_bitrate_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
@@ -105,18 +107,26 @@ class PlayerTopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     var title = '';
     VideoController? vc;
-    ChannelController? channelCtrl;
+    ChannelSubscriptionController? subCtrl;
     try {
       if (Get.isRegistered<VideoController>(tag: ctrl.tag)) {
         vc = Get.find<VideoController>(tag: ctrl.tag);
         title = vc.video.title;
-        if (Get.isRegistered<ChannelController>(tag: ctrl.tag)) {
-          channelCtrl = Get.find<ChannelController>(tag: ctrl.tag);
+        if (Get.isRegistered<ChannelSubscriptionController>(tag: ctrl.tag)) {
+          subCtrl = Get.find<ChannelSubscriptionController>(tag: ctrl.tag);
+        } else if (Get.isRegistered<ChannelSubscriptionController>()) {
+          subCtrl = Get.find<ChannelSubscriptionController>();
         } else {
-          channelCtrl = Get.put(ChannelController(), tag: ctrl.tag);
+          subCtrl = Get.put(ChannelSubscriptionController(), tag: ctrl.tag);
         }
       }
-    } catch (_) {}
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'PlayerControls.findControllers',
+      );
+    }
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
       decoration: BoxDecoration(
@@ -151,7 +161,7 @@ class PlayerTopBar extends StatelessWidget {
           ),
           if (ctrl.isFullScreen.value &&
               vc != null &&
-              channelCtrl != null &&
+              subCtrl != null &&
               MediaQuery.of(context).size.width > 600) ...[
             const SizedBox(width: 20),
             // Avatar
@@ -189,7 +199,7 @@ class PlayerTopBar extends StatelessWidget {
                 ),
                 Obx(
                   () => Text(
-                    '${FormatUtils.formatCount(channelCtrl!.subscriberCount.value)} subscribers',
+                    '${FormatUtils.formatCount(subCtrl!.subscriberCount.value)} subscribers',
                     style: TS.bodySm.copyWith(fontSize: 11),
                   ),
                 ),
@@ -198,10 +208,10 @@ class PlayerTopBar extends StatelessWidget {
             const SizedBox(width: 12),
             // Subscribe Button & Bell Icon
             Obx(() {
-              final isSubbed = channelCtrl!.isSubscribed.value;
+              final isSubbed = subCtrl!.isSubscribed.value;
               final notificationsEnabled =
-                  channelCtrl.notificationsEnabled.value;
-              final notificationOption = channelCtrl.notificationOption.value;
+                  subCtrl.notificationsEnabled.value;
+              final notificationOption = subCtrl.notificationOption.value;
 
               IconData bellIcon;
               if (!notificationsEnabled || notificationOption == 'none') {
@@ -218,28 +228,15 @@ class PlayerTopBar extends StatelessWidget {
                   InkWell(
                     onTap: () {
                       if (!AuthService.to.isAuthenticated.value) {
-                        Get.snackbar(
-                          'Sign In Required',
+                        AppSnackbar.info(
                           'Please sign in to subscribe to channels.',
-                          snackPosition: SnackPosition.BOTTOM,
-                          backgroundColor: AppColors.bgSurface,
-                          colorText: AppColors.textPrimary,
-                          margin: const EdgeInsets.all(16),
-                          borderRadius: 12,
-                          mainButton: TextButton(
-                            onPressed: AuthService.to.signInWithGoogle,
-                            child: const Text(
-                              'SIGN IN',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
+                          title: 'Sign In Required',
+                          actionLabel: 'SIGN IN',
+                          onAction: AuthService.to.signInWithGoogle,
                         );
                         return;
                       }
-                      channelCtrl!.toggleSubscription(vc!.video.channelId);
+                      subCtrl!.toggleSubscription(vc!.video.channelId);
                     },
                     borderRadius: BorderRadius.circular(16),
                     child: Container(
@@ -269,7 +266,7 @@ class PlayerTopBar extends StatelessWidget {
                     InkWell(
                       onTap: () => _showPlayerNotificationsDialog(
                         context,
-                        channelCtrl!,
+                        subCtrl!,
                         vc!.video.channelId,
                       ),
                       borderRadius: BorderRadius.circular(16),
@@ -298,7 +295,7 @@ class PlayerTopBar extends StatelessWidget {
 
   void _showPlayerNotificationsDialog(
     BuildContext context,
-    ChannelController channelCtrl,
+    ChannelSubscriptionController subCtrl,
     String channelId,
   ) {
     showModalBottomSheet(
@@ -331,9 +328,9 @@ class PlayerTopBar extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Obx(() {
-              final option = channelCtrl.notificationOption.value;
+              final option = subCtrl.notificationOption.value;
               final notificationsEnabled =
-                  channelCtrl.notificationsEnabled.value;
+                  subCtrl.notificationsEnabled.value;
               final isAll = notificationsEnabled && option == 'all';
               final isPersonalized =
                   notificationsEnabled && option == 'personalized';
@@ -365,7 +362,7 @@ class PlayerTopBar extends StatelessWidget {
                         : null,
                     onTap: () {
                       Navigator.pop(context);
-                      channelCtrl.updateNotificationPreference(
+                      subCtrl.updateNotificationPreference(
                         channelId,
                         'all',
                       );
@@ -399,7 +396,7 @@ class PlayerTopBar extends StatelessWidget {
                         : null,
                     onTap: () {
                       Navigator.pop(context);
-                      channelCtrl.updateNotificationPreference(
+                      subCtrl.updateNotificationPreference(
                         channelId,
                         'personalized',
                       );
@@ -431,7 +428,7 @@ class PlayerTopBar extends StatelessWidget {
                         : null,
                     onTap: () {
                       Navigator.pop(context);
-                      channelCtrl.updateNotificationPreference(
+                      subCtrl.updateNotificationPreference(
                         channelId,
                         'none',
                       );
@@ -725,7 +722,13 @@ class ControlRow extends StatelessWidget {
                     title = vc.video.title;
                     art = vc.video.thumbnailUrl;
                   }
-                } catch (_) {}
+                } catch (e, stackTrace) {
+                  ErrorHandler.log(
+                    e,
+                    stackTrace: stackTrace,
+                    tag: 'PlayerControls.toggleAudioOnly.findVideo',
+                  );
+                }
                 ctrl.toggleAudioOnly(
                   videoUrl: url,
                   title: title,
@@ -933,7 +936,13 @@ class TimeDisplay extends StatelessWidget {
         } else if (Get.isRegistered<VideoController>()) {
           vc = Get.find<VideoController>();
         }
-      } catch (_) {}
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'PlayerControls.showChapters.findVideo',
+        );
+      }
       if (vc != null) {
         VideoChaptersBottomSheet.show(
           context,

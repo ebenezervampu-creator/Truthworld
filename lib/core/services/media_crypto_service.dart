@@ -8,6 +8,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:pointycastle/api.dart';
 import 'package:pointycastle/block/aes.dart';
 import 'package:pointycastle/stream/ctr.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 
 /// 🔐 MEDIA CRYPTO SERVICE (AES-256-CTR)
 ///
@@ -48,7 +49,13 @@ class MediaCryptoService {
           return _cachedDeviceKey!;
         }
       }
-    } catch (_) {}
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'MediaCryptoService.getOrCreateDeviceKey.read',
+      );
+    }
 
     // Generate a secure 256-bit random key
     final random = Random.secure();
@@ -60,7 +67,13 @@ class MediaCryptoService {
     try {
       final box = GetStorage();
       await box.write(_storageKey, base64Encode(newKey));
-    } catch (_) {}
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'MediaCryptoService.getOrCreateDeviceKey.write',
+      );
+    }
 
     _cachedDeviceKey = newKey;
     return _cachedDeviceKey!;

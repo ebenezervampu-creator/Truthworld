@@ -1225,7 +1225,7 @@ class _DeviceBreakdownCard extends StatelessWidget {
                 children: [
                   Icon(
                     _deviceIcon(d.deviceType),
-                    color: AppColors.brand,
+                    color: Colors.white,
                     size: 18,
                   ),
                   const SizedBox(width: 10),

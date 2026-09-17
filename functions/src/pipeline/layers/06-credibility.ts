@@ -234,8 +234,6 @@ export class CredibilityEngine {
       const t1 = Date.now(); // Kept for latency telemetry
       await EdgeLayer.updateStage(jobId, "credibility", { progress: 30 });
 
-      await EdgeLayer.updateStage(jobId, "credibility", { progress: 30 });
-
       // 3. Classify + rank by importance
       const filteringReasons: string[] = [];
       const ranked = this.classifyAndRank(rawClaims);
@@ -1040,12 +1038,28 @@ export class CredibilityEngine {
       // 🕊 Modern Clinical Icon & Label Mapping
       const clinicalLabels: Record<string, { label: string; icon: string }> = {
         correct:                    { label: "Correct", icon: "✅" },
+        verified_true:              { label: "Verified True", icon: "✅" },
         mostly_correct:             { label: "Mostly Correct", icon: "🟢" },
+        mostly_true:                { label: "Mostly True", icon: "🟢" },
+        partially_true:             { label: "Partially True", icon: "🟢" },
         incorrect:                  { label: "Incorrect", icon: "❌" },
+        false_claim:                { label: "False", icon: "❌" },
+        verified_false:             { label: "False", icon: "❌" },
+        misleading:                 { label: "Misleading", icon: "⚠️" },
+        disputed:                   { label: "Disputed", icon: "⚖️" },
         outdated:                   { label: "Outdated", icon: "⏳" },
         unsupported:                { label: "Unsupported", icon: "🔍" },
+        unproven:                   { label: "Unproven", icon: "🔍" },
+        inconclusive:               { label: "Inconclusive", icon: "🔍" },
+        limited_support:            { label: "Limited Support", icon: "🔍" },
         needs_context:              { label: "Needs Context", icon: "📎" },
         opinion:                    { label: "Opinion", icon: "💭" },
+        opinion_claim:              { label: "Opinion", icon: "💭" },
+        satire:                     { label: "Satire", icon: "🎭" },
+        satire_claim:               { label: "Satire", icon: "🎭" },
+        religious_belief:           { label: "Faith / Belief", icon: "🕊" },
+        faith_based_claim:          { label: "Faith-Based Claim", icon: "🕊" },
+        not_historically_verifiable:{ label: "Not Historically Verifiable", icon: "🏛" },
         anecdotal_experience:       { label: "Personal Experience", icon: "👤" },
         value_judgment:             { label: "Value Judgment", icon: "⚖️" },
         preference_statement:        { label: "Preference", icon: "❤️" },

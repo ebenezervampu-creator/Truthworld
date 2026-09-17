@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/utils/timestamp_utils.dart';
+
 
 enum ChannelStatus {
   active,
@@ -18,8 +20,8 @@ enum LossPreventionMode { active, warning, autoScaled, suspended }
 
 class CustomChannelInfraConfig {
   CustomChannelInfraConfig({
-    required this.stripeConnectAccountId,
     required this.subscriptionId,
+    this.stripeConnectAccountId = '',
     this.storageUsedBytes = 0,
     this.storageQuotaBytes = 53687091200, // 50 GB
     this.bandwidthUsedBytesThisMonth = 0,
@@ -155,6 +157,7 @@ class Channel {
     this.category = 'other',
     this.categories = const [],
     this.language = 'en',
+    this.visibility = 'Public',
     this.monetizationTier = MonetizationTier.none,
     this.monetizationSettings,
     this.brandingSettings,
@@ -180,13 +183,11 @@ class Channel {
 
     final parsedGeminiApproved = data['geminiApproved'] as bool?;
     var statusVal = ChannelStatus.values.firstWhere(
-      (e) => e.name == (data['status'] ?? 'active'),
+      (e) => e.name.toLowerCase() == (data['status']?.toString() ?? 'active').toLowerCase(),
       orElse: () => ChannelStatus.active,
     );
     if (parsedGeminiApproved == true) {
       statusVal = ChannelStatus.active;
-    } else if (parsedGeminiApproved == false && (statusVal == ChannelStatus.underReview || statusVal == ChannelStatus.active)) {
-      statusVal = ChannelStatus.verificationRejected;
     }
 
     final rootViews = (data['viewCount'] as num?)?.toInt() ?? (data['totalViews'] as num?)?.toInt() ?? 0;
@@ -204,7 +205,9 @@ class Channel {
       description: data['description'] ?? '',
       avatarUrl: data['avatarUrl'] ?? data['avatarImage'] ?? data['channelAvatarUrl'] ?? '',
       bannerUrl: data['bannerUrl'] ?? data['bannerImage'] ?? '',
-      avatarVariants: List<String>.from(data['avatarVariants'] ?? []),
+      avatarVariants: data['avatarVariants'] is Iterable
+          ? List<String>.from(data['avatarVariants'] as Iterable)
+          : const [],
       avatarFileId: data['avatarFileId'] as String?,
       bannerFileId: data['bannerFileId'] as String?,
       avatarStatus: data['avatarStatus'] as String?,
@@ -216,9 +219,9 @@ class Channel {
       updatedAt: TimestampUtils.parse(data['updatedAt']),
       subscriberCount: (data['subscriberCount'] as num?)?.toInt() ?? (data['subscribers'] as num?)?.toInt() ?? 0,
       videoCount: (data['videoCount'] as num?)?.toInt() ?? 0,
-      metrics: data['metrics'] != null
+      metrics: data['metrics'] is Map
           ? ChannelMetricsV2.fromMap(
-              Map<String, dynamic>.from(data['metrics']),
+              Map<String, dynamic>.from(data['metrics'] as Map),
               fallbackViews: rootViews,
               fallbackWatchMinutes: rootWatchMinutes,
             )
@@ -242,22 +245,32 @@ class Channel {
                       .toList()
                 : ['other']),
       language: data['language'] ?? 'en',
+      visibility: data['visibility'] as String? ??
+          (data['isPublic'] == false ? 'Private' : 'Public'),
       monetizationTier: MonetizationTier.values.firstWhere(
         (e) => e.name == (data['monetizationTier'] ?? 'none'),
         orElse: () => MonetizationTier.none,
       ),
-      monetizationSettings: data['monetizationSettings'],
-      brandingSettings: data['brandingSettings'],
-      socialLinks: data['socialLinks'],
-      featuredVideoIds: List<String>.from(data['featuredVideoIds'] ?? []),
+      monetizationSettings: data['monetizationSettings'] is Map
+          ? Map<String, dynamic>.from(data['monetizationSettings'] as Map)
+          : null,
+      brandingSettings: data['brandingSettings'] is Map
+          ? Map<String, dynamic>.from(data['brandingSettings'] as Map)
+          : null,
+      socialLinks: data['socialLinks'] is Map
+          ? Map<String, dynamic>.from(data['socialLinks'] as Map)
+          : null,
+      featuredVideoIds: data['featuredVideoIds'] is Iterable
+          ? List<String>.from(data['featuredVideoIds'] as Iterable)
+          : const [],
       moderationReason: data['moderationReason'] as String?,
       channelType: ChannelType.values.firstWhere(
         (e) => e.name == (data['channelType'] ?? 'standard'),
         orElse: () => ChannelType.standard,
       ),
-      infraConfig: data['infraConfig'] != null
+      infraConfig: data['infraConfig'] is Map
           ? CustomChannelInfraConfig.fromMap(
-              Map<String, dynamic>.from(data['infraConfig']),
+              Map<String, dynamic>.from(data['infraConfig'] as Map),
             )
           : null,
       pendingChannelType: data['pendingChannelType'] != null
@@ -276,11 +289,106 @@ class Channel {
   }
 
   factory Channel.fromDocumentSnapshot(DocumentSnapshot doc) {
-    final data = doc.data();
-    if (data == null || data is! Map) {
+    try {
+      final data = doc.data();
+      if (data == null || data is! Map) {
+        return Channel.fromMap(<String, dynamic>{}, doc.id);
+      }
+      return Channel.fromMap(Map<String, dynamic>.from(data), doc.id);
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'Channel.fromDocumentSnapshot',
+      );
       return Channel.fromMap(<String, dynamic>{}, doc.id);
     }
-    return Channel.fromMap(Map<String, dynamic>.from(data), doc.id);
+  }
+
+  Channel copyWith({
+    String? id,
+    String? name,
+    String? nameLowercase,
+    String? handle,
+    String? handleLowercase,
+    String? description,
+    String? avatarUrl,
+    String? bannerUrl,
+    List<String>? avatarVariants,
+    String? avatarFileId,
+    String? bannerFileId,
+    String? avatarStatus,
+    String? bannerStatus,
+    String? avatarStatusReason,
+    String? bannerStatusReason,
+    int? subscriberCount,
+    int? videoCount,
+    ChannelMetricsV2? metrics,
+    bool? brandingApprovedDismissed,
+    ChannelStatus? status,
+    bool? geminiApproved,
+    bool? isVerified,
+    String? category,
+    List<String>? categories,
+    String? language,
+    String? visibility,
+    MonetizationTier? monetizationTier,
+    dynamic monetizationSettings,
+    dynamic brandingSettings,
+    Map<String, dynamic>? socialLinks,
+    List<String>? featuredVideoIds,
+    String? moderationReason,
+    ChannelType? channelType,
+    CustomChannelInfraConfig? infraConfig,
+    ChannelType? pendingChannelType,
+    Timestamp? pendingTypeEffectiveDate,
+    Timestamp? nextBillingCycleDate,
+    String? ownerId,
+    Timestamp? createdAt,
+    Timestamp? updatedAt,
+  }) {
+    return Channel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      nameLowercase: nameLowercase ?? (name != null ? name.toLowerCase() : this.nameLowercase),
+      handle: handle ?? this.handle,
+      handleLowercase: handleLowercase ?? (handle != null ? handle.toLowerCase() : this.handleLowercase),
+      description: description ?? this.description,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      bannerUrl: bannerUrl ?? this.bannerUrl,
+      avatarVariants: avatarVariants ?? this.avatarVariants,
+      avatarFileId: avatarFileId ?? this.avatarFileId,
+      bannerFileId: bannerFileId ?? this.bannerFileId,
+      avatarStatus: avatarStatus ?? this.avatarStatus,
+      bannerStatus: bannerStatus ?? this.bannerStatus,
+      avatarStatusReason: avatarStatusReason ?? this.avatarStatusReason,
+      bannerStatusReason: bannerStatusReason ?? this.bannerStatusReason,
+      subscriberCount: subscriberCount ?? this.subscriberCount,
+      videoCount: videoCount ?? this.videoCount,
+      metrics: metrics ?? this.metrics,
+      brandingApprovedDismissed: brandingApprovedDismissed ?? this.brandingApprovedDismissed,
+      status: status ?? this.status,
+      geminiApproved: geminiApproved ?? this.geminiApproved,
+      isVerified: isVerified ?? this.isVerified,
+      category: category ?? this.category,
+      categories: categories ?? this.categories,
+      language: language ?? this.language,
+      visibility: visibility ?? this.visibility,
+      monetizationTier: monetizationTier ?? this.monetizationTier,
+      monetizationSettings: monetizationSettings ?? this.monetizationSettings,
+      brandingSettings: brandingSettings ?? this.brandingSettings,
+      socialLinks: socialLinks ?? this.socialLinks,
+      featuredVideoIds: featuredVideoIds ?? this.featuredVideoIds,
+      moderationReason: moderationReason ?? this.moderationReason,
+      channelType: channelType ?? this.channelType,
+      infraConfig: infraConfig ?? this.infraConfig,
+      pendingChannelType: pendingChannelType ?? this.pendingChannelType,
+      pendingTypeEffectiveDate: pendingTypeEffectiveDate ?? this.pendingTypeEffectiveDate,
+      nextBillingCycleDate: nextBillingCycleDate ?? this.nextBillingCycleDate,
+      ownerId: ownerId ?? this.ownerId,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
   }
   final String id;
   final String name;
@@ -318,6 +426,7 @@ class Channel {
   final String category;
   final List<String> categories;
   final String language;
+  final String visibility;
   final String? moderationReason;
 
   // Monetization & Infrastructure
@@ -348,6 +457,7 @@ class Channel {
   String get channelName => name;
   String get bannerImageUrl => bannerUrl;
   bool get isArchived => status == ChannelStatus.deleted;
+  bool get isMembersOnly => visibility.toLowerCase() == 'members' || visibility.toLowerCase() == 'members only';
   String get websiteUrl => socialLinks?['website'] ?? '';
 
   // Standard Channel Constraints (20 min daily upload limit, up to 20 min duration per day)
@@ -397,6 +507,8 @@ class Channel {
       'category': category,
       'categories': categories,
       'language': language,
+      'visibility': visibility,
+      'isPublic': visibility == 'Public',
       'monetizationTier': monetizationTier.name,
       'monetizationSettings': monetizationSettings,
       'channelType': channelType.name,

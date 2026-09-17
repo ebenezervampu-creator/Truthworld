@@ -96,6 +96,11 @@ ThemeData buildAppTheme({DeviceState? device}) {
       surfaceContainerHigh: AppColors.bgSurfaceHigh,
       surfaceContainerHighest: AppColors.bgElevated,
       outline: AppColors.bgDivider,
+      inverseSurface: AppColors.bgSurfaceHover,
+      onInverseSurface: AppColors.textPrimary,
+      primaryContainer: AppColors.bgSurfaceHover,
+      onPrimaryContainer: AppColors.textPrimary,
+      onSurfaceVariant: AppColors.textSecondary,
     ),
 
     textTheme: const TextTheme(
@@ -252,6 +257,18 @@ ThemeData buildAppTheme({DeviceState? device}) {
       secondaryLabelStyle: const TextStyle(color: Colors.black),
       brightness: Brightness.dark,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+    ),
+
+    snackBarTheme: SnackBarThemeData(
+      backgroundColor: AppColors.bgSurfaceHover,
+      contentTextStyle: const TextStyle(
+        color: AppColors.textPrimary,
+        fontSize: 14,
+        fontFamily: TWTypography.uiFamily,
+      ),
+      actionTextColor: AppColors.textPrimary,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      behavior: SnackBarBehavior.floating,
     ),
   );
 }

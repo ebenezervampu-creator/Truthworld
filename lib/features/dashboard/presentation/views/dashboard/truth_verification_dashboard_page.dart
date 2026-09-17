@@ -2,6 +2,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/utils/content_validator.dart';
+import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 enum ClaimStatus { verified, unverified, disputed }
@@ -103,6 +107,7 @@ class TruthVerificationDashboardPage extends StatelessWidget {
             const SizedBox(height: 16),
             TextField(
               controller: textController,
+              inputFormatters: [...TruthworldTextInputFormatters.standard],
               decoration: InputDecoration(
                 labelText: 'Source URL / Reference Document',
                 border: OutlineInputBorder(
@@ -155,7 +160,13 @@ class TruthVerificationDashboardPage extends StatelessWidget {
               ),
             ),
             onPressed: () async {
-              if (textController.text.isNotEmpty) {
+              final text = textController.text.trim();
+              if (text.isNotEmpty) {
+                final val = ContentValidator.validate(text, checkEnglishOnly: false, fieldName: 'Citation');
+                if (!val.isValid) {
+                  AppSnackbar.warning(val.message);
+                  return;
+                }
                 try {
                   await FirebaseFirestore.instance
                       .collection('videos')
@@ -164,24 +175,25 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                       .add({
                     'claimId': claim.id,
                     'claimText': claim.text,
-                    'citationUrl': textController.text.trim(),
+                    'citationUrl': text,
                     'createdAt': FieldValue.serverTimestamp(),
                     'status': 'pending_review',
                   });
 
                   claim.status = ClaimStatus.disputed;
 
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Citation submitted for AI re-verification review.',
-                        ),
-                      ),
-                    );
-                  }
-                } catch (e) {
-                  debugPrint('Error submitting citation: $e');
+                  AppSnackbar.success(
+                    'Citation submitted for AI re-verification review.',
+                  );
+                } catch (e, stackTrace) {
+                  ErrorHandler.log(
+                    e,
+                    stackTrace: stackTrace,
+                    tag: 'TruthVerificationDashboardPage.submitCitation',
+                  );
+                  AppSnackbar.error(
+                    'Unable to submit citation. Please try again.',
+                  );
                 }
               }
               if (context.mounted) {
@@ -426,15 +438,13 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                         onPressed: () {
                           _isPublished.toggle();
                           final pub = _isPublished.value;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                pub
-                                    ? 'Credibility badge is now visible on player overlays.'
-                                    : 'Score badge unpublished.',
-                              ),
-                            ),
-                          );
+                          if (pub) {
+                            AppSnackbar.success(
+                              'Credibility badge is now visible on player overlays.',
+                            );
+                          } else {
+                            AppSnackbar.info('Score badge unpublished.');
+                          }
                         },
                       );
                     }),

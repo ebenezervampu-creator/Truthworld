@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
 import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -123,8 +124,12 @@ class NotificationService extends GetxService {
             return;
           }
         }
-      } catch (e) {
-        debugPrint('Error navigating to actionUrl $actionUrl: $e');
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'NotificationService.handleGeneralNotification.navigate',
+        );
       }
     }
   }

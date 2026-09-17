@@ -11,6 +11,7 @@ import 'package:http/http.dart' as http;
 import 'package:idb_shim/idb_browser.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart'
     as app_exceptions;
 import 'package:truthworld/data/models/offline.dart';
@@ -134,17 +135,21 @@ class AppStateController extends BaseController {
         .map((snapshot) {
           try {
             return snapshot.docs.map(Video.fromDocumentSnapshot).toList();
-          } catch (e) {
-            if (kDebugMode) {
-              debugPrint('Error mapping videos: $e');
-            }
+          } catch (e, s) {
+            ErrorHandler.log(
+              e,
+              stackTrace: s,
+              tag: 'AppStateController.streamVideos.map',
+            );
             return <Video>[];
           }
         })
-        .handleError((error) {
-          if (kDebugMode) {
-            debugPrint('Error in video stream: $error');
-          }
+        .handleError((error, stackTrace) {
+          ErrorHandler.log(
+            error,
+            stackTrace: stackTrace is StackTrace ? stackTrace : null,
+            tag: 'AppStateController.streamVideos.stream',
+          );
           return <Video>[];
         });
   }
@@ -154,10 +159,12 @@ class AppStateController extends BaseController {
     try {
       await _videoSubscription?.cancel();
       _initializeVideoStream();
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Error restarting video stream: $e');
-      }
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'AppStateController.restartVideoStream',
+      );
     }
   }
 
@@ -195,10 +202,12 @@ class AppStateController extends BaseController {
       }
     } on app_exceptions.TimeoutException {
       rethrow;
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Error picking image: $e');
-      }
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'AppStateController._pickImageInternal',
+      );
 
       throw app_exceptions.ValidationException(
         message: 'Failed to pick image',
@@ -254,10 +263,12 @@ class AppStateController extends BaseController {
       rethrow;
     } on app_exceptions.ValidationException {
       rethrow;
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Error picking video: $e');
-      }
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'AppStateController._pickVideoInternal',
+      );
 
       throw app_exceptions.ValidationException(
         message: 'Failed to pick video',
@@ -290,10 +301,12 @@ class AppStateController extends BaseController {
       if (kDebugMode) {
         debugPrint('MainController: Download completed for $fileName');
       }
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Error downloading video: $e');
-      }
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'AppStateController.downloadVideoToDevice',
+      );
 
       throw app_exceptions.ValidationException(
         message: 'Failed to download video',
@@ -341,10 +354,12 @@ class AppStateController extends BaseController {
       if (kDebugMode) {
         debugPrint('MainController: Saved offline video ${video.title}');
       }
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Error saving offline video: $e');
-      }
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'AppStateController.saveOfflineVideo',
+      );
 
       throw app_exceptions.ValidationException(
         message: 'Failed to save video offline',

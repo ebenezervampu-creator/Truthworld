@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/studio_settings_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -453,9 +455,15 @@ class StudioSettingsPage extends StatelessWidget {
     Function(String)? onChanged, {
     String? prefix,
     bool readOnly = false,
+    List<TextInputFormatter>? inputFormatters,
   }) {
+    final effectiveFormatters = inputFormatters ??
+        (label.toLowerCase().contains('email')
+            ? null
+            : [...TruthworldTextInputFormatters.standard]);
     return TextFormField(
       readOnly: readOnly,
+      inputFormatters: effectiveFormatters,
       initialValue: '${prefix ?? ""}$value',
       onFieldSubmitted: onChanged,
       style: const TextStyle(color: AppColors.textPrimary),

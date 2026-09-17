@@ -4,13 +4,14 @@ import 'package:get/get.dart';
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:uuid/uuid.dart';
 
 class ClipController extends BaseController {
@@ -107,12 +108,9 @@ class ClipController extends BaseController {
       final elapsed = DateTime.now().difference(_lastClipActionTime!).inSeconds;
       if (elapsed < actionCooldownSeconds) {
         final remaining = actionCooldownSeconds - elapsed;
-        Get.snackbar(
-          'Slow Down',
+        AppSnackbar.warning(
           'Please wait $remaining seconds before creating another clip.',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: AppColors.bgSurface,
-          colorText: AppColors.textPrimary,
+          title: 'Slow Down',
         );
         return true;
       }
@@ -124,12 +122,9 @@ class ClipController extends BaseController {
     // 1. Creator permission / video eligibility check
     final restriction = getClippingRestrictionReason();
     if (restriction != null) {
-      Get.snackbar(
-        'Clipping Unavailable',
+      AppSnackbar.warning(
         restriction,
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.bgSurface,
-        colorText: AppColors.textPrimary,
+        title: 'Clipping Unavailable',
       );
       return;
     }
@@ -141,12 +136,9 @@ class ClipController extends BaseController {
     final titleValidation = validateClipTitle(clipTitle.value);
     if (titleValidation != null) {
       titleError.value = titleValidation;
-      Get.snackbar(
-        'Invalid Title',
+      AppSnackbar.warning(
         titleValidation,
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.error.withValues(alpha: 0.9),
-        colorText: Colors.white,
+        title: 'Invalid Title',
       );
       return;
     }
@@ -154,45 +146,28 @@ class ClipController extends BaseController {
     // 4. Duration bounds check
     final duration = endSeconds.value - startSeconds.value;
     if (duration < minDuration) {
-      Get.snackbar(
-        'Clip Too Short',
+      AppSnackbar.warning(
         'Clips must be at least ${minDuration.toInt()} seconds long',
-        snackPosition: SnackPosition.BOTTOM,
+        title: 'Clip Too Short',
       );
       return;
     }
     if (duration > maxDuration + 0.5) {
-      Get.snackbar(
-        'Clip Too Long',
+      AppSnackbar.warning(
         'Clips cannot exceed ${maxDuration.toInt()} seconds',
-        snackPosition: SnackPosition.BOTTOM,
+        title: 'Clip Too Long',
       );
       return;
     }
 
     // 5. Authentication check
     if (!AuthService.to.isAuthenticated.value) {
-      Get.snackbar(
-        'Sign in required',
+      AppSnackbar.warning(
         'Please sign in with your Google account to save clips.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.bgSurface,
-        colorText: AppColors.textPrimary,
-        margin: const EdgeInsets.all(16),
-        borderRadius: 12,
+        title: 'Sign In Required',
         duration: const Duration(seconds: 4),
-        mainButton: TextButton(
-          onPressed: () {
-            AuthService.to.signInWithGoogle();
-          },
-          child: const Text(
-            'SIGN IN',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
+        actionLabel: 'SIGN IN',
+        onAction: () => AuthService.to.signInWithGoogle(),
       );
       return;
     }
@@ -211,17 +186,14 @@ class ClipController extends BaseController {
             .get();
 
         if ((countSnapshot.count ?? 0) >= maxLibraryClips) {
-          Get.snackbar(
-            'Library Full',
+          AppSnackbar.warning(
             'You have reached the maximum limit of $maxLibraryClips saved clips. Please delete some old clips before saving new ones.',
-            snackPosition: SnackPosition.BOTTOM,
-            backgroundColor: AppColors.error.withValues(alpha: 0.9),
-            colorText: Colors.white,
+            title: 'Library Full',
           );
           return;
         }
-      } catch (countError) {
-        debugPrint('[ClipController] Quota check note: $countError');
+      } catch (countError, countStack) {
+        ErrorHandler.log(countError, stackTrace: countStack, tag: 'ClipController.quotaCheck');
       }
 
       final clipId = const Uuid().v4();
@@ -248,15 +220,10 @@ class ClipController extends BaseController {
       _lastClipActionTime = DateTime.now();
 
       Get.back(); // Close dialog
-      Get.snackbar(
-        'Success',
-        'Clip saved to your library',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.success.withValues(alpha: 0.8),
-        colorText: AppColors.textPrimary,
-      );
+      AppSnackbar.success('Clip saved to your library');
     } catch (e) {
-      Get.snackbar('Error', 'Failed to save clip: $e');
+      ErrorHandler.log(e, context: 'ClipController.saveClip');
+      AppSnackbar.error('Unable to save clip. Please try again.');
     } finally {
       isSaving.value = false;
     }
@@ -266,12 +233,9 @@ class ClipController extends BaseController {
     // 1. Creator permission / video eligibility check
     final restriction = getClippingRestrictionReason();
     if (restriction != null) {
-      Get.snackbar(
-        'Clipping Unavailable',
+      AppSnackbar.warning(
         restriction,
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.bgSurface,
-        colorText: AppColors.textPrimary,
+        title: 'Clipping Unavailable',
       );
       return;
     }
@@ -290,30 +254,25 @@ class ClipController extends BaseController {
     final titleValidation = validateClipTitle(title);
     if (titleValidation != null) {
       titleError.value = titleValidation;
-      Get.snackbar(
-        'Invalid Title',
+      AppSnackbar.warning(
         titleValidation,
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.error.withValues(alpha: 0.9),
-        colorText: Colors.white,
+        title: 'Invalid Title',
       );
       return;
     }
 
     // 4. Duration bounds check
     if (duration < minDuration) {
-      Get.snackbar(
-        'Clip Too Short',
+      AppSnackbar.warning(
         'Clips must be at least ${minDuration.toInt()} seconds long',
-        snackPosition: SnackPosition.BOTTOM,
+        title: 'Clip Too Short',
       );
       return;
     }
     if (duration > maxDuration + 0.5) {
-      Get.snackbar(
-        'Clip Too Long',
+      AppSnackbar.warning(
         'Clips can only be shared up to ${maxDuration.toInt()} seconds',
-        snackPosition: SnackPosition.BOTTOM,
+        title: 'Clip Too Long',
       );
       return;
     }

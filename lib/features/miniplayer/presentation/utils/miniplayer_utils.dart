@@ -5,11 +5,11 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/miniplayer/data/models/miniplayer_model.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
-import 'package:truthworld/theme/app_theme.dart';
 
 /// Utility helpers for miniplayer navigation and state management.
 ///
@@ -51,7 +51,7 @@ class MiniplayerNavigationHelper {
       }
 
       // Determine the best resume timestamp
-      Duration? targetResume = resumePosition;
+      var targetResume = resumePosition;
       if (targetResume == null && args['resumePosition'] != null) {
         final raw = args['resumePosition'];
         if (raw is Duration) {
@@ -303,14 +303,8 @@ class MiniplayerNavigationHelper {
 
   static void _showNavigationError() {
     try {
-      Get.snackbar(
-        'Navigation Error',
+      AppSnackbar.error(
         'Could not open video. Please try again.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.error.withValues(alpha: 0.8),
-        colorText: AppColors.textPrimary,
-        borderRadius: 8,
-        margin: const EdgeInsets.all(12),
       );
     } catch (e) {
       logger.error('Failed to show snackbar', error: e, tag: _tag);
@@ -319,15 +313,8 @@ class MiniplayerNavigationHelper {
 
   static void _showOperationError(String message) {
     try {
-      Get.snackbar(
-        'Error',
+      AppSnackbar.error(
         message,
-        snackPosition: SnackPosition.BOTTOM,
-        duration: const Duration(seconds: 2),
-        backgroundColor: AppColors.warning.withValues(alpha: 0.8),
-        colorText: AppColors.textPrimary,
-        borderRadius: 8,
-        margin: const EdgeInsets.all(12),
       );
     } catch (e) {
       logger.error('Failed to show error snackbar', error: e, tag: _tag);

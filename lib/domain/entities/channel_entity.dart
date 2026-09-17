@@ -19,6 +19,7 @@ class ChannelEntity {
     this.status = 'active',
     this.category = 'other',
     this.categories = const [],
+    this.visibility = 'Public',
   });
   final String id;
   final String name;
@@ -40,6 +41,7 @@ class ChannelEntity {
   final String status;
   final String category;
   final List<String> categories;
+  final String visibility;
 
   @override
   bool operator ==(Object other) =>

@@ -19,6 +19,11 @@ export async function notifyUser(params: {
   actionUrl?: string;
   metadata?: Record<string, any>;
 }) {
+  if (!params.userId || typeof params.userId !== "string" || !params.userId.trim()) {
+    logger.warn("[notifyUser] Skipped notification with missing or invalid userId", { title: params.title });
+    return null;
+  }
+
   try {
     const notificationId = db.collection(COL_NOTIFICATIONS).doc().id;
     const notification: UserNotification = {

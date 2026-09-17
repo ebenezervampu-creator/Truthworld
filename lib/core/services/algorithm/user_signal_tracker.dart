@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/algorithm/scored_video.dart';
 import 'package:truthworld/core/services/algorithm/session_interest_tracker.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
@@ -14,6 +14,13 @@ import 'package:truthworld/core/services/algorithm/user_interest_profile_service
 /// 2. Sends signal to server trackActivity() in background (persistent storage)
 /// 3. Records session event in SessionInterestTracker (session awareness)
 class UserSignalTracker extends GetxService {
+  static UserSignalTracker get to {
+    if (!Get.isRegistered<UserSignalTracker>()) {
+      Get.put(UserSignalTracker(), permanent: true);
+    }
+    return Get.find<UserSignalTracker>();
+  }
+
   final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(
     region: 'asia-south1',
   );
@@ -51,10 +58,21 @@ class UserSignalTracker extends GetxService {
     required String channelId,
     required int durationSec,
     required double completion,
+    bool isFactChecked = false,
   }) async {
+    // Immediately record video as watched to prevent appearing in Unexplored feed
+    _profileService.markVideoWatched(videoId, category: category, topics: topics);
+
     if (durationSec <= 20) return;
 
-    _profileService.onVideoWatched(videoId, category, topics, completion);
+    _profileService.onVideoWatched(
+      videoId,
+      category,
+      topics,
+      completion,
+      durationSec: durationSec,
+      isFactChecked: isFactChecked,
+    );
     _sessionTracker.trackSessionEvent('watch', {
       'videoId': videoId,
       'category': category,
@@ -74,10 +92,10 @@ class UserSignalTracker extends GetxService {
   Future<void> trackLike({
     required String videoId,
     required String category,
-    required List<String> topics,
-    required String channelId,
+    List<String> topics = const [],
+    String channelId = '',
   }) async {
-    _profileService.onVideoLiked(videoId, category);
+    _profileService.onVideoLiked(videoId, category, topics: topics);
     _sessionTracker.trackSessionEvent('like', {
       'videoId': videoId,
       'category': category,
@@ -90,8 +108,10 @@ class UserSignalTracker extends GetxService {
   Future<void> trackDislike({
     required String videoId,
     required String category,
+    List<String> topics = const [],
+    String channelId = '',
   }) async {
-    _profileService.onVideoDisliked(videoId, category);
+    _profileService.onVideoDisliked(videoId, category, topics: topics);
     _sessionTracker.trackSessionEvent('dislike', {
       'videoId': videoId,
       'category': category,
@@ -115,7 +135,7 @@ class UserSignalTracker extends GetxService {
   /// Track channel subscribe
   Future<void> trackSubscribe({
     required String channelId,
-    required String category,
+    String category = '',
   }) async {
     _profileService.onChannelSubscribed(channelId);
     _sessionTracker.trackSessionEvent('subscribe', {
@@ -125,10 +145,41 @@ class UserSignalTracker extends GetxService {
     _queueSignal(category, 'subscribe', channelId: channelId);
   }
 
+  /// Track topic exploration
+  Future<void> trackTopicExplored({
+    required String topicSlug,
+    String category = '',
+    String? topicTitle,
+  }) async {
+    _profileService.onTopicExplored(topicSlug, category: category);
+    _sessionTracker.trackSessionEvent('explore_topic', {
+      'topicSlug': topicSlug,
+      'category': category,
+      'topicTitle': ?topicTitle,
+    });
+    _queueSignal(category, 'explore_topic', topicSlug: topicSlug);
+  }
+
+  /// Track channel discovery
+  Future<void> trackChannelDiscovered({
+    required String channelId,
+    String category = '',
+    String? channelName,
+  }) async {
+    _profileService.onChannelDiscovered(channelId, category: category);
+    _sessionTracker.trackSessionEvent('discover_channel', {
+      'channelId': channelId,
+      'category': category,
+      'channelName': ?channelName,
+    });
+    _queueSignal(category, 'discover_channel', channelId: channelId);
+  }
+
   /// Track search query
-  Future<void> trackSearch({required String query}) async {
+  Future<void> trackSearch({required String query, String? category}) async {
+    _profileService.onSearchPerformed(query, category: category);
     _sessionTracker.trackSessionEvent('search', {'query': query});
-    _queueSignal('general', 'search', topicSlug: query);
+    _queueSignal(category ?? 'general', 'search', topicSlug: query);
   }
 
   /// Track video click (impression → click)
@@ -219,8 +270,12 @@ class UserSignalTracker extends GetxService {
       await callable.call({
         'events': eventsToFlush,
       });
-    } catch (e) {
-      debugPrint('[UserSignalTracker] Batched tracking failed: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'UserSignalTracker.flushBatchedSignals',
+      );
     }
   }
 }

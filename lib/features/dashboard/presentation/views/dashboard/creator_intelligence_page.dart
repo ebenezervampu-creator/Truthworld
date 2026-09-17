@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/creator_intelligence_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/copyright_screen.dart';
@@ -1549,12 +1550,7 @@ class CreatorIntelligencePage extends StatelessWidget {
   void _handleAction(BuildContext context, NotificationActionItem action) {
     switch (action.type) {
       case 'OPEN_ANALYTICS':
-        Get.snackbar(
-          'Navigating',
-          'Opening Channel Analytics...',
-          backgroundColor: const Color(0xFF18181B),
-          colorText: Colors.white,
-        );
+        AppSnackbar.info('Opening Channel Analytics...');
       case 'APPEAL_VERIFICATION':
         Get.to<void>(
           () => TruthVerificationDashboardPage(
@@ -1563,12 +1559,7 @@ class CreatorIntelligencePage extends StatelessWidget {
           ),
         );
       default:
-        Get.snackbar(
-          'Action Triggered',
-          action.label,
-          backgroundColor: const Color(0xFF18181B),
-          colorText: Colors.white,
-        );
+        AppSnackbar.info(action.label);
     }
   }
 }

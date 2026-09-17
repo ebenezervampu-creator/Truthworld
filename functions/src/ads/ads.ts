@@ -334,26 +334,23 @@ export const generateAllVideoAdsAIFeatures = onRequest(
         forceRegenerate = false,
       } = req.body || {};
 
-      // Launch batch processing in background
-      AdPipelineService.processAllVideoAds({
+      // Process batch synchronously within the allocated 540s container lifecycle
+      const result = await AdPipelineService.processAllVideoAds({
         features,
         targetLanguages,
         voiceStyle,
         sourceLang,
         forceRegenerate,
-      })
-        .then((result) => {
-          logger.info("[generateAllVideoAdsAIFeatures] Batch processing complete", result);
-        })
-        .catch((err) => {
-          logger.error("[generateAllVideoAdsAIFeatures] Batch processing error:", err);
-        });
+      });
+
+      logger.info("[generateAllVideoAdsAIFeatures] Batch processing complete", result);
 
       res.status(200).json({
         success: true,
-        message: `Batch AI dubbing & subtitles job queued for all video ads with languages: ${targetLanguages.join(", ")}`,
+        message: `Batch AI dubbing & subtitles job completed for all video ads with languages: ${targetLanguages.join(", ")}`,
         targetLanguages,
         features,
+        result,
       });
     } catch (error) {
       console.error("[generateAllVideoAdsAIFeatures] Error:", error);

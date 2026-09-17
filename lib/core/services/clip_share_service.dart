@@ -10,6 +10,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
@@ -240,8 +241,8 @@ class ClipShareService {
           (resolved.startsWith('http://') || resolved.startsWith('https://'))) {
         return resolved;
       }
-    } catch (e) {
-      debugPrint('[ClipShareService] StorageUtils resolution failed for $clean: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'ClipShareService._toHttpUrl.storageUtils');
     }
 
     if (clean.startsWith('http://') || clean.startsWith('https://')) {
@@ -253,8 +254,8 @@ class ClipShareService {
         return await FirebaseStorage.instance.refFromURL(clean).getDownloadURL();
       }
       return await FirebaseStorage.instance.ref(clean).getDownloadURL();
-    } catch (e) {
-      debugPrint('[ClipShareService] Could not resolve storage URL for $clean: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'ClipShareService._toHttpUrl.firebaseStorage');
     }
     return null;
   }
@@ -335,8 +336,8 @@ class ClipShareService {
         final dash = await _toHttpUrl(data['dashUrl'] as String?);
         if (dash != null && dash.isNotEmpty) return dash;
       }
-    } catch (e) {
-      debugPrint('[ClipShareService] Error resolving video URL from Firestore root: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'ClipShareService.resolveVideoSourceUrl.firestoreRoot');
     }
 
     // 3. Check Firestore `media/streaming` subcollection
@@ -366,8 +367,8 @@ class ClipShareService {
         final hls = await _toHttpUrl(data['hlsUrl'] as String?);
         if (hls != null && hls.isNotEmpty) return hls;
       }
-    } catch (e) {
-      debugPrint('[ClipShareService] Error checking streaming subcollection: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'ClipShareService.resolveVideoSourceUrl.streamingSubcollection');
     }
 
     return null;
@@ -393,8 +394,8 @@ class ClipShareService {
       if (await file.exists() && await file.length() > 1024) {
         return file;
       }
-    } catch (e) {
-      debugPrint('[ClipShareService] Error checking cache: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'ClipShareService.getCachedClipFile');
     }
     return null;
   }
@@ -476,7 +477,9 @@ class ClipShareService {
       if (await outputFile.exists()) {
         try {
           await outputFile.delete();
-        } catch (_) {}
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'ClipShareService.getOrGenerateClipFile.deleteExistingOutput');
+        }
       }
 
       onProgress?.call(0.55, 'Trimming & applying Truthworld watermark...');
@@ -554,19 +557,23 @@ class ClipShareService {
         );
         return outputFile;
       }
-    } catch (e) {
-      debugPrint('[ClipShareService] ❌ Exception during clip generation: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'ClipShareService.getOrGenerateClipFile');
     } finally {
       // Clean up temporary watermark image and buffered file
       if (watermarkFile != null && await watermarkFile.exists()) {
         try {
           await watermarkFile.delete();
-        } catch (_) {}
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'ClipShareService.cleanupWatermark');
+        }
       }
       if (tempDownloadedFile != null && await tempDownloadedFile.exists()) {
         try {
           await tempDownloadedFile.delete();
-        } catch (_) {}
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'ClipShareService.cleanupTempDownload');
+        }
       }
     }
 
@@ -692,8 +699,8 @@ class ClipShareService {
       debugPrint(
         '[ClipShareService] FFmpeg step failed ($returnCode): ${logs.take(5).map((l) => l.getMessage()).join('; ')}',
       );
-    } catch (e) {
-      debugPrint('[ClipShareService] FFmpeg execution error: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'ClipShareService._executeFFmpegClip');
     }
     return false;
   }
@@ -752,8 +759,8 @@ class ClipShareService {
           File('${targetDir.path}/Truthworld_${safeTitle}_$timestamp.mp4');
       await clipFile.copy(savedFile.path);
       return savedFile.path;
-    } catch (e) {
-      debugPrint('[ClipShareService] Error saving clip to device: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'ClipShareService.saveClipToDevice');
     }
     return null;
   }

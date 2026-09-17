@@ -45,13 +45,40 @@ export const getCreatorRevenue = onCall(
 
       const currentMonth = new Date().toISOString().slice(0, 7);
 
-      // Mocked data for current month estimate
+      // Aggregate authentic channel performance metrics for current month
+      const channelsSnap = await db().collection("channels")
+        .where("ownerId", "==", userId)
+        .get();
+
+      let currentMonthViews = 0;
+      let currentMonthGross = 0;
+
+      for (const chDoc of channelsSnap.docs) {
+        const chData = chDoc.data() || {};
+        currentMonthViews += Number(chData.stats?.views || chData.views || 0);
+        currentMonthGross += Number(chData.superchatRevenueTotal || 0);
+        try {
+          const membersSnap = await chDoc.ref.collection("members").where("status", "==", "active").get();
+          for (const mDoc of membersSnap.docs) {
+            currentMonthGross += Number(mDoc.data().price || 0);
+          }
+        } catch (_) {}
+      }
+
+      // If a current-month statement exists, prefer its audited values
+      const currentMonthDoc = statements.find(s => s.month === currentMonth);
+      const grossRevenue = currentMonthDoc
+        ? (currentMonthDoc.grossAdsRevenue + currentMonthDoc.grossSubsRevenue)
+        : currentMonthGross;
+      const creatorShare = currentMonthDoc ? currentMonthDoc.creatorShare : (grossRevenue * 0.70);
+      const views = currentMonthDoc ? (currentMonthDoc.metadata?.totalViews ?? currentMonthViews) : currentMonthViews;
+
       return {
         currentMonth,
         estimate: {
-          grossRevenue: 12450.50,
-          creatorShare: 9337.80,
-          views: 45000
+          grossRevenue: Math.round(grossRevenue * 100) / 100,
+          creatorShare: Math.round(creatorShare * 100) / 100,
+          views,
         },
         statements
       };
@@ -63,10 +90,74 @@ export const getCreatorRevenue = onCall(
 );
 
 /**
- * 🔄 SYNC CHANNEL STATEMENTS (Internal/Stub)
+ * 🔄 SYNC CHANNEL STATEMENTS (Internal)
+ * Synchronizes authentic channel earnings into monthly revenue_statements.
  */
 export async function syncChannelStatements(channel: any, userId: string): Promise<void> {
   logger.info(`[Economy] Syncing channel statements for creator: ${userId}, channel: ${channel?.id || 'unknown'}`);
+  if (!userId || !channel) return;
+
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const channelId = channel.id || "default";
+  const statementDocId = `${currentMonth}_${userId}_${channelId}`;
+  const statementRef = db().collection("revenue_statements").doc(statementDocId);
+
+  const existingSnap = await statementRef.get();
+
+  // Calculate earnings from authentic channel metrics
+  const views = Number(channel.stats?.views || channel.views || 0);
+  const superchatRevenue = Number(channel.superchatRevenueTotal || 0);
+  const adsRevenue = Number(channel.adsRevenueTotal || 0);
+
+  // Calculate authentic channel memberships revenue (100% direct creator share)
+  let membershipsRevenue = 0;
+  try {
+    const membersSnap = await db().collection("channels").doc(channelId).collection("members")
+      .where("status", "==", "active").get();
+    for (const mDoc of membersSnap.docs) {
+      membershipsRevenue += Number(mDoc.data().price || 0);
+    }
+  } catch (mErr) {
+    logger.warn(`[Economy] Could not fetch members for ${channelId}:`, mErr);
+  }
+
+  const grossRevenue = superchatRevenue + adsRevenue + membershipsRevenue;
+  // Creator share: 70% standard platform split on ads/superchats + 100% on memberships
+  const creatorShare = Math.round((((superchatRevenue + adsRevenue) * 0.70) + membershipsRevenue) * 100) / 100;
+  const platformFee = Math.round((superchatRevenue + adsRevenue) * 0.30 * 100) / 100;
+
+  if (!existingSnap.exists) {
+    await statementRef.set({
+      id: statementDocId,
+      userId,
+      channelId,
+      month: currentMonth,
+      grossAdsRevenue: adsRevenue,
+      grossSubsRevenue: superchatRevenue + membershipsRevenue,
+      platformFee,
+      infrastructureCosts: 0,
+      creatorShare,
+      withdrawableShare: creatorShare,
+      paidOutShare: 0,
+      payoutStatus: "pending",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      metadata: {
+        totalViews: views,
+        avgRPM: views > 0 ? (grossRevenue / views) * 1000 : 0,
+        trustBonus: 0,
+      },
+    });
+  } else {
+    await statementRef.update({
+      grossAdsRevenue: adsRevenue,
+      grossSubsRevenue: superchatRevenue + membershipsRevenue,
+      creatorShare,
+      withdrawableShare: creatorShare,
+      updatedAt: Date.now(),
+      "metadata.totalViews": views,
+    });
+  }
 }
 
 /**

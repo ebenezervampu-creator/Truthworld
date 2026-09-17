@@ -1,7 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -77,14 +80,36 @@ class _ClaimSourceSubmissionDialogState
   Future<void> _submitSource() async {
     final url = _urlController.text.trim();
     if (url.isEmpty || !url.startsWith('http')) {
-      Get.snackbar(
-        'Invalid Source URL',
+      AppSnackbar.warning(
         'Please enter a valid HTTP/HTTPS source link.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: const Color(0xFFEF4444).withValues(alpha: 0.9),
-        colorText: Colors.white,
       );
       return;
+    }
+
+    final title = _titleController.text.trim();
+    if (title.isNotEmpty) {
+      final v = ContentValidator.validate(
+        title,
+        fieldName: 'Source Title',
+        maxLength: 200,
+      );
+      if (!v.isValid) {
+        AppSnackbar.warning(v.message);
+        return;
+      }
+    }
+
+    final note = _noteController.text.trim();
+    if (note.isNotEmpty) {
+      final v = ContentValidator.validate(
+        note,
+        fieldName: 'Citation Note',
+        maxLength: 1000,
+      );
+      if (!v.isValid) {
+        AppSnackbar.warning(v.message);
+        return;
+      }
     }
 
     _isSubmitting.value = true;
@@ -110,24 +135,16 @@ class _ClaimSourceSubmissionDialogState
 
       if (mounted) {
         Navigator.of(context).pop();
-        Get.snackbar(
-          'Source Submitted',
+        AppSnackbar.success(
           'Thank you! Your supporting evidence has been submitted for credibility review.',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: const Color(0xFF10B981).withValues(alpha: 0.9),
-          colorText: Colors.white,
-          duration: const Duration(seconds: 4),
         );
       }
     } catch (e) {
+      ErrorHandler.log(e);
       if (mounted) {
         _isSubmitting.value = false;
-        Get.snackbar(
-          'Submission Failed',
-          'Failed to submit source: $e',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: const Color(0xFFEF4444).withValues(alpha: 0.9),
-          colorText: Colors.white,
+        AppSnackbar.error(
+          'Unable to submit source. Please try again.',
         );
       }
     }
@@ -269,6 +286,7 @@ class _ClaimSourceSubmissionDialogState
               const SizedBox(height: 6),
               TextField(
                 controller: _titleController,
+                inputFormatters: TruthworldTextInputFormatters.standard,
                 style: const TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 13,
@@ -304,6 +322,7 @@ class _ClaimSourceSubmissionDialogState
               const SizedBox(height: 6),
               TextField(
                 controller: _noteController,
+                inputFormatters: TruthworldTextInputFormatters.standard,
                 maxLines: 2,
                 style: const TextStyle(
                   color: AppColors.textPrimary,

@@ -1,0 +1,322 @@
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/playlists_management_controller.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/theme/app_theme.dart';
+
+/// Bottom sheet to search and pick videos from a channel to add to a playlist.
+class VideoPickerSheet extends StatelessWidget {
+  const VideoPickerSheet({
+    required this.channelId,
+    required this.targetList,
+    this.onUpdated,
+    super.key,
+  });
+
+  final String channelId;
+  final RxList<Video> targetList;
+  final void Function(List<Video>)? onUpdated;
+
+  static Future<void> show(
+    BuildContext context, {
+    required String channelId,
+    required RxList<Video> targetList,
+    void Function(List<Video>)? onUpdated,
+  }) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF141417),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        side: BorderSide(color: Color(0xFF27272A)),
+      ),
+      builder: (_) => VideoPickerSheet(
+        channelId: channelId,
+        targetList: targetList,
+        onUpdated: onUpdated,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = Get.find<PlaylistsManagementController>();
+    final searchFilter = ''.obs;
+    final allChannelVideos = <Video>[].obs;
+    final isLoading = true.obs;
+    final tempSelected = List<Video>.from(targetList).obs;
+
+    controller.fetchChannelVideos(channelId).then((vids) {
+      allChannelVideos.assignAll(vids);
+      isLoading.value = false;
+    });
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.75,
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Select Channel Videos',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              Row(
+                children: [
+                  Obx(() {
+                    if (allChannelVideos.isEmpty) return const SizedBox.shrink();
+                    final isAllSelected =
+                        tempSelected.length == allChannelVideos.length;
+                    return TextButton(
+                      onPressed: () {
+                        if (isAllSelected) {
+                          tempSelected.clear();
+                        } else {
+                          tempSelected.assignAll(allChannelVideos);
+                        }
+                      },
+                      child: Text(
+                        isAllSelected ? 'Deselect All' : 'Select All',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                        ),
+                      ),
+                    );
+                  }),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            onChanged: (val) => searchFilter.value = val.trim().toLowerCase(),
+            style: const TextStyle(color: Colors.white, fontSize: 13),
+            decoration: InputDecoration(
+              hintText: 'Search channel videos...',
+              hintStyle: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+              ),
+              prefixIcon: const Icon(
+                Icons.search_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
+              filled: true,
+              fillColor: const Color(0xFF0F0F0F),
+              isDense: true,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: Color(0xFF27272A)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: Obx(() {
+              if (isLoading.value) {
+                return const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                );
+              }
+
+              final query = searchFilter.value;
+              final displayList = query.isEmpty
+                  ? allChannelVideos
+                  : allChannelVideos
+                      .where((v) =>
+                          v.title.toLowerCase().contains(query) ||
+                          v.description.toLowerCase().contains(query))
+                      .toList();
+
+              if (displayList.isEmpty) {
+                return const Center(
+                  child: Text(
+                    'No channel videos found.',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                );
+              }
+
+              return ListView.separated(
+                itemCount: displayList.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 6),
+                itemBuilder: (context, index) {
+                  final video = displayList[index];
+
+                  return Obx(() {
+                    final isSelected =
+                        tempSelected.any((v) => v.id == video.id);
+
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          if (isSelected) {
+                            tempSelected.removeWhere((v) => v.id == video.id);
+                          } else {
+                            tempSelected.add(video);
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? const Color(0xFF27272A)
+                                : const Color(0xFF0F0F0F),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: isSelected
+                                  ? Colors.white.withValues(alpha: 0.4)
+                                  : const Color(0xFF27272A),
+                              width: isSelected ? 1.5 : 1,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: SizedBox(
+                                  width: 56,
+                                  height: 32,
+                                  child: video.thumbnailUrl.isNotEmpty
+                                      ? CachedNetworkImage(
+                                          imageUrl: video.thumbnailUrl,
+                                          fit: BoxFit.cover,
+                                          errorWidget: (_, _, _) =>
+                                              const ColoredBox(
+                                            color: Color(0xFF27272A),
+                                            child: Icon(
+                                              Icons.movie,
+                                              color: Colors.white,
+                                              size: 16,
+                                            ),
+                                          ),
+                                        )
+                                      : const ColoredBox(
+                                          color: Color(0xFF27272A),
+                                          child: Icon(
+                                            Icons.movie,
+                                            color: Colors.white,
+                                            size: 16,
+                                          ),
+                                        ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      video.title,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      video.duration.isNotEmpty
+                                          ? video.duration
+                                          : '${video.views} views',
+                                      style: const TextStyle(
+                                        color: AppColors.textSecondary,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Container(
+                                width: 22,
+                                height: 22,
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? const Color(0xFF3F3F46)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? Colors.white
+                                        : const Color(0xFF52525B),
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: isSelected
+                                    ? const Icon(
+                                        Icons.check_rounded,
+                                        color: Colors.white,
+                                        size: 16,
+                                      )
+                                    : null,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  });
+                },
+              );
+            }),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                targetList.assignAll(tempSelected);
+                onUpdated?.call(tempSelected);
+                Navigator.pop(context);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF27272A),
+                foregroundColor: Colors.white,
+                side: const BorderSide(color: Color(0xFF3F3F46)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: Obx(() {
+                return Text(
+                  'Done (${tempSelected.length} selected)',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                );
+              }),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

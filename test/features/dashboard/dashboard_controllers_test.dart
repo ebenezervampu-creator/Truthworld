@@ -1,7 +1,10 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/chapters_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 import '../../test_helpers/mock_firebase.dart';
 
 void main() {
@@ -86,6 +89,72 @@ void main() {
       expect(track.languageName, equals('Spanish'));
       expect(track.isBaseTrack, isFalse);
       expect(track.isResolved, isTrue);
+    });
+  });
+
+  group('DashboardController Reactivity Tests', () {
+    late DashboardController controller;
+
+    setUp(() {
+      Get.reset();
+      controller = DashboardController(channelId: 'test_channel_123');
+    });
+
+    test('filteredVideos returns reactive copy and filters properly', () {
+      final v1 = Video(
+        id: 'v1',
+        title: 'Flutter Tutorial',
+        description: 'Learn Flutter',
+        thumbnailUrl: '',
+        ownerId: 'u1',
+        channelId: 'c1',
+        channelName: 'Channel',
+        category: 'Tech',
+        tags: const ['flutter'],
+      );
+      final v2 = Video(
+        id: 'v2',
+        title: 'Cooking Pasta',
+        description: 'Italian recipe',
+        thumbnailUrl: '',
+        ownerId: 'u1',
+        channelId: 'c1',
+        channelName: 'Channel',
+        category: 'Food',
+        tags: const ['cooking'],
+      );
+
+      controller.recentVideos.assignAll([v1, v2]);
+      expect(controller.filteredVideos.length, equals(2));
+
+      controller.searchQuery.value = 'pasta';
+      expect(controller.filteredVideos.length, equals(1));
+      expect(controller.filteredVideos.first.id, equals('v2'));
+
+      controller.searchQuery.value = '';
+      expect(controller.filteredVideos.length, equals(2));
+    });
+
+    testWidgets('Obx with analyticsData.toList() does not throw GetX improper use error', (tester) async {
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: Obx(() {
+            final data = controller.analyticsData.toList();
+            return Text('Count: ${data.length}');
+          }),
+        ),
+      );
+
+      expect(find.text('Count: 0'), findsOneWidget);
+
+      controller.analyticsData.assignAll([
+        AnalyticsData(DateTime(2026), 100),
+        AnalyticsData(DateTime(2026, 1, 2), 250),
+      ]);
+      await tester.pump();
+
+      expect(find.text('Count: 2'), findsOneWidget);
     });
   });
 }

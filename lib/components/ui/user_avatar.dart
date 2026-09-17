@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 
 class UserAvatar extends StatelessWidget {
@@ -61,7 +62,13 @@ class UserAvatar extends StatelessWidget {
           }
         }
       }
-    } catch (_) {}
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'UserAvatar.resolveCurrentUserDetails',
+      );
+    }
 
     final initial = (effectiveDisplayName != null &&
             effectiveDisplayName.isNotEmpty &&

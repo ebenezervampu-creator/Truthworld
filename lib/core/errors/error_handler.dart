@@ -1,11 +1,13 @@
 import 'dart:async';
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Centralized Industry-Standard Error Handling Service.
@@ -48,14 +50,17 @@ class ErrorHandler {
 
   /// Log exception to [LoggerService] and dispatch to [FirebaseCrashlytics] (on non-web).
   static void log(
-    Object error, {
+    Object? error, {
     StackTrace? stackTrace,
     String? tag,
+    String? context,
+    String? reason,
     bool isFatal = false,
   }) {
+    if (error == null) return;
     final appException = AppException.from(error, stackTrace);
     final trace = stackTrace ?? appException.stackTrace ?? StackTrace.current;
-    final logTag = tag ?? 'ErrorHandler';
+    final logTag = tag ?? context ?? reason ?? 'ErrorHandler';
 
     switch (appException.severity) {
       case ErrorSeverity.info:
@@ -78,16 +83,30 @@ class ErrorHandler {
         );
     }
 
-    // Record non-transient, non-info errors in Firebase Crashlytics on mobile
-    if (!kIsWeb && appException.severity != ErrorSeverity.info) {
-      unawaited(
-        FirebaseCrashlytics.instance.recordError(
-          appException.originalException ?? appException,
-          trace,
-          reason: '[${appException.code}] ${appException.message}',
-          fatal: isFatal || appException.severity == ErrorSeverity.fatal,
-        ),
-      );
+    // Record non-transient, non-info errors in Firebase Crashlytics on supported platforms
+    final isCrashlyticsSupported = !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS ||
+            defaultTargetPlatform == TargetPlatform.macOS);
+    if (isCrashlyticsSupported &&
+        appException.severity != ErrorSeverity.info &&
+        Firebase.apps.isNotEmpty) {
+      try {
+        unawaited(
+          FirebaseCrashlytics.instance
+              .recordError(
+                appException.originalException ?? appException,
+                trace,
+                reason: '[${appException.code}] ${appException.message}',
+                fatal: isFatal || appException.severity == ErrorSeverity.fatal,
+              )
+              .catchError((e, s) {
+                logger.warning('Crashlytics async record error: $e', tag: 'ErrorHandler');
+              }),
+        );
+      } catch (e) {
+        logger.warning('Crashlytics uninitialized fallback: $e', tag: 'ErrorHandler');
+      }
     }
   }
 
@@ -97,7 +116,7 @@ class ErrorHandler {
     VoidCallback? onRetry,
   }) {
     final appException = AppException.from(error);
-    final userMessage = appException.displayMessage;
+    final userMessage = UserFeedbackSanitizer.sanitizeMessage(appException.displayMessage);
     final now = DateTime.now();
 
     // Prevent spamming identical snackbars in rapid succession
@@ -188,7 +207,7 @@ class ErrorHandler {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  appException is NetworkException ? 'Connection Error' : 'Error',
+                  appException is NetworkException ? 'Connection Issue' : 'Notice',
                   style: AppTextStyles.titleMedium.copyWith(
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary,
@@ -198,7 +217,7 @@ class ErrorHandler {
             ],
           ),
           content: Text(
-            appException.displayMessage,
+            UserFeedbackSanitizer.sanitizeMessage(appException.displayMessage),
             style: AppTextStyles.bodyMedium.copyWith(
               color: AppColors.textSecondary,
             ),

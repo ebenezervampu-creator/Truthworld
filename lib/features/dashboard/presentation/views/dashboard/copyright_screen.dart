@@ -3,6 +3,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class CopyrightScreen extends StatefulWidget {
@@ -695,6 +698,7 @@ class _CopyrightScreenState extends State<CopyrightScreen>
           children: [
             TextField(
               controller: messageController,
+              inputFormatters: TruthworldTextInputFormatters.standard,
               maxLines: 4,
               style: TextStyle(
                 color: isDarkMode ? AppColors.textPrimary : Colors.black,
@@ -724,12 +728,20 @@ class _CopyrightScreenState extends State<CopyrightScreen>
           ),
           ElevatedButton(
             onPressed: () {
+              final msg = messageController.text.trim();
+              final validation = ContentValidator.validate(
+                msg,
+                fieldName: 'Notice Message',
+                minLength: 5,
+                maxLength: 1000,
+              );
+              if (!validation.isValid) {
+                AppSnackbar.warning(validation.message);
+                return;
+              }
               Navigator.pop(ctx);
-              Get.snackbar(
-                'Notice Sent',
+              AppSnackbar.success(
                 'Warning message sent to $channelName.',
-                backgroundColor: AppColors.success,
-                colorText: AppColors.textPrimary,
               );
             },
             style: ElevatedButton.styleFrom(
@@ -779,24 +791,30 @@ class _CopyrightScreenState extends State<CopyrightScreen>
           ),
           ElevatedButton(
             onPressed: () async {
-              await FirebaseFirestore.instance
-                  .collection('copyright_claims')
-                  .add({
-                    'videoId': videoId,
-                    'videoTitle': title,
-                    'channelId': activeChannelId,
-                    'claimant': 'Original Creator',
-                    'noticeType': 'DMCA Takedown Request',
-                    'status': 'PENDING_TAKEDOWN',
-                    'createdAt': Timestamp.now(),
-                  });
-              if (context.mounted) Navigator.pop(ctx);
-              Get.snackbar(
-                'Submitted',
-                'Removal request submitted for $title.',
-                backgroundColor: AppColors.success,
-                colorText: AppColors.textPrimary,
-              );
+              try {
+                await FirebaseFirestore.instance
+                    .collection('copyright_claims')
+                    .add({
+                      'videoId': videoId,
+                      'videoTitle': title,
+                      'channelId': activeChannelId,
+                      'claimant': 'Original Creator',
+                      'noticeType': 'DMCA Takedown Request',
+                      'status': 'PENDING_TAKEDOWN',
+                      'createdAt': Timestamp.now(),
+                    });
+                if (context.mounted) Navigator.pop(ctx);
+                AppSnackbar.success('Removal request submitted for "$title".');
+              } catch (e, stackTrace) {
+                ErrorHandler.log(
+                  e,
+                  stackTrace: stackTrace,
+                  tag: 'CopyrightScreen.fileRemovalRequest',
+                );
+                AppSnackbar.error(
+                  'Unable to submit removal request. Please try again.',
+                );
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.error,

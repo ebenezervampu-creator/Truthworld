@@ -6,9 +6,12 @@ import 'package:get/get.dart';
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
@@ -57,9 +60,9 @@ class UserClipsController extends BaseController {
           return VideoClip.fromMap(data);
         }).toList(),
       );
-    } catch (e) {
-      debugPrint('Error fetching clips: $e');
-      rxErrorMessage.value = e.toString();
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'UserClipsController.fetchClips');
+      rxErrorMessage.value = AppException.from(e).displayMessage;
     } finally {
       rxIsLoading.value = false;
     }
@@ -78,15 +81,10 @@ class UserClipsController extends BaseController {
           .doc(clipId)
           .delete();
       clips.removeWhere((c) => c.id == clipId);
-      Get.snackbar(
-        'Deleted',
-        'Clip removed from library',
-        snackPosition: SnackPosition.TOP,
-        backgroundColor: AppColors.brand,
-        colorText: AppColors.textPrimary,
-      );
+      AppSnackbar.success('Clip removed from library.');
     } catch (e) {
-      Get.snackbar('Error', 'Failed to delete clip: $e');
+      ErrorHandler.log(e);
+      AppSnackbar.error('Unable to delete clip. Please try again.');
     }
   }
 
@@ -201,14 +199,9 @@ class UserClipsController extends BaseController {
   }
 }
 
-class ClipsPage extends StatelessWidget {
+class ClipsPage extends GetView<UserClipsController> {
   const ClipsPage({super.key, this.isDashboard = false});
   final bool isDashboard;
-
-  UserClipsController get controller =>
-      Get.isRegistered<UserClipsController>()
-          ? Get.find<UserClipsController>()
-          : Get.put(UserClipsController());
 
   @override
   Widget build(BuildContext context) {
@@ -535,6 +528,11 @@ class _ClipVideoListCard extends StatelessWidget {
       Duration(seconds: durationSeconds),
     );
 
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isCompact = screenWidth < 360;
+    final thumbWidth = isCompact ? 120.0 : 160.0;
+    final thumbHeight = isCompact ? 68.0 : 90.0;
+
     return InkWell(
       onTap: () => controller.playClip(clip),
       child: Padding(
@@ -549,8 +547,8 @@ class _ClipVideoListCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                   child: CachedNetworkImage(
                     imageUrl: clip.thumbnailUrl,
-                    width: 160,
-                    height: 90,
+                    width: thumbWidth,
+                    height: thumbHeight,
                     fit: BoxFit.cover,
                     placeholder: (context, url) =>
                         Container(color: AppTheme.secondaryBackground),
@@ -694,12 +692,9 @@ class _ClipVideoListCard extends StatelessWidget {
               label: 'Saved in your Clips',
               onTap: () {
                 Get.back<void>();
-                Get.snackbar(
-                  'Saved',
+                AppSnackbar.info(
                   'This clip is saved in your library',
-                  snackPosition: SnackPosition.BOTTOM,
-                  backgroundColor: AppColors.bgSurface,
-                  colorText: AppColors.textPrimary,
+                  title: 'Saved',
                 );
               },
             ),
@@ -1034,12 +1029,9 @@ class _ClipVideoGridCard extends StatelessWidget {
               ),
               onTap: () {
                 Get.back<void>();
-                Get.snackbar(
-                  'Saved',
+                AppSnackbar.info(
                   'This clip is saved in your library',
-                  snackPosition: SnackPosition.BOTTOM,
-                  backgroundColor: AppColors.bgSurface,
-                  colorText: AppColors.textPrimary,
+                  title: 'Saved',
                 );
               },
             ),

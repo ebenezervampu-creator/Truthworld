@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
@@ -135,8 +136,12 @@ class FollowingTopicsController extends BaseController {
         videos = await _repository.getVideosByTopic(topic.id);
       }
       topicVideosMap[key] = videos;
-    } catch (e) {
-      debugPrint('Error fetching videos for topic ${topic.title}: $e');
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'FollowingTopicsController.fetchVideosForTopic',
+      );
       topicVideosMap[key] = [];
     } finally {
       isLoadingVideosMap[key] = false;
@@ -157,8 +162,12 @@ class FollowingTopicsController extends BaseController {
         posts = await _repository.getCommunityPostsByTopic(topic.id);
       }
       topicPostsMap[key] = posts;
-    } catch (e) {
-      debugPrint('Error fetching posts for topic ${topic.title}: $e');
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'FollowingTopicsController.fetchPostsForTopic',
+      );
       topicPostsMap[key] = [];
     } finally {
       isLoadingPostsMap[key] = false;
@@ -258,7 +267,13 @@ class FollowingTopicsController extends BaseController {
           profileService.onTopicUnfollowed(topic.slug);
         }
       }
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'FollowingTopicsController.syncUserProfile',
+      );
+    }
 
     // Sync with HomeDiscoveryController featured topics if loaded
     try {
@@ -274,7 +289,13 @@ class FollowingTopicsController extends BaseController {
           discoveryCtrl.saveFeaturedTopicsToCache();
         }
       }
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'FollowingTopicsController.syncDiscoveryTopics',
+      );
+    }
 
     // Sync with TopicController if currently viewing this topic
     try {
@@ -287,7 +308,13 @@ class FollowingTopicsController extends BaseController {
           );
         }
       }
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'FollowingTopicsController.syncTopicController',
+      );
+    }
 
     try {
       final success = wasFollowed
@@ -325,11 +352,15 @@ class FollowingTopicsController extends BaseController {
           );
         }
         SnackbarService.error(
-          message: 'Failed to update follow status. Please try again.',
+          message: 'Unable to update follow status. Please try again.',
         );
       }
-    } catch (e) {
-      debugPrint('Error toggling topic followed state: $e');
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'FollowingTopicsController.toggleTopicFollowed',
+      );
       // Rollback on error
       followingStates[topicId] = wasFollowed;
       followerCounts[topicId] = previousCount;
@@ -438,8 +469,8 @@ class FollowingTopicsController extends BaseController {
         message: 'Notification preference updated to "$label".',
       );
     } catch (e) {
-      debugPrint('Error updating topic notification setting: $e');
-      SnackbarService.error(message: 'Failed to update notification settings.');
+      ErrorHandler.log(e);
+      SnackbarService.error(message: 'Unable to update notification settings. Please try again.');
     }
   }
 }

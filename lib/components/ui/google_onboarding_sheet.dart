@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:truthworld/components/ui/google_onboarding_controller.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/theme/app_colors.dart';
 
-/// Modal bottom sheet presented after a Google Sign-In to collect:
+/// Modal bottom sheet presented after a Google Sign-In or from Settings to collect / edit:
 /// 1. Optional Age Group (Under 13, 13–17, 18–24, 25–34, 35–44, 45–54, 55–64, 65+, Prefer not to say)
 /// 2. Optional Gender (Male, Female, Non-binary, Prefer not to say, Self-describe)
-class GoogleOnboardingSheet extends StatefulWidget {
+class GoogleOnboardingSheet extends StatelessWidget {
   const GoogleOnboardingSheet({super.key});
 
   /// Helper to display the onboarding sheet as a modal bottom sheet
@@ -22,127 +23,33 @@ class GoogleOnboardingSheet extends StatefulWidget {
       return;
     }
 
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => const GoogleOnboardingSheet(),
-    );
-  }
-
-  @override
-  State<GoogleOnboardingSheet> createState() => _GoogleOnboardingSheetState();
-}
-
-class _GoogleOnboardingSheetState extends State<GoogleOnboardingSheet> {
-  final Rx<String?> _selectedAgeGroup = Rx<String?>(null);
-  final Rx<String?> _selectedGender = Rx<String?>(null);
-  final RxBool _isSaving = false.obs;
-  final TextEditingController _selfDescribeController =
-      TextEditingController();
-
-  final List<String> _ageGroups = [
-    'Under 13',
-    '13–17',
-    '18–24',
-    '25–34',
-    '35–44',
-    '45–54',
-    '55–64',
-    '65+',
-    'Prefer not to say',
-  ];
-
-  final List<String> _genders = [
-    'Male',
-    'Female',
-    'Non-binary',
-    'Prefer not to say',
-    'Self-describe',
-  ];
-
-  Future<void> _onSave() async {
-    final navigator = Navigator.of(context);
+    if (!Get.isRegistered<GoogleOnboardingController>()) {
+      Get.put(GoogleOnboardingController());
+    } else {
+      Get.find<GoogleOnboardingController>().reinitialize();
+    }
 
     try {
-      String? genderValue;
-      final selectedGenderVal = _selectedGender.value;
-      if (selectedGenderVal != null) {
-        if (selectedGenderVal == 'Self-describe') {
-          final customText = _selfDescribeController.text.trim();
-          if (customText.isNotEmpty) {
-            final validation = ContentValidator.validate(
-              customText,
-              fieldName: 'Self-description',
-            );
-            if (!validation.isValid) {
-              Get.snackbar(
-                'Inappropriate Content',
-                validation.message,
-                snackPosition: SnackPosition.BOTTOM,
-                backgroundColor: AppColors.errorContainer,
-                colorText: AppColors.textPrimary,
-              );
-              return;
-            }
-            genderValue = 'Self-describe: $customText';
-          } else {
-            genderValue = 'Self-describe';
-          }
-        } else {
-          genderValue = selectedGenderVal;
-        }
-      }
-
-      _isSaving.value = true;
-
-      await AuthService.to.updateUserProfileOnboarding(
-        ageGroup: _selectedAgeGroup.value,
-        gender: genderValue,
-      );
-
-      if (mounted) {
-        navigator.pop();
-      }
-    } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to save profile: $e',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.errorContainer,
-        colorText: AppColors.textPrimary,
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (context) => const GoogleOnboardingSheet(),
       );
     } finally {
-      if (mounted) {
-        _isSaving.value = false;
+      if (Get.isRegistered<GoogleOnboardingController>()) {
+        Get.delete<GoogleOnboardingController>();
       }
     }
-  }
-
-  Future<void> _onSkip() async {
-    _isSaving.value = true;
-    final navigator = Navigator.of(context);
-
-    try {
-      await AuthService.to.skipUserOnboarding();
-      if (mounted) {
-        navigator.pop();
-      }
-    } catch (e) {
-      if (mounted) {
-        navigator.pop();
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _selfDescribeController.dispose();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final controller = Get.isRegistered<GoogleOnboardingController>()
+        ? Get.find<GoogleOnboardingController>()
+        : Get.put(GoogleOnboardingController());
+
+    final isFirstTime = controller.isFirstTimeOnboarding;
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Container(
@@ -181,7 +88,7 @@ class _GoogleOnboardingSheetState extends State<GoogleOnboardingSheet> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Complete Your Profile',
+                    isFirstTime ? 'Complete Your Profile' : 'Age Group & Gender',
                     style: GoogleFonts.outfit(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
@@ -193,7 +100,9 @@ class _GoogleOnboardingSheetState extends State<GoogleOnboardingSheet> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Truthworld uses this to recommend age-appropriate content and build a more inclusive platform for everyone.',
+              isFirstTime
+                  ? 'Truthworld uses this to recommend age-appropriate content and build a more inclusive platform for everyone.'
+                  : 'Update your preferences to help Truthworld recommend age-appropriate content.',
               style: GoogleFonts.roboto(
                 fontSize: 14,
                 color: AppColors.textSecondary,
@@ -243,11 +152,11 @@ class _GoogleOnboardingSheetState extends State<GoogleOnboardingSheet> {
 
             // Age Group selection chips
             Obx(() {
-              final selectedAge = _selectedAgeGroup.value;
+              final selectedAge = controller.selectedAgeGroup.value;
               return Wrap(
                 spacing: 8,
                 runSpacing: 10,
-                children: _ageGroups.map((option) {
+                children: controller.ageGroups.map((option) {
                   final isSelected = selectedAge == option;
                   return ChoiceChip(
                     label: Text(
@@ -268,7 +177,7 @@ class _GoogleOnboardingSheetState extends State<GoogleOnboardingSheet> {
                       color: isSelected ? Colors.white : AppColors.bgDivider,
                     ),
                     onSelected: (selected) {
-                      _selectedAgeGroup.value = selected ? option : null;
+                      controller.selectAgeGroup(selected ? option : null);
                     },
                   );
                 }).toList(),
@@ -319,14 +228,14 @@ class _GoogleOnboardingSheetState extends State<GoogleOnboardingSheet> {
 
             // Gender selection chips
             Obx(() {
-              final selectedGender = _selectedGender.value;
+              final selectedGender = controller.selectedGender.value;
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Wrap(
                     spacing: 8,
                     runSpacing: 10,
-                    children: _genders.map((option) {
+                    children: controller.genders.map((option) {
                       final isSelected = selectedGender == option;
                       return ChoiceChip(
                         label: Text(
@@ -347,7 +256,7 @@ class _GoogleOnboardingSheetState extends State<GoogleOnboardingSheet> {
                           color: isSelected ? Colors.white : AppColors.bgDivider,
                         ),
                         onSelected: (selected) {
-                          _selectedGender.value = selected ? option : null;
+                          controller.selectGender(selected ? option : null);
                         },
                       );
                     }).toList(),
@@ -355,7 +264,8 @@ class _GoogleOnboardingSheetState extends State<GoogleOnboardingSheet> {
                   if (selectedGender == 'Self-describe') ...[
                     const SizedBox(height: 14),
                     TextField(
-                      controller: _selfDescribeController,
+                      controller: controller.selfDescribeController,
+                      inputFormatters: [...TruthworldTextInputFormatters.standard],
                       style: GoogleFonts.roboto(
                         fontSize: 14,
                         color: AppColors.textPrimary,
@@ -391,12 +301,20 @@ class _GoogleOnboardingSheetState extends State<GoogleOnboardingSheet> {
 
             // Action buttons
             Obx(() {
-              final saving = _isSaving.value;
+              final saving = controller.isSaving.value;
               return Row(
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: saving ? null : _onSkip,
+                      onPressed: saving
+                          ? null
+                          : () {
+                              if (isFirstTime) {
+                                controller.onSkip(context);
+                              } else {
+                                Navigator.of(context).pop();
+                              }
+                            },
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         side: const BorderSide(color: AppColors.bgDivider),
@@ -405,7 +323,7 @@ class _GoogleOnboardingSheetState extends State<GoogleOnboardingSheet> {
                         ),
                       ),
                       child: Text(
-                        'Skip for now',
+                        isFirstTime ? 'Skip for now' : 'Cancel',
                         style: GoogleFonts.outfit(
                           fontSize: 15,
                           fontWeight: FontWeight.w500,
@@ -417,7 +335,7 @@ class _GoogleOnboardingSheetState extends State<GoogleOnboardingSheet> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: saving ? null : _onSave,
+                      onPressed: saving ? null : () => controller.onSave(context),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: AppColors.bgPage,
@@ -439,7 +357,7 @@ class _GoogleOnboardingSheetState extends State<GoogleOnboardingSheet> {
                               ),
                             )
                           : Text(
-                              'Save & Continue',
+                              isFirstTime ? 'Save & Continue' : 'Save Changes',
                               style: GoogleFonts.outfit(
                                 fontSize: 15,
                                 fontWeight: FontWeight.bold,

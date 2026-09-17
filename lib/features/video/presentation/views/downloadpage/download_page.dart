@@ -50,14 +50,9 @@ class ResponsiveUtils {
 // MAIN WIDGET
 // ==========================================================================
 
-class DownloadsPage extends StatelessWidget {
+class DownloadsPage extends GetView<DownloadsController> {
   const DownloadsPage({super.key, this.isDashboard = false});
   final bool isDashboard;
-
-  DownloadsController get controller =>
-      Get.isRegistered<DownloadsController>()
-          ? Get.find<DownloadsController>()
-          : Get.put(DownloadsController());
 
   @override
   Widget build(BuildContext context) {
@@ -570,41 +565,44 @@ class _DownloadVideoListCard extends StatelessWidget {
 
   void _showOptions(BuildContext context) {
     Get.bottomSheet(
-      Container(
-        padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: AppColors.bgSurface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 24),
-              decoration: BoxDecoration(
-                color: AppColors.textDisabled,
-                borderRadius: BorderRadius.circular(2),
+      Material(
+        color: AppColors.bgSurface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 24),
+                decoration: BoxDecoration(
+                  color: AppColors.textDisabled,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            _buildOptionItem(
-              icon: Icons.delete_outline_rounded,
-              label: 'Delete from downloads',
-              color: AppColors.error,
-              onTap: () {
-                Get.back();
-                _showDeleteConfirmation(context);
-              },
-            ),
-            _buildOptionItem(
-              icon: Icons.share_outlined,
-              label: 'Share link',
-              onTap: Get.back,
-            ),
-          ],
+              _buildOptionItem(
+                icon: Icons.delete_outline_rounded,
+                label: 'Delete from downloads',
+                color: AppColors.error,
+                onTap: () {
+                  Get.back();
+                  _showDeleteConfirmation(context);
+                },
+              ),
+              _buildOptionItem(
+                icon: Icons.share_outlined,
+                label: 'Share link',
+                onTap: Get.back,
+              ),
+            ],
+          ),
         ),
       ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
     );
   }
 
@@ -619,10 +617,10 @@ class _DownloadVideoListCard extends StatelessWidget {
       leading: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: (color ?? AppColors.brand).withValues(alpha: 0.1),
+          color: (color != null ? color.withValues(alpha: 0.15) : AppColors.bgSurfaceHover),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(icon, color: AppColors.textPrimary, size: 20),
+        child: Icon(icon, color: Colors.white, size: 20),
       ),
       title: Text(
         label,

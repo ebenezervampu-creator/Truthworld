@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/features/video/data/models/claim_verdict_helper.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -325,26 +326,7 @@ class ProgressBar extends StatelessWidget {
   }
 
   Color _getVerdictColor(String verdict) {
-    switch (verdict.toLowerCase()) {
-      case 'verified_true':
-      case 'mostly_true':
-        return AppColors.success;
-      case 'false_claim':
-      case 'misleading':
-      case 'disputed':
-        return AppColors.error;
-      case 'unproven':
-      case 'inconclusive':
-      case 'limited_support':
-      case 'verification_timeout':
-        return AppColors.brandHover;
-      case 'faith_based_claim':
-      case 'not_historically_verifiable':
-      case 'historical_tradition':
-        return AppColors.brandHover;
-      default:
-        return AppColors.info;
-    }
+    return ClaimVerdictHelper.resolveVerdictString(verdict).color;
   }
 }
 

@@ -8,6 +8,10 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/exceptions/app_exceptions.dart';
+import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -63,10 +67,14 @@ class MyVideosController extends BaseController {
         videos.value = snapshot.docs.map(Video.fromDocumentSnapshot).toList();
         rxIsLoading.value = false;
       },
-      onError: (error) {
-        rxErrorMessage.value = error.toString();
+      onError: (error, stackTrace) {
+        ErrorHandler.log(
+          error,
+          stackTrace: stackTrace,
+          tag: 'MyVideosController._listenToVideos',
+        );
+        rxErrorMessage.value = AppException.from(error, stackTrace).displayMessage;
         rxIsLoading.value = false;
-        debugPrint('MyVideos Firestore Error: $error');
       },
     );
     _subscription = sub;
@@ -127,7 +135,13 @@ class MyVideosController extends BaseController {
           'visibility': normalizedVisibility,
           'updatedAt': FieldValue.serverTimestamp(),
         });
-      } catch (_) {}
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'MyVideosController.updateShortVisibility',
+        );
+      }
 
       // Update local state if present
       final index = videos.indexWhere((v) => v.id == videoId);
@@ -153,30 +167,10 @@ class MyVideosController extends BaseController {
           displayName = visibility;
       }
 
-      Get.snackbar(
-        'Visibility Updated',
-        'Video access is now set to "$displayName".',
-        snackPosition: SnackPosition.TOP,
-        backgroundColor: const Color(0xFF10B981),
-        colorText: AppColors.textPrimary,
-        margin: const EdgeInsets.all(16),
-        borderRadius: 12,
-        icon: const Icon(
-          Icons.check_circle_outline,
-          color: Colors.white,
-        ),
-      );
+      AppSnackbar.success('Video access is now set to "$displayName".');
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to update video visibility: $e',
-        snackPosition: SnackPosition.TOP,
-        backgroundColor: const Color(0xFFEF4444),
-        colorText: AppColors.textPrimary,
-        margin: const EdgeInsets.all(16),
-        borderRadius: 12,
-        icon: const Icon(Icons.error_outline, color: Colors.white),
-      );
+      ErrorHandler.log(e);
+      AppSnackbar.error('Unable to update video visibility. Please try again.');
     }
   }
 
@@ -188,30 +182,10 @@ class MyVideosController extends BaseController {
           .doc(video.id)
           .update({'visibility': newVisibility});
 
-      Get.snackbar(
-        'Success',
-        'Video is now ${newVisibility.capitalizeFirst}.',
-        snackPosition: SnackPosition.TOP,
-        backgroundColor: const Color(0xFF10B981),
-        colorText: AppColors.textPrimary,
-        margin: const EdgeInsets.all(16),
-        borderRadius: 12,
-        icon: const Icon(
-          Icons.check_circle_outline,
-          color: Colors.white,
-        ),
-      );
+      AppSnackbar.success('Video is now ${newVisibility.capitalizeFirst}.');
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to update video visibility: $e',
-        snackPosition: SnackPosition.TOP,
-        backgroundColor: const Color(0xFFEF4444),
-        colorText: AppColors.textPrimary,
-        margin: const EdgeInsets.all(16),
-        borderRadius: 12,
-        icon: const Icon(Icons.error_outline, color: Colors.white),
-      );
+      ErrorHandler.log(e);
+      AppSnackbar.error('Unable to update video visibility. Please try again.');
     }
   }
 
@@ -229,7 +203,13 @@ class MyVideosController extends BaseController {
               .collection('shorts')
               .doc(video.id)
               .delete();
-        } catch (_) {}
+        } catch (e, stackTrace) {
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'MyVideosController.deleteShortDoc',
+          );
+        }
       }
 
       // Immediately remove from local list for snappy UI
@@ -242,30 +222,10 @@ class MyVideosController extends BaseController {
         await _safeDeleteStorageUrl(video.originalUrl);
       }
 
-      Get.snackbar(
-        'Video Deleted',
-        '"${video.title}" was successfully deleted.',
-        snackPosition: SnackPosition.TOP,
-        backgroundColor: const Color(0xFF10B981),
-        colorText: AppColors.textPrimary,
-        margin: const EdgeInsets.all(16),
-        borderRadius: 12,
-        icon: const Icon(
-          Icons.check_circle_outline,
-          color: Colors.white,
-        ),
-      );
+      AppSnackbar.success('"${video.title}" was successfully deleted.');
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to delete video: $e',
-        snackPosition: SnackPosition.TOP,
-        backgroundColor: const Color(0xFFEF4444),
-        colorText: AppColors.textPrimary,
-        margin: const EdgeInsets.all(16),
-        borderRadius: 12,
-        icon: const Icon(Icons.error_outline, color: Colors.white),
-      );
+      ErrorHandler.log(e);
+      AppSnackbar.error('Unable to delete video. Please try again.');
     }
   }
 
@@ -281,8 +241,12 @@ class MyVideosController extends BaseController {
           !clean.startsWith('assets/')) {
         await FirebaseStorage.instance.ref(clean).delete();
       }
-    } catch (e) {
-      debugPrint('Safe storage delete note for $clean: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'MyVideosController.safeDeleteStorageUrl',
+      );
     }
   }
 
@@ -377,5 +341,136 @@ class MyVideosController extends BaseController {
       'Dec',
     ];
     return months[month - 1];
+  }
+
+  /// Whether current authenticated user has an active channel.
+  bool get hasChannel {
+    if (!Get.isRegistered<AuthService>()) return false;
+    final auth = AuthService.to;
+    return auth.hasChannel.value || auth.userChannel != null;
+  }
+
+  /// Handles user tapping the upload/add button.
+  /// Prevents navigation to the upload screen if user does not have a channel.
+  void handleUploadTap() {
+    if (Get.isRegistered<AuthService>()) {
+      final auth = AuthService.to;
+      if (!auth.isAuthenticated.value) {
+        Get.toNamed('/auth');
+        return;
+      }
+      if (!hasChannel) {
+        showCreateChannelPrompt();
+        return;
+      }
+    } else if (!hasChannel) {
+      showCreateChannelPrompt();
+      return;
+    }
+
+    Get.toNamed('/upload');
+  }
+
+  /// Displays a friendly dialog prompting user to create a channel first.
+  void showCreateChannelPrompt() {
+    final context = Get.context ?? Get.overlayContext;
+    if (context == null) return;
+
+    Get.dialog<void>(
+      Dialog(
+        backgroundColor: AppColors.bgPage,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 400),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.bgSurfaceHover,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.video_call_rounded,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  const Expanded(
+                    child: Text(
+                      'Channel required',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'You need a channel to upload videos. Would you like to create one now?',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textSecondary,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: Get.back,
+                    child: const Text(
+                      'Not now',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () {
+                      Get.back();
+                      Get.toNamed('/channelscreen');
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.textPrimary,
+                      foregroundColor: AppColors.bgPage,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text(
+                      'Create Channel',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  void onClose() {
+    _subscription?.cancel();
+    _subscription = null;
+    super.onClose();
   }
 }

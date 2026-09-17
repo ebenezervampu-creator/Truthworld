@@ -22,6 +22,7 @@ import * as admin from "firebase-admin";
 import { onObjectFinalized } from "firebase-functions/v2/storage";
 import { onRequest } from "firebase-functions/v2/https";
 import { requireAdmin } from "../utils/auth";
+import { notifyUser } from "../notifications/notifications";
 
 const db = admin.firestore();
 const REGION = "asia-south1";
@@ -229,6 +230,26 @@ export const onVideoUploadedForModeration = onObjectFinalized(
             updatedAt: Date.now(),
           });
           console.log("[VideoModeration] Cancelled pipeline job:", jobDoc.id);
+        }
+
+        // Notify user about video rejection
+        const uploaderId = videoData?.userId || videoData?.ownerId || videoData?.uploaderId;
+        if (uploaderId) {
+          const reason = result.policyReason || result.violationReason || "Content violates Community Guidelines";
+          const title = videoData?.title && videoData?.title !== "Uploading..." ? videoData.title : "your video";
+          await notifyUser({
+            userId: uploaderId,
+            type: "verification_result",
+            severity: "priority",
+            title: "Video Moderation Rejected",
+            message: `Your video "${title}" was rejected: ${reason}. Please update or replace your video to comply with guidelines.`,
+            actionUrl: "/studio",
+            metadata: {
+              videoId,
+              reason,
+              itemType: "video",
+            },
+          }).catch(err => console.error("[VideoModeration] Failed to notify user:", err));
         }
 
       } else if (moderationStatus === "manual_review") {

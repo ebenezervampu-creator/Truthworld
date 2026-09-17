@@ -2,9 +2,12 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/utils/timestamp_utils.dart';
@@ -52,6 +55,46 @@ class DashboardCommentsController extends BaseController {
   final RxBool isLoadingComments = false.obs;
   final commentsError = Rx<String?>(null);
 
+  /// Search text editing controller
+  final TextEditingController searchController = TextEditingController();
+
+  /// Map of commentId to active reply text controllers
+  final Map<String, TextEditingController> replyControllers = {};
+
+  /// Reactive state for inline reply drawers visibility
+  final RxMap<String, bool> activeReplyBoxes = <String, bool>{}.obs;
+
+  /// Reactive state for reply submission in progress
+  final RxMap<String, bool> isSubmittingReply = <String, bool>{}.obs;
+
+  /// Reactive state for expandable comment replies
+  final RxMap<String, bool> expandedReplies = <String, bool>{}.obs;
+
+  /// Filter chip alias pointing to commentsFilter
+  RxString get selectedFilterChip => commentsFilter;
+
+  TextEditingController getReplyController(String commentId) {
+    if (!replyControllers.containsKey(commentId)) {
+      replyControllers[commentId] = TextEditingController();
+    }
+    return replyControllers[commentId]!;
+  }
+
+  void toggleReplyBox(String commentId) {
+    activeReplyBoxes[commentId] = !(activeReplyBoxes[commentId] ?? false);
+  }
+
+  void closeReplyBox(String commentId) {
+    activeReplyBoxes[commentId] = false;
+    replyControllers[commentId]?.clear();
+  }
+
+  bool isReplyExpanded(String commentId) => expandedReplies[commentId] ?? false;
+
+  void toggleRepliesExpanded(String commentId) {
+    expandedReplies[commentId] = !(expandedReplies[commentId] ?? false);
+  }
+
   void setSearchQuery(String query) {
     searchQuery.value = query;
     _filterComments();
@@ -89,6 +132,14 @@ class DashboardCommentsController extends BaseController {
     }
     _commentSubscriptions.clear();
     userCommentInteractions.clear();
+    for (final c in replyControllers.values) {
+      c.dispose();
+    }
+    replyControllers.clear();
+    searchController.dispose();
+    activeReplyBoxes.clear();
+    isSubmittingReply.clear();
+    expandedReplies.clear();
     super.onClose();
   }
 
@@ -130,7 +181,13 @@ class DashboardCommentsController extends BaseController {
           userChannelName.value = ch.name.isNotEmpty ? ch.name : ch.handle;
           userChannelAvatar.value = ch.avatarUrl;
         }
-      } catch (_) {}
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'DashboardCommentsController.initializeUser.channel',
+        );
+      }
 
       final currentUser = _auth.currentUser;
       if (currentUser == null && userChannelId.value.isEmpty) {
@@ -419,7 +476,13 @@ class DashboardCommentsController extends BaseController {
                       Comment.fromDocumentSnapshot(doc),
                     );
                   }
-                } catch (_) {}
+                } catch (e, stackTrace) {
+                  ErrorHandler.log(
+                    e,
+                    stackTrace: stackTrace,
+                    tag: 'DashboardCommentsController.stream.parseComment',
+                  );
+                }
               }
 
               if (collectionGroupComments.isNotEmpty) {
@@ -703,6 +766,12 @@ class DashboardCommentsController extends BaseController {
         return false;
       }
 
+      final validation = ContentValidator.validate(trimmedText, fieldName: 'Reply');
+      if (!validation.isValid) {
+        logger.warning('Reply contains profanity: ${validation.message}', tag: _tag);
+        return false;
+      }
+
       var targetVideoId = videoId;
       if (targetVideoId.isEmpty) {
         final found = allComments.firstWhereOrNull((c) => c.id == commentId);
@@ -768,6 +837,27 @@ class DashboardCommentsController extends BaseController {
         tag: _tag,
       );
       return false;
+    }
+  }
+
+  /// Submits a reply using active state tracking
+  Future<bool> submitReply({
+    required Comment comment,
+    required String text,
+  }) async {
+    isSubmittingReply[comment.id] = true;
+    try {
+      final success = await replyToCommentAsChannel(
+        videoId: comment.videoId,
+        commentId: comment.id,
+        replyText: text,
+      );
+      if (success) {
+        closeReplyBox(comment.id);
+      }
+      return success;
+    } finally {
+      isSubmittingReply[comment.id] = false;
     }
   }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 typedef LibraryLoader = Future<void> Function();
@@ -31,8 +32,12 @@ class DeferredWidgetController extends GetxController {
       DeferredWidget._loadedLibraries.add(loader);
       isLoaded = true;
       update();
-    } catch (e) {
-      debugPrint('[DeferredWidget] Error loading library: $e');
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'DeferredWidget.load',
+      );
       errorMessage =
           'Failed to load screen component. Please check your connection.';
       update();

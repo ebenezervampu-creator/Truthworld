@@ -15,6 +15,7 @@ enum RecommendationSurface {
   exploreTopics,
   shortsFeed,
   endScreen,
+  unexplored,
 }
 
 class RecommendationExplanation {

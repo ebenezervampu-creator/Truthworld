@@ -202,7 +202,7 @@ class LanguageRequestDialog extends StatelessWidget {
                               if (isSelected)
                                 const Icon(
                                   Icons.check_circle_rounded,
-                                  color: AppColors.error,
+                                  color: Colors.white,
                                   size: 20,
                                 ),
                             ],

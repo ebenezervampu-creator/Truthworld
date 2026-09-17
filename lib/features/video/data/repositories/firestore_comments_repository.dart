@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/network/result.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
@@ -61,8 +62,9 @@ class FirestoreCommentsRepository implements VideoCommentsRepository {
       });
 
       return Result.success(comment);
-    } catch (e) {
-      return Result.failure(GenericAppException(message: e.toString()));
+    } catch (e, stackTrace) {
+      ErrorHandler.log(e, stackTrace: stackTrace, context: 'FirestoreCommentsRepository.postComment');
+      return Result.failure(AppException.from(e, stackTrace));
     }
   }
 
@@ -74,8 +76,9 @@ class FirestoreCommentsRepository implements VideoCommentsRepository {
         await doc.reference.delete();
       }
       return Result.success(null);
-    } catch (e) {
-      return Result.failure(GenericAppException(message: e.toString()));
+    } catch (e, stackTrace) {
+      ErrorHandler.log(e, stackTrace: stackTrace, context: 'FirestoreCommentsRepository.deleteComment');
+      return Result.failure(AppException.from(e, stackTrace));
     }
   }
 
@@ -95,8 +98,9 @@ class FirestoreCommentsRepository implements VideoCommentsRepository {
         });
       }
       return Result.success(null);
-    } catch (e) {
-      return Result.failure(GenericAppException(message: e.toString()));
+    } catch (e, stackTrace) {
+      ErrorHandler.log(e, stackTrace: stackTrace, context: 'FirestoreCommentsRepository.toggleCommentReaction');
+      return Result.failure(AppException.from(e, stackTrace));
     }
   }
 }

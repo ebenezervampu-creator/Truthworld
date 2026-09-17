@@ -177,7 +177,8 @@ class CreatorAnalyticsController extends BaseController {
         stackTrace: stackTrace,
         tag: _tag,
       );
-      videoLoadingError.value = 'Error loading analytics: $e';
+      videoLoadingError.value =
+          'Unable to load analytics. Please check your connection and try again.';
     } finally {
       isLoadingVideoAnalytics.value = false;
     }
@@ -244,7 +245,8 @@ class CreatorAnalyticsController extends BaseController {
         stackTrace: stackTrace,
         tag: _tag,
       );
-      channelLoadingError.value = 'Error loading analytics: $e';
+      channelLoadingError.value =
+          'Unable to load channel analytics. Please check your connection and try again.';
     } finally {
       isLoadingChannelAnalytics.value = false;
     }
@@ -258,20 +260,36 @@ class CreatorAnalyticsController extends BaseController {
     _liveViewerSubscription?.cancel();
     _liveViewerSubscription = VideoPresenceService.to
         .getLiveViewerCountStream(videoId)
-        .listen((count) {
-      liveViewerCount.value = count;
-    });
+        .listen(
+          (count) {
+            liveViewerCount.value = count;
+          },
+          onError: (e, stackTrace) => logger.error(
+            'Error in live viewer stream',
+            error: e,
+            stackTrace: stackTrace,
+            tag: _tag,
+          ),
+        );
   }
 
   void _startChannelLiveViewerPolling(String channelId) {
     _liveViewerSubscription?.cancel();
     _liveViewerSubscription = VideoPresenceService.to
         .getLiveViewerCountStream(null)
-        .listen((count) {
-      if (selectedVideoId.isEmpty) {
-        liveViewerCount.value = count;
-      }
-    });
+        .listen(
+          (count) {
+            if (selectedVideoId.isEmpty) {
+              liveViewerCount.value = count;
+            }
+          },
+          onError: (e, stackTrace) => logger.error(
+            'Error in channel live viewer stream',
+            error: e,
+            stackTrace: stackTrace,
+            tag: _tag,
+          ),
+        );
   }
 
   @override

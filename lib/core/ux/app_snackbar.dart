@@ -4,6 +4,8 @@ import 'package:truthworld/theme/app_theme.dart';
 
 /// Centralized Snackbar feedback service delegating to the unified AppToast.
 /// Enforces consistent styling, duration, action buttons, and responsive behaviors.
+/// All user-facing messages and titles are automatically sanitized to ensure
+/// no raw developer exceptions or harsh 'Error' headers are ever displayed to users.
 class AppSnackbar {
   AppSnackbar._();
 
@@ -109,12 +111,14 @@ class AppSnackbar {
     String? title,
     VoidCallback? onAction,
     String? actionLabel,
+    Duration? duration,
   }) {
     AppToast.success(
       message,
       title: title,
       onAction: onAction,
       actionLabel: actionLabel,
+      duration: duration,
     );
   }
 
@@ -124,12 +128,14 @@ class AppSnackbar {
     String? title,
     VoidCallback? onAction,
     String? actionLabel,
+    Duration? duration,
   }) {
     AppToast.error(
       message,
       title: title,
       onAction: onAction,
       actionLabel: actionLabel,
+      duration: duration,
     );
   }
 
@@ -139,12 +145,14 @@ class AppSnackbar {
     String? title,
     VoidCallback? onAction,
     String? actionLabel,
+    Duration? duration,
   }) {
     AppToast.info(
       message,
       title: title,
       onAction: onAction,
       actionLabel: actionLabel,
+      duration: duration,
     );
   }
 
@@ -154,12 +162,14 @@ class AppSnackbar {
     String? title,
     VoidCallback? onAction,
     String? actionLabel,
+    Duration? duration,
   }) {
     AppToast.warning(
       message,
       title: title,
       onAction: onAction,
       actionLabel: actionLabel,
+      duration: duration,
     );
   }
 }

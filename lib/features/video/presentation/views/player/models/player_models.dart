@@ -155,8 +155,8 @@ class TimerBag {
   }
 }
 
-class MockAd {
-  const MockAd({
+class PlaybackAd {
+  const PlaybackAd({
     required this.videoUrl,
     required this.title,
     required this.description,
@@ -177,6 +177,9 @@ class MockAd {
   final Map<String, String>? subtitles;
   final Map<String, String>? audioTracks;
 }
+
+@Deprecated('Use PlaybackAd instead')
+typedef MockAd = PlaybackAd;
 
 class LanguageRequest {
   const LanguageRequest({

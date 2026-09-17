@@ -47,7 +47,7 @@ class TopicVideoGrid extends StatelessWidget {
     return Column(
       children: [
         // Video Grid or List
-        if (isGrid) _buildGrid() else _buildList(),
+        if (isGrid) _buildGrid(context) else _buildList(),
 
         // Loading more indicator
         if (isLoadingMore) _buildLoadingMore(),
@@ -76,30 +76,53 @@ class TopicVideoGrid extends StatelessWidget {
     );
   }
 
-  Widget _buildGrid() {
-    // Determine grid configuration based on screen size
-    int crossAxisCount;
-    double childAspectRatio;
-
-    if (isDesktop) {
-      crossAxisCount = 4;
-      childAspectRatio = 0.95;
-    } else if (isTablet) {
-      crossAxisCount = 3;
-      childAspectRatio = 0.95;
+  /// Calculates responsive grid configuration based on width and flags
+  static ({int crossAxisCount, double childAspectRatio}) calculateGridConfigForWidth(
+    double screenWidth, {
+    bool isDesktop = false,
+    bool isTablet = false,
+  }) {
+    if (screenWidth < 480) {
+      return (crossAxisCount: 1, childAspectRatio: 1.05);
+    } else if (screenWidth >= 1600) {
+      return (crossAxisCount: 5, childAspectRatio: 0.95);
+    } else if (screenWidth >= 1024 || isDesktop) {
+      return (crossAxisCount: 4, childAspectRatio: 0.95);
+    } else if (screenWidth >= 768 || isTablet) {
+      return (crossAxisCount: 3, childAspectRatio: 0.95);
     } else {
-      crossAxisCount = 2;
-      childAspectRatio = 0.9;
+      return (crossAxisCount: 2, childAspectRatio: 0.9);
     }
+  }
+
+  /// Helper to calculate grid config from BuildContext
+  static ({int crossAxisCount, double childAspectRatio}) calculateGridConfig(
+    BuildContext context, {
+    bool isDesktop = false,
+    bool isTablet = false,
+  }) {
+    return calculateGridConfigForWidth(
+      MediaQuery.sizeOf(context).width,
+      isDesktop: isDesktop,
+      isTablet: isTablet,
+    );
+  }
+
+  Widget _buildGrid(BuildContext context) {
+    final config = calculateGridConfig(
+      context,
+      isDesktop: isDesktop,
+      isTablet: isTablet,
+    );
 
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
+        crossAxisCount: config.crossAxisCount,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
-        childAspectRatio: childAspectRatio,
+        childAspectRatio: config.childAspectRatio,
       ),
       itemCount: videos.length,
       itemBuilder: (context, index) {
@@ -192,19 +215,11 @@ class TopicVideoGridSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    int crossAxisCount;
-    double childAspectRatio;
-
-    if (isDesktop) {
-      crossAxisCount = 4;
-      childAspectRatio = 0.95;
-    } else if (isTablet) {
-      crossAxisCount = 3;
-      childAspectRatio = 0.95;
-    } else {
-      crossAxisCount = 2;
-      childAspectRatio = 0.9;
-    }
+    final config = TopicVideoGrid.calculateGridConfig(
+      context,
+      isDesktop: isDesktop,
+      isTablet: isTablet,
+    );
 
     return Shimmer.fromColors(
       baseColor: AppColors.bgSurfaceHover,
@@ -213,10 +228,10 @@ class TopicVideoGridSkeleton extends StatelessWidget {
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: crossAxisCount,
+          crossAxisCount: config.crossAxisCount,
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
-          childAspectRatio: childAspectRatio,
+          childAspectRatio: config.childAspectRatio,
         ),
         itemCount: 8,
         itemBuilder: (context, index) {

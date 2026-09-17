@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:intl/intl.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/core/utils/time_of_day_helper.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/core/ux/app_toast.dart';
+import 'package:truthworld/features/settings/data/models/digital_wellbeing_settings.dart';
 import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
 import 'package:truthworld/theme/app_colors.dart';
 
@@ -18,11 +21,18 @@ class DigitalWellbeingService extends GetxService {
   Timer? _tickerTimer;
   int _activeWatchSeconds = 0;
   bool _isBreakPromptOpen = false;
-  bool _hasPromptedBedtimeToday = false;
-  DateTime? _lastBedtimePromptDate;
+
+  // Bedtime tracking state
+  String? _activeBedtimeSessionKey;
+  DateTime? _bedtimeSnoozedUntil;
+  int _clockCheckTickCount = 0;
 
   int get activeWatchSeconds => _activeWatchSeconds;
   bool get isBreakPromptOpen => _isBreakPromptOpen;
+  String? get activeBedtimeSessionKey => _activeBedtimeSessionKey;
+  bool get isBedtimeSnoozed =>
+      _bedtimeSnoozedUntil != null &&
+      DateTime.now().isBefore(_bedtimeSnoozedUntil!);
 
   @override
   void onInit() {
@@ -59,23 +69,110 @@ class DigitalWellbeingService extends GetxService {
       _activeWatchSeconds = 0;
     }
 
-    // 2. Bedtime Reminder Tracking (Check once every minute on the 0th second)
-    if (settings.bedtimeEnabled && _activeWatchSeconds % 60 == 0) {
+    // 2. Bedtime Reminder Tracking (Checked every 15 seconds independently from watch time)
+    _clockCheckTickCount++;
+    if (_clockCheckTickCount >= 15) {
+      _clockCheckTickCount = 0;
+      if (settings.bedtimeEnabled) {
+        _checkBedtimeSchedule(settings);
+      }
+    }
+  }
+
+  /// Trigger an immediate evaluation of the bedtime schedule (e.g. after settings update)
+  void checkBedtimeNow() {
+    if (!Get.isRegistered<UserSettingsController>()) return;
+    final settings = UserSettingsController.to.wellbeing.value;
+    if (settings.bedtimeEnabled) {
       _checkBedtimeSchedule(settings);
     }
   }
 
-  /// Reset or snooze the active watch timer
+  /// Check whether bedtime is currently active based on current time and settings
+  bool isBedtimeActive() {
+    if (!Get.isRegistered<UserSettingsController>()) return false;
+    final settings = UserSettingsController.to.wellbeing.value;
+    if (!settings.bedtimeEnabled) return false;
+
+    final now = DateTime.now();
+    if (!TimeOfDayHelper.isScheduleActiveOnDay(
+      settings.bedtimeDaysSchedule,
+      now.weekday,
+    )) {
+      return false;
+    }
+
+    final start = TimeOfDayHelper.parse(settings.bedtimeStartTime);
+    final end = TimeOfDayHelper.parse(
+      settings.bedtimeEndTime,
+      fallback: const TimeOfDay(hour: 6, minute: 0),
+    );
+
+    final currentTime = TimeOfDay(hour: now.hour, minute: now.minute);
+    return TimeOfDayHelper.isTimeWithinWindow(currentTime, start, end);
+  }
+
+  /// Indicates whether autoplay should be paused because bedtime is active
+  bool shouldPauseAutoplayDuringBedtime() {
+    if (!Get.isRegistered<UserSettingsController>()) return false;
+    final settings = UserSettingsController.to.wellbeing.value;
+    return isBedtimeActive() && settings.pauseAutoplayDuringBedtime;
+  }
+
+  /// Indicates whether notifications should be muted because bedtime is active
+  bool shouldMuteNotificationsDuringBedtime() {
+    if (!Get.isRegistered<UserSettingsController>()) return false;
+    final settings = UserSettingsController.to.wellbeing.value;
+    return isBedtimeActive() && settings.muteNotificationsDuringBedtime;
+  }
+
+  /// Reset or snooze the active watch timer for Break Reminder
   void resetBreakTimer() {
     _activeWatchSeconds = 0;
   }
 
   void snoozeBreakTimer({int minutes = 10}) {
-    // Set watch seconds so the next prompt arrives in [minutes]
     if (!Get.isRegistered<UserSettingsController>()) return;
     final totalMinutes =
         UserSettingsController.to.wellbeing.value.breakReminderMinutes;
     _activeWatchSeconds = ((totalMinutes - minutes).clamp(0, totalMinutes)) * 60;
+  }
+
+  /// Snooze bedtime reminder for the specified duration (default 10 minutes)
+  void snoozeBedtimeReminder({int minutes = 10}) {
+    _bedtimeSnoozedUntil = DateTime.now().add(Duration(minutes: minutes));
+    logger.info('Bedtime reminder snoozed for $minutes minutes');
+    AppToast.info(
+      'Bedtime reminder snoozed for $minutes minutes',
+      duration: const Duration(seconds: 2),
+    );
+  }
+
+  /// Dismiss bedtime reminder for the remainder of the current bedtime cycle
+  void dismissBedtimeReminder() {
+    if (!Get.isRegistered<UserSettingsController>()) return;
+    final settings = UserSettingsController.to.wellbeing.value;
+    final now = DateTime.now();
+    final start = TimeOfDayHelper.parse(settings.bedtimeStartTime);
+    final end = TimeOfDayHelper.parse(
+      settings.bedtimeEndTime,
+      fallback: const TimeOfDay(hour: 6, minute: 0),
+    );
+
+    _activeBedtimeSessionKey = TimeOfDayHelper.getSessionKey(
+      now: now,
+      start: start,
+      end: end,
+    );
+    _bedtimeSnoozedUntil = null;
+    logger.info('Bedtime reminder dismissed for session: $_activeBedtimeSessionKey');
+  }
+
+  /// Reset bedtime tracking state (e.g. when bedtime settings are toggled)
+  void resetBedtimeTracking() {
+    _activeBedtimeSessionKey = null;
+    _bedtimeSnoozedUntil = null;
+    _clockCheckTickCount = 0;
   }
 
   void _showBreakReminderDialog(int intervalMinutes) {
@@ -138,81 +235,68 @@ class DigitalWellbeingService extends GetxService {
     );
   }
 
-  void _checkBedtimeSchedule(dynamic settings) {
+  void _checkBedtimeSchedule(DigitalWellbeingSettings settings) {
     final now = DateTime.now();
 
     // Check repeat days
-    final scheduleDays = settings.bedtimeDaysSchedule as String? ?? 'Everyday';
-    final weekday = now.weekday; // 1 = Mon, 7 = Sun
-    final isWeekend = weekday == DateTime.saturday || weekday == DateTime.sunday;
-
-    if (scheduleDays == 'Weekdays' && isWeekend) return;
-    if (scheduleDays == 'Weekends' && !isWeekend) return;
-
-    // Reset daily bedtime prompt if new day
-    if (_lastBedtimePromptDate != null &&
-        _lastBedtimePromptDate!.day != now.day) {
-      _hasPromptedBedtimeToday = false;
+    if (!TimeOfDayHelper.isScheduleActiveOnDay(
+      settings.bedtimeDaysSchedule,
+      now.weekday,
+    )) {
+      return;
     }
 
-    if (_hasPromptedBedtimeToday) return;
+    final start = TimeOfDayHelper.parse(settings.bedtimeStartTime);
+    final end = TimeOfDayHelper.parse(
+      settings.bedtimeEndTime,
+      fallback: const TimeOfDay(hour: 6, minute: 0),
+    );
 
-    final startTimeStr = settings.bedtimeStartTime as String? ?? '23:00';
-    final endTimeStr = settings.bedtimeEndTime as String? ?? '06:00';
+    final currentTime = TimeOfDay(hour: now.hour, minute: now.minute);
+    final isWithin = TimeOfDayHelper.isTimeWithinWindow(currentTime, start, end);
 
-    final startMinutes = _parseTimeToMinutes(startTimeStr);
-    final endMinutes = _parseTimeToMinutes(endTimeStr);
-    final currentMinutes = now.hour * 60 + now.minute;
-
-    var isBedtime = false;
-    if (startMinutes <= endMinutes) {
-      // Normal range within same day (e.g. 13:00 to 15:00)
-      isBedtime = currentMinutes >= startMinutes && currentMinutes <= endMinutes;
-    } else {
-      // Overnight range (e.g. 23:00 to 06:00)
-      isBedtime = currentMinutes >= startMinutes || currentMinutes <= endMinutes;
+    if (!isWithin) {
+      // Outside bedtime window: reset snooze so next scheduled cycle triggers cleanly
+      _bedtimeSnoozedUntil = null;
+      return;
     }
 
-    if (isBedtime) {
-      _hasPromptedBedtimeToday = true;
-      _lastBedtimePromptDate = now;
-      _showBedtimeReminderBanner(startTimeStr, endTimeStr);
-    }
-  }
+    final currentSessionKey = TimeOfDayHelper.getSessionKey(
+      now: now,
+      start: start,
+      end: end,
+    );
 
-  int _parseTimeToMinutes(String timeStr) {
-    try {
-      final trimmed = timeStr.trim();
-      if (trimmed.contains('AM') || trimmed.contains('PM')) {
-        final parsed = DateFormat('h:mm a').parse(trimmed);
-        return parsed.hour * 60 + parsed.minute;
+    // If currently snoozed, check if snooze has elapsed
+    if (_bedtimeSnoozedUntil != null) {
+      if (now.isBefore(_bedtimeSnoozedUntil!)) {
+        return; // Snooze still active
       }
-      if (trimmed.contains(':')) {
-        final parts = trimmed.split(':');
-        final h = int.parse(parts[0]);
-        final m = int.parse(parts[1]);
-        return h * 60 + m;
-      }
-    } catch (e) {
-      logger.warning('Failed to parse bedtime string "$timeStr": $e');
+      _bedtimeSnoozedUntil = null; // Snooze elapsed, proceed to prompt
+    } else if (_activeBedtimeSessionKey == currentSessionKey) {
+      // Already prompted or dismissed for this current session
+      return;
     }
-    return 23 * 60; // fallback 11:00 PM
+
+    _activeBedtimeSessionKey = currentSessionKey;
+    _showBedtimeReminderBanner(settings.bedtimeStartTime, settings.bedtimeEndTime);
   }
 
   void _showBedtimeReminderBanner(String startTime, String endTime) {
-    Get.snackbar(
+    AppSnackbar.show(
       'Bedtime Reminder',
       'It is your scheduled bedtime ($startTime – $endTime). Time to rest!',
-      snackPosition: SnackPosition.TOP,
-      backgroundColor: const Color(0xFF1E1E1E),
-      colorText: AppColors.textPrimary,
       icon: const Icon(Icons.bedtime_outlined, color: Colors.white),
-      duration: const Duration(seconds: 8),
+      duration: const Duration(seconds: 10),
       mainButton: TextButton(
-        onPressed: () {
-          if (Get.isSnackbarOpen) Get.closeCurrentSnackbar();
-        },
-        child: const Text('OK', style: TextStyle(color: Colors.white)),
+        onPressed: snoozeBedtimeReminder,
+        child: const Text(
+          'Snooze (10m)',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
     );
   }

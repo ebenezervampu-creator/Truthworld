@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/utils/content_validator.dart';
+import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -568,6 +570,7 @@ class AudienceTabView extends StatelessWidget {
             children: [
               TextField(
                 controller: nameController,
+                inputFormatters: TruthworldTextInputFormatters.standard,
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
                   labelText: 'Preset Name (e.g. AI & Tech Founders)',
@@ -614,6 +617,7 @@ class AudienceTabView extends StatelessWidget {
               const SizedBox(height: 12),
               TextField(
                 controller: locationsController,
+                inputFormatters: TruthworldTextInputFormatters.standard,
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
                   labelText: 'Target Locations (comma separated)',
@@ -626,6 +630,7 @@ class AudienceTabView extends StatelessWidget {
               const SizedBox(height: 12),
               TextField(
                 controller: interestsController,
+                inputFormatters: TruthworldTextInputFormatters.standard,
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
                   labelText: 'Target Interests / Topics (comma separated)',
@@ -646,30 +651,53 @@ class AudienceTabView extends StatelessWidget {
           ElevatedButton(
             onPressed: () {
               final name = nameController.text.trim();
-              if (name.isNotEmpty) {
-                final locs = locationsController.text
-                    .split(',')
-                    .map((s) => s.trim())
-                    .where((s) => s.isNotEmpty)
-                    .toList();
-                final ints = interestsController.text
-                    .split(',')
-                    .map((s) => s.trim())
-                    .where((s) => s.isNotEmpty)
-                    .toList();
-
-                controller.createAudiencePreset({
-                  'id': 'aud_${DateTime.now().millisecondsSinceEpoch}',
-                  'name': name,
-                  'ageMin': int.tryParse(minAgeController.text) ?? 18,
-                  'ageMax': int.tryParse(maxAgeController.text) ?? 35,
-                  'genders': ['All'],
-                  'locations': locs.isEmpty ? ['Global'] : locs,
-                  'interests': ints.isEmpty ? ['General'] : ints,
-                  'estimatedReach': '3.1M Viewers',
-                });
-                Get.back();
+              if (name.isEmpty) {
+                AppSnackbar.warning('Please enter a preset name.');
+                return;
               }
+              final nameVal = ContentValidator.validate(name, checkEnglishOnly: false, fieldName: 'Preset Name');
+              if (!nameVal.isValid) {
+                AppSnackbar.warning(nameVal.message);
+                return;
+              }
+              final locText = locationsController.text.trim();
+              if (locText.isNotEmpty) {
+                final locVal = ContentValidator.validate(locText, checkEnglishOnly: false, fieldName: 'Locations');
+                if (!locVal.isValid) {
+                  AppSnackbar.warning(locVal.message);
+                  return;
+                }
+              }
+              final intText = interestsController.text.trim();
+              if (intText.isNotEmpty) {
+                final intVal = ContentValidator.validate(intText, checkEnglishOnly: false, fieldName: 'Interests');
+                if (!intVal.isValid) {
+                  AppSnackbar.warning(intVal.message);
+                  return;
+                }
+              }
+              final locs = locationsController.text
+                  .split(',')
+                  .map((s) => s.trim())
+                  .where((s) => s.isNotEmpty)
+                  .toList();
+              final ints = interestsController.text
+                  .split(',')
+                  .map((s) => s.trim())
+                  .where((s) => s.isNotEmpty)
+                  .toList();
+
+              controller.createAudiencePreset({
+                'id': 'aud_${DateTime.now().millisecondsSinceEpoch}',
+                'name': name,
+                'ageMin': int.tryParse(minAgeController.text) ?? 18,
+                'ageMax': int.tryParse(maxAgeController.text) ?? 35,
+                'genders': ['All'],
+                'locations': locs.isEmpty ? ['Global'] : locs,
+                'interests': ints.isEmpty ? ['General'] : ints,
+                'estimatedReach': '3.1M Viewers',
+              });
+              Get.back();
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.brand,

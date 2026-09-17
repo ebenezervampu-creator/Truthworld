@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/network/result.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -21,8 +22,9 @@ class FirestoreVideoRepository implements VideoRepository {
       final data = doc.data()!;
       data['id'] = doc.id;
       return Result.success(Video.fromMap(data));
-    } catch (e) {
-      return Result.failure(GenericAppException(message: e.toString()));
+    } catch (e, stackTrace) {
+      ErrorHandler.log(e, stackTrace: stackTrace, context: 'FirestoreVideoRepository.getVideoById');
+      return Result.failure(AppException.from(e, stackTrace));
     }
   }
 
@@ -43,8 +45,9 @@ class FirestoreVideoRepository implements VideoRepository {
       }).toList();
 
       return Result.success(videos);
-    } catch (e) {
-      return Result.failure(GenericAppException(message: e.toString()));
+    } catch (e, stackTrace) {
+      ErrorHandler.log(e, stackTrace: stackTrace, context: 'FirestoreVideoRepository.getFeedVideos');
+      return Result.failure(AppException.from(e, stackTrace));
     }
   }
 
@@ -55,8 +58,9 @@ class FirestoreVideoRepository implements VideoRepository {
         'views': FieldValue.increment(1),
       });
       return Result.success(null);
-    } catch (e) {
-      return Result.failure(GenericAppException(message: e.toString()));
+    } catch (e, stackTrace) {
+      ErrorHandler.log(e, stackTrace: stackTrace, context: 'FirestoreVideoRepository.recordView');
+      return Result.failure(AppException.from(e, stackTrace));
     }
   }
 
@@ -80,8 +84,9 @@ class FirestoreVideoRepository implements VideoRepository {
         tx.update(ref, {'likes': likes, 'likesCount': likes.length});
       });
       return Result.success(null);
-    } catch (e) {
-      return Result.failure(GenericAppException(message: e.toString()));
+    } catch (e, stackTrace) {
+      ErrorHandler.log(e, stackTrace: stackTrace, context: 'FirestoreVideoRepository.toggleLike');
+      return Result.failure(AppException.from(e, stackTrace));
     }
   }
 
@@ -100,8 +105,9 @@ class FirestoreVideoRepository implements VideoRepository {
       }).toList();
 
       return Result.success(videos);
-    } catch (e) {
-      return Result.failure(GenericAppException(message: e.toString()));
+    } catch (e, stackTrace) {
+      ErrorHandler.log(e, stackTrace: stackTrace, context: 'FirestoreVideoRepository.getVideosByChannel');
+      return Result.failure(AppException.from(e, stackTrace));
     }
   }
 }

@@ -143,4 +143,121 @@ void main() {
       expect(perk3.isValid, isTrue);
     });
   });
+
+  group('English-Only Language Restriction & Profanity Sanitization Tests', () {
+    test('isEnglishOnly accepts standard English characters, numbers, and punctuation', () {
+      expect(ContentValidator.isEnglishOnly('Hello World! 123'), isTrue);
+      expect(ContentValidator.isEnglishOnly("What's your plan? (It's 100% fine - really)."), isTrue);
+      expect(ContentValidator.isEnglishOnly('Line 1\nLine 2\tTabbed'), isTrue);
+      expect(ContentValidator.isEnglishOnly(r'!@#$%^&*()_+-=[]{}|;:<>/?`~’‘“”–—…'), isTrue);
+    });
+
+    test('isEnglishOnly rejects foreign languages and foreign scripts', () {
+      // Cyrillic / Russian
+      expect(ContentValidator.isEnglishOnly('Привет мир'), isFalse);
+      // Chinese / Japanese / Korean
+      expect(ContentValidator.isEnglishOnly('你好世界'), isFalse);
+      expect(ContentValidator.isEnglishOnly('こんにちは'), isFalse);
+      expect(ContentValidator.isEnglishOnly('안녕하세요'), isFalse);
+      // Arabic
+      expect(ContentValidator.isEnglishOnly('مرحبا بالعالم'), isFalse);
+      // Hindi / Devanagari
+      expect(ContentValidator.isEnglishOnly('नमस्ते दुनिया'), isFalse);
+      // Greek
+      expect(ContentValidator.isEnglishOnly('Γειά σου κόσμε'), isFalse);
+      // Hebrew
+      expect(ContentValidator.isEnglishOnly('שלום עולם'), isFalse);
+      // Thai
+      expect(ContentValidator.isEnglishOnly('สวัสดีชาวโลก'), isFalse);
+      // Accented Latin characters
+      expect(ContentValidator.isEnglishOnly('café'), isFalse);
+      expect(ContentValidator.isEnglishOnly('año'), isFalse);
+      expect(ContentValidator.isEnglishOnly('über'), isFalse);
+      expect(ContentValidator.isEnglishOnly('straße'), isFalse);
+    });
+
+    test('validate enforces English-only at Layer 0', () {
+      final res = ContentValidator.validate('Привет мир', fieldName: 'Title');
+      expect(res.isValid, isFalse);
+      expect(res.message, equals('Only English language is allowed in Title.'));
+
+      final resChinese = ContentValidator.validate('这是一个测试', fieldName: 'Description');
+      expect(resChinese.isValid, isFalse);
+      expect(resChinese.message, equals('Only English language is allowed in Description.'));
+
+      final resAccent = ContentValidator.validate('Déjà vu video', fieldName: 'Title');
+      expect(resAccent.isValid, isFalse);
+      expect(resAccent.message, equals('Only English language is allowed in Title.'));
+    });
+
+    test('cleanProfanity sanitizes offensive words to asterisks', () {
+      final cleaned1 = ContentValidator.cleanProfanity('This is complete bullshit and shit');
+      expect(cleaned1.toLowerCase(), isNot(contains('bullshit')));
+      expect(cleaned1.toLowerCase(), isNot(contains('shit')));
+      expect(cleaned1, contains('***'));
+
+      final cleaned2 = ContentValidator.cleanProfanity('Hello my good friend');
+      expect(cleaned2, equals('Hello my good friend'));
+    });
+
+    test('hasProfanity returns true for offensive language and leetspeak', () {
+      expect(ContentValidator.hasProfanity('This is shit'), isTrue);
+      expect(ContentValidator.hasProfanity('You are a b!tch'), isTrue);
+      expect(ContentValidator.hasProfanity('Good morning everyone'), isFalse);
+    });
+
+    test('EnglishOnlyTextInputFormatter strips non-English characters in real time', () {
+      final formatter = EnglishOnlyTextInputFormatter();
+      const oldValue = TextEditingValue.empty;
+      const newValue = TextEditingValue(text: 'Hello Привет World 你好 123!');
+      final formatted = formatter.formatEditUpdate(oldValue, newValue);
+
+      expect(formatted.text, equals('Hello  World  123!'));
+    });
+
+    test('ProfanitySanitizingTextInputFormatter censors profanity on input', () {
+      const formatter = ProfanitySanitizingTextInputFormatter();
+      const oldValue = TextEditingValue.empty;
+      const newValue = TextEditingValue(text: 'This is bullshit');
+      final formatted = formatter.formatEditUpdate(oldValue, newValue);
+
+      expect(formatted.text.toLowerCase(), isNot(contains('bullshit')));
+      expect(formatted.text, contains('*'));
+    });
+
+    test('validate with checkEnglishOnly: false allows international names but rejects profanity', () {
+      // Valid international and accented names pass cleanly
+      final resJose = ContentValidator.validate(
+        'José Müller',
+        fieldName: 'Display Name',
+        checkEnglishOnly: false,
+      );
+      expect(resJose.isValid, isTrue);
+
+      final resFrancois = ContentValidator.validate(
+        'François Sébastien',
+        fieldName: 'Display Name',
+        checkEnglishOnly: false,
+      );
+      expect(resFrancois.isValid, isTrue);
+
+      // International names containing profanity are still strictly caught and rejected
+      final resProfaneJose = ContentValidator.validate(
+        'José shit',
+        fieldName: 'Display Name',
+        checkEnglishOnly: false,
+      );
+      expect(resProfaneJose.isValid, isFalse);
+      expect(resProfaneJose.message, contains('inappropriate language'));
+
+      // Empty string is still rejected
+      final resEmpty = ContentValidator.validate(
+        '   ',
+        fieldName: 'Display Name',
+        checkEnglishOnly: false,
+      );
+      expect(resEmpty.isValid, isFalse);
+      expect(resEmpty.message, contains('cannot be empty'));
+    });
+  });
 }

@@ -431,45 +431,58 @@ class ChaptersController extends BaseController with ContentValidationMixin {
 
     isAnalyzing.value = true;
     try {
-      // Simulate AI scanning duration
-      await Future.delayed(const Duration(milliseconds: 2000));
+      final description = video.description;
+      final lines = description.split('\n');
+      final parsedChapters = <VideoChapter>[];
+      final regex = RegExp(r'(?:(\d{1,2}):)?(\d{1,2}):(\d{2})');
 
-      final title = video.title;
-      final generated = <VideoChapter>[
-        VideoChapter(
-          title: 'Introduction & Background Context',
-          startTime: Duration.zero,
-        ),
-        VideoChapter(
-          title: 'Foundational Principles of the Topic',
-          startTime: const Duration(minutes: 1, seconds: 20),
-        ),
-        VideoChapter(
-          title:
-              'Deep Dive: ${title.length > 25 ? '${title.substring(0, 25)}...' : title}',
-          startTime: const Duration(minutes: 4, seconds: 15),
-        ),
-        VideoChapter(
-          title: 'Empirical Proof & Demonstration',
-          startTime: const Duration(minutes: 8, seconds: 10),
-        ),
-        VideoChapter(
-          title: 'Strategic Implementations & Methods',
-          startTime: const Duration(minutes: 12, seconds: 35),
-        ),
-        VideoChapter(
-          title: 'Summary & Concluding Outlook',
-          startTime: const Duration(minutes: 16, seconds: 50),
-        ),
-      ];
+      for (final line in lines) {
+        if (line.trim().isEmpty) continue;
+        final match = regex.firstMatch(line);
+        if (match != null) {
+          var hours = 0;
+          final minutes = int.parse(match.group(2)!);
+          final seconds = int.parse(match.group(3)!);
+          if (match.group(1) != null) {
+            hours = int.parse(match.group(1)!);
+          }
+          final duration = Duration(
+            hours: hours,
+            minutes: minutes,
+            seconds: seconds,
+          );
 
-      currentChapters.value = generated;
-      hasUnsavedChanges.value = true;
-      showSuccess(
-        'AI timeline analysis completed! Generated 6 semantic chapters.',
-      );
-    } catch (e) {
-      showError('AI chapter generation failed.');
+          var title = line.replaceFirst(match.group(0)!, '').trim();
+          title = title.replaceAll(RegExp(r'^[\s\-–—:;\[\]\(\)]+'), '').trim();
+          if (title.isEmpty) {
+            title = 'Chapter ${parsedChapters.length + 1}';
+          }
+          parsedChapters.add(VideoChapter(title: title, startTime: duration));
+        }
+      }
+
+      if (parsedChapters.isNotEmpty) {
+        parsedChapters.sort((a, b) => a.startTime.compareTo(b.startTime));
+
+        final existingMap = {for (final c in currentChapters) c.startTime: c};
+        for (final pc in parsedChapters) {
+          existingMap[pc.startTime] = pc;
+        }
+
+        currentChapters.value = existingMap.values.toList();
+        currentChapters.sort((a, b) => a.startTime.compareTo(b.startTime));
+        hasUnsavedChanges.value = true;
+        showSuccess(
+          'Successfully detected and imported ${parsedChapters.length} chapters from video description!',
+        );
+      } else {
+        showError(
+          'No timestamped chapters found in the video description. You can paste timestamps manually using the Import tool.',
+        );
+      }
+    } catch (e, s) {
+      logger.error('Failed to auto-detect chapters', error: e, stackTrace: s, tag: _tag);
+      showError('Unable to detect chapters from video details.');
     } finally {
       isAnalyzing.value = false;
     }

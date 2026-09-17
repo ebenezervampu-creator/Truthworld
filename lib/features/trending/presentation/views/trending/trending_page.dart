@@ -10,12 +10,6 @@ class TrendingVideosPage extends GetView<TrendingController> {
   final bool isDashboard;
 
   @override
-  TrendingController get controller =>
-      Get.isRegistered<TrendingController>()
-          ? Get.find<TrendingController>()
-          : Get.put(TrendingController());
-
-  @override
   Widget build(BuildContext context) {
     controller;
 
@@ -118,9 +112,7 @@ class TrendingVideosPage extends GetView<TrendingController> {
             Icon(
               Icons.trending_up,
               size: deviceType == DeviceType.mobile ? 64 : 96,
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurface.withValues(alpha: 0.3),
+              color: Colors.white.withValues(alpha: 0.3),
             ),
             SizedBox(height: context.layoutSpacing),
             Text(

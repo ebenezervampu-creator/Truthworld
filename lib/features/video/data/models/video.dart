@@ -156,7 +156,12 @@ class Video {
            : parseDuration(duration),
        createdAt = TimestampUtils.parse(createdAt ?? uploadedAt),
        updatedAt = TimestampUtils.parse(updatedAt ?? createdAt ?? uploadedAt),
-       status = status is VideoStatus ? status : VideoStatus.processing,
+       status = status is VideoStatus
+            ? status
+            : (status?.toString().toLowerCase() == 'published' ||
+                    status?.toString().toLowerCase() == 'ready'
+                ? VideoStatus.ready
+                : VideoStatus.processing),
        visibility = visibility?.toString() ?? 'public',
        likedBy = likedBy ?? [],
        _directFactCheckUrl = factCheckUrl ?? '',
@@ -271,14 +276,20 @@ class Video {
       resolvedThumbnailUrl = animPreviewUrl;
     }
 
+    final moderationMap = data['moderation'] is Map ? data['moderation'] as Map : null;
+    final moderationStatus = moderationMap?['status']?.toString().toLowerCase();
+    final policyAction = moderationMap?['policyAction']?.toString().toLowerCase();
+    final isModApproved = moderationStatus == 'approved' || policyAction == 'allow';
+
     final parsedGeminiApproved = data['geminiApproved'] as bool? ??
-        (data['moderation'] is Map
-            ? data['moderation']['geminiApproved'] as bool?
-            : null);
+        (moderationMap?['geminiApproved'] as bool?) ??
+        (isModApproved ? true : null);
     final parsedIsApproved = data['isApproved'] as bool? ??
-        (data['moderation'] is Map
-            ? data['moderation']['isApproved'] as bool?
-            : null);
+        (moderationMap?['isApproved'] as bool?) ??
+        (isModApproved ? true : null) ??
+        (data['gatewayStatus'] == 'APPROVED' ? true : null) ??
+        (data['isVerified'] == true ? true : null) ??
+        (data['credibilityVerified'] == true ? true : null);
 
     final parsedModerationSummary = (data['moderation'] is Map &&
             data['moderation']['summary'] != null &&
@@ -335,11 +346,31 @@ class Video {
                 data['pipelineStage'])
             ?.toString()
             .toLowerCase();
+        final isAlreadyPublished = pipelineStage == 'published' ||
+            data['isPublished'] == true ||
+            (data['publishedAt'] != null && data['publishedAt'] != 0);
+
+        if (rawStatus == 'deleted') return VideoStatus.deleted;
+        if (rawStatus == 'rejected') return VideoStatus.rejected;
+        if (rawStatus == 'private') return VideoStatus.private;
+        if (rawStatus == 'scheduled') return VideoStatus.scheduled;
+        if (rawStatus == 'flagged') return VideoStatus.flagged;
+
+        // If video was already published, background processing
+        // (such as on-demand subtitles/dubbing or resolution transcode)
+        // must not degrade its public visibility back to draft or unready.
+        if (isAlreadyPublished) {
+          return VideoStatus.ready;
+        }
+
         if (rawStatus == 'draft' || pipelineStage == 'draft') {
           return VideoStatus.draft;
         }
         if (rawStatus == 'uploaded' || rawStatus == 'uploading') {
           return VideoStatus.uploading;
+        }
+        if (rawStatus == 'processing') {
+          return VideoStatus.processing;
         }
         return VideoStatus.values.firstWhere(
           (e) => e.name == data['status'],

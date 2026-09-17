@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/utils/content_validator.dart';
+import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -592,6 +594,7 @@ class SponsorshipsTabView extends StatelessWidget {
             children: [
               TextField(
                 controller: campaignController,
+                inputFormatters: TruthworldTextInputFormatters.standard,
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
                   labelText: 'Campaign / Product Name',
@@ -657,6 +660,7 @@ class SponsorshipsTabView extends StatelessWidget {
               const SizedBox(height: 12),
               TextField(
                 controller: noteController,
+                inputFormatters: TruthworldTextInputFormatters.standard,
                 maxLines: 2,
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
@@ -702,14 +706,37 @@ class SponsorshipsTabView extends StatelessWidget {
           ),
           ElevatedButton(
             onPressed: () {
+              final campaign = campaignController.text.trim();
+              if (campaign.isEmpty) {
+                AppSnackbar.warning('Please enter a campaign name.');
+                return;
+              }
+              final campVal = ContentValidator.validate(campaign, checkEnglishOnly: false, fieldName: 'Campaign Name');
+              if (!campVal.isValid) {
+                AppSnackbar.warning(campVal.message);
+                return;
+              }
+              final note = noteController.text.trim();
+              if (note.isNotEmpty) {
+                final noteVal = ContentValidator.validate(note, checkEnglishOnly: false, fieldName: 'Pitch Note');
+                if (!noteVal.isValid) {
+                  AppSnackbar.warning(noteVal.message);
+                  return;
+                }
+              }
               final amt = double.tryParse(amountController.text.trim()) ?? 0.0;
+              if (amt <= 0) {
+                AppSnackbar.warning('Please enter a valid offer amount.');
+                return;
+              }
               controller.sendSponsorshipProposal({
                 'id': 'prop_${DateTime.now().millisecondsSinceEpoch}',
                 'creatorId': creator['id'],
                 'creatorName': creator['name'],
-                'campaignTitle': campaignController.text.trim(),
+                'campaignTitle': campaign,
                 'format': selectedFormat.value,
                 'offeredAmount': amt,
+                'pitchNote': note,
                 'date': 'Today',
                 'status': 'Under Review',
                 'deliverableUrl': '',

@@ -77,29 +77,43 @@ class VideoVisibilityPolicy {
         .toLowerCase();
     final visibilityStr = (data['visibility'] as String?)?.toLowerCase() ?? '';
 
-    if (statusStr == 'uploading' ||
-        statusStr == 'uploaded' ||
-        statusStr == 'processing' ||
-        statusStr == 'draft' ||
-        statusStr == 'pending_review' ||
-        statusStr == 'deleted' ||
+    final isPublished = pipelineStage == 'published' ||
+        data['isPublished'] == true ||
+        (data['publishedAt'] != null && data['publishedAt'] != 0);
+
+    if (statusStr == 'deleted' ||
         statusStr == 'deletion_pending' ||
         statusStr == 'rejected' ||
+        statusStr == 'draft' ||
+        statusStr == 'pending_review' ||
         statusStr == 'pending' ||
         pipelineStage == 'draft' ||
         visibilityStr == 'draft') {
       return false;
     }
 
+    if (!isPublished &&
+        (statusStr == 'uploading' ||
+         statusStr == 'uploaded' ||
+         statusStr == 'processing')) {
+      return false;
+    }
+
     // Gemini AI / Manual moderation approval check
+    final moderationMap = data['moderation'] is Map ? data['moderation'] as Map : null;
+    final moderationStatus = moderationMap?['status']?.toString().toLowerCase();
+    final policyAction = moderationMap?['policyAction']?.toString().toLowerCase();
+    final isModApproved = moderationStatus == 'approved' || policyAction == 'allow';
+
     final geminiApproved = data['geminiApproved'] as bool? ??
-        (data['moderation'] is Map
-            ? data['moderation']['geminiApproved'] as bool?
-            : null);
+        (moderationMap?['geminiApproved'] as bool?) ??
+        (isModApproved ? true : null);
     final isApproved = data['isApproved'] as bool? ??
-        (data['moderation'] is Map
-            ? data['moderation']['isApproved'] as bool?
-            : null);
+        (moderationMap?['isApproved'] as bool?) ??
+        (isModApproved ? true : null) ??
+        (data['gatewayStatus'] == 'APPROVED' ? true : null) ??
+        (data['isVerified'] == true ? true : null) ??
+        (data['credibilityVerified'] == true ? true : null);
     if (geminiApproved == false || isApproved == false) {
       return false;
     }

@@ -15,7 +15,16 @@ import { logger } from "./logger";
  * All three must be active simultaneously for full resilience.
  */
 
-const db = () => admin.firestore();
+const db = () => {
+  if (!admin.apps.length) {
+    try {
+      admin.initializeApp();
+    } catch {
+      // In local or isolated testing, initializeApp might fail without credentials
+    }
+  }
+  return admin.firestore();
+};
 
 // ─── AI PACER (Local) ───────────────────────────────────────────────────────
 
@@ -104,85 +113,108 @@ export const CIRCUIT_DEFAULTS = {
 } as const;
 
 export async function tripCircuitBreaker(instanceId: string): Promise<void> {
-  const ref = db().doc(CIRCUIT_DEFAULTS.FIRESTORE_PATH);
-  
-  let finalOpenDuration: number = CIRCUIT_DEFAULTS.BASE_OPEN_DURATION_MS;
-
-  await db().runTransaction(async (tx) => {
-    const doc = await tx.get(ref);
-    const current = doc.data() as CircuitBreakerState | undefined;
+  try {
+    if (!admin.apps.length) return;
+    const ref = db().doc(CIRCUIT_DEFAULTS.FIRESTORE_PATH);
     
-    // Exponential backoff on open duration for repeated trips
-    let tripCount = (current?.tripCount ?? 0) + 1;
+    let finalOpenDuration: number = CIRCUIT_DEFAULTS.BASE_OPEN_DURATION_MS;
 
-    // Reset tripCount if the last trip was over an hour ago
-    if (current?.trippedAt && Date.now() - current.trippedAt > 3600_000) {
-      tripCount = 1;
-    }
+    await db().runTransaction(async (tx) => {
+      const doc = await tx.get(ref);
+      const current = doc.data() as CircuitBreakerState | undefined;
+      
+      // Exponential backoff on open duration for repeated trips
+      let tripCount = (current?.tripCount ?? 0) + 1;
 
-    const openDuration = Math.min(
-      CIRCUIT_DEFAULTS.BASE_OPEN_DURATION_MS * Math.pow(2, tripCount - 1),
-      CIRCUIT_DEFAULTS.MAX_OPEN_DURATION_MS
-    );
-    finalOpenDuration = openDuration;
+      // Reset tripCount if the last trip was over an hour ago
+      if (current?.trippedAt && Date.now() - current.trippedAt > 3600_000) {
+        tripCount = 1;
+      }
+
+      const openDuration = Math.min(
+        CIRCUIT_DEFAULTS.BASE_OPEN_DURATION_MS * Math.pow(2, tripCount - 1),
+        CIRCUIT_DEFAULTS.MAX_OPEN_DURATION_MS
+      );
+      finalOpenDuration = openDuration;
+      
+      tx.set(ref, {
+        status: 'open',
+        trippedAt: Date.now(),
+        trippedBy: instanceId,
+        tripCount,
+        openDurationMs: openDuration,
+        lastCheckedAt: Date.now(),
+      } as CircuitBreakerState);
+    });
     
-    tx.set(ref, {
-      status: 'open',
-      trippedAt: Date.now(),
-      trippedBy: instanceId,
-      tripCount,
-      openDurationMs: openDuration,
-      lastCheckedAt: Date.now(),
-    } as CircuitBreakerState);
-  });
-  
-  logger.warn(`[CircuitBreaker] Tripped by ${instanceId}. Open for ${finalOpenDuration}ms.`);
+    logger.warn(`[CircuitBreaker] Tripped by ${instanceId}. Open for ${finalOpenDuration}ms.`);
+  } catch (err) {
+    logger.warn(`[CircuitBreaker] Failed to trip circuit breaker:`, err);
+  }
 }
 
 export async function checkCircuitBreaker(): Promise<'proceed' | 'wait' | 'half-open'> {
-  const ref = db().doc(CIRCUIT_DEFAULTS.FIRESTORE_PATH);
-  const doc = await ref.get();
-  
-  if (!doc.exists) return 'proceed';
-  
-  const state = doc.data() as CircuitBreakerState;
-  
-  if (state.status === 'closed') return 'proceed';
-  
-  const elapsed = Date.now() - (state.trippedAt ?? 0);
-  
-  if (elapsed >= state.openDurationMs) {
-    // Transition to half-open — allow one probe request through
-    await ref.update({ status: 'half-open', lastCheckedAt: Date.now() });
-    return 'half-open';
+  try {
+    if (!admin.apps.length) return 'proceed';
+    const ref = db().doc(CIRCUIT_DEFAULTS.FIRESTORE_PATH);
+    const doc = await ref.get();
+    
+    if (!doc.exists) return 'proceed';
+    
+    const state = doc.data() as CircuitBreakerState;
+    
+    if (state.status === 'closed') return 'proceed';
+    
+    const elapsed = Date.now() - (state.trippedAt ?? 0);
+    
+    if (elapsed >= state.openDurationMs) {
+      // Transition to half-open — allow one probe request through
+      await ref.update({ status: 'half-open', lastCheckedAt: Date.now() });
+      return 'half-open';
+    }
+    
+    return 'wait';
+  } catch (err) {
+    logger.warn('[CircuitBreaker] Failed to check circuit breaker state, failing open:', err);
+    return 'proceed';
   }
-  
-  return 'wait';
 }
 
 export async function closeCircuitBreaker(): Promise<void> {
-  await db().doc(CIRCUIT_DEFAULTS.FIRESTORE_PATH).update({
-    status: 'closed',
-    trippedAt: null,
-    lastCheckedAt: Date.now(),
-  });
-  logger.info('[CircuitBreaker] Closed — capacity restored.');
+  try {
+    if (!admin.apps.length) return;
+    await db().doc(CIRCUIT_DEFAULTS.FIRESTORE_PATH).update({
+      status: 'closed',
+      trippedAt: null,
+      lastCheckedAt: Date.now(),
+    });
+    logger.info('[CircuitBreaker] Closed — capacity restored.');
+  } catch (err) {
+    logger.warn('[CircuitBreaker] Failed to close circuit breaker:', err);
+  }
 }
 
 export async function getCircuitState(): Promise<CircuitBreakerState> {
-  const ref = db().doc(CIRCUIT_DEFAULTS.FIRESTORE_PATH);
-  const doc = await ref.get();
-  if (!doc.exists) {
-    return {
-      status: 'closed',
-      trippedAt: null,
-      trippedBy: null,
-      tripCount: 0,
-      openDurationMs: 0,
-      lastCheckedAt: Date.now()
-    };
+  const fallbackState: CircuitBreakerState = {
+    status: 'closed',
+    trippedAt: null,
+    trippedBy: null,
+    tripCount: 0,
+    openDurationMs: 0,
+    lastCheckedAt: Date.now()
+  };
+  try {
+    if (!admin.apps.length) return fallbackState;
+    const ref = db().doc(CIRCUIT_DEFAULTS.FIRESTORE_PATH);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      return fallbackState;
+    }
+    return doc.data() as CircuitBreakerState;
+  } catch (err) {
+    logger.warn('[CircuitBreaker] Failed to get circuit state, using fallback:', err);
+    return fallbackState;
   }
-  return doc.data() as CircuitBreakerState;
 }
 
 // ─── WATERFALL ROUTING ──────────────────────────────────────────────────────

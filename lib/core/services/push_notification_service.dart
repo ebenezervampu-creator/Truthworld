@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/services/digital_wellbeing_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/services/notification_service.dart';
 import 'package:truthworld/core/utils/studio_launcher.dart';
@@ -25,9 +26,15 @@ class PushNotificationService extends GetxService {
   StreamSubscription? _onMessageSubscription;
   StreamSubscription? _onMessageOpenedAppSubscription;
 
+  bool get _isSupportedPlatform =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.macOS);
+
   /// Safe async initialization of FCM configuration and deep-link click handlers
   Future<PushNotificationService> init() async {
-    if (kIsWeb) return this;
+    if (!_isSupportedPlatform) return this;
 
     try {
       final messaging = FirebaseMessaging.instance;
@@ -47,16 +54,28 @@ class PushNotificationService extends GetxService {
 
       // 2. Deep-linking when app is resumed from background state
       _onMessageOpenedAppSubscription = FirebaseMessaging.onMessageOpenedApp
-          .listen(_handleNotificationClick);
+          .listen(
+            _handleNotificationClick,
+            onError: (e, stackTrace) => logger.error(
+              'Error in onMessageOpenedApp: $e',
+              tag: 'PUSH_NOTIFICATIONS',
+            ),
+          );
 
       // 3. Listen to notifications received while the app is in the foreground
-      _onMessageSubscription = FirebaseMessaging.onMessage.listen((message) {
-        logger.info(
-          'Received push notification in foreground: ${message.notification?.title}',
+      _onMessageSubscription = FirebaseMessaging.onMessage.listen(
+        (message) {
+          logger.info(
+            'Received push notification in foreground: ${message.notification?.title}',
+            tag: 'PUSH_NOTIFICATIONS',
+          );
+          _showForegroundInAppNotification(message);
+        },
+        onError: (e, stackTrace) => logger.error(
+          'Error in foreground onMessage: $e',
           tag: 'PUSH_NOTIFICATIONS',
-        );
-        _showForegroundInAppNotification(message);
-      });
+        ),
+      );
 
       logger.info(
         'PushNotificationService initialized successfully',
@@ -74,7 +93,9 @@ class PushNotificationService extends GetxService {
 
   /// Request iOS/Android user permissions and register current device token to Firestore
   Future<void> registerToken(String userId) async {
-    if (userId.isEmpty || userId == 'guest_user' || kIsWeb) return;
+    if (!_isSupportedPlatform || userId.isEmpty || userId == 'guest_user') {
+      return;
+    }
 
     try {
       final messaging = FirebaseMessaging.instance;
@@ -90,9 +111,15 @@ class PushNotificationService extends GetxService {
         }
 
         // Keep tokens up-to-date across lifecycle events
-        messaging.onTokenRefresh.listen((newToken) async {
-          await _saveTokenToFirestore(userId, newToken);
-        });
+        messaging.onTokenRefresh.listen(
+          (newToken) async {
+            await _saveTokenToFirestore(userId, newToken);
+          },
+          onError: (e, stackTrace) => logger.error(
+            'Error in onTokenRefresh: $e',
+            tag: 'PUSH_NOTIFICATIONS',
+          ),
+        );
       } else {
         logger.warning(
           'User denied or restricted push notification permissions',
@@ -109,7 +136,9 @@ class PushNotificationService extends GetxService {
 
   /// Clean up target device token from user document (usually on sign out)
   Future<void> unregisterToken(String userId) async {
-    if (userId.isEmpty || userId == 'guest_user' || kIsWeb) return;
+    if (!_isSupportedPlatform || userId.isEmpty || userId == 'guest_user') {
+      return;
+    }
 
     try {
       final box = GetStorage();
@@ -267,6 +296,15 @@ class PushNotificationService extends GetxService {
         !UserSettingsController.to.pushNotificationsEnabled.value) {
       logger.info(
         'Push notifications disabled in User Settings - suppressing foreground banner',
+        tag: 'PUSH_NOTIFICATIONS',
+      );
+      return;
+    }
+
+    if (Get.isRegistered<DigitalWellbeingService>() &&
+        DigitalWellbeingService.to.shouldMuteNotificationsDuringBedtime()) {
+      logger.info(
+        'Bedtime schedule active - suppressing foreground notification banner',
         tag: 'PUSH_NOTIFICATIONS',
       );
       return;

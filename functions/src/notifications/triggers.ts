@@ -1,5 +1,5 @@
 import * as admin from "firebase-admin";
-import { onDocumentCreated } from "firebase-functions/v2/firestore";
+import { onDocumentCreated, onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { logger } from "firebase-functions/v2";
 import { notifyUser, sendPushNotificationForUser } from "./notifications";
 
@@ -22,7 +22,7 @@ export const onCommunityPostCreated = onDocumentCreated(
     document: "Community/{postId}",
     region: "asia-south1",
     memory: "256MiB",
-    maxInstances: 2,
+    maxInstances: 5,
   },
   async (event) => {
   const post = event.data?.data();
@@ -94,6 +94,69 @@ export const onCommunityPostCreated = onDocumentCreated(
 });
 
 /**
+ * 🔔 TRIGGER: ON COMMUNITY POST UPDATED
+ * Notifies creator when a community post is rejected by moderation or marked blocked.
+ */
+export const onCommunityPostUpdated = onDocumentUpdated(
+  {
+    document: "Community/{postId}",
+    region: "asia-south1",
+    memory: "256MiB",
+    maxInstances: 5,
+  },
+  async (event) => {
+    const beforeData = event.data?.before.data();
+    const afterData = event.data?.after.data();
+    const postId = event.params.postId;
+    if (!afterData) return;
+
+    const wasRejected =
+      beforeData?.status === "rejected" ||
+      beforeData?.moderation?.status === "rejected" ||
+      beforeData?.isBlocked === true;
+    const isRejected =
+      afterData.status === "rejected" ||
+      afterData.moderation?.status === "rejected" ||
+      afterData.isBlocked === true;
+    const becameRejected = !wasRejected && isRejected;
+
+    if (becameRejected) {
+      const uploaderId =
+        afterData.ownerId || afterData.userId || afterData.uploaderId;
+      if (uploaderId) {
+        const reason =
+          afterData.rejectionReason ||
+          afterData.moderation?.reason ||
+          afterData.moderation?.policyReason ||
+          "Post violates Community Guidelines";
+        const title =
+          afterData.title && typeof afterData.title === "string" && afterData.title.trim().length > 0
+            ? afterData.title.trim()
+            : "Your community post";
+        await notifyUser({
+          userId: uploaderId,
+          type: "verification_result",
+          severity: "priority",
+          title: "Community Post Rejected",
+          message: `Your community post "${title}" was rejected: ${reason}. Please update or replace your post to comply with guidelines.`,
+          actionUrl: "/community",
+          metadata: {
+            postId,
+            reason,
+            itemType: "community_post",
+          },
+        }).catch((err) =>
+          logger.error(
+            "[Trigger] onCommunityPostUpdated rejection notification error:",
+            err
+          )
+        );
+      }
+    }
+  }
+);
+
+/**
  * 💬 TRIGGER: ON COMMENT CREATED
  * Notifies the video owner when someone comments on their video.
  */
@@ -102,7 +165,7 @@ export const onCommentCreated = onDocumentCreated(
     document: "videos/{videoId}/comments/{commentId}",
     region: "asia-south1",
     memory: "256MiB",
-    maxInstances: 2,
+    maxInstances: 15,
   },
   async (event) => {
   const comment = event.data?.data();
@@ -116,12 +179,13 @@ export const onCommentCreated = onDocumentCreated(
     // 1. Get the video to find the owner/creator
     const videoSnap = await db.collection("videos").doc(event.params.videoId).get();
     if (!videoSnap.exists) return;
-    const videoOwnerId = videoSnap.data()?.ownerId;
+    const videoData = videoSnap.data();
+    const videoOwnerId = videoData?.ownerId || videoData?.userId || videoData?.uploaderId;
 
     const commentText = (text || "").toString();
 
-    // Notify video owner (if not commenting on own video)
-    if (commentAuthorId !== videoOwnerId) {
+    // Notify video owner (if not commenting on own video and owner ID exists)
+    if (videoOwnerId && commentAuthorId !== videoOwnerId) {
       await notifyUser({
         userId: videoOwnerId,
         type: "comment",
@@ -167,7 +231,7 @@ export const onNewSubscription = onDocumentCreated(
     document: "subscriptions/{subscriptionId}",
     region: "asia-south1",
     memory: "256MiB",
-    maxInstances: 2,
+    maxInstances: 10,
   },
   async (event) => {
   const subscription = event.data?.data();
@@ -236,40 +300,43 @@ export async function notifyMentions(params: {
     // Cap at 5 to prevent abuse via text with 100+ @mentions
     const rawHandles = [...new Set(matches.map(m => m.substring(1).toLowerCase()))].slice(0, 5);
     
-    for (const handle of rawHandles) {
-      // Find channels where handle or handleLowercase matches either 'handle' or '@handle'
-      const searchHandles = [handle, `@${handle}`];
-      
-      const channelSnap = await db.collection("channels")
-        .where("handleLowercase", "in", searchHandles)
-        .limit(1)
-        .get();
+    // Parallelize handle lookups to prevent sequential I/O delays
+    await Promise.allSettled(
+      rawHandles.map(async (handle) => {
+        // Find channels where handle or handleLowercase matches either 'handle' or '@handle'
+        const searchHandles = [handle, `@${handle}`];
         
-      if (!channelSnap.empty) {
-        const channelDoc = channelSnap.docs[0];
-        const channelData = channelDoc.data();
-        const targetUserId = channelData.ownerId;
-        
-        // Don't notify if the user mentioned their own channel
-        if (targetUserId === params.senderUserId) {
-          continue;
-        }
-
-        await notifyUser({
-          userId: targetUserId,
-          type: "mention",
-          severity: "info",
-          title: params.title,
-          message: params.message,
-          actionUrl: params.actionUrl,
-          metadata: {
-            ...params.metadata,
-            mentionedChannelId: channelDoc.id,
-            avatarUrl: params.metadata?.avatarUrl || channelData.avatarUrl || "",
+        const channelSnap = await db.collection("channels")
+          .where("handleLowercase", "in", searchHandles)
+          .limit(1)
+          .get();
+          
+        if (!channelSnap.empty) {
+          const channelDoc = channelSnap.docs[0];
+          const channelData = channelDoc.data();
+          const targetUserId = channelData.ownerId;
+          
+          // Don't notify if the user mentioned their own channel
+          if (!targetUserId || targetUserId === params.senderUserId) {
+            return;
           }
-        });
-      }
-    }
+
+          await notifyUser({
+            userId: targetUserId,
+            type: "mention",
+            severity: "info",
+            title: params.title,
+            message: params.message,
+            actionUrl: params.actionUrl,
+            metadata: {
+              ...params.metadata,
+              mentionedChannelId: channelDoc.id,
+              avatarUrl: params.metadata?.avatarUrl || channelData.avatarUrl || "",
+            }
+          });
+        }
+      })
+    );
   } catch (err) {
     logger.error("[notifyMentions] Error:", err);
   }
@@ -285,7 +352,7 @@ export const onUserNotificationCreated = onDocumentCreated(
     document: "user_notifications/{notificationId}",
     region: "asia-south1",
     memory: "256MiB",
-    maxInstances: 2,
+    maxInstances: 20,
   },
   async (event) => {
     const data = event.data?.data();

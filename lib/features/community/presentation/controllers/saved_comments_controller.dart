@@ -2,13 +2,14 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/exceptions/app_exceptions.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/community/data/models/saved_comment_model.dart';
-import 'package:truthworld/theme/app_theme.dart';
 
 class SavedCommentsController extends BaseController {
   final RxList<SavedCommentModel> comments = <SavedCommentModel>[].obs;
@@ -58,10 +59,10 @@ class SavedCommentsController extends BaseController {
             comments.value = list;
             rxIsLoading.value = false;
           },
-          onError: (Object error) {
-            rxErrorMessage.value = error.toString();
+          onError: (Object error, StackTrace stackTrace) {
+            ErrorHandler.log(error, stackTrace: stackTrace, context: 'SavedCommentsController');
+            rxErrorMessage.value = AppException.from(error, stackTrace).displayMessage;
             rxIsLoading.value = false;
-            debugPrint('Error listening to saved comments: $error');
           },
         );
   }
@@ -78,25 +79,13 @@ class SavedCommentsController extends BaseController {
           .doc(commentId)
           .delete();
 
-      Get.snackbar(
-        'Removed',
-        'Comment removed from Saved Comments',
-        snackPosition: SnackPosition.TOP,
-        backgroundColor: const Color(0xFF6366F1),
-        colorText: AppColors.textPrimary,
-        margin: const EdgeInsets.all(16),
-        borderRadius: 12,
-        icon: const Icon(Icons.bookmark_border, color: AppColors.textPrimary),
+      AppSnackbar.success(
+        'Comment removed from saved comments.',
       );
     } on Exception catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to remove saved comment: $e',
-        snackPosition: SnackPosition.TOP,
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
-        margin: const EdgeInsets.all(16),
-        borderRadius: 12,
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to remove saved comment. Please try again.',
       );
     }
   }

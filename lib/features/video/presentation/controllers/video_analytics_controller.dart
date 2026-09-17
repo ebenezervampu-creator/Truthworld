@@ -1,6 +1,6 @@
-import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/features/analytics/data/services/impression_tracking_service.dart';
 import 'package:truthworld/features/analytics/data/services/video_analytics_service.dart';
 import 'package:truthworld/features/analytics/data/services/video_presence_service.dart';
@@ -54,9 +54,11 @@ class VideoAnalyticsController extends BaseController {
       if (Get.isRegistered<ViewerIdentityService>()) {
         viewerHash = await Get.find<ViewerIdentityService>().getViewerHash();
       }
-    } catch (e) {
-      debugPrint(
-        '[VideoAnalyticsController] Viewer identity resolution error: $e',
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'VideoAnalyticsController.resolveViewerIdentity',
       );
     }
   }

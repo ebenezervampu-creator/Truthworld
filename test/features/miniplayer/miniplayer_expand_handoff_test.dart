@@ -1,4 +1,9 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get/get.dart';
+import 'package:truthworld/core/services/connectivity_service.dart';
+import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
 
 void main() {
@@ -75,6 +80,58 @@ void main() {
       VideoPlaybackHandoff.registerResumePosition(videoId, const Duration(seconds: -5));
       expect(VideoPlaybackHandoff.hasActivePosition(videoId), isFalse);
       expect(VideoPlaybackHandoff.peekPosition(videoId), isNull);
+    });
+
+    testWidgets('openFullScreen registers exact live position in VideoPlaybackHandoff', (tester) async {
+      Get.testMode = true;
+      Get.reset();
+      Get.put<ConnectivityService>(ConnectivityService());
+      final controller = Get.put(
+        MiniplayerController(),
+        tag: 'miniplayer_test',
+      );
+      final testVideo = Video(
+        id: 'handoff_vid_123',
+        title: 'Handoff Test',
+        description: 'Test',
+        thumbnailUrl: '',
+        ownerId: 'owner_1',
+        channelId: 'chan_1',
+        channelName: 'Test Channel',
+        category: 'Tech',
+        tags: const [],
+      );
+
+      controller.currentVideo.value = testVideo;
+      controller.currentPosition.value = const Duration(seconds: 77);
+
+      await tester.pumpWidget(
+        GetMaterialApp(
+          home: const Scaffold(body: SizedBox.shrink()),
+          getPages: [
+            GetPage(
+              name: '/watch',
+              page: () => const Scaffold(body: SizedBox.shrink()),
+            ),
+          ],
+        ),
+      );
+
+      expect(VideoPlaybackHandoff.hasActivePosition('handoff_vid_123'), isFalse);
+
+      controller.openFullScreen();
+      await tester.pump(const Duration(milliseconds: 700));
+
+      expect(VideoPlaybackHandoff.hasActivePosition('handoff_vid_123'), isTrue);
+      expect(
+        VideoPlaybackHandoff.peekPosition('handoff_vid_123'),
+        equals(const Duration(seconds: 77)),
+      );
+
+      controller.onClose();
+      Get.delete<MiniplayerController>(tag: 'miniplayer_test');
+      VideoPlaybackHandoff.clear('handoff_vid_123');
+      Get.reset();
     });
   });
 }

@@ -1,6 +1,10 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/user_preferences_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
@@ -11,6 +15,7 @@ import 'package:truthworld/features/search/presentation/controllers/search_contr
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/downloadcontroller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
+import 'package:truthworld/features/video/presentation/widgets/video_analysis_bottom_sheet.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class VideoOptionsSheet extends StatelessWidget {
@@ -197,6 +202,21 @@ class VideoOptionsSheet extends StatelessWidget {
                       await downloadsCtrl.downloadAudioOffline(
                         video: video,
                       );
+                    },
+                  ),
+                  _buildMenuItem(
+                    context,
+                    icon: const Icon(
+                      Icons.verified_outlined,
+                      color: AppColors.textPrimary,
+                      size: 24,
+                    ),
+                    title: video.isFactChecked
+                        ? 'View Fact-Check analysis'
+                        : 'Fact-Check this video',
+                    onTap: () {
+                      Get.back();
+                      _handleFactCheckAction(context, video);
                     },
                   ),
                   _buildMenuItem(
@@ -605,6 +625,127 @@ class VideoOptionsSheet extends StatelessWidget {
       sc.searchResults.removeWhere(
         (res) => channelName.isNotEmpty && res.channelName == channelName,
       );
+    }
+  }
+
+  static Future<void> _handleFactCheckAction(BuildContext context, Video video) async {
+    if (video.isFactChecked || video.factCheckUrl.isNotEmpty) {
+      Get.bottomSheet(
+        VideoAnalysisBottomSheet(
+          video: video,
+        ),
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+      );
+      return;
+    }
+
+    final auth = Get.isRegistered<AuthService>() ? AuthService.to : null;
+    if (auth == null || !auth.isAuthenticated.value) {
+      AppSnackbar.warning(
+        'Please sign in to fact-check this video.',
+        title: 'Sign In Required',
+      );
+      return;
+    }
+
+    if (!auth.hasFactCheckPremium) {
+      Get.bottomSheet(
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: const BoxDecoration(
+            color: AppColors.bgPage,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.brand.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.verified_outlined, color: Colors.white, size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      r'Fact-Checked Plan ($3)',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                r'On-demand AI video fact-checking is exclusive to the $3 TruthWorld Premium + Fact-Checked Plan. Upgrade to fact-check any video instantly with AI claim verification and truth scores.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textSecondary,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Get.back();
+                    Get.toNamed('/premium');
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.brand,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                  ),
+                  child: const Text(
+                    r'Upgrade to $3 Fact-Checked Plan',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        isScrollControlled: true,
+      );
+      return;
+    }
+
+    try {
+      await FirebaseFirestore.instance
+          .collection(FirestoreCollections.factCheckRequests)
+          .add({
+        'videoId': video.id,
+        'videoTitle': video.title,
+        'channelId': video.channelId,
+        'channelName': video.channelName,
+        'requestedBy': auth.user?.uid ?? 'anonymous',
+        'requestedAt': FieldValue.serverTimestamp(),
+        'status': 'queued',
+        'priority': 'high',
+      });
+      AppSnackbar.success(
+        'AI Fact-Checking initiated! Epistemic analysis and claim verification is in progress for this video.',
+        title: 'Fact-Check Initiated',
+      );
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'VideoOptionsSheet.handleFactCheckAction');
+      AppSnackbar.error('Unable to queue fact-check request. Please try again.');
     }
   }
 }

@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import 'package:truthworld/core/base/base_repository.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/network/result.dart';
 import 'package:truthworld/domain/repositories/home_repository.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
@@ -104,8 +104,12 @@ class HomeRepositoryImpl extends BaseRepository implements HomeRepository {
             .where((t) => t.isValidTopic && t.videoCount > 0)
             .toList();
         if (topics.isNotEmpty) return topics;
-      } catch (e) {
-        debugPrint('HomeRepositoryImpl: getFeaturedTopics isFeatured error: $e');
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'HomeRepositoryImpl.getFeaturedTopics',
+        );
       }
 
       final fallbackSnapshot = await _firestore

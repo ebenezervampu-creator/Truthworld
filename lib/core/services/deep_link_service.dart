@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
@@ -179,8 +180,8 @@ class DeepLinkService {
           debugPrint('[DeepLinkService] 🔗 Incoming stream URI: $uri');
           handleUrl(uri.toString());
         },
-        onError: (err) {
-          debugPrint('[DeepLinkService] ⚠️ Link stream error: $err');
+        onError: (err, stackTrace) {
+          ErrorHandler.log(err, stackTrace: stackTrace, tag: 'DeepLinkService.linkStream');
         },
       );
 
@@ -193,8 +194,8 @@ class DeepLinkService {
           handleUrl(initialUri.toString());
         });
       }
-    } catch (e) {
-      debugPrint('[DeepLinkService] AppLinks init error: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'DeepLinkService.initAppLinks');
     }
   }
 
@@ -577,8 +578,8 @@ class DeepLinkService {
             } else {
               await launchUrl(uri);
             }
-          } catch (e) {
-            debugPrint('[DeepLinkService] Error launching external URL $clean: $e');
+          } catch (e, s) {
+            ErrorHandler.log(e, stackTrace: s, tag: 'DeepLinkService.launchExternalUrl');
           }
         }
     }
@@ -769,8 +770,8 @@ class DeepLinkService {
           subject: videoTitle,
         ),
       );
-    } catch (e) {
-      debugPrint('Error sharing video: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'DeepLinkService.shareVideo');
     }
   }
 
@@ -793,8 +794,8 @@ class DeepLinkService {
           subject: channelName ?? 'TruthWorld Channel',
         ),
       );
-    } catch (e) {
-      debugPrint('Error sharing channel: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'DeepLinkService.shareChannel');
     }
   }
 
@@ -808,8 +809,8 @@ class DeepLinkService {
           subject: playlistName,
         ),
       );
-    } catch (e) {
-      debugPrint('Error sharing playlist: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'DeepLinkService.sharePlaylist');
     }
   }
 
@@ -824,8 +825,8 @@ class DeepLinkService {
           subject: '#$cleanTitle',
         ),
       );
-    } catch (e) {
-      debugPrint('Error sharing topic: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'DeepLinkService.shareTopic');
     }
   }
 
@@ -965,12 +966,12 @@ class DeepLinkService {
         debugPrint('DeepLink: Timeout (attempt ${attempt + 1}/$_maxRetries)');
         if (attempt == _maxRetries) return null;
         await Future.delayed(Duration(milliseconds: 500 * (attempt + 1)));
-      } on FirebaseException catch (e) {
-        debugPrint('DeepLink: Firebase error: ${e.message}');
+      } on FirebaseException catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'DeepLinkService._withRetry.firebase');
         if (attempt == _maxRetries) return null;
         await Future.delayed(Duration(milliseconds: 500 * (attempt + 1)));
-      } catch (e) {
-        debugPrint('DeepLink: Unexpected error: $e');
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'DeepLinkService._withRetry.unexpected');
         return null;
       }
     }

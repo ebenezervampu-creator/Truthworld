@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
@@ -12,7 +12,6 @@ import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
-import 'package:truthworld/theme/app_theme.dart';
 
 class TopicInteractionController extends BaseController with ContentValidationMixin {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -111,8 +110,8 @@ class TopicInteractionController extends BaseController with ContentValidationMi
       }
       hasCheckedInteraction.value = true;
       _updateLikeCount();
-    } catch (e) {
-      debugPrint('Error checking user topic interaction: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicInteractionController.checkUserInteraction');
     }
   }
 
@@ -172,19 +171,14 @@ class TopicInteractionController extends BaseController with ContentValidationMi
         }).toList();
         comments.refresh();
       }
-    } catch (e) {
-      debugPrint('Error fetching user topic comment/reply interactions: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicInteractionController.fetchUserCommentInteractions');
     }
   }
 
   Future<void> toggleLike(String topicId) async {
     if (currentUserId.isEmpty) {
-      AppSnackbar.show(
-        'Authentication Required',
-        'Please sign in to like.',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
-      );
+      AppSnackbar.warning('Please sign in to like this topic.');
       return;
     }
 
@@ -247,12 +241,12 @@ class TopicInteractionController extends BaseController with ContentValidationMi
           ctrl.favoriteTopics.removeWhere((t) => t.id == topicId);
         }
       }
-    } catch (e) {
+    } catch (e, s) {
       // Revert on error
       isLiked.value = wasLiked;
       _updateLikeCount();
       _checkUserInteraction(topicId); // refresh count
-      debugPrint('Error toggling like: $e');
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicInteractionController.toggleLike');
     }
   }
 
@@ -290,13 +284,13 @@ class TopicInteractionController extends BaseController with ContentValidationMi
           }
           isLoadingComments.value = false;
         },
-        onError: (e) {
-          debugPrint('Error streaming topic comments: $e');
+        onError: (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'TopicInteractionController.streamComments');
           isLoadingComments.value = false;
         },
       );
-    } catch (e) {
-      debugPrint('Error setting up comments stream: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicInteractionController.setupCommentsStream');
       isLoadingComments.value = false;
     }
   }
@@ -304,23 +298,13 @@ class TopicInteractionController extends BaseController with ContentValidationMi
   Future<void> addComment(String topicId, String text) async {
     if (text.trim().isEmpty) return;
     if (currentUserId.isEmpty) {
-      AppSnackbar.show(
-        'Authentication Required',
-        'Please sign in to comment.',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
-      );
+      AppSnackbar.warning('Please sign in to comment.');
       return;
     }
 
     final validation = await validateContent(text, fieldName: 'Comment');
     if (!validation.isValid) {
-      AppSnackbar.show(
-        'Inappropriate Content',
-        validation.message,
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
-      );
+      AppSnackbar.warning(validation.message);
       return;
     }
 
@@ -375,12 +359,8 @@ class TopicInteractionController extends BaseController with ContentValidationMi
       comments.insert(0, commentObj);
       comments.refresh();
     } catch (e) {
-      AppSnackbar.show(
-        'Error',
-        'Failed to add comment: $e',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
-      );
+      ErrorHandler.log(e);
+      AppSnackbar.error('Unable to add comment. Please try again.');
     }
   }
 
@@ -398,31 +378,21 @@ class TopicInteractionController extends BaseController with ContentValidationMi
       repliesMap[commentId] = snap.docs.map((doc) {
         return Reply.fromDocumentSnapshot(doc);
       }).toList();
-    } catch (e) {
-      debugPrint('Error fetching replies: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicInteractionController.fetchReplies');
     }
   }
 
   Future<void> addReply(String topicId, String commentId, String text) async {
     if (text.trim().isEmpty) return;
     if (currentUserId.isEmpty) {
-      AppSnackbar.show(
-        'Authentication Required',
-        'Please sign in to reply.',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
-      );
+      AppSnackbar.warning('Please sign in to reply.');
       return;
     }
 
     final validation = await validateContent(text, fieldName: 'Reply');
     if (!validation.isValid) {
-      AppSnackbar.show(
-        'Inappropriate Content',
-        validation.message,
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
-      );
+      AppSnackbar.warning(validation.message);
       return;
     }
 
@@ -483,12 +453,8 @@ class TopicInteractionController extends BaseController with ContentValidationMi
       repliesMap[commentId]!.add(replyObj);
       repliesMap.refresh();
     } catch (e) {
-      AppSnackbar.show(
-        'Error',
-        'Failed to add reply: $e',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
-      );
+      ErrorHandler.log(e);
+      AppSnackbar.error('Unable to add reply. Please try again.');
     }
   }
 
@@ -498,12 +464,7 @@ class TopicInteractionController extends BaseController with ContentValidationMi
   Future<void> toggleCommentLike(String topicId, String commentId) async {
     final userId = currentUserId;
     if (userId.isEmpty) {
-      AppSnackbar.show(
-        'Authentication Required',
-        'Please sign in to interact.',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
-      );
+      AppSnackbar.warning('Please sign in to interact.');
       return;
     }
 
@@ -596,26 +557,21 @@ class TopicInteractionController extends BaseController with ContentValidationMi
       }
 
       await batch.commit();
-    } catch (e) {
+    } catch (e, s) {
       userCommentInteractions[commentId] = currentInteraction;
       userCommentInteractions.refresh();
       if (index != -1 && oldComment != null) {
         comments[index] = oldComment;
         comments.refresh();
       }
-      debugPrint('Error toggling comment like: $e');
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicInteractionController.toggleCommentLike');
     }
   }
 
   Future<void> toggleCommentDislike(String topicId, String commentId) async {
     final userId = currentUserId;
     if (userId.isEmpty) {
-      AppSnackbar.show(
-        'Authentication Required',
-        'Please sign in to interact.',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
-      );
+      AppSnackbar.warning('Please sign in to interact.');
       return;
     }
 
@@ -708,14 +664,14 @@ class TopicInteractionController extends BaseController with ContentValidationMi
       }
 
       await batch.commit();
-    } catch (e) {
+    } catch (e, s) {
       userCommentInteractions[commentId] = currentInteraction;
       userCommentInteractions.refresh();
       if (index != -1 && oldComment != null) {
         comments[index] = oldComment;
         comments.refresh();
       }
-      debugPrint('Error toggling comment dislike: $e');
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicInteractionController.toggleCommentDislike');
     }
   }
 
@@ -726,12 +682,7 @@ class TopicInteractionController extends BaseController with ContentValidationMi
   ) async {
     final userId = currentUserId;
     if (userId.isEmpty) {
-      AppSnackbar.show(
-        'Authentication Required',
-        'Please sign in to interact.',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
-      );
+      AppSnackbar.warning('Please sign in to interact.');
       return;
     }
 
@@ -826,14 +777,14 @@ class TopicInteractionController extends BaseController with ContentValidationMi
       }
 
       await batch.commit();
-    } catch (e) {
+    } catch (e, s) {
       userReplyInteractions[replyId] = currentInteraction;
       userReplyInteractions.refresh();
       if (index != -1 && oldReply != null) {
         replies[index] = oldReply;
         repliesMap.refresh();
       }
-      debugPrint('Error toggling reply like: $e');
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicInteractionController.toggleReplyLike');
     }
   }
 
@@ -844,12 +795,7 @@ class TopicInteractionController extends BaseController with ContentValidationMi
   ) async {
     final userId = currentUserId;
     if (userId.isEmpty) {
-      AppSnackbar.show(
-        'Authentication Required',
-        'Please sign in to interact.',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
-      );
+      AppSnackbar.warning('Please sign in to interact.');
       return;
     }
 
@@ -942,14 +888,14 @@ class TopicInteractionController extends BaseController with ContentValidationMi
       }
 
       await batch.commit();
-    } catch (e) {
+    } catch (e, s) {
       userReplyInteractions[replyId] = currentInteraction;
       userReplyInteractions.refresh();
       if (index != -1 && oldReply != null) {
         replies[index] = oldReply;
         repliesMap.refresh();
       }
-      debugPrint('Error toggling reply dislike: $e');
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicInteractionController.toggleReplyDislike');
     }
   }
 
@@ -972,20 +918,10 @@ class TopicInteractionController extends BaseController with ContentValidationMi
       commentCount.value = (commentCount.value - 1).clamp(0, 999999);
       comments.removeWhere((c) => c.id == commentId);
       comments.refresh();
-      AppSnackbar.show(
-        'Success',
-        'Comment deleted successfully.',
-        backgroundColor: AppColors.success,
-        colorText: AppColors.textPrimary,
-      );
+      AppSnackbar.success('Comment deleted successfully.');
     } catch (e) {
-      debugPrint('Error deleting comment: $e');
-      AppSnackbar.show(
-        'Error',
-        'Failed to delete comment: $e',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
-      );
+      ErrorHandler.log(e);
+      AppSnackbar.error('Unable to delete comment. Please try again.');
     }
   }
 
@@ -1016,20 +952,10 @@ class TopicInteractionController extends BaseController with ContentValidationMi
         repliesMap[commentId]!.removeWhere((r) => r.id == replyId);
       }
       repliesMap.refresh();
-      AppSnackbar.show(
-        'Success',
-        'Reply deleted successfully.',
-        backgroundColor: AppColors.success,
-        colorText: AppColors.textPrimary,
-      );
+      AppSnackbar.success('Reply deleted successfully.');
     } catch (e) {
-      debugPrint('Error deleting reply: $e');
-      AppSnackbar.show(
-        'Error',
-        'Failed to delete reply: $e',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
-      );
+      ErrorHandler.log(e);
+      AppSnackbar.error('Unable to delete reply. Please try again.');
     }
   }
 
@@ -1042,12 +968,7 @@ class TopicInteractionController extends BaseController with ContentValidationMi
     String details,
   ) async {
     if (currentUserId.isEmpty) {
-      AppSnackbar.show(
-        'Authentication Required',
-        'Please sign in to report.',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
-      );
+      AppSnackbar.warning('Please sign in to report.');
       return;
     }
 
@@ -1060,19 +981,12 @@ class TopicInteractionController extends BaseController with ContentValidationMi
         'details': details,
         'createdAt': FieldValue.serverTimestamp(),
       });
-      AppSnackbar.show(
-        'Report Submitted',
+      AppSnackbar.success(
         'Thank you for reporting. Our moderators will review it shortly.',
-        backgroundColor: AppColors.success,
-        colorText: AppColors.textPrimary,
       );
     } catch (e) {
-      AppSnackbar.show(
-        'Error',
-        'Failed to submit report: $e',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
-      );
+      ErrorHandler.log(e);
+      AppSnackbar.error('Unable to submit report. Please try again.');
     }
   }
 

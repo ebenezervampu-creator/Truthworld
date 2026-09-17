@@ -3,7 +3,9 @@
 // Abstract Playback Authority and Sources for Truthworld Media
 // ============================================================
 
+import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/features/video/presentation/controllers/audio_only_service.dart';
 import 'package:video_player/video_player.dart';
 
@@ -35,7 +37,13 @@ class VideoPlaybackSource implements PlaybackSource {
   VideoPlaybackSource(this._controller) {
     try {
       _controller.addListener(_onControllerChanged);
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'VideoPlaybackSource.addListener',
+      );
+    }
   }
   final VideoPlayerController _controller;
   final ValueNotifier<Duration> _positionNotifier = ValueNotifier(
@@ -47,7 +55,13 @@ class VideoPlaybackSource implements PlaybackSource {
       if (_controller.value.isInitialized) {
         _positionNotifier.value = _controller.value.position;
       }
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'VideoPlaybackSource._onControllerChanged',
+      );
+    }
   }
 
   @override
@@ -84,8 +98,12 @@ class VideoPlaybackSource implements PlaybackSource {
   Future<void> play() async {
     try {
       await _controller.play();
-    } catch (e) {
-      debugPrint('[VideoPlaybackSource] play error: $e');
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'VideoPlaybackSource.play',
+      );
     }
   }
 
@@ -93,8 +111,12 @@ class VideoPlaybackSource implements PlaybackSource {
   Future<void> pause() async {
     try {
       await _controller.pause();
-    } catch (e) {
-      debugPrint('[VideoPlaybackSource] pause error: $e');
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'VideoPlaybackSource.pause',
+      );
     }
   }
 
@@ -102,8 +124,12 @@ class VideoPlaybackSource implements PlaybackSource {
   Future<void> seek(Duration position) async {
     try {
       await _controller.seekTo(position);
-    } catch (e) {
-      debugPrint('[VideoPlaybackSource] seek error: $e');
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'VideoPlaybackSource.seek',
+      );
     }
   }
 
@@ -111,8 +137,12 @@ class VideoPlaybackSource implements PlaybackSource {
   Future<void> setVolume(double volume) async {
     try {
       await _controller.setVolume(volume);
-    } catch (e) {
-      debugPrint('[VideoPlaybackSource] setVolume error: $e');
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'VideoPlaybackSource.setVolume',
+      );
     }
   }
 
@@ -120,7 +150,13 @@ class VideoPlaybackSource implements PlaybackSource {
   Future<void> dispose() async {
     try {
       _controller.removeListener(_onControllerChanged);
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'VideoPlaybackSource.dispose',
+      );
+    }
     _positionNotifier.dispose();
   }
 }
@@ -128,11 +164,18 @@ class VideoPlaybackSource implements PlaybackSource {
 /// Audio playback authority wrapping [AudioOnlyService].
 class AudioPlaybackSource implements PlaybackSource {
   AudioPlaybackSource(this._service) {
-    _service.position.listen((sec) {
+    _positionSubscription = _service.position.listen((sec) {
       _positionNotifier.value = Duration(milliseconds: (sec * 1000).round());
+    }, onError: (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'AudioPlaybackSource.position',
+      );
     });
   }
   final AudioOnlyService _service;
+  StreamSubscription? _positionSubscription;
   final ValueNotifier<Duration> _positionNotifier = ValueNotifier(
     Duration.zero,
   );
@@ -167,6 +210,7 @@ class AudioPlaybackSource implements PlaybackSource {
 
   @override
   Future<void> dispose() async {
+    _positionSubscription?.cancel();
     _positionNotifier.dispose();
   }
 }

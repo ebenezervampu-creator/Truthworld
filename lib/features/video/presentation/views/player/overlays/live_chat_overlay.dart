@@ -1,7 +1,9 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/live_chat_message.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/live_chat_controller.dart';
@@ -194,7 +196,7 @@ class LiveChatOverlay extends StatelessWidget {
     LiveChatController controller,
   ) {
     return Obx(() {
-      if (controller.isLoading.value && controller.messages.isEmpty) {
+      if (controller.isLoading && controller.messages.isEmpty) {
         return const Center(
           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
         );
@@ -476,6 +478,7 @@ class LiveChatOverlay extends StatelessWidget {
                 ),
                 child: TextField(
                   controller: controller.textController,
+                  inputFormatters: [TruthworldTextInputFormatters.englishOnly],
                   style: const TextStyle(color: Colors.white, fontSize: 13),
                   decoration: const InputDecoration(
                     hintText: 'Chat publicly as...',
@@ -536,24 +539,11 @@ class LiveChatOverlay extends StatelessWidget {
     LiveChatController controller,
   ) {
     if (!AuthService.to.isAuthenticated.value) {
-      Get.snackbar(
-        'Sign In Required',
+      AppSnackbar.info(
         'Please sign in to send a Superchat.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.bgSurface,
-        colorText: AppColors.textPrimary,
-        margin: const EdgeInsets.all(16),
-        borderRadius: 12,
-        mainButton: TextButton(
-          onPressed: AuthService.to.signInWithGoogle,
-          child: const Text(
-            'SIGN IN',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
+        title: 'Sign In Required',
+        actionLabel: 'SIGN IN',
+        onAction: AuthService.to.signInWithGoogle,
       );
       return;
     }
@@ -591,9 +581,9 @@ class LiveChatOverlay extends StatelessWidget {
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               style: const TextStyle(color: Colors.white, fontSize: 16),
               decoration: const InputDecoration(
-                prefixText: r'$ ',
+                prefixText: '₹ ',
                 prefixStyle: TextStyle(color: Colors.white, fontSize: 16),
-                labelText: 'Amount (USD)',
+                labelText: 'Amount (INR)',
                 labelStyle: TextStyle(color: AppColors.textSecondary),
                 filled: true,
                 fillColor: AppColors.bgPage,
@@ -603,6 +593,7 @@ class LiveChatOverlay extends StatelessWidget {
             const SizedBox(height: 12),
             TextField(
               controller: messageController,
+              inputFormatters: [TruthworldTextInputFormatters.englishOnly],
               style: const TextStyle(color: Colors.white, fontSize: 14),
               decoration: const InputDecoration(
                 labelText: 'Message (Optional)',
@@ -625,15 +616,26 @@ class LiveChatOverlay extends StatelessWidget {
                   final amount = double.tryParse(amountController.text) ?? 0.0;
                   if (amount > 0) {
                     Get.back();
-                    controller.sendSuperchat(
-                      amount: amount,
+                    controller.sendSuperchatWithCashfree(
+                      amountINR: amount,
                       text: messageController.text.trim(),
                     );
                   }
                 },
-                child: const Text(
-                  'Send Support',
-                  style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.verified_user_rounded,
+                      color: Colors.black,
+                      size: 18,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Pay with Cashfree',
+                      style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                    ),
+                  ],
                 ),
               ),
             ),

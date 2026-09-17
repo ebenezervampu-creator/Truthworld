@@ -21,8 +21,8 @@ const TRACKING_PARAMS = new Set([
  * and user handles (/@UserHandle).
  */
 export function normalizeUrl(host: string, rawPath: string, query: Record<string, any> = {}): string {
-  const isStudio = host.includes("studio") || rawPath.startsWith("/studio");
-  const base = isStudio
+  const isDedicatedStudioHost = host.startsWith("studio.") || (host.includes("studio") && !host.includes("truthworld.in"));
+  const base = isDedicatedStudioHost
     ? (host.includes("localhost") || host.includes("127.0.0.1") ? `http://${host}` : "https://studio.truthworld.in")
     : DOMAIN;
 
@@ -30,8 +30,29 @@ export function normalizeUrl(host: string, rawPath: string, query: Record<string
   let path = rawPath.split("?")[0] || "/";
 
   // Handle studio root
-  if (isStudio && (path === "/" || path === "/studio" || path === "" || path === "/index.html")) {
+  if (isDedicatedStudioHost && (path === "/" || path === "/studio" || path === "" || path === "/index.html")) {
     return "https://studio.truthworld.in/";
+  }
+  if (!isDedicatedStudioHost && (path === "/studio" || path === "/studio/")) {
+    return `${DOMAIN}/studio`;
+  }
+
+  // Canonicalize home aliases (/home -> /)
+  if (path === "/home" || path === "/home/") {
+    return `${DOMAIN}`;
+  }
+
+  // Canonicalize advertising paths
+  const lowerRawPath = path.toLowerCase();
+  if (
+    lowerRawPath === "/advertiser" ||
+    lowerRawPath.startsWith("/advertiser/") ||
+    lowerRawPath === "/ads" ||
+    lowerRawPath.startsWith("/ads/") ||
+    lowerRawPath === "/advertisements" ||
+    lowerRawPath.startsWith("/advertisements/")
+  ) {
+    return `${DOMAIN}/advertisements`;
   }
 
   // Preserve handle casing if starts with /@

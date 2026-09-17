@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:multi_lang_bad_words_filter/multi_lang_bad_words_filter.dart';
 import 'package:profanity_filter/profanity_filter.dart';
 import 'package:truthworld/data/models/channel.dart';
@@ -189,11 +190,83 @@ class ContentValidator {
     );
   }
 
+  /// Non-English script and foreign accented character patterns.
+  ///
+  /// Matches any characters from foreign scripts (Arabic, Cyrillic, Devanagari/Indic,
+  /// Chinese, Japanese, Korean, Greek, Hebrew, Thai, etc.) and Latin-1/Latin Extended
+  /// accented letters (e.g. é, è, ê, ñ, ü, ö, ä, ß, ç, ø, å, etc.) and foreign punctuation.
+  static final RegExp _nonEnglishPattern = RegExp(
+    r'[\u00C0-\u024F\u0370-\u03FF\u0400-\u052F\u0590-\u05FF\u0600-\u08FF\u0900-\u0DFF\u0E00-\u0E7F\u1100-\u11FF\u2E80-\u2FD5\u3040-\u30FF\u3100-\u312F\u31A0-\u31BF\u3400-\u4DBF\u4E00-\u9FFF\uAC00-\uD7AF\uFB50-\uFDFF\uFE70-\uFEFF¿¡]',
+    unicode: true,
+  );
+
+  /// Checks whether [text] contains strictly English language characters.
+  ///
+  /// Returns `false` if the text contains non-English alphabets, foreign scripts,
+  /// or non-English accented characters.
+  static bool isEnglishOnly(String text) {
+    if (text.trim().isEmpty) return true;
+    return !_nonEnglishPattern.hasMatch(text);
+  }
+
+  /// Cleans and sanitizes all profanity from [text], returning the filtered version.
+  ///
+  /// Every profane, offensive, or inappropriate word is replaced with asterisks (`****`).
+  static String cleanProfanity(String text) {
+    if (text.isEmpty) return text;
+    var cleaned = _multiLangFilter.filterText(text);
+    cleaned = _profanityFilter.censor(cleaned);
+    final allBadWords = {
+      ..._profanityFilter.wordsToFilterOutList,
+      ..._extraOffensiveWords,
+    };
+    for (final word in allBadWords) {
+      if (word.trim().isEmpty) continue;
+      final pattern = RegExp(r'\b' + RegExp.escape(word) + r'\b', caseSensitive: false);
+      cleaned = cleaned.replaceAllMapped(pattern, (m) => '*' * m.group(0)!.length);
+    }
+    return cleaned;
+  }
+
+  /// Checks whether [text] contains any profane or offensive language across
+  /// raw, normalized (anti-leetspeak/homoglyph), and collapsed representations.
+  static bool hasProfanity(String text) {
+    if (text.trim().isEmpty) return false;
+    final raw = text.trim();
+    final normalized = normalizeObfuscation(raw);
+    final collapsed = collapseRepeatedChars(normalized);
+
+    if (_profanityFilter.hasProfanity(raw) ||
+        _profanityFilter.hasProfanity(normalized) ||
+        _profanityFilter.hasProfanity(collapsed)) {
+      return true;
+    }
+
+    if (_multiLangFilter.filterText(raw) != raw ||
+        _multiLangFilter.filterText(normalized) != normalized ||
+        _multiLangFilter.filterText(collapsed) != collapsed) {
+      return true;
+    }
+
+    for (final word in _extraOffensiveWords) {
+      final pattern = RegExp(r'\b' + RegExp.escape(word) + r'\b', caseSensitive: false);
+      if (pattern.hasMatch(raw) || pattern.hasMatch(normalized) || pattern.hasMatch(collapsed)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  static TextInputFormatter get englishOnlyFormatter => TruthworldTextInputFormatters.englishOnly;
+  static TextInputFormatter get profanitySanitizingFormatter => TruthworldTextInputFormatters.profanityFilter;
+
   /// Synchronous multi-layer content validation check.
   static ContentValidationResult validate(
     String text, {
     String fieldName = 'Content',
     bool checkPhoneNumbers = false,
+    bool checkEnglishOnly = true,
     int? minLength,
     int? maxLength,
   }) {
@@ -219,6 +292,15 @@ class ContentValidator {
     }
 
     final raw = text.trim();
+
+    // LAYER 0: English Language Only Check (skippable for user names/international identity)
+    if (checkEnglishOnly && !isEnglishOnly(raw)) {
+      return ContentValidationResult(
+        isValid: false,
+        message: 'Only English language is allowed in $fieldName.',
+      );
+    }
+
     final normalized = normalizeObfuscation(raw);
     final collapsed = collapseRepeatedChars(normalized);
 
@@ -330,6 +412,7 @@ class ContentValidator {
     int? minLength,
     int? maxLength,
     bool checkPhoneNumbers = false,
+    bool checkEnglishOnly = true,
   }) {
     return (value) {
       final text = value ?? '';
@@ -338,6 +421,7 @@ class ContentValidator {
         text,
         fieldName: fieldName,
         checkPhoneNumbers: checkPhoneNumbers,
+        checkEnglishOnly: checkEnglishOnly,
         minLength: minLength,
         maxLength: maxLength,
       );
@@ -456,6 +540,7 @@ mixin ContentValidationMixin {
     String text, {
     String fieldName = 'Content',
     bool checkPhoneNumbers = false,
+    bool checkEnglishOnly = true,
     int? minLength,
     int? maxLength,
   }) async {
@@ -463,6 +548,7 @@ mixin ContentValidationMixin {
       text,
       fieldName: fieldName,
       checkPhoneNumbers: checkPhoneNumbers,
+      checkEnglishOnly: checkEnglishOnly,
       minLength: minLength,
       maxLength: maxLength,
     );
@@ -473,6 +559,7 @@ mixin ContentValidationMixin {
     String text, {
     String fieldName = 'Content',
     bool checkPhoneNumbers = false,
+    bool checkEnglishOnly = true,
     int? minLength,
     int? maxLength,
   }) {
@@ -480,6 +567,7 @@ mixin ContentValidationMixin {
       text,
       fieldName: fieldName,
       checkPhoneNumbers: checkPhoneNumbers,
+      checkEnglishOnly: checkEnglishOnly,
       minLength: minLength,
       maxLength: maxLength,
     );
@@ -492,4 +580,98 @@ mixin ContentValidationMixin {
   }) async {
     return ContentValidator.validateTags(tags, maxTags: maxTags);
   }
+
+  /// Checks whether [text] contains strictly English characters.
+  bool isEnglishOnly(String text) => ContentValidator.isEnglishOnly(text);
+
+  /// Cleans and sanitizes all profanity from [text], returning the filtered version.
+  String cleanProfanity(String text) => ContentValidator.cleanProfanity(text);
+
+  /// Checks whether [text] contains any profane or offensive language.
+  bool hasProfanity(String text) => ContentValidator.hasProfanity(text);
+
+  /// Convenient access to the English-only text input formatter.
+  TextInputFormatter get englishOnlyFormatter =>
+      ContentValidator.englishOnlyFormatter;
+
+  /// Convenient access to the profanity-sanitizing text input formatter.
+  TextInputFormatter get profanitySanitizingFormatter =>
+      ContentValidator.profanitySanitizingFormatter;
+}
+
+/// A [TextInputFormatter] that restricts input strictly to English characters.
+///
+/// Permits standard English Latin letters (A-Z, a-z), digits (0-9), standard whitespace,
+/// and standard English punctuation / keyboard symbols. Non-English scripts and accents
+/// are immediately blocked upon typing or pasting.
+class EnglishOnlyTextInputFormatter extends FilteringTextInputFormatter {
+  EnglishOnlyTextInputFormatter({bool allowEmojis = true})
+      : super(
+          RegExp(
+            allowEmojis
+                ? r'''[a-zA-Z0-9\s!@#\$%^&*()_+\-=\[\]{}|;':",.<>/?`~’‘“”–—…\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}]'''
+                : r'''[a-zA-Z0-9\s!@#\$%^&*()_+\-=\[\]{}|;':",.<>/?`~’‘“”–—…]''',
+            unicode: true,
+          ),
+          allow: true,
+        );
+}
+
+/// A [TextInputFormatter] that sanitizes and filters profanity as words are entered or pasted.
+class ProfanitySanitizingTextInputFormatter extends TextInputFormatter {
+  const ProfanitySanitizingTextInputFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.length < oldValue.text.length) {
+      // Allow deletion without re-filtering
+      return newValue;
+    }
+
+    final isWordBoundary = newValue.text.endsWith(' ') ||
+        newValue.text.endsWith('\n') ||
+        newValue.text.endsWith('.') ||
+        newValue.text.endsWith(',') ||
+        newValue.text.endsWith('!') ||
+        newValue.text.endsWith('?') ||
+        newValue.text.endsWith(';') ||
+        newValue.text.endsWith(':');
+    final isPasted = (newValue.text.length - oldValue.text.length) > 1;
+
+    if (isWordBoundary || isPasted) {
+      final sanitized = ContentValidator.cleanProfanity(newValue.text);
+      if (sanitized != newValue.text) {
+        final targetOffset = newValue.selection.end >= 0
+            ? newValue.selection.end.clamp(0, sanitized.length)
+            : sanitized.length;
+        return TextEditingValue(
+          text: sanitized,
+          selection: TextSelection.collapsed(offset: targetOffset),
+        );
+      }
+    }
+
+    return newValue;
+  }
+}
+
+/// Standardized text input formatters for all Truthworld text fields.
+class TruthworldTextInputFormatters {
+  TruthworldTextInputFormatters._();
+
+  /// Formatter that enforces English language characters only.
+  static final TextInputFormatter englishOnly = EnglishOnlyTextInputFormatter();
+
+  /// Formatter that sanitizes profanity on word boundaries or paste.
+  static const TextInputFormatter profanityFilter =
+      ProfanitySanitizingTextInputFormatter();
+
+  /// Standard formatters combination: English only and profanity sanitization.
+  static List<TextInputFormatter> get standard => [
+        englishOnly,
+        profanityFilter,
+      ];
 }

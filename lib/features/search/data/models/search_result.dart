@@ -17,6 +17,8 @@ class SearchResult {
     this.type = ResultType.video,
     this.durationMs,
     this.relevanceScore = 0.0,
+    this.language,
+    this.category,
   });
 
   /// Convert Firestore document to SearchResult
@@ -54,6 +56,8 @@ class SearchResult {
           channelImage: avatar,
           createdAt: TimestampUtils.parse(data['createdAt']),
           type: ResultType.channel,
+          language: data['language'] as String?,
+          category: data['category'] as String?,
         );
       case ResultType.playlist:
         final playlistTitle = data['name'] as String? ??
@@ -82,6 +86,7 @@ class SearchResult {
           channelImage: '',
           createdAt: TimestampUtils.parse(data['createdAt']),
           type: ResultType.playlist,
+          category: data['category'] as String?,
         );
       case ResultType.topic:
         final slugVal = (data['slug'] as String?)?.trim() ?? '';
@@ -114,6 +119,7 @@ class SearchResult {
           channelImage: '',
           createdAt: TimestampUtils.parse(data['createdAt']),
           type: ResultType.topic,
+          category: data['category'] as String?,
         );
       case ResultType.video:
         return SearchResult(
@@ -134,6 +140,8 @@ class SearchResult {
             data['uploadedAt'] ?? data['createdAt'],
           ),
           durationMs: (data['durationMs'] as num?)?.toInt(),
+          language: data['language'] as String?,
+          category: data['category'] as String?,
         );
     }
   }
@@ -155,6 +163,8 @@ class SearchResult {
         orElse: () => ResultType.video,
       ),
       durationMs: (map['durationMs'] as num?)?.toInt(),
+      language: map['language'] as String?,
+      category: map['category'] as String?,
     );
   }
   final String id;
@@ -166,6 +176,8 @@ class SearchResult {
   final Timestamp createdAt;
   final ResultType type;
   final int? durationMs;
+  final String? language;
+  final String? category;
   double relevanceScore;
 
   // Getters for compatibility with EnhancedSearchController
@@ -224,7 +236,7 @@ class SearchResult {
     return true;
   }
 
-  /// Convert to map for testing
+  /// Convert to map for serialization and caching
   Map<String, dynamic> toMap() => {
     'id': id,
     'title': title,
@@ -232,9 +244,11 @@ class SearchResult {
     'views': views,
     'channelName': channelName,
     'channelImage': channelImage,
-    'createdAt': createdAt,
+    'createdAt': createdAt.toDate().toIso8601String(),
     'type': type.toString(),
     'durationMs': durationMs,
+    'language': language,
+    'category': category,
   };
 
   @override

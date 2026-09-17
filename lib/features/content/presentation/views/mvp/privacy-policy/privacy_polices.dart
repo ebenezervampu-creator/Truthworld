@@ -351,7 +351,7 @@ We may share your information in the following circumstances:
 
 We share data with trusted vendors who provide services on our behalf:
 • Cloud storage providers (AWS, Google Cloud, Firebase)
-• Payment processors (Stripe, PayPal)
+• Payment processors (UPI, Bank Transfer, PayPal)
 • Analytics services (Google Analytics, Firebase Analytics)
 • Content delivery networks (CDNs)
 • Email service providers

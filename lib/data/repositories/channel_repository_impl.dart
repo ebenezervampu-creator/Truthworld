@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_repository.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/network/result.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/data/models/channel.dart';
@@ -35,6 +36,7 @@ class ChannelRepositoryImpl extends BaseRepository
       status: model.status.name,
       category: model.category,
       categories: model.categories,
+      visibility: model.visibility,
     );
   }
 
@@ -225,7 +227,13 @@ class ChannelRepositoryImpl extends BaseRepository
               'ownerId': ownerId,
               'claimedAt': now,
             });
-      } catch (_) {}
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'ChannelRepositoryImpl.createChannel.claimHandle',
+        );
+      }
 
       // Update user doc with hasChannel flag and channelId
       await _firestore

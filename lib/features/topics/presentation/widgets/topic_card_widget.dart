@@ -48,9 +48,7 @@ class TopicCardWidget extends StatelessWidget {
   final RxBool _isHovered = false.obs;
 
   FollowingTopicsController get _followingTopicsController =>
-      Get.isRegistered<FollowingTopicsController>()
-          ? Get.find<FollowingTopicsController>()
-          : Get.put(FollowingTopicsController());
+      Get.find<FollowingTopicsController>();
 
   TopicInteractionController? get _interactionController {
     if (topic == null || topic!.id.trim().isEmpty) return null;

@@ -3,7 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -78,30 +81,26 @@ class PremiumCommentInput extends StatelessWidget {
 
       Future<void> submitComment() async {
         if (!authService.isAuthenticated.value) {
-          Get.snackbar(
-            'Sign In Required',
+          AppSnackbar.warning(
             'Please sign in to post a comment',
-            snackPosition: SnackPosition.BOTTOM,
-            backgroundColor: AppColors.bgSurface,
-            colorText: AppColors.textPrimary,
-            margin: const EdgeInsets.all(16),
-            borderRadius: 12,
-            mainButton: TextButton(
-              onPressed: authService.signInWithGoogle,
-              child: const Text(
-                'SIGN IN',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
+            title: 'Sign In Required',
+            actionLabel: 'SIGN IN',
+            onAction: authService.signInWithGoogle,
           );
           return;
         }
 
         final text = controller.commentController.text.trim();
         if (text.isEmpty || controller.isSubmitting.value) return;
+
+        final validation = ContentValidator.validate(text, fieldName: 'Comment');
+        if (!validation.isValid) {
+          AppSnackbar.warning(
+            validation.message,
+            title: 'Inappropriate Content',
+          );
+          return;
+        }
 
         controller.isSubmitting.value = true;
 
@@ -114,8 +113,13 @@ class PremiumCommentInput extends StatelessWidget {
           );
           controller.commentController.clear();
           controller.focusNode.unfocus();
-        } catch (e) {
-          debugPrint('Error submitting comment: $e');
+        } catch (e, stackTrace) {
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'PremiumCommentInput.submitComment',
+          );
+          AppSnackbar.error('Failed to post comment. Please try again.');
         } finally {
           controller.isSubmitting.value = false;
         }
@@ -141,6 +145,7 @@ class PremiumCommentInput extends StatelessWidget {
                   focusNode: controller.focusNode,
                   maxLines: null,
                   minLines: 1,
+                  inputFormatters: [TruthworldTextInputFormatters.englishOnly],
                   textInputAction: TextInputAction.send,
                   onSubmitted: (_) => submitComment(),
                   style: const TextStyle(
@@ -333,21 +338,11 @@ class PremiumCommentInput extends StatelessWidget {
 
   void _showSuperThanksModal(BuildContext context, String videoId) {
     if (!AuthService.to.isAuthenticated.value) {
-      Get.snackbar(
-        'Authentication Required',
+      AppSnackbar.warning(
         'Please sign in to send Super Thanks.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.bgSurface,
-        colorText: AppColors.textPrimary,
-        margin: const EdgeInsets.all(16),
-        borderRadius: 12,
-        mainButton: TextButton(
-          onPressed: () => AuthService.to.signInWithGoogle(),
-          child: const Text(
-            'SIGN IN',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
-        ),
+        title: 'Authentication Required',
+        actionLabel: 'SIGN IN',
+        onAction: () => AuthService.to.signInWithGoogle(),
       );
       return;
     }
@@ -571,6 +566,7 @@ class PremiumCommentInput extends StatelessWidget {
                               controller: messageController,
                               maxLines: 3,
                               minLines: 2,
+                              inputFormatters: TruthworldTextInputFormatters.standard,
                               style: const TextStyle(
                                 color: AppColors.textPrimary,
                                 fontSize: 14,
@@ -606,10 +602,18 @@ class PremiumCommentInput extends StatelessWidget {
                             : () async {
                                 final text = messageController.text.trim();
                                 if (text.isEmpty) {
-                                  Get.snackbar(
-                                    'Message Required',
+                                  AppSnackbar.warning(
                                     'Please enter a message for your Super Thanks.',
                                   );
+                                  return;
+                                }
+
+                                final validation = ContentValidator.validate(
+                                  text,
+                                  fieldName: 'Super Thanks',
+                                );
+                                if (!validation.isValid) {
+                                  AppSnackbar.warning(validation.message);
                                   return;
                                 }
 
@@ -632,17 +636,13 @@ class PremiumCommentInput extends StatelessWidget {
                                   if (!context.mounted) return;
                                   Navigator.pop(context);
                                   HapticFeedback.heavyImpact();
-                                  Get.snackbar(
-                                    'Super Thanks Sent! 🎉',
-                                    'Thank you for supporting the creator with $amountStr!',
-                                    backgroundColor: AppColors.bgSurface,
-                                    colorText: AppColors.textPrimary,
-                                    duration: const Duration(seconds: 4),
+                                  AppSnackbar.success(
+                                    'Thank you for supporting the creator with $amountStr! 🎉',
                                   );
                                 } catch (e) {
-                                  Get.snackbar(
-                                    'Error',
-                                    'Failed to send Super Thanks: $e',
+                                  ErrorHandler.log(e);
+                                  AppSnackbar.error(
+                                    'Unable to send Super Thanks. Please try again.',
                                   );
                                 } finally {
                                   isSubmitting.value = false;

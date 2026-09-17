@@ -181,28 +181,65 @@ export const onImageVerificationWritten = onDocumentWritten(
     const fieldStatus = category === "avatar" ? "avatarStatus" : "bannerStatus";
     const fieldReason = category === "avatar" ? "avatarStatusReason" : "bannerStatusReason";
 
-    // Query for any channels where the avatarFileId or bannerFileId matches this docId
+    // 1. Sync to users collection if category is avatar
+    if (category === "avatar") {
+      try {
+        if (afterData.userId) {
+          const userRef = db().collection("users").doc(afterData.userId);
+          const userDoc = await userRef.get();
+          if (userDoc.exists) {
+            await userRef.update({
+              avatarStatus: status,
+              avatarStatusReason: reason,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+            logger.info(`[onImageVerificationWritten] Successfully synced ${status} to user doc ${afterData.userId}`);
+          }
+        }
+
+        const usersSnap = await db()
+          .collection("users")
+          .where("avatarFileId", "==", docId)
+          .get();
+
+        if (!usersSnap.empty) {
+          const userBatch = db().batch();
+          usersSnap.docs.forEach((uDoc) => {
+            userBatch.update(uDoc.ref, {
+              avatarStatus: status,
+              avatarStatusReason: reason,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+          });
+          await userBatch.commit();
+          logger.info(`[onImageVerificationWritten] Successfully synced ${status} to ${usersSnap.size} user(s) by avatarFileId`);
+        }
+      } catch (userErr) {
+        logger.warn(`[onImageVerificationWritten] Error syncing avatar to users:`, userErr);
+      }
+    }
+
+    // 2. Query for any channels where the avatarFileId or bannerFileId matches this docId
     const channelsSnap = await db()
       .collection("channels")
       .where(fieldId, "==", docId)
       .get();
 
-    if (channelsSnap.empty) {
-      logger.info(`[onImageVerificationWritten] No channels found with ${fieldId} = ${docId}`);
-      return;
-    }
-
-    const batch = db().batch();
-    channelsSnap.docs.forEach((doc) => {
-      batch.update(doc.ref, {
-        [fieldStatus]: status,
-        [fieldReason]: reason,
-        updatedAt: Date.now(),
+    if (!channelsSnap.empty) {
+      const batch = db().batch();
+      channelsSnap.docs.forEach((doc) => {
+        batch.update(doc.ref, {
+          [fieldStatus]: status,
+          [fieldReason]: reason,
+          updatedAt: Date.now(),
+        });
       });
-    });
 
-    await batch.commit();
-    logger.info(`[onImageVerificationWritten] Successfully synced ${status} to ${channelsSnap.size} channels`);
+      await batch.commit();
+      logger.info(`[onImageVerificationWritten] Successfully synced ${status} to ${channelsSnap.size} channels`);
+    } else {
+      logger.info(`[onImageVerificationWritten] No channels found with ${fieldId} = ${docId}`);
+    }
   }
 );
 

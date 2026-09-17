@@ -446,15 +446,22 @@ class CategoryController extends BaseController {
     genres.value = _getGenresForCategory(category);
     selectedGenre.value = genres[0];
 
-    // Setup debounce listener for search
-    ever(searchQuery, (value) {
-      isSearching.value = true;
-      _searchDebounceTimer?.cancel();
-      _searchDebounceTimer = Timer(const Duration(milliseconds: 500), () {
-        debouncedSearchQuery.value = value.trim().toLowerCase();
-        isSearching.value = false;
-      });
-    });
+    // Setup native GetX debounce worker for search
+    addWorker(
+      ever<String>(searchQuery, (_) {
+        isSearching.value = true;
+      }),
+    );
+    addWorker(
+      debounce<String>(
+        searchQuery,
+        (value) {
+          debouncedSearchQuery.value = value.trim().toLowerCase();
+          isSearching.value = false;
+        },
+        time: const Duration(milliseconds: 500),
+      ),
+    );
   }
 
   @override

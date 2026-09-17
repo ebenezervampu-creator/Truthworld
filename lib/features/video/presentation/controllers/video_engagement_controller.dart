@@ -1,8 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/algorithm/user_signal_tracker.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
@@ -70,10 +71,12 @@ class VideoEngagementController extends BaseController {
       isLiked.value = futures[0].exists;
       isDisliked.value = futures[1].exists;
       isSubscribed.value = futures[2].exists;
-    } catch (e) {
+    } catch (e, s) {
       if (!e.toString().contains('permission-denied')) {
-        debugPrint(
-          '[VideoEngagementController] Error checking interactions: $e',
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'VideoEngagementController.checkUserInteractions',
         );
       }
     }
@@ -82,8 +85,11 @@ class VideoEngagementController extends BaseController {
   Future<void> toggleLike(
     String videoId,
     int defaultLikeCount,
-    int defaultDislikeCount,
-  ) async {
+    int defaultDislikeCount, {
+    String category = '',
+    List<String> topics = const [],
+    String channelId = '',
+  }) async {
     if (!AuthService.to.isAuthenticated.value) return;
     final userId = AuthService.to.uid;
     if (userId.isEmpty || videoId.isEmpty) return;
@@ -107,6 +113,14 @@ class VideoEngagementController extends BaseController {
           999999999,
         );
       }
+      if (Get.isRegistered<UserSignalTracker>()) {
+        Get.find<UserSignalTracker>().trackLike(
+          videoId: videoId,
+          category: category,
+          topics: topics,
+          channelId: channelId,
+        );
+      }
     } else {
       mainController.videoLikes[videoId] = (currentLikes - 1).clamp(
         0,
@@ -128,8 +142,11 @@ class VideoEngagementController extends BaseController {
   Future<void> toggleDislike(
     String videoId,
     int defaultLikeCount,
-    int defaultDislikeCount,
-  ) async {
+    int defaultDislikeCount, {
+    String category = '',
+    List<String> topics = const [],
+    String channelId = '',
+  }) async {
     if (!AuthService.to.isAuthenticated.value) return;
     final userId = AuthService.to.uid;
     if (userId.isEmpty || videoId.isEmpty) return;
@@ -151,6 +168,14 @@ class VideoEngagementController extends BaseController {
         mainController.videoLikes[videoId] = (currentLikes - 1).clamp(
           0,
           999999999,
+        );
+      }
+      if (Get.isRegistered<UserSignalTracker>()) {
+        Get.find<UserSignalTracker>().trackDislike(
+          videoId: videoId,
+          category: category,
+          topics: topics,
+          channelId: channelId,
         );
       }
     } else {
@@ -186,9 +211,11 @@ class VideoEngagementController extends BaseController {
           languageRequests.assignAll(requests);
           isLoadingLanguageRequests.value = false;
         })
-        .catchError((e) {
-          debugPrint(
-            '[VideoEngagementController] Error fetching language requests: $e',
+        .catchError((e, s) {
+          ErrorHandler.log(
+            e,
+            stackTrace: s,
+            tag: 'VideoEngagementController.fetchLanguageRequests',
           );
           isLoadingLanguageRequests.value = false;
         });

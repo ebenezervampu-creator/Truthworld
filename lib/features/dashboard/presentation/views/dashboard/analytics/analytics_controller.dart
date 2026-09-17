@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
 class AnalyticsController extends BaseController {
@@ -40,13 +42,15 @@ class AnalyticsController extends BaseController {
           rxIsLoading.value = false;
         },
         onError: (error) {
+          ErrorHandler.log(error, tag: 'AnalyticsController.fetchTopVideos');
           rxIsLoading.value = false;
-          rxErrorMessage.value = 'Failed to load top videos: $error';
+          rxErrorMessage.value = AppException.from(error).displayMessage;
         },
       ));
     } catch (e) {
+      ErrorHandler.log(e, tag: 'AnalyticsController.fetchTopVideos');
       rxIsLoading.value = false;
-      rxErrorMessage.value = 'An unexpected error occurred: $e';
+      rxErrorMessage.value = AppException.from(e).displayMessage;
     }
   }
 }

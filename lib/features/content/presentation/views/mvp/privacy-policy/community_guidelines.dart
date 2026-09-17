@@ -16,13 +16,19 @@ class GuidelineSection {
 }
 
 class CommunityGuidelinesPage extends StatelessWidget {
-  CommunityGuidelinesPage({super.key, this.isDashboard = false}) {
+  CommunityGuidelinesPage({
+    super.key,
+    this.isDashboard = false,
+    this.requireAgreement,
+  }) {
     _parseGuidelinesText();
     _scrollController.addListener(() {
-      if (_scrollController.hasClients &&
-          _scrollController.position.pixels >=
-              _scrollController.position.maxScrollExtent - 40) {
-        _hasScrolledToBottom.value = true;
+      if (_scrollController.hasClients) {
+        final pos = _scrollController.position;
+        if (pos.pixels >= pos.maxScrollExtent - 60 ||
+            (pos.atEdge && pos.pixels > 0)) {
+          _hasScrolledToBottom.value = true;
+        }
       }
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -34,6 +40,7 @@ class CommunityGuidelinesPage extends StatelessWidget {
   }
 
   final bool isDashboard;
+  final bool? requireAgreement;
 
   final ScrollController _scrollController = ScrollController();
   late final List<GuidelineSection> _sections;
@@ -272,7 +279,8 @@ class CommunityGuidelinesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final args = Get.arguments as Map<String, dynamic>?;
-    final requireAgreement = args?['requireAgreement'] == true;
+    final isAgreementRequired =
+        requireAgreement ?? (args?['requireAgreement'] == true);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -285,7 +293,7 @@ class CommunityGuidelinesPage extends StatelessWidget {
             backgroundColor: Theme.of(context).colorScheme.surface,
             elevation: 1,
             shadowColor: AppColors.bgPage.withValues(alpha: 0.1),
-            leading: (isDashboard || isDesktop)
+            leading: (isDashboard || isDesktop || isAgreementRequired)
                 ? IconButton(
                     icon: const Icon(
                       Icons.arrow_back,
@@ -302,41 +310,57 @@ class CommunityGuidelinesPage extends StatelessWidget {
                   )
                 : null,
             title: Text(
-              'Community Guidelines | Truthworld',
+              isDesktop ? 'Community Guidelines | Truthworld' : 'Community Guidelines',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 color: Theme.of(context).textTheme.titleLarge?.color,
               ),
             ),
             actions: [
-              TextButton(
-                onPressed: () {
-                  Get.toNamed('/terms');
-                },
-                child: Text(
-                  'Terms of Service',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w500,
-                    color: Theme.of(context).colorScheme.primary,
+              if (isDesktop) ...[
+                TextButton(
+                  onPressed: () {
+                    Get.toNamed('/terms');
+                  },
+                  child: Text(
+                    'Terms of Service',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w500,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
                 ),
-              ),
-              TextButton(
-                onPressed: () {
-                  Get.toNamed('/privacy');
-                },
-                child: Text(
-                  'Privacy Policy',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w500,
-                    color: Theme.of(context).colorScheme.primary,
+                TextButton(
+                  onPressed: () {
+                    Get.toNamed('/privacy');
+                  },
+                  child: Text(
+                    'Privacy Policy',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w500,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
                 ),
-              ),
+              ] else
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert, color: Colors.white),
+                  onSelected: Get.toNamed,
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: '/terms',
+                      child: Text('Terms of Service'),
+                    ),
+                    const PopupMenuItem(
+                      value: '/privacy',
+                      child: Text('Privacy Policy'),
+                    ),
+                  ],
+                ),
               const SizedBox(width: 8),
             ],
           ),
-          drawer: isDesktop
+          drawer: (isDesktop || isAgreementRequired)
               ? null
               : Drawer(child: _buildNavigationMenu(context, isDrawer: true)),
           body: isDesktop
@@ -349,11 +373,11 @@ class CommunityGuidelinesPage extends StatelessWidget {
                   ],
                 )
               : _buildContentArea(context),
-          bottomNavigationBar: !requireAgreement
+          bottomNavigationBar: !isAgreementRequired
               ? null
               : Obx(() {
                   return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     decoration: BoxDecoration(
                       color: Theme.of(context).colorScheme.surface,
                       border: Border(
@@ -367,29 +391,41 @@ class CommunityGuidelinesPage extends StatelessWidget {
                           ? SizedBox(
                               width: double.infinity,
                               height: 48,
-                              child: ElevatedButton.icon(
+                              child: ElevatedButton(
                                 onPressed: () {
                                   Get.back(result: true);
                                 },
-                                icon: const Icon(
-                                  Icons.check_circle_outline,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                                label: const Text(
-                                  'I Have Read & Accept Community Guidelines',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: Theme.of(context).colorScheme.primary,
-                                  foregroundColor: Colors.white,
+                                  backgroundColor: Colors.white,
+                                  foregroundColor: Colors.black,
+                                  elevation: 0,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(8),
                                   ),
+                                ),
+                                child: const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.check_circle_outline,
+                                      color: Colors.black,
+                                      size: 20,
+                                    ),
+                                    SizedBox(width: 8),
+                                    Flexible(
+                                      child: Text(
+                                        'I Have Read & Accept Community Guidelines',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             )
@@ -404,12 +440,15 @@ class CommunityGuidelinesPage extends StatelessWidget {
                                     size: 16,
                                   ),
                                   const SizedBox(width: 8),
-                                  Text(
-                                    'Please scroll to the bottom to accept Community Guidelines',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: Theme.of(context).textTheme.bodySmall?.color,
+                                  Flexible(
+                                    child: Text(
+                                      'Please scroll to the bottom to accept Community Guidelines',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: Theme.of(context).textTheme.bodySmall?.color,
+                                      ),
                                     ),
                                   ),
                                 ],

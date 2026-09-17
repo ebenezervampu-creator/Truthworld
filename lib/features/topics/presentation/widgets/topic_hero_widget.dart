@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
@@ -171,10 +172,11 @@ class TopicHeroWidget extends StatelessWidget {
         : null;
 
     if (bgUrl != null) {
-      return Image.network(
-        bgUrl,
+      return CachedNetworkImage(
+        imageUrl: bgUrl,
         fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => _buildGradientFallback(),
+        placeholder: (context, url) => _buildGradientFallback(),
+        errorWidget: (context, url, error) => _buildGradientFallback(),
       );
     }
     return _buildGradientFallback();

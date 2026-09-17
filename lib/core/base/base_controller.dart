@@ -7,6 +7,7 @@ import 'package:truthworld/core/base/ui_event.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/network/result.dart';
+import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 
 enum ViewState {
   idle,
@@ -242,9 +243,11 @@ class BaseController extends GetxController {
         backgroundColor: bg,
         colorText: fg,
       );
-    } catch (e) {
-      debugPrint(
-        '⚠️ [BaseController] Suppressed snackbar in non-UI context: $e',
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'BaseController.suppressedSnackbar',
       );
     }
   }
@@ -252,7 +255,8 @@ class BaseController extends GetxController {
   void handleError(dynamic error, {VoidCallback? onRetry}) {
     final appException = AppException.from(error);
     logException(appException.message);
-    _errorMessage.value = appException.displayMessage;
+    final cleanMessage = UserFeedbackSanitizer.sanitizeMessage(appException.displayMessage);
+    _errorMessage.value = cleanMessage;
 
     if (appException is NetworkException) {
       setViewState(ViewState.offline);
@@ -262,8 +266,7 @@ class BaseController extends GetxController {
 
     emitUiEvent(
       UiEventShowSnackbar(
-        title: 'Error',
-        message: appException.displayMessage,
+        message: cleanMessage,
         isError: true,
         onAction: onRetry,
       ),
@@ -277,11 +280,12 @@ class BaseController extends GetxController {
   }
 
   void showError(String message) {
+    final cleanMessage = UserFeedbackSanitizer.sanitizeMessage(message);
     emitUiEvent(
-      UiEventShowSnackbar(title: 'Error', message: message, isError: true),
+      UiEventShowSnackbar(message: cleanMessage, isError: true),
     );
     ErrorHandler.showSnackbar(
-      GenericAppException(message: message, userMessage: message),
+      GenericAppException(message: cleanMessage, userMessage: cleanMessage),
     );
   }
 
@@ -312,11 +316,9 @@ class BaseController extends GetxController {
       debugPrint('ℹ️ [Task Cancelled] $runtimeType: ${e.message}');
       setViewState(ViewState.cancelled);
       return Result.failure(e);
-    } catch (e) {
+    } catch (e, stackTrace) {
       handleError(e);
-      return Result.failure(
-        GenericAppException(message: e.toString(), originalException: e),
-      );
+      return Result.failure(AppException.from(e, stackTrace));
     }
   }
 

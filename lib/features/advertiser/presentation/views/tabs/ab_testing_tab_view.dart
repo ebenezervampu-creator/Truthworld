@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/utils/content_validator.dart';
+import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -541,6 +544,7 @@ class AbTestingTabView extends StatelessWidget {
             children: [
               TextField(
                 controller: titleController,
+                inputFormatters: TruthworldTextInputFormatters.standard,
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
                   labelText: 'Experiment Name (e.g. CTA Button Urgency Test)',
@@ -553,6 +557,7 @@ class AbTestingTabView extends StatelessWidget {
               const SizedBox(height: 12),
               TextField(
                 controller: campaignController,
+                inputFormatters: TruthworldTextInputFormatters.standard,
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
                   labelText: 'Target Campaign',
@@ -586,6 +591,7 @@ class AbTestingTabView extends StatelessWidget {
               const SizedBox(height: 12),
               TextField(
                 controller: variantAController,
+                inputFormatters: TruthworldTextInputFormatters.standard,
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
                   labelText: 'Variant A (Control)',
@@ -598,6 +604,7 @@ class AbTestingTabView extends StatelessWidget {
               const SizedBox(height: 12),
               TextField(
                 controller: variantBController,
+                inputFormatters: TruthworldTextInputFormatters.standard,
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
                   labelText: 'Variant B (Challenger)',
@@ -618,36 +625,67 @@ class AbTestingTabView extends StatelessWidget {
           ElevatedButton(
             onPressed: () {
               final title = titleController.text.trim();
-              if (title.isNotEmpty) {
-                controller.createAbExperiment({
-                  'id': 'exp_${DateTime.now().millisecondsSinceEpoch}',
-                  'title': title,
-                  'campaign': campaignController.text.trim(),
-                  'variable': variableChoice.value,
-                  'status': 'Running',
-                  'trafficSplit': '50% / 50%',
-                  'startDate': 'Today',
-                  'variantA': {
-                    'label': 'Variant A (Control)',
-                    'value': variantAController.text.trim(),
-                    'impressions': 0,
-                    'clicks': 0,
-                    'ctr': 0.0,
-                    'conversions': 0,
-                  },
-                  'variantB': {
-                    'label': 'Variant B (Challenger)',
-                    'value': variantBController.text.trim(),
-                    'impressions': 0,
-                    'clicks': 0,
-                    'ctr': 0.0,
-                    'conversions': 0,
-                  },
-                  'winner': 'Collecting traffic...',
-                  'confidence': 'Awaiting sample size',
-                });
-                Get.back();
+              if (title.isEmpty) {
+                AppSnackbar.warning('Please enter an experiment name.');
+                return;
               }
+              final titleVal = ContentValidator.validate(title, checkEnglishOnly: false, fieldName: 'Experiment Name');
+              if (!titleVal.isValid) {
+                AppSnackbar.warning(titleVal.message);
+                return;
+              }
+              final camp = campaignController.text.trim();
+              if (camp.isNotEmpty) {
+                final campVal = ContentValidator.validate(camp, checkEnglishOnly: false, fieldName: 'Target Campaign');
+                if (!campVal.isValid) {
+                  AppSnackbar.warning(campVal.message);
+                  return;
+                }
+              }
+              final varA = variantAController.text.trim();
+              if (varA.isNotEmpty) {
+                final varAVal = ContentValidator.validate(varA, checkEnglishOnly: false, fieldName: 'Variant A');
+                if (!varAVal.isValid) {
+                  AppSnackbar.warning(varAVal.message);
+                  return;
+                }
+              }
+              final varB = variantBController.text.trim();
+              if (varB.isNotEmpty) {
+                final varBVal = ContentValidator.validate(varB, checkEnglishOnly: false, fieldName: 'Variant B');
+                if (!varBVal.isValid) {
+                  AppSnackbar.warning(varBVal.message);
+                  return;
+                }
+              }
+              controller.createAbExperiment({
+                'id': 'exp_${DateTime.now().millisecondsSinceEpoch}',
+                'title': title,
+                'campaign': campaignController.text.trim(),
+                'variable': variableChoice.value,
+                'status': 'Running',
+                'trafficSplit': '50% / 50%',
+                'startDate': 'Today',
+                'variantA': {
+                  'label': 'Variant A (Control)',
+                  'value': variantAController.text.trim(),
+                  'impressions': 0,
+                  'clicks': 0,
+                  'ctr': 0.0,
+                  'conversions': 0,
+                },
+                'variantB': {
+                  'label': 'Variant B (Challenger)',
+                  'value': variantBController.text.trim(),
+                  'impressions': 0,
+                  'clicks': 0,
+                  'ctr': 0.0,
+                  'conversions': 0,
+                },
+                'winner': 'Collecting traffic...',
+                'confidence': 'Awaiting sample size',
+              });
+              Get.back();
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.brand,

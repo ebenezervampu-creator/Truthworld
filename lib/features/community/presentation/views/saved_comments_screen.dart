@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/features/community/data/models/saved_comment_model.dart';
 import 'package:truthworld/features/community/presentation/controllers/saved_comments_controller.dart';
@@ -16,7 +17,7 @@ class SavedCommentsScreen extends GetView<SavedCommentsController> {
 
   void _navigateToSource(SavedCommentModel comment) {
     if (comment.sourceId.isEmpty) {
-      Get.snackbar('Notice', 'Source content unavailable');
+      AppSnackbar.warning('Source content unavailable', title: 'Notice');
       return;
     }
 
@@ -42,15 +43,9 @@ class SavedCommentsScreen extends GetView<SavedCommentsController> {
   void _copyCommentText(String text) {
     Clipboard.setData(ClipboardData(text: text));
     HapticFeedback.lightImpact();
-    Get.snackbar(
-      'Copied',
+    AppSnackbar.info(
       'Comment text copied to clipboard',
-      snackPosition: SnackPosition.TOP,
-      backgroundColor: AppColors.bgSurfaceHover,
-      colorText: AppColors.textPrimary,
-      margin: const EdgeInsets.all(16),
-      borderRadius: 12,
-      duration: const Duration(seconds: 2),
+      title: 'Copied',
     );
   }
 
@@ -82,70 +77,21 @@ class SavedCommentsScreen extends GetView<SavedCommentsController> {
 
   @override
   Widget build(BuildContext context) {
-    return Obx(() {
-      final currentUser = AuthService.to.currentUser.value;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final crossAxisCount = screenWidth > 600 ? (screenWidth / 220).floor() : 2;
 
-      if (currentUser == null) {
-        return Scaffold(
-          backgroundColor: AppColors.bgPage,
-          appBar: AppBar(
-            backgroundColor: AppColors.bgPage,
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
-              onPressed: () => Get.back<void>(),
-            ),
-            title: Text(
-              'Comments',
-              style: GoogleFonts.roboto(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
-              ),
-            ),
-          ),
-          body: Center(
-            child: Text(
-              'Please sign in to view your saved comments',
-              style: GoogleFonts.roboto(
-                color: AppColors.textPrimary,
-                fontSize: 16,
-              ),
-            ),
-          ),
-        );
-      }
-
-      final screenWidth = MediaQuery.of(context).size.width;
-      final crossAxisCount = screenWidth > 600 ? (screenWidth / 220).floor() : 2;
-
-      return Scaffold(
+    return Scaffold(
+      backgroundColor: AppColors.bgPage,
+      appBar: AppBar(
         backgroundColor: AppColors.bgPage,
-        appBar: AppBar(
-          backgroundColor: AppColors.bgPage,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
-            onPressed: () => Get.back<void>(),
-          ),
-          title: Obx(() {
-            if (controller.isSearching.value) {
-              return TextField(
-                autofocus: true,
-                style: GoogleFonts.roboto(
-                  color: AppColors.textPrimary,
-                  fontSize: 16,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'Search saved comments...',
-                  hintStyle: GoogleFonts.roboto(
-                    color: AppColors.textSecondary,
-                  ),
-                  border: InputBorder.none,
-                ),
-                onChanged: controller.setSearchQuery,
-              );
-            }
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          onPressed: () => Get.back<void>(),
+        ),
+        title: Obx(() {
+          final currentUser = AuthService.to.currentUser.value;
+          if (currentUser == null || !controller.isSearching.value) {
             return Text(
               'Comments',
               style: GoogleFonts.roboto(
@@ -154,20 +100,51 @@ class SavedCommentsScreen extends GetView<SavedCommentsController> {
                 fontSize: 20,
               ),
             );
-          }),
+          }
+          return TextField(
+            autofocus: true,
+            style: GoogleFonts.roboto(
+              color: AppColors.textPrimary,
+              fontSize: 16,
+            ),
+            decoration: InputDecoration(
+              hintText: 'Search saved comments...',
+              hintStyle: GoogleFonts.roboto(
+                color: AppColors.textSecondary,
+              ),
+              border: InputBorder.none,
+            ),
+            onChanged: controller.setSearchQuery,
+          );
+        }),
         actions: [
-          Obx(
-            () => IconButton(
+          Obx(() {
+            final currentUser = AuthService.to.currentUser.value;
+            if (currentUser == null) return const SizedBox.shrink();
+            return IconButton(
               icon: Icon(
                 controller.isSearching.value ? Icons.close : Icons.search,
                 color: AppColors.textPrimary,
               ),
               onPressed: controller.toggleSearching,
-            ),
-          ),
+            );
+          }),
         ],
       ),
       body: Obx(() {
+        final currentUser = AuthService.to.currentUser.value;
+        if (currentUser == null) {
+          return Center(
+            child: Text(
+              'Please sign in to view your saved comments',
+              style: GoogleFonts.roboto(
+                color: AppColors.textPrimary,
+                fontSize: 16,
+              ),
+            ),
+          );
+        }
+
         if (controller.isLoading) {
           return const Center(
             child: CircularProgressIndicator(color: AppColors.brand),
@@ -181,7 +158,7 @@ class SavedCommentsScreen extends GetView<SavedCommentsController> {
               children: [
                 const Icon(
                   Icons.error_outline,
-                  color: AppColors.error,
+                  color: Colors.white,
                   size: 48,
                 ),
                 const SizedBox(height: 16),
@@ -363,7 +340,6 @@ class SavedCommentsScreen extends GetView<SavedCommentsController> {
         );
       }),
     );
-    });
   }
 
   Widget _buildCategoryFilterChips(SavedCommentsController controller) {

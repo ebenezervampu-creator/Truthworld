@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -78,8 +79,12 @@ class ClickableUrlText extends StatelessWidget {
         } else {
           await launchUrl(uri);
         }
-      } catch (e) {
-        debugPrint('[ClickableUrlText] Error launching $url: $e');
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'ClickableUrlText.launchUrl',
+        );
       }
     }
   }

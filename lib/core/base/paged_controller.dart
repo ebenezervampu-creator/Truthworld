@@ -76,7 +76,8 @@ abstract class PagedController<T> extends BaseController {
       },
       failure: (exception) {
         // Keep existing items on pagination failure
-        showError('Failed to load more items: ${exception.message}');
+        logException(exception);
+        showError('Unable to load more items. Please try again.');
         setViewState(ViewState.success);
       },
     );

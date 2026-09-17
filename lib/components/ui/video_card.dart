@@ -9,6 +9,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/video_options_sheet.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/services/user_preferences_service.dart';
 import 'package:truthworld/core/services/video_visibility_policy.dart';
@@ -110,7 +111,9 @@ class HoverPreviewCoordinator {
         if (tower.isMuted.value || tower.volume.value == 0.0) {
           return true;
         }
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'VideoCard.isMainVideoMuted.tower');
+      }
     }
 
     // 2. Check MiniplayerController (Homepage / Persistent miniplayer)
@@ -123,7 +126,9 @@ class HoverPreviewCoordinator {
             return true;
           }
         }
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'VideoCard.isMainVideoMuted.miniplayer');
+      }
     }
 
     return false;
@@ -283,15 +288,13 @@ class HoverPreviewCoordinator {
           mini.isPlaying.value = false;
         }
       }
-    } catch (e) {
-      debugPrint('[HoverPreviewCoordinator] Error pausing miniplayer: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'VideoCard.pauseAllMainPlayers.miniplayer');
     }
     try {
       TowerPlayerController.pauseAllActivePlayers();
-    } catch (e) {
-      debugPrint(
-        '[HoverPreviewCoordinator] Error pausing active tower players: $e',
-      );
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'VideoCard.pauseAllMainPlayers.tower');
     }
   }
 }
@@ -390,8 +393,8 @@ class _VideoCardState extends State<VideoCard> {
           };
         }
       }
-    } catch (e) {
-      debugPrint('Error loading real channel data for video card: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'VideoCard._loadRealChannelData');
     }
   }
 
@@ -409,8 +412,8 @@ class _VideoCardState extends State<VideoCard> {
   String _formatTimestamp(Timestamp timestamp) {
     try {
       return timeago.format(timestamp.toDate());
-    } catch (e) {
-      debugPrint('Error formatting timestamp: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'VideoCard._formatTimestamp');
       return 'some time ago';
     }
   }
@@ -436,8 +439,8 @@ class _VideoCardState extends State<VideoCard> {
             controller?.pause();
           }
           controller?.dispose();
-        } catch (e) {
-          debugPrint('Error disposing preview player: $e');
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'VideoCard._disposePreviewPlayer');
         }
       });
     }
@@ -523,8 +526,8 @@ class _VideoCardState extends State<VideoCard> {
       } else {
         controller.dispose();
       }
-    } catch (e) {
-      debugPrint('Error initializing hover video player: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'VideoCard._initializePreviewPlayer');
       if (mounted) {
         _isLoadingVideo.value = false;
       }
@@ -590,7 +593,9 @@ class _VideoCardState extends State<VideoCard> {
         // On web, dispose local preview controller to free up DOM elements
         try {
           controller.dispose();
-        } catch (_) {}
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'VideoCard._handleTap.disposeWeb');
+        }
       }
       _videoPlayerController.value = null;
       _isControllerInitialized.value = false;
@@ -608,8 +613,8 @@ class _VideoCardState extends State<VideoCard> {
         routeArguments: {
           'video': widget.video,
           'heroTag': '${widget.heroPrefix}_${widget.video.id}',
-          if (resumePos != null) 'resumePosition': resumePos,
-          if (resumePos != null) 'initialPosition': resumePos,
+          'resumePosition': ?resumePos,
+          'initialPosition': ?resumePos,
         },
       );
     }
@@ -978,8 +983,7 @@ class _VideoCardState extends State<VideoCard> {
                                 'Added to queue',
                                 "'${widget.video.title}' has been added to your play queue.",
                                 snackPosition: SnackPosition.BOTTOM,
-                                backgroundColor: theme.colorScheme.primary
-                                    .withValues(alpha: 0.8),
+                                backgroundColor: AppColors.bgSurfaceHover,
                                 colorText: AppColors.textPrimary,
                                 margin: const EdgeInsets.all(20),
                                 borderRadius: 16,

@@ -6,7 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/watch_later.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -134,17 +136,25 @@ class WatchLaterController extends BaseController {
           setViewState(
             watchLaterVideos.isEmpty ? ViewState.empty : ViewState.success,
           );
-        } catch (e) {
-          logException(e);
+        } catch (e, stackTrace) {
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'WatchLaterController.fetchWatchLaterVideos',
+          );
           rxIsLoading.value = false;
           setViewState(ViewState.error);
         }
       },
-      onError: (error) {
-        logException(error);
+      onError: (error, stackTrace) {
+        ErrorHandler.log(
+          error,
+          stackTrace: stackTrace,
+          tag: 'WatchLaterController.fetchWatchLaterVideos',
+        );
         rxIsLoading.value = false;
         setViewState(ViewState.error);
-        showError('Error fetching Watch Later videos: $error');
+        AppSnackbar.error('Unable to load Watch Later videos. Please try again.');
       },
     );
 
@@ -203,22 +213,10 @@ class WatchLaterController extends BaseController {
 
       watchLaterVideos.removeWhere((v) => v.id == videoId);
 
-      Get.snackbar(
-        'Removed',
-        'Video removed from Watch Later.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppTheme.colors.surface,
-        colorText: AppColors.textPrimary,
-        margin: const EdgeInsets.all(16),
-        borderRadius: 12,
-        icon: const Icon(
-          Icons.watch_later_outlined,
-          color: AppColors.textPrimary,
-        ),
-      );
+      AppSnackbar.success('Video removed from Watch Later.');
     } catch (e) {
       logException(e);
-      showError('Failed to remove video: $e');
+      AppSnackbar.error('Unable to remove video from Watch Later. Please try again.');
     }
   }
 
@@ -266,22 +264,10 @@ class WatchLaterController extends BaseController {
                 watchLaterVideos.clear();
                 setViewState(ViewState.empty);
 
-                Get.snackbar(
-                  'Cleared',
-                  'Watch Later list cleared.',
-                  snackPosition: SnackPosition.BOTTOM,
-                  backgroundColor: AppTheme.colors.surface,
-                  colorText: AppColors.textPrimary,
-                  margin: const EdgeInsets.all(16),
-                  borderRadius: 12,
-                  icon: const Icon(
-                    Icons.check_circle_outline,
-                    color: AppColors.textPrimary,
-                  ),
-                );
+                AppSnackbar.success('Watch Later list cleared.');
               } catch (e) {
                 logException(e);
-                showError('Failed to clear Watch Later: $e');
+                AppSnackbar.error('Unable to clear Watch Later. Please try again.');
               }
             },
             child: const Text(

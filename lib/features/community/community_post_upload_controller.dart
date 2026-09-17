@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/image_verification_service.dart';
@@ -15,9 +16,10 @@ import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/community/data/models/community_draft.dart';
 import 'package:truthworld/features/community/data/models/poll_model.dart';
+import 'package:truthworld/features/notifications/data/models/user_notification.dart';
+import 'package:truthworld/features/notifications/data/services/user_notification_service.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/data/repositories/topic_repository.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:uuid/uuid.dart';
 
 /// Dedicated GetX controller for the **Community Post Upload** flow.
@@ -35,9 +37,13 @@ class CommunityPostUploadController extends BaseController
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final _uuid = const Uuid();
   final _imageVerificationService = ImageVerificationService();
+  final _userNotificationService = UserNotificationService();
   final TopicRepository _topicRepository = TopicRepository();
 
   // ── Reactive State ────────────────────────────────────────────────────────
+
+  /// Mandatory creator copyright & rights ownership declaration
+  final RxBool hasConfirmedCopyrightDeclaration = false.obs;
 
   // Topic Selection State
   final RxString selectedTopicId = ''.obs;
@@ -136,8 +142,12 @@ class CommunityPostUploadController extends BaseController
       isTopicsLoading.value = true;
       final topics = await _topicRepository.fetchTopics(category: 'all', limit: 50);
       availableTopics.value = topics;
-    } catch (e) {
-      debugPrint('Error fetching topics in community upload: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'CommunityPostUploadController.fetchAvailableTopics',
+      );
     } finally {
       isTopicsLoading.value = false;
     }
@@ -186,7 +196,13 @@ class CommunityPostUploadController extends BaseController
                     .map(Channel.fromDocumentSnapshot)
                     .where((c) => c.status != ChannelStatus.deleted)
                     .toList();
-              } catch (_) {}
+              } catch (e, stackTrace) {
+                ErrorHandler.log(
+                  e,
+                  stackTrace: stackTrace,
+                  tag: 'CommunityPostUploadController.fetchChannelsFallback1',
+                );
+              }
             }
 
             // Fallback 2: Check user document for channelId reference
@@ -209,7 +225,13 @@ class CommunityPostUploadController extends BaseController
                     }
                   }
                 }
-              } catch (_) {}
+              } catch (e, stackTrace) {
+                ErrorHandler.log(
+                  e,
+                  stackTrace: stackTrace,
+                  tag: 'CommunityPostUploadController.fetchChannelsFallback2',
+                );
+              }
             }
 
             // Fallback 3: In-memory AuthService channel
@@ -235,40 +257,26 @@ class CommunityPostUploadController extends BaseController
           })
           .catchError((error) {
             isChannelsLoading.value = false;
-            channelsError.value = 'Failed to load channels: $error';
-            debugPrint('❌ Error fetching community channels: $error');
-            AppSnackbar.show(
-              'Error',
-              'Failed to load channels',
-              snackPosition: SnackPosition.BOTTOM,
-              backgroundColor: const Color(0xFFEF4444),
-              colorText: AppColors.textPrimary,
-              mainButton: TextButton(
-                onPressed: _fetchChannelsForCommunity,
-                child: const Text(
-                  'Retry',
-                  style: TextStyle(color: AppColors.textPrimary),
-                ),
-              ),
+            channelsError.value = 'Unable to load channels. Please try again.';
+            ErrorHandler.log(error);
+            AppSnackbar.error(
+              'Unable to load channels. Please try again.',
+              onAction: _fetchChannelsForCommunity,
+              actionLabel: 'Retry',
             );
           });
     } catch (e) {
       isChannelsLoading.value = false;
-      channelsError.value = 'Error: $e';
-      debugPrint('❌ Error in _fetchChannelsForCommunity: $e');
+      channelsError.value = 'Unable to load channels. Please try again.';
+      ErrorHandler.log(e);
     }
   }
 
   /// Select a channel for community post
   void selectChannelForCommunity(Channel channel) {
     if (channel.id.isEmpty) {
-      debugPrint('❌ Invalid community channel selection');
-      AppSnackbar.show(
-        'Error',
-        'Invalid channel selected',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: const Color(0xFFEF4444),
-      );
+      ErrorHandler.log('Invalid community channel selection');
+      AppSnackbar.warning('Please select a valid channel.');
       return;
     }
 
@@ -298,6 +306,7 @@ class CommunityPostUploadController extends BaseController
     moderationReasons.clear();
     _moderationListeners.forEach((_, sub) => sub.cancel());
     _moderationListeners.clear();
+    hasConfirmedCopyrightDeclaration.value = false;
 
     currentDraft.value = null;
   }
@@ -315,12 +324,14 @@ class CommunityPostUploadController extends BaseController
       return false;
     }
 
-    // Moderation checks are relaxed for background publishing
-    /*
-    if (moderationStatuses.values.any((s) => s == 'REJECTED' || s == 'FLAGGED')) {
+    // Only block if an image was explicitly rejected (verifying/pending images do not block)
+    if (moderationStatuses.values.any((s) => s == 'REJECTED')) {
       return false;
     }
-    */
+
+    if (!hasConfirmedCopyrightDeclaration.value) {
+      return false;
+    }
 
     return true;
   }
@@ -376,18 +387,14 @@ class CommunityPostUploadController extends BaseController
           final extension = file.extension?.toLowerCase();
           const allowedExtensions = {'jpg', 'jpeg', 'png', 'gif'};
           if (extension == null || !allowedExtensions.contains(extension)) {
-            AppSnackbar.show(
-              'Error',
+            AppSnackbar.warning(
               'Unsupported image format. Allowed formats: JPG, JPEG, PNG, GIF.',
-              snackPosition: SnackPosition.BOTTOM,
             );
             return;
           }
           if (file.size > maxImageSizeBytes) {
-            AppSnackbar.show(
-              'Error',
+            AppSnackbar.warning(
               'Selected image exceeds the 20MB limit.',
-              snackPosition: SnackPosition.BOTTOM,
             );
             return;
           }
@@ -403,10 +410,9 @@ class CommunityPostUploadController extends BaseController
         }
       }
     } catch (e) {
-      AppSnackbar.show(
-        'Error',
-        'Failed to pick images',
-        snackPosition: SnackPosition.BOTTOM,
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to select images. Please try again.',
       );
     }
   }
@@ -425,16 +431,23 @@ class CommunityPostUploadController extends BaseController
       final metadata = SettableMetadata(
         contentType: 'image/$fileExt',
         customMetadata: {
-          'uploaderId': ?currentUid,
+          'uploaderId': currentUid ?? '',
         },
       );
       final uploadTask = ref.putData(await file.xFile.readAsBytes(), metadata);
 
       // 2. Track Progress
-      uploadTask.snapshotEvents.listen((snapshot) {
-        final progress = snapshot.bytesTransferred / snapshot.totalBytes;
-        imageUploadProgress[index] = progress;
-      });
+      uploadTask.snapshotEvents.listen(
+        (snapshot) {
+          final progress = snapshot.bytesTransferred / snapshot.totalBytes;
+          imageUploadProgress[index] = progress;
+        },
+        onError: (e, stackTrace) => ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'CommunityPostUploadController.uploadTask',
+        ),
+      );
 
       // 3. Complete Upload
       final snapshot = await uploadTask.whenComplete(() {});
@@ -453,14 +466,25 @@ class CommunityPostUploadController extends BaseController
             .doc(lastPublishedPostId.value)
             .update({
               'images': FieldValue.arrayUnion([downloadUrl]),
+              'image': downloadUrl,
             })
-            .catchError((e) => debugPrint('Error updating post images: $e'));
+            .catchError((e, stackTrace) {
+              ErrorHandler.log(
+                e,
+                stackTrace: stackTrace,
+                tag: 'CommunityPostUploadController.updatePostImages',
+              );
+            });
       }
 
       // 4. Content Moderation / Verification (Async)
       startModerationCheck(index, fileName);
-    } catch (e) {
-      debugPrint('❌ Upload error at index $index: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'CommunityPostUploadController.uploadImage',
+      );
       imageUploadProgress[index] = -1.0; // Error indicator
       moderationStatuses[index] = 'REJECTED';
       moderationReasons[index] = 'Upload failed';
@@ -481,14 +505,35 @@ class CommunityPostUploadController extends BaseController
           moderationReasons[index] = reason;
 
           if (status == 'REJECTED') {
-            AppSnackbar.show(
-              'Image Rejected',
+            final uid = _auth.currentUser?.uid;
+            if (uid != null && uid.isNotEmpty) {
+              _userNotificationService.createNotification(
+                userId: uid,
+                type: 'verification_result',
+                severity: NotificationSeverity.priority,
+                title: 'Community Image Rejected',
+                message:
+                    'Your community post image was rejected: $reason. Please upload a new image to proceed.',
+                actionUrl: '/community',
+                metadata: {
+                  'docId': docId,
+                  'reason': reason,
+                  'itemType': 'community_image',
+                },
+              );
+            }
+            AppSnackbar.warning(
               'One of your images was rejected: $reason',
-              backgroundColor: AppColors.error.withValues(alpha: 0.1),
-              snackPosition: SnackPosition.BOTTOM,
+              title: 'Image Rejected',
             );
           }
-        });
+        },
+        onError: (e, stackTrace) => ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'CommunityPostUploadController.moderationCheck',
+        ),
+      );
     trackSubscription(sub);
     _moderationListeners[index] = sub;
   }
@@ -510,14 +555,88 @@ class CommunityPostUploadController extends BaseController
       }
     }
     isSavingDraft.value = true;
-    // Mock log
-    await Future.delayed(const Duration(seconds: 1));
-    isSavingDraft.value = false;
-    AppSnackbar.show(
-      'Draft Saved',
-      'Your post was saved as a draft',
-      snackPosition: SnackPosition.BOTTOM,
-    );
+    try {
+      final uid = _auth.currentUser?.uid ?? AuthService.to.user?.uid;
+      if (uid == null) {
+        AppSnackbar.show(
+          'Authentication Required',
+          'Please sign in to save drafts.',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+        return;
+      }
+
+      final draftId = currentDraft.value?.id.isNotEmpty == true
+          ? currentDraft.value!.id
+          : _uuid.v4();
+
+      final parsedTags = tagsRaw
+          .split(',')
+          .map((t) => t.trim())
+          .where((t) => t.isNotEmpty)
+          .take(5)
+          .toList();
+
+      final draft = CommunityDraft(
+        id: draftId,
+        ownerId: uid,
+        channelId: selectedChannel.value?.channelId ?? '',
+        type: 'post',
+        title: title,
+        description: description,
+        tags: parsedTags,
+        category: selectedCategory.value,
+        visibility: selectedVisibility.value,
+        isKidFriendly: isKidFriendly.value,
+        imageUrls: List<String>.from(imageUrls),
+        scheduledPublishDate: isScheduled.value
+            ? scheduledDate.value.toIso8601String()
+            : null,
+        createdAt: currentDraft.value?.createdAt ?? DateTime.now(),
+        updatedAt: DateTime.now(),
+        poll: hasPoll.value
+            ? PollModel(
+                question: pollQuestion.value,
+                type: pollType.value,
+                options: pollType.value == PollType.multiChoice
+                    ? pollOptions
+                        .asMap()
+                        .entries
+                        .map(
+                          (e) => PollOption(
+                            id: 'opt_${e.key}',
+                            text: e.value,
+                          ),
+                        )
+                        .toList()
+                    : const [
+                        PollOption(id: 'opt_yes', text: 'Yes'),
+                        PollOption(id: 'opt_no', text: 'No'),
+                      ],
+              )
+            : null,
+      );
+
+      await _firestore
+          .collection(FirestoreCollections.users)
+          .doc(uid)
+          .collection('communityDrafts')
+          .doc(draftId)
+          .set(draft.toMap());
+
+      currentDraft.value = draft;
+
+      AppSnackbar.success(
+        'Your post was saved as a draft.',
+      );
+    } catch (e) {
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to save draft. Please try again.',
+      );
+    } finally {
+      isSavingDraft.value = false;
+    }
   }
 
   Future<void> publishPost({
@@ -639,28 +758,28 @@ class CommunityPostUploadController extends BaseController
       return;
     }
 
-    // Moderation checks are relaxed for background publishing
-    /*
-    if (moderationStatuses.values.any(
-      (s) => s == 'REJECTED' || s == 'FLAGGED',
-    )) {
+    // Only block if any image was explicitly REJECTED (verifying images do not block)
+    if (moderationStatuses.values.any((s) => s == 'REJECTED')) {
+      final reason = moderationReasons.values.firstWhere(
+        (r) => r.isNotEmpty,
+        orElse: () => 'Violates Community Guidelines',
+      );
       AppSnackbar.show(
         'Moderation Blocked',
-        'Some images were rejected. Please remove them before publishing.',
+        'Your image was rejected: $reason. Please replace or remove it before publishing.',
         snackPosition: SnackPosition.BOTTOM,
       );
       return;
     }
 
-    if (moderationStatuses.values.any((s) => s == 'PENDING')) {
+    if (!hasConfirmedCopyrightDeclaration.value) {
       AppSnackbar.show(
-        'Processing',
-        'Verification is still in progress. Please wait.',
+        'Declaration Required',
+        'Please confirm the creator declaration before publishing.',
         snackPosition: SnackPosition.BOTTOM,
       );
       return;
     }
-    */
 
     isUploading.value = true;
     try {
@@ -747,18 +866,14 @@ class CommunityPostUploadController extends BaseController
       isUploading.value = false;
       resetForm();
       Get.offAllNamed('/studio');
-      AppSnackbar.show(
-        'Published',
-        'Your community post is live',
-        snackPosition: SnackPosition.BOTTOM,
+      AppSnackbar.success(
+        'Your community post is live.',
       );
     } catch (e) {
       isUploading.value = false;
-      debugPrint('❌ Publish error: $e');
-      AppSnackbar.show(
-        'Error',
-        'Failed to publish post: $e',
-        snackPosition: SnackPosition.BOTTOM,
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to publish post. Please try again.',
       );
     }
   }
@@ -780,8 +895,7 @@ class CommunityPostUploadController extends BaseController
       moderationStatuses.remove(index);
       moderationReasons.remove(index);
 
-      // Shift indices if necessary (though simple Map removal info is often enough)
-      // For simplicity in this mock, we just remove.
+      // Remove active moderation tracking for removed image index
     }
   }
 

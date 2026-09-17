@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Premium Snackbar Service
@@ -57,7 +58,7 @@ class SnackbarService {
   }) {
     _show(
       message: message,
-      title: title ?? 'Error',
+      title: title,
       duration: duration,
       onTap: onTap,
       actionLabel: actionLabel,
@@ -196,13 +197,15 @@ class SnackbarService {
 
     final isMobile = Get.width < 600;
     final actualMaxWidth = isMobile ? Get.width * 0.9 : 450.0;
+    final sanitizedTitle = UserFeedbackSanitizer.sanitizeTitle(title);
+    final sanitizedMessage = UserFeedbackSanitizer.sanitizeMessage(message);
 
     Get.snackbar(
-      title ?? '',
-      message,
-      titleText: title != null
+      sanitizedTitle ?? '',
+      sanitizedMessage,
+      titleText: sanitizedTitle != null
           ? Text(
-              title,
+              sanitizedTitle,
               style: TextStyle(
                 color: textColor ?? AppColors.textPrimary,
                 fontWeight: FontWeight.w700,
@@ -212,7 +215,7 @@ class SnackbarService {
             )
           : const SizedBox.shrink(),
       messageText: Text(
-        message,
+        sanitizedMessage,
         style: TextStyle(
           color: (textColor ?? AppColors.textPrimary).withValues(alpha: 0.9),
           fontWeight: FontWeight.w400,
@@ -253,7 +256,7 @@ class SnackbarService {
               padding: const EdgeInsets.only(right: 4),
               child: Icon(
                 icon,
-                color: borderColor ?? AppColors.textPrimary,
+                color: Colors.white,
                 size: 22,
               ),
             )

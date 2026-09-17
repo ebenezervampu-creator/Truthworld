@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/utils/content_validator.dart';
+import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -699,6 +702,7 @@ class AdsTab extends StatelessWidget {
             const SizedBox(height: 12),
             TextField(
               controller: reasonController,
+              inputFormatters: TruthworldTextInputFormatters.standard,
               maxLines: 3,
               style: const TextStyle(
                 fontFamily: TWTypography.uiFamily,
@@ -729,6 +733,13 @@ class AdsTab extends StatelessWidget {
       buttonColor: AppColors.error,
       onConfirm: () {
         final reason = reasonController.text.trim();
+        if (reason.isNotEmpty) {
+          final val = ContentValidator.validate(reason, checkEnglishOnly: false, fieldName: 'Rejection Reason');
+          if (!val.isValid) {
+            AppSnackbar.warning(val.message);
+            return;
+          }
+        }
         Get.back();
         controller.moderateAd(
           ad['id'].toString(),

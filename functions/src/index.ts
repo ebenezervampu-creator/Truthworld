@@ -21,6 +21,7 @@ import * as admin from "firebase-admin";
 if (!admin.apps.length) {
   admin.initializeApp({
     databaseURL: "https://truthworld-1-default-rtdb.asia-southeast1.firebasedatabase.app",
+    storageBucket: "truthworld-1.firebasestorage.app",
   });
 }
 admin.firestore().settings({ ignoreUndefinedProperties: true });
@@ -316,70 +317,76 @@ export const triggerVideoAIFeatures = onRequest(
         }
       }, { merge: true });
 
-      await videoDocRef.update({
-        status: "processing",
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
+      const isAlreadyPublished = videoData.status === "published" ||
+        videoData.aiFeatures?.pipelineStage === "published" ||
+        videoData.isPublished === true ||
+        videoData.publishedAt != null;
+
+      if (!isAlreadyPublished) {
+        await videoDocRef.update({
+          status: "processing",
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
 
       const transcriptSnap = await admin.firestore().collection("transcripts").doc(videoId).get();
       const transcriptionCompleted = transcriptSnap.exists;
 
-      // Run feature pipelines asynchronously
-      (async () => {
-        try {
-          if (!transcriptionCompleted) {
-            const { TranscriptionLayer } = require("./pipeline/layers/05-transcription");
-            const transcriptionLayer = new TranscriptionLayer();
-            await transcriptionLayer.submitTranscription(videoId, userId, videoUrl, executionPlan, eventId);
-          } else {
-            const tasks: Promise<any>[] = [];
+      const { DistributionLayer } = require("./pipeline/layers/04-distribution");
+      const distribution = new DistributionLayer();
 
-            if (wantFactCheck || wantSummary) {
-              const { CredibilityEngine } = require("./pipeline/layers/06-credibility");
-              const credibilityEngine = new CredibilityEngine(PIPELINE_CONFIG.GEMINI_API_KEY);
-              tasks.push(
-                credibilityEngine.runCredibilityPipeline(
-                  videoId,
-                  userId,
-                  executionPlan,
-                  `fact_${eventId}`
-                )
-              );
-            }
+      if (!transcriptionCompleted) {
+        await distribution.publish("video-uploaded", {
+          eventId,
+          eventType: "video-uploaded",
+          jobId: videoId,
+          userId,
+          timestamp: now,
+          data: { videoUrl, executionPlan },
+          retryCount: 0,
+          source: "triggerVideoAIFeatures",
+        });
+      } else {
+        const publishTasks: Promise<any>[] = [];
 
-            if (wantDubbing || wantSubtitles) {
-              const { DubbingEngine } = require("./pipeline/layers/07-dubbing");
-              const dubbingEngine = new DubbingEngine();
-              tasks.push(
-                dubbingEngine.runDubbingPipeline(
-                  videoId,
-                  userId,
-                  videoUrl,
-                  executionPlan,
-                  `dub_${eventId}`
-                )
-              );
-            }
-
-            await Promise.all(tasks);
-
-            const { aggregationLayer } = require("./pipeline/layers/09-aggregation");
-            await aggregationLayer.onStageComplete(videoId, "aggregation", userId, executionPlan, eventId);
-          }
-
-          await jobDocRef.update({
-            "stages.onDemandAI.status": "completed",
-            "stages.onDemandAI.progress": 100,
-            "stages.onDemandAI.completedAt": Date.now(),
-          });
-        } catch (bgError) {
-          console.error("[triggerVideoAIFeatures] Background task error:", bgError);
-          await jobDocRef.update({
-            "stages.onDemandAI.status": "failed",
-            "stages.onDemandAI.error": String(bgError),
-          });
+        if (wantFactCheck || wantSummary) {
+          publishTasks.push(
+            distribution.publish("fact-processing", {
+              eventId: `fact_${eventId}`,
+              eventType: "fact-processing",
+              jobId: videoId,
+              userId,
+              timestamp: now,
+              data: { videoUrl, executionPlan },
+              retryCount: 0,
+              source: "triggerVideoAIFeatures",
+            })
+          );
         }
-      })();
+
+        if (wantDubbing || wantSubtitles) {
+          publishTasks.push(
+            distribution.publish("dubbing-processing", {
+              eventId: `dub_${eventId}`,
+              eventType: "dubbing-processing",
+              jobId: videoId,
+              userId,
+              timestamp: now,
+              data: { videoUrl, executionPlan },
+              retryCount: 0,
+              source: "triggerVideoAIFeatures",
+            })
+          );
+        }
+
+        await Promise.all(publishTasks);
+      }
+
+      await jobDocRef.update({
+        "stages.onDemandAI.status": "queued",
+        "stages.onDemandAI.progress": 25,
+        "stages.onDemandAI.dispatchedAt": Date.now(),
+      });
 
       res.status(200).json({
         success: true,
@@ -1113,11 +1120,40 @@ export const onVideoPublished = onDocumentUpdated(
 
     const shouldSendNotifications = isPublished && isApproved && notificationsNotSentYet && (becamePublished || becameApproved);
 
+    // ─── GATE 2.6: Detect if status or moderation status became rejected ─────
+    const wasRejected = beforeData?.status === "rejected" || beforeData?.moderation?.status === "rejected";
+    const isRejected = afterData.status === "rejected" || afterData.moderation?.status === "rejected";
+    const becameRejected = !wasRejected && isRejected;
+
+    if (becameRejected) {
+      const uploaderId = afterData.userId || afterData.ownerId || afterData.uploaderId;
+      if (uploaderId) {
+        const reason = afterData.rejectionReason || afterData.moderation?.reason || "Content violates Community Guidelines";
+        const title = afterData.title && afterData.title !== "Uploading..." ? afterData.title : "your video";
+        const { notifyUser } = require("./notifications/notifications");
+        notifyUser({
+          userId: uploaderId,
+          type: "verification_result",
+          severity: "priority",
+          title: "Video Moderation Rejected",
+          message: `Your video "${title}" was rejected: ${reason}. Please update or replace your video to comply with guidelines.`,
+          actionUrl: "/studio",
+          metadata: {
+            videoId,
+            reason,
+            itemType: "video",
+          },
+        }).catch((err: any) =>
+          logger.warn("[PublishGate] Rejection notification failed (non-critical)", { videoId, err: String(err) })
+        );
+      }
+    }
+
     // v2.0: Gate 2.5 (moderation wait) REMOVED — pipeline starts immediately.
     // Moderation runs in parallel via Storage trigger and cancels job if rejected.
 
     if (!becamePublished && !languagesChanged && !shouldSendNotifications) {
-      return; // No relevant change — exit silently
+      return; // No relevant pipeline action needed — exit silently
     }
 
     // ─── GATE 3: Metadata completeness check ────────────────────────────────
@@ -1678,6 +1714,7 @@ export {
   onCommentCreated,
   onNewSubscription,
   onCommunityPostCreated,
+  onCommunityPostUpdated,
   onUserNotificationCreated
 } from "./notifications/triggers";
 
@@ -1734,7 +1771,7 @@ export {
 */
 
 export {
-  scheduledPublishing,
+  scheduledVideoPublisher,
 } from "./publishing/scheduledPublishing";
 
 /*
@@ -1812,7 +1849,13 @@ export const syncJobToShard = onDocumentWritten(
 // ─── SEO Server & Indexing Cloud Functions ───────────────────────────────────
 export { seoServer } from "./seo/seoServer";
 export { rebuildDirtySitemapsScheduler } from "./seo/sitemap/sitemapScheduler";
-export { onVideoSeoWritten, onChannelSeoWritten } from "./seo/indexing/indexingTriggers";
+export { 
+  onVideoSeoWritten, 
+  onChannelSeoWritten, 
+  onTopicSeoWritten, 
+  onCommunityPostSeoWritten, 
+  onPlaylistSeoWritten 
+} from "./seo/indexing/indexingTriggers";
 
 export { onAdCampaignWritten, triggerAdAIFeatures, generateAllVideoAdsAIFeatures } from "./ads/ads";
 
@@ -2110,8 +2153,21 @@ export { moderateUser, consolidateUserAccounts } from "./admin/userManagement";
 // Live Chat & Superchat Moderation (already exported above on line 1637)
 // export * from "./livechat/liveChat";
 
-// Economy, Monetization & Stripe Payments
-export { createStripeCheckoutSession, stripeSuccessCallback } from "./economy/stripe";
-// export * from "./economy/revenue"; (unintegrated)
-// export * from "./economy/leaderboards"; (unintegrated)
+// Interactive AI Search Assistant
+export { aiSearchAssistant } from "./search/aiSearch";
+
+// Cashfree Payment Gateway
+export {
+  createCashfreeOrder,
+  verifyCashfreePayment,
+  cashfreeWebhook,
+  cashfreeHostedCheckout,
+} from "./economy/cashfreeFunctions";
+
+// Creator Payouts (Direct Bank Transfer & UPI)
+export { onPayoutRequestCreated } from "./economy/payouts";
+
+// Creator KYC Document Verification
+export { onKycDocumentCreatedOrUpdated } from "./economy/kyc";
+
 

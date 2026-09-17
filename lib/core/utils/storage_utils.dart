@@ -1,5 +1,5 @@
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:flutter/foundation.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/firebase_options.dart';
 
 class StorageUtils {
@@ -78,8 +78,12 @@ class StorageUtils {
             .timeout(const Duration(seconds: 3));
         _fastUrlCache[pathOrUrl] = tokenUrl;
         return tokenUrl;
-      } catch (e) {
-        debugPrint('[StorageUtils] Note: Signed URL resolution fallback to fast URL: $e');
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'StorageUtils.resolvePlaybackUrl',
+        );
         return fast;
       }
     }

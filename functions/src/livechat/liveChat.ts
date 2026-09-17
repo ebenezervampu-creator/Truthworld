@@ -96,7 +96,7 @@ export const processSuperchat = onCall(
       throw new HttpsError("unauthenticated", "User must be authenticated.");
     }
 
-    const { videoId, channelId, text, amount, currency = "USD", paymentIntentId } = request.data || {};
+    const { videoId, channelId, text, amount, currency = "USD" } = request.data || {};
 
     if (!videoId || !channelId || typeof amount !== "number" || amount <= 0) {
       throw new HttpsError("invalid-argument", "Invalid Superchat payment parameters.");
@@ -104,32 +104,6 @@ export const processSuperchat = onCall(
 
     const firestore = admin.firestore();
     const rtdb = admin.database();
-
-    // 0. Payment Verification & Replay Protection
-    if (paymentIntentId && paymentIntentId !== "direct_wallet") {
-      const paymentRef = firestore.collection("processed_payment_intents").doc(paymentIntentId);
-      const paymentDoc = await paymentRef.get();
-      if (paymentDoc.exists) {
-        throw new HttpsError("already-exists", "This payment has already been processed.");
-      }
-      await paymentRef.set({
-        paymentIntentId,
-        userId: callerUid,
-        amount,
-        currency,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-    } else {
-      // Direct wallet deduction: require user to have sufficient wallet balance
-      const walletSnap = await firestore.collection("users").doc(callerUid).get();
-      const walletBalance = Number(walletSnap.data()?.walletBalance || 0);
-      if (walletBalance < amount) {
-        throw new HttpsError("failed-precondition", "Insufficient wallet balance to send Superchat.");
-      }
-      await firestore.collection("users").doc(callerUid).update({
-        walletBalance: admin.firestore.FieldValue.increment(-amount),
-      });
-    }
 
     // 1. Fetch user profile
     const userDoc = await firestore.collection("users").doc(callerUid).get();
@@ -159,38 +133,51 @@ export const processSuperchat = onCall(
     const now = Date.now();
     const expiresAt = now + displayDurationMs;
 
-    // 3. Write to Durable Firestore Financial Ledger
-    const batch = firestore.batch();
+    // 3. Atomically check wallet balance, deduct funds, write ledger and update channel revenue
     const superchatRef = firestore
       .collection("channels")
       .doc(channelId)
       .collection("superchats")
       .doc(superchatId);
-
-    batch.set(superchatRef, {
-      superchatId,
-      videoId,
-      channelId,
-      userId: callerUid,
-      userName,
-      userProfilePicUrl,
-      text: text || "",
-      amount,
-      currency,
-      tierColor,
-      paymentIntentId: paymentIntentId || "direct_wallet",
-      status: "completed",
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    // Update Channel Total Fan Support Revenue
     const channelRef = firestore.collection("channels").doc(channelId);
-    batch.update(channelRef, {
-      superchatRevenueTotal: admin.firestore.FieldValue.increment(amount),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    const userRef = firestore.collection("users").doc(callerUid);
 
-    await batch.commit();
+    await firestore.runTransaction(async (transaction) => {
+      const walletSnap = await transaction.get(userRef);
+      const walletBalance = Number(walletSnap.data()?.walletBalance || 0);
+      if (walletBalance < amount) {
+        throw new HttpsError("failed-precondition", "Insufficient wallet balance to send Superchat.");
+      }
+
+      transaction.update(userRef, {
+        walletBalance: admin.firestore.FieldValue.increment(-amount),
+      });
+
+      transaction.set(superchatRef, {
+        superchatId,
+        videoId,
+        channelId,
+        userId: callerUid,
+        userName,
+        userProfilePicUrl,
+        text: text || "",
+        amount,
+        currency,
+        tierColor,
+        paymentIntentId: "direct_wallet",
+        status: "completed",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      transaction.set(
+        channelRef,
+        {
+          superchatRevenueTotal: admin.firestore.FieldValue.increment(amount),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+    });
 
     // 4. Write Pinned Live Event & Chat Message to RTDB (Authoritative write by Admin SDK)
     const messageRef = rtdb.ref(`liveChat/${videoId}/messages`).push();

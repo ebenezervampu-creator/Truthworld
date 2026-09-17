@@ -4,6 +4,7 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 
@@ -52,7 +53,13 @@ class ViewerIdentityService extends GetxService {
     // Persist for future sessions
     try {
       await storage.write(_storageKey, hash);
-    } catch (_) {}
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'ViewerIdentityService.getViewerIdentity.writeStorage',
+      );
+    }
 
     _cachedIdentity = hash;
     logger.info('Generated anonymous viewer identity', tag: _tag);
@@ -120,7 +127,13 @@ class ViewerIdentityService extends GetxService {
           'install_${DateTime.now().microsecondsSinceEpoch}_${identityHashCode(this)}';
       try {
         storage.write(_installIdKey, installId);
-      } catch (_) {}
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'ViewerIdentityService.getOrCreateInstallId.writeStorage',
+        );
+      }
     }
     return installId;
   }

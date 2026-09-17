@@ -1,6 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/ai/ai_search_service.dart';
+import 'package:truthworld/core/services/ai/models/ai_search_intent.dart';
 import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/search/data/models/search_cache.dart';
@@ -25,11 +28,16 @@ class SearchService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final SearchCache _cache = SearchCache();
 
+  static final RegExp _whitespaceRegExp = RegExp(r'\s+');
+  static final RegExp _trailingPunctuationRegExp = RegExp(r'[\.\?\!\,\;\:\-_]+$');
+  static final RegExp _leadingPunctuationRegExp = RegExp(r'^[\.\?\!\,\;\:\-_]+');
+  static final RegExp _nonWordNonDigitRegExp = RegExp(r'[^\w\d]');
+
   /// Strips trailing and leading punctuation marks (. ? ! , ; : - _) and collapses whitespace
   static String sanitizeQuery(String query) {
-    var cleaned = query.trim().replaceAll(RegExp(r'\s+'), ' ');
-    cleaned = cleaned.replaceAll(RegExp(r'[\.\?\!\,\;\:\-_]+$'), '').trim();
-    cleaned = cleaned.replaceAll(RegExp(r'^[\.\?\!\,\;\:\-_]+'), '').trim();
+    var cleaned = query.trim().replaceAll(_whitespaceRegExp, ' ');
+    cleaned = cleaned.replaceAll(_trailingPunctuationRegExp, '').trim();
+    cleaned = cleaned.replaceAll(_leadingPunctuationRegExp, '').trim();
     return cleaned.toLowerCase();
   }
 
@@ -37,27 +45,81 @@ class SearchService {
   static List<String> extractTokens(String query) {
     return query
         .toLowerCase()
-        .split(RegExp(r'\s+'))
-        .map((t) => t.replaceAll(RegExp(r'[^\w\d]'), '').trim())
+        .split(_whitespaceRegExp)
+        .map((t) => t.replaceAll(_nonWordNonDigitRegExp, '').trim())
         .where((t) => t.isNotEmpty)
         .toList();
   }
 
   /// Execute search query with intelligent fallback across all types
   ///
-  /// Returns: Merged list of SearchResult objects (videos, channels, playlists)
-  Future<List<SearchResult>> search(String query) async {
+  /// Returns: Merged list of SearchResult objects (videos, channels, playlists, topics)
+  Future<List<SearchResult>> search(String query, {AiSearchIntent? intent}) async {
     final normalized = sanitizeQuery(query);
     if (normalized.isEmpty) {
       return [];
     }
-    final cached = _cache.get(normalized);
+
+    final cacheKey = intent != null && intent.hasCriteria
+        ? 'ai:${intent.resultMode.name}:$normalized'
+        : normalized;
+
+    final cached = _cache.get(cacheKey);
     if (cached != null) {
       return cached;
     }
 
     try {
-      // Execute all search types in parallel for maximum speed
+      if (intent != null && intent.hasCriteria) {
+        // AI-guided query expansion: query Firestore using clean keywords
+        final searchTerms = <String>{};
+        if (intent.cleanKeywords.isNotEmpty) {
+          searchTerms.addAll(intent.cleanKeywords.take(3));
+        } else if (intent.detectedLanguage != null) {
+          searchTerms.add(intent.detectedLanguage!);
+        }
+        if (searchTerms.isEmpty) {
+          searchTerms.add(normalized);
+        }
+
+        final candidateMap = <String, SearchResult>{};
+        for (final term in searchTerms) {
+          final termResults = await Future.wait([
+            _searchVideos(term),
+            _searchChannels(term),
+            _searchPlaylists(term),
+            _searchTopics(term),
+          ]);
+          for (final item in termResults.expand((x) => x)) {
+            candidateMap['${item.type.name}_${item.id}'] = item;
+          }
+        }
+
+        // Score and filter candidates against the rich intent
+        final scoredCandidates = <SearchResult>[];
+        for (final item in candidateMap.values) {
+          final score = AiSearchService.instance.scoreSearchResult(item, intent);
+          if (score > 0) {
+            item.relevanceScore = score;
+            scoredCandidates.add(item);
+          }
+        }
+
+        // Sort based on intent mode
+        if (intent.resultMode == SearchResultMode.trending) {
+          scoredCandidates.sort((a, b) => b.views.compareTo(a.views));
+        } else if (intent.resultMode == SearchResultMode.recent) {
+          scoredCandidates.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        } else {
+          // Both ranked and exhaustive preserve high relevance at the top
+          scoredCandidates.sort((a, b) => b.relevanceScore.compareTo(a.relevanceScore));
+        }
+
+        _cache.put(cacheKey, scoredCandidates);
+        return scoredCandidates;
+      }
+
+      // Standard search: execute all search types in parallel for maximum speed
       final results = await Future.wait([
         _searchVideos(normalized),
         _searchChannels(normalized),
@@ -69,10 +131,10 @@ class SearchService {
       var merged = results.expand((x) => x).toList();
       merged = _rankAndSortResults(merged, normalized);
 
-      _cache.put(normalized, merged);
+      _cache.put(cacheKey, merged);
       return merged;
-    } catch (e) {
-      debugPrint('❌ [Search] Combined query failed: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'SearchService.search.combined');
       return [];
     }
   }
@@ -95,8 +157,8 @@ class SearchService {
       final results = await _searchVideos(normalized);
       _cache.put(cacheKey, results);
       return results;
-    } catch (e) {
-      debugPrint('❌ [Search] Video search failed: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'SearchService.searchVideos');
       return [];
     }
   }
@@ -133,8 +195,8 @@ class SearchService {
       for (final doc in s.docs) {
         addResult(SearchResult.fromFirestore(doc), doc.data());
       }
-    } catch (e) {
-      debugPrint('⚠️ [Search] Keyword video query error: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'SearchService.searchVideos.keywords');
     }
 
     // 2. Try prefix search with lowercase, TitleCase, and UPPERCASE
@@ -150,8 +212,8 @@ class SearchService {
           for (final doc in s.docs) {
             addResult(SearchResult.fromFirestore(doc));
           }
-        } catch (e) {
-          debugPrint('⚠️ [Search] Title prefix video query error: $e');
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'SearchService.searchVideos.prefix');
         }
         if (results.isNotEmpty) break;
       }
@@ -172,8 +234,8 @@ class SearchService {
             addResult(item);
           }
         }
-      } catch (e) {
-        debugPrint('⚠️ [Search] Firestore full-scan video fallback error: $e');
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'SearchService.searchVideos.fullscan');
       }
     }
 
@@ -209,8 +271,8 @@ class SearchService {
               );
           localMatches.forEach(addResult);
         }
-      } catch (e) {
-        debugPrint('⚠️ [Search] Local cache fallback failed: $e');
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'SearchService.searchVideos.localCache');
       }
     }
 
@@ -237,8 +299,8 @@ class SearchService {
       final results = await _searchChannels(normalized);
       _cache.put(cacheKey, results);
       return results;
-    } catch (e) {
-      debugPrint('❌ [Search] Channel search failed: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'SearchService.searchChannels');
       return [];
     }
   }
@@ -327,8 +389,8 @@ class SearchService {
       }
 
       return results;
-    } catch (e) {
-      debugPrint('⚠️ [Search] Channel query failed: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'SearchService._searchChannels');
       return results;
     }
   }
@@ -353,8 +415,8 @@ class SearchService {
       final results = await _searchPlaylists(normalized);
       _cache.put(cacheKey, results);
       return results;
-    } catch (e) {
-      debugPrint('❌ [Search] Playlist search failed: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'SearchService.searchPlaylists');
       return [];
     }
   }
@@ -437,8 +499,8 @@ class SearchService {
       }
 
       return results;
-    } catch (e) {
-      debugPrint('⚠️ [Search] Playlist query failed: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'SearchService._searchPlaylists');
       return results;
     }
   }
@@ -463,8 +525,8 @@ class SearchService {
       final results = await _searchTopics(normalized);
       _cache.put(cacheKey, results);
       return results;
-    } catch (e) {
-      debugPrint('❌ [Search] Topic search failed: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'SearchService.searchTopics');
       return [];
     }
   }
@@ -555,8 +617,8 @@ class SearchService {
       }
 
       return results;
-    } catch (e) {
-      debugPrint('⚠️ [Search] Topic query failed: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'SearchService._searchTopics');
       return results;
     }
   }
@@ -578,8 +640,8 @@ class SearchService {
           .where((item) => item.isValid)
           .take(12)
           .toList();
-    } catch (e) {
-      debugPrint('⚠️ [Search] Recommended fetch failed: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'SearchService.getRecommended');
       // Secondary fallback: query without composite ordering (and sort locally) if index is building or missing
       try {
         final snapshot = await _firestore.collection('videos').limit(30).get();
@@ -590,8 +652,8 @@ class SearchService {
             .toList();
         results.sort((a, b) => b.views.compareTo(a.views));
         return results.take(12).toList();
-      } catch (err) {
-        debugPrint('⚠️ [Search] Fallback recommended fetch failed: $err');
+      } catch (err, errStack) {
+        ErrorHandler.log(err, stackTrace: errStack, tag: 'SearchService.getRecommended.fallback');
         return [];
       }
     }
@@ -611,8 +673,8 @@ class SearchService {
           .toList();
       results.sort((a, b) => b.views.compareTo(a.views));
       return results.take(15).toList();
-    } catch (e) {
-      debugPrint('⚠️ [Search] Recommended channels fetch failed: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'SearchService.getRecommendedChannels');
       return [];
     }
   }
@@ -640,8 +702,8 @@ class SearchService {
           .toList();
       results.sort((a, b) => b.views.compareTo(a.views));
       return results.take(15).toList();
-    } catch (e) {
-      debugPrint('⚠️ [Search] Recommended playlists fetch failed: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'SearchService.getRecommendedPlaylists');
       return [];
     }
   }
@@ -668,8 +730,8 @@ class SearchService {
           .toList();
       results.sort((a, b) => b.views.compareTo(a.views));
       return results.take(15).toList();
-    } catch (e) {
-      debugPrint('⚠️ [Search] Recommended topics fetch failed: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'SearchService.getRecommendedTopics');
       return [];
     }
   }
@@ -746,8 +808,8 @@ class SearchService {
       }
 
       return uniqueCombined.isNotEmpty ? uniqueCombined : videos;
-    } catch (e) {
-      debugPrint('⚠️ [Search] Recommended all fetch failed: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'SearchService.getRecommendedAll');
       return getRecommended();
     }
   }
@@ -803,14 +865,16 @@ class SearchService {
             .orderBy('searchCount', descending: true)
             .limit(10)
             .get();
-      } catch (_) {
+      } catch (e1, s1) {
+        ErrorHandler.log(e1, stackTrace: s1, tag: 'SearchService.trending.searchCount');
         try {
           snapshot = await _firestore
               .collection('trending_searches')
               .orderBy('count', descending: true)
               .limit(10)
               .get();
-        } catch (_) {
+        } catch (e2, s2) {
+          ErrorHandler.log(e2, stackTrace: s2, tag: 'SearchService.trending.count');
           snapshot = await _firestore
               .collection('trending_searches')
               .limit(10)
@@ -832,8 +896,8 @@ class SearchService {
         final data = doc.data();
         return (data['term'] ?? data['query'] ?? doc.id).toString();
       }).toList();
-    } catch (e) {
-      debugPrint('⚠️ [Search] Trending fetch failed: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'SearchService.getTrendingSuggestions');
       return const [
         'Flutter Tutorial',
         'Web Development',
@@ -962,8 +1026,8 @@ class SearchService {
         debugPrint(
           '✅ [Search] Warmed up: "$query" (${results.length} results)',
         );
-      } catch (e) {
-        debugPrint('⚠️ [Search] Failed to warmup "$query": $e');
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'SearchService.warmupCache');
       }
 
       // Small delay to avoid overwhelming Firestore

@@ -2,7 +2,7 @@ import axios from "axios";
 import { DOMAIN } from "../schema/schemaConfig";
 import { logSeoEvent } from "../monitor/searchHealth";
 
-const INDEXNOW_KEY = process.env.INDEXNOW_KEY || "truthworld_indexnow_key_2026";
+const INDEXNOW_KEY = process.env.INDEXNOW_KEY || "truthworld-indexnow-key-2026";
 const INDEXNOW_LOCATION = `${DOMAIN}/${INDEXNOW_KEY}.txt`;
 
 export async function submitIndexNow(urlList: string[]): Promise<boolean> {

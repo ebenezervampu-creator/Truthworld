@@ -6,6 +6,14 @@
  * prompts, and grounding logic as production.
  */
 
+import * as admin from "firebase-admin";
+if (!admin.apps.length) {
+  try {
+    admin.initializeApp();
+  } catch {
+    // Ignore in standalone tests
+  }
+}
 import { PIPELINE_CONFIG } from "../pipeline/config";
 import { ClaimVerificationService } from "../pipeline/services/claimVerification";
 import { ClaimStatus } from "../pipeline/types";

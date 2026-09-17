@@ -16,13 +16,19 @@ class PolicySection {
 }
 
 class TermsAndConditionsPage extends StatelessWidget {
-  TermsAndConditionsPage({super.key, this.isDashboard = false}) {
+  TermsAndConditionsPage({
+    super.key,
+    this.isDashboard = false,
+    this.requireAgreement,
+  }) {
     _parsePolicyText();
     _scrollController.addListener(() {
-      if (_scrollController.hasClients &&
-          _scrollController.position.pixels >=
-              _scrollController.position.maxScrollExtent - 40) {
-        _hasScrolledToBottom.value = true;
+      if (_scrollController.hasClients) {
+        final pos = _scrollController.position;
+        if (pos.pixels >= pos.maxScrollExtent - 60 ||
+            (pos.atEdge && pos.pixels > 0)) {
+          _hasScrolledToBottom.value = true;
+        }
       }
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -34,6 +40,7 @@ class TermsAndConditionsPage extends StatelessWidget {
   }
 
   final bool isDashboard;
+  final bool? requireAgreement;
 
   final ScrollController _scrollController = ScrollController();
   late final List<PolicySection> _sections;
@@ -169,7 +176,8 @@ class TermsAndConditionsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final args = Get.arguments as Map<String, dynamic>?;
-    final requireAgreement = args?['requireAgreement'] == true;
+    final isAgreementRequired =
+        requireAgreement ?? (args?['requireAgreement'] == true);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -183,7 +191,7 @@ class TermsAndConditionsPage extends StatelessWidget {
             backgroundColor: Theme.of(context).colorScheme.surface,
             elevation: 1,
             shadowColor: AppColors.bgPage.withValues(alpha: 0.1),
-            leading: (isDashboard || isDesktop)
+            leading: (isDashboard || isDesktop || isAgreementRequired)
                 ? IconButton(
                     icon: const Icon(
                       Icons.arrow_back,
@@ -200,7 +208,7 @@ class TermsAndConditionsPage extends StatelessWidget {
                   )
                 : null,
             title: Text(
-              'Terms and Conditions | Truthworld',
+              isDesktop ? 'Terms and Conditions | Truthworld' : 'Terms & Conditions',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 // Use theme-aware color
@@ -208,23 +216,35 @@ class TermsAndConditionsPage extends StatelessWidget {
               ),
             ),
             actions: [
-              TextButton(
-                onPressed: () {
-                  Get.toNamed('/privacy');
-                },
-                child: Text(
-                  'Privacy Policy',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w500,
-                    color: Theme.of(context).colorScheme.primary,
+              if (isDesktop)
+                TextButton(
+                  onPressed: () {
+                    Get.toNamed('/privacy');
+                  },
+                  child: Text(
+                    'Privacy Policy',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w500,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
+                )
+              else
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert, color: Colors.white),
+                  onSelected: Get.toNamed,
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: '/privacy',
+                      child: Text('Privacy Policy'),
+                    ),
+                  ],
                 ),
-              ),
               const SizedBox(width: 8),
             ],
           ),
-          // Show the drawer ONLY on mobile
-          drawer: isDesktop
+          // Show the drawer ONLY on mobile when agreement is not required
+          drawer: (isDesktop || isAgreementRequired)
               ? null
               : Drawer(child: _buildNavigationMenu(context, isDrawer: true)),
           body: isDesktop
@@ -238,11 +258,11 @@ class TermsAndConditionsPage extends StatelessWidget {
                   ],
                 )
               : _buildContentArea(context), // Mobile Layout (just content)
-          bottomNavigationBar: !requireAgreement
+          bottomNavigationBar: !isAgreementRequired
               ? null
               : Obx(() {
                   return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     decoration: BoxDecoration(
                       color: Theme.of(context).colorScheme.surface,
                       border: Border(
@@ -256,29 +276,41 @@ class TermsAndConditionsPage extends StatelessWidget {
                           ? SizedBox(
                               width: double.infinity,
                               height: 48,
-                              child: ElevatedButton.icon(
+                              child: ElevatedButton(
                                 onPressed: () {
                                   Get.back(result: true);
                                 },
-                                icon: const Icon(
-                                  Icons.check_circle_outline,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                                label: const Text(
-                                  'I Have Read & Accept Terms and Conditions',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: Theme.of(context).colorScheme.primary,
-                                  foregroundColor: Colors.white,
+                                  backgroundColor: Colors.white,
+                                  foregroundColor: Colors.black,
+                                  elevation: 0,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(8),
                                   ),
+                                ),
+                                child: const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.check_circle_outline,
+                                      color: Colors.black,
+                                      size: 20,
+                                    ),
+                                    SizedBox(width: 8),
+                                    Flexible(
+                                      child: Text(
+                                        'I Have Read & Accept Terms and Conditions',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             )
@@ -293,12 +325,15 @@ class TermsAndConditionsPage extends StatelessWidget {
                                     size: 16,
                                   ),
                                   const SizedBox(width: 8),
-                                  Text(
-                                    'Please scroll to the bottom to accept Terms and Conditions',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: Theme.of(context).textTheme.bodySmall?.color,
+                                  Flexible(
+                                    child: Text(
+                                      'Please scroll to the bottom to accept Terms and Conditions',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: Theme.of(context).textTheme.bodySmall?.color,
+                                      ),
                                     ),
                                   ),
                                 ],

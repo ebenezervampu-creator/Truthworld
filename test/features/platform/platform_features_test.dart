@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/about/presentation/views/About/about.dart';
+import 'package:truthworld/features/content/presentation/controllers/copyright_complaint_controller.dart';
 import 'package:truthworld/features/feedback/presentation/bindings/feedback_binding.dart';
 import 'package:truthworld/features/feedback/presentation/controllers/feedback_controller.dart';
 import 'package:truthworld/features/feedback/presentation/views/feedback/feedbacks.dart';
@@ -147,7 +148,17 @@ void main() {
       expect(controller.errorMessage, 'Feedback must be at least 10 characters');
     });
 
-    test('SendFeedbackController provides expected feedback options', () {
+    test('submitFeedback rejects unauthenticated/anonymous callers', () async {
+      final controller = FeedbackController();
+      controller.updateFeedbackText('Valid feedback text here');
+      await controller.submitFeedback(
+        userId: 'anonymous',
+        userEmail: 'guest@example.com',
+      );
+      expect(controller.errorMessage, 'You must be signed in to submit feedback');
+    });
+
+    test('SendFeedbackController provides expected feedback options and requires auth on submit', () async {
       final controller = SendFeedbackController();
       expect(controller.feedbackTypes, containsAll([
         'Bug',
@@ -157,6 +168,21 @@ void main() {
       ]));
       expect(controller.feedbackType.value, 'General');
       expect(controller.rating.value, 0);
+      controller.feedbackController.text = 'Great app, keep it up!';
+      // Guest submit returns early without submitting
+      await controller.submitFeedback();
+      expect(controller.isSubmitting.value, isFalse);
+    });
+
+    test('CopyrightComplaintController enforces authentication before submitting', () async {
+      final controller = CopyrightComplaintController();
+      controller.onInit();
+      controller.nameController.text = 'Copyright Owner';
+      controller.emailController.text = 'owner@example.com';
+      await controller.submitComplaint();
+      expect(controller.isSubmitting.value, isFalse);
+      expect(controller.submittedComplaintId.value, isNull);
+      controller.onClose();
     });
 
     test('FeedbackBinding initializes without exceptions', () {

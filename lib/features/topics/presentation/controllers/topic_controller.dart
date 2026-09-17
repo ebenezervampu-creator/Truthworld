@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/exceptions/app_exceptions.dart';
+import 'package:truthworld/core/services/algorithm/user_signal_tracker.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
@@ -177,13 +180,21 @@ class TopicController extends BaseController {
           try {
             final channel = Channel.fromDocumentSnapshot(doc);
             cachedChannels[channel.id] = channel;
-          } catch (e) {
-            debugPrint('Error parsing channel document ${doc.id}: $e');
+          } catch (e, stackTrace) {
+            ErrorHandler.log(
+              e,
+              stackTrace: stackTrace,
+              tag: 'TopicController.parseChannel',
+            );
           }
         }
       }
-    } catch (e) {
-      debugPrint('Error fetching channels for videos: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'TopicController.fetchChannels',
+      );
     }
   }
 
@@ -221,8 +232,12 @@ class TopicController extends BaseController {
           .map((doc) => doc.data()['channelId']?.toString() ?? '')
           .where((id) => id.isNotEmpty)
           .toList();
-    } catch (e) {
-      debugPrint('Error loading user subscriptions in TopicController: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'TopicController.loadUserSubscriptions',
+      );
     }
   }
 
@@ -290,6 +305,12 @@ class TopicController extends BaseController {
       }
 
       topic.value = topicData;
+      if (Get.isRegistered<UserSignalTracker>()) {
+        Get.find<UserSignalTracker>().trackTopicExplored(
+          topicSlug: topicData.slug.isNotEmpty ? topicData.slug : topicData.id,
+          category: topicData.category,
+        );
+      }
       if (Get.isRegistered<FollowingTopicsController>()) {
         final followingCtrl = Get.find<FollowingTopicsController>();
         followingCtrl.updateTopicFollowerCount(topicData.id, topicData.followerCount);
@@ -327,9 +348,10 @@ class TopicController extends BaseController {
 
       // Load initial videos
       await _loadVideos(reset: true);
-    } catch (e) {
+    } catch (e, stackTrace) {
+      ErrorHandler.log(e, stackTrace: stackTrace, tag: 'TopicController.loadTopic');
       hasError.value = true;
-      rxErrorMessage.value = 'Failed to load topic: $e';
+      rxErrorMessage.value = AppException.from(e).displayMessage;
     } finally {
       rxIsLoading.value = false;
     }
@@ -379,8 +401,12 @@ class TopicController extends BaseController {
           hasMoreVideos.value = false;
         }
       }
-    } catch (e) {
-      debugPrint('Error loading more videos: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'TopicController.loadMoreVideos',
+      );
     } finally {
       isLoadingMore.value = false;
     }

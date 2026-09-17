@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/controls/fullscreen_actions_bar.dart';
@@ -497,10 +498,12 @@ class TowerCustomPlayer extends StatelessWidget {
                                         if (c.isFullScreen.value) ...[
                                           // Comments Overlay positioned directly in Stack
                                           Positioned(
-                                            top: 80,
-                                            bottom: 80,
+                                            top: playerHeight < 500 ? 16.0 : 80.0,
+                                            bottom: playerHeight < 500 ? 16.0 : 80.0,
                                             right: 20,
-                                            width: 350,
+                                            width: (playerWidth < 460)
+                                                ? (playerWidth - 40).clamp(260.0, 390.0)
+                                                : 350.0,
                                             child: Obx(() {
                                               c.showCommentsPopup.value;
                                               if (!c.showCommentsPopup.value) {
@@ -512,10 +515,12 @@ class TowerCustomPlayer extends StatelessWidget {
 
                                           // Transcript Overlay positioned directly in Stack
                                           Positioned(
-                                            top: 80,
-                                            bottom: 80,
+                                            top: playerHeight < 500 ? 16.0 : 80.0,
+                                            bottom: playerHeight < 500 ? 16.0 : 80.0,
                                             right: 20,
-                                            width: 350,
+                                            width: (playerWidth < 460)
+                                                ? (playerWidth - 40).clamp(260.0, 390.0)
+                                                : 350.0,
                                             child: Obx(() {
                                               c.showTranscriptPopup.value;
                                               if (!c
@@ -529,8 +534,8 @@ class TowerCustomPlayer extends StatelessWidget {
 
                                           // Fact-Check & Credibility Overlay positioned directly in Stack
                                           Positioned(
-                                            top: 80,
-                                            bottom: 80,
+                                            top: playerHeight < 500 ? 16.0 : 80.0,
+                                            bottom: playerHeight < 500 ? 16.0 : 80.0,
                                             right: 20,
                                             width: (playerWidth < 460)
                                                 ? (playerWidth - 40)
@@ -549,8 +554,8 @@ class TowerCustomPlayer extends StatelessWidget {
 
                                           // Real-Time Live Chat & Superchats Overlay
                                           Positioned(
-                                            top: 80,
-                                            bottom: 80,
+                                            top: playerHeight < 500 ? 16.0 : 80.0,
+                                            bottom: playerHeight < 500 ? 16.0 : 80.0,
                                             right: 20,
                                             width: (playerWidth < 460)
                                                 ? (playerWidth - 40)
@@ -671,7 +676,13 @@ class TowerCustomPlayer extends StatelessWidget {
                                   isSwitching = vc.isSwitchingResolution.value;
                                   isManual = !vc.isAutoSwitching.value;
                                 }
-                              } catch (_) {}
+                              } catch (e, s) {
+                                ErrorHandler.log(
+                                  e,
+                                  stackTrace: s,
+                                  tag: 'TowerCustomPlayer.resolutionSwitchingCheck',
+                                );
+                              }
                               final show = isSwitching && isManual;
                               return show
                                   ? const Positioned.fill(

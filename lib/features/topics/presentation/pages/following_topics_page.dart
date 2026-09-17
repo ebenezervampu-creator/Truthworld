@@ -14,14 +14,9 @@ import 'package:truthworld/features/topics/presentation/controllers/following_to
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class FollowingTopicsPage extends StatelessWidget {
+class FollowingTopicsPage extends GetView<FollowingTopicsController> {
   const FollowingTopicsPage({super.key, this.isDashboard = false});
   final bool isDashboard;
-
-  FollowingTopicsController get controller =>
-      Get.isRegistered<FollowingTopicsController>()
-          ? Get.find<FollowingTopicsController>()
-          : Get.put(FollowingTopicsController());
 
   TextEditingController get _searchController => controller.searchController;
 

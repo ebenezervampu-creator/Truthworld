@@ -10,14 +10,16 @@ import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/data/models/subscription_content.dart';
+import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/subscriptions/presentation/controllers/subscription_controller.dart';
 import 'package:truthworld/features/topics/presentation/widgets/topic_card_widget.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class SubscriptionsPage extends StatelessWidget {
+class SubscriptionsPage extends GetView<SubscriptionController> {
   const SubscriptionsPage({super.key, this.isDashboard = false});
   final bool isDashboard;
 
+  @override
   SubscriptionController get controller =>
       Get.isRegistered<SubscriptionController>()
           ? Get.find<SubscriptionController>()
@@ -91,7 +93,14 @@ class SubscriptionsPage extends StatelessWidget {
 
                     final isMobile = context.isMobile;
                     final isTablet = ResponsiveContext(context).isTablet;
-                    final crossAxisCount = isMobile ? 1 : (isTablet ? 2 : 3);
+                    final screenWidth = MediaQuery.of(context).size.width;
+                    final crossAxisCount = isMobile
+                        ? 1
+                        : (isTablet
+                            ? 2
+                            : (screenWidth >= 2200
+                                ? 5
+                                : (screenWidth >= 1600 ? 4 : 3)));
 
                     return SliverPadding(
                       padding: EdgeInsets.symmetric(horizontal: spacing),
@@ -406,11 +415,18 @@ class SubscriptionsPage extends StatelessWidget {
               if (isUnauthenticated)
                 ElevatedButton.icon(
                   onPressed: () => AuthService.to.signInWithGoogle(),
-                  icon: const Icon(Icons.account_circle_outlined, color: Colors.white),
-                  label: const Text('Sign in'),
+                  icon: const Icon(Icons.account_circle_outlined, color: Colors.black),
+                  label: Text(
+                    'Sign in',
+                    style: GoogleFonts.roboto(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.brand,
-                    foregroundColor: Colors.white,
+                    foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                   ),
@@ -469,14 +485,29 @@ class SubscriptionsPage extends StatelessWidget {
               const SizedBox(height: 24),
               if (hasNoSubs)
                 ElevatedButton(
-                  onPressed: () => Get.toNamed('/discover'),
+                  onPressed: () {
+                    if (Get.isRegistered<HomeController>()) {
+                      final homeController = Get.find<HomeController>();
+                      homeController.selectedCategory.value = 'All';
+                      homeController.onBottomNavItemTapped(2);
+                    } else {
+                      Get.toNamed('/discover');
+                    }
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.brand,
-                    foregroundColor: Colors.white,
+                    foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                   ),
-                  child: const Text('Discover Channels'),
+                  child: Text(
+                    'Discover Channels',
+                    style: GoogleFonts.roboto(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                  ),
                 )
               else
                 TextButton(

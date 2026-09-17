@@ -1,15 +1,14 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
-
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/notifications/data/services/video_feed_notification_service.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/theme/app_theme.dart';
 
 class VideoFeedNotificationController extends BaseController {
   final VideoFeedNotificationService _service = VideoFeedNotificationService();
@@ -47,20 +46,27 @@ class VideoFeedNotificationController extends BaseController {
 
   void _listenToAuthChanges() {
     _authSubscription =
-        FirebaseAuth.instance.authStateChanges().listen((user) {
-      final newUid = user?.uid ?? '';
-      if (newUid != _currentUserId) {
-        _currentUserId = newUid;
-        if (newUid.isEmpty || (user?.isAnonymous ?? false)) {
-          _subscription?.cancel();
-          _subscription = null;
-          notifications.clear();
-          rxIsLoading.value = false;
-        } else {
-          _listenToNotifications();
+        FirebaseAuth.instance.authStateChanges().listen(
+      (user) {
+        final newUid = user?.uid ?? '';
+        if (newUid != _currentUserId) {
+          _currentUserId = newUid;
+          if (newUid.isEmpty || (user?.isAnonymous ?? false)) {
+            _subscription?.cancel();
+            _subscription = null;
+            notifications.clear();
+            rxIsLoading.value = false;
+          } else {
+            _listenToNotifications();
+          }
         }
-      }
-    });
+      },
+      onError: (e, stackTrace) => ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'VideoFeedNotificationController._listenToAuthChanges',
+      ),
+    );
 
     final initialUser = FirebaseAuth.instance.currentUser;
     if (initialUser != null && !initialUser.isAnonymous) {
@@ -90,8 +96,9 @@ class VideoFeedNotificationController extends BaseController {
             notifications.value = notificationList;
             rxIsLoading.value = false;
           },
-          onError: (error) {
-            rxErrorMessage.value = error.toString();
+          onError: (error, stackTrace) {
+            ErrorHandler.log(error, stackTrace: stackTrace is StackTrace ? stackTrace : null);
+            rxErrorMessage.value = AppException.from(error).displayMessage;
             rxIsLoading.value = false;
           },
         );
@@ -136,24 +143,10 @@ class VideoFeedNotificationController extends BaseController {
         notification.isSeen = true;
       }
       notifications.refresh();
-      AppSnackbar.show(
-        'Success',
-        'All videos marked as seen',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: const Color(0xFF10B981),
-        colorText: AppColors.textPrimary,
-        duration: const Duration(seconds: 2),
-        margin: const EdgeInsets.all(16),
-        borderRadius: 12,
-      );
+      AppSnackbar.success('All videos marked as seen');
     } catch (e) {
-      AppSnackbar.show(
-        'Error',
-        'Failed to mark all as seen',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: const Color(0xFFEF4444),
-        colorText: AppColors.textPrimary,
-      );
+      ErrorHandler.log(e);
+      AppSnackbar.error('Unable to mark all videos as seen. Please try again.');
     }
   }
 
@@ -161,8 +154,9 @@ class VideoFeedNotificationController extends BaseController {
     try {
       final fresh = await _service.getVideoNotificationsOnce(userId);
       notifications.value = fresh;
-    } catch (e) {
-      rxErrorMessage.value = e.toString();
+    } catch (e, stackTrace) {
+      ErrorHandler.log(e, stackTrace: stackTrace);
+      rxErrorMessage.value = AppException.from(e).displayMessage;
     }
   }
 

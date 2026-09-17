@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
@@ -83,8 +84,8 @@ class TopicRepository {
       }
 
       return null;
-    } catch (e) {
-      debugPrint('Error getTopicBySlug: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.getTopicBySlug');
       return null;
     }
   }
@@ -113,8 +114,8 @@ class TopicRepository {
       final topic = Topic.fromDocumentSnapshot(doc);
       _cacheTopic(key, topic);
       return topic;
-    } catch (e) {
-      debugPrint('Error fetching topic by ID: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.getTopicById');
       return null;
     }
   }
@@ -184,8 +185,8 @@ class TopicRepository {
           .toList();
       final newLastDoc = snapshot.docs.isNotEmpty ? snapshot.docs.last : null;
       return TopicVideosPage(videos: videos, lastDoc: newLastDoc);
-    } catch (e) {
-      debugPrint('Error fetching videos page by topic: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.getVideosPageByTopic');
       return const TopicVideosPage(videos: [], lastDoc: null);
     }
   }
@@ -236,8 +237,8 @@ class TopicRepository {
       }
 
       return allVideos;
-    } catch (e) {
-      debugPrint('Error fetching featured videos: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.getFeaturedVideos');
       return [];
     }
   }
@@ -282,8 +283,8 @@ class TopicRepository {
       }
 
       return allTopics;
-    } catch (e) {
-      debugPrint('Error: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.getRelatedTopics');
       return [];
     }
   }
@@ -307,8 +308,8 @@ class TopicRepository {
           .map(Topic.fromDocumentSnapshot)
           .where((t) => t.isValidTopic && t.videoCount > 0 && t.slug != excludeSlug)
           .toList();
-    } catch (e) {
-      debugPrint('Error fetching similar topics: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.getSimilarTopics');
       return [];
     }
   }
@@ -330,8 +331,8 @@ class TopicRepository {
           .map(Topic.fromDocumentSnapshot)
           .where((t) => t.isValidTopic && t.videoCount > 0)
           .toList();
-    } catch (e) {
-      debugPrint('Error fetching popular topics: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.getPopularTopics');
       return [];
     }
   }
@@ -353,8 +354,8 @@ class TopicRepository {
           .map(Topic.fromDocumentSnapshot)
           .where((t) => t.isValidTopic && t.videoCount > 0)
           .toList();
-    } catch (e) {
-      debugPrint('Error searching topics: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.searchTopics');
       return [];
     }
   }
@@ -374,8 +375,8 @@ class TopicRepository {
         if (list.isNotEmpty) return list;
       }
       return getPopularTopics(limit: limit);
-    } catch (e) {
-      debugPrint('Error fetchFeaturedTopics: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.fetchFeaturedTopics');
       return getPopularTopics(limit: limit);
     }
   }
@@ -399,8 +400,8 @@ class TopicRepository {
           .map(Topic.fromDocumentSnapshot)
           .where((t) => t.isValidTopic && t.videoCount > 0)
           .toList();
-    } catch (e) {
-      debugPrint('Error fetchTrendingTopics: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.fetchTrendingTopics');
       return fetchTopics(limit: limit, lastDoc: lastDoc, category: category);
     }
   }
@@ -424,8 +425,8 @@ class TopicRepository {
           .map(Topic.fromDocumentSnapshot)
           .where((t) => t.isValidTopic && t.videoCount > 0)
           .toList();
-    } catch (e) {
-      debugPrint('Error fetchTopics: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.fetchTopics');
       try {
         Query fallbackQuery = _firestore.collection(FirestoreCollections.topics);
         if (category.toLowerCase() != 'all') {
@@ -437,8 +438,8 @@ class TopicRepository {
             .map(Topic.fromDocumentSnapshot)
             .where((t) => t.isValidTopic && t.videoCount > 0)
             .toList();
-      } catch (err) {
-        debugPrint('Error in fallback fetchTopics: $err');
+      } catch (err, errStack) {
+        ErrorHandler.log(err, stackTrace: errStack, tag: 'TopicRepository.fetchTopics.fallback');
         return [];
       }
     }
@@ -456,8 +457,8 @@ class TopicRepository {
 
       final topicIds = snapshot.docs.map((doc) => doc.id).toList();
       return _fetchTopicsByIds(topicIds);
-    } catch (e) {
-      debugPrint('Error fetchFollowedTopics: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.fetchFollowedTopics');
       return [];
     }
   }
@@ -474,8 +475,8 @@ class TopicRepository {
 
       final topicIds = snapshot.docs.map((doc) => doc.id).toList();
       return _fetchTopicsByIds(topicIds);
-    } catch (e) {
-      debugPrint('Error fetchFavoriteTopics: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.fetchFavoriteTopics');
       return [];
     }
   }
@@ -497,16 +498,16 @@ class TopicRepository {
                 .map(Topic.fromDocumentSnapshot)
                 .where((t) => t.isValidTopic && t.videoCount > 0)
                 .toList();
-          } catch (e) {
-            debugPrint('Error batch fetching topics by IDs: $e');
+          } catch (e, s) {
+            ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.fetchTopicsByIds.batch');
             return <Topic>[];
           }
         }());
       }
       final results = await Future.wait(futures);
       return results.expand((t) => t).toList();
-    } catch (e) {
-      debugPrint('Error _fetchTopicsByIds: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.fetchTopicsByIds');
       return [];
     }
   }
@@ -520,8 +521,8 @@ class TopicRepository {
           .doc(topicId)
           .get();
       return doc.exists;
-    } catch (e) {
-      debugPrint('Error isTopicFollowed: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.isTopicFollowed');
       return false;
     }
   }
@@ -562,8 +563,8 @@ class TopicRepository {
       await batch.commit();
       _topicCache.clear();
       return true;
-    } catch (e) {
-      debugPrint('Error followTopic: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.followTopic');
       return false;
     }
   }
@@ -583,8 +584,8 @@ class TopicRepository {
         return doc.data()?['notificationSetting'] as String? ?? 'all';
       }
       return 'all';
-    } catch (e) {
-      debugPrint('Error getTopicNotificationSetting: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.getTopicNotificationSetting');
       return 'all';
     }
   }
@@ -606,8 +607,8 @@ class TopicRepository {
             'updatedAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
       return true;
-    } catch (e) {
-      debugPrint('Error updateTopicNotificationSetting: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.updateTopicNotificationSetting');
       return false;
     }
   }
@@ -633,8 +634,8 @@ class TopicRepository {
       await batch.commit();
       _topicCache.clear();
       return true;
-    } catch (e) {
-      debugPrint('Error unfollowTopic: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.unfollowTopic');
       return false;
     }
   }
@@ -663,8 +664,8 @@ class TopicRepository {
             .toList();
       }
       return list.take(limit).toList();
-    } catch (e) {
-      debugPrint('Error getChannelsByTopic: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.getChannelsByTopic');
       return [];
     }
   }
@@ -693,8 +694,8 @@ class TopicRepository {
             .toList();
       }
       return list.take(limit).toList();
-    } catch (e) {
-      debugPrint('Error getPlaylistsByTopic: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.getPlaylistsByTopic');
       return [];
     }
   }
@@ -756,8 +757,8 @@ class TopicRepository {
             .toList();
       }
       return list.take(limit).toList();
-    } catch (e) {
-      debugPrint('Error getCommunityPostsByTopic: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.getCommunityPostsByTopic');
       return [];
     }
   }

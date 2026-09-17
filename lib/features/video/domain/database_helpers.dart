@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:idb_shim/idb_browser.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/local_playback_proxy.dart';
 import 'package:truthworld/core/services/media_crypto_service.dart';
 import 'package:truthworld/data/models/offline.dart';
@@ -22,8 +23,12 @@ Future<Database?> _getWebDatabase() async {
         }
       },
     );
-  } catch (e) {
-    debugPrint('[database_helpers] Web database error: $e');
+  } catch (e, s) {
+    ErrorHandler.log(
+      e,
+      stackTrace: s,
+      tag: 'database_helpers._getWebDatabase',
+    );
     return null;
   }
 }
@@ -115,7 +120,13 @@ Future<void> saveOfflineVideoFile(
           await mediaFile.exists()) {
         try {
           await mediaFile.delete();
-        } catch (_) {}
+        } catch (e, s) {
+          ErrorHandler.log(
+            e,
+            stackTrace: s,
+            tag: 'database_helpers.saveOfflineVideoFile.deleteSource',
+          );
+        }
       }
     }
 
@@ -160,7 +171,13 @@ Future<void> saveOfflineVideoBytes(
       if (await legacy.exists()) {
         try {
           await legacy.delete();
-        } catch (_) {}
+        } catch (e, s) {
+          ErrorHandler.log(
+            e,
+            stackTrace: s,
+            tag: 'database_helpers.saveOfflineVideoBytes.deleteLegacy',
+          );
+        }
       }
     }
   }
@@ -186,9 +203,11 @@ Future<List<Map<String, dynamic>>> getAllVideosData() async {
           final content = await entity.readAsString();
           final metaJson = jsonDecode(content) as Map<String, dynamic>;
           results.add({'meta': metaJson});
-        } catch (e) {
-          debugPrint(
-            '[database_helpers] Error reading meta file ${entity.path}: $e',
+        } catch (e, s) {
+          ErrorHandler.log(
+            e,
+            stackTrace: s,
+            tag: 'database_helpers.getAllVideosData',
           );
         }
       }
@@ -294,8 +313,12 @@ Future<String?> getOfflinePlaybackUrl(String id) async {
         );
         await legacyFile.delete();
         return LocalPlaybackProxyServer.instance.serveVideo(id, encFile);
-      } catch (e) {
-        debugPrint('[database_helpers] Error migrating legacy file: $e');
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'database_helpers.getOfflinePlaybackUrl.migrateLegacy',
+        );
         // Fallback: serve legacy directly
         return LocalPlaybackProxyServer.instance.serveVideo(id, legacyFile);
       }
@@ -343,8 +366,12 @@ Future<OfflineVideo?> getOfflineVideoMetadata(String id) async {
         final content = await metaFile.readAsString();
         final metaJson = jsonDecode(content) as Map<String, dynamic>;
         return OfflineVideo.fromJson(metaJson);
-      } catch (e) {
-        debugPrint('[database_helpers] Error reading meta for $id: $e');
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'database_helpers.getOfflineVideoMetadata',
+        );
       }
     }
     return null;

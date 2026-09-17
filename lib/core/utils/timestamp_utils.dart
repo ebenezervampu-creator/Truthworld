@@ -48,4 +48,33 @@ class TimestampUtils {
     }
     return null;
   }
+
+  /// Formats a [DateTime] into a human-readable relative time string (e.g. 'Updated today', '2 days ago').
+  static String formatRelativeTime(DateTime? dateTime, {String prefix = ''}) {
+    if (dateTime == null) return '';
+    final difference = DateTime.now().difference(dateTime);
+    String relative;
+    if (difference.inDays >= 365) {
+      final years = (difference.inDays / 365).floor();
+      relative = '$years year${years > 1 ? "s" : ""} ago';
+    } else if (difference.inDays >= 30) {
+      final months = (difference.inDays / 30).floor();
+      relative = '$months month${months > 1 ? "s" : ""} ago';
+    } else if (difference.inDays >= 7) {
+      final weeks = (difference.inDays / 7).floor();
+      relative = '$weeks week${weeks > 1 ? "s" : ""} ago';
+    } else if (difference.inDays > 1) {
+      relative = '${difference.inDays} days ago';
+    } else if (difference.inDays == 1) {
+      relative = 'yesterday';
+    } else if (difference.inHours >= 1) {
+      relative = '${difference.inHours} hour${difference.inHours > 1 ? "s" : ""} ago';
+    } else if (difference.inMinutes >= 1) {
+      relative = '${difference.inMinutes} minute${difference.inMinutes > 1 ? "s" : ""} ago';
+    } else {
+      relative = 'just now';
+    }
+
+    return prefix.isEmpty ? relative : '$prefix $relative';
+  }
 }

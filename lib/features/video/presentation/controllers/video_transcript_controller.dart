@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/core/utils/subtitle_parser.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -123,12 +124,21 @@ class VideoTranscriptController extends BaseController {
               return;
             }
           }
-        } catch (_) {
-          // Probe not found, continue to next
+        } catch (e, stackTrace) {
+          // Probe not found, log low-level diagnostic and continue to next probe
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'VideoTranscriptController.loadTranscript.probe',
+          );
         }
       }
-    } catch (e) {
-      debugPrint('[VideoTranscriptController] 🔥 Error loading transcript: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'VideoTranscriptController.loadTranscript',
+      );
     } finally {
       isLoadingTranscript.value = false;
       playerCtrl?.isLoadingSubtitles.value = false;
@@ -144,7 +154,13 @@ class VideoTranscriptController extends BaseController {
         if (response.statusCode == 200) {
           content = utf8.decode(response.bodyBytes, allowMalformed: true);
         }
-      } catch (_) {}
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'VideoTranscriptController.downloadHttpTranscript',
+        );
+      }
 
       if (content == null || content.isEmpty) {
         Uint8List? data;
@@ -163,8 +179,12 @@ class VideoTranscriptController extends BaseController {
       if (content != null && content.isNotEmpty) {
         return parseTranscriptContent(content);
       }
-    } catch (e) {
-      debugPrint('[VideoTranscriptController] Subtitle download error: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'VideoTranscriptController.downloadAndParseTranscript',
+      );
     }
     return [];
   }
@@ -212,8 +232,12 @@ class VideoTranscriptController extends BaseController {
           moderationSummary.value = summary;
         }
       }
-    } catch (e) {
-      debugPrint('[VideoTranscriptController] 🔥 Error fetching moderation summary: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'VideoTranscriptController.fetchSummary',
+      );
     } finally {
       isLoadingSummary.value = false;
     }

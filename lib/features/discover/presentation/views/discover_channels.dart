@@ -2,10 +2,13 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
+import 'package:truthworld/core/services/ai/models/ai_search_intent.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/discover/presentation/controllers/discover_channels_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/search/presentation/widgets/search_widgets.dart';
+import 'package:truthworld/features/search/presentation/widgets/voice_search_dialog.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 // ==========================================================================
@@ -331,10 +334,29 @@ class _DiscoverChannelsPageState extends State<DiscoverChannelsPage>
               padding.left,
               widget.isDashboard ? 0 : 8,
               padding.right,
-              16,
+              12,
             ),
-            child: _buildSearchBar(context),
+            child: _buildSearchBar(context, isMobile: isMobile),
           ),
+        ),
+
+
+        // Active AI Query & Intent Banner (when AI search is active)
+        SliverToBoxAdapter(
+          child: Obx(() {
+            if (_controller.activeAiIntent.value == null) {
+              return const SizedBox.shrink();
+            }
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                padding.left,
+                0,
+                padding.right,
+                16,
+              ),
+              child: _buildActiveAiQueryBanner(context),
+            );
+          }),
         ),
 
         // Categories Header / Grid
@@ -354,26 +376,11 @@ class _DiscoverChannelsPageState extends State<DiscoverChannelsPage>
           }),
         ),
 
-        // Filter Bar (Sort, Topics, Languages)
-        SliverToBoxAdapter(
-          child: Obx(
-            () => Padding(
-              padding: EdgeInsets.fromLTRB(
-                padding.left,
-                _controller.searchQuery.value.trim().isNotEmpty ? 0 : 16,
-                padding.right,
-                16,
-              ),
-              child: _buildFilterBar(context),
-            ),
-          ),
-        ),
-
         // Channels List
         SliverPadding(
           padding: EdgeInsets.fromLTRB(
             padding.left,
-            0,
+            16,
             padding.right,
             32,
           ),
@@ -411,17 +418,18 @@ class _DiscoverChannelsPageState extends State<DiscoverChannelsPage>
     );
   }
 
-  Widget _buildSearchBar(BuildContext context) {
+  Widget _buildSearchBar(BuildContext context, {bool isMobile = false}) {
     return Container(
       decoration: BoxDecoration(
         color: buttonBg,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: AppColors.textPrimary.withValues(alpha: 0.08),
+          color: AppColors.textPrimary.withValues(alpha: 0.12),
         ),
       ),
       child: TextField(
         controller: _controller.searchController,
+        inputFormatters: [TruthworldTextInputFormatters.englishOnly],
         onChanged: _controller.onSearchChanged,
         style: const TextStyle(
           color: primaryText,
@@ -429,31 +437,58 @@ class _DiscoverChannelsPageState extends State<DiscoverChannelsPage>
           fontWeight: FontWeight.w400,
         ),
         decoration: InputDecoration(
-          hintText: 'Search channels by name, topic, or keyword...',
+          hintText: isMobile
+              ? 'Ask AI (e.g. "Top verified science", "AI robotics", "Investigative news")...'
+              : 'Ask AI or search channels (e.g. "Top verified science educators", "Emerging AI & robotics creators")...',
           hintStyle: const TextStyle(
             color: secondaryText,
             fontSize: 14,
             fontWeight: FontWeight.w400,
           ),
           prefixIcon: const Icon(
-            Icons.search_rounded,
-            color: secondaryText,
+            Icons.auto_awesome_rounded,
+            color: AppColors.textPrimary,
             size: 20,
           ),
-          suffixIcon: Obx(
-            () => _controller.searchQuery.value.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(
-                      Icons.clear_rounded,
-                      color: secondaryText,
-                      size: 18,
+          suffixIcon: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(
+                  Icons.mic_rounded,
+                  color: AppColors.textPrimary,
+                  size: 20,
+                ),
+                tooltip: 'Voice Search',
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  Get.dialog(
+                    VoiceSearchDialog(
+                      onSearch: (query) {
+                        _controller.searchController.text = query;
+                        _controller.onSearchChanged(query);
+                      },
                     ),
-                    onPressed: () {
-                      HapticFeedback.lightImpact();
-                      _controller.clearSearch();
-                    },
-                  )
-                : const SizedBox.shrink(),
+                  );
+                },
+              ),
+              Obx(
+                () => _controller.searchQuery.value.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(
+                          Icons.clear_rounded,
+                          color: AppColors.textPrimary,
+                          size: 18,
+                        ),
+                        tooltip: 'Clear',
+                        onPressed: () {
+                          HapticFeedback.lightImpact();
+                          _controller.clearAiSearch();
+                        },
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ],
           ),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
@@ -461,6 +496,194 @@ class _DiscoverChannelsPageState extends State<DiscoverChannelsPage>
             vertical: 14,
           ),
         ),
+      ),
+    );
+  }
+
+
+  Widget _buildActiveAiQueryBanner(BuildContext context) {
+    final intent = _controller.activeAiIntent.value!;
+    final matchCount = _controller.channels.length;
+    final isBroadened = _controller.isBroadenedView.value;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: AppColors.textPrimary.withValues(alpha: 0.12),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.textPrimary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: AppColors.textPrimary,
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isBroadened
+                          ? 'Showing broadened Christian channels across languages'
+                          : (intent.explanation.isNotEmpty
+                              ? intent.explanation
+                              : 'AI Search Active'),
+                      style: const TextStyle(
+                        color: primaryText,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$matchCount channels found • Mode: ${intent.resultMode == SearchResultMode.exhaustive ? "All Channels" : "Top Ranked"}',
+                      style: const TextStyle(
+                        color: secondaryText,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: const Icon(
+                  Icons.close_rounded,
+                  color: AppColors.textPrimary,
+                  size: 18,
+                ),
+                tooltip: 'Clear AI Search',
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  _controller.clearAiSearch();
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              if (intent.detectedLanguage != null)
+                _buildCriterionChip(
+                  label: intent.detectedLanguage!,
+                  icon: Icons.language_rounded,
+                ),
+              if (intent.detectedCategory != null)
+                _buildCriterionChip(
+                  label: intent.detectedCategory!,
+                  icon: Icons.category_rounded,
+                ),
+              if (intent.cleanKeywords.isNotEmpty)
+                ...intent.cleanKeywords.map(
+                  (k) => _buildCriterionChip(
+                    label: k,
+                    icon: Icons.tag_rounded,
+                  ),
+                ),
+              if (intent.resultMode == SearchResultMode.exhaustive)
+                _buildCriterionChip(
+                  label: 'Exhaustive / All',
+                  icon: Icons.all_inclusive_rounded,
+                ),
+            ],
+          ),
+          // Fallback broadening suggestion when language-specific count is low
+          if (_controller.broadenedChannels.isNotEmpty && !isBroadened) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: buttonBg.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.travel_explore_rounded,
+                    color: AppColors.textPrimary,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Found only $matchCount ${intent.detectedLanguage} channels. Broaden search?',
+                      style: const TextStyle(
+                        color: secondaryText,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      _controller.broadenSearch();
+                    },
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text(
+                      'Show All Christian Channels',
+                      style: TextStyle(
+                        color: primaryText,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCriterionChip({required String label, required IconData icon}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: buttonBg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: AppColors.textPrimary.withValues(alpha: 0.08),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: AppColors.textPrimary, size: 12),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              color: primaryText,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -570,264 +793,104 @@ class _DiscoverChannelsPageState extends State<DiscoverChannelsPage>
     final catImage = _getCategoryImage(selectedCat);
 
     return SliverToBoxAdapter(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Banner
-          Container(
-            height: 110,
-            margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              color: cardColor,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: AppColors.textPrimary.withValues(alpha: 0.08),
+      child: Container(
+        height: 110,
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: AppColors.textPrimary.withValues(alpha: 0.08),
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            CachedNetworkImage(
+              imageUrl: catImage,
+              fit: BoxFit.cover,
+              placeholder: (context, url) => Container(color: buttonBg),
+              errorWidget: (context, url, error) =>
+                  Container(color: buttonBg),
+            ),
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.bgPage.withValues(alpha: 0.9),
+                    AppColors.bgPage.withValues(alpha: 0.45),
+                  ],
+                ),
               ),
             ),
-            clipBehavior: Clip.antiAlias,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                CachedNetworkImage(
-                  imageUrl: catImage,
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(color: buttonBg),
-                  errorWidget: (context, url, error) =>
-                      Container(color: buttonBg),
-                ),
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        AppColors.bgPage.withValues(alpha: 0.9),
-                        AppColors.bgPage.withValues(alpha: 0.45),
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
+              child: Row(
+                children: [
+                  Material(
+                    color: buttonBg.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(12),
+                    child: InkWell(
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        _controller.selectCategory('All');
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        child: const Icon(
+                          Icons.arrow_back_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          selectedCat,
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: primaryText,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black87,
+                                offset: Offset(0, 1),
+                                blurRadius: 4,
+                              ),
+                            ],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Exploring $selectedCat channels',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: secondaryText,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ],
                     ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  child: Row(
-                    children: [
-                      Material(
-                        color: buttonBg.withValues(alpha: 0.6),
-                        borderRadius: BorderRadius.circular(12),
-                        child: InkWell(
-                          onTap: () {
-                            HapticFeedback.lightImpact();
-                            _controller.selectCategory('All');
-                          },
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            child: const Icon(
-                              Icons.arrow_back_rounded,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              selectedCat,
-                              style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                                color: primaryText,
-                                shadows: [
-                                  Shadow(
-                                    color: Colors.black87,
-                                    offset: Offset(0, 1),
-                                    blurRadius: 4,
-                                  ),
-                                ],
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Exploring $selectedCat channels',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: secondaryText,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Category pill selector
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: _controller.categories.map((cat) {
-                  final catName = cat['name'] as String;
-                  final isSelected =
-                      selectedCat.toLowerCase() == catName.toLowerCase();
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: _buildChip(
-                      label: catName,
-                      isSelected: isSelected,
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        _controller.selectCategory(catName);
-                      },
-                    ),
-                  );
-                }).toList(),
+                ],
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildChip({
-    required String label,
-    required bool isSelected,
-    required VoidCallback onTap,
-    Widget? prefix,
-  }) {
-    return Material(
-      color: isSelected ? primaryText : buttonBg,
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            border: isSelected
-                ? null
-                : Border.all(
-                    color: AppColors.textPrimary.withValues(alpha: 0.08),
-                  ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (prefix != null) ...[
-                prefix,
-                const SizedBox(width: 6),
-              ],
-              Text(
-                label,
-                style: TextStyle(
-                  color: isSelected ? bgColor : secondaryText,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                  fontSize: 13,
-                ),
-              ),
-            ],
-          ),
+          ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildFilterBar(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      child: Row(
-        children: [
-          // Sort / Status Filters
-          ..._controller.filters.map((filter) {
-            return Obx(() {
-              final isSelected = _controller.selectedFilter.value == filter;
-              return Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: _buildChip(
-                  label: filter,
-                  isSelected: isSelected,
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    _controller.selectFilter(filter);
-                  },
-                ),
-              );
-            });
-          }),
-
-          // Divider 1
-          Container(
-            height: 20,
-            width: 1,
-            margin: const EdgeInsets.symmetric(horizontal: 8),
-            color: AppColors.bgDivider,
-          ),
-
-          // Topic Hashtags
-          ..._controller.nicheTopics.map((topicItem) {
-            final topicName = topicItem['name']!;
-            final displayLabel =
-                topicName == 'All Topics' ? 'All Topics' : '#$topicName';
-
-            return Obx(() {
-              final isSelected = _controller.selectedTopic.value == topicName;
-              return Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: _buildChip(
-                  label: displayLabel,
-                  isSelected: isSelected,
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    _controller.selectTopic(topicName);
-                  },
-                ),
-              );
-            });
-          }),
-
-          // Divider 2
-          Container(
-            height: 20,
-            width: 1,
-            margin: const EdgeInsets.symmetric(horizontal: 8),
-            color: AppColors.bgDivider,
-          ),
-
-          // Language Chips
-          ..._controller.languages.map((lang) {
-            return Obx(() {
-              final isSelected = _controller.selectedLanguage.value == lang;
-              return Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: _buildChip(
-                  label: lang,
-                  isSelected: isSelected,
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    _controller.selectLanguage(lang);
-                  },
-                ),
-              );
-            });
-          }),
-        ],
       ),
     );
   }
@@ -839,6 +902,10 @@ class _DiscoverChannelsPageState extends State<DiscoverChannelsPage>
             ? channel.handle
             : '@${channel.handle}')
         : '@${channel.name.toLowerCase().replaceAll(RegExp(r'\s+'), '')}';
+
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final avatarSize = screenWidth < 380 ? 56.0 : (screenWidth < 600 ? 68.0 : 80.0);
+    final avatarGap = screenWidth < 380 ? 10.0 : 16.0;
 
     return InkWell(
       borderRadius: BorderRadius.circular(12),
@@ -860,8 +927,8 @@ class _DiscoverChannelsPageState extends State<DiscoverChannelsPage>
             // Circular Avatar
             ClipOval(
               child: Container(
-                width: 80,
-                height: 80,
+                width: avatarSize,
+                height: avatarSize,
                 color: AppColors.bgSurfaceHover,
                 child: channel.avatarUrl.isNotEmpty
                     ? CachedNetworkImage(
@@ -869,20 +936,20 @@ class _DiscoverChannelsPageState extends State<DiscoverChannelsPage>
                         fit: BoxFit.cover,
                         placeholder: (context, url) =>
                             Container(color: AppColors.bgDivider),
-                        errorWidget: (context, url, error) => const Icon(
+                        errorWidget: (context, url, error) => Icon(
                           Icons.account_circle,
-                          size: 40,
+                          size: avatarSize * 0.5,
                           color: AppColors.textTertiary,
                         ),
                       )
-                    : const Icon(
+                    : Icon(
                         Icons.account_circle,
-                        size: 40,
+                        size: avatarSize * 0.5,
                         color: AppColors.textTertiary,
                       ),
               ),
             ),
-            const SizedBox(width: 16),
+            SizedBox(width: avatarGap),
             // Channel Info
             Expanded(
               child: Column(
@@ -978,58 +1045,73 @@ class _DiscoverChannelsPageState extends State<DiscoverChannelsPage>
                 ),
               ),
               const SizedBox(height: 24),
-              const Text(
-                'No channels found',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: primaryText,
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Try adjusting your search query or reset your filters to discover new creators.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: secondaryText),
-              ),
-              const SizedBox(height: 28),
-              OutlinedButton.icon(
-                onPressed: () {
-                  HapticFeedback.lightImpact();
-                  _controller.clearSearch();
-                  _controller.selectCategory('All');
-                  _controller.selectTopic('All Topics');
-                  _controller.selectLanguage('All Languages');
-                  _controller.selectFilter('Top Channels');
-                },
-                icon: const Icon(
-                  Icons.refresh_rounded,
-                  size: 18,
-                  color: primaryText,
-                ),
-                label: const Text(
-                  'Reset Filters',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: primaryText,
-                  ),
-                ),
-                style: OutlinedButton.styleFrom(
-                  backgroundColor: buttonBg,
-                  side: BorderSide(
-                    color: AppColors.textPrimary.withValues(alpha: 0.1),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 14,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                ),
-              ),
+              Obx(() {
+                final isCategorySelected =
+                    _controller.selectedCategory.value != 'All';
+                final catName = _controller.selectedCategory.value;
+
+                return Column(
+                  children: [
+                    Text(
+                      isCategorySelected
+                          ? 'No $catName channels found'
+                          : 'No channels found',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: primaryText,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      isCategorySelected
+                          ? 'There are currently no active channels in $catName. Check back soon or explore other categories.'
+                          : 'Try adjusting your search query to discover new creators.',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 14, color: secondaryText),
+                    ),
+                    const SizedBox(height: 28),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        _controller.clearSearch();
+                        _controller.selectCategory('All');
+                      },
+                      icon: Icon(
+                        isCategorySelected
+                            ? Icons.explore_rounded
+                            : Icons.refresh_rounded,
+                        size: 18,
+                        color: primaryText,
+                      ),
+                      label: Text(
+                        isCategorySelected
+                            ? 'Explore All Categories'
+                            : 'Explore All Channels',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: primaryText,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: buttonBg,
+                        side: BorderSide(
+                          color: AppColors.textPrimary.withValues(alpha: 0.1),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }),
             ],
           ),
         ),
@@ -1046,78 +1128,78 @@ class _DiscoverChannelsPageState extends State<DiscoverChannelsPage>
   String _getCategoryImage(String category) {
     switch (category.toLowerCase().trim()) {
       case 'education':
-        return 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=400&q=75';
       case 'entertainment':
-        return 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?auto=format&fit=crop&w=400&q=75';
       case 'music':
-        return 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=400&q=75';
       case 'news':
-        return 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=400&q=75';
       case 'geopolitics':
-        return 'https://images.unsplash.com/photo-1529107386315-e1a2ed48a620?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1529107386315-e1a2ed48a620?auto=format&fit=crop&w=400&q=75';
       case 'sports':
-        return 'https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?auto=format&fit=crop&w=400&q=75';
       case 'technology':
       case 'ai & tech':
-        return 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=400&q=75';
       case 'science':
       case 'deep research':
-        return 'https://images.unsplash.com/photo-1507668077129-56e32842fceb?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1507668077129-56e32842fceb?auto=format&fit=crop&w=400&q=75';
       case 'travel':
-        return 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=400&q=75';
       case 'lifestyle':
-        return 'https://images.unsplash.com/photo-1511556532299-8f662fc26c06?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1511556532299-8f662fc26c06?auto=format&fit=crop&w=400&q=75';
       case 'comedy':
-        return 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=400&q=75';
       case 'documentary':
-        return 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=400&q=75';
       case 'movies':
-        return 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?auto=format&fit=crop&w=400&q=75';
       case 'tv shows':
-        return 'https://images.unsplash.com/photo-1593784991095-a205069470b6?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1593784991095-a205069470b6?auto=format&fit=crop&w=400&q=75';
       case 'vlogs':
-        return 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=400&q=75';
       case 'diy & how-to':
       case 'diy':
-        return 'https://images.unsplash.com/photo-1530124560676-10551fa77c2a?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1530124560676-10551fa77c2a?auto=format&fit=crop&w=400&q=75';
       case 'health & fitness':
       case 'fitness':
       case 'health':
-        return 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?auto=format&fit=crop&w=400&q=75';
       case 'fashion':
       case 'fashion & beauty':
-        return 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=400&q=75';
       case 'food & cooking':
       case 'food':
-        return 'https://images.unsplash.com/photo-1498837167922-ddd27525d352?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1498837167922-ddd27525d352?auto=format&fit=crop&w=400&q=75';
       case 'business & finance':
       case 'business':
       case 'finance':
       case 'economics':
-        return 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=400&q=75';
       case 'gaming':
-        return 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?auto=format&fit=crop&w=400&q=75';
       case 'art':
       case 'art & design':
-        return 'https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?auto=format&fit=crop&w=400&q=75';
       case 'automotive':
-        return 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=400&q=75';
       case 'pets & animals':
       case 'pets':
-        return 'https://images.unsplash.com/photo-1450778869180-41d0601e046e?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1450778869180-41d0601e046e?auto=format&fit=crop&w=400&q=75';
       case 'nature':
       case 'nature & wildlife':
-        return 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=400&q=75';
       case 'history':
-        return 'https://images.unsplash.com/photo-1447069387593-a5de0862481e?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1447069387593-a5de0862481e?auto=format&fit=crop&w=400&q=75';
       case 'beauty':
-        return 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=400&q=75';
       case 'spirituality':
-        return 'https://images.unsplash.com/photo-1518241353330-0f7941c2d9b5?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1518241353330-0f7941c2d9b5?auto=format&fit=crop&w=400&q=75';
       case 'kids & family':
-        return 'https://images.unsplash.com/photo-1536640712-4d4c36ff0e4e?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1536640712-4d4c36ff0e4e?auto=format&fit=crop&w=400&q=75';
       default:
-        return 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=400&q=75';
     }
   }
 }

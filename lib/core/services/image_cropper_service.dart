@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_cropper/image_cropper.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/theme/app_colors.dart';
 
 /// Configuration presets for Avatar crop (1:1 circular/square crop, max quality up to 2048x2048).
@@ -92,7 +93,11 @@ class ImageCropperService {
         ],
       );
     } catch (e, stackTrace) {
-      debugPrint('[ImageCropperService] Error cropping dynamic image: $e\n$stackTrace');
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'ImageCropperService.cropDynamicImage',
+      );
       return null;
     }
   }
@@ -136,7 +141,11 @@ class ImageCropperService {
         ],
       );
     } catch (e, stackTrace) {
-      debugPrint('[ImageCropperService] Error cropping channel avatar: $e\n$stackTrace');
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'ImageCropperService.cropChannelAvatar',
+      );
       return null;
     }
   }
@@ -179,7 +188,11 @@ class ImageCropperService {
         ],
       );
     } catch (e, stackTrace) {
-      debugPrint('[ImageCropperService] Error cropping channel banner: $e\n$stackTrace');
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'ImageCropperService.cropChannelBanner',
+      );
       return null;
     }
   }
@@ -365,7 +378,11 @@ class _TruthworldWebCropperDialogState extends State<_TruthworldWebCropperDialog
         Navigator.of(context).pop(result);
       }
     } catch (e, stackTrace) {
-      debugPrint('[ImageCropper] Web crop error: $e\n$stackTrace');
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'ImageCropperService._handleWebCrop',
+      );
       _isCropping.value = false;
     }
   }
@@ -589,29 +606,38 @@ class _YouTubeBannerGuidePainter extends CustomPainter {
     final safeLeft = w * 0.198047;
     final safeRight = w * 0.801953;
 
+    // Soft scrim for TV regions (top and bottom)
     final shadePaint = Paint()
-      ..color = Colors.black.withValues(alpha: 0.35)
+      ..color = Colors.black.withValues(alpha: 0.22)
       ..style = PaintingStyle.fill;
 
-    // Shaded TV regions (top and bottom)
     canvas.drawRect(Rect.fromLTRB(0, 0, w, desktopTop), shadePaint);
     canvas.drawRect(Rect.fromLTRB(0, desktopBottom, w, h), shadePaint);
 
-    // Shaded Desktop side regions (left and right)
-    canvas.drawRect(Rect.fromLTRB(0, desktopTop, safeLeft, desktopBottom), shadePaint);
-    canvas.drawRect(Rect.fromLTRB(safeRight, desktopTop, w, desktopBottom), shadePaint);
+    // Soft scrim for Desktop side regions (left and right)
+    final sideShadePaint = Paint()
+      ..color = Colors.black.withValues(alpha: 0.16)
+      ..style = PaintingStyle.fill;
+    canvas.drawRect(Rect.fromLTRB(0, desktopTop, safeLeft, desktopBottom), sideShadePaint);
+    canvas.drawRect(Rect.fromLTRB(safeRight, desktopTop, w, desktopBottom), sideShadePaint);
 
     // Safe Area boundary
     final safeBorderPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.85)
+      ..color = Colors.white.withValues(alpha: 0.80)
       ..strokeWidth = 1.0
       ..style = PaintingStyle.stroke;
 
-    canvas.drawRect(Rect.fromLTRB(safeLeft, desktopTop, safeRight, desktopBottom), safeBorderPaint);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTRB(safeLeft, desktopTop, safeRight, desktopBottom),
+        const Radius.circular(2),
+      ),
+      safeBorderPaint,
+    );
 
     // Desktop boundary lines (horizontal across canvas)
     final guideLinePaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.4)
+      ..color = Colors.white.withValues(alpha: 0.35)
       ..strokeWidth = 0.8
       ..style = PaintingStyle.stroke;
 

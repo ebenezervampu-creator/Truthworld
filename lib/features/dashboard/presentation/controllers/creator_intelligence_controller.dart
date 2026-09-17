@@ -5,9 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
-import 'package:truthworld/theme/app_theme.dart';
 
 class CreatorIntelligenceController extends BaseController {
   CreatorIntelligenceController({
@@ -140,15 +141,10 @@ class CreatorIntelligenceController extends BaseController {
             'User requested manual review from Creator Intelligence.',
         'updatedAt': DateTime.now().millisecondsSinceEpoch,
       });
-      Get.snackbar(
-        'Submitted',
-        'Avatar queued for manual admin review.',
-        backgroundColor: AppColors.success,
-        colorText: AppColors.textPrimary,
-      );
+      AppSnackbar.success('Avatar queued for manual admin review.');
     } catch (e) {
-      Get.snackbar('Error', e.toString(),
-          backgroundColor: AppColors.error, colorText: AppColors.textPrimary);
+      ErrorHandler.log(e, tag: 'CreatorIntelligenceController');
+      AppSnackbar.error('Unable to submit avatar for review. Please try again.');
     }
   }
 
@@ -175,15 +171,10 @@ class CreatorIntelligenceController extends BaseController {
           'processedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
       }
-      Get.snackbar(
-        'Bypassed',
-        'Avatar approved successfully.',
-        backgroundColor: AppColors.success,
-        colorText: AppColors.textPrimary,
-      );
+      AppSnackbar.success('Avatar approved successfully.');
     } catch (e) {
-      Get.snackbar('Error', e.toString(),
-          backgroundColor: AppColors.error, colorText: AppColors.textPrimary);
+      ErrorHandler.log(e, tag: 'CreatorIntelligenceController');
+      AppSnackbar.error('Unable to verify avatar. Please try again.');
     }
   }
 
@@ -200,15 +191,10 @@ class CreatorIntelligenceController extends BaseController {
             'User requested manual review from Creator Intelligence.',
         'updatedAt': DateTime.now().millisecondsSinceEpoch,
       });
-      Get.snackbar(
-        'Submitted',
-        'Banner queued for manual admin review.',
-        backgroundColor: AppColors.success,
-        colorText: AppColors.textPrimary,
-      );
+      AppSnackbar.success('Banner queued for manual admin review.');
     } catch (e) {
-      Get.snackbar('Error', e.toString(),
-          backgroundColor: AppColors.error, colorText: AppColors.textPrimary);
+      ErrorHandler.log(e, tag: 'CreatorIntelligenceController');
+      AppSnackbar.error('Unable to submit banner for review. Please try again.');
     }
   }
 
@@ -235,15 +221,10 @@ class CreatorIntelligenceController extends BaseController {
           'processedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
       }
-      Get.snackbar(
-        'Bypassed',
-        'Banner approved successfully.',
-        backgroundColor: AppColors.success,
-        colorText: AppColors.textPrimary,
-      );
+      AppSnackbar.success('Banner approved successfully.');
     } catch (e) {
-      Get.snackbar('Error', e.toString(),
-          backgroundColor: AppColors.error, colorText: AppColors.textPrimary);
+      ErrorHandler.log(e, tag: 'CreatorIntelligenceController');
+      AppSnackbar.error('Unable to verify banner. Please try again.');
     }
   }
 
@@ -406,8 +387,12 @@ class CreatorIntelligenceController extends BaseController {
           .collection('notifications_active')
           .doc(notificationId)
           .update({'read': true, 'status': 'read'});
-    } catch (e) {
-      debugPrint('Error marking notification as read: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'CreatorIntelligenceController.markAsRead',
+      );
     }
   }
 
@@ -432,8 +417,12 @@ class CreatorIntelligenceController extends BaseController {
         batch.update(doc.reference, {'read': true, 'status': 'read'});
       }
       await batch.commit();
-    } catch (e) {
-      debugPrint('Error marking all notifications as read: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'CreatorIntelligenceController.markAllAsRead',
+      );
     }
   }
 
@@ -461,8 +450,12 @@ class CreatorIntelligenceController extends BaseController {
             .doc(notificationId)
             .delete();
       }
-    } catch (e) {
-      debugPrint('Error archiving notification: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'CreatorIntelligenceController.archiveNotification',
+      );
     }
   }
 
@@ -475,8 +468,12 @@ class CreatorIntelligenceController extends BaseController {
       if (doc.exists) {
         return doc.data();
       }
-    } catch (e) {
-      debugPrint('Error fetching verification report: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'CreatorIntelligenceController.fetchVerificationReport',
+      );
     }
     return null;
   }

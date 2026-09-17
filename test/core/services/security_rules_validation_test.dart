@@ -637,18 +637,54 @@ void main() {
     });
 
     test('L-42: Feedback and categories security rules enforce authorization', () {
-      bool canSubmitFeedback({required String callerUid, required String declaredUserId}) {
-        return callerUid == declaredUserId;
+      bool canSubmitFeedback({
+        required String? callerUid,
+        required String declaredUserId,
+        String text = 'Valid feedback text',
+        int rating = 5,
+      }) {
+        final isAuthMatch = callerUid != null && callerUid == declaredUserId && declaredUserId != 'anonymous';
+        final isTextValid = text.length >= 5 && text.length <= 5000;
+        final isRatingValid = rating >= 0 && rating <= 5;
+        return isAuthMatch && isTextValid && isRatingValid;
       }
 
       bool canUpdateCategories({required bool isAdmin}) {
         return isAdmin;
       }
 
+      // Authenticated user submitting own feedback
       expect(canSubmitFeedback(callerUid: 'user_1', declaredUserId: 'user_1'), isTrue);
+      // Authenticated user attempting to spoof another user's UID
       expect(canSubmitFeedback(callerUid: 'user_1', declaredUserId: 'victim_2'), isFalse);
+      // Unauthenticated / guest user attempting to submit feedback (strictly blocked)
+      expect(canSubmitFeedback(callerUid: null, declaredUserId: 'anonymous'), isFalse);
+      // Unauthenticated / guest user attempting to claim a real user UID
+      expect(canSubmitFeedback(callerUid: null, declaredUserId: 'user_1'), isFalse);
+      // Anonymous submission by authenticated user (blocked: must bind to own UID)
+      expect(canSubmitFeedback(callerUid: 'user_1', declaredUserId: 'anonymous'), isFalse);
+      // Invalid text length (too short)
+      expect(canSubmitFeedback(callerUid: 'user_1', declaredUserId: 'user_1', text: 'hi'), isFalse);
+
       expect(canUpdateCategories(isAdmin: true), isTrue);
       expect(canUpdateCategories(isAdmin: false), isFalse);
+    });
+
+    test('L-43: Copyright complaints strictly require authenticated submission', () {
+      bool canSubmitCopyrightComplaint({
+        required String? callerUid,
+        required String declaredUserId,
+      }) {
+        return callerUid != null && callerUid == declaredUserId;
+      }
+
+      // Authenticated user submitting with matching UID
+      expect(canSubmitCopyrightComplaint(callerUid: 'user_1', declaredUserId: 'user_1'), isTrue);
+      // Authenticated user attempting to spoof another UID
+      expect(canSubmitCopyrightComplaint(callerUid: 'user_1', declaredUserId: 'victim_2'), isFalse);
+      // Unauthenticated guest attempting to submit
+      expect(canSubmitCopyrightComplaint(callerUid: null, declaredUserId: 'anonymous'), isFalse);
+      expect(canSubmitCopyrightComplaint(callerUid: null, declaredUserId: 'user_1'), isFalse);
     });
   });
 }

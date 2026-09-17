@@ -225,7 +225,15 @@ export const getHomeFeed = onRequest(
 
       // Pool G: Exploding Creators (via channel trend) — handled in scoring phase
 
-      const poolResults = await Promise.all(poolPromises);
+      const poolResults = await Promise.allSettled(poolPromises);
+      const successfulSnaps: admin.firestore.QuerySnapshot[] = [];
+      poolResults.forEach((result, idx) => {
+        if (result.status === "fulfilled") {
+          successfulSnaps.push(result.value);
+        } else {
+          logger.warn(`[getHomeFeed] Candidate pool ${idx} failed to load:`, result.reason);
+        }
+      });
 
       // ══════════════════════════════════════════════════════════════════════
       // 3. Apply Category Filter In-Memory (if needed)
@@ -235,7 +243,7 @@ export const getHomeFeed = onRequest(
         return docs.filter(d => d.data()?.category === category);
       };
 
-      const allCandidateDocs = poolResults.flatMap(snap => filterByCategory(snap.docs));
+      const allCandidateDocs = successfulSnaps.flatMap(snap => filterByCategory(snap.docs));
 
       // ══════════════════════════════════════════════════════════════════════
       // 4. Batch Fetch Channel Metadata (Tier, Trend, Inactivity)

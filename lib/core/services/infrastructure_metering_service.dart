@@ -40,7 +40,7 @@ class InfrastructureMeteringService {
         '25 GB Video Storage',
         '100 GB CDN Streaming Bandwidth',
         '1080p HD Video Quality',
-        'Direct Stripe Payouts',
+        'Direct Creator Payouts',
         'Community Posts & Tipping',
       ],
     ),

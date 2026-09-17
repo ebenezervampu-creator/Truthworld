@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 
 /// Controller for user feedback submission
@@ -96,13 +96,19 @@ class FeedbackController extends BaseController {
     return true;
   }
 
-  /// Submit feedback to Firestore
+  /// Submit feedback to Firestore (strictly requires authenticated user)
   Future<void> submitFeedback({
     required String userId,
     required String userEmail,
     String? appVersion,
     Map<String, dynamic>? deviceInfo,
   }) async {
+    if (userId.isEmpty || userId == 'anonymous') {
+      setError('You must be signed in to submit feedback');
+      showWarning(errorMessage);
+      return;
+    }
+
     // Validate input
     if (!_validateFeedback()) {
       showWarning(errorMessage);
@@ -150,27 +156,29 @@ class FeedbackController extends BaseController {
             ),
           );
 
-      if (kDebugMode) {
-        debugPrint('✅ Feedback successfully submitted to Firestore');
-      }
-
       // Show success and reset
       showSuccess('Thank you! Your feedback has been submitted.');
       clearFeedback();
-    } on FirebaseException catch (e) {
-      if (kDebugMode) {
-        debugPrint('❌ Firestore error [${e.code}]: ${e.message}');
-      }
+    } on FirebaseException catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'FeedbackController.submitFeedback',
+      );
       throw FirestoreException.fromFirebase(e);
-    } on TimeoutException {
-      if (kDebugMode) {
-        debugPrint('❌ Feedback submission timed out');
-      }
+    } on TimeoutException catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'FeedbackController.submitFeedback.timeout',
+      );
       rethrow;
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('❌ Unexpected error while submitting feedback: $e');
-      }
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'FeedbackController.submitFeedback',
+      );
       throw FirestoreException(
         message: 'Failed to submit feedback',
         originalException: e,

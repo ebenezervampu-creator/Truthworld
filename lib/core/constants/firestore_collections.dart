@@ -27,6 +27,8 @@ class FirestoreCollections {
   static const String impressions = 'impressions';
   static const String auditLogs = 'auditLogs';
   static const String premiumSubscriptions = 'premiumSubscriptions';
+  static const String channelLanguageRequests = 'channel_language_requests';
+  static const String factCheckRequests = 'fact_check_requests';
 
   // ── Video Subcollections ──────────────────────────────────────────
   static String videoComments(String videoId) => 'videos/$videoId/comments';

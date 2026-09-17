@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
@@ -30,22 +31,24 @@ class CommunityPostCardReactionEngine {
     CommunityPostReactionState previousState,
     String uid,
   ) {
-    final likedBy = List<String>.from(previousState.likedBy);
-    final dislikedBy = List<String>.from(previousState.dislikedBy);
-    final hasLiked = likedBy.contains(uid);
+    final hasLiked = previousState.likedBy.contains(uid);
 
     if (hasLiked) {
-      likedBy.remove(uid);
+      final likedBy = List<String>.from(previousState.likedBy)..remove(uid);
       return CommunityPostReactionState(
         likes: (previousState.likes - 1).clamp(0, 999999999),
         dislikes: previousState.dislikes,
         likedBy: likedBy,
-        dislikedBy: dislikedBy,
+        dislikedBy: previousState.dislikedBy,
         isLiked: false,
-        isDisliked: dislikedBy.contains(uid),
+        isDisliked: previousState.dislikedBy.contains(uid),
       );
     } else {
-      final hadDisliked = dislikedBy.remove(uid);
+      final hadDisliked = previousState.dislikedBy.contains(uid);
+      final dislikedBy = hadDisliked
+          ? (List<String>.from(previousState.dislikedBy)..remove(uid))
+          : previousState.dislikedBy;
+      final likedBy = List<String>.from(previousState.likedBy);
       if (!likedBy.contains(uid)) {
         likedBy.add(uid);
       }
@@ -66,22 +69,24 @@ class CommunityPostCardReactionEngine {
     CommunityPostReactionState previousState,
     String uid,
   ) {
-    final likedBy = List<String>.from(previousState.likedBy);
-    final dislikedBy = List<String>.from(previousState.dislikedBy);
-    final hasDisliked = dislikedBy.contains(uid);
+    final hasDisliked = previousState.dislikedBy.contains(uid);
 
     if (hasDisliked) {
-      dislikedBy.remove(uid);
+      final dislikedBy = List<String>.from(previousState.dislikedBy)..remove(uid);
       return CommunityPostReactionState(
         likes: previousState.likes,
         dislikes: (previousState.dislikes - 1).clamp(0, 999999999),
-        likedBy: likedBy,
+        likedBy: previousState.likedBy,
         dislikedBy: dislikedBy,
-        isLiked: likedBy.contains(uid),
+        isLiked: previousState.likedBy.contains(uid),
         isDisliked: false,
       );
     } else {
-      final hadLiked = likedBy.remove(uid);
+      final hadLiked = previousState.likedBy.contains(uid);
+      final likedBy = hadLiked
+          ? (List<String>.from(previousState.likedBy)..remove(uid))
+          : previousState.likedBy;
+      final dislikedBy = List<String>.from(previousState.dislikedBy);
       if (!dislikedBy.contains(uid)) {
         dislikedBy.add(uid);
       }
@@ -113,7 +118,8 @@ class CommunityPostController extends BaseController with ContentValidationMixin
 
   final TextEditingController commentController = TextEditingController();
 
-  String? get currentUid => AuthService.to.currentUser.value?.uid;
+  String? get currentUid =>
+      Get.isRegistered<AuthService>() ? AuthService.to.currentUser.value?.uid : null;
 
   @override
   void onInit() {
@@ -181,7 +187,9 @@ class CommunityPostController extends BaseController with ContentValidationMixin
       if (results[0].exists || results[1].exists || results[2].exists) {
         isHidden.value = true;
       }
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'CommunityPostController._checkHiddenStatus');
+    }
   }
 
   Future<void> _checkSavedStatus() async {
@@ -195,7 +203,9 @@ class CommunityPostController extends BaseController with ContentValidationMixin
           .doc(post.id)
           .get();
       isSaved.value = doc.exists;
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'CommunityPostController._checkSavedStatus');
+    }
   }
 
   Future<void> toggleLike() async {
@@ -267,8 +277,8 @@ class CommunityPostController extends BaseController with ContentValidationMixin
       if (updates.isNotEmpty) {
         await docRef.update(updates);
       }
-    } catch (e) {
-      debugPrint('Error updating like status: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'CommunityPostController.toggleLike');
       reactionState.value = previousState;
     }
   }
@@ -342,8 +352,8 @@ class CommunityPostController extends BaseController with ContentValidationMixin
       if (updates.isNotEmpty) {
         await docRef.update(updates);
       }
-    } catch (e) {
-      debugPrint('Error updating dislike status: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'CommunityPostController.toggleDislike');
       reactionState.value = previousState;
     }
   }
@@ -374,7 +384,8 @@ class CommunityPostController extends BaseController with ContentValidationMixin
       }
     } catch (e) {
       isSaved.value = !isSaved.value;
-      showError('Failed to save post: $e');
+      ErrorHandler.log(e, tag: 'CommunityPostController');
+      showError('Unable to save post. Please try again.');
     }
   }
 
@@ -392,7 +403,9 @@ class CommunityPostController extends BaseController with ContentValidationMixin
               'postId': post.id,
               'hiddenAt': FieldValue.serverTimestamp(),
             });
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'CommunityPostController.hidePost');
+      }
     }
     showSuccess('Post hidden from your feed');
   }
@@ -412,7 +425,9 @@ class CommunityPostController extends BaseController with ContentValidationMixin
               'channelName': post.channelName,
               'mutedAt': FieldValue.serverTimestamp(),
             });
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'CommunityPostController.turnOffChannelPosts');
+      }
     }
     showSuccess('Community posts from ${post.channelName} turned off');
   }
@@ -428,14 +443,18 @@ class CommunityPostController extends BaseController with ContentValidationMixin
           ? Get.find<ChannelController>()
           : Get.put(ChannelController());
       await channelCtrl.unsubscribeFromChannel(post.channelId);
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'CommunityPostController.unsubscribeChannel.ctrl');
+    }
 
     try {
       await FirebaseFirestore.instance
           .collection(FirestoreCollections.subscriptions)
           .doc('${post.channelId}_$uid')
           .delete();
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'CommunityPostController.unsubscribeChannel.subscriptions');
+    }
 
     try {
       await FirebaseFirestore.instance
@@ -444,7 +463,9 @@ class CommunityPostController extends BaseController with ContentValidationMixin
           .collection(FirestoreCollections.subscriptions)
           .doc(post.channelId)
           .delete();
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'CommunityPostController.unsubscribeChannel.userSubscriptions');
+    }
 
     showSuccess('Unsubscribed from ${post.channelName}');
   }
@@ -487,7 +508,9 @@ class CommunityPostController extends BaseController with ContentValidationMixin
             'reason': reason,
             'reportedAt': FieldValue.serverTimestamp(),
           });
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'CommunityPostController.submitReport');
+    }
 
     showSuccess(
       'Thank you for reporting. This post has been hidden from your feed.',
@@ -505,7 +528,8 @@ class CommunityPostController extends BaseController with ContentValidationMixin
           });
       showSuccess('Post count settings updated.');
     } catch (e) {
-      showError('Failed to update settings: $e');
+      ErrorHandler.log(e, tag: 'CommunityPostController');
+      showError('Unable to update settings. Please try again.');
     }
   }
 
@@ -565,7 +589,8 @@ class CommunityPostController extends BaseController with ContentValidationMixin
       commentController.clear();
       showSuccess('Comment added successfully');
     } catch (e) {
-      showError('Failed to add comment: $e');
+      ErrorHandler.log(e, tag: 'CommunityPostController');
+      showError('Unable to add comment. Please try again.');
     }
   }
 }

@@ -9,6 +9,8 @@ import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
 import 'package:truthworld/core/services/algorithm/scored_video.dart';
 import 'package:truthworld/core/services/algorithm/session_interest_tracker.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile.dart';
+import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
+import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
@@ -35,7 +37,16 @@ class SessionEvent {
 ///
 /// Score = Σ(Signal_i × Weight_i × SurfaceMultiplier_i) + SessionBoost - Penalties
 class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
-  UserInterestProfile? _profile;
+  UserInterestProfile? _explicitProfile;
+  UserInterestProfile? get _profile =>
+      _explicitProfile ??
+      (Get.isRegistered<UserInterestProfileService>()
+          ? UserInterestProfileService.to.currentProfile
+          : null);
+
+  /// Access current active profile
+  UserInterestProfile? get currentProfile => _profile;
+
   final SessionInterestTracker _sessionTracker = SessionInterestTracker();
   final ExplorationBudget _explorationBudget = ExplorationBudget();
 
@@ -77,7 +88,37 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
     }
 
     final config = Get.find<AlgorithmRemoteConfig>();
-    final weights = config.getWeightProfile(surface);
+    final baseWeights = config.getWeightProfile(surface);
+    final weights = Map<String, double>.from(baseWeights);
+
+    // Adapt surface weights dynamically based on user's inferred cognitive archetype
+    final psychology = _profile?.psychologyProfile;
+    final archetype = psychology?.archetype ?? CognitiveArchetype.balancedInquirer;
+
+    switch (archetype) {
+      case CognitiveArchetype.analyticalDeepDiver:
+        // Deep divers value knowledge quality, credibility, and watch completion
+        weights['knowledgeQuality'] = (weights['knowledgeQuality'] ?? 0.0) * 1.5;
+        weights['watchCompletion'] = (weights['watchCompletion'] ?? 0.0) * 1.3;
+        weights['trending'] = (weights['trending'] ?? 0.0) * 0.7;
+      case CognitiveArchetype.curiousExplorer:
+        // Explorers value novelty, freshness, and trending discovery
+        weights['freshness'] = (weights['freshness'] ?? 0.0) * 1.4;
+        weights['trending'] = (weights['trending'] ?? 0.0) * 1.3;
+        weights['topicAffinity'] = (weights['topicAffinity'] ?? 0.0) * 0.85;
+      case CognitiveArchetype.focusedSpecialist:
+        // Specialists value high topic and channel consistency
+        weights['topicAffinity'] = (weights['topicAffinity'] ?? 0.0) * 1.4;
+        weights['channelAffinity'] = (weights['channelAffinity'] ?? 0.0) * 1.3;
+        weights['freshness'] = (weights['freshness'] ?? 0.0) * 0.8;
+      case CognitiveArchetype.actionOrientedConsumer:
+        // Action-oriented consumers value engagement quality and watch completion
+        weights['engagement'] = (weights['engagement'] ?? 0.0) * 1.35;
+        weights['watchCompletion'] = (weights['watchCompletion'] ?? 0.0) * 1.25;
+      case CognitiveArchetype.balancedInquirer:
+        // Standard balanced distribution
+        break;
+    }
 
     final topicAffinity = _computeTopicAffinity(video);
     final channelAffinity = _computeChannelAffinity(video);
@@ -88,6 +129,8 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
     final sessionBoost = _computeSessionBoost(video);
     final penalty = _computePenalty(video);
     final knowledgeQuality = _computeKnowledgeQuality(video);
+    final loveAffinity = _computeLoveAffinity(video);
+    final loveBoost = loveAffinity * 2.5;
     final creatorFairness = diversityConfig != null
         ? _computeCreatorFairness(video, diversityConfig)
         : 0.0;
@@ -100,6 +143,7 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
         (trendingMomentum * (weights['trending'] ?? 0.0)) +
         (watchCompletion * (weights['watchCompletion'] ?? 0.0)) +
         (knowledgeQuality * (weights['knowledgeQuality'] ?? 0.0)) +
+        loveBoost +
         creatorFairness;
 
     // Apply session boost and penalties
@@ -121,6 +165,7 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
       'watchCompletion': watchCompletion * (weights['watchCompletion'] ?? 0.0),
       'knowledgeQuality':
           knowledgeQuality * (weights['knowledgeQuality'] ?? 0.0),
+      'loveAffinity': loveBoost,
       'sessionBoost': sessionBoost * (weights['sessionBoost'] ?? 0.0),
       'penalty': penalty * (weights['penalty'] ?? 0.0),
       'creatorFairness': creatorFairness,
@@ -196,7 +241,7 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
     return min(longTermScore + (sessionAffinity * 2.0), 1.0);
   }
 
-  /// Channel Affinity: Subscription + watch frequency + session recency
+  /// Channel Affinity: Subscription + watch frequency + session recency + channel exploration
   double _computeChannelAffinity(Video video) {
     if (_profile == null) return 0.0;
 
@@ -210,18 +255,30 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
       return 0.8;
     }
 
-    if (_profile!.recentlyLikedVideoIds.contains(video.id)) {
-      return 0.4; // Slightly indirect indication
+    if (_profile!.channelExploreCounts.containsKey(video.channelId)) {
+      final explores = _profile!.channelExploreCounts[video.channelId]!;
+      if (explores >= 3) return 0.7;
+      if (explores >= 1) return 0.55;
+    } else if (_profile!.discoveredChannelIds.contains(video.channelId)) {
+      return 0.45;
     }
 
-    const watchCount = 0;
-    // Approximation for 'watched 3+' or 'watched 1-2'
-    // Assuming watch count tracking by channel is needed, for now use base logic.
-    // We mock the count since we don't have full history object mapping
-    if (watchCount >= 3) return 0.6;
-    if (watchCount > 0) return 0.3;
+    if (_profile!.recentlyLikedVideoIds.contains(video.id)) {
+      return 0.4; // Indirect indication
+    }
 
     return 0.0;
+  }
+
+  /// Love Affinity: Multi-signal score identifying content the user genuinely loves
+  /// based on searches, topic exploration, channel discovery, watch completion, and likes.
+  double _computeLoveAffinity(Video video) {
+    if (_profile == null) return 0.0;
+    return _profile!.psychologyProfile.calculateLoveScore(
+      category: video.category,
+      topics: video.topics.cast<String>(),
+      channelId: video.channelId,
+    );
   }
 
   /// Engagement Quality: Like ratio, comments, shares, normalized
@@ -250,19 +307,48 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
     return exp(-ageHours / halfLife);
   }
 
-  /// Trending Momentum: View velocity, like velocity
+  /// Trending Momentum: View velocity smoothed by publication recency
   double _computeTrendingMomentum(Video video) {
-    // Simplified placeholder for velocity logic
-    final views = video.viewCount;
-    if (views > 100000) return 1.0;
-    if (views > 10000) return 0.8;
-    if (views > 1000) return 0.5;
-    return 0.2;
+    final views = max(0, video.viewCount > 0 ? video.viewCount : video.views);
+    if (views == 0) return 0.2;
+
+    DateTime? createdAt;
+    try {
+      createdAt = (video.createdAt as dynamic).toDate();
+    } catch (_) {
+      createdAt = null;
+    }
+
+    final ageHours = createdAt != null
+        ? max(0.5, DateTime.now().difference(createdAt).inMinutes / 60.0)
+        : 24.0;
+
+    // Continuous velocity: views per hour (with Laplace smoothing +2h)
+    final velocity = views / (ageHours + 2.0);
+
+    // Continuous log curve normalized across 0.2 to 1.0
+    final score = (log(velocity + 1.0) / log(10000.0)).clamp(0.2, 1.0);
+    return score;
   }
 
-  /// Watch Completion: Average completion rate
+  /// Watch Completion: Completion rate derived from user history and profile telemetry
   double _computeWatchCompletion(Video video) {
-    // Mocked from video properties if available, otherwise neutral
+    if (_profile != null) {
+      // 1. Direct watch history progress for this specific video if previously watched/started
+      if (_profile!.watchProgress.containsKey(video.id)) {
+        final progress = _profile!.watchProgress[video.id] ?? 0.0;
+        if (progress > 0.0) {
+          return progress.clamp(0.0, 1.0);
+        }
+      }
+
+      // 2. User's overall average completion rate as baseline engagement expectation
+      if (_profile!.avgWatchCompletion > 0.0) {
+        return _profile!.avgWatchCompletion.clamp(0.1, 1.0);
+      }
+    }
+
+    // Baseline fallback if user engagement telemetry is unavailable
     return 0.5;
   }
 
@@ -324,15 +410,15 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
   /// Credibility Gate: Returns 0.0 if video fails credibility check
   /// This is an ELIGIBILITY GATE, not a small bonus
   ///
-  /// v12.1 FIX: Distinguish between "unscored" (trustScore == 0, not yet fact-checked)
+  /// v12.1 FIX: Distinguish between "unscored" (trustScore == 0, not yet fact-checked or score deprecated in v12)
   /// and "genuinely dangerous" (trustScore < 1.0 after fact-checking).
   /// Unscored videos get neutral treatment (1.0×) instead of being hard-gated.
   double _computeCredibilityGate(Video video) {
     final score = video.trustScore;
 
-    // Unscored / pending verification: treat as neutral (not penalized, not boosted)
-    // A trustScore of 0.0 with isFactChecked == false means scoring hasn't run yet.
-    if (score == 0.0 && !video.isFactChecked) return 1.0;
+    // Unscored or pending verification: treat as neutral baseline (1.0)
+    // In v12+, fact checking verifies claims but does not produce a composite numeric score
+    if (score == 0.0) return 1.0;
 
     if (score >= 4.0) return 1.2; // High credibility → 20% boost
     if (score >= 3.0) return 1.1; // Good credibility → 10% boost
@@ -418,7 +504,10 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
     List<ScoredVideo> ranked,
     DiversityConfig config,
   ) {
+    if (ranked.isEmpty) return [];
+
     final finalFeed = <ScoredVideo>[];
+    final deferred = <ScoredVideo>[];
     final creatorCounts = <String, int>{};
     String? lastChannelId;
     var consecutiveChannelCount = 0;
@@ -430,20 +519,33 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
       if (channelId == lastChannelId) {
         consecutiveChannelCount++;
         if (consecutiveChannelCount > config.maxConsecutiveSameChannel) {
-          continue; // Skip this one for diversity
+          deferred.add(item); // Defer rather than discard to preserve catalog availability
+          continue;
         }
       } else {
         lastChannelId = channelId;
         consecutiveChannelCount = 1;
       }
 
-      // Creator exposure budget (max 18% per creator)
+      // Creator exposure budget (e.g. max 18% per creator in large pools)
       if (_isCreatorOverExposed(channelId, config, ranked.length)) {
+        deferred.add(item);
         continue;
       }
 
       creatorCounts[channelId] = (creatorCounts[channelId] ?? 0) + 1;
       finalFeed.add(item);
+    }
+
+    // Zero Catalog Drop: append deferred items so all valid platform videos remain discoverable
+    if (deferred.isNotEmpty) {
+      final existingIds = finalFeed.map((e) => e.video.id).toSet();
+      for (final item in deferred) {
+        if (!existingIds.contains(item.video.id)) {
+          finalFeed.add(item);
+          existingIds.add(item.video.id);
+        }
+      }
     }
 
     return _explorationBudget.insertExplorationCandidates(finalFeed, config);
@@ -456,6 +558,9 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
     int totalSlots,
   ) {
     if (_profile == null) return false;
+    // Don't enforce creator exposure cap if the total candidate pool is small (< 15)
+    // to prevent small catalogs or single-channel categories from starving.
+    if (totalSlots < 15) return false;
 
     final exposureCount = _profile!.channelExposureCounts[channelId] ?? 0;
     final maxExposure = (totalSlots * config.maxCreatorExposurePercent).ceil();
@@ -466,7 +571,7 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
   // === Profile Management ===
 
   void updateProfile(UserInterestProfile profile) {
-    _profile = profile;
+    _explicitProfile = profile;
   }
 
   void recordSessionEvent(SessionEvent event) {
@@ -540,6 +645,21 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
         continue;
       }
 
+      // Boost candidate videos in the user's Unexplored Horizon (unexplored categories and topics)
+      var unexploredBoost = 0.0;
+      if (_profile != null) {
+        if (_profile!.isUnexploredCategory(video.category)) {
+          unexploredBoost += 3.0; // High boost for unexplored category
+        }
+        for (final topic in video.topics) {
+          final slug = topic.toLowerCase().trim();
+          if (!_profile!.exploredTopicSlugs.contains(slug) &&
+              !_profile!.topicAffinities.containsKey('topic:$slug')) {
+            unexploredBoost += 1.0;
+          }
+        }
+      }
+
       // Quality & engagement weighting: we want high-quality opposite views
       final engagement = _computeEngagementQuality(video);
       final knowledgeQuality = _computeKnowledgeQuality(video);
@@ -548,6 +668,7 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
           : 0.0;
 
       final totalOppositeScore = (contrastScore * 10.0) +
+          unexploredBoost +
           (knowledgeQuality * 3.0) +
           (engagement * 2.0) +
           creatorFairness;
@@ -559,6 +680,152 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
           recommendationReason: RecommendationReasons.factChecked,
           recommendationExplanation: 'The Other Side (Opposite Perspective)',
           surface: surface,
+        ),
+      );
+    }
+
+    scored.sort((a, b) => b.score.compareTo(a.score));
+
+    List<ScoredVideo> finalFeed;
+    if (diversityConfig != null) {
+      finalFeed = _applyDiversity(scored, diversityConfig);
+    } else {
+      finalFeed = scored;
+    }
+
+    for (final item in finalFeed) {
+      _trackCreatorExposure(item.video.channelId);
+    }
+
+    return finalFeed;
+  }
+
+  /// Rank candidate videos for the "Unexplored" tab according to user behavioral
+  /// personalization, psychology profiling, and latent love score prediction
+  /// (content the user would love to know, but has not explored yet).
+  List<ScoredVideo> rankVideosUnexplored(
+    List<Video> candidates,
+    RecommendationSurface surface, {
+    DiversityConfig? diversityConfig,
+  }) {
+    final scored = <ScoredVideo>[];
+    final profile = _profile;
+    final psych = profile?.psychologyProfile;
+
+    // Aggregate watched video IDs from profile and WatchHistoryService
+    final watchedVideoIds = <String>{};
+    if (profile != null) {
+      watchedVideoIds.addAll(profile.recentlyWatchedVideoIds);
+      watchedVideoIds.addAll(profile.watchProgress.keys);
+    }
+    if (Get.isRegistered<WatchHistoryService>()) {
+      watchedVideoIds.addAll(WatchHistoryService.to.allWatchedVideoIds);
+    }
+
+    for (final video in candidates) {
+      if (_computeCredibilityGate(video) == 0.0) continue;
+
+      // Disqualify already watched videos across all tracking tiers
+      if (watchedVideoIds.contains(video.id)) continue;
+      if (Get.isRegistered<WatchHistoryService>() &&
+          WatchHistoryService.to.isVideoWatched(video.id)) {
+        continue;
+      }
+
+      // Disqualify subscribed channels or user's own channel
+      if (profile != null) {
+        if (profile.subscribedChannelIds.contains(video.channelId)) continue;
+        if (video.channelId == profile.userId) continue;
+      }
+
+      // Check unexplored status
+      final isUnexpCategory = profile?.isUnexploredCategory(video.category) ?? true;
+      var unexploredTopicCount = 0;
+      for (final topic in video.topics) {
+        final slug = topic.toLowerCase().trim();
+        if (profile == null ||
+            (!profile.exploredTopicSlugs.contains(slug) &&
+                !profile.topicAffinities.containsKey('topic:$slug'))) {
+          unexploredTopicCount++;
+        }
+      }
+
+      // Disqualify comfort-zone videos that are already deeply explored
+      if (profile != null) {
+        final catAffinity = profile.categoryAffinities[video.category.trim()] ?? 0.0;
+        if (catAffinity > 0.45 && unexploredTopicCount == 0 && !isUnexpCategory) {
+          continue;
+        }
+      }
+
+      // 1. Unexplored Horizon Boost
+      var unexploredBonus = 0.0;
+      if (isUnexpCategory) {
+        unexploredBonus += 3.0;
+      }
+      unexploredBonus += (unexploredTopicCount * 1.0).clamp(0.0, 3.0);
+
+      // 2. Latent Love Score & Psychological Alignment
+      final loveAffinity = _computeLoveAffinity(video);
+      final knowledgeQuality = _computeKnowledgeQuality(video);
+      final engagement = _computeEngagementQuality(video);
+      final freshness = _computeFreshness(video, surface);
+
+      // Archetype-specific alignment
+      var archetypeBonus = 0.0;
+      if (psych != null) {
+        switch (psych.archetype) {
+          case CognitiveArchetype.analyticalDeepDiver:
+            if (video.isFactChecked) archetypeBonus += 2.0;
+            if (video.trustScore >= 4.0) archetypeBonus += 1.5;
+            archetypeBonus += knowledgeQuality * 3.0;
+            if (video.durationValue.inSeconds >= 300) archetypeBonus += 1.0;
+          case CognitiveArchetype.curiousExplorer:
+            archetypeBonus += freshness * 2.5;
+            archetypeBonus += isUnexpCategory ? 2.0 : 0.5;
+            archetypeBonus += unexploredTopicCount * 0.8;
+          case CognitiveArchetype.focusedSpecialist:
+            archetypeBonus += knowledgeQuality * 2.0;
+            if (video.trustScore >= 4.0) archetypeBonus += 1.0;
+          case CognitiveArchetype.actionOrientedConsumer:
+            archetypeBonus += engagement * 2.5;
+            archetypeBonus += freshness * 1.5;
+          case CognitiveArchetype.balancedInquirer:
+            archetypeBonus += knowledgeQuality * 1.5;
+            archetypeBonus += freshness * 1.5;
+            if (video.isFactChecked) archetypeBonus += 1.0;
+        }
+      } else {
+        // Cold start fallback
+        if (video.isFactChecked) archetypeBonus += 1.5;
+        if (video.trustScore >= 4.0) archetypeBonus += 1.0;
+      }
+
+      final creatorFairness = diversityConfig != null
+          ? _computeCreatorFairness(video, diversityConfig)
+          : 0.0;
+
+      final totalUnexploredScore = (loveAffinity * 3.5) +
+          unexploredBonus +
+          archetypeBonus +
+          (knowledgeQuality * 2.5) +
+          (engagement * 1.5) +
+          creatorFairness;
+
+      scored.add(
+        ScoredVideo(
+          video: video,
+          score: totalUnexploredScore,
+          recommendationReason: RecommendationReasons.inYourTopics,
+          recommendationExplanation: 'Unexplored Horizon (Personalized Latent Love)',
+          surface: surface,
+          signalBreakdown: {
+            'loveAffinity': loveAffinity,
+            'unexploredBonus': unexploredBonus,
+            'archetypeBonus': archetypeBonus,
+            'knowledgeQuality': knowledgeQuality,
+            'engagement': engagement,
+          },
         ),
       );
     }

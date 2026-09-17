@@ -1,8 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
@@ -23,7 +23,7 @@ class HomeDiscoveryController extends BaseController {
   ];
 
   static const List<String> primaryFilterBars = [
-    'All', 'Trending', 'From watch history', 'From Subscribed channels', 'Topics', 'Videos',
+    'All', 'Unexplored', 'Trending', 'From watch history', 'From Subscribed channels', 'Topics', 'Videos',
   ];
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -55,6 +55,7 @@ class HomeDiscoveryController extends BaseController {
       return const [
         'All',
         'Subscriptions',
+        'Unexplored',
         'Trending',
         'Flip Coin',
         'New',
@@ -65,7 +66,6 @@ class HomeDiscoveryController extends BaseController {
       return const [
         'All',
         'Trending',
-        'Flip Coin',
         'New',
         'Popular',
       ];
@@ -83,7 +83,12 @@ class HomeDiscoveryController extends BaseController {
     addWorker(
       ever(_authService.isAuthenticated, (isAuth) {
         if (!isAuth) {
-          if (selectedCategory.value == 'Subscriptions' || selectedCategory.value == 'Posts') {
+          if (selectedCategory.value == 'Subscriptions' ||
+              selectedCategory.value == 'Posts' ||
+              selectedCategory.value == 'Flip Coin' ||
+              selectedCategory.value == '🪙 Flip Coin' ||
+              selectedCategory.value == 'Unexplored' ||
+              selectedCategory.value == '🧭 Unexplored') {
             selectCategory('All');
           }
         }
@@ -100,8 +105,12 @@ class HomeDiscoveryController extends BaseController {
         availableCategories.assignAll(_personalizedSortCategories(stringCats));
         return;
       }
-    } catch (e) {
-      debugPrint('HomeDiscoveryController: Error loading cached categories: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'HomeDiscoveryController._loadCachedQualifyingCategories',
+      );
     }
     availableCategories.assignAll(_personalizedSortCategories([]));
   }
@@ -119,8 +128,12 @@ class HomeDiscoveryController extends BaseController {
           isLoadingFeaturedTopics.value = false;
         }
       }
-    } catch (e) {
-      debugPrint('HomeDiscoveryController: Cached topics load error: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'HomeDiscoveryController._loadCachedFeaturedTopics',
+      );
     }
   }
 
@@ -137,8 +150,12 @@ class HomeDiscoveryController extends BaseController {
           isLoadingForYouTopics.value = false;
         }
       }
-    } catch (e) {
-      debugPrint('HomeDiscoveryController: Cached for-you topics load error: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'HomeDiscoveryController._loadCachedForYouTopics',
+      );
     }
   }
 
@@ -149,8 +166,12 @@ class HomeDiscoveryController extends BaseController {
           .map((t) => t.toCacheMap())
           .toList();
       _storage.write(_kFeaturedTopicsCacheKey, dataToCache);
-    } catch (e) {
-      debugPrint('HomeDiscoveryController: Cached topics save error: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'HomeDiscoveryController.saveFeaturedTopicsToCache',
+      );
     }
   }
 
@@ -161,8 +182,12 @@ class HomeDiscoveryController extends BaseController {
           .map((t) => t.toCacheMap())
           .toList();
       _storage.write(_kForYouTopicsCacheKey, dataToCache);
-    } catch (e) {
-      debugPrint('HomeDiscoveryController: Cached for-you topics save error: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'HomeDiscoveryController.saveForYouTopicsToCache',
+      );
     }
   }
 
@@ -184,8 +209,12 @@ class HomeDiscoveryController extends BaseController {
               .where((t) => t.isValidTopic && t.videoCount > 0)
               .toList();
         }
-      } catch (e) {
-        debugPrint('HomeDiscoveryController: featured query error: $e');
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'HomeDiscoveryController.fetchFeaturedTopics.isFeatured',
+        );
       }
 
       // Tier 2: videoCount order
@@ -203,8 +232,12 @@ class HomeDiscoveryController extends BaseController {
                 .where((t) => t.isValidTopic && t.videoCount > 0)
                 .toList();
           }
-        } catch (e) {
-          debugPrint('HomeDiscoveryController: orderBy videoCount error: $e');
+        } catch (e, stackTrace) {
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'HomeDiscoveryController.fetchFeaturedTopics.videoCount',
+          );
         }
       }
 
@@ -222,8 +255,12 @@ class HomeDiscoveryController extends BaseController {
                 .where((t) => t.isValidTopic && t.videoCount > 0)
                 .toList();
           }
-        } catch (e) {
-          debugPrint('HomeDiscoveryController: general fallback topics error: $e');
+        } catch (e, stackTrace) {
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'HomeDiscoveryController.fetchFeaturedTopics.generalFallback',
+          );
         }
       }
 
@@ -243,9 +280,24 @@ class HomeDiscoveryController extends BaseController {
             }
           }
         }
+      } else {
+        featuredTopics.clear();
+        try {
+          _storage.remove(_kFeaturedTopicsCacheKey);
+        } catch (e, stackTrace) {
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'HomeDiscoveryController.fetchFeaturedTopics.removeCache',
+          );
+        }
       }
-    } catch (e) {
-      debugPrint('HomeDiscoveryController: Error fetching featured topics: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'HomeDiscoveryController.fetchFeaturedTopics',
+      );
     } finally {
       isLoadingFeaturedTopics.value = false;
     }
@@ -269,8 +321,12 @@ class HomeDiscoveryController extends BaseController {
               .where((t) => t.isValidTopic && t.videoCount > 0)
               .toList();
         }
-      } catch (e) {
-        debugPrint('HomeDiscoveryController: fetchForYouTopics active query error: $e');
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'HomeDiscoveryController.fetchForYouTopics.activeStatus',
+        );
       }
 
       // Tier 2: General topics query
@@ -287,8 +343,12 @@ class HomeDiscoveryController extends BaseController {
                 .where((t) => t.isValidTopic && t.videoCount > 0)
                 .toList();
           }
-        } catch (e) {
-          debugPrint('HomeDiscoveryController: fetchForYouTopics general query error: $e');
+        } catch (e, stackTrace) {
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'HomeDiscoveryController.fetchForYouTopics.generalFallback',
+          );
         }
       }
 
@@ -299,17 +359,41 @@ class HomeDiscoveryController extends BaseController {
           featuredTopics.assignAll(topicsList.take(6).toList());
           saveFeaturedTopicsToCache();
         }
-      } else if (featuredTopics.isNotEmpty) {
-        forYouTopics.assignAll(featuredTopics);
+      } else {
+        forYouTopics.clear();
+        try {
+          _storage.remove(_kForYouTopicsCacheKey);
+        } catch (e, stackTrace) {
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'HomeDiscoveryController.fetchForYouTopics.removeCache',
+          );
+        }
       }
-    } catch (e) {
-      debugPrint('HomeDiscoveryController: Error fetching for-you topics: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'HomeDiscoveryController.fetchForYouTopics',
+      );
     } finally {
       isLoadingForYouTopics.value = false;
     }
   }
 
   void selectCategory(String category) {
+    if (!_authService.isAuthenticated.value) {
+      if (category == 'Flip Coin' ||
+          category == '🪙 Flip Coin' ||
+          category == 'Unexplored' ||
+          category == '🧭 Unexplored' ||
+          category == 'Subscriptions' ||
+          category == 'Posts') {
+        return;
+      }
+    }
+
     if (!availableCategories.contains(category)) {
       availableCategories.add(category);
     }
@@ -334,7 +418,15 @@ class HomeDiscoveryController extends BaseController {
     }
     
     if (Get.isRegistered<HomeNavigationController>()) {
-      Get.find<HomeNavigationController>().syncTabToCategory(category);
+      try {
+        Get.find<HomeNavigationController>().syncTabToCategory(category);
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'HomeDiscoveryController.selectCategory.syncTab',
+        );
+      }
     }
     
     if (Get.isRegistered<HomeFeedController>()) {
@@ -348,6 +440,8 @@ class HomeDiscoveryController extends BaseController {
     
     if (bar == 'All') {
       selectCategory('All');
+    } else if (bar == 'Unexplored') {
+      selectCategory('Unexplored');
     } else if (bar == 'Trending') {
       selectCategory('Trending');
     } else if (bar == 'Topics') {
@@ -412,14 +506,36 @@ class HomeDiscoveryController extends BaseController {
       
       if (qualifyingCategories.isNotEmpty) {
         _storage.write(_kQualifyingCategoriesCacheKey, qualifyingCategories);
+      } else {
+        try {
+          _storage.remove(_kQualifyingCategoriesCacheKey);
+        } catch (e, stackTrace) {
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'HomeDiscoveryController.fetchAvailableCategories.removeCache',
+          );
+        }
       }
 
       availableCategories.assignAll(_personalizedSortCategories(qualifyingCategories));
       if (Get.isRegistered<HomeNavigationController>()) {
-        Get.find<HomeNavigationController>().reinitializeTabController();
+        try {
+          Get.find<HomeNavigationController>().reinitializeTabController();
+        } catch (e, stackTrace) {
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'HomeDiscoveryController.fetchAvailableCategories.reinitTab',
+          );
+        }
       }
-    } catch (e) {
-      debugPrint('HomeDiscoveryController: Error fetching category counts: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'HomeDiscoveryController.fetchAvailableCategories',
+      );
       _updateCategoriesFromLoadedVideos();
     }
   }
@@ -495,7 +611,15 @@ class HomeDiscoveryController extends BaseController {
     });
     availableCategories.assignAll(_personalizedSortCategories(qualifyingCategories));
     if (Get.isRegistered<HomeNavigationController>()) {
-      Get.find<HomeNavigationController>().reinitializeTabController();
+      try {
+        Get.find<HomeNavigationController>().reinitializeTabController();
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'HomeDiscoveryController._updateCategoriesFromLoadedVideos.reinitTab',
+        );
+      }
     }
   }
 
@@ -524,8 +648,12 @@ class HomeDiscoveryController extends BaseController {
         }
       }
       subscribedChannelList.assignAll(channelsData);
-    } catch (e) {
-      debugPrint('Error fetching subscribed channels: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'HomeDiscoveryController.fetchSubscribedChannels',
+      );
     } finally {
       isLoadingSubscriptions.value = false;
     }

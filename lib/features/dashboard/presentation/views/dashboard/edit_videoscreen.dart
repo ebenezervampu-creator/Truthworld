@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -55,13 +56,7 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
       final title = _titleController.text.trim();
       final titleResult = ContentValidator.validate(title, fieldName: 'Title');
       if (!titleResult.isValid) {
-        Get.snackbar(
-          'Inappropriate Content',
-          titleResult.message,
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: AppColors.error,
-          colorText: AppColors.textPrimary,
-        );
+        AppSnackbar.warning(titleResult.message);
         return;
       }
 
@@ -72,13 +67,7 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
           fieldName: 'Description',
         );
         if (!descResult.isValid) {
-          Get.snackbar(
-            'Inappropriate Content',
-            descResult.message,
-            snackPosition: SnackPosition.BOTTOM,
-            backgroundColor: AppColors.error,
-            colorText: AppColors.textPrimary,
-          );
+          AppSnackbar.warning(descResult.message);
           return;
         }
       }
@@ -93,13 +82,7 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
       if (tags.isNotEmpty) {
         final tagsResult = ContentValidator.validateTags(tags);
         if (!tagsResult.isValid) {
-          Get.snackbar(
-            'Inappropriate Content',
-            tagsResult.message,
-            snackPosition: SnackPosition.BOTTOM,
-            backgroundColor: AppColors.error,
-            colorText: AppColors.textPrimary,
-          );
+          AppSnackbar.warning(tagsResult.message);
           return;
         }
       }
@@ -204,6 +187,7 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
     return TextFormField(
       controller: controller,
       maxLines: maxLines,
+      inputFormatters: [...TruthworldTextInputFormatters.standard],
       validator: validator,
       style: AppTextStyles.inputText,
       decoration: InputDecoration(

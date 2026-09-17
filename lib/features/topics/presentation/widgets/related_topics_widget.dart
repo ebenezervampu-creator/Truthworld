@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
@@ -184,22 +185,20 @@ class RelatedTopicsWidget extends StatelessWidget {
       return Stack(
         fit: StackFit.expand,
         children: [
-          Image.network(
-            bgUrl,
+          CachedNetworkImage(
+            imageUrl: bgUrl,
             fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) {
-              return _buildGradientBackground();
-            },
+            placeholder: (context, url) => _buildGradientBackground(),
+            errorWidget: (context, url, error) => _buildGradientBackground(),
           ),
           Container(
             color: Colors.black.withValues(alpha: 0.65),
           ),
-          Image.network(
-            bgUrl,
+          CachedNetworkImage(
+            imageUrl: bgUrl,
             fit: BoxFit.contain,
-            errorBuilder: (context, error, stackTrace) {
-              return _buildGradientBackground();
-            },
+            placeholder: (context, url) => _buildGradientBackground(),
+            errorWidget: (context, url, error) => _buildGradientBackground(),
           ),
         ],
       );

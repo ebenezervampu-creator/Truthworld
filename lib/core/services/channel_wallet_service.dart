@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/cashfree_service.dart';
 import 'package:truthworld/data/models/channel.dart';
 
 enum WalletTransactionCategory {
@@ -138,10 +140,11 @@ class BandwidthTopupPack {
 }
 
 class ChannelWalletService {
-  final FirebaseFirestore _firestore;
+  final FirebaseFirestore? _firestoreInstance;
+  FirebaseFirestore get _firestore => _firestoreInstance ?? FirebaseFirestore.instance;
 
   ChannelWalletService({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? FirebaseFirestore.instance;
+    : _firestoreInstance = firestore;
 
   static const List<StorageTopupPack> storagePacks = [
     StorageTopupPack(
@@ -312,7 +315,6 @@ class ChannelWalletService {
 
       // 2. Update Channel's infraConfig trial credit and remaining counters
       final existingInfra = channel.infraConfig ?? CustomChannelInfraConfig(
-        stripeConnectAccountId: 'acct_${channel.id}',
         subscriptionId: 'sub_${channel.id}',
       );
 
@@ -340,8 +342,12 @@ class ChannelWalletService {
           });
 
       return transaction;
-    } catch (e) {
-      debugPrint('[ChannelWalletService] Error processing spend transaction: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'ChannelWalletService.spendBalance',
+      );
       return transaction; // Return transaction object even if offline/sandbox
     }
   }
@@ -367,7 +373,6 @@ class ChannelWalletService {
     // Apply tier change to channel
     try {
       final existingInfra = channel.infraConfig ?? CustomChannelInfraConfig(
-        stripeConnectAccountId: 'acct_${channel.id}',
         subscriptionId: 'sub_${channel.id}',
       );
 
@@ -396,8 +401,12 @@ class ChannelWalletService {
             'updatedAt': FieldValue.serverTimestamp(),
           });
       return true;
-    } catch (e) {
-      debugPrint('[ChannelWalletService] Error updating plan tier on channel: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'ChannelWalletService.spendForCustomPlan',
+      );
       return true;
     }
   }
@@ -431,8 +440,12 @@ class ChannelWalletService {
             'updatedAt': FieldValue.serverTimestamp(),
           });
       return true;
-    } catch (e) {
-      debugPrint('[ChannelWalletService] Error incrementing storage quota: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'ChannelWalletService.spendForStorageTopup',
+      );
       return true;
     }
   }
@@ -466,9 +479,75 @@ class ChannelWalletService {
             'updatedAt': FieldValue.serverTimestamp(),
           });
       return true;
-    } catch (e) {
-      debugPrint('[ChannelWalletService] Error incrementing bandwidth quota: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'ChannelWalletService.spendForBandwidthTopup',
+      );
       return true;
+    }
+  }
+
+  /// Buy Storage pack directly via Cashfree PG
+  Future<bool> buyStoragePackWithCashfree({
+    required Channel channel,
+    required StorageTopupPack pack,
+  }) async {
+    try {
+      final amountINR = (pack.priceUSD * 85.0).roundToDouble();
+      final paymentResult = await CashfreePaymentService.to.startPayment(
+        amount: amountINR,
+        purpose: 'channel_topup',
+        orderNote: 'Storage Top-Up: ${pack.title}',
+        metadata: {
+          'channelId': channel.id,
+          'packType': 'storage',
+          'gigabytes': pack.gigabytes,
+          'category': 'storageTopup',
+          'description': 'Storage Add-on via Cashfree: ${pack.title}',
+        },
+      );
+
+      if (paymentResult.success) {
+        // Quota is incremented authoritatively by backend fulfillOrder transaction
+        return true;
+      }
+      return false;
+    } catch (e, stackTrace) {
+      ErrorHandler.log(e, stackTrace: stackTrace, tag: 'ChannelWalletService.buyStoragePackWithCashfree');
+      return false;
+    }
+  }
+
+  /// Buy Bandwidth pack directly via Cashfree PG
+  Future<bool> buyBandwidthPackWithCashfree({
+    required Channel channel,
+    required BandwidthTopupPack pack,
+  }) async {
+    try {
+      final amountINR = (pack.priceUSD * 85.0).roundToDouble();
+      final paymentResult = await CashfreePaymentService.to.startPayment(
+        amount: amountINR,
+        purpose: 'channel_topup',
+        orderNote: 'Bandwidth Top-Up: ${pack.title}',
+        metadata: {
+          'channelId': channel.id,
+          'packType': 'bandwidth',
+          'gigabytes': pack.gigabytes,
+          'category': 'bandwidthTopup',
+          'description': 'Bandwidth Add-on via Cashfree: ${pack.title}',
+        },
+      );
+
+      if (paymentResult.success) {
+        // Quota is incremented authoritatively by backend fulfillOrder transaction
+        return true;
+      }
+      return false;
+    } catch (e, stackTrace) {
+      ErrorHandler.log(e, stackTrace: stackTrace, tag: 'ChannelWalletService.buyBandwidthPackWithCashfree');
+      return false;
     }
   }
 
@@ -553,8 +632,12 @@ class ChannelWalletService {
       });
 
       return true;
-    } catch (e) {
-      debugPrint('[ChannelWalletService] Error enqueuing video pipeline job: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'ChannelWalletService.spendForVideoAIFeatures',
+      );
       return true;
     }
   }

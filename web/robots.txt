@@ -19,6 +19,8 @@ Allow: /ads
 Allow: /post/
 Allow: /community/
 Allow: /sitemap*.xml
+Allow: /llms.txt
+Allow: /llms-full.txt
 
 Disallow: /embed
 Disallow: /embed/
@@ -33,5 +35,10 @@ Disallow: /api/
 Disallow: /functions/
 Disallow: /__/auth/
 Disallow: /__/firebase/
-
 Sitemap: https://www.truthworld.in/sitemap.xml
+Sitemap: https://www.truthworld.in/sitemap-static.xml
+Sitemap: https://www.truthworld.in/sitemap-videos-001.xml
+Sitemap: https://www.truthworld.in/sitemap-channels-001.xml
+Sitemap: https://www.truthworld.in/sitemap-topics.xml
+Sitemap: https://www.truthworld.in/sitemap-playlists.xml
+Sitemap: https://www.truthworld.in/sitemap-community-001.xml

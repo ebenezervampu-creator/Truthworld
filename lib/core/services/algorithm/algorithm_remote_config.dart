@@ -137,6 +137,17 @@ class AlgorithmRemoteConfig extends GetxService {
             'penalty': 0.14,
             'knowledgeQuality': 0.00,
           },
+          'unexplored': {
+            'topicAffinity': 0.12,
+            'channelAffinity': 0.05,
+            'engagement': 0.14,
+            'freshness': 0.14,
+            'trending': 0.08,
+            'watchCompletion': 0.07,
+            'sessionBoost': 0.10,
+            'penalty': 0.05,
+            'knowledgeQuality': 0.15,
+          },
         },
       };
 
@@ -160,5 +171,16 @@ class AlgorithmRemoteConfig extends GetxService {
         '[AlgorithmRemoteConfig] Switched to algorithm version: $version',
       );
     }
+  }
+
+  String _homeFeedEndpoint = const String.fromEnvironment(
+    'TRUTHWORLD_HOME_FEED_ENDPOINT',
+    defaultValue: 'https://asia-south1-truthworld-app.cloudfunctions.net/getHomeFeed',
+  );
+  String get homeFeedEndpoint => _homeFeedEndpoint;
+
+  /// Update home feed server endpoint dynamically
+  void setHomeFeedEndpoint(String endpoint) {
+    _homeFeedEndpoint = endpoint.trim();
   }
 }

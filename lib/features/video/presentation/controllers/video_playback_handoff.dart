@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:video_player/video_player.dart';
 
@@ -55,13 +56,21 @@ class VideoPlaybackHandoff {
       // Kick off initialization asynchronously in background
       controller.initialize().then((_) {
         debugPrint('[VideoPlaybackHandoff] ✅ Pre-warmed player initialized for: ${video.id}');
-      }).catchError((dynamic e) {
-        debugPrint('[VideoPlaybackHandoff] ⚠️ Pre-warm initialization error: $e');
+      }).catchError((dynamic e, StackTrace s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'VideoPlaybackHandoff.prewarmVideo.initialize',
+        );
         // Clean up failed pre-warm controller so VideoController doesn't inherit the error
         clear(video.id);
       });
-    } catch (e) {
-      debugPrint('[VideoPlaybackHandoff] Error initiating pre-warm: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'VideoPlaybackHandoff.prewarmVideo',
+      );
     }
   }
 
@@ -91,9 +100,11 @@ class VideoPlaybackHandoff {
     if (_activeController != null && _activeController != controller) {
       try {
         _activeController!.dispose();
-      } catch (e) {
-        debugPrint(
-          '[VideoPlaybackHandoff] Error cleaning up old controller: $e',
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'VideoPlaybackHandoff.registerActiveController.dispose',
         );
       }
     }
@@ -122,6 +133,17 @@ class VideoPlaybackHandoff {
     return _activePositions[videoId];
   }
 
+  /// Inspect the active controller for a video ID without claiming it from the registry.
+  static VideoPlayerController? peekController(String videoId) {
+    if (kIsWeb) return null;
+    if (_activeVideoId == videoId &&
+        _activeController != null &&
+        !_activeController!.value.hasError) {
+      return _activeController;
+    }
+    return null;
+  }
+
   /// Check if an active resume position is stored for this video.
   static bool hasActivePosition(String videoId) {
     return _activePositions.containsKey(videoId);
@@ -144,7 +166,13 @@ class VideoPlaybackHandoff {
         );
         try {
           controller.dispose();
-        } catch (_) {}
+        } catch (e, stackTrace) {
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'VideoPlaybackHandoff.retrieveController.dispose',
+          );
+        }
         return null;
       }
 
@@ -173,9 +201,11 @@ class VideoPlaybackHandoff {
       );
       try {
         _activeController!.dispose();
-      } catch (e) {
-        debugPrint(
-          '[VideoPlaybackHandoff] Error disposing controller during clear: $e',
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'VideoPlaybackHandoff.clear.dispose',
         );
       }
       _activeController = null;
@@ -193,7 +223,13 @@ class VideoPlaybackHandoff {
     for (final listener in List<VoidCallback>.from(_pauseAllListeners)) {
       try {
         listener();
-      } catch (_) {}
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'VideoPlaybackHandoff.pauseAllActivePlayers',
+        );
+      }
     }
   }
 

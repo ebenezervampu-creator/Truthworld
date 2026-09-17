@@ -1,9 +1,11 @@
 import 'dart:io' as io;
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/community/community_post_upload_controller.dart';
 import 'package:truthworld/features/community/data/models/community_draft.dart';
@@ -163,7 +165,9 @@ class _CommunityPostUploadScreenState extends State<CommunityPostUploadScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 24),
+        _buildCopyrightDeclarationSection(context),
+        const SizedBox(height: 24),
         _buildActionButtons(context),
       ],
     );
@@ -180,7 +184,9 @@ class _CommunityPostUploadScreenState extends State<CommunityPostUploadScreen> {
         _buildVisibilitySection(context),
         const SizedBox(height: 20),
         _buildAdditionalOptionsSection(context),
-        const SizedBox(height: 28),
+        const SizedBox(height: 20),
+        _buildCopyrightDeclarationSection(context),
+        const SizedBox(height: 24),
         _buildActionButtons(context),
       ],
     );
@@ -393,6 +399,7 @@ class _CommunityPostUploadScreenState extends State<CommunityPostUploadScreen> {
             return TextFormField(
               controller: _titleCtrl,
               maxLength: 100,
+              inputFormatters: [TruthworldTextInputFormatters.englishOnly],
               style: context.twTypography.body.copyWith(
                 color: context.colors.textPrimary,
                 fontSize: 14,
@@ -405,7 +412,8 @@ class _CommunityPostUploadScreenState extends State<CommunityPostUploadScreen> {
                 if (val.length < 5) {
                   return 'Title is too short (min 5 characters)';
                 }
-                return null;
+                final res = ContentValidator.validate(val, fieldName: 'Title');
+                return res.isValid ? null : res.message;
               },
               decoration: InputDecoration(
                 hintText: 'Enter a title for your post',
@@ -485,6 +493,7 @@ class _CommunityPostUploadScreenState extends State<CommunityPostUploadScreen> {
           maxLines: 5,
           minLines: 4,
           maxLength: 2000,
+          inputFormatters: [TruthworldTextInputFormatters.englishOnly],
           onChanged: (val) => _c.descriptionText.value = val,
           style: context.twTypography.body.copyWith(
             color: context.colors.textPrimary,
@@ -498,7 +507,8 @@ class _CommunityPostUploadScreenState extends State<CommunityPostUploadScreen> {
             if (val.length < 10) {
               return 'Description is too short (min 10 characters)';
             }
-            return null;
+            final res = ContentValidator.validate(val, fieldName: 'Description');
+            return res.isValid ? null : res.message;
           },
           decoration: InputDecoration(
             hintText: 'Write your post description...',
@@ -573,10 +583,10 @@ class _CommunityPostUploadScreenState extends State<CommunityPostUploadScreen> {
                   color: context.colors.surfaceContainer,
                   child: _c.pickedImages.isNotEmpty
                       ? (kIsWeb
-                          ? Image.network(
-                              _c.pickedImages.first.path ?? '',
+                          ? CachedNetworkImage(
+                              imageUrl: _c.pickedImages.first.path ?? '',
                               fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => const Icon(
+                              errorWidget: (_, _, _) => const Icon(
                                 Icons.image_outlined,
                                 color: AppColors.textPrimary,
                               ),
@@ -590,10 +600,10 @@ class _CommunityPostUploadScreenState extends State<CommunityPostUploadScreen> {
                               ),
                             ))
                       : (_c.imageUrls.isNotEmpty
-                          ? Image.network(
-                              _c.imageUrls.first,
+                          ? CachedNetworkImage(
+                              imageUrl: _c.imageUrls.first,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => const Icon(
+                              errorWidget: (_, _, _) => const Icon(
                                 Icons.image_outlined,
                                 color: AppColors.textPrimary,
                               ),
@@ -631,6 +641,50 @@ class _CommunityPostUploadScreenState extends State<CommunityPostUploadScreen> {
                         color: context.colors.textSecondary,
                       ),
                     ),
+                    Obx(() {
+                      final status = _c.moderationStatuses[0];
+                      final reason = _c.moderationReasons[0] ?? '';
+                      if (status == 'REJECTED') {
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 4.0),
+                          child: Text(
+                            'Rejected: $reason',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFFEF4444),
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        );
+                      } else if (status == 'APPROVED') {
+                        return const Padding(
+                          padding: EdgeInsets.only(top: 4.0),
+                          child: Text(
+                            'Verified',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF10B981),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        );
+                      } else if (status == 'PENDING') {
+                        return const Padding(
+                          padding: EdgeInsets.only(top: 4.0),
+                          child: Text(
+                            'Verifying in background...',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF3B82F6),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    }),
                   ],
                 ),
               ),
@@ -886,6 +940,129 @@ class _CommunityPostUploadScreenState extends State<CommunityPostUploadScreen> {
     );
   }
 
+  // ── CREATOR COPYRIGHT & RIGHTS DECLARATION ────────────────────────────────
+
+  Widget _buildCopyrightDeclarationSection(BuildContext context) {
+    return Obx(() {
+      final isConfirmed = _c.hasConfirmedCopyrightDeclaration.value;
+
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isConfirmed
+              ? const Color(0xFF10B981).withValues(alpha: 0.08)
+              : context.colors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isConfirmed
+                ? const Color(0xFF10B981).withValues(alpha: 0.4)
+                : context.colors.divider.withValues(alpha: 0.6),
+            width: isConfirmed ? 1.5 : 1.0,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isConfirmed
+                        ? const Color(0xFF10B981).withValues(alpha: 0.2)
+                        : Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.verified_user_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Creator Copyright & Rights Declaration',
+                        style: context.twTypography.title.copyWith(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: context.colors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Mandatory statutory confirmation before publishing',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: context.colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            InkWell(
+              onTap: () {
+                _c.hasConfirmedCopyrightDeclaration.value =
+                    !_c.hasConfirmedCopyrightDeclaration.value;
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F0F11),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isConfirmed
+                        ? const Color(0xFF10B981).withValues(alpha: 0.3)
+                        : context.colors.divider,
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Checkbox(
+                      value: isConfirmed,
+                      onChanged: (val) {
+                        _c.hasConfirmedCopyrightDeclaration.value = val ?? false;
+                      },
+                      activeColor: const Color(0xFF10B981),
+                      checkColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: Text(
+                          'I declare that I own or have all necessary rights to publish this post and any attached images, and that this content complies with TruthWorld Community Guidelines.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isConfirmed
+                                ? context.colors.textPrimary
+                                : context.colors.textSecondary,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
   // ── ACTION BUTTONS & SCHEDULE CONTROL ─────────────────────────────────────
 
   Widget _buildActionButtons(BuildContext context) {
@@ -1103,7 +1280,31 @@ class _CommunityPostUploadScreenState extends State<CommunityPostUploadScreen> {
       return;
     }
 
+    if (_c.moderationStatuses.values.any((s) => s == 'REJECTED')) {
+      final reason = _c.moderationReasons.values.firstWhere(
+        (r) => r.isNotEmpty,
+        orElse: () => 'Violates Community Guidelines',
+      );
+      AppSnackbar.show(
+        'Image Rejected',
+        'Your image was rejected: $reason. Please replace it before publishing.',
+        backgroundColor: context.colors.error,
+        colorText: AppColors.textPrimary,
+      );
+      return;
+    }
+
     if (_formKey.currentState?.validate() != true) {
+      return;
+    }
+
+    if (!_c.hasConfirmedCopyrightDeclaration.value) {
+      AppSnackbar.show(
+        'Declaration Required',
+        'Please confirm the creator copyright declaration before publishing.',
+        backgroundColor: context.colors.error,
+        colorText: AppColors.textPrimary,
+      );
       return;
     }
 

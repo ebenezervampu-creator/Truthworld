@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
@@ -14,7 +14,6 @@ import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/theme/app_theme.dart';
 
 class PlaylistController extends BaseController with ContentValidationMixin {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -41,6 +40,7 @@ class PlaylistController extends BaseController with ContentValidationMixin {
   final RxString searchQuery = ''.obs;
   final RxInt refreshTick = 0.obs;
   final RxSet<String> selectedVideoIds = <String>{}.obs;
+  final RxString selectedPlaylistType = 'private'.obs;
 
   // Filter State
   final RxString selectedCategory = 'Playlists'.obs;
@@ -136,11 +136,20 @@ class PlaylistController extends BaseController with ContentValidationMixin {
         .doc(user)
         .collection('watch_later')
         .snapshots()
-        .listen((snapshot) {
-          watchLaterVideoIds.value = snapshot.docs
-              .map((doc) => doc.id)
-              .toList();
-        });
+        .listen(
+          (snapshot) {
+            watchLaterVideoIds.value = snapshot.docs
+                .map((doc) => doc.id)
+                .toList();
+          },
+          onError: (error, stackTrace) {
+            ErrorHandler.log(
+              error,
+              stackTrace: stackTrace,
+              tag: 'PlaylistController._initWatchLaterSync',
+            );
+          },
+        );
   }
 
   PlaylistModel? getWatchLaterPlaylist() {
@@ -159,7 +168,7 @@ class PlaylistController extends BaseController with ContentValidationMixin {
   /// Toggle video in "Watch Later" playlist
   Future<void> toggleWatchLater(String videoId) async {
     if (user.isEmpty) {
-      Get.snackbar('Auth required', 'Please sign in to update Watch Later');
+      AppSnackbar.warning('Please sign in to update Watch Later.');
       return;
     }
     try {
@@ -173,16 +182,16 @@ class PlaylistController extends BaseController with ContentValidationMixin {
       final isAlreadyIn = watchLaterVideoIds.contains(videoId);
       if (isAlreadyIn) {
         await ref.delete();
-        Get.snackbar('Success', 'Removed from Watch Later');
+        AppSnackbar.success('Removed from Watch Later');
       } else {
         await ref.set({
           'createdAt': FieldValue.serverTimestamp(),
         });
-        Get.snackbar('Success', 'Added to Watch Later');
+        AppSnackbar.success('Added to Watch Later');
       }
     } catch (e) {
-      logger.debug('❌ Error toggling Watch Later: $e');
-      Get.snackbar('Error', 'Failed to update Watch Later');
+      ErrorHandler.log(e, context: 'playlist_controller.toggleWatchLater');
+      AppSnackbar.error('Unable to update Watch Later. Please try again.');
     } finally {
       rxIsLoading.value = false;
     }
@@ -199,23 +208,25 @@ class PlaylistController extends BaseController with ContentValidationMixin {
 
     // Listen to authentication state changes from AuthService
     // This ensures playlists are fetched only when a user is logged in
-    ever(AuthService.to.currentUser, (u) {
-      if (u != null) {
-        fetchPlaylists();
-        fetchPublicPlaylists();
-        listenToWatchLater();
-      } else {
-        // If user logs out, cancel the subscription and clear the list
-        _playlistsSubscription?.cancel();
-        playlists.clear();
-        isPlaylistsLoaded.value = false;
-        _publicPlaylistsSubscription?.cancel();
-        publicPlaylists.clear();
-        isPublicPlaylistsLoaded.value = false;
-        _watchLaterSub?.cancel();
-        watchLaterVideoIds.clear();
-      }
-    });
+    addWorker(
+      ever(AuthService.to.currentUser, (u) {
+        if (u != null) {
+          fetchPlaylists();
+          fetchPublicPlaylists();
+          listenToWatchLater();
+        } else {
+          // If user logs out, cancel the subscription and clear the list
+          _playlistsSubscription?.cancel();
+          playlists.clear();
+          isPlaylistsLoaded.value = false;
+          _publicPlaylistsSubscription?.cancel();
+          publicPlaylists.clear();
+          isPublicPlaylistsLoaded.value = false;
+          _watchLaterSub?.cancel();
+          watchLaterVideoIds.clear();
+        }
+      }),
+    );
 
     // Initial fetch if user is already authenticated
     if (user.isNotEmpty) {
@@ -246,13 +257,7 @@ class PlaylistController extends BaseController with ContentValidationMixin {
   }) async {
     final nameVal = await validateContent(playlistName, fieldName: 'Playlist Name');
     if (!nameVal.isValid) {
-      Get.snackbar(
-        'Inappropriate Content',
-        nameVal.message,
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
-      );
+      AppSnackbar.warning(nameVal.message);
       return null;
     }
 
@@ -262,13 +267,7 @@ class PlaylistController extends BaseController with ContentValidationMixin {
         fieldName: 'Playlist Description',
       );
       if (!descVal.isValid) {
-        Get.snackbar(
-          'Inappropriate Content',
-          descVal.message,
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: AppColors.error,
-          colorText: AppColors.textPrimary,
-        );
+        AppSnackbar.warning(descVal.message);
         return null;
       }
     }
@@ -353,22 +352,12 @@ class PlaylistController extends BaseController with ContentValidationMixin {
         '✅ Created playlist: ${playlist.playlistName} (${playlist.id})',
       );
 
-      AppSnackbar.show(
-        'Success',
-        'Playlist created successfully!',
-        backgroundColor: AppColors.success,
-        colorText: AppColors.textPrimary,
-      );
+      AppSnackbar.success('Playlist created successfully!');
 
       return playlist;
     } catch (e) {
-      logger.debug('❌ Error creating playlist: $e');
-      AppSnackbar.show(
-        'Error',
-        'Failed to create playlist!',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
-      );
+      ErrorHandler.log(e);
+      AppSnackbar.error('Unable to create playlist. Please try again.');
       return null;
     }
   }
@@ -386,18 +375,10 @@ class PlaylistController extends BaseController with ContentValidationMixin {
 
       await ref.delete();
 
-      Get.snackbar(
-        'Success',
-        'Playlist deleted successfully!',
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      AppSnackbar.success('Playlist deleted successfully!');
     } catch (e) {
-      logger.debug('❌ Error deleting playlist: $e');
-      Get.snackbar(
-        'Error',
-        'Failed to delete playlist!',
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      ErrorHandler.log(e);
+      AppSnackbar.error('Unable to delete playlist. Please try again.');
     }
   }
 
@@ -518,29 +499,13 @@ class PlaylistController extends BaseController with ContentValidationMixin {
             snapshot.data()?['thumbnailUrl'] == null) {
           await _updateThumbnail(ref, currentVideoIds);
         }
-        Get.snackbar(
-          'Success',
-          'Videos added to playlist!',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: const Color(0xFF1DB954).withValues(alpha: 0.8),
-          colorText: AppColors.textPrimary,
-        );
+        AppSnackbar.success('Videos added to playlist!');
       } else {
-        Get.snackbar(
-          'Info',
-          'All selected videos are already in the playlist!',
-          snackPosition: SnackPosition.BOTTOM,
-        );
+        AppSnackbar.info('All selected videos are already in the playlist.');
       }
     } catch (e) {
-      logger.debug('❌ Error adding videos: $e');
-      Get.snackbar(
-        'Error',
-        'Failed to add videos: $e',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: const Color(0xFFEF4444).withValues(alpha: 0.8),
-        colorText: AppColors.textPrimary,
-      );
+      ErrorHandler.log(e);
+      AppSnackbar.error('Unable to add videos to playlist. Please try again.');
     }
   }
 
@@ -608,25 +573,13 @@ class PlaylistController extends BaseController with ContentValidationMixin {
           await _updateThumbnail(targetRef, currentVideoIds);
         }
 
-        Get.snackbar(
-          'Success',
-          'Video added to playlist!',
-          snackPosition: SnackPosition.BOTTOM,
-        );
+        AppSnackbar.success('Video added to playlist!');
       } else {
-        Get.snackbar(
-          'Warning',
-          'Video already in playlist!',
-          snackPosition: SnackPosition.BOTTOM,
-        );
+        AppSnackbar.info('Video is already in this playlist.');
       }
     } catch (e) {
-      logger.debug('❌ Error adding video: $e');
-      Get.snackbar(
-        'Error',
-        'Failed to add video!',
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      ErrorHandler.log(e);
+      AppSnackbar.error('Unable to add video to playlist. Please try again.');
     }
   }
 
@@ -673,19 +626,11 @@ class PlaylistController extends BaseController with ContentValidationMixin {
 
         await _updateThumbnail(ref, newCachedIds);
 
-        Get.snackbar(
-          'Success',
-          'Video removed from playlist!',
-          snackPosition: SnackPosition.BOTTOM,
-        );
+        AppSnackbar.success('Video removed from playlist!');
       }
     } catch (e) {
-      logger.debug('❌ Error removing video: $e');
-      Get.snackbar(
-        'Error',
-        'Failed to remove video!',
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      ErrorHandler.log(e);
+      AppSnackbar.error('Unable to remove video from playlist. Please try again.');
     }
   }
 
@@ -728,11 +673,7 @@ class PlaylistController extends BaseController with ContentValidationMixin {
           .toList();
 
       if (affectedDocs.isEmpty) {
-        Get.snackbar(
-          'Success',
-          'Video removed from all playlists!',
-          snackPosition: SnackPosition.BOTTOM,
-        );
+        AppSnackbar.success('Video removed from all playlists!');
         return;
       }
 
@@ -757,18 +698,10 @@ class PlaylistController extends BaseController with ContentValidationMixin {
 
       await batch.commit();
 
-      Get.snackbar(
-        'Success',
-        'Video removed from all playlists!',
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      AppSnackbar.success('Video removed from all playlists!');
     } catch (e) {
-      logger.debug('❌ Error deleting video from all playlists: $e');
-      Get.snackbar(
-        'Error',
-        'Failed to remove video from all playlists!',
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      ErrorHandler.log(e);
+      AppSnackbar.error('Unable to remove video from playlists. Please try again.');
     }
   }
 
@@ -868,15 +801,8 @@ class PlaylistController extends BaseController with ContentValidationMixin {
   Future<void> sharePlaylist(String playlistId, {String? name}) async {
     try {
       // Find cached playlist in controller state
-      PlaylistModel? playlist;
-      try {
-        playlist = playlists.firstWhere((p) => p.id == playlistId);
-      } catch (_) {}
-      if (playlist == null) {
-        try {
-          playlist = publicPlaylists.firstWhere((p) => p.id == playlistId);
-        } catch (_) {}
-      }
+      final playlist = playlists.firstWhereOrNull((p) => p.id == playlistId) ??
+          publicPlaylists.firstWhereOrNull((p) => p.id == playlistId);
 
       final playlistName = name ?? playlist?.playlistName ?? 'Playlist';
       final thumbnailUrl = playlist?.thumbnailUrl;
@@ -902,6 +828,16 @@ class PlaylistController extends BaseController with ContentValidationMixin {
     String newName,
     bool isPublic,
   ) async {
+    final validation = ContentValidator.validate(
+      newName,
+      fieldName: 'Playlist Name',
+      maxLength: 100,
+    );
+    if (!validation.isValid) {
+      AppSnackbar.warning(validation.message);
+      return;
+    }
+
     try {
       final ref = isPublic
           ? _firestore.collection('public_playlists').doc(playlistId)
@@ -923,26 +859,10 @@ class PlaylistController extends BaseController with ContentValidationMixin {
       // Refresh the playlists to update UI
       refreshPlaylistsTick();
 
-      Get.snackbar(
-        'Success',
-        'Playlist renamed successfully!',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: const Color(0xFF1DB954).withValues(alpha: 0.8),
-        colorText: AppColors.textPrimary,
-        margin: const EdgeInsets.all(20),
-        borderRadius: 16,
-      );
+      AppSnackbar.success('Playlist renamed successfully!');
     } catch (e) {
-      logger.debug('❌ Error editing playlist: $e');
-      Get.snackbar(
-        'Error',
-        'Failed to rename playlist!',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: const Color(0xFFEF4444).withValues(alpha: 0.8),
-        colorText: AppColors.textPrimary,
-        margin: const EdgeInsets.all(20),
-        borderRadius: 16,
-      );
+      ErrorHandler.log(e);
+      AppSnackbar.error('Unable to rename playlist. Please try again.');
     }
   }
 
@@ -1024,18 +944,10 @@ class PlaylistController extends BaseController with ContentValidationMixin {
             .doc(playlistId)
             .delete();
       }
-      Get.snackbar(
-        'Success',
-        'Playlist visibility updated!',
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      AppSnackbar.success('Playlist visibility updated!');
     } catch (e) {
-      logger.debug('❌ Error toggling visibility: $e');
-      Get.snackbar(
-        'Error',
-        'Failed to update visibility!',
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      ErrorHandler.log(e);
+      AppSnackbar.error('Unable to update playlist visibility. Please try again.');
     }
   }
 
@@ -1072,7 +984,13 @@ class PlaylistController extends BaseController with ContentValidationMixin {
                     .map(Channel.fromDocumentSnapshot)
                     .where((c) => c.status != ChannelStatus.deleted)
                     .toList();
-              } catch (_) {}
+              } catch (e, s) {
+                ErrorHandler.log(
+                  e,
+                  stackTrace: s,
+                  tag: 'PlaylistController.fetchChannels.fallback',
+                );
+              }
             }
 
             if (loaded.isEmpty && AuthService.to.userChannel != null) {
@@ -1085,11 +1003,14 @@ class PlaylistController extends BaseController with ContentValidationMixin {
             channels.value = loaded;
             logger.debug('✅ Channels loaded: ${channels.length}');
           },
-          onError: (error) {
+          onError: (error, stackTrace) {
+            ErrorHandler.log(
+              error,
+              stackTrace: stackTrace,
+              tag: 'PlaylistController.fetchChannels',
+            );
             if (AuthService.to.userChannel != null) {
               channels.value = [AuthService.to.userChannel!];
-            } else {
-              logger.debug('❌ PlaylistController: Error listening to channels: $error');
             }
           },
         );
@@ -1228,15 +1149,13 @@ class PlaylistController extends BaseController with ContentValidationMixin {
               '📋 Loaded ${publicPlaylists.length} public playlists',
             );
           },
-          onError: (error) {
+          onError: (error, stackTrace) {
             isPublicPlaylistsLoaded.value = true;
-            if (error.toString().contains('permission-denied')) {
-              logger.debug(
-                '❌ Error listening to public playlists: Access denied.',
-              );
-            } else {
-              logger.debug('❌ Error listening to public playlists: $error');
-            }
+            ErrorHandler.log(
+              error,
+              stackTrace: stackTrace,
+              tag: 'PlaylistController.fetchPublicPlaylists',
+            );
           },
         );
   }

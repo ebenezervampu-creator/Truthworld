@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/video_options_sheet.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
@@ -21,32 +22,28 @@ const Color primaryText = AppColors.textPrimary;
 const Color secondaryText = AppColors.textSecondary;
 const Color buttonBg = AppColors.bgSurfaceHover;
 
-class WatchLaterScreen extends StatelessWidget {
+class WatchLaterScreen extends GetView<WatchLaterController> {
   const WatchLaterScreen({super.key, this.isDashboard = false});
   final bool isDashboard;
 
-  WatchLaterController get _controller =>
-      Get.isRegistered<WatchLaterController>()
-          ? Get.find<WatchLaterController>()
-          : Get.put(WatchLaterController());
+  WatchLaterController get _controller => controller;
 
   @override
   Widget build(BuildContext context) {
-    return Obx(() {
-      final userId = AuthService.to.currentUser.value?.uid;
+    return Scaffold(
+      backgroundColor: bgColor,
+      body: SafeArea(
+        child: Obx(() {
+          final userId = AuthService.to.currentUser.value?.uid;
 
-      if (userId == null || userId.isEmpty) {
-        return Scaffold(
-          backgroundColor: bgColor,
-          body: SafeArea(child: _buildNotLoggedInWidget(context)),
-        );
-      }
+          if (userId == null || userId.isEmpty) {
+            return _buildNotLoggedInWidget(context);
+          }
 
-      return Scaffold(
-        backgroundColor: bgColor,
-        body: SafeArea(child: _buildMainContent(userId)),
-      );
-    });
+          return _buildMainContent(userId);
+        }),
+      ),
+    );
   }
 
   Widget _buildMainContent(String userId) {
@@ -83,6 +80,7 @@ class WatchLaterScreen extends StatelessWidget {
                           if (_controller.isSearching.value) {
                             return TextField(
                               controller: _controller.searchController,
+                              inputFormatters: [TruthworldTextInputFormatters.englishOnly],
                               autofocus: true,
                               style: const TextStyle(
                                 color: primaryText,
@@ -334,16 +332,16 @@ class WatchLaterScreen extends StatelessWidget {
 
   void _showWatchLaterSettingsBottomSheet() {
     Get.bottomSheet(
-      Container(
-        padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: surfaceColor,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      Material(
+        color: surfaceColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             Center(
               child: Container(
                 width: 40,
@@ -404,7 +402,7 @@ class WatchLaterScreen extends StatelessWidget {
                 ),
                 child: const Icon(
                   Icons.delete_sweep_rounded,
-                  color: AppColors.error,
+                  color: Colors.white,
                 ),
               ),
               title: const Text(
@@ -427,7 +425,9 @@ class WatchLaterScreen extends StatelessWidget {
           ],
         ),
       ),
+    ),
       isScrollControlled: true,
+      backgroundColor: Colors.transparent,
     );
   }
 }

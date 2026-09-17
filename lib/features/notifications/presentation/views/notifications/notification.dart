@@ -9,8 +9,10 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/notification_service.dart';
 import 'package:truthworld/core/utils/studio_launcher.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
 import 'package:truthworld/features/notifications/presentation/controllers/user_notification_controller.dart';
 import 'package:truthworld/features/notifications/presentation/controllers/video_feed_notification_controller.dart';
@@ -735,16 +737,13 @@ class _VideoFeedNotificationScreenState
               );
               userNotificationController.notifications.refresh();
             }
-            Get.snackbar(
-              'Notification removed',
+            AppSnackbar.info(
               'The notification has been deleted',
-              snackPosition: SnackPosition.BOTTOM,
-              backgroundColor: AppColors.bgSurface,
-              colorText: AppColors.textPrimary,
-              duration: const Duration(seconds: 2),
+              title: 'Notification removed',
             );
           } catch (e) {
-            Get.snackbar('Error', 'Failed to remove notification');
+            ErrorHandler.log(e, tag: 'NotificationScreen');
+            AppSnackbar.error('Unable to remove notification. Please try again.');
           }
         }
       },
@@ -984,13 +983,9 @@ class _VideoFeedNotificationScreenState
       userNotificationController.markAllAsRead();
     }
 
-    Get.snackbar(
-      'Notifications updated',
+    AppSnackbar.info(
       'Marked active notifications as read',
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: AppColors.bgSurface,
-      colorText: AppColors.textPrimary,
-      duration: const Duration(seconds: 2),
+      title: 'Notifications updated',
     );
   }
 
@@ -1079,8 +1074,8 @@ class _VideoFeedNotificationScreenState
           launchUrl(uri, mode: LaunchMode.externalApplication);
           return;
         }
-      } catch (e) {
-        debugPrint('Error navigating to actionUrl $actionUrl: $e');
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'NotificationScreen._handleAlertTap');
       }
     }
 
@@ -1229,13 +1224,14 @@ class _DynamicAvatarController extends BaseController {
                 .collection('user_notifications')
                 .doc(alert.id)
                 .update({'metadata': updatedMetadata});
-          } catch (e) {
-            debugPrint('Error updating user_notification metadata: $e');
+          } catch (e, s) {
+            ErrorHandler.log(e, stackTrace: s, tag: '_DynamicAvatarController.metadata');
           }
         }());
       }
-    } catch (e) {
-      debugPrint('Error fetching avatar in _DynamicAvatarController: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: '_DynamicAvatarController.fetchAvatar');
+    } finally {
       rxIsLoading.value = false;
     }
   }
@@ -1295,8 +1291,8 @@ class _DynamicAvatarController extends BaseController {
           if (photo.isNotEmpty) return photo;
         }
       }
-    } catch (e) {
-      debugPrint('Error performing avatar fetch for $targetId: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: '_DynamicAvatarController._performFetch');
     }
 
     return '';

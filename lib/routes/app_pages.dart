@@ -31,12 +31,15 @@ import 'package:truthworld/features/community/presentation/bindings/saved_commen
 import 'package:truthworld/features/community/presentation/bindings/saved_community_posts_binding.dart';
 import 'package:truthworld/features/community/presentation/views/saved_comments_screen.dart';
 import 'package:truthworld/features/community/presentation/views/saved_community_posts_screen.dart';
+import 'package:truthworld/features/content/presentation/bindings/copyright_complaint_binding.dart';
 import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/community_guidelines.dart';
 import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/copyright_complaint_screen.dart';
 import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/privacy_polices.dart';
 import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/terms.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart'
     deferred as dashboard;
+import 'package:truthworld/features/discover/presentation/views/discover_channels.dart'
+    deferred as discover;
 import 'package:truthworld/features/feedback/presentation/views/feedback/feedbacks.dart';
 import 'package:truthworld/features/home/presentation/views/home/home.dart';
 import 'package:truthworld/features/library/presentation/bindings/library_binding.dart';
@@ -59,7 +62,9 @@ import 'package:truthworld/features/premium/presentation/views/premium_plans_scr
 import 'package:truthworld/features/search/presentation/controllers/search_controller.dart'
     as app;
 import 'package:truthworld/features/search/presentation/pages/search_page.dart';
+import 'package:truthworld/features/settings/presentation/bindings/edit_profile_binding.dart';
 import 'package:truthworld/features/settings/presentation/bindings/settings_binding.dart';
+import 'package:truthworld/features/settings/presentation/views/settings/edit_profile_screen.dart';
 import 'package:truthworld/features/settings/presentation/views/settings/settings.dart'
     deferred as settings;
 import 'package:truthworld/features/subscriptions/presentation/bindings/subscriptions_binding.dart';
@@ -517,6 +522,12 @@ class AppPages {
       binding: SettingsBinding(),
     ),
     GetPage(
+      name: '/settings/edit-profile',
+      page: () => const EditProfileScreen(),
+      middlewares: [AuthGuard()],
+      binding: EditProfileBinding(),
+    ),
+    GetPage(
       name: '/feedback',
       page: () => const SendFeedbackPage(),
       binding: BindingsBuilder(() {
@@ -550,10 +561,12 @@ class AppPages {
     GetPage(
       name: '/copyright-complaint',
       page: CopyrightComplaintScreen.new,
+      binding: CopyrightComplaintBinding(),
     ),
     GetPage(
       name: '/dmca',
       page: CopyrightComplaintScreen.new,
+      binding: CopyrightComplaintBinding(),
     ),
     GetPage(
       name: '/subscriptions',
@@ -563,6 +576,20 @@ class AppPages {
       ),
       middlewares: [AuthGuard()],
       binding: SubscriptionsBinding(),
+    ),
+    GetPage(
+      name: '/discover',
+      page: () => DeferredWidget(
+        loader: discover.loadLibrary,
+        builder: () => discover.DiscoverChannelsPage(),
+      ),
+    ),
+    GetPage(
+      name: '/explore-topics',
+      page: () => DeferredWidget(
+        loader: explore_topics.loadLibrary,
+        builder: () => explore_topics.ExploreTopicsPage(),
+      ),
     ),
     GetPage(
       name: '/about',

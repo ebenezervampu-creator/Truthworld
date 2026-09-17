@@ -55,6 +55,18 @@ export const repairIncompleteVideoDocs = onRequest(
 
       // ── Step 1: Detect and merge duplicate job_... documents ────────────────
       const strayJobDocs = docsToInspect.filter(d => d.id.startsWith("job_"));
+      
+      // Batch fetch video_jobs for stray docs to avoid sequential I/O
+      const strayJobIds = strayJobDocs.map(d => d.id);
+      const jobRefs = strayJobIds.map(id => db.collection("video_jobs").doc(id));
+      const jobSnapsMap = new Map<string, admin.firestore.DocumentSnapshot>();
+      if (jobRefs.length > 0) {
+        const jobDocs = await db.getAll(...jobRefs);
+        jobDocs.forEach(jDoc => {
+          if (jDoc.exists) jobSnapsMap.set(jDoc.id, jDoc);
+        });
+      }
+
       for (const strayDoc of strayJobDocs) {
         const strayData = strayDoc.data() as any;
         const jobId = strayDoc.id;
@@ -62,8 +74,8 @@ export const repairIncompleteVideoDocs = onRequest(
         // Try to find the canonical video doc
         let canonicalVideoId = strayData.videoId;
         if (!canonicalVideoId) {
-          const jobSnap = await db.collection("video_jobs").doc(jobId).get();
-          if (jobSnap.exists) {
+          const jobSnap = jobSnapsMap.get(jobId);
+          if (jobSnap && jobSnap.exists) {
             const jobData = jobSnap.data() as any;
             canonicalVideoId = jobData.videoId || jobData.linkedVideoIds?.[0];
           }
@@ -140,6 +152,32 @@ export const repairIncompleteVideoDocs = onRequest(
       }
 
       // ── Step 2: Backfill missing fields for regular video documents ──────────
+      // Collect all distinct jobIds to batch-fetch job_outputs
+      const distinctJobIds = Array.from(
+        new Set(
+          docsToInspect
+            .filter(d => !deletedDuplicates.includes(d.id))
+            .map(d => {
+              const data = d.data() as any;
+              return data.jobId || d.id;
+            })
+            .filter(Boolean)
+        )
+      );
+
+      const jobOutputsMap = new Map<string, admin.firestore.DocumentSnapshot>();
+      // Batch-fetch in chunks of 100 to prevent Firestore getAll limits
+      for (let i = 0; i < distinctJobIds.length; i += 100) {
+        const chunk = distinctJobIds.slice(i, i + 100);
+        const refs = chunk.map(jid => db.collection("job_outputs").doc(jid));
+        const chunkDocs = await db.getAll(...refs);
+        chunkDocs.forEach(cDoc => {
+          if (cDoc.exists) jobOutputsMap.set(cDoc.id, cDoc);
+        });
+      }
+
+      let currentBatch = batch;
+
       for (const doc of docsToInspect) {
         const id = doc.id;
         if (deletedDuplicates.includes(id)) continue;
@@ -267,8 +305,8 @@ export const repairIncompleteVideoDocs = onRequest(
         } catch (_) {}
 
         try {
-          const jobOutSnap = await db.collection("job_outputs").doc(jobId).get();
-          if (jobOutSnap.exists) {
+          const jobOutSnap = jobOutputsMap.get(jobId);
+          if (jobOutSnap && jobOutSnap.exists) {
             const joData = jobOutSnap.data() || {};
             if (joData.subtitles) {
               for (const [lang, val] of Object.entries(joData.subtitles)) {
@@ -375,14 +413,19 @@ export const repairIncompleteVideoDocs = onRequest(
           updatePayload.updatedAt = Date.now();
           repairedList.push({ id, title: updatePayload.title || data.title, fieldsUpdated: Object.keys(updatePayload) });
           if (!dryRun) {
-            batch.update(doc.ref, updatePayload);
+            currentBatch.update(doc.ref, updatePayload);
             opCount++;
+            if (opCount >= 400) {
+              await currentBatch.commit();
+              currentBatch = db.batch();
+              opCount = 0;
+            }
           }
         }
       }
 
       if (!dryRun && opCount > 0) {
-        await batch.commit();
+        await currentBatch.commit();
       }
 
       res.status(200).json({

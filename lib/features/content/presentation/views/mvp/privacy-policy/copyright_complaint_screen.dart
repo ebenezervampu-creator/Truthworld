@@ -1,160 +1,21 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
+import 'package:truthworld/features/content/presentation/controllers/copyright_complaint_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class CopyrightComplaintScreen extends StatefulWidget {
+class CopyrightComplaintScreen extends GetView<CopyrightComplaintController> {
   const CopyrightComplaintScreen({super.key});
-
-  @override
-  State<CopyrightComplaintScreen> createState() =>
-      _CopyrightComplaintScreenState();
-}
-
-class _CopyrightComplaintScreenState extends State<CopyrightComplaintScreen> {
-  final _formKey = GlobalKey<FormState>();
-
-  // Controllers
-  final _nameController = TextEditingController();
-  final _orgController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
-  final _addressController = TextEditingController();
-  final _workTitleController = TextEditingController();
-  final _workUrlController = TextEditingController();
-  final _infringingUrlController = TextEditingController();
-  final _timestampsController = TextEditingController();
-  final _detailsController = TextEditingController();
-  final _signatureController = TextEditingController();
-
-  String _claimantType = 'Copyright Owner';
-  String _workType = 'Video';
-
-  bool _declGoodFaith = false;
-  bool _declAccuracy = false;
-  bool _declForwarding = false;
-  bool _declLiability = false;
-
-  bool _isSubmitting = false;
-  String? _submittedComplaintId;
-
-  @override
-  void initState() {
-    super.initState();
-    // Pre-fill URL if passed through route arguments
-    final args = Get.arguments;
-    if (args is Map<String, dynamic>) {
-      if (args['videoUrl'] != null) {
-        _infringingUrlController.text = args['videoUrl'].toString();
-      } else if (args['videoId'] != null) {
-        _infringingUrlController.text =
-            'https://truthworld.in/watch/${args['videoId']}';
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _orgController.dispose();
-    _emailController.dispose();
-    _phoneController.dispose();
-    _addressController.dispose();
-    _workTitleController.dispose();
-    _workUrlController.dispose();
-    _infringingUrlController.dispose();
-    _timestampsController.dispose();
-    _detailsController.dispose();
-    _signatureController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submitComplaint() async {
-    if (!_formKey.currentState!.validate()) {
-      Get.snackbar(
-        'Required Fields Missing',
-        'Please complete all required fields highlighted in the form.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.redAccent.withValues(alpha: 0.9),
-        colorText: Colors.white,
-        margin: const EdgeInsets.all(16),
-      );
-      return;
-    }
-
-    if (!_declGoodFaith || !_declAccuracy || !_declForwarding || !_declLiability) {
-      Get.snackbar(
-        'Declarations Required',
-        'You must agree to all statutory legal declarations before submitting.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.redAccent.withValues(alpha: 0.9),
-        colorText: Colors.white,
-        margin: const EdgeInsets.all(16),
-      );
-      return;
-    }
-
-    setState(() => _isSubmitting = true);
-
-    try {
-      final now = DateTime.now();
-      final complaintId =
-          'CR-${now.year}-${now.millisecondsSinceEpoch.toString().substring(7)}';
-
-      final complaintData = {
-        'complaintId': complaintId,
-        'claimantType': _claimantType,
-        'claimantName': _nameController.text.trim(),
-        'claimantOrg': _orgController.text.trim(),
-        'claimantEmail': _emailController.text.trim(),
-        'claimantPhone': _phoneController.text.trim(),
-        'claimantAddress': _addressController.text.trim(),
-        'workType': _workType,
-        'workTitle': _workTitleController.text.trim(),
-        'workUrlOrRegistration': _workUrlController.text.trim(),
-        'infringingUrl': _infringingUrlController.text.trim(),
-        'infringingTimestamps': _timestampsController.text.trim(),
-        'details': _detailsController.text.trim(),
-        'electronicSignature': _signatureController.text.trim(),
-        'declarations': {
-          'goodFaithBelief': _declGoodFaith,
-          'accuracyAndAuthority': _declAccuracy,
-          'forwardingNoticeConsent': _declForwarding,
-          'liabilityAcknowledgement': _declLiability,
-        },
-        'status': 'pending',
-        'submittedAt': FieldValue.serverTimestamp(),
-        'operator': 'TowerVSP Services (OPC) Private Limited',
-      };
-
-      await FirebaseFirestore.instance
-          .collection('copyright_complaints')
-          .doc(complaintId)
-          .set(complaintData);
-
-      setState(() {
-        _isSubmitting = false;
-        _submittedComplaintId = complaintId;
-      });
-    } catch (e) {
-      setState(() => _isSubmitting = false);
-      Get.snackbar(
-        'Submission Error',
-        'Failed to submit complaint. You may also email directly to copyright@truthworld.in.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.redAccent.withValues(alpha: 0.9),
-        colorText: Colors.white,
-        margin: const EdgeInsets.all(16),
-      );
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isDesktop = constraints.maxWidth >= 800;
-        final horizontalPadding = isDesktop ? constraints.maxWidth * 0.15 : 16.0;
+        final horizontalPadding =
+            isDesktop ? constraints.maxWidth * 0.15 : 16.0;
 
         return Scaffold(
           appBar: AppBar(
@@ -175,229 +36,248 @@ class _CopyrightComplaintScreenState extends State<CopyrightComplaintScreen> {
               ),
             ),
           ),
-          body: _submittedComplaintId != null
-              ? _buildSuccessView(context)
-              : SingleChildScrollView(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: horizontalPadding,
-                    vertical: 24,
-                  ),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+          body: Obx(() {
+            final complaintId = controller.submittedComplaintId.value;
+            if (complaintId != null) {
+              return _buildSuccessView(context, complaintId);
+            }
+
+            return SingleChildScrollView(
+              padding: EdgeInsets.symmetric(
+                horizontal: horizontalPadding,
+                vertical: 24,
+              ),
+              child: Form(
+                key: controller.formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildLegalNoticeBanner(context),
+                    _buildAuthNotice(context),
+                    const SizedBox(height: 24),
+                    _buildSectionHeader(
+                      context,
+                      '1. Complainant Details',
+                      'Information of the copyright owner or authorized representative.',
+                    ),
+                    const SizedBox(height: 16),
+                    _buildClaimantTypeDropdown(context),
+                    const SizedBox(height: 16),
+                    _buildTextFormField(
+                      controller: controller.nameController,
+                      label: 'Full Legal Name *',
+                      hint: 'Your full legal name',
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Full legal name is required'
+                          : null,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTextFormField(
+                      controller: controller.orgController,
+                      label: 'Organization / Company Name (Optional)',
+                      hint: 'Company or entity you represent, if applicable',
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
                       children: [
-                        _buildLegalNoticeBanner(context),
-                        const SizedBox(height: 24),
-                        _buildSectionHeader(
-                          context,
-                          '1. Complainant Details',
-                          'Information of the copyright owner or authorized representative.',
-                        ),
-                        const SizedBox(height: 16),
-                        _buildClaimantTypeDropdown(context),
-                        const SizedBox(height: 16),
-                        _buildTextFormField(
-                          controller: _nameController,
-                          label: 'Full Legal Name *',
-                          hint: 'Your full legal name',
-                          validator: (v) => (v == null || v.trim().isEmpty)
-                              ? 'Full legal name is required'
-                              : null,
-                        ),
-                        const SizedBox(height: 16),
-                        _buildTextFormField(
-                          controller: _orgController,
-                          label: 'Organization / Company Name (Optional)',
-                          hint: 'Company or entity you represent, if applicable',
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildTextFormField(
-                                controller: _emailController,
-                                label: 'Contact Email Address *',
-                                hint: 'email@example.com',
-                                keyboardType: TextInputType.emailAddress,
-                                validator: (v) {
-                                  if (v == null || v.trim().isEmpty) {
-                                    return 'Email address is required';
-                                  }
-                                  if (!v.contains('@') || !v.contains('.')) {
-                                    return 'Enter a valid email address';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: _buildTextFormField(
-                                controller: _phoneController,
-                                label: 'Contact Phone Number *',
-                                hint: '+91 98765 43210',
-                                keyboardType: TextInputType.phone,
-                                validator: (v) => (v == null || v.trim().isEmpty)
-                                    ? 'Phone number is required'
-                                    : null,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        _buildTextFormField(
-                          controller: _addressController,
-                          label: 'Physical Mailing Address *',
-                          hint: 'Street address, City, State, Postal Code, Country',
-                          maxLines: 2,
-                          validator: (v) => (v == null || v.trim().isEmpty)
-                              ? 'Physical mailing address is required'
-                              : null,
-                        ),
-                        const SizedBox(height: 32),
-                        _buildSectionHeader(
-                          context,
-                          '2. Original Copyrighted Work',
-                          'Describe the work being infringed upon.',
-                        ),
-                        const SizedBox(height: 16),
-                        _buildWorkTypeDropdown(context),
-                        const SizedBox(height: 16),
-                        _buildTextFormField(
-                          controller: _workTitleController,
-                          label: 'Title / Description of Original Work *',
-                          hint: 'e.g. Original song, short film, educational lecture',
-                          validator: (v) => (v == null || v.trim().isEmpty)
-                              ? 'Title/description of work is required'
-                              : null,
-                        ),
-                        const SizedBox(height: 16),
-                        _buildTextFormField(
-                          controller: _workUrlController,
-                          label: 'Link to Original Work / Registration Number (Optional)',
-                          hint: 'https://... or Copyright Registration No. with jurisdiction',
-                        ),
-                        const SizedBox(height: 32),
-                        _buildSectionHeader(
-                          context,
-                          '3. Infringing Content on Truthworld',
-                          'Specify the material to be reviewed and removed.',
-                        ),
-                        const SizedBox(height: 16),
-                        _buildTextFormField(
-                          controller: _infringingUrlController,
-                          label: 'Truthworld Video URL or Video ID *',
-                          hint: 'https://truthworld.in/watch/VIDEO_ID or VIDEO_ID',
-                          validator: (v) => (v == null || v.trim().isEmpty)
-                              ? 'Truthworld Video URL or ID is required'
-                              : null,
-                        ),
-                        const SizedBox(height: 16),
-                        _buildTextFormField(
-                          controller: _timestampsController,
-                          label: 'Timestamp / Portion Infringed (Optional)',
-                          hint: 'e.g. 01:23 - 04:56 or Entire Video',
-                        ),
-                        const SizedBox(height: 16),
-                        _buildTextFormField(
-                          controller: _detailsController,
-                          label: 'Additional Infringement Details *',
-                          hint: 'Explain how the material infringes your copyright...',
-                          maxLines: 4,
-                          validator: (v) => (v == null || v.trim().isEmpty)
-                              ? 'Please explain the nature of infringement'
-                              : null,
-                        ),
-                        const SizedBox(height: 32),
-                        _buildSectionHeader(
-                          context,
-                          '4. Statutory Legal Declarations',
-                          'You must affirmatively agree to each statement under Indian and international law.',
-                        ),
-                        const SizedBox(height: 16),
-                        _buildDeclarationCheckbox(
-                          value: _declGoodFaith,
-                          onChanged: (val) =>
-                              setState(() => _declGoodFaith = val ?? false),
-                          title:
-                              'Good Faith Belief: I have a good faith belief that use of the material in the manner complained of is not authorized by the copyright owner, its agent, or the law.',
-                        ),
-                        _buildDeclarationCheckbox(
-                          value: _declAccuracy,
-                          onChanged: (val) =>
-                              setState(() => _declAccuracy = val ?? false),
-                          title:
-                              'Accuracy & Authority: The information in this notification is accurate, and under penalty of perjury, I state that I am the owner, or an agent authorized to act on behalf of the owner, of an exclusive right that is allegedly infringed.',
-                        ),
-                        _buildDeclarationCheckbox(
-                          value: _declForwarding,
-                          onChanged: (val) =>
-                              setState(() => _declForwarding = val ?? false),
-                          title:
-                              'Disclosure & Counter-Notification: I understand that a complete copy of this legal notice (including my contact details) may be provided to the creator who posted the content to allow them to respond or submit a statutory counter-notification.',
-                        ),
-                        _buildDeclarationCheckbox(
-                          value: _declLiability,
-                          onChanged: (val) =>
-                              setState(() => _declLiability = val ?? false),
-                          title:
-                              'Legal Liability Warning: I understand that submitting a false, fraudulent, or bad-faith takedown notification may subject me to legal liability, damages, and costs under the Copyright Act, 1957, the IT Act, 2000, and DMCA §512(f).',
-                        ),
-                        const SizedBox(height: 24),
-                        _buildTextFormField(
-                          controller: _signatureController,
-                          label: 'Electronic Signature (Full Legal Name) *',
-                          hint: 'Type your full legal name to serve as your digital signature',
-                          validator: (v) => (v == null || v.trim().isEmpty)
-                              ? 'Electronic signature is required'
-                              : null,
-                        ),
-                        const SizedBox(height: 32),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 52,
-                          child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.brand,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            onPressed: _isSubmitting ? null : _submitComplaint,
-                            icon: _isSubmitting
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        Colors.white,
-                                      ),
-                                    ),
-                                  )
-                                : const Icon(
-                                    Icons.gavel_rounded,
-                                    color: Colors.white,
-                                  ),
-                            label: Text(
-                              _isSubmitting
-                                  ? 'Submitting Notice...'
-                                  : 'Submit Copyright Infringement Notice',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
+                        Expanded(
+                          child: _buildTextFormField(
+                            controller: controller.emailController,
+                            label: 'Contact Email Address *',
+                            hint: 'email@example.com',
+                            keyboardType: TextInputType.emailAddress,
+                            inputFormatters: const [],
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) {
+                                return 'Email address is required';
+                              }
+                              if (!v.contains('@') || !v.contains('.')) {
+                                return 'Enter a valid email address';
+                              }
+                              return null;
+                            },
                           ),
                         ),
-                        const SizedBox(height: 24),
-                        _buildGrievanceContactFooter(context),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _buildTextFormField(
+                            controller: controller.phoneController,
+                            label: 'Contact Phone Number *',
+                            hint: '+91 98765 43210',
+                            keyboardType: TextInputType.phone,
+                            inputFormatters: const [],
+                            validator: (v) => (v == null || v.trim().isEmpty)
+                                ? 'Phone number is required'
+                                : null,
+                          ),
+                        ),
                       ],
                     ),
-                  ),
+                    const SizedBox(height: 16),
+                    _buildTextFormField(
+                      controller: controller.addressController,
+                      label: 'Physical Mailing Address *',
+                      hint: 'Street address, City, State, Postal Code, Country',
+                      maxLines: 2,
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Physical mailing address is required'
+                          : null,
+                    ),
+                    const SizedBox(height: 32),
+                    _buildSectionHeader(
+                      context,
+                      '2. Original Copyrighted Work',
+                      'Describe the work being infringed upon.',
+                    ),
+                    const SizedBox(height: 16),
+                    _buildWorkTypeDropdown(context),
+                    const SizedBox(height: 16),
+                    _buildTextFormField(
+                      controller: controller.workTitleController,
+                      label: 'Title / Description of Original Work *',
+                      hint:
+                          'e.g. Original song, short film, educational lecture',
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Title/description of work is required'
+                          : null,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTextFormField(
+                      controller: controller.workUrlController,
+                      label:
+                          'Link to Original Work / Registration Number (Optional)',
+                      hint:
+                          'https://... or Copyright Registration No. with jurisdiction',
+                    ),
+                    const SizedBox(height: 32),
+                    _buildSectionHeader(
+                      context,
+                      '3. Infringing Content on Truthworld',
+                      'Specify the material to be reviewed and removed.',
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTextFormField(
+                      controller: controller.infringingUrlController,
+                      label: 'Truthworld Video URL or Video ID *',
+                      hint:
+                          'https://truthworld.in/watch/VIDEO_ID or VIDEO_ID',
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Truthworld Video URL or ID is required'
+                          : null,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTextFormField(
+                      controller: controller.timestampsController,
+                      label: 'Timestamp / Portion Infringed (Optional)',
+                      hint: 'e.g. 01:23 - 04:56 or Entire Video',
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTextFormField(
+                      controller: controller.detailsController,
+                      label: 'Additional Infringement Details *',
+                      hint:
+                          'Explain how the material infringes your copyright...',
+                      maxLines: 4,
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Please explain the nature of infringement'
+                          : null,
+                    ),
+                    const SizedBox(height: 32),
+                    _buildSectionHeader(
+                      context,
+                      '4. Statutory Legal Declarations',
+                      'You must affirmatively agree to each statement under Indian and international law.',
+                    ),
+                    const SizedBox(height: 16),
+                    _buildDeclarationCheckbox(
+                      value: controller.declGoodFaith.value,
+                      onChanged: (val) =>
+                          controller.setDeclGoodFaith(val ?? false),
+                      title:
+                          'Good Faith Belief: I have a good faith belief that use of the material in the manner complained of is not authorized by the copyright owner, its agent, or the law.',
+                    ),
+                    _buildDeclarationCheckbox(
+                      value: controller.declAccuracy.value,
+                      onChanged: (val) =>
+                          controller.setDeclAccuracy(val ?? false),
+                      title:
+                          'Accuracy & Authority: The information in this notification is accurate, and under penalty of perjury, I state that I am the owner, or an agent authorized to act on behalf of the owner, of an exclusive right that is allegedly infringed.',
+                    ),
+                    _buildDeclarationCheckbox(
+                      value: controller.declForwarding.value,
+                      onChanged: (val) =>
+                          controller.setDeclForwarding(val ?? false),
+                      title:
+                          'Disclosure & Counter-Notification: I understand that a complete copy of this legal notice (including my contact details) may be provided to the creator who posted the content to allow them to respond or submit a statutory counter-notification.',
+                    ),
+                    _buildDeclarationCheckbox(
+                      value: controller.declLiability.value,
+                      onChanged: (val) =>
+                          controller.setDeclLiability(val ?? false),
+                      title:
+                          'Legal Liability Warning: I understand that submitting a false, fraudulent, or bad-faith takedown notification may subject me to legal liability, damages, and costs under the Copyright Act, 1957, the IT Act, 2000, and DMCA §512(f).',
+                    ),
+                    const SizedBox(height: 24),
+                    _buildTextFormField(
+                      controller: controller.signatureController,
+                      label: 'Electronic Signature (Full Legal Name) *',
+                      hint:
+                          'Type your full legal name to serve as your digital signature',
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Electronic signature is required'
+                          : null,
+                    ),
+                    const SizedBox(height: 32),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.brand,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: controller.isSubmitting.value
+                            ? null
+                            : controller.submitComplaint,
+                        icon: controller.isSubmitting.value
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor:
+                                      AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                              )
+                            : const Icon(
+                                Icons.gavel_rounded,
+                                color: Colors.white,
+                              ),
+                        label: Text(
+                          controller.isSubmitting.value
+                              ? 'Submitting Notice...'
+                              : (FirebaseAuth.instance.currentUser == null
+                                  ? 'Sign In to Submit Notice'
+                                  : 'Submit Copyright Infringement Notice'),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    _buildGrievanceContactFooter(context),
+                  ],
                 ),
+              ),
+            );
+          }),
         );
       },
     );
@@ -455,6 +335,41 @@ class _CopyrightComplaintScreenState extends State<CopyrightComplaintScreen> {
     );
   }
 
+  Widget _buildAuthNotice(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.error.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppColors.error.withValues(alpha: 0.4),
+        ),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.lock_outline_rounded, color: Colors.white, size: 24),
+          SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Sign in required: To file an official copyright infringement notice under DMCA / Rule 75, you must be signed in with a verified TruthWorld account.',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                height: 1.4,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSectionHeader(
       BuildContext context, String title, String subtitle) {
     return Column(
@@ -492,26 +407,28 @@ class _CopyrightComplaintScreenState extends State<CopyrightComplaintScreen> {
       'Exclusive Licensee',
     ];
 
-    return DropdownButtonFormField<String>(
-      value: _claimantType,
-      decoration: InputDecoration(
-        labelText: 'Relationship to Copyright Owner *',
-        filled: true,
-        fillColor: AppColors.bgSurface,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+    return Obx(
+      () => DropdownButtonFormField<String>(
+        value: controller.claimantType.value,
+        decoration: InputDecoration(
+          labelText: 'Relationship to Copyright Owner *',
+          filled: true,
+          fillColor: AppColors.bgSurface,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+          ),
         ),
+        items: options.map((opt) {
+          return DropdownMenuItem(
+            value: opt,
+            child: Text(opt),
+          );
+        }).toList(),
+        onChanged: (val) {
+          if (val != null) controller.setClaimantType(val);
+        },
       ),
-      items: options.map((opt) {
-        return DropdownMenuItem(
-          value: opt,
-          child: Text(opt),
-        );
-      }).toList(),
-      onChanged: (val) {
-        if (val != null) setState(() => _claimantType = val);
-      },
     );
   }
 
@@ -525,26 +442,28 @@ class _CopyrightComplaintScreenState extends State<CopyrightComplaintScreen> {
       'Other Proprietary Work',
     ];
 
-    return DropdownButtonFormField<String>(
-      value: _workType,
-      decoration: InputDecoration(
-        labelText: 'Type of Copyrighted Work *',
-        filled: true,
-        fillColor: AppColors.bgSurface,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+    return Obx(
+      () => DropdownButtonFormField<String>(
+        value: controller.workType.value,
+        decoration: InputDecoration(
+          labelText: 'Type of Copyrighted Work *',
+          filled: true,
+          fillColor: AppColors.bgSurface,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+          ),
         ),
+        items: options.map((opt) {
+          return DropdownMenuItem(
+            value: opt,
+            child: Text(opt),
+          );
+        }).toList(),
+        onChanged: (val) {
+          if (val != null) controller.setWorkType(val);
+        },
       ),
-      items: options.map((opt) {
-        return DropdownMenuItem(
-          value: opt,
-          child: Text(opt),
-        );
-      }).toList(),
-      onChanged: (val) {
-        if (val != null) setState(() => _workType = val);
-      },
     );
   }
 
@@ -554,12 +473,14 @@ class _CopyrightComplaintScreenState extends State<CopyrightComplaintScreen> {
     required String hint,
     int maxLines = 1,
     TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
     String? Function(String?)? validator,
   }) {
     return TextFormField(
       controller: controller,
       maxLines: maxLines,
       keyboardType: keyboardType,
+      inputFormatters: inputFormatters ?? TruthworldTextInputFormatters.standard,
       validator: validator,
       decoration: InputDecoration(
         labelText: label,
@@ -662,7 +583,7 @@ class _CopyrightComplaintScreenState extends State<CopyrightComplaintScreen> {
     );
   }
 
-  Widget _buildSuccessView(BuildContext context) {
+  Widget _buildSuccessView(BuildContext context, String complaintId) {
     return Center(
       child: Container(
         constraints: const BoxConstraints(maxWidth: 600),
@@ -701,7 +622,7 @@ class _CopyrightComplaintScreenState extends State<CopyrightComplaintScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                'Tracking Reference: $_submittedComplaintId',
+                'Tracking Reference: $complaintId',
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.1,

@@ -149,37 +149,37 @@ export class DubbingEngine {
         acousticFingerprint = await audioIdentityService.captureFingerprint(jobId, isolatedVocalUrl);
       }
 
-      // 1.7. Voice Assignment: Map speakers to Clones or Best-Fit Presets
+      // 1.7. Voice Assignment: Map speakers to production voice presets
       const voiceMapping: Record<string, string> = {};
-      const temporaryVoices: string[] = [];
 
       for (const profile of speakerProfiles) {
         const isPrimary = profile.speakerId === (speakerProfiles[0]?.speakerId ?? "speaker_0");
         const role = profile.role || "other";
-        const mode = executionPlan.channelType;
 
-        if (mode === "custom" && (isPrimary || role === "host")) {
+        // Production Voice Strategy: Best-fit voice selection based on speaker acoustic profile and role
+        let voiceId = "EXAVITQu4vr4xnSDxMaL"; // Sarah (Neutral / Default)
 
-          // CLONE MODE: Trigger IVC (Placeholder for real cloning API call)
-          logger.info("[Dubbing] Creating temporary clone for speaker", { jobId, speakerId: profile.speakerId, role });
-          const cloneId = `clone_${profile.speakerId}_${uuidv4().slice(0, 8)}`;
-          voiceMapping[profile.speakerId] = cloneId;
-          temporaryVoices.push(cloneId);
+        if (role === "host" || isPrimary) {
+          // Primary speaker / host gets signature anchor voice
+          voiceId = profile.pitchBand === "deep"
+            ? "pNInz6obpgDQGcFmaJgB" // Adam (Rich deep male anchor)
+            : "hpp4J3VqNfWAUOO0d1Us"; // Bella (Expressive female anchor)
+        } else if (profile.pitchBand === "deep") {
+          voiceId = "pNInz6obpgDQGcFmaJgB"; // Adam
+        } else if (profile.pitchBand === "high") {
+          voiceId = "hpp4J3VqNfWAUOO0d1Us"; // Bella
         } else {
-          // PRESET MODE: Best-fit based on role, pitch, and style
-          let voiceId = "EXAVITQu4vr4xnSDxMaL"; // Sarah (Default)
-          
-          if (role === "host") {
-            voiceId = profile.pitchBand === "deep" ? "pNInz6obpgDQGcFmaJgB" : "hpp4J3VqNfWAUOO0d1Us"; // Adam or Bella
-          } else if (profile.pitchBand === "deep") {
-            voiceId = "pNInz6obpgDQGcFmaJgB"; // Adam
-          } else if (profile.pitchBand === "high") {
-            voiceId = "hpp4J3VqNfWAUOO0d1Us"; // Bella
-          }
-
-          voiceMapping[profile.speakerId] = voiceId;
-          logger.info("[Dubbing] Assigned role-aware preset voice", { jobId, speakerId: profile.speakerId, role, voiceId });
+          voiceId = "ErXwobaYiN019PkySvjV"; // Antoni (Well-rounded male narrator)
         }
+
+        voiceMapping[profile.speakerId] = voiceId;
+        logger.info("[Dubbing] Assigned production-grade voice ID", {
+          jobId,
+          speakerId: profile.speakerId,
+          role,
+          pitchBand: profile.pitchBand,
+          voiceId,
+        });
       }
 
       // 1.8. Creator DNA Style Memory (Phase 4)

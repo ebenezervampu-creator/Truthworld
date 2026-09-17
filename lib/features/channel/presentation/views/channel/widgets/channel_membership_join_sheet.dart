@@ -17,19 +17,33 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
   final Channel? channel;
 
   static void show(BuildContext context, {required String channelId, Channel? channel}) {
+    final tag = 'join_membership_$channelId';
+    if (!Get.isRegistered<ChannelMembershipJoinController>(tag: tag)) {
+      Get.put(
+        ChannelMembershipJoinController(channelId: channelId, channel: channel),
+        tag: tag,
+      );
+    }
     Get.bottomSheet(
       ChannelMembershipJoinSheet(channelId: channelId, channel: channel),
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-    );
+    ).whenComplete(() {
+      if (Get.isRegistered<ChannelMembershipJoinController>(tag: tag)) {
+        Get.delete<ChannelMembershipJoinController>(tag: tag);
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.put(
-      ChannelMembershipJoinController(channelId: channelId, channel: channel),
-      tag: 'join_membership_$channelId',
-    );
+    final tag = 'join_membership_$channelId';
+    final controller = Get.isRegistered<ChannelMembershipJoinController>(tag: tag)
+        ? Get.find<ChannelMembershipJoinController>(tag: tag)
+        : Get.put(
+            ChannelMembershipJoinController(channelId: channelId, channel: channel),
+            tag: tag,
+          );
 
     return Container(
       constraints: BoxConstraints(
@@ -69,6 +83,36 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Prominently display current active membership if user has joined
+                    if (controller.isMember.value && controller.currentMembership.value != null) ...[
+                      _buildCurrentMembershipBanner(context, controller),
+                      const SizedBox(height: 14),
+                    ],
+
+                    // Section title
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          controller.isMember.value ? 'Membership Plans' : 'Select a Tier',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (controller.isMember.value)
+                          const Text(
+                            'Select plan to upgrade',
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 11,
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+
                     // Tier selection pills
                     _buildTierSelector(controller),
                     const SizedBox(height: 16),
@@ -111,31 +155,128 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Join $channelName',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+            child: Obx(() {
+              final isMember = controller.isMember.value;
+              final cur = controller.currentMembership.value;
+              final title = isMember ? '$channelName Member' : 'Join $channelName';
+              final subtitle = isMember && cur != null
+                  ? 'Active Plan: ${cur.tierName} • Manage perks or upgrade'
+                  : 'Unlock exclusive badges, perks & support the creator';
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                const Text(
-                  'Unlock exclusive badges, perks & support the creator',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              );
+            }),
           ),
           IconButton(
             icon: const Icon(Icons.close_rounded, color: Colors.white, size: 22),
             onPressed: () => Get.back<void>(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCurrentMembershipBanner(
+    BuildContext context,
+    ChannelMembershipJoinController controller,
+  ) {
+    final cur = controller.currentMembership.value;
+    if (cur == null) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF132B20),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0xFF10B981).withValues(alpha: 0.6),
+          width: 1.2,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF10B981).withValues(alpha: 0.2),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.stars_rounded,
+              color: Colors.white,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        cur.tierName,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text(
+                        'CURRENT',
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  cur.price > 0
+                      ? 'Active Membership • ${cur.formattedPrice} / month'
+                      : 'Active Membership',
+                  style: const TextStyle(
+                    color: Color(0xFF34D399),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -178,6 +319,8 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
         itemBuilder: (context, index) {
           final tier = controller.tiers[index];
           final isSelected = controller.selectedTierIndex.value == index;
+          final isCurrentTier = controller.isMember.value &&
+              controller.currentMembership.value?.tierId == tier.id;
 
           return InkWell(
             onTap: () => controller.selectTier(index),
@@ -187,11 +330,15 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
               decoration: BoxDecoration(
                 color: isSelected
                     ? tier.badgeColor.withValues(alpha: 0.2)
-                    : AppColors.bgPage,
+                    : (isCurrentTier ? const Color(0xFF132B20) : AppColors.bgPage),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: isSelected ? tier.badgeColor : AppColors.bgDivider,
-                  width: isSelected ? 1.5 : 1.0,
+                  color: isSelected
+                      ? tier.badgeColor
+                      : (isCurrentTier
+                          ? const Color(0xFF10B981).withValues(alpha: 0.6)
+                          : AppColors.bgDivider),
+                  width: isSelected || isCurrentTier ? 1.5 : 1.0,
                 ),
               ),
               child: Row(
@@ -200,17 +347,19 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
                     width: 8,
                     height: 8,
                     decoration: BoxDecoration(
-                      color: tier.badgeColor,
+                      color: isCurrentTier ? const Color(0xFF10B981) : tier.badgeColor,
                       shape: BoxShape.circle,
                     ),
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    tier.name,
+                    isCurrentTier ? '${tier.name} (Current)' : tier.name,
                     style: TextStyle(
-                      color: isSelected ? Colors.white : AppColors.textSecondary,
+                      color: isSelected
+                          ? Colors.white
+                          : (isCurrentTier ? const Color(0xFF34D399) : AppColors.textSecondary),
                       fontSize: 13,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: isSelected || isCurrentTier ? FontWeight.bold : FontWeight.normal,
                     ),
                   ),
                 ],
@@ -262,7 +411,7 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '\$${tier.price.toStringAsFixed(2)} / month',
+                    '${tier.formattedPrice} / month',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 15,
@@ -376,6 +525,34 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
                 ],
               ),
             ),
+          ] else if (controller.isMember.value) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E3A8A).withValues(alpha: 0.25),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFF3B82F6).withValues(alpha: 0.5)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.upgrade_rounded, color: Colors.white, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      tier.price > (controller.currentMembership.value?.price ?? 0)
+                          ? 'Upgrade your membership to unlock all exclusive perks in ${tier.name}.'
+                          : 'Switch your active plan to ${tier.name}.',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ],
       ),
@@ -393,6 +570,12 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
 
     final isCurrentTier =
         controller.isMember.value && controller.currentMembership.value?.tierId == tier.id;
+    final isUpgrading = controller.isMember.value && !isCurrentTier;
+    final currentTierPrice = controller.currentMembership.value?.price ?? 0;
+    final isHigher = tier.price > currentTierPrice;
+    final actionLabel = isUpgrading
+        ? (isHigher ? 'Upgrade to ${tier.name}' : 'Switch to ${tier.name}')
+        : 'Join';
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -442,7 +625,7 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
                           ),
                         )
                       : Text(
-                          'Join for \$${tier.price.toStringAsFixed(2)} / month',
+                          '$actionLabel for ${tier.formattedPrice} / month',
                           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                         ),
                 ),

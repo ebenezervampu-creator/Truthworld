@@ -6,12 +6,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/cashfree_service.dart';
 import 'package:truthworld/core/utils/subtitle_parser.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/repositories/advertiser_repository_impl.dart';
@@ -22,6 +23,8 @@ class AdvertiserPortalController extends BaseController {
   final AdvertiserRepository _advertiserRepository = AdvertiserRepositoryImpl();
   StreamSubscription<DocumentSnapshot>? _subtitlesJobSub;
   StreamSubscription<DocumentSnapshot>? _dubbingJobSub;
+  StreamSubscription<DocumentSnapshot>? _advertiserProfileSub;
+  StreamSubscription<QuerySnapshot>? _billingTransactionsSub;
 
   final RxInt selectedIndex = 0.obs;
   final RxString selectedMetric = 'spend'.obs; // 'spend', 'impressions', 'clicks', 'ctr'
@@ -226,9 +229,11 @@ class AdvertiserPortalController extends BaseController {
   void onInit() {
     super.onInit();
     fetchChannelVideos();
-    // Fetch videos when user gets authenticated
+    _listenToBillingData();
+    // Fetch videos and billing data when user gets authenticated
     addWorker(ever(AuthService.to.isAuthenticated, (_) {
       fetchChannelVideos();
+      _listenToBillingData();
     }));
     // Sync active campaign selections with real-time AdService campaigns list
     addWorker(ever(AdService.to.customCampaigns, _syncSelectedAds));
@@ -238,6 +243,8 @@ class AdvertiserPortalController extends BaseController {
   void onClose() {
     _subtitlesJobSub?.cancel();
     _dubbingJobSub?.cancel();
+    _advertiserProfileSub?.cancel();
+    _billingTransactionsSub?.cancel();
     super.onClose();
   }
 
@@ -290,8 +297,12 @@ class AdvertiserPortalController extends BaseController {
           'thumbnailUrl': data['thumbnailUrl'] ?? '',
         };
       }).toList();
-    } catch (e) {
-      debugPrint('Error fetching channel videos for promotion: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'AdvertiserPortalController.fetchChannelVideos',
+      );
     } finally {
       isLoadingVideos.value = false;
     }
@@ -303,19 +314,13 @@ class AdvertiserPortalController extends BaseController {
     try {
       await AuthService.to.signInWithGoogle();
       await fetchChannelVideos();
-      AppSnackbar.show(
-        'Welcome',
-        'Signed in successfully as ${AuthService.to.currentUser.value?.displayName ?? "Advertiser"}',
-        backgroundColor: AppColors.success,
-        colorText: AppColors.textPrimary,
+      AppSnackbar.success(
+        'Signed in successfully as ${AuthService.to.currentUser.value?.displayName ?? "Advertiser"}.',
       );
     } catch (e) {
-      debugPrint('Error signing in for Ads: $e');
-      AppSnackbar.show(
-        'Sign In Failed',
-        'Unable to complete Google Sign In: $e',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to complete Google Sign In. Please try again.',
       );
     } finally {
       isSigningIn.value = false;
@@ -421,19 +426,13 @@ class AdvertiserPortalController extends BaseController {
         AdService.to.customCampaigns.refresh();
       }
 
-      AppSnackbar.show(
-        'Success',
+      AppSnackbar.success(
         'Subtitles for ${getLanguageName(selectedLanguageForSubtitles.value)} saved successfully.',
-        backgroundColor: AppColors.success,
-        colorText: AppColors.textPrimary,
       );
     } catch (e) {
-      debugPrint('Error saving subtitles: $e');
-      AppSnackbar.show(
-        'Error',
-        'Failed to save subtitles: $e',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to save subtitles. Please try again.',
       );
     } finally {
       isSavingSubtitles.value = false;
@@ -454,11 +453,8 @@ class AdvertiserPortalController extends BaseController {
   }) async {
     final ad = selectedAdForSubtitles.value;
     if (ad == null) {
-      AppSnackbar.show(
-        'Error',
+      AppSnackbar.warning(
         'No ad campaign selected.',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
       );
       return false;
     }
@@ -471,11 +467,8 @@ class AdvertiserPortalController extends BaseController {
       } else if (file.path != null) {
         content = await File(file.path!).readAsString();
       } else {
-        AppSnackbar.show(
-          'Error',
-          'Could not read the subtitle file from device.',
-          backgroundColor: AppColors.error,
-          colorText: AppColors.textPrimary,
+        AppSnackbar.error(
+          'Unable to read subtitle file from device. Please try another file.',
         );
         return false;
       }
@@ -486,11 +479,8 @@ class AdvertiserPortalController extends BaseController {
 
       final segments = SubtitleParser.parse(content);
       if (segments.isEmpty) {
-        AppSnackbar.show(
-          'Invalid Format',
+        AppSnackbar.warning(
           'No valid subtitle cues found in file. Please ensure it is a valid .vtt or .srt file.',
-          backgroundColor: AppColors.error,
-          colorText: AppColors.textPrimary,
         );
         return false;
       }
@@ -538,20 +528,14 @@ class AdvertiserPortalController extends BaseController {
         AdService.to.customCampaigns.refresh();
       }
 
-      AppSnackbar.show(
-        'Subtitles Uploaded',
+      AppSnackbar.success(
         'Imported ${newCues.length} subtitle cues in ${getLanguageName(langCode)} successfully!',
-        backgroundColor: AppColors.success,
-        colorText: AppColors.textPrimary,
       );
       return true;
     } catch (e) {
-      debugPrint('Error uploading direct subtitles: $e');
-      AppSnackbar.show(
-        'Upload Failed',
-        'Failed to import subtitles: $e',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to import subtitles. Please try again.',
       );
       return false;
     } finally {
@@ -583,8 +567,12 @@ class AdvertiserPortalController extends BaseController {
               'subtitles': updatedSubtitles,
               'updatedAt': FieldValue.serverTimestamp(),
             }, SetOptions(merge: true));
-      } catch (e) {
-        debugPrint('Pre-saving current cues before translation notice: $e');
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'AdvertiserPortalController.preSaveCues',
+        );
       }
     }
 
@@ -641,45 +629,44 @@ class AdvertiserPortalController extends BaseController {
                     AdService.to.customCampaigns[idx] = updatedAd;
                     AdService.to.customCampaigns.refresh();
                   }
-                  AppSnackbar.show(
-                    'Translation Ready',
+                  AppSnackbar.success(
                     'AI subtitles in ${getLanguageName(targetLang)} generated successfully!',
-                    backgroundColor: AppColors.success,
-                    colorText: AppColors.textPrimary,
+                    title: 'Translation Ready',
                   );
                   _subtitlesJobSub?.cancel();
                 } else if (status == 'failed') {
                   isTranslatingSubtitles.value = false;
-                  final errorMsg =
-                      aiStage['error'] ?? 'Subtitle translation failed';
-                  AppSnackbar.show(
-                    'AI Pipeline Error',
-                    '$errorMsg',
-                    backgroundColor: AppColors.error,
-                    colorText: AppColors.textPrimary,
+                  ErrorHandler.log(aiStage['error']);
+                  AppSnackbar.error(
+                    'Unable to generate AI subtitles. Please try again.',
                   );
                   _subtitlesJobSub?.cancel();
                 }
               }
+            }, onError: (e, stackTrace) {
+              isTranslatingSubtitles.value = false;
+              ErrorHandler.log(
+                e,
+                stackTrace: stackTrace,
+                tag: 'AdvertiserPortalController._subtitlesJobSub',
+              );
+              AppSnackbar.error(
+                'Unable to generate AI subtitles. Please try again.',
+              );
+              _subtitlesJobSub?.cancel();
             });
       } else {
         isTranslatingSubtitles.value = false;
-        AppSnackbar.show(
-          'Request Failed',
-          result.exceptionOrNull?.message ??
-              'Failed to trigger AI subtitle translation',
-          backgroundColor: AppColors.error,
-          colorText: AppColors.textPrimary,
+        ErrorHandler.log(result.exceptionOrNull);
+        AppSnackbar.error(
+          'Unable to start AI subtitle generation. Please try again.',
         );
       }
     } catch (e) {
       isTranslatingSubtitles.value = false;
-      debugPrint('Error triggering subtitle translation: $e');
-      AppSnackbar.show(
-        'Error',
-        'Could not trigger AI translation: $e',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to start AI subtitle generation. Please try again.',
       );
     }
   }
@@ -748,45 +735,44 @@ class AdvertiserPortalController extends BaseController {
                     AdService.to.customCampaigns[idx] = updatedAd;
                     AdService.to.customCampaigns.refresh();
                   }
-                  AppSnackbar.show(
-                    'Dubbing Completed',
+                  AppSnackbar.success(
                     'AI voice dubbing in ${getLanguageName(targetLang)} is now live!',
-                    backgroundColor: AppColors.success,
-                    colorText: AppColors.textPrimary,
+                    title: 'Dubbing Completed',
                   );
                   _dubbingJobSub?.cancel();
                 } else if (status == 'failed') {
                   isTranslatingAudio.value = false;
-                  final errorMsg =
-                      aiStage['error'] ?? 'Voice dubbing failed';
-                  AppSnackbar.show(
-                    'AI Pipeline Error',
-                    '$errorMsg',
-                    backgroundColor: AppColors.error,
-                    colorText: AppColors.textPrimary,
+                  ErrorHandler.log(aiStage['error']);
+                  AppSnackbar.error(
+                    'Unable to complete voice dubbing. Please try again.',
                   );
                   _dubbingJobSub?.cancel();
                 }
               }
+            }, onError: (e, stackTrace) {
+              isTranslatingAudio.value = false;
+              ErrorHandler.log(
+                e,
+                stackTrace: stackTrace,
+                tag: 'AdvertiserPortalController._dubbingJobSub',
+              );
+              AppSnackbar.error(
+                'Unable to complete voice dubbing. Please try again.',
+              );
+              _dubbingJobSub?.cancel();
             });
       } else {
         isTranslatingAudio.value = false;
-        AppSnackbar.show(
-          'Request Failed',
-          result.exceptionOrNull?.message ??
-              'Failed to trigger AI voice dubbing',
-          backgroundColor: AppColors.error,
-          colorText: AppColors.textPrimary,
+        ErrorHandler.log(result.exceptionOrNull);
+        AppSnackbar.error(
+          'Unable to start voice dubbing. Please try again.',
         );
       }
     } catch (e) {
       isTranslatingAudio.value = false;
-      debugPrint('Error triggering audio dubbing: $e');
-      AppSnackbar.show(
-        'Error',
-        'Could not trigger AI voice dubbing: $e',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to start voice dubbing. Please try again.',
       );
     }
   }
@@ -797,11 +783,8 @@ class AdvertiserPortalController extends BaseController {
   }) async {
     final ad = selectedAdForAudio.value;
     if (ad == null) {
-      AppSnackbar.show(
-        'Error',
+      AppSnackbar.warning(
         'No ad campaign selected.',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
       );
       return false;
     }
@@ -813,11 +796,8 @@ class AdvertiserPortalController extends BaseController {
       final fileBytes = file.bytes ??
           (file.path != null ? await File(file.path!).readAsBytes() : null);
       if (fileBytes == null) {
-        AppSnackbar.show(
-          'Error',
-          'Failed to read audio file from device.',
-          backgroundColor: AppColors.error,
-          colorText: AppColors.textPrimary,
+        AppSnackbar.error(
+          'Unable to read audio file from device. Please try another file.',
         );
         return false;
       }
@@ -839,12 +819,19 @@ class AdvertiserPortalController extends BaseController {
         ),
       );
 
-      uploadTask.snapshotEvents.listen((snapshot) {
-        if (snapshot.totalBytes > 0) {
-          audioUploadProgress.value =
-              snapshot.bytesTransferred / snapshot.totalBytes;
-        }
-      });
+      uploadTask.snapshotEvents.listen(
+        (snapshot) {
+          if (snapshot.totalBytes > 0) {
+            audioUploadProgress.value =
+                snapshot.bytesTransferred / snapshot.totalBytes;
+          }
+        },
+        onError: (e, stackTrace) => ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'AdvertiserPortalController.audioUpload',
+        ),
+      );
 
       final snapshot = await uploadTask;
       final downloadUrl = await snapshot.ref.getDownloadURL();
@@ -869,20 +856,14 @@ class AdvertiserPortalController extends BaseController {
         AdService.to.customCampaigns.refresh();
       }
 
-      AppSnackbar.show(
-        'Audio Track Uploaded',
+      AppSnackbar.success(
         'Direct audio track for ${getLanguageName(langCode)} uploaded successfully!',
-        backgroundColor: AppColors.success,
-        colorText: AppColors.textPrimary,
       );
       return true;
     } catch (e) {
-      debugPrint('Error uploading audio track: $e');
-      AppSnackbar.show(
-        'Upload Failed',
-        'Could not upload audio track: $e',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to upload audio track. Please try again.',
       );
       return false;
     } finally {
@@ -914,11 +895,8 @@ class AdvertiserPortalController extends BaseController {
     isGeneratingAllVideoAdsAI.value = true;
 
     try {
-      AppSnackbar.show(
-        'Queueing AI Pipeline',
+      AppSnackbar.info(
         'Initiating AI dubbing and subtitles generation for all video ads...',
-        backgroundColor: AppColors.info,
-        colorText: AppColors.textPrimary,
       );
 
       final result = await _advertiserRepository.generateAllVideoAdsAIFeatures(
@@ -929,27 +907,19 @@ class AdvertiserPortalController extends BaseController {
       );
 
       if (result.isSuccess) {
-        AppSnackbar.show(
-          'Batch AI Started',
-          'Dubbing & subtitles are generating for all video ads in the background.',
-          backgroundColor: AppColors.success,
-          colorText: AppColors.textPrimary,
+        AppSnackbar.success(
+          'Dubbing and subtitles are generating for all video ads in the background.',
         );
       } else {
-        AppSnackbar.show(
-          'Error',
-          result.exceptionOrNull?.message ?? 'Failed to start batch AI generation',
-          backgroundColor: AppColors.error,
-          colorText: AppColors.textPrimary,
+        ErrorHandler.log(result.exceptionOrNull);
+        AppSnackbar.error(
+          'Unable to start batch AI generation. Please try again.',
         );
       }
     } catch (e) {
-      debugPrint('Error starting batch AI generation: $e');
-      AppSnackbar.show(
-        'Error',
-        'Failed to start batch AI generation: $e',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to start batch AI generation. Please try again.',
       );
     } finally {
       isGeneratingAllVideoAdsAI.value = false;
@@ -959,143 +929,152 @@ class AdvertiserPortalController extends BaseController {
   // ==========================================
   // 1. BILLING & INVOICES / WALLET STATE
   // ==========================================
-  final RxDouble walletBalance = 14500.0.obs;
-  final RxBool autoReloadEnabled = true.obs;
+  final RxDouble walletBalance = 0.0.obs;
+  final RxBool autoReloadEnabled = false.obs;
   final RxDouble autoReloadThreshold = 200.0.obs;
   final RxDouble autoReloadAmount = 2000.0.obs;
-  final RxString billingCompanyName = 'Truthworld Technologies Pvt Ltd'.obs;
-  final RxString billingGstin = '29ABCDE1234F1Z5'.obs;
-  final RxString billingAddress =
-      '402, Innovate Towers, Outer Ring Road, Bengaluru, KA 560103'.obs;
-  final RxString billingEmail = 'billing@truthworld.com'.obs;
+  final RxString billingCompanyName = ''.obs;
+  final RxString billingGstin = ''.obs;
+  final RxString billingAddress = ''.obs;
+  final RxString billingEmail = ''.obs;
 
-  final RxList<Map<String, dynamic>> savedCards = <Map<String, dynamic>>[
-    {
-      'id': 'card_1',
-      'brand': 'Visa',
-      'last4': '4242',
-      'expiry': '12/28',
-      'holderName': 'Ebenezer Vampu',
-      'isDefault': true,
-    },
-    {
-      'id': 'card_2',
-      'brand': 'Mastercard',
-      'last4': '8899',
-      'expiry': '08/29',
-      'holderName': 'Truthworld Media Ops',
-      'isDefault': false,
-    },
-  ].obs;
+  final RxList<Map<String, dynamic>> transactions = <Map<String, dynamic>>[].obs;
 
-  final RxList<Map<String, dynamic>> transactions = <Map<String, dynamic>>[
-    {
-      'id': 'INV-2026-0891',
-      'date': '06 Sep 2026',
-      'description': 'Wallet Top-Up (Stripe)',
-      'amount': 5000.0,
-      'status': 'Paid',
-      'paymentMethod': 'Visa •••• 4242',
-      'tax': 900.0,
-      'net': 4100.0,
-    },
-    {
-      'id': 'INV-2026-0845',
-      'date': '02 Sep 2026',
-      'description': 'Campaign Budget: Truthworld Next Gen',
-      'amount': 2000.0,
-      'status': 'Paid',
-      'paymentMethod': 'Wallet Balance',
-      'tax': 360.0,
-      'net': 1640.0,
-    },
-    {
-      'id': 'INV-2026-0792',
-      'date': '28 Aug 2026',
-      'description': 'Creator Sponsorship Deposit: TechGuru',
-      'amount': 3500.0,
-      'status': 'Paid',
-      'paymentMethod': 'Mastercard •••• 8899',
-      'tax': 630.0,
-      'net': 2870.0,
-    },
-    {
-      'id': 'INV-2026-0710',
-      'date': '15 Aug 2026',
-      'description': 'AI Dubbing & Translation Batch',
-      'amount': 500.0,
-      'status': 'Paid',
-      'paymentMethod': 'Wallet Balance',
-      'tax': 90.0,
-      'net': 410.0,
-    },
-  ].obs;
+  void _listenToBillingData() {
+    _advertiserProfileSub?.cancel();
+    _billingTransactionsSub?.cancel();
+
+    final uid = AuthService.to.uid;
+    if (uid.isEmpty) {
+      walletBalance.value = 0.0;
+      transactions.clear();
+      return;
+    }
+
+    _advertiserProfileSub = FirebaseFirestore.instance
+        .collection('advertiser_profiles')
+        .doc(uid)
+        .snapshots()
+        .listen((doc) {
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
+        walletBalance.value = (data['walletBalance'] as num?)?.toDouble() ?? 0.0;
+        if (data['companyName'] != null) billingCompanyName.value = data['companyName'];
+        if (data['gstin'] != null) billingGstin.value = data['gstin'];
+        if (data['address'] != null) billingAddress.value = data['address'];
+        if (data['billingEmail'] != null) billingEmail.value = data['billingEmail'];
+        if (data['autoReloadEnabled'] != null) autoReloadEnabled.value = data['autoReloadEnabled'] == true;
+        if (data['autoReloadThreshold'] != null) {
+          autoReloadThreshold.value = (data['autoReloadThreshold'] as num).toDouble();
+        }
+        if (data['autoReloadAmount'] != null) {
+          autoReloadAmount.value = (data['autoReloadAmount'] as num).toDouble();
+        }
+      }
+    }, onError: (e) {
+      ErrorHandler.log(e);
+    });
+
+    _billingTransactionsSub = FirebaseFirestore.instance
+        .collection('advertiser_profiles')
+        .doc(uid)
+        .collection('billing_transactions')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .listen((snap) {
+      transactions.value = snap.docs.map((d) {
+        final data = d.data();
+        return {
+          'id': data['id'] ?? d.id,
+          'date': data['date'] ?? 'Recent',
+          'description': data['description'] ?? 'Transaction',
+          'amount': (data['amount'] as num?)?.toDouble() ?? 0.0,
+          'status': data['status'] ?? 'Paid',
+          'paymentMethod': data['paymentMethod'] ?? 'Cashfree PG',
+          'tax': (data['tax'] as num?)?.toDouble() ?? 0.0,
+          'net': (data['net'] as num?)?.toDouble() ?? 0.0,
+        };
+      }).toList();
+    }, onError: (e) {
+      ErrorHandler.log(e);
+    });
+  }
 
   Future<void> topUpWallet(double amount) async {
-    walletBalance.value += amount;
-    transactions.insert(0, {
-      'id':
-          'INV-${DateTime.now().year}-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
-      'date': 'Today',
-      'description': 'Wallet Top-Up (Stripe)',
-      'amount': amount,
-      'status': 'Paid',
-      'paymentMethod':
-          savedCards.firstWhereOrNull((c) => c['isDefault'] == true) != null
-          ? '${savedCards.firstWhereOrNull((c) => c['isDefault'] == true)!['brand']} •••• ${savedCards.firstWhereOrNull((c) => c['isDefault'] == true)!['last4']}'
-          : 'Card Payment',
-      'tax': amount * 0.18,
-      'net': amount * 0.82,
-    });
-    AppSnackbar.show(
-      'Wallet Recharged',
-      '₹${amount.toStringAsFixed(0)} added to your advertiser wallet balance successfully.',
-      backgroundColor: AppColors.success,
-      colorText: AppColors.textPrimary,
-    );
-  }
+    if (amount <= 0) {
+      AppSnackbar.warning('Please select a valid amount to recharge.');
+      return;
+    }
 
-  void addSavedCard(Map<String, dynamic> card) {
-    if (card['isDefault'] == true) {
-      for (final c in savedCards) {
-        c['isDefault'] = false;
+    try {
+      final paymentResult = await CashfreePaymentService.to.startPayment(
+        amount: amount,
+        purpose: 'advertiser_wallet',
+        orderNote: 'Advertiser Wallet Top-Up',
+        metadata: {
+          'purpose': 'advertiser_wallet',
+        },
+      );
+
+      if (paymentResult.success) {
+        walletBalance.value += amount;
+        transactions.insert(0, {
+          'id':
+              'INV-${DateTime.now().year}-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
+          'date': 'Today',
+          'description': 'Wallet Top-Up (Cashfree)',
+          'amount': amount,
+          'status': 'Paid',
+          'paymentMethod': 'Cashfree PG',
+          'tax': amount * 0.18,
+          'net': amount * 0.82,
+        });
+
+        AppSnackbar.success(
+          '₹${amount.toStringAsFixed(0)} added to your advertiser wallet balance successfully.',
+          title: 'Wallet Recharged',
+        );
+      } else if (paymentResult.errorMessage != null &&
+          !paymentResult.errorMessage!.toLowerCase().contains('cancel')) {
+        AppSnackbar.error(paymentResult.errorMessage!);
       }
+    } catch (e, stackTrace) {
+      ErrorHandler.log(e, stackTrace: stackTrace, tag: 'AdvertiserPortalController.topUpWallet');
+      AppSnackbar.error('Unable to complete wallet recharge. Please try again.');
     }
-    savedCards.add(card);
-    savedCards.refresh();
-    AppSnackbar.show(
-      'Card Added',
-      'Payment card ending in ${card['last4']} saved securely.',
-      backgroundColor: AppColors.success,
-      colorText: AppColors.textPrimary,
-    );
   }
 
-  void removeSavedCard(String cardId) {
-    savedCards.removeWhere((c) => c['id'] == cardId);
-    if (savedCards.isNotEmpty &&
-        !savedCards.any((c) => c['isDefault'] == true)) {
-      savedCards.first['isDefault'] = true;
-    }
-    savedCards.refresh();
-    AppSnackbar.show(
-      'Card Removed',
-      'Payment method removed successfully.',
-      backgroundColor: AppColors.info,
-      colorText: AppColors.textPrimary,
-    );
-  }
 
-  void saveBillingDetails({
+
+  Future<void> saveBillingDetails({
     required String company,
     required String gstin,
     required String address,
     required String email,
-  }) {
+  }) async {
     billingCompanyName.value = company;
     billingGstin.value = gstin;
     billingAddress.value = address;
     billingEmail.value = email;
+
+    final uid = AuthService.to.uid;
+    if (uid.isNotEmpty) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('advertiser_profiles')
+            .doc(uid)
+            .set({
+          'companyName': company,
+          'gstin': gstin,
+          'address': address,
+          'billingEmail': email,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } catch (e) {
+        ErrorHandler.log(e);
+      }
+    }
+
     AppSnackbar.show(
       'Settings Updated',
       'Billing details and GSTIN registered successfully.',

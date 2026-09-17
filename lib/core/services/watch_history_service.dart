@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/utils/firebase_rtdb_helper.dart';
@@ -30,6 +31,7 @@ class WatchHistoryService extends GetxService {
 
   final RxMap<String, double> _watchProgress =
       <String, double>{}.obs; // videoId -> percentage (0-100)
+  RxMap<String, double> get watchProgressMap => _watchProgress;
   final RxMap<String, int> _lastPositions =
       <String, int>{}.obs; // videoId -> seconds
 
@@ -54,13 +56,13 @@ class WatchHistoryService extends GetxService {
       final userId = AuthService.to.uid;
       if (userId.isEmpty) return;
 
-      // 1. Listen to permanent Firestore watch history (bounded to 50 items for cost efficiency)
+      // 1. Listen to permanent Firestore watch history (bounded to 200 items for cost efficiency)
       _historySubscription = _firestore
           .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('watch_history')
           .orderBy('watchedAt', descending: true)
-          .limit(50)
+          .limit(200)
           .snapshots()
           .listen(
             (snapshot) {
@@ -101,11 +103,19 @@ class WatchHistoryService extends GetxService {
                   }
                 });
               }
-            }, onError: (Object e) {
-              debugPrint('[WatchHistoryService] RTDB resume listener error: $e');
+            }, onError: (Object e, StackTrace s) {
+              ErrorHandler.log(
+                e,
+                stackTrace: s,
+                tag: 'WatchHistoryService.resumeListener',
+              );
             });
-      } catch (e) {
-        debugPrint('[WatchHistoryService] Failed to attach RTDB resume listener: $e');
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'WatchHistoryService._setupRtdbResumeSync',
+        );
       }
     }
   }
@@ -119,7 +129,13 @@ class WatchHistoryService extends GetxService {
       if (local != null && local['percentage'] is num) {
         return (local['percentage'] as num).toDouble();
       }
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'WatchHistoryService.getProgress',
+      );
+    }
     return memoryVal ?? 0.0;
   }
 
@@ -132,7 +148,13 @@ class WatchHistoryService extends GetxService {
         final pos = (local['position'] as num).toInt();
         if (pos > 0) return pos;
       }
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'WatchHistoryService.getLastPosition',
+      );
+    }
     return _lastPositions[videoId] ?? 0;
   }
 
@@ -167,8 +189,12 @@ class WatchHistoryService extends GetxService {
         'percentage': percentage,
         'updatedAt': DateTime.now().millisecondsSinceEpoch,
       });
-    } catch (e) {
-      debugPrint('[WatchHistoryService] Error writing local resume: $e');
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'WatchHistoryService.saveLocalPosition',
+      );
     }
   }
 
@@ -187,14 +213,42 @@ class WatchHistoryService extends GetxService {
         'percentage': percentage,
         'updatedAt': ServerValue.timestamp,
       });
-    } catch (e) {
-      debugPrint('[WatchHistoryService] RTDB cross-device sync error: $e');
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'WatchHistoryService.syncCrossDeviceResume',
+      );
     }
   }
 
   /// Check if a video has any watch progress
   bool hasProgress(String videoId) {
     return getProgress(videoId) > 0;
+  }
+
+  /// Check if a video has been watched (in memory, RTDB, Firestore stream, or local storage)
+  bool isVideoWatched(String videoId) {
+    if (videoId.isEmpty) return false;
+    if (_watchProgress.containsKey(videoId)) return true;
+    if (_lastPositions.containsKey(videoId) && (_lastPositions[videoId] ?? 0) > 0) return true;
+    try {
+      final local = _storage.read<Map<String, dynamic>>('resume_$videoId');
+      if (local != null) return true;
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'WatchHistoryService.isVideoWatched',
+      );
+    }
+    return false;
+  }
+
+  /// Get set of all known watched video IDs
+  Set<String> get allWatchedVideoIds {
+    final set = <String>{..._watchProgress.keys, ..._lastPositions.keys};
+    return set;
   }
 
   @override

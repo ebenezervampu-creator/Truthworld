@@ -1,36 +1,66 @@
-# Copy SEO files to build directory after Flutter build
-# This script copies sitemap.xml and robots.txt from web/ to build/web/
+# Copy SEO files to build directories after Flutter build
+# This script copies sitemap.xml, robots.txt, llms.txt, and web metadata to web build directories
+
+[CmdletBinding()]
+param(
+    [string]$TargetDir = ""
+)
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $webDir = Join-Path $projectRoot "web"
-$buildWebDir = Join-Path $projectRoot "build\web"
 
-Write-Host "Copying SEO files to build directory..." -ForegroundColor Green
-
-# Check if build/web directory exists
-if (-not (Test-Path $buildWebDir)) {
-    Write-Host "Error: build/web directory not found. Run 'flutter build web' first." -ForegroundColor Red
-    exit 1
-}
-
-# Copy sitemap.xml
-$sitemapSource = Join-Path $webDir "sitemap.xml"
-$sitemapDest = Join-Path $buildWebDir "sitemap.xml"
-if (Test-Path $sitemapSource) {
-    Copy-Item $sitemapSource $sitemapDest -Force
-    Write-Host "✓ Copied sitemap.xml" -ForegroundColor Green
+$candidateDirs = @()
+if ($TargetDir -and $TargetDir.Trim().Length -gt 0) {
+    $candidateDirs += (Join-Path $projectRoot $TargetDir)
 } else {
-    Write-Host "Warning: sitemap.xml not found in web/" -ForegroundColor Yellow
+    $candidateDirs = @(
+        (Join-Path $projectRoot "build\web_app"),
+        (Join-Path $projectRoot "build\web_studio"),
+        (Join-Path $projectRoot "build\web_admin"),
+        (Join-Path $projectRoot "build\web_advertiser"),
+        (Join-Path $projectRoot "build\web")
+    )
 }
 
-# Copy robots.txt
-$robotsSource = Join-Path $webDir "robots.txt"
-$robotsDest = Join-Path $buildWebDir "robots.txt"
-if (Test-Path $robotsSource) {
-    Copy-Item $robotsSource $robotsDest -Force
-    Write-Host "✓ Copied robots.txt" -ForegroundColor Green
-} else {
-    Write-Host "Warning: robots.txt not found in web/" -ForegroundColor Yellow
+$activeDirs = $candidateDirs | Where-Object { Test-Path $_ }
+
+if ($activeDirs.Count -eq 0) {
+    Write-Host "Warning: No web build output directories found. Run 'flutter build web' first." -ForegroundColor Yellow
+    exit 0
 }
 
-Write-Host "SEO files copied successfully!" -ForegroundColor Green
+Write-Host "Copying SEO and web metadata files to build directories..." -ForegroundColor Green
+
+$filesToCopy = @(
+    "sitemap.xml",
+    "sitemap-static.xml",
+    "robots.txt",
+    "truthworld-indexnow-key-2026.txt",
+    "truthworld_indexnow_key_2026.txt",
+    "flutter_service_worker.js",
+    "flutter.js.map",
+    "llms.txt",
+    "llms-full.txt"
+)
+
+foreach ($buildWebDir in $activeDirs) {
+    Write-Host "`nTarget: $buildWebDir" -ForegroundColor Cyan
+    foreach ($file in $filesToCopy) {
+        $src = Join-Path $webDir $file
+        $dest = Join-Path $buildWebDir $file
+        if (Test-Path $src) {
+            Copy-Item $src $dest -Force
+            Write-Host "  [+] Copied $file" -ForegroundColor Green
+        }
+    }
+
+    $wellKnownDir = Join-Path $webDir ".well-known"
+    if (Test-Path $wellKnownDir) {
+        $destWellKnown = Join-Path $buildWebDir ".well-known"
+        Copy-Item -Path $wellKnownDir -Destination $destWellKnown -Recurse -Force
+        Write-Host "  [+] Copied .well-known" -ForegroundColor Green
+    }
+}
+
+Write-Host "`nSEO and Agentic files synchronized successfully!" -ForegroundColor Green
+

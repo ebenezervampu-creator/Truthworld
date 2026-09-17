@@ -1,0 +1,1134 @@
+import * as admin from "firebase-admin";
+import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
+import { CashfreeService } from "../services/cashfreeService";
+
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
+
+const REGION = "asia-south1";
+
+/**
+ * Fulfills an order idempotently based on its purpose and metadata
+ */
+async function fulfillOrder(
+  orderId: string,
+  userId: string,
+  purpose: string,
+  amount: number,
+  metadata: Record<string, any> = {}
+) {
+  const firestore = admin.firestore();
+  const orderRef = firestore.collection("payment_orders").doc(orderId);
+
+  let didFulfill = false;
+  await firestore.runTransaction(async (transaction) => {
+    // -------------------------------------------------------------
+    // 1. ALL READ OPERATIONS MUST BE EXECUTED BEFORE ANY WRITES
+    // -------------------------------------------------------------
+    const orderDoc = await transaction.get(orderRef);
+    if (!orderDoc.exists) return;
+
+    const currentData = orderDoc.data() || {};
+    if (currentData.status === "FULFILLED") {
+      // Already fulfilled, avoid duplicate operations
+      return;
+    }
+
+    let wasActiveMember = false;
+    let oldTierRef: admin.firestore.DocumentReference | null = null;
+    let memberRef: admin.firestore.DocumentReference | null = null;
+    let tierRef: admin.firestore.DocumentReference | null = null;
+    let channelRef: admin.firestore.DocumentReference | null = null;
+    let userMembershipRef: admin.firestore.DocumentReference | null = null;
+    let legacyMembershipRef: admin.firestore.DocumentReference | null = null;
+    let receiptRef: admin.firestore.DocumentReference | null = null;
+
+    if (purpose === "channel_membership") {
+      const { channelId, tierId } = metadata;
+      if (channelId && tierId) {
+        memberRef = firestore
+          .collection("channels")
+          .doc(channelId)
+          .collection("members")
+          .doc(userId);
+
+        const memberDoc = await transaction.get(memberRef);
+        wasActiveMember = memberDoc.exists && memberDoc.data()?.status === "active";
+        const previousTierId = memberDoc.exists ? memberDoc.data()?.tierId : null;
+        if (previousTierId && previousTierId !== tierId) {
+          oldTierRef = firestore
+            .collection("channels")
+            .doc(channelId)
+            .collection("membership_tiers")
+            .doc(previousTierId);
+        }
+
+        tierRef = firestore
+          .collection("channels")
+          .doc(channelId)
+          .collection("membership_tiers")
+          .doc(tierId);
+
+        channelRef = firestore.collection("channels").doc(channelId);
+
+        userMembershipRef = firestore
+          .collection("users")
+          .doc(userId)
+          .collection("channel_memberships")
+          .doc(channelId);
+
+        legacyMembershipRef = firestore
+          .collection("users")
+          .doc(userId)
+          .collection("channelMemberships")
+          .doc(channelId);
+
+        receiptRef = firestore.collection("payment_receipts").doc(orderId);
+      }
+    }
+
+    // -------------------------------------------------------------
+    // 2. ALL WRITES COMMENCE AFTER ALL READS ARE COMPLETE
+    // -------------------------------------------------------------
+    didFulfill = true;
+    transaction.update(orderRef, {
+      status: "FULFILLED",
+      fulfilledAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    const now = Date.now();
+
+    if (purpose === "premium_subscription") {
+      const planId = metadata.planId || "individual_monthly";
+      const isYearly = planId.includes("yearly");
+      const durationDays = isYearly ? 365 : 30;
+      const expiresAt = now + durationDays * 24 * 60 * 60 * 1000;
+
+      const userRef = firestore.collection("users").doc(userId);
+      transaction.set(
+        userRef,
+        {
+          isPremium: true,
+          premiumPlanId: planId,
+          premiumStartedAt: now,
+          premiumExpiresAt: expiresAt,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      const receiptRef = firestore.collection("payment_receipts").doc(orderId);
+      transaction.set(receiptRef, {
+        orderId,
+        userId,
+        planId,
+        amount,
+        currency: "INR",
+        status: "verified",
+        paymentGateway: "cashfree",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      const subRef = firestore.collection("premium_subscriptions").doc(userId);
+      transaction.set(
+        subRef,
+        {
+          userId,
+          planId,
+          isPremium: true,
+          paymentGateway: "cashfree",
+          orderId,
+          subscribedAt: admin.firestore.FieldValue.serverTimestamp(),
+          expiresAt: admin.firestore.Timestamp.fromMillis(expiresAt),
+        },
+        { merge: true }
+      );
+    } else if (purpose === "advertiser_wallet") {
+      const advertiserRef = firestore.collection("advertiser_profiles").doc(userId);
+      transaction.set(
+        advertiserRef,
+        {
+          walletBalance: admin.firestore.FieldValue.increment(amount),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      const txRef = advertiserRef.collection("billing_transactions").doc(orderId);
+      transaction.set(txRef, {
+        id: `INV-${Date.now().toString().slice(5)}`,
+        orderId,
+        date: new Date().toISOString(),
+        description: "Wallet Recharge (Cashfree)",
+        amount,
+        status: "Paid",
+        paymentMethod: "Cashfree PG",
+        tax: amount * 0.18,
+        net: amount * 0.82,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    } else if (purpose === "advertiser_campaign") {
+      const campaignId = metadata.campaignId;
+      const isTopup = metadata.isTopup === true;
+      if (campaignId) {
+        const campaignRef = firestore.collection("ad_campaigns").doc(campaignId);
+        if (isTopup) {
+          // Top-up to existing campaign: increment budget and preserve active status
+          transaction.set(
+            campaignRef,
+            {
+              isPaid: true,
+              orderId,
+              budgetAmount: admin.firestore.FieldValue.increment(amount),
+              paidAmount: admin.firestore.FieldValue.increment(amount),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+        } else {
+          // Initial creation of campaign: set underReview
+          transaction.set(
+            campaignRef,
+            {
+              isPaid: true,
+              status: "underReview",
+              orderId,
+              paidAmount: amount,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+        }
+      }
+    } else if (purpose === "channel_topup") {
+      const channelId = metadata.channelId;
+      if (channelId) {
+        const channelRef = firestore.collection("channels").doc(channelId);
+        const packType = metadata.packType;
+
+        if (packType === "storage") {
+          const additionalBytes = (metadata.gigabytes || 0) * 1024 * 1024 * 1024;
+          transaction.set(
+            channelRef,
+            {
+              "infraConfig.storageQuotaBytes": admin.firestore.FieldValue.increment(additionalBytes),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+        } else if (packType === "bandwidth") {
+          const additionalBytes = (metadata.gigabytes || 0) * 1024 * 1024 * 1024;
+          transaction.set(
+            channelRef,
+            {
+              "infraConfig.bandwidthQuotaBytesThisMonth": admin.firestore.FieldValue.increment(additionalBytes),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+        }
+
+        const txRef = firestore.collection("channel_wallet_transactions").doc(orderId);
+        transaction.set(txRef, {
+          id: orderId,
+          channelId,
+          userId,
+          amount,
+          category: metadata.category || "topup",
+          description: metadata.description || "Direct Pack Topup via Cashfree",
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          paymentGateway: "cashfree",
+        });
+      }
+    } else if (purpose === "superchat") {
+      const { channelId, videoId, text, userName, userProfilePicUrl, tierColor } = metadata;
+      if (channelId) {
+        const superchatRef = firestore
+          .collection("channels")
+          .doc(channelId)
+          .collection("superchats")
+          .doc(orderId);
+
+        transaction.set(superchatRef, {
+          superchatId: orderId,
+          videoId: videoId || "",
+          channelId,
+          userId,
+          userName: userName || "Supporter",
+          userProfilePicUrl: userProfilePicUrl || "",
+          text: text || "",
+          amount,
+          currency: "INR",
+          tierColor: tierColor || "#1E88E5",
+          paymentIntentId: "cashfree",
+          orderId,
+          status: "completed",
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        const channelRef = firestore.collection("channels").doc(channelId);
+        transaction.set(
+          channelRef,
+          {
+            superchatRevenueTotal: admin.firestore.FieldValue.increment(amount),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
+    } else if (purpose === "channel_membership") {
+      const { channelId, tierId, tierName, channelName, userName, userAvatarUrl } = metadata;
+      if (memberRef && tierRef && channelRef && userMembershipRef && receiptRef) {
+        transaction.set(memberRef, {
+          userId,
+          userName: userName || "Channel Supporter",
+          userAvatarUrl: userAvatarUrl || "",
+          tierId,
+          tierName: tierName || "Member",
+          price: amount,
+          orderId,
+          paymentGateway: "cashfree",
+          joinedAt: admin.firestore.FieldValue.serverTimestamp(),
+          status: "active",
+        });
+
+        // Only increment member count if this user was not already active in the tier
+        if (!wasActiveMember) {
+          transaction.set(
+            tierRef,
+            {
+              memberCount: admin.firestore.FieldValue.increment(1),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+        } else if (oldTierRef) {
+          transaction.set(
+            oldTierRef,
+            {
+              memberCount: admin.firestore.FieldValue.increment(-1),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+          transaction.set(
+            tierRef,
+            {
+              memberCount: admin.firestore.FieldValue.increment(1),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+        }
+
+        transaction.set(
+          channelRef,
+          {
+            membershipRevenueTotal: admin.firestore.FieldValue.increment(amount),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+
+        const membershipData = {
+          channelId,
+          channelName: channelName || "",
+          tierId,
+          tierName: tierName || "Member",
+          price: amount,
+          status: "active",
+          orderId,
+          paymentGateway: "cashfree",
+          joinedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+
+        transaction.set(userMembershipRef, membershipData, { merge: true });
+        if (legacyMembershipRef) {
+          transaction.set(legacyMembershipRef, membershipData, { merge: true });
+        }
+
+        transaction.set(receiptRef, {
+          orderId,
+          userId,
+          channelId,
+          tierId,
+          amount,
+          currency: "INR",
+          status: "verified",
+          paymentGateway: "cashfree",
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+    }
+  });
+
+  // Post Superchat event to Realtime Database stream for live chat overlay (only on genuine fulfillment)
+  if (didFulfill && purpose === "superchat" && metadata.videoId) {
+    try {
+      const rtdb = admin.database();
+      const videoId = metadata.videoId;
+      const userName = metadata.userName || "Supporter";
+      const userProfilePicUrl = metadata.userProfilePicUrl || "";
+      const text = metadata.text || "";
+      const tierColor = metadata.tierColor || "#1E88E5";
+      const now = Date.now();
+
+      let displayDurationMs = 60 * 1000;
+      if (amount >= 4000) {
+        displayDurationMs = 10 * 60 * 1000;
+      } else if (amount >= 1500) {
+        displayDurationMs = 5 * 60 * 1000;
+      } else if (amount >= 800) {
+        displayDurationMs = 2 * 60 * 1000;
+      } else if (amount >= 400) {
+        displayDurationMs = 90 * 1000;
+      }
+      const expiresAt = now + displayDurationMs;
+
+      const messageRef = rtdb.ref(`liveChat/${videoId}/messages`).push();
+      const messageId = messageRef.key;
+
+      await messageRef.set({
+        id: messageId,
+        videoId,
+        userId,
+        userName,
+        userProfilePicUrl,
+        text,
+        isSuperchat: true,
+        superchatAmount: amount,
+        superchatCurrency: "INR",
+        superchatTierColor: tierColor,
+        timestamp: admin.database.ServerValue.TIMESTAMP,
+      });
+
+      await rtdb.ref(`liveChat/${videoId}/pinned`).set({
+        superchatId: orderId,
+        messageId,
+        userId,
+        userName,
+        userProfilePicUrl,
+        text,
+        amount,
+        currency: "INR",
+        tierColor,
+        expiresAt,
+        createdAt: now,
+      });
+    } catch (rtdbErr) {
+      console.warn("[fulfillOrder] Failed to post superchat to RTDB:", rtdbErr);
+    }
+  }
+}
+
+/**
+ * 1. Create Cashfree Order
+ */
+export const createCashfreeOrder = onCall(
+  {
+    region: REGION,
+    secrets: ["CASHFREE_APP_ID", "CASHFREE_SECRET_KEY"],
+  },
+  async (request) => {
+    const callerUid = request.auth?.uid;
+    if (!callerUid) {
+      throw new HttpsError("unauthenticated", "User must be authenticated to initiate payment.");
+    }
+
+    const {
+      amount,
+      currency = "INR",
+      purpose,
+      orderNote,
+      customerPhone,
+      metadata = {},
+    } = request.data || {};
+
+    if (typeof amount !== "number" || amount <= 0) {
+      throw new HttpsError("invalid-argument", "Invalid payment amount.");
+    }
+
+    if (!purpose) {
+      throw new HttpsError("invalid-argument", "Payment purpose is required.");
+    }
+
+    if (!CashfreeService.isConfigured()) {
+      console.warn("[createCashfreeOrder] Cashfree credentials (CASHFREE_APP_ID / CASHFREE_SECRET_KEY) are not set in Secret Manager.");
+      throw new HttpsError(
+        "failed-precondition",
+        "Payment gateway is not currently configured. Please configure Cashfree API keys in Google Cloud Secret Manager."
+      );
+    }
+
+    const firestore = admin.firestore();
+    const userDoc = await firestore.collection("users").doc(callerUid).get();
+    const userData = userDoc.data() || {};
+    const customerEmail = userData.email || request.auth?.token.email || "user@truthworld.tv";
+    const customerName = userData.displayName || userData.name || "TruthWorld User";
+
+    const cleanPurpose = String(purpose).replace(/[^a-zA-Z0-9_]/g, "");
+    const orderId = `cf_${cleanPurpose}_${Date.now()}_${callerUid.substring(0, 5)}`;
+
+    const sanitizedTags = CashfreeService.sanitizeOrderTags({
+      userId: callerUid,
+      purpose: cleanPurpose,
+      ...metadata,
+    });
+
+    try {
+      const cfOrder = await CashfreeService.createOrder({
+        orderId,
+        orderAmount: amount,
+        orderCurrency: currency,
+        customerDetails: {
+          customer_id: callerUid,
+          customer_name: customerName,
+          customer_email: customerEmail,
+          customer_phone: customerPhone || userData.phone || "9999999999",
+        },
+        orderNote: orderNote || `TruthWorld ${purpose} payment`,
+        orderTags: sanitizedTags,
+      });
+
+      // Direct Web / Desktop checkouts to TruthWorld's secure hosted checkout container
+      const envParam = CashfreeService.PublicEnvironment.toLowerCase();
+      const paymentLink = `https://www.truthworld.in/checkout?session_id=${encodeURIComponent(cfOrder.payment_session_id || "")}&order_id=${encodeURIComponent(orderId)}&env=${envParam}`;
+
+      await firestore.collection("payment_orders").doc(orderId).set({
+        orderId,
+        cfOrderId: cfOrder.cf_order_id,
+        userId: callerUid,
+        amount,
+        currency,
+        purpose,
+        status: "ACTIVE",
+        paymentSessionId: cfOrder.payment_session_id || "",
+        paymentLink: paymentLink || "",
+        metadata,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return {
+        success: true,
+        orderId,
+        paymentSessionId: cfOrder.payment_session_id || "",
+        orderAmount: amount,
+        orderCurrency: currency,
+        paymentLink: paymentLink || "",
+        environment: CashfreeService.PublicEnvironment,
+      };
+    } catch (err: any) {
+      console.error("[createCashfreeOrder] Error:", err?.response?.data || err?.message || err);
+      const errData = err?.response?.data;
+      const rawMsg = (errData?.message || err?.message || "").toLowerCase();
+      if (
+        errData?.type === "authentication_error" ||
+        rawMsg.includes("authentication failed") ||
+        rawMsg.includes("unauthorized")
+      ) {
+        throw new HttpsError(
+          "internal",
+          "The payment gateway is temporarily unavailable. Please try again shortly or contact support."
+        );
+      }
+      const gatewayMsg = errData?.message || err?.message || "Unable to create payment order. Please try again.";
+      throw new HttpsError("internal", gatewayMsg);
+    }
+  }
+);
+
+/**
+ * 2. Authoritative Verification of Cashfree Payment
+ */
+export const verifyCashfreePayment = onCall(
+  {
+    region: REGION,
+    secrets: ["CASHFREE_APP_ID", "CASHFREE_SECRET_KEY"],
+  },
+  async (request) => {
+    const callerUid = request.auth?.uid;
+    if (!callerUid) {
+      throw new HttpsError("unauthenticated", "User must be authenticated.");
+    }
+
+    const { orderId } = request.data || {};
+    if (!orderId || typeof orderId !== "string") {
+      throw new HttpsError("invalid-argument", "orderId is required.");
+    }
+
+    const firestore = admin.firestore();
+    const orderDoc = await firestore.collection("payment_orders").doc(orderId).get();
+
+    if (!orderDoc.exists) {
+      throw new HttpsError("not-found", "Payment order record not found.");
+    }
+
+    const orderData = orderDoc.data() || {};
+    if (orderData.userId !== callerUid) {
+      throw new HttpsError("permission-denied", "Unauthorized order verification access.");
+    }
+
+    if (orderData.status === "PAID" || orderData.status === "FULFILLED") {
+      return {
+        success: true,
+        orderStatus: "PAID",
+        orderId,
+      };
+    }
+
+    if (!CashfreeService.isConfigured()) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Payment gateway is not currently configured."
+      );
+    }
+
+    try {
+      // Query Cashfree authoritatively
+      const cfOrder = await CashfreeService.getOrder(orderId);
+
+      if (cfOrder.order_status === "PAID") {
+        await firestore.collection("payment_orders").doc(orderId).update({
+          status: "PAID",
+          verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+          cfOrderStatus: cfOrder.order_status,
+        });
+
+        // Fulfill business requirement
+        await fulfillOrder(
+          orderId,
+          orderData.userId,
+          orderData.purpose,
+          orderData.amount,
+          orderData.metadata || {}
+        );
+
+        return {
+          success: true,
+          orderStatus: "PAID",
+          orderId,
+        };
+      } else {
+        return {
+          success: false,
+          orderStatus: cfOrder.order_status,
+          orderId,
+        };
+      }
+    } catch (err: any) {
+      console.error("[verifyCashfreePayment] Error:", err?.response?.data || err?.message || err);
+      throw new HttpsError("internal", "Unable to verify payment status with the gateway. Please try again shortly.");
+    }
+  }
+);
+
+/**
+ * 3. Cashfree Asynchronous Webhook Listener
+ */
+export const cashfreeWebhook = onRequest(
+  {
+    region: REGION,
+    cors: true,
+    secrets: ["CASHFREE_APP_ID", "CASHFREE_SECRET_KEY"],
+  },
+  async (req, res) => {
+    // 1. Support test pings, healthchecks, and CORS preflights (GET / HEAD / OPTIONS)
+    if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") {
+      res.status(200).json({ status: "ok", message: "TruthWorld Cashfree Webhook Active" });
+      return;
+    }
+
+    if (req.method !== "POST") {
+      res.status(405).send("Method Not Allowed");
+      return;
+    }
+
+    try {
+      // Support all Cashfree webhook versions (2022-09-01, 2023-08-01) and test pings
+      const orderId =
+        req.body?.data?.order?.order_id ||
+        req.body?.order?.order_id ||
+        req.body?.orderId ||
+        req.body?.data?.orderId;
+
+      // Handle Cashfree Dashboard "Test" button / verification ping
+      if (!orderId) {
+        console.log("[cashfreeWebhook] Test ping received from Cashfree:", req.body);
+        res.status(200).json({ status: "acknowledged", message: "Cashfree test ping received successfully" });
+        return;
+      }
+
+      // Query Cashfree directly to prevent any forged webhook payloads
+      try {
+        const verifiedOrder = await CashfreeService.getOrder(orderId);
+        if (verifiedOrder.order_status === "PAID") {
+          const firestore = admin.firestore();
+          const orderDoc = await firestore.collection("payment_orders").doc(orderId).get();
+
+          if (orderDoc.exists) {
+            const orderData = orderDoc.data() || {};
+            await fulfillOrder(
+              orderId,
+              orderData.userId,
+              orderData.purpose,
+              orderData.amount,
+              orderData.metadata || {}
+            );
+          }
+        }
+      } catch (orderErr: any) {
+        // If Cashfree dashboard tests with a mock/test orderId that does not exist in gateway API
+        if (orderErr?.response?.status === 404) {
+          console.log(`[cashfreeWebhook] Test order ${orderId} not found in gateway (test ping)`);
+          res.status(200).json({ status: "acknowledged", message: "Test order acknowledged" });
+          return;
+        }
+        throw orderErr;
+      }
+
+      res.status(200).json({ status: "acknowledged" });
+    } catch (err: any) {
+      console.error("[cashfreeWebhook] Error:", err);
+      res.status(500).json({ error: "Internal processing error" });
+    }
+  }
+);
+
+/**
+ * 4. Cashfree Hosted Web Checkout Container
+ * Used by Web and Desktop platforms to render Cashfree JS SDK v3 checkout and display branded payment results.
+ */
+export const cashfreeHostedCheckout = onRequest(
+  {
+    region: REGION,
+    cors: true,
+    secrets: ["CASHFREE_APP_ID", "CASHFREE_SECRET_KEY"],
+  },
+  async (req, res) => {
+    const action = ((req.query.action as string) || (req.body?.action as string) || "").toLowerCase();
+    const rawOrderId = (
+      (req.query.order_id as string) ||
+      (req.query.orderId as string) ||
+      (req.query.cf_order_id as string) ||
+      (req.body?.order_id as string) ||
+      (req.body?.orderId as string) ||
+      (req.body?.cf_order_id as string) ||
+      ""
+    ).trim();
+    const orderId = rawOrderId === "{order_id}" ? "" : rawOrderId;
+    const sessionId = (
+      (req.query.session_id as string) ||
+      (req.query.sessionId as string) ||
+      (req.body?.session_id as string) ||
+      (req.body?.sessionId as string) ||
+      ""
+    ).trim();
+    const env = ((req.query.env as string) || (req.body?.env as string) || "production").toLowerCase();
+
+    // 1. Result confirmation view (Cashfree return_url target or direct /payment-result route)
+    const isResultView =
+      action === "result" ||
+      req.path.includes("payment-result") ||
+      (req.originalUrl && req.originalUrl.includes("payment-result")) ||
+      (req.url && req.url.includes("payment-result"));
+
+    if (isResultView) {
+      if (!orderId) {
+        res.setHeader("Content-Type", "text/html");
+        res.status(400).send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Payment Verification - TruthWorld</title>
+  <style>
+    body { background:#0d0d0e; color:#ffffff; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; display:flex; align-items:center; justify-content:center; min-height:100vh; margin:0; }
+    .card { background:#161618; border:1px solid #27272a; border-radius:16px; padding:36px 28px; max-width:440px; text-align:center; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2 style="margin:0 0 12px;font-size:18px;">Order Not Specified</h2>
+    <p style="color:#a1a1aa;font-size:14px;line-height:1.5;">Missing order reference. Please return to the TruthWorld app.</p>
+  </div>
+</body>
+</html>`);
+        return;
+      }
+
+      try {
+        const firestore = admin.firestore();
+        const orderDoc = await firestore.collection("payment_orders").doc(orderId).get();
+        const orderData = orderDoc.exists ? (orderDoc.data() || {}) : null;
+
+        let cfOrder: any = null;
+        if (CashfreeService.isConfigured()) {
+          try {
+            cfOrder = await CashfreeService.getOrder(orderId);
+          } catch (err: any) {
+            console.error(`[cashfreeHostedCheckout] Error querying order ${orderId}:`, err?.message || err);
+          }
+        }
+
+        const gatewayStatus = (cfOrder?.order_status || orderData?.status || "UNKNOWN").toUpperCase();
+        const isPaid = gatewayStatus === "PAID" || orderData?.status === "PAID" || orderData?.status === "FULFILLED";
+
+        if (isPaid && orderData && orderData.status !== "FULFILLED") {
+          await firestore.collection("payment_orders").doc(orderId).update({
+            status: "PAID",
+            verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+            cfOrderStatus: "PAID",
+          });
+
+          await fulfillOrder(
+            orderId,
+            orderData.userId,
+            orderData.purpose,
+            orderData.amount,
+            orderData.metadata || {}
+          );
+        }
+
+        const amountVal = cfOrder?.order_amount ?? orderData?.amount;
+        const amountDisplay = amountVal != null ? `₹${Number(amountVal).toFixed(2)}` : "";
+        const sanitizedOrderId = orderId.replace(/[^\w-]/g, "");
+
+        let statusTitle = "Payment Successful";
+        let statusSubtitle = "Your payment has been successfully processed. You may now return to TruthWorld.";
+        let badgeColor = "#10b981";
+        let badgeIcon = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>`;
+        let isPending = false;
+
+        if (!isPaid) {
+          if (gatewayStatus === "ACTIVE" || gatewayStatus === "PENDING") {
+            statusTitle = "Payment Pending Confirmation";
+            statusSubtitle = "We are waiting for final confirmation from your bank. This page will update automatically.";
+            badgeColor = "#3b82f6";
+            badgeIcon = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`;
+            isPending = true;
+          } else {
+            statusTitle = "Payment Incomplete";
+            statusSubtitle = "The transaction could not be confirmed or was cancelled. If debited, funds will be refunded by your bank.";
+            badgeColor = "#ef4444";
+            badgeIcon = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`;
+          }
+        }
+
+        const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${statusTitle} - TruthWorld</title>
+  ${isPending ? '<meta http-equiv="refresh" content="4">' : ""}
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      background-color: #0d0d0e;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 24px;
+      text-align: center;
+    }
+    .card {
+      background: #161618;
+      border: 1px solid #27272a;
+      border-radius: 16px;
+      padding: 36px 28px;
+      max-width: 440px;
+      width: 100%;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    .icon-badge {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: ${badgeColor};
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+    }
+    .title { font-size: 20px; font-weight: 700; margin-bottom: 8px; color: #ffffff; }
+    .subtitle { font-size: 13px; color: #a1a1aa; line-height: 1.5; margin-bottom: 24px; }
+    .details {
+      background: #1e1e22;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 24px;
+      text-align: left;
+      font-size: 13px;
+    }
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .detail-row:last-child { margin-bottom: 0; }
+    .detail-label { color: #a1a1aa; }
+    .detail-val { color: #ffffff; font-weight: 600; }
+    .action-btn {
+      width: 100%;
+      background: #ffffff;
+      color: #000000;
+      border: none;
+      padding: 13px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .action-btn:hover { background: #e4e4e7; }
+    .note { margin-top: 14px; font-size: 12px; color: #71717a; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon-badge">${badgeIcon}</div>
+    <div class="title">${statusTitle}</div>
+    <div class="subtitle">${statusSubtitle}</div>
+
+    <div class="details">
+      ${amountDisplay ? `<div class="detail-row"><span class="detail-label">Amount</span><span class="detail-val">${amountDisplay}</span></div>` : ""}
+      <div class="detail-row"><span class="detail-label">Order Reference</span><span class="detail-val" style="font-family:monospace;font-size:11px;">${sanitizedOrderId}</span></div>
+      <div class="detail-row"><span class="detail-label">Status</span><span class="detail-val" style="color:${badgeColor};">${gatewayStatus}</span></div>
+    </div>
+
+    <button class="action-btn" onclick="returnToApp()">Return to TruthWorld</button>
+    <div class="note">You may also safely close this tab or window.</div>
+  </div>
+
+  <script>
+    function returnToApp() {
+      try {
+        window.location.href = "truthworld://payment-result?order_id=" + encodeURIComponent("${sanitizedOrderId}") + "&status=" + encodeURIComponent("${gatewayStatus}");
+      } catch (e) {}
+      setTimeout(function() {
+        window.close();
+      }, 400);
+    }
+  </script>
+</body>
+</html>`;
+
+        res.setHeader("Content-Type", "text/html");
+        res.status(200).send(html);
+        return;
+      } catch (err: any) {
+        console.error(`[cashfreeHostedCheckout] Unhandled result error for order ${orderId}:`, err);
+        const sanitizedOrderId = orderId.replace(/[^\w-]/g, "");
+        const fallbackHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Payment Completed - TruthWorld</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { background-color: #0d0d0e; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 24px; text-align: center; }
+    .card { background: #161618; border: 1px solid #27272a; border-radius: 16px; padding: 36px 28px; max-width: 440px; width: 100%; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+    .icon-badge { width: 64px; height: 64px; border-radius: 50%; background: #10b981; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; }
+    .title { font-size: 20px; font-weight: 700; margin-bottom: 8px; color: #ffffff; }
+    .subtitle { font-size: 13px; color: #a1a1aa; line-height: 1.5; margin-bottom: 24px; }
+    .action-btn { width: 100%; background: #ffffff; color: #000000; border: none; padding: 13px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    .action-btn:hover { background: #e4e4e7; }
+    .note { margin-top: 14px; font-size: 12px; color: #71717a; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon-badge">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+    </div>
+    <div class="title">Payment Completed</div>
+    <div class="subtitle">Your payment has been received by Cashfree. You can return to TruthWorld to access your channel membership.</div>
+    <button class="action-btn" onclick="returnToApp()">Return to TruthWorld</button>
+    <div class="note">Order: ${sanitizedOrderId}</div>
+  </div>
+  <script>
+    function returnToApp() {
+      try {
+        window.location.href = "truthworld://payment-result?order_id=" + encodeURIComponent("${sanitizedOrderId}") + "&status=PAID";
+      } catch (e) {}
+      setTimeout(function() { window.close(); }, 400);
+    }
+  </script>
+</body>
+</html>`;
+        res.setHeader("Content-Type", "text/html");
+        res.status(200).send(fallbackHtml);
+        return;
+      }
+    }
+
+    // 2. Checkout Container View (Direct Form Post with SDK v3 fallback)
+    if (orderId) {
+      console.log(`[cashfreeHostedCheckout] Launching session for order ${orderId}`);
+    }
+
+    if (!sessionId) {
+      res.status(400).send("<h3>Missing session_id parameter.</h3>");
+      return;
+    }
+
+    const isProd = env !== "sandbox";
+    const checkoutGatewayUrl = isProd
+      ? "https://api.cashfree.com/pg/view/sessions/checkout"
+      : "https://sandbox.cashfree.com/pg/view/sessions/checkout";
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TruthWorld Secure Checkout</title>
+  <script src="https://sdk.cashfree.com/js/v3/cashfree.js" async></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      background-color: #0d0d0e;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 24px;
+      text-align: center;
+    }
+    .card {
+      background: #161618;
+      border: 1px solid #27272a;
+      border-radius: 16px;
+      padding: 36px 28px;
+      max-width: 440px;
+      width: 100%;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    .spinner {
+      width: 44px;
+      height: 44px;
+      border: 3px solid rgba(255, 255, 255, 0.1);
+      border-radius: 50%;
+      border-top-color: #ffffff;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 20px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .title { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+    .subtitle { font-size: 13px; color: #a1a1aa; line-height: 1.5; }
+    .action-btn {
+      margin-top: 24px;
+      background: #ffffff;
+      color: #000000;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-block;
+      transition: background 0.2s;
+    }
+    .action-btn:hover {
+      background: #e4e4e7;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div id="loader" class="spinner"></div>
+    <div id="title" class="title">Redirecting to Secure Payment...</div>
+    <div id="subtitle" class="subtitle">Connecting to Cashfree Payment Gateway. Please do not refresh.</div>
+    <button id="proceedBtn" class="action-btn" onclick="submitDirectForm()">Proceed to Pay</button>
+  </div>
+
+  <form id="cfDirectForm" method="POST" action="${checkoutGatewayUrl}" style="display:none;">
+    <input type="hidden" name="payment_session_id" value="${sessionId}">
+    <input type="hidden" name="x_request_id" value="x_request_id_form_atom">
+    <input type="hidden" name="form_id" value="form_id_atom">
+    <input type="hidden" id="browserMetaInput" name="browser_meta" value="">
+    <input type="hidden" name="platform" value="jsin-c-2026.09.02-x-d-c-131-Windows-10.0">
+  </form>
+
+  <script>
+    let hasRedirected = false;
+
+    function populateMeta() {
+      try {
+        const u = { userAgent: window.navigator.userAgent };
+        const b = btoa(JSON.stringify(u));
+        document.getElementById('browserMetaInput').value = b;
+      } catch (e) {}
+    }
+
+    function submitDirectForm() {
+      if (hasRedirected) return;
+      hasRedirected = true;
+      populateMeta();
+      const form = document.getElementById('cfDirectForm');
+      if (form) {
+        form.submit();
+      }
+    }
+
+    function attemptCheckout() {
+      if (hasRedirected) return;
+
+      // 1. If Cashfree JS SDK v3 is available, use it
+      if (typeof window.Cashfree === 'function') {
+        try {
+          const cf = window.Cashfree({ mode: "${env}" });
+          if (cf && typeof cf.checkout === 'function') {
+            hasRedirected = true;
+            cf.checkout({
+              paymentSessionId: "${sessionId}",
+              redirectTarget: "_self"
+            }).catch(function(err) {
+              console.warn("Cashfree SDK checkout call error, falling back to direct post:", err);
+              hasRedirected = false;
+              submitDirectForm();
+            });
+            return;
+          }
+        } catch (sdkErr) {
+          console.warn("Cashfree SDK initialization threw, falling back to direct post:", sdkErr);
+        }
+      }
+
+      // 2. Direct gateway fallback (zero dependency on external CDN)
+      submitDirectForm();
+    }
+
+    // Auto-launch quickly after load
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      setTimeout(attemptCheckout, 200);
+    } else {
+      window.addEventListener('DOMContentLoaded', function() { setTimeout(attemptCheckout, 200); });
+      window.addEventListener('load', function() { setTimeout(attemptCheckout, 200); });
+    }
+
+    // Failsafe timer: if still on page after 1.2 seconds, force form submission
+    setTimeout(function() {
+      if (!hasRedirected) {
+        submitDirectForm();
+      }
+    }, 1200);
+  </script>
+</body>
+</html>`;
+
+    res.setHeader("Content-Type", "text/html");
+    res.status(200).send(html);
+  }
+);

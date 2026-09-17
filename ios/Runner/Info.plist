@@ -95,5 +95,14 @@
 	<string>Truthworld requires photo library access to upload videos, thumbnails, banners, and profile pictures.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Truthworld requires permission to save downloaded videos and audio clips to your photo library.</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>phonepe</string>
+		<string>tez</string>
+		<string>paytmmp</string>
+		<string>bhim</string>
+		<string>credpay</string>
+		<string>upi</string>
+	</array>
 </dict>
 </plist>

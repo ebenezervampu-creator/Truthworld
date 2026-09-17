@@ -1,8 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/algorithm/diversity_config.dart';
 import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
@@ -247,8 +247,8 @@ class VideoRecommendationsController extends BaseController {
               if (pairDoc.exists && pairDoc.data() != null) {
                 candidateList.add(Video.fromDocumentSnapshot(pairDoc));
               }
-            } catch (e) {
-              debugPrint('Error fetching coin battle pair video: $e');
+            } catch (e, s) {
+              ErrorHandler.log(e, stackTrace: s, tag: 'VideoRecommendationsController.fetchCoinBattlePair');
             }
           }
 
@@ -267,10 +267,8 @@ class VideoRecommendationsController extends BaseController {
                 candidateList.add(Video.fromDocumentSnapshot(doc));
               }
             }
-          } catch (e) {
-            debugPrint(
-              'Error querying candidate videos for flip recommendations: $e',
-            );
+          } catch (e, s) {
+            ErrorHandler.log(e, stackTrace: s, tag: 'VideoRecommendationsController.fetchFlipCandidates');
           }
 
           if (Get.isRegistered<TruthworldAlgorithm>()) {
@@ -349,11 +347,11 @@ class VideoRecommendationsController extends BaseController {
             .toList();
         posts.sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
         communityPosts.assignAll(posts.take(5));
-      } catch (e) {
-        debugPrint('Error fetching community posts for recommendations: $e');
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'VideoRecommendationsController.fetchCommunityPosts');
       }
-    } catch (e) {
-      debugPrint('Error fetching recommendations: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'VideoRecommendationsController.fetchRecommendations');
     } finally {
       isLoadingRecommendations.value = false;
     }
@@ -408,7 +406,9 @@ class VideoRecommendationsController extends BaseController {
                   !foundTopics.any((ft) => ft.id == t.id))
               .toList();
           foundTopics.addAll(publicTopics);
-        } catch (_) {}
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'VideoRecommendationsController.fetchPublicTopicsFallback');
+        }
       }
 
       videoTopicsList.assignAll(
@@ -430,8 +430,8 @@ class VideoRecommendationsController extends BaseController {
               .toList();
 
           return MapEntry(topic.id, topicVids);
-        } catch (e) {
-          debugPrint('Error loading topic videos for ${topic.id}: $e');
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'VideoRecommendationsController.loadTopicVideos');
           return MapEntry(topic.id, <Video>[]);
         }
       }).toList();
@@ -484,8 +484,8 @@ class VideoRecommendationsController extends BaseController {
           playlistVideosCache[playlist.id] = playlistVids;
         }
       }
-    } catch (e) {
-      debugPrint('Error fetching topics and playlists for recommendations: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'VideoRecommendationsController.fetchTopicsAndPlaylists');
     }
   }
 
@@ -508,8 +508,8 @@ class VideoRecommendationsController extends BaseController {
         return indexA.compareTo(indexB);
       });
       return result;
-    } catch (e) {
-      debugPrint('Error fetching videos by ids: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'VideoRecommendationsController._fetchVideosByIds');
       return [];
     }
   }

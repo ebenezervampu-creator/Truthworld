@@ -1,0 +1,466 @@
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/features/community/data/models/community_post_model.dart';
+import 'package:truthworld/features/community/presentation/controllers/community_post_controller.dart';
+
+/// Options Menu Bottom Sheet for Community Post
+void showCommunityPostOptionsMenu(
+  BuildContext context,
+  CommunityPostModel post,
+  CommunityPostController controller,
+) {
+  showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: const Color(0xFF1E1E1E),
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    ),
+    builder: (context) {
+      final currentUid = controller.currentUid;
+      return SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Obx(
+              () => ListTile(
+                leading: Icon(
+                  controller.isSaved.value
+                      ? Icons.bookmark_rounded
+                      : Icons.bookmark_outline_rounded,
+                  color: Colors.white, // Rule compliance: white icon
+                ),
+                title: Text(
+                  controller.isSaved.value ? 'Unsave post' : 'Save post',
+                  style: const TextStyle(color: Colors.white, fontSize: 15),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  controller.toggleBookmark();
+                },
+              ),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.visibility_off_outlined,
+                color: Colors.white, // Rule compliance: white icon
+              ),
+              title: const Text(
+                'Hide post',
+                style: TextStyle(color: Colors.white, fontSize: 15),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                controller.hidePost();
+              },
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.notifications_off_outlined,
+                color: Colors.white, // Rule compliance: white icon
+              ),
+              title: const Text(
+                'Off community posts from this channel',
+                style: TextStyle(color: Colors.white, fontSize: 15),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                controller.turnOffChannelPosts();
+              },
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.person_remove_outlined,
+                color: Colors.white, // Rule compliance: white icon
+              ),
+              title: const Text(
+                'Unsubscribe',
+                style: TextStyle(color: Colors.white, fontSize: 15),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                controller.unsubscribeChannel();
+              },
+            ),
+            if (currentUid != null && currentUid == post.ownerId)
+              ListTile(
+                leading: const Icon(
+                  Icons.thumbs_up_down_outlined,
+                  color: Colors.white, // Rule compliance: white icon
+                ),
+                title: const Text(
+                  'Like & Dislike Count Settings',
+                  style: TextStyle(color: Colors.white, fontSize: 15),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  showCommunityPostReactionsSettingsModal(
+                    context,
+                    post,
+                    controller,
+                  );
+                },
+              ),
+            ListTile(
+              leading: const Icon(
+                Icons.flag_outlined,
+                color: Colors.white, // Rule compliance: white icon
+              ),
+              title: const Text(
+                'Report',
+                style: TextStyle(color: Colors.white, fontSize: 15),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                showCommunityPostReportModal(context, post, controller);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+/// Modal for adjusting like and dislike count visibility
+void showCommunityPostReactionsSettingsModal(
+  BuildContext context,
+  CommunityPostModel post,
+  CommunityPostController controller,
+) {
+  final showLike = post.showLikeCount.obs;
+  final showDislike = post.showDislikeCount.obs;
+
+  showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: const Color(0xFF1E1E1E),
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    ),
+    builder: (context) {
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Obx(
+            () => Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(
+                      Icons.thumbs_up_down_outlined,
+                      color: Colors.white, // Rule compliance: white icon
+                      size: 22,
+                    ),
+                    SizedBox(width: 10),
+                    Text(
+                      'Like & Dislike Counts',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SwitchListTile.adaptive(
+                  title: const Text(
+                    'Show Like Count',
+                    style: TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                  subtitle: const Text(
+                    'Show like count to users',
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                  value: showLike.value,
+                  onChanged: (v) => showLike.value = v,
+                  activeTrackColor: Colors.white,
+                ),
+                SwitchListTile.adaptive(
+                  title: const Text(
+                    'Show Dislike Count',
+                    style: TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                  subtitle: const Text(
+                    'Show dislike count to users',
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                  value: showDislike.value,
+                  onChanged: (v) => showDislike.value = v,
+                  activeTrackColor: Colors.white,
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        controller.updateCountSettings(
+                          showLike.value,
+                          showDislike.value,
+                        );
+                      },
+                      child: const Text('Save'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
+/// 2-Step Reporting Modal for Community Post
+void showCommunityPostReportModal(
+  BuildContext context,
+  CommunityPostModel post,
+  CommunityPostController controller,
+) {
+  if (controller.currentUid == null || !AuthService.to.isAuthenticated.value) {
+    AppSnackbar.warning(
+      'Please sign in to report posts.',
+      actionLabel: 'SIGN IN',
+      onAction: AuthService.to.signInWithGoogle,
+    );
+    return;
+  }
+
+  final reasons = [
+    {
+      'label': 'Sexual content',
+      'description': 'Nudity, sexually explicit content, or pornography',
+    },
+    {
+      'label': 'Violent or repulsive content',
+      'description': 'Fight clips, self-harm, gore, or animal abuse',
+    },
+    {
+      'label': 'Hateful or abusive content',
+      'description': 'Promoting violence or hatred against protected groups',
+    },
+    {
+      'label': 'Harassment or bullying',
+      'description': 'Cyberbullying or personal abuse',
+    },
+    {
+      'label': 'Harmful or dangerous acts',
+      'description': 'Dangerous challenges, stunts, or drug promotion',
+    },
+    {
+      'label': 'Child abuse',
+      'description': 'Endangerment, exploitation, or sexualization of minors',
+    },
+    {
+      'label': 'Spam or misleading',
+      'description': 'Scams, clickbait, or deceptive metadata',
+    },
+    {
+      'label': 'Infringement of my rights',
+      'description': 'Copyright violation or privacy invasion',
+    },
+  ];
+
+  final selectedReason = RxnString();
+  final currentStep = 1.obs;
+  final detailsController = TextEditingController();
+
+  Get.bottomSheet<dynamic>(
+    Obx(() {
+      return Container(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+        decoration: const BoxDecoration(
+          color: Color(0xFF1E1E1E),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Row(
+              children: [
+                if (currentStep.value == 2)
+                  IconButton(
+                    icon: const Icon(
+                      Icons.arrow_back,
+                      color: Colors.white, // Rule compliance: white icon
+                    ),
+                    onPressed: () => currentStep.value = 1,
+                  ),
+                Expanded(
+                  child: Text(
+                    currentStep.value == 1
+                        ? 'Report Post'
+                        : 'Provide Additional Details',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(
+                    Icons.close,
+                    color: Colors.white, // Rule compliance: white icon
+                  ),
+                  onPressed: Get.back,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (currentStep.value == 1) ...[
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.5,
+                ),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: reasons.length,
+                  itemBuilder: (context, index) {
+                    final reason = reasons[index];
+                    final label = reason['label']!;
+                    final description = reason['description']!;
+                    return Obx(
+                      () => RadioListTile<String>(
+                        title: Text(
+                          label,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        subtitle: Text(
+                          description,
+                          style: const TextStyle(
+                            color: Colors.white54,
+                            fontSize: 12,
+                          ),
+                        ),
+                        value: label,
+                        groupValue: selectedReason.value,
+                        activeColor: Colors.white,
+                        onChanged: (val) => selectedReason.value = val,
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: selectedReason.value == null
+                    ? null
+                    : () => currentStep.value = 2,
+                child: const Text(
+                  'Next',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ] else ...[
+              Text(
+                'Selected issue: ${selectedReason.value}',
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 13,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: detailsController,
+                maxLines: 4,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Explain why you are reporting this post (optional)',
+                  hintStyle: const TextStyle(color: Colors.white38),
+                  filled: true,
+                  fillColor: const Color(0xFF2A2A2A),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () {
+                  Get.back();
+                  controller.submitReport(
+                    selectedReason.value!,
+                    detailsController.text,
+                  );
+                },
+                child: const Text(
+                  'Submit Report',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    }),
+    isScrollControlled: true,
+  );
+}

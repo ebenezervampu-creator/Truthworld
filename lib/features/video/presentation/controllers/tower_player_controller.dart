@@ -1,46 +1,46 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math';
 
 import 'package:chewie/chewie.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:http/http.dart' as http;
 import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
-import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/services/user_languages_service.dart';
-import 'package:truthworld/core/utils/storage_utils.dart';
-import 'package:truthworld/core/utils/subtitle_parser.dart';
 import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
-import 'package:truthworld/features/video/data/models/comment.dart';
-import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
-import 'package:truthworld/features/video/presentation/controllers/adaptive_bitrate_controller.dart';
-import 'package:truthworld/features/video/presentation/controllers/audio_only_service.dart';
-import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/playback_source.dart';
 import 'package:truthworld/features/video/presentation/controllers/player_lock_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/tower_mixins/tower_mixins.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
 import 'package:truthworld/features/video/presentation/services/sleep_timer_service.dart';
-import 'package:truthworld/features/video/presentation/views/player/dialogs/keyboard_shortcuts_dialog.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
-import 'package:truthworld/features/video/presentation/widgets/language_request_dialog.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:universal_html/html.dart' as html;
-import 'package:universal_html/js.dart' as js;
 import 'package:video_player/video_player.dart';
 
-class TowerPlayerController extends BaseController with WidgetsBindingObserver {
+class TowerPlayerController extends BaseController
+    with
+        WidgetsBindingObserver,
+        TowerPlayerAbrMixin,
+        TowerPlayerAdMixin,
+        TowerPlayerBackgroundAudioMixin,
+        TowerPlayerEngagementMixin,
+        TowerPlayerGesturesMixin,
+        TowerPlayerKeyboardMixin,
+        TowerPlayerModesMixin,
+        TowerPlayerNavigationMixin,
+        TowerPlayerSleepTimerMixin,
+        TowerPlayerTracksMixin {
   bool _isClosed = false;
   @override
   bool get isClosed => _isClosed;
@@ -71,18 +71,23 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
       hasError.value = false;
       errorDescription.value =
           videoPlayerController.value.errorDescription ?? '';
-    } catch (_) {
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TowerPlayerController.ctor');
       _rxValue = const VideoPlayerValue.uninitialized().obs;
       isInitialized.value = false;
     }
   }
+
   // ── Global registry ───────────────────────────────────────
   static final List<TowerPlayerController> _activePlayers = [];
-  static List<TowerPlayerController> get activePlayers => List.unmodifiable(_activePlayers);
+  static List<TowerPlayerController> get activePlayers =>
+      List.unmodifiable(_activePlayers);
 
   /// Find active TowerPlayerController by tag or fallback to any registered/active instance
   static TowerPlayerController? getForTagOrActive(String? tag) {
-    if (tag != null && tag.isNotEmpty && Get.isRegistered<TowerPlayerController>(tag: tag)) {
+    if (tag != null &&
+        tag.isNotEmpty &&
+        Get.isRegistered<TowerPlayerController>(tag: tag)) {
       return Get.find<TowerPlayerController>(tag: tag);
     }
     if (Get.isRegistered<TowerPlayerController>()) {
@@ -140,28 +145,43 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
   }
 
   // ── Core ──────────────────────────────────────────────────
+  @override
   VideoPlayerController videoPlayerController;
+  @override
   ChewieController? chewieController;
+  @override
   final FocusNode focusNode = FocusNode();
+  @override
   final String? tag;
 
   void _initChewieController() {
     if (chewieController != null) {
       try {
-        // Only pause if the underlying controller changed so continuous playback isn't halted
         if (chewieController!.videoPlayerController != videoPlayerController) {
           chewieController!.pause();
         }
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'TowerPlayerController.initChewie.pause',
+        );
+      }
       try {
         chewieController!.dispose();
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'TowerPlayerController.initChewie.dispose',
+        );
+      }
       chewieController = null;
     }
     chewieController = ChewieController(
       videoPlayerController: videoPlayerController,
       looping: isLooping.value,
-      showControls: false, // Maintain custom overlays
+      showControls: false,
       autoInitialize: true,
       allowedScreenSleep: false,
       placeholder: const ColoredBox(
@@ -211,9 +231,10 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
       deviceOrientationsAfterFullScreen: const [DeviceOrientation.portraitUp],
       systemOverlaysOnEnterFullScreen: const [],
     );
-    _setupChewieListeners();
+    setupChewieListeners();
   }
 
+  @override
   VideoController? get videoController {
     try {
       if (tag != null && Get.isRegistered<VideoController>(tag: tag)) {
@@ -229,22 +250,29 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
       if (Get.isRegistered<VideoController>()) {
         return Get.find<VideoController>();
       }
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'TowerPlayerController.videoController',
+      );
+    }
     return null;
   }
 
   // ── Reactive video state ──────────────────────────────────
   late Rx<VideoPlayerValue> _rxValue;
+  @override
   VideoPlayerValue get vv => _rxValue.value;
 
-  // Optimized selective reactive properties to decouple UI from raw ticks
   final RxBool isInitialized = false.obs;
+  @override
   final RxDouble aspectRatio = 1.777.obs;
+  @override
   final RxBool isPlaying = false.obs;
+  @override
   final RxBool hasError = false.obs;
   final RxString errorDescription = ''.obs;
-  final Rxn<ClaimResult> activeClaim = Rxn<ClaimResult>();
-  final RxBool showFactOverlay = true.obs;
   final RxBool showFullscreenActionsDock = true.obs;
   final RxBool isZoomToFill = false.obs;
   final RxDouble zoomScale = 1.0.obs;
@@ -282,195 +310,70 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
   }
 
   // ── UI ────────────────────────────────────────────────────
+  @override
   final RxBool controlsVisible = true.obs;
+  @override
   final RxBool settingsOpen = false.obs;
   final RxBool isBuffering = false.obs;
+  @override
   final RxBool isDragging = false.obs;
   final Rx<Duration> dragPos = Duration.zero.obs;
-  final RxBool showDoubleTapLeft = false.obs;
-  final RxBool showDoubleTapRight = false.obs;
-  final RxInt doubleTapSeconds = 0.obs;
-  Timer? _singleTapTimer;
-  DateTime? _lastTapTime;
-  double _lastTapX = 0;
   final RxString toastMessage = ''.obs;
+  @override
   final RxBool isFullScreen = false.obs;
   final RxBool userExitedFullscreen = false.obs;
-  final RxBool progressBarHovered = false.obs; // desktop hover
+  final RxBool progressBarHovered = false.obs;
+  @override
   final RxBool showCommentsPopup = false.obs;
+  @override
   final RxBool showTranscriptPopup = false.obs;
+  @override
   final RxBool showFactCheckPopup = false.obs;
+  @override
   final RxBool showLiveChat = false.obs;
 
-  void toggleLiveChat() {
-    showLiveChat.toggle();
-    if (showLiveChat.value) {
-      showCommentsPopup.value = false;
-      showTranscriptPopup.value = false;
-      showFactCheckPopup.value = false;
-    }
-  }
-  final RxBool isCommentsAutoPlay = false.obs;
-  final RxBool isTranscriptAutoPlay = false.obs;
-  final Rxn<Comment> currentAutoPlayComment = Rxn<Comment>();
-  final RxInt activeAutoPlayCommentIndex = 0.obs;
-  Timer? _commentsAutoPlayTimer;
-
-  void toggleCommentsAutoPlay() {
-    isCommentsAutoPlay.toggle();
-    if (isCommentsAutoPlay.value) {
-      showCommentsPopup.value = false;
-      _startCommentsAutoPlay();
-    } else {
-      _stopCommentsAutoPlay();
-    }
-  }
-
-  void _startCommentsAutoPlay() {
-    _stopCommentsAutoPlay();
-    _updateAutoPlayComment();
-    _commentsAutoPlayTimer = Timer.periodic(const Duration(seconds: 4), (_) {
-      _updateAutoPlayComment();
-    });
-  }
-
-  void _stopCommentsAutoPlay() {
-    _commentsAutoPlayTimer?.cancel();
-    _commentsAutoPlayTimer = null;
-    currentAutoPlayComment.value = null;
-  }
-
-  void _updateAutoPlayComment() {
-    try {
-      final t = 'video_$tag';
-      if (Get.isRegistered<CommentsController>(tag: t)) {
-        final cc = Get.find<CommentsController>(tag: t);
-        if (cc.comments.isNotEmpty) {
-          final nextIdx =
-              (activeAutoPlayCommentIndex.value + 1) % cc.comments.length;
-          activeAutoPlayCommentIndex.value = nextIdx;
-          currentAutoPlayComment.value = cc.comments[nextIdx];
-        }
-      }
-    } catch (_) {}
-  }
-
-  final RxBool isFactCheckAutoPlay = true.obs;
-
-  void toggleTranscriptAutoPlay() {
-    isTranscriptAutoPlay.toggle();
-    if (isTranscriptAutoPlay.value) {
-      showTranscriptPopup.value = false;
-      subtitlesEnabled.value = true;
-    }
-  }
-
-  void toggleFactCheckAutoPlay() {
-    isFactCheckAutoPlay.toggle();
-    if (isFactCheckAutoPlay.value) {
-      showFactOverlay.value = true;
-      if (!vv.isPlaying) {
-        videoPlayerController.play();
-      }
-      showToast('Fact-check live sync enabled');
-    } else {
-      showToast('Fact-check live sync paused');
-    }
-  }
-
-  List<ClaimResult> get availableClaims {
-    final claims = videoController?.video.uiReport?.keyClaims;
-    if (claims != null && claims.isNotEmpty) return claims;
-    final rawClaims = videoController?.factCheckData['claims'] ??
-        videoController?.factCheckData['uiReport']?['keyClaims'];
-    if (rawClaims is List && rawClaims.isNotEmpty) {
-      return rawClaims
-          .map((c) => ClaimResult.fromMap(
-                Map<String, dynamic>.from(
-                  c is Map ? c : {'text': c.toString()},
-                ),
-              ))
-          .toList();
-    }
-    return const [];
-  }
-
-  void playClaim(ClaimResult claim) {
-    if (claim.start != null) {
-      seekTo(Duration(seconds: claim.start!.toInt()));
-      videoPlayerController.play();
-      showFactOverlay.value = true;
-      activeClaim.value = claim;
-      showToast('Playing claim: ${claim.verdict.replaceAll("_", " ")}');
-    }
-  }
-
-  void playNextClaim() {
-    final claims = availableClaims;
-    if (claims.isEmpty) return;
-    final posSec = vv.position.inMilliseconds / 1000.0;
-    for (final claim in claims) {
-      if (claim.start != null && claim.start! > posSec + 1.0) {
-        playClaim(claim);
-        return;
-      }
-    }
-    if (claims.first.start != null) {
-      playClaim(claims.first);
-    }
-  }
-
-  void playPreviousClaim() {
-    final claims = availableClaims;
-    if (claims.isEmpty) return;
-    final posSec = vv.position.inMilliseconds / 1000.0;
-    for (var i = claims.length - 1; i >= 0; i--) {
-      final claim = claims[i];
-      if (claim.start != null && claim.start! < posSec - 2.0) {
-        playClaim(claim);
-        return;
-      }
-    }
-  }
-
-  // ── Ad Player State ────────────────────────────────────────
-  final RxBool isShowingAd = false.obs;
-  final Rxn<MockAd> currentAd = Rxn<MockAd>();
-  final RxInt adTimeRemaining = 0.obs;
-  final RxInt skipCountdown = 0.obs;
-  final RxBool adCanSkip = false.obs;
-  VideoPlayerController? adPlayerController;
+  // ── Ad State Bridge ──────────────────────────────────────
   VideoPlayerController? _audioTrackController;
-  VideoPlayerController? _adAudioTrackController;
-  final RxString currentAdSubtitle = ''.obs;
-  final RxList<SubtitleSegment> adSubtitleSegments = <SubtitleSegment>[].obs;
-  final RxBool isAdSubtitlesEnabled = true.obs;
-  final RxString activeAdSubtitleLang = 'en'.obs;
-  final RxString activeAdAudioLang = 'original'.obs;
-  bool _preRollPlayed = false;
-  bool _midRollPlayed = false;
-  bool _sponsorMidRollPlayed = false;
-  bool _isFinishingAd = false;
 
   bool get isPremiumUser {
     try {
       if (!Get.isRegistered<AuthService>()) return false;
       return AuthService.to.isPremiumUser.value;
-    } catch (_) {
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'TowerPlayerController.isPremiumUser',
+      );
       return false;
     }
   }
 
-  // ── Navigation lock — prevent concurrent video switches ────
-  final RxBool isNavigatingToVideo = false.obs;
-
-  StreamSubscription? _webFullscreenSub;
-
-  // ── Long-press 2× speed ───────────────────────────────────
-  final RxBool isLongPressSpeedUp = false.obs;
-  double _preLongPressSpeed = 1;
+  /// Determines if ads should be suppressed based on user's active premium plan and mode.
+  /// - TruthWorld Premium ($2) & Fact-Checked ($3): Ad-free for all playback modes.
+  /// - Audio Premium (₹40): Ad-free specifically when playing in Audio-only Mode.
+  bool get shouldSuppressAds {
+    try {
+      if (!Get.isRegistered<AuthService>()) return false;
+      final auth = AuthService.to;
+      if (!auth.isPremiumUser.value) return false;
+      final planId = auth.premiumPlanId.value;
+      if (planId == 'audio_monthly') {
+        return isAudioOnly.value || TowerPlayerController.globalAudioOnly;
+      }
+      return true;
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'TowerPlayerController.shouldSuppressAds',
+      );
+      return false;
+    }
+  }
 
   // ── Sleep timer & Lock Screen ─────────────────────────────
+  @override
   SleepTimerService get sleepTimerService => SleepTimerService.to;
   late final PlayerLockController lockController = Get.put(
     PlayerLockController(),
@@ -481,50 +384,17 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
   RxBool get isSleepTimerActive => sleepTimerService.isActive.obs;
   RxBool get isSleepTimerAtEndOfVideo => sleepTimerService.isAtEndOfVideo.obs;
 
-  // ── Swipe gesture HUD ─────────────────────────────────────
-  final RxDouble brightness = 1.0.obs;
-  final RxBool showSwipeVolumeHUD = false.obs;
-  final RxBool showSwipeBrightnessHUD = false.obs;
-  final RxDouble swipeVolumeLevel = 0.0.obs;
-  final RxDouble swipeBrightnessLevel = 0.0.obs;
-
-  // ── Settings sub-panels ───────────────────────────────────
-  final RxString activePanel = ''.obs;
-
   // ── Playback ──────────────────────────────────────────────
+  @override
   final RxDouble playbackSpeed = 1.0.obs;
+  @override
   final RxBool isLooping = false.obs;
-  final RxBool isAutoplay = true.obs;
 
-  // ── End Screen ─────────────────────────────────────────────
-  final RxBool showEndScreen = false.obs;
-  final RxBool isEndScreenOverlayHidden = false.obs;
-  final RxInt autoplayCountdown = 5.obs;
-  Timer? _autoplayTimer;
-
-  void toggleAutoplay() {
-    isAutoplay.toggle();
-    try {
-      if (Get.isRegistered<VideoController>(tag: tag)) {
-        Get.find<VideoController>(tag: tag).isAutoplay.value = isAutoplay.value;
-      }
-    } catch (_) {}
-    showToast(isAutoplay.value ? 'Autoplay ON' : 'Autoplay OFF');
-  }
-
-  // ── ABR / quality ─────────────────────────────────────────
-  final AdaptiveBitrateController abr = AdaptiveBitrateController();
-  List<ResolutionTier> resolutionTiers = [];
-
-  // ── Audio only & Playback Authority ────────────────────────────
-  final Rx<PlaybackMode> playbackMode = PlaybackMode.video.obs;
-  final RxBool isAudioOnly = false.obs;
-  AudioOnlyService? _audioService;
+  // ── Playback Authority ────────────────────────────────────
   VideoPlaybackSource? _videoPlaybackSource;
-  bool _isSwitchingModes = false;
 
+  @override
   PlaybackSource get activePlayback {
-    // Auto-heal if videoController has a newer or updated controller
     try {
       final vc = videoController;
       if (vc != null &&
@@ -532,52 +402,17 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
           vc.videoPlayerController != videoPlayerController) {
         sync(vc.videoPlayerController!);
       }
-    } catch (_) {}
-
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'TowerPlayerController.activePlayback.sync',
+      );
+    }
     return _videoPlaybackSource ??= VideoPlaybackSource(videoPlayerController);
   }
 
-  // ── Subtitles ─────────────────────────────────────────────
-  final RxBool subtitlesEnabled = false.obs;
-  final RxString activeSubLang = 'Off'.obs;
-  final RxList<SubtitleTrack> subtitleTracks = <SubtitleTrack>[].obs;
-  final RxList<SubtitleSegment> subtitleSegments = <SubtitleSegment>[].obs;
-  final RxBool isLoadingSubtitles = false.obs;
-  final RxString currentSubtitle = ''.obs;
-  final Rx<SubtitleSegment?> activeSubtitleSegment = Rx<SubtitleSegment?>(null);
-  Timer? _subtitleSyncTimer;
-
-  void _syncActiveSubtitle() {
-    if (_isClosed || subtitleSegments.isEmpty) {
-      if (currentSubtitle.value.isNotEmpty) currentSubtitle.value = '';
-      if (activeSubtitleSegment.value != null) activeSubtitleSegment.value = null;
-      return;
-    }
-    final pos = activePlayback.position;
-    final seg = SubtitleParser.findActiveSubtitle(subtitleSegments, pos);
-    final text = seg?.text ?? '';
-    if (currentSubtitle.value != text) {
-      currentSubtitle.value = text;
-    }
-    if (activeSubtitleSegment.value != seg) {
-      activeSubtitleSegment.value = seg;
-    }
-  }
-
-  void _startSubtitleSyncTimer() {
-    if (_subtitleSyncTimer != null && _subtitleSyncTimer!.isActive) return;
-    _subtitleSyncTimer = Timer.periodic(
-      const Duration(milliseconds: 50),
-      (_) => _syncActiveSubtitle(),
-    );
-  }
-
-  void _stopSubtitleSyncTimer() {
-    _subtitleSyncTimer?.cancel();
-    _subtitleSyncTimer = null;
-  }
-
-  // ── Global Subtitle Appearance Options (Industry Standards) ──
+  // ── Global Subtitle Appearance Options ─────────────────────
   static final RxString globalSubtitleFontSizeOption = 'Normal'.obs;
   static final Rx<Color> globalSubtitleTextColor = Colors.white.obs;
   static final Rx<Color> globalSubtitleBgColor = Colors.black.obs;
@@ -647,33 +482,13 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
     }
   }
 
-  // ── Audio tracks ──────────────────────────────────────────
-  final RxString activeAudioLang = 'English'.obs;
-  final RxList<AudioTrack> audioTracks = <AudioTrack>[].obs;
-
-  // ── Content metadata ──────────────────────────────────────
-  ContentMetadata contentMeta = const ContentMetadata(
-    genre: 'Action · Drama',
-    releaseYear: '2024',
-    duration: '2h 14m',
-    director: 'N/A',
-    cast: 'N/A',
-    advisories: ['Violence', 'Strong Language'],
-  );
-
   // ── Volume ────────────────────────────────────────────────
+  @override
   final RxDouble volume = 1.0.obs;
+  @override
   final RxBool isMuted = false.obs;
   final RxBool volumeSliderVis = false.obs;
   double _volumeBeforeMute = 1;
-
-  // ── Seek preview ──────────────────────────────────────────
-  final RxBool seekPreviewVis = false.obs;
-  final Rx<Duration> seekPreviewPos = Duration.zero.obs;
-  final RxDouble seekPreviewX = 0.0.obs;
-
-  // ── PiP ───────────────────────────────────────────────────
-  final RxBool isPiP = false.obs;
 
   // ── Stats for Nerds ───────────────────────────────────────
   final RxBool showStatsForNerds = false.obs;
@@ -693,43 +508,6 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
     return 0;
   }
 
-  // ── Playlist navigation ───────────────────────────────────
-  bool get hasPreviousVideo {
-    isAudioOnly.value; // Guarantee Rx access for Obx
-    try {
-      final vc = videoController;
-      if (vc != null) {
-        if (vc.playlistVideos.isNotEmpty && vc.currentPlaylistIndex.value > 0) {
-          return true;
-        }
-        final idx = vc.recommendedVideos.indexWhere((v) => v.id == vc.video.id);
-        return idx > 0 || (idx == -1 && vc.recommendedVideos.isNotEmpty);
-      }
-    } catch (_) {}
-    return false;
-  }
-
-  bool get hasNextVideo {
-    isAudioOnly.value; // Guarantee Rx access for Obx
-    try {
-      final vc = videoController;
-      if (vc != null) {
-        if (vc.playlistVideos.isNotEmpty &&
-            vc.currentPlaylistIndex.value < vc.playlistVideos.length - 1) {
-          return true;
-        }
-        final idx = vc.recommendedVideos.indexWhere((v) => v.id == vc.video.id);
-        if (idx >= 0) return idx < vc.recommendedVideos.length - 1;
-        return vc.recommendedVideos.isNotEmpty;
-      }
-    } catch (_) {}
-    return false;
-  }
-
-  // ── Chapters ──────────────────────────────────────────────
-  final RxList<VideoChapter> chapters = <VideoChapter>[].obs;
-  final Rx<VideoChapter?> currentChapter = Rx<VideoChapter?>(null);
-
   // ── Analytics ─────────────────────────────────────────────
   final List<PlayerEvent> _events = [];
   int _totalWatchSeconds = 0;
@@ -740,21 +518,16 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
 
   // ── Internal state ────────────────────────────────────────
   final _timers = TimerBag();
-  // Throttle: sync tracks at most once per 2 s to avoid expensive iteration every frame
   DateTime _lastTrackSync = DateTime(2000);
-  // Double-tap position tracking
-  double _doubleTapX = 0;
-  // Guard: prevent _onTrackEnded firing repeatedly every VPC tick
-  bool _hasEnded = false;
+  @override
+  bool hasEnded = false;
 
-  // ─── Lifecycle ───────────────────────────────────────────────────────────
-
+  // ─── Lifecycle ───────────────────────────────────────────
   @override
   void onInit() {
     super.onInit();
     WidgetsBinding.instance.addObserver(this);
 
-    // Pause all other players after the current frame completes
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!isClosed) {
         for (final p in _activePlayers) {
@@ -766,7 +539,6 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
     });
     if (!_activePlayers.contains(this)) _activePlayers.add(this);
 
-    // Load saved settings & preferences
     try {
       if (Get.isRegistered<UserSettingsController>()) {
         final settings = UserSettingsController.to;
@@ -775,42 +547,62 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
       } else if (Get.isRegistered<VideoController>(tag: tag)) {
         isAutoplay.value = Get.find<VideoController>(tag: tag).isAutoplay.value;
       }
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'TowerPlayerController.loadSettings',
+      );
+    }
 
     _attachVideoListener();
     startHideTimer();
-    _initABR();
-    _initAudioService();
+    initABR();
+    initAudioService();
     _trackAnalytics(PlayerEvent('player_init'));
 
-    // Pre-roll ad guard: check if video has sponsor bumper or skippable ad
+    final isFromMiniplayer =
+        (Get.arguments is Map && Get.arguments['isFromMiniplayer'] == true) ||
+            VideoPlaybackHandoff.hasActivePosition(
+              tag ?? videoController?.video.id ?? '',
+            ) ||
+            videoPlayerController.value.position > Duration.zero;
+
+    if (isFromMiniplayer) {
+      preRollPlayed = true;
+    }
+
     final initialSponsorAd = Get.isRegistered<AdService>()
         ? AdService.to.getSponsorAdForVideo(videoController?.video.id)
         : null;
-    final hasInitialAds = !isPremiumUser &&
+    final hasInitialAds = !shouldSuppressAds &&
+        !isFromMiniplayer &&
         Get.isRegistered<AdService>() &&
         (initialSponsorAd != null ||
             AdService.to.getSkippableVideoAds().isNotEmpty);
-    if (hasInitialAds && !_preRollPlayed) {
-      _preRollPlayed = true;
+    if (hasInitialAds && !preRollPlayed) {
+      preRollPlayed = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (isClosed) return;
         if (videoPlayerController.value.isPlaying) {
           try {
             videoPlayerController.pause();
-          } catch (e) {
-            debugPrint('[TowerPlayer] pause pre-roll error: $e');
+          } catch (e, s) {
+            ErrorHandler.log(
+              e,
+              stackTrace: s,
+              tag: 'TowerPlayerController.pausePreRoll',
+            );
           }
         }
         if (initialSponsorAd != null) {
-          _startSponsorAd(initialSponsorAd, isPreRoll: true);
+          startSponsorAd(initialSponsorAd, isPreRoll: true);
         } else {
-          _startAd(isPreRoll: true);
+          startAd(isPreRoll: true);
         }
       });
     }
 
-    // Load global media preferences
     subtitlesEnabled.value = TowerPlayerController.globalSubtitlesEnabled;
     activeSubLang.value = TowerPlayerController.globalActiveSubLang;
     final shouldAudioOnly = TowerPlayerController.globalAudioOnly ||
@@ -818,15 +610,20 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
     isAudioOnly.value = shouldAudioOnly;
     playbackSpeed.value = TowerPlayerController.globalPlaybackSpeed;
 
-    // Apply preferred playback speed
     if (playbackSpeed.value != 1.0) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!isClosed &&
-            (videoPlayerController.value.playbackSpeed - playbackSpeed.value).abs() > 0.001) {
+            (videoPlayerController.value.playbackSpeed - playbackSpeed.value)
+                    .abs() >
+                0.001) {
           try {
             videoPlayerController.setPlaybackSpeed(playbackSpeed.value);
-          } catch (e) {
-            debugPrint('[TowerPlayer] setPlaybackSpeed error: $e');
+          } catch (e, s) {
+            ErrorHandler.log(
+              e,
+              stackTrace: s,
+              tag: 'TowerPlayerController.setPlaybackSpeed',
+            );
           }
         }
       });
@@ -841,7 +638,7 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
     _initChewieController();
 
     if (kIsWeb) {
-      _webFullscreenSub = html.document.onFullscreenChange.listen((_) {
+      webFullscreenSub = html.document.onFullscreenChange.listen((_) {
         final isFs = html.document.fullscreenElement != null;
         if (isFullScreen.value != isFs) {
           isFullScreen.value = isFs;
@@ -850,8 +647,12 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
             if (vc != null) {
               vc.isFullScreen.value = isFs;
             }
-          } catch (e) {
-            debugPrint('[TowerPlayer] web fullscreen sync error: $e');
+          } catch (e, s) {
+            ErrorHandler.log(
+              e,
+              stackTrace: s,
+              tag: 'TowerPlayerController.webFullscreenSync',
+            );
           }
           onInteraction();
         }
@@ -878,118 +679,11 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
     }
   }
 
-  void _initABR() {
-    if (!Get.isRegistered<AdaptiveBitrateController>(tag: tag)) {
-      Get.put(abr, tag: tag);
-    }
-    var ladder = List<ResolutionTier>.from(ResolutionTier.defaultLadder);
-
-    try {
-      if (Get.isRegistered<VideoController>(tag: tag)) {
-        final vc = Get.find<VideoController>(tag: tag);
-        if (vc.availableResolutions.isNotEmpty) {
-          ladder = vc.availableResolutions.reversed
-              .map(ResolutionTier.fromVideoResolution)
-              .toList();
-        }
-      }
-    } catch (e) {
-      debugPrint('[TowerPlayer] _initABR resolution ladder lookup: $e');
-    }
-
-    abr.initialize(ladder: ladder, vpc: videoPlayerController);
-    abr.isAdPlaying = () => isShowingAd.value;
-
-    abr.onTierChanged = (tierIndex, isManual) {
-      void applyTierChange() {
-        try {
-          if (!Get.isRegistered<VideoController>(tag: tag)) return;
-          final vc = Get.find<VideoController>(tag: tag);
-          if (vc.isSwitchingResolution.value) return;
-          if (tierIndex >= 0 && tierIndex < abr.resolutionLadder.length) {
-            final tier = abr.resolutionLadder[tierIndex];
-            final match = vc.availableResolutions.firstWhereOrNull(
-              (r) => r.height == tier.height,
-            );
-            if (match != null &&
-                (vc.currentResolution.value?.url != match.url ||
-                    vc.currentResolution.value?.label != match.label)) {
-              vc.setResolution(match, isManual: isManual);
-            }
-          }
-        } catch (e) {
-          debugPrint('[TowerPlayer] ABR tier change error: $e');
-        }
-      }
-
-      if (WidgetsBinding.instance.schedulerPhase ==
-          SchedulerPhase.persistentCallbacks) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => applyTierChange());
-      } else {
-        applyTierChange();
-      }
-    };
-
-    // Apply network-aware User Settings quality preference or global quality preference
-    var pref = TowerPlayerController.globalQualityPreference;
-    if (pref == null || pref == 'Auto') {
-      if (Get.isRegistered<UserSettingsController>()) {
-        final pb = UserSettingsController.to.playback.value;
-        final isWifi = !Get.isRegistered<ConnectivityService>() ||
-            ConnectivityService.to.isWifi;
-        final targetQualityStr =
-            isWifi ? pb.wifiQuality : pb.cellularQuality;
-
-        if (targetQualityStr.contains('1080') ||
-            targetQualityStr.contains('High')) {
-          pref = '1080p';
-        } else if (targetQualityStr.contains('720') ||
-            targetQualityStr.contains('Medium')) {
-          pref = '720p';
-        } else if (targetQualityStr.contains('480p') ||
-            targetQualityStr.contains('Data Saver')) {
-          pref = '480p';
-        } else if (targetQualityStr.contains('360p') ||
-            targetQualityStr.contains('Low')) {
-          pref = '360p';
-        } else {
-          pref = 'Auto';
-        }
-      }
-    }
-
-    if (pref != null) {
-      if (pref == 'Auto') {
-        abr.enableAutoMode();
-      } else {
-        final matchIdx = abr.resolutionLadder.indexWhere(
-          (t) => t.label.contains(pref!),
-        );
-        if (matchIdx != -1) {
-          abr.setManualTier(matchIdx);
-        }
-      }
-    }
-  }
-
-  void _initAudioService() {
-    if (!Get.isRegistered<AudioOnlyService>()) {
-      Get.put(AudioOnlyService());
-    }
-    _audioService = Get.find<AudioOnlyService>();
-    _audioService!.setCallbacks(
-      onNext: playNext,
-      onPrevious: playPrevious,
-      onEnded: _onTrackEnded,
-    );
-  }
-
   void _attachVideoListener() {
     _videoPlaybackSource = VideoPlaybackSource(videoPlayerController);
     sleepTimerService.setActivePlayback(activePlayback);
     videoPlayerController.addListener(_onVpcUpdate);
 
-    // Apply Volume Normalization (Stable Volume) post-frame to prevent reactive rebuilds during build
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (isClosed) return;
       try {
@@ -1012,11 +706,17 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
         if ((videoPlayerController.value.volume - volumeScale).abs() > 0.001) {
           videoPlayerController.setVolume(volumeScale);
         }
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'TowerPlayerController.volumeScale',
+        );
+      }
     });
   }
 
-  // ── VPC listener — optimised ──────────────────────────────
+  // ── VPC listener ──────────────────────────────────────────
   void _onVpcUpdate() {
     try {
       final val = videoPlayerController.value;
@@ -1025,17 +725,16 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
       playbackSpeed.value = val.playbackSpeed;
       if (isLooping.value != val.isLooping) isLooping.value = val.isLooping;
 
-      // Update selective reactive properties
       if (isInitialized.value != val.isInitialized) {
         isInitialized.value = val.isInitialized;
       }
       if (aspectRatio.value != val.aspectRatio) {
         aspectRatio.value = val.aspectRatio;
-        _updateAutoPip(isPlaying.value);
+        updateAutoPip(isPlaying.value);
       }
       if (isPlaying.value != val.isPlaying) {
         isPlaying.value = val.isPlaying;
-        _updateAutoPip(val.isPlaying);
+        updateAutoPip(val.isPlaying);
       }
       final isErr = val.hasError && !_isTransientDomError;
       if (isErr) {
@@ -1046,7 +745,13 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
               (vc.isAutoSwitching.value || vc.isRecoveringFromFormatError)) {
             isSuppressed = true;
           }
-        } catch (_) {}
+        } catch (e, s) {
+          ErrorHandler.log(
+            e,
+            stackTrace: s,
+            tag: 'TowerPlayerController.vpcUpdate.checkSuppressed',
+          );
+        }
 
         if (!isSuppressed) {
           _errorDebounceTimer?.cancel();
@@ -1071,69 +776,59 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
       // Sync alternate audio player
       final audioCtrl = _audioTrackController;
       if (audioCtrl != null && audioCtrl.value.isInitialized) {
-        // Keep main player muted if alternate audio is active
         if (videoPlayerController.value.volume > 0.0) {
           videoPlayerController.setVolume(0);
         }
-
-        // Sync volume
         final targetVol = isMuted.value ? 0.0 : volume.value;
         if (audioCtrl.value.volume != targetVol) {
           audioCtrl.setVolume(targetVol);
         }
-
-        // Sync Speed
         if (val.playbackSpeed != audioCtrl.value.playbackSpeed) {
           audioCtrl.setPlaybackSpeed(val.playbackSpeed);
         }
 
         final audioDur = audioCtrl.value.duration;
         if (audioDur > Duration.zero && val.position > audioDur) {
-          // Main video position has surpassed the audio track duration (e.g., 40s track on 4:42 video)
           if (audioCtrl.value.isPlaying) {
             audioCtrl.pause();
           }
         } else {
-          // Sync Play/Pause
           if (val.isPlaying && !audioCtrl.value.isPlaying) {
             audioCtrl.play();
           } else if (!val.isPlaying && audioCtrl.value.isPlaying) {
             audioCtrl.pause();
           }
-
-          // Sync Position if drift > 300ms
-          final drift = (val.position - audioCtrl.value.position).inMilliseconds
-              .abs();
+          final drift =
+              (val.position - audioCtrl.value.position).inMilliseconds.abs();
           if (drift > 300) {
             audioCtrl.seekTo(val.position);
           }
         }
       }
 
-      // Ad Interceptor (Pre-roll and Mid-roll)
+      // Ad triggers
       final hasRealVideoAds =
           Get.isRegistered<AdService>() &&
           (AdService.to.getSkippableVideoAds().isNotEmpty ||
               AdService.to.getSponsorAdForVideo(videoController?.video.id) !=
                   null);
-      if (!isPremiumUser && hasRealVideoAds) {
+      if (!shouldSuppressAds && hasRealVideoAds) {
         final sponsorAd = Get.isRegistered<AdService>()
             ? AdService.to.getSponsorAdForVideo(videoController?.video.id)
             : null;
 
-        if (!_preRollPlayed && (val.isPlaying || val.isInitialized)) {
-          _preRollPlayed = true;
+        if (!preRollPlayed && (val.isPlaying || val.isInitialized)) {
+          preRollPlayed = true;
           if (sponsorAd != null) {
-            _startSponsorAd(sponsorAd, isPreRoll: true);
+            startSponsorAd(sponsorAd, isPreRoll: true);
             return;
           } else if (AdService.to.getSkippableVideoAds().isNotEmpty) {
-            _startAd(isPreRoll: true);
+            startAd(isPreRoll: true);
             return;
           }
         }
       }
 
-      // CRITICAL: If currently showing an ad, strictly enforce that main video and audio remain paused!
       if (isShowingAd.value) {
         if (val.isPlaying) {
           videoPlayerController.pause();
@@ -1145,7 +840,7 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
         return;
       }
 
-      if (!isPremiumUser && !isShowingAd.value && hasRealVideoAds) {
+      if (!shouldSuppressAds && !isShowingAd.value && hasRealVideoAds) {
         final currentPos = val.position;
         final totalDur = val.duration;
 
@@ -1154,73 +849,54 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
             : null;
 
         if (sponsorAd != null &&
-            !_sponsorMidRollPlayed &&
+            !sponsorMidRollPlayed &&
             totalDur.inSeconds > 420 &&
             currentPos.inSeconds >= 420 &&
             val.isPlaying) {
-          _sponsorMidRollPlayed = true;
-          _startSponsorAd(sponsorAd, isPreRoll: false);
+          sponsorMidRollPlayed = true;
+          startSponsorAd(sponsorAd, isPreRoll: false);
           return;
         } else if (sponsorAd == null &&
-            !_midRollPlayed &&
+            !midRollPlayed &&
             totalDur.inSeconds > 180 &&
             currentPos.inSeconds >= (totalDur.inSeconds / 2).floor() &&
             val.isPlaying) {
-          _midRollPlayed = true;
-          _startAd(isPreRoll: false);
+          midRollPlayed = true;
+          startAd(isPreRoll: false);
           return;
         }
       }
 
-      // Subtitle lookup & 50ms ticker management
-      if (val.isPlaying && subtitlesEnabled.value && subtitleSegments.isNotEmpty) {
-        _startSubtitleSyncTimer();
+      // Subtitle sync
+      if (val.isPlaying &&
+          subtitlesEnabled.value &&
+          subtitleSegments.isNotEmpty) {
+        startSubtitleSyncTimer();
       } else {
-        _stopSubtitleSyncTimer();
+        stopSubtitleSyncTimer();
       }
-      _syncActiveSubtitle();
+      syncActiveSubtitle();
 
-      // Chapter lookup — binary search O(log n)
+      // Chapter sync
       if (chapters.isNotEmpty) {
-        final chapter = _binarySearchChapter(val.position);
+        final chapter = binarySearchChapter(val.position);
         if (currentChapter.value != chapter) currentChapter.value = chapter;
       } else {
         currentChapter.value = null;
       }
 
-      // Real-time claim calculation
-      ClaimResult? nextActiveClaim;
-      try {
-        final claims = availableClaims;
-        if (claims.isNotEmpty) {
-          final posSec = val.position.inMilliseconds / 1000.0;
-          for (final claim in claims) {
-            if (claim.start != null) {
-              final s = claim.start!;
-              final e = claim.end ?? (s + 8.0);
-              if (posSec >= s && posSec <= e) {
-                nextActiveClaim = claim;
-                break;
-              }
-            }
-          }
-        }
-      } catch (_) {}
-      if (activeClaim.value != nextActiveClaim) {
-        activeClaim.value = nextActiveClaim;
-      }
+      // Active claim sync
+      syncActiveClaim(val.position);
 
-      // Throttled track sync — max once per 2 s
+      // Throttled track sync
       final now = DateTime.now();
       if (now.difference(_lastTrackSync).inSeconds >= 2) {
         _lastTrackSync = now;
         _syncTracksWithVideoController();
       }
 
-      // Error → retry (only genuine, non-transient errors)
       if (isErr && _retryCount < _maxRetries) _scheduleRetry();
 
-      // Update sleep timer remaining seconds if it is set to "End of video"
       if (sleepTimerService.mode.value == SleepTimerMode.endOfVideo) {
         final rem = (val.duration - val.position).inSeconds;
         sleepTimerService.remainingSeconds.value = rem.clamp(
@@ -1229,81 +905,96 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
         );
       }
 
-      // Ended → autoplay (guarded to fire exactly once)
       if (val.position >= val.duration &&
           val.duration > Duration.zero &&
-          !_hasEnded) {
-        _hasEnded = true;
-        _onTrackEnded();
+          !hasEnded) {
+        hasEnded = true;
+        onTrackEnded();
       } else if (val.position < val.duration) {
-        _hasEnded = false;
+        hasEnded = false;
       }
-    } catch (e) {
-      debugPrint('[TowerPlayer] VPC update error: $e');
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'TowerPlayerController.onVpcUpdate',
+      );
     }
-  }
-
-  // Precision subtitle lookup with gap tolerance
-  SubtitleSegment? _findSubtitle(Duration pos) {
-    return SubtitleParser.findActiveSubtitle(subtitleSegments, pos);
-  }
-
-  // Binary search chapters by start time
-  VideoChapter? _binarySearchChapter(Duration pos) {
-    if (chapters.isEmpty) return null;
-    var lo = 0;
-    var hi = chapters.length - 1;
-    var result = -1;
-    while (lo <= hi) {
-      final mid = (lo + hi) >> 1;
-      if (chapters[mid].startTime <= pos) {
-        result = mid;
-        lo = mid + 1;
-      } else {
-        hi = mid - 1;
-      }
-    }
-    return result >= 0 ? chapters[result] : null;
   }
 
   @override
   void onClose() {
     _isClosed = true;
     WidgetsBinding.instance.removeObserver(this);
-    _stopSubtitleSyncTimer();
-    _stopCommentsAutoPlay();
+    stopSubtitleSyncTimer();
+    stopCommentsAutoPlay();
     try {
-      chewieController?.removeListener(_onInternalChewieChanged);
-    } catch (_) {}
+      chewieController?.removeListener(onInternalChewieChanged);
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'TowerPlayerController.onClose.removeInternalChewie',
+      );
+    }
     try {
-      videoController?.chewieController?.removeListener(_onOuterChewieChanged);
-    } catch (_) {}
+      videoController?.chewieController?.removeListener(onOuterChewieChanged);
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'TowerPlayerController.onClose.removeOuterChewie',
+      );
+    }
     if (adPlayerController != null) {
       try {
-        adPlayerController!.removeListener(_onAdVpcUpdate);
+        adPlayerController!.removeListener(onAdVpcUpdate);
         adPlayerController!.dispose();
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'TowerPlayerController.onClose.adPlayer',
+        );
+      }
     }
     if (_audioTrackController != null) {
       try {
         _audioTrackController!.dispose();
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'TowerPlayerController.onClose.audioTrack',
+        );
+      }
       _audioTrackController = null;
     }
     if (chewieController != null) {
       try {
         chewieController!.pause();
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'TowerPlayerController.onClose.pauseChewie',
+        );
+      }
       try {
         chewieController!.dispose();
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'TowerPlayerController.onClose.disposeChewie',
+        );
+      }
       chewieController = null;
     }
     _activePlayers.remove(this);
-    _autoplayTimer?.cancel();
+    autoplayTimer?.cancel();
     _timers.cancelAll();
-    _webFullscreenSub?.cancel();
-    // Restore system UI if still in fullscreen when controller is disposed
+    webFullscreenSub?.cancel();
     if (isFullScreen.value) {
       isFullScreen.value = false;
       if (kIsWeb) {
@@ -1311,21 +1002,33 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
           if (html.document.fullscreenElement != null) {
             html.document.exitFullscreen();
           }
-        } catch (_) {}
+        } catch (e, s) {
+          ErrorHandler.log(
+            e,
+            stackTrace: s,
+            tag: 'TowerPlayerController.onClose.exitFullscreen',
+          );
+        }
       } else {
         SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
         SystemChrome.setPreferredOrientations(DeviceOrientation.values);
       }
     }
     _errorDebounceTimer?.cancel();
-    _singleTapTimer?.cancel();
+    singleTapTimer?.cancel();
     focusNode.dispose();
     try {
       videoPlayerController.removeListener(_onVpcUpdate);
-    } catch (_) {}
-    if (_isBackgroundAudioActive) {
-      _audioService?.deactivateBackgroundPlayback();
-      _isBackgroundAudioActive = false;
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'TowerPlayerController.onClose.removeVpcListener',
+      );
+    }
+    if (isBackgroundAudioActive) {
+      audioService?.deactivateBackgroundPlayback();
+      isBackgroundAudioActive = false;
     }
     abr.onClose();
     if (!kIsWeb) {
@@ -1334,108 +1037,49 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
     super.onClose();
   }
 
-  bool _isBackgroundAudioActive = false;
-
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
-      if (Get.isRegistered<UserSettingsController>()) {
-        final mode =
-            UserSettingsController.to.playback.value.backgroundPlaybackMode;
-        if (mode == 'Off' && !isPiP.value) {
-          if (videoPlayerController.value.isPlaying) {
-            videoPlayerController.pause();
-          }
-        } else if ((mode == 'Always On' || mode == 'Headphones Only') && !isPiP.value) {
-          _handleEnterBackground();
-        }
-      }
-    } else if (state == AppLifecycleState.resumed) {
-      _handleExitBackground();
-    }
-  }
-
-  Future<void> _handleEnterBackground() async {
-    if (!videoPlayerController.value.isPlaying) return;
-    final vc = videoController;
-    if (vc == null) return;
-
-    _isBackgroundAudioActive = true;
-    final currentPos = videoPlayerController.value.position;
-
-    // Pause video player so the video surface is detached cleanly
-    await videoPlayerController.pause();
-
-    _initAudioService();
-    if (_audioService != null) {
-      final mediaUrl = _resolveBackgroundMediaUrl(vc);
-
-      if (mediaUrl.isNotEmpty) {
-        await _audioService!.activateBackgroundPlayback(
-          mediaUrl: mediaUrl,
-          title: vc.video.title,
-          artworkUrl: vc.video.thumbnailUrl,
-          startPosition: currentPos,
-        );
-      }
-    }
-  }
-
-  Future<void> _handleExitBackground() async {
-    if (!_isBackgroundAudioActive) return;
-    _isBackgroundAudioActive = false;
-
-    if (_audioService != null && _audioService!.isActive.value) {
-      final resumedPos = _audioService!.currentPosition;
-      final wasPlaying = _audioService!.isPlaying.value;
-
-      _audioService!.deactivateBackgroundPlayback();
-
-      await videoPlayerController.seekTo(resumedPos);
-      if (wasPlaying) {
-        await videoPlayerController.play();
-      }
-    }
-  }
-
-  String _resolveBackgroundMediaUrl(VideoController vc) {
-    if (vc.isOffline && vc.offlineBlobUrl != null && vc.offlineBlobUrl!.isNotEmpty) {
-      return vc.offlineBlobUrl!;
-    }
-    if (vc.currentResolution.value?.url.isNotEmpty == true) {
-      return vc.currentResolution.value!.url;
-    }
-    if (vc.video.hlsUrl.isNotEmpty) {
-      return vc.video.hlsUrl;
-    }
-    if (vc.video.videoUrl.isNotEmpty) {
-      return vc.video.videoUrl;
-    }
-    return vc.video.originalUrl;
+    handleAppLifecycleStateChanged(state);
   }
 
   // ── Controller sync ──────────────────────────────────────
-
   void sync(VideoPlayerController vpc) {
     _errorDebounceTimer?.cancel();
     if (videoPlayerController == vpc && _videoPlaybackSource != null) return;
     try {
       videoPlayerController.removeListener(_onVpcUpdate);
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'TowerPlayerController.sync.removeVpcListener',
+      );
+    }
     try {
       _videoPlaybackSource?.dispose();
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'TowerPlayerController.sync.disposePlaybackSource',
+      );
+    }
 
     videoPlayerController = vpc;
     _videoPlaybackSource = VideoPlaybackSource(vpc);
     sleepTimerService.setActivePlayback(activePlayback);
 
-    // If currently showing an ad, keep the new VPC paused at 0
     if (isShowingAd.value) {
       try {
         videoPlayerController.pause();
         videoPlayerController.seekTo(Duration.zero);
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'TowerPlayerController.sync.pauseAd',
+        );
+      }
     }
 
     try {
@@ -1451,13 +1095,24 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
       } else if (Get.isRegistered<VideoController>()) {
         isAudioOnly.value = Get.find<VideoController>().isAudioOnly.value;
       }
-    } catch (_) {
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'TowerPlayerController.sync.initValues',
+      );
       isInitialized.value = false;
     }
 
     try {
       videoPlayerController.addListener(_onVpcUpdate);
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'TowerPlayerController.sync.addListener',
+      );
+    }
     abr.attachVideoController(videoPlayerController);
     _initChewieController();
     update();
@@ -1487,8 +1142,6 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
         SubtitleTrack? bestTrack;
         if (Get.isRegistered<UserLanguagesService>()) {
           final service = UserLanguagesService.to;
-
-          // 1. Try Primary Language
           bestTrack = subtitleTracks.firstWhereOrNull(
             (t) => service.isLanguageMatch(
               t.label,
@@ -1496,8 +1149,6 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
               service.primaryLanguage.value,
             ),
           );
-
-          // 2. Try Secondary Languages
           if (bestTrack == null) {
             for (final lang in service.secondaryLanguages) {
               bestTrack = subtitleTracks.firstWhereOrNull(
@@ -1506,8 +1157,6 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
               if (bestTrack != null) break;
             }
           }
-
-          // 3. Try Known Languages
           if (bestTrack == null) {
             for (final lang in service.knownLanguages) {
               bestTrack = subtitleTracks.firstWhereOrNull(
@@ -1521,7 +1170,6 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
         if (bestTrack != null) {
           setSubtitles(enabled: true, track: bestTrack);
         } else if (TowerPlayerController.globalSubtitlesEnabled) {
-          // Fallback to manually configured global settings if user languages did not match
           final prefLang = TowerPlayerController.globalActiveSubLang;
           final match = subtitleTracks.firstWhereOrNull(
             (t) => t.label == prefLang,
@@ -1553,8 +1201,6 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
         AudioTrack? bestAudio;
         if (Get.isRegistered<UserLanguagesService>()) {
           final service = UserLanguagesService.to;
-
-          // 1. Try Primary Language
           bestAudio = audioTracks.firstWhereOrNull(
             (t) => service.isLanguageMatch(
               t.label,
@@ -1562,8 +1208,6 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
               service.primaryLanguage.value,
             ),
           );
-
-          // 2. Try Secondary Languages
           if (bestAudio == null) {
             for (final lang in service.secondaryLanguages) {
               bestAudio = audioTracks.firstWhereOrNull(
@@ -1572,8 +1216,6 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
               if (bestAudio != null) break;
             }
           }
-
-          // 3. Try Known Languages
           if (bestAudio == null) {
             for (final lang in service.knownLanguages) {
               bestAudio = audioTracks.firstWhereOrNull(
@@ -1596,136 +1238,16 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
           chapters.length != displayChapters.length) {
         chapters.assignAll(displayChapters);
       }
-    } catch (_) {}
-  }
-
-  // ─── Controls visibility ─────────────────────────────────
-
-  void startHideTimer() {
-    _timers.set('hide', Duration(milliseconds: PT.kControlsHideMs.toInt()), () {
-      if (vv.isPlaying &&
-          !settingsOpen.value &&
-          !isDragging.value &&
-          !showCommentsPopup.value &&
-          !showTranscriptPopup.value &&
-          !showFactCheckPopup.value) {
-        controlsVisible.value = false;
-      }
-    });
-  }
-
-  /// Cancel any pending single-tap when a drag, pinch, or other gesture begins.
-  void cancelPendingTap() {
-    _singleTapTimer?.cancel();
-    _singleTapTimer = null;
-    _lastTapTime = null;
-  }
-
-  /// Exactly like YouTube: unified tap engine supporting single tap, double tap, and rapid multi-tap accumulation.
-  void handlePlayerTap(double tapX, double playerWidth, bool isDesktop) {
-    focusNode.requestFocus();
-    if (settingsOpen.value) {
-      closeSettings();
-      return;
-    }
-    if (isShowingAd.value) return;
-
-    final now = DateTime.now();
-    final half = playerWidth / 2;
-    final isLeft = tapX < half;
-
-    // Case 1: Double-tap seek overlay is already actively visible on screen
-    if (showDoubleTapLeft.value || showDoubleTapRight.value) {
-      if (isLeft && showDoubleTapLeft.value) {
-        _executeDoubleTapSeek(isLeft: true);
-        return;
-      } else if (!isLeft && showDoubleTapRight.value) {
-        _executeDoubleTapSeek(isLeft: false);
-        return;
-      } else {
-        // Swapped sides while seeking
-        _executeDoubleTapSeek(isLeft: isLeft, resetAccumulator: true);
-        return;
-      }
-    }
-
-    // Case 2: Double-tap seek is NOT active yet. Check if this is the 2nd tap of a double tap.
-    final isRecentTap = _lastTapTime != null &&
-        now.difference(_lastTapTime!).inMilliseconds < 350;
-    final isSameHalf = (tapX < half) == (_lastTapX < half);
-
-    if (isRecentTap && isSameHalf) {
-      // DOUBLE TAP TRIGGERED!
-      _singleTapTimer?.cancel();
-      _singleTapTimer = null;
-      _lastTapTime = null;
-
-      _executeDoubleTapSeek(isLeft: isLeft, resetAccumulator: true);
-    } else {
-      // 1st tap: record tap position and schedule single-tap action after a short disambiguation delay
-      _lastTapTime = now;
-      _lastTapX = tapX;
-
-      _singleTapTimer?.cancel();
-      _singleTapTimer = Timer(const Duration(milliseconds: 260), () {
-        _singleTapTimer = null;
-        _lastTapTime = null;
-        onTap(isDesktop);
-      });
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'TowerPlayerController.syncTracksWithVideoController',
+      );
     }
   }
 
-  void toggleControls() {
-    if (controlsVisible.value) {
-      _timers.cancel('hide');
-      controlsVisible.value = false;
-    } else {
-      controlsVisible.value = true;
-      startHideTimer();
-    }
-  }
-
-  /// YouTube behaviour: single tap = toggle controls on Mobile, Play/Pause on Desktop.
-  void onTap(bool isDesktop) {
-    focusNode.requestFocus();
-    if (settingsOpen.value) {
-      closeSettings();
-      return;
-    }
-    final isTouch = !kIsWeb &&
-        (defaultTargetPlatform == TargetPlatform.android ||
-            defaultTargetPlatform == TargetPlatform.iOS);
-    if (!isTouch && isDesktop) {
-      togglePlayPause();
-    } else {
-      toggleControls();
-    }
-  }
-
-  void onInteraction() {
-    if (!controlsVisible.value) controlsVisible.value = true;
-    if (!isMuted.value && videoPlayerController.value.volume == 0.0) {
-      try {
-        videoPlayerController.setVolume(volume.value > 0 ? volume.value : 1.0);
-      } catch (_) {}
-    }
-    // Avoid timer churn during active drag (~60 restarts/sec)
-    if (!isDragging.value) startHideTimer();
-  }
-
-  // Store double-tap X for left/right detection
-  void onDoubleTapDown(double x) => _doubleTapX = x;
-
-  // Fallback for direct double-tap invocation
-  void onDoubleTap(double playerWidth) {
-    final half = playerWidth / 2;
-    if (_doubleTapX < half) {
-      doubleTapLeft();
-    } else {
-      doubleTapRight();
-    }
-  }
-
+  @override
   Future<void> togglePlayPause() async {
     cancelPendingTap();
     if (isShowingAd.value) {
@@ -1762,16 +1284,21 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
         );
       }
       onInteraction();
-    } catch (e) {
-      debugPrint('[TowerPlayer] Play/pause error: $e');
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'TowerPlayerController.togglePlayPause',
+      );
     }
   }
 
+  @override
   Future<void> seekTo(Duration pos) async {
     try {
-      _hasEnded = false; // Reset ended guard on seek
+      hasEnded = false;
       await activePlayback.seek(pos);
-      _syncActiveSubtitle();
+      syncActiveSubtitle();
       if (_audioTrackController != null &&
           _audioTrackController!.value.isInitialized) {
         final audioDur = _audioTrackController!.value.duration;
@@ -1782,12 +1309,16 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
         }
       }
       onInteraction();
-    } catch (e) {
-      debugPrint('[TowerPlayer] Seek error: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TowerPlayerController.seekTo');
     }
   }
 
-  Future<void> seekRelative(int seconds, {bool showFeedbackToast = true}) async {
+  @override
+  Future<void> seekRelative(
+    int seconds, {
+    bool showFeedbackToast = true,
+  }) async {
     final current = activePlayback.position;
     final total = activePlayback.duration;
     final maxSecs = total.inSeconds > 0 ? total.inSeconds : 1;
@@ -1800,147 +1331,8 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
     }
   }
 
-  void playNext() {
-    _trackAnalytics(PlayerEvent('next'));
-    final vc = videoController;
-    if (vc == null) return;
-
-    if (vc.playlistVideos.isNotEmpty &&
-        vc.currentPlaylistIndex.value < vc.playlistVideos.length - 1) {
-      _navigateToVideo(
-        vc.playlistVideos[vc.currentPlaylistIndex.value + 1],
-        vc,
-      );
-      return;
-    }
-    if (vc.recommendedVideos.isNotEmpty) {
-      final idx = vc.recommendedVideos.indexWhere((v) => v.id == vc.video.id);
-      Video? next;
-      if (idx >= 0 && idx < vc.recommendedVideos.length - 1) {
-        next = vc.recommendedVideos[idx + 1];
-      } else if (idx == -1) {
-        next = vc.recommendedVideos.first;
-      }
-      if (next != null && next.id != vc.video.id) {
-        _navigateToVideo(next, vc);
-      }
-    }
-  }
-
-  void playPrevious() {
-    _trackAnalytics(PlayerEvent('previous'));
-    final vc = videoController;
-    if (vc == null) return;
-
-    if (vc.playlistVideos.isNotEmpty && vc.currentPlaylistIndex.value > 0) {
-      _navigateToVideo(
-        vc.playlistVideos[vc.currentPlaylistIndex.value - 1],
-        vc,
-      );
-      return;
-    }
-    if (vc.recommendedVideos.isNotEmpty) {
-      final idx = vc.recommendedVideos.indexWhere((v) => v.id == vc.video.id);
-      Video? prev;
-      if (idx > 0) {
-        prev = vc.recommendedVideos[idx - 1];
-      } else if (idx == -1) {
-        prev = vc.recommendedVideos.first;
-      }
-      if (prev != null && prev.id != vc.video.id) {
-        _navigateToVideo(prev, vc);
-      }
-    }
-  }
-
-  void _navigateToVideo(Video video, VideoController vc) {
-    // Navigation lock — prevent concurrent switches that cause stuck state
-    if (isNavigatingToVideo.value) return;
-    isNavigatingToVideo.value = true;
-    try {
-      activePlayback.pause();
-    } catch (_) {}
-    Get.offNamed(
-      '/watch?v=${video.id}',
-      arguments: {
-        'video': video,
-        'playlist': vc.currentPlaylist.value,
-        'heroTag': 'video_${video.id}_${DateTime.now().millisecondsSinceEpoch}',
-      },
-      preventDuplicates: false,
-    );
-    // Reset lock after short delay (route transition)
-    Future.delayed(const Duration(milliseconds: 500), () {
-      isNavigatingToVideo.value = false;
-    });
-  }
-
-  void navigateToVideo(Video video) {
-    final vc = videoController;
-    if (vc != null) {
-      _navigateToVideo(video, vc);
-    }
-  }
-
-  void _onTrackEnded() {
-    _trackAnalytics(PlayerEvent('ended'));
-
-    if (sleepTimerService.isAtEndOfVideo) {
-      sleepTimerService.onTrackEnded();
-      return;
-    }
-
-    if (isLooping.value) return; // Looping is handled by VideoPlayerController
-
-    // Reset overlay hidden state so it shows initially
-    isEndScreenOverlayHidden.value = false;
-    // Show End Screen overlay
-    showEndScreen.value = true;
-
-    if (isAutoplay.value) {
-      startAutoplayCountdown();
-    }
-  }
-
-  void startAutoplayCountdown() {
-    _autoplayTimer?.cancel();
-    autoplayCountdown.value = 5;
-    _autoplayTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (autoplayCountdown.value <= 1) {
-        timer.cancel();
-        playNextImmediately();
-      } else {
-        autoplayCountdown.value--;
-      }
-    });
-  }
-
-  void cancelAutoplayCountdown() {
-    _autoplayTimer?.cancel();
-    _autoplayTimer = null;
-    autoplayCountdown.value = 0;
-  }
-
-  void playNextImmediately() {
-    _autoplayTimer?.cancel();
-    _autoplayTimer = null;
-    showEndScreen.value = false;
-    isEndScreenOverlayHidden.value = false;
-    playNext();
-  }
-
-  void replayVideo() {
-    _autoplayTimer?.cancel();
-    _autoplayTimer = null;
-    showEndScreen.value = false;
-    isEndScreenOverlayHidden.value = false;
-    _hasEnded = false;
-    seekTo(Duration.zero);
-    activePlayback.play();
-  }
-
   // ─── Volume ──────────────────────────────────────────────
-
+  @override
   void setVolume(double vol) {
     volume.value = vol.clamp(0.0, 1.0);
     isMuted.value = vol == 0;
@@ -1951,11 +1343,18 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
       } else {
         videoPlayerController.setVolume(isMuted.value ? 0.0 : volume.value);
       }
-    } catch (_) {}
-    if (isAudioOnly.value) _audioService?.setVolume(volume.value);
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'TowerPlayerController.setVolume',
+      );
+    }
+    if (isAudioOnly.value) audioService?.setVolume(volume.value);
     onInteraction();
   }
 
+  @override
   void toggleMute() {
     if (isMuted.value) {
       setVolume(_volumeBeforeMute);
@@ -1972,693 +1371,34 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
   }
 
   // ─── Speed ───────────────────────────────────────────────
-
+  @override
   void setSpeed(double speed) {
     try {
       videoPlayerController.setPlaybackSpeed(speed);
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'TowerPlayerController.setSpeed.video',
+      );
+    }
     try {
       _audioTrackController?.setPlaybackSpeed(speed);
-    } catch (_) {}
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'TowerPlayerController.setSpeed.audioTrack',
+      );
+    }
     playbackSpeed.value = speed;
-    TowerPlayerController.globalPlaybackSpeed = speed; // Persist speed
+    TowerPlayerController.globalPlaybackSpeed = speed;
     activePanel.value = '';
     _trackAnalytics(PlayerEvent('speed_change', data: {'speed': speed}));
   }
 
-  // ─── Quality ─────────────────────────────────────────────
-
-  String get currentQualityLabel => abr.isAutoMode.value
-      ? 'Auto · ${abr.currentTier.label}'
-      : abr.currentTier.label;
-
-  void selectQuality(int tierIndex) {
-    if (tierIndex < 0 || tierIndex >= abr.resolutionLadder.length) return;
-    abr.setManualTier(tierIndex);
-    TowerPlayerController.globalQualityPreference =
-        abr.resolutionLadder[tierIndex].label;
-    activePanel.value = '';
-    closeSettings();
-    _trackAnalytics(
-      PlayerEvent(
-        'quality_change',
-        data: {'quality': abr.resolutionLadder[tierIndex].label},
-      ),
-    );
-  }
-
-  void selectAutoQuality() {
-    abr.enableAutoMode();
-    TowerPlayerController.globalQualityPreference = 'Auto';
-    activePanel.value = '';
-    closeSettings();
-  }
-
-  // ─── Audio Only ──────────────────────────────────────────
-
-  Future<void> toggleAudioOnly({
-    String? videoUrl,
-    String? title,
-    String? artworkUrl,
-  }) async {
-    if (_isSwitchingModes) return;
-    _isSwitchingModes = true;
-
-    try {
-      if (playbackMode.value == PlaybackMode.audio || isAudioOnly.value) {
-        // ── Audio -> Video atomic handoff ───────────────────────────
-        playbackMode.value = PlaybackMode.switchingToVideo;
-
-        if (!videoPlayerController.value.isPlaying) {
-          await videoPlayerController.play();
-        }
-
-        playbackMode.value = PlaybackMode.video;
-        isAudioOnly.value = false;
-        TowerPlayerController.globalAudioOnly = false;
-        try {
-          if (Get.isRegistered<VideoController>(tag: tag)) {
-            Get.find<VideoController>(tag: tag).isAudioOnly.value = false;
-          } else if (Get.isRegistered<VideoController>()) {
-            Get.find<VideoController>().isAudioOnly.value = false;
-          }
-        } catch (_) {}
-        _trackAnalytics(PlayerEvent('audio_only_off'));
-      } else {
-        // ── Video -> Audio atomic handoff ───────────────────────────
-        playbackMode.value = PlaybackMode.switchingToAudio;
-
-        // VideoPlayerController continues uninterrupted offstage
-        if (!videoPlayerController.value.isPlaying) {
-          await videoPlayerController.play();
-        }
-
-        playbackMode.value = PlaybackMode.audio;
-        isAudioOnly.value = true;
-        TowerPlayerController.globalAudioOnly = true;
-        try {
-          if (Get.isRegistered<VideoController>(tag: tag)) {
-            Get.find<VideoController>(tag: tag).isAudioOnly.value = true;
-          } else if (Get.isRegistered<VideoController>()) {
-            Get.find<VideoController>().isAudioOnly.value = true;
-          }
-        } catch (_) {}
-        _trackAnalytics(PlayerEvent('audio_only_on'));
-      }
-    } catch (e) {
-      debugPrint('[TowerPlayer] Mode switch error: $e');
-      playbackMode.value = isAudioOnly.value
-          ? PlaybackMode.audio
-          : PlaybackMode.video;
-    } finally {
-      _isSwitchingModes = false;
-    }
-  }
-
-  // ─── Subtitles ───────────────────────────────────────────
-
-  void setSubtitles({required bool enabled, SubtitleTrack? track}) {
-    subtitlesEnabled.value = enabled;
-    if (!enabled) {
-      activeSubLang.value = 'Off';
-    } else if (track != null) {
-      activeSubLang.value = track.label;
-      fetchAndParseSubtitles(track.url);
-    }
-    TowerPlayerController.globalSubtitlesEnabled = enabled;
-    TowerPlayerController.globalActiveSubLang = activeSubLang.value;
-    _trackAnalytics(
-      PlayerEvent('subtitle_change', data: {'lang': activeSubLang.value}),
-    );
-  }
-
-  Future<void> fetchAndParseSubtitles(String url) async {
-    if (url.isEmpty) return;
-    isLoadingSubtitles.value = true;
-    try {
-      String? content;
-
-      // 1. Attempt direct HTTP download
-      try {
-        final resolvedUrl = StorageUtils.getFastDownloadUrl(url);
-        final response = await http.get(Uri.parse(resolvedUrl));
-        if (response.statusCode == 200) {
-          content = utf8.decode(response.bodyBytes, allowMalformed: true);
-        }
-      } catch (_) {}
-
-      // 2. Fallback: FirebaseStorage SDK (supports private files, tokens, and gs:// paths)
-      if (content == null || content.isEmpty) {
-        try {
-          Uint8List? data;
-          if (url.startsWith('gs://')) {
-            data = await FirebaseStorage.instance.refFromURL(url).getData();
-          } else if (url.startsWith('https://storage.googleapis.com/') ||
-              url.startsWith('https://firebasestorage.googleapis.com/')) {
-            data = await FirebaseStorage.instance.refFromURL(url).getData();
-          } else if (url.startsWith('subtitles/') || url.startsWith('transcripts/') || url.startsWith('videos/')) {
-            data = await FirebaseStorage.instance.ref(url).getData();
-          }
-          if (data != null && data.isNotEmpty) {
-            content = utf8.decode(data, allowMalformed: true);
-          }
-        } catch (e) {
-          debugPrint('[TowerPlayer] FirebaseStorage SDK fetch error: $e');
-        }
-      }
-
-      if (content != null && content.isNotEmpty) {
-        parseSubtitleContent(content);
-      }
-    } catch (e) {
-      debugPrint('[TowerPlayer] Subtitle error: $e');
-      subtitleSegments.clear();
-    } finally {
-      isLoadingSubtitles.value = false;
-    }
-  }
-
-  void parseSubtitleContent(String content) {
-    final segs = SubtitleParser.parse(content);
-    if (segs.isNotEmpty) {
-      subtitleSegments.assignAll(segs);
-      _syncActiveSubtitle();
-    } else {
-      subtitleSegments.clear();
-      currentSubtitle.value = '';
-    }
-  }
-
-  // ─── Audio language ──────────────────────────────────────
-
-  void setAudioLanguage(AudioTrack track) {
-    activeAudioLang.value = track.label;
-    activePanel.value = '';
-    closeSettings();
-    try {
-      if (Get.isRegistered<VideoController>(tag: tag)) {
-        // 1. Dispose old audio track controller if exists
-        if (_audioTrackController != null) {
-          try {
-            _audioTrackController!.dispose();
-          } catch (_) {}
-          _audioTrackController = null;
-        }
-
-        // 2. Industry Standard Multi-Audio Track overlay
-        if (track.url != null && track.url!.isNotEmpty) {
-          // Mute main video player (master video duration & stream remain master authority)
-          videoPlayerController.setVolume(0);
-
-          // Initialize secondary audio player
-          _audioTrackController = VideoPlayerController.networkUrl(
-            Uri.parse(track.url!),
-          );
-          _audioTrackController!.initialize().then((_) {
-            if (_audioTrackController == null) return;
-
-            // Sync initial settings
-            _audioTrackController!.setVolume(
-              isMuted.value ? 0.0 : volume.value,
-            );
-            _audioTrackController!.setPlaybackSpeed(
-              videoPlayerController.value.playbackSpeed,
-            );
-
-            final currentPos = videoPlayerController.value.position;
-            final audioDur = _audioTrackController!.value.duration;
-            if (audioDur > Duration.zero && currentPos <= audioDur) {
-              _audioTrackController!.seekTo(currentPos);
-            }
-
-            if (videoPlayerController.value.isPlaying) {
-              _audioTrackController!.play();
-            }
-          });
-        } else {
-          // 'Original' audio track selected: unmute master video player
-          videoPlayerController.setVolume(isMuted.value ? 0.0 : volume.value);
-        }
-      }
-    } catch (e) {
-      debugPrint('[TowerPlayer] Audio lang switch error: $e');
-    }
-    _trackAnalytics(PlayerEvent('audio_lang', data: {'lang': track.langCode}));
-  }
-
-  int get _seekStepSeconds {
-    if (Get.isRegistered<UserSettingsController>()) {
-      return UserSettingsController.to.playback.value.seekDurationSeconds;
-    }
-    return 10;
-  }
-
-  void _executeDoubleTapSeek({
-    required bool isLeft,
-    bool resetAccumulator = false,
-  }) {
-    final step = _seekStepSeconds;
-    if (resetAccumulator ||
-        (isLeft ? !showDoubleTapLeft.value : !showDoubleTapRight.value)) {
-      doubleTapSeconds.value = step;
-    } else {
-      doubleTapSeconds.value += step;
-    }
-
-    if (isLeft) {
-      showDoubleTapRight.value = false;
-      showDoubleTapLeft.value = true;
-      seekRelative(-step, showFeedbackToast: false);
-      _timers.set(
-        'doubleTapDismiss',
-        const Duration(milliseconds: 750),
-        () {
-          showDoubleTapLeft.value = false;
-          doubleTapSeconds.value = 0;
-        },
-      );
-    } else {
-      showDoubleTapLeft.value = false;
-      showDoubleTapRight.value = true;
-      seekRelative(step, showFeedbackToast: false);
-      _timers.set(
-        'doubleTapDismiss',
-        const Duration(milliseconds: 750),
-        () {
-          showDoubleTapRight.value = false;
-          doubleTapSeconds.value = 0;
-        },
-      );
-    }
-  }
-
-  void doubleTapLeft() => _executeDoubleTapSeek(isLeft: true);
-  void doubleTapRight() => _executeDoubleTapSeek(isLeft: false);
-  void handleKeyJ() => _executeDoubleTapSeek(isLeft: true);
-  void handleKeyL() => _executeDoubleTapSeek(isLeft: false);
-
-  // ─── Seek preview ────────────────────────────────────────
-
-  void updateSeekPreview(double fraction, double xPixel, Duration total) {
-    seekPreviewPos.value = Duration(
-      milliseconds: (total.inMilliseconds * fraction).toInt(),
-    );
-    seekPreviewX.value = xPixel;
-    seekPreviewVis.value = true;
-  }
-
-  void hideSeekPreview() => seekPreviewVis.value = false;
-
-  // ─── Settings ────────────────────────────────────────────
-
-  void openSettings([BuildContext? context]) {
-    final ctx = context ?? Get.context;
-    final isMobilePlatform =
-        defaultTargetPlatform == TargetPlatform.android ||
-        defaultTargetPlatform == TargetPlatform.iOS;
-    final isMobileWidth = ctx != null && (MediaQuery.of(ctx).size.width < 600);
-    final isMobile = isMobilePlatform || isMobileWidth;
-
-    activePanel.value = '';
-    controlsVisible.value = true;
-    _timers.cancel('hide');
-
-    if (ctx != null && isMobile && showMobileSettingsCallback != null) {
-      showMobileSettingsCallback!(ctx, this);
-    } else {
-      settingsOpen.value = true;
-    }
-  }
-
-  void closeSettings() {
-    if (Get.isBottomSheetOpen ?? false) {
-      Get.back();
-    }
-    settingsOpen.value = false;
-    activePanel.value = '';
-    startHideTimer();
-  }
-
-  // ─── Fullscreen ──────────────────────────────────────────
-
-  Future<void> toggleFullscreen() async {
-    focusNode.requestFocus();
-    final nextState = !isFullScreen.value;
-    isFullScreen.value = nextState;
-    if (!nextState) {
-      showCommentsPopup.value = false;
-      showTranscriptPopup.value = false;
-      showFactCheckPopup.value = false;
-      showLiveChat.value = false;
-    }
-
-    // Sync with videoController if registered
-    try {
-      final vc = videoController;
-      if (vc != null) {
-        vc.isFullScreen.value = nextState;
-      }
-    } catch (_) {}
-
-    // Handle platform-specific fullscreen window state
-    if (kIsWeb) {
-      try {
-        if (nextState) {
-          if (html.document.fullscreenElement == null) {
-            html.document.documentElement?.requestFullscreen();
-          }
-        } else {
-          if (html.document.fullscreenElement != null) {
-            html.document.exitFullscreen();
-          }
-        }
-      } catch (e) {
-        debugPrint('[TowerPlayer] Web Fullscreen error: $e');
-      }
-    } else {
-      // Non-web platforms (Desktop/Mobile)
-      try {
-        if (nextState) {
-          SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-          if (aspectRatio.value > 1.0) {
-            SystemChrome.setPreferredOrientations([
-              DeviceOrientation.landscapeLeft,
-              DeviceOrientation.landscapeRight,
-            ]);
-          }
-        } else {
-          SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-          SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-        }
-      } catch (e) {
-        debugPrint('[TowerPlayer] Native Fullscreen error: $e');
-      }
-    }
-
-    onInteraction();
-    _trackAnalytics(
-      PlayerEvent(nextState ? 'fullscreen_enter' : 'fullscreen_exit'),
-    );
-  }
-
-  void _setupChewieListeners() {
-    // 1. Setup internal ChewieController listener
-    try {
-      chewieController?.removeListener(_onInternalChewieChanged);
-      chewieController?.addListener(_onInternalChewieChanged);
-    } catch (_) {}
-
-    // 2. Setup outer ChewieController listener
-    try {
-      final vc = videoController;
-      if (vc != null && vc.chewieController != null) {
-        vc.chewieController!.removeListener(_onOuterChewieChanged);
-        vc.chewieController!.addListener(_onOuterChewieChanged);
-      }
-    } catch (_) {}
-  }
-
-  void _onInternalChewieChanged() {
-    // Handled custom fullscreen inline, no sync from Chewie needed
-  }
-
-  void _onOuterChewieChanged() {
-    // Handled custom fullscreen inline, no sync from Chewie needed
-  }
-
-  Future<void> togglePiP() async {
-    if (kIsWeb) {
-      try {
-        final video =
-            html.document.querySelector('video') as html.VideoElement?;
-        if (video == null) return;
-        final docJs = js.JsObject.fromBrowserObject(html.document);
-        if (docJs['pictureInPictureElement'] == null) {
-          js.JsObject.fromBrowserObject(
-            video,
-          ).callMethod('requestPictureInPicture', []);
-          isPiP.value = true;
-        } else {
-          docJs.callMethod('exitPictureInPicture', []);
-          isPiP.value = false;
-        }
-      } catch (e) {
-        debugPrint('[TowerPlayer] PiP error: $e');
-      }
-    } else {
-      try {
-        var ratio = aspectRatio.value;
-        if (ratio < 0.418) ratio = 0.418;
-        if (ratio > 2.39) ratio = 2.39;
-        await _pipChannel.invokeMethod('enterPip', {
-          'aspectRatio': ratio,
-        });
-      } catch (e) {
-        debugPrint('[TowerPlayer] Native PiP error: $e');
-      }
-    }
-  }
-
-  void _updateAutoPip(bool isPlaying) {
-    if (!kIsWeb) {
-      var ratio = aspectRatio.value;
-      if (ratio < 0.418) ratio = 0.418;
-      if (ratio > 2.39) ratio = 2.39;
-      _pipChannel.invokeMethod('setAutoEnterPip', {
-        'enabled': isPlaying,
-        'aspectRatio': ratio,
-      });
-    }
-  }
-
-  // ─── Keyboard shortcuts ───────────────────────────────────
-  // Full YouTube keyboard standard
-
-  void handleKey(KeyEvent event) {
-    if (event is! KeyDownEvent) return;
-    final key = event.logicalKey;
-
-    if (isShowingAd.value) {
-      if (key == LogicalKeyboardKey.space || key == LogicalKeyboardKey.keyK) {
-        togglePlayPauseAd();
-      } else if (key == LogicalKeyboardKey.keyF) {
-        toggleFullscreen();
-      } else if (key == LogicalKeyboardKey.keyM) {
-        toggleMuteAd();
-      } else if (key == LogicalKeyboardKey.escape) {
-        if (isFullScreen.value) toggleFullscreen();
-      }
-      return;
-    }
-
-    if (key == LogicalKeyboardKey.space || key == LogicalKeyboardKey.keyK) {
-      togglePlayPause();
-    } else if (key == LogicalKeyboardKey.keyJ) {
-      // YouTube: J = −10 s seek with double-tap ripple animation
-      handleKeyJ();
-    } else if (key == LogicalKeyboardKey.keyL) {
-      // YouTube: L = +10 s seek with double-tap ripple animation
-      handleKeyL();
-    } else if (key == LogicalKeyboardKey.arrowRight) {
-      seekRelative(5);
-    } else if (key == LogicalKeyboardKey.arrowLeft) {
-      seekRelative(-5);
-    } else if (key == LogicalKeyboardKey.arrowUp) {
-      setVolume(min(1, volume.value + 0.1));
-      showToast('Volume ${(volume.value * 100).round()}%');
-    } else if (key == LogicalKeyboardKey.arrowDown) {
-      setVolume(max(0, volume.value - 0.1));
-      showToast('Volume ${(volume.value * 100).round()}%');
-    } else if (key == LogicalKeyboardKey.keyF) {
-      toggleFullscreen();
-    } else if (key == LogicalKeyboardKey.keyM) {
-      toggleMute();
-    } else if (key == LogicalKeyboardKey.keyN) {
-      playNext();
-    } else if (key == LogicalKeyboardKey.keyP) {
-      playPrevious();
-    } else if (key == LogicalKeyboardKey.keyI) {
-      togglePiP();
-    } else if (key == LogicalKeyboardKey.escape) {
-      if (isFullScreen.value) toggleFullscreen();
-    } else if (key == LogicalKeyboardKey.slash) {
-      if (HardwareKeyboard.instance.isShiftPressed) showShortcutsDialog();
-    } else if (key == LogicalKeyboardKey.comma) {
-      if (HardwareKeyboard.instance.isShiftPressed) {
-        _adjustSpeedRelative(-0.25);
-      } else {
-        // YouTube: , = previous frame (approximate via -1/30 s)
-        seekRelative(-1);
-      }
-    } else if (key == LogicalKeyboardKey.period) {
-      if (HardwareKeyboard.instance.isShiftPressed) {
-        _adjustSpeedRelative(0.25);
-      } else {
-        // YouTube: . = next frame
-        seekRelative(1);
-      }
-    } else {
-      // Handle digit keys 0-9 to seek to 0%-90% of duration
-      final digitMap = {
-        LogicalKeyboardKey.digit0: 0.0,
-        LogicalKeyboardKey.digit1: 0.1,
-        LogicalKeyboardKey.digit2: 0.2,
-        LogicalKeyboardKey.digit3: 0.3,
-        LogicalKeyboardKey.digit4: 0.4,
-        LogicalKeyboardKey.digit5: 0.5,
-        LogicalKeyboardKey.digit6: 0.6,
-        LogicalKeyboardKey.digit7: 0.7,
-        LogicalKeyboardKey.digit8: 0.8,
-        LogicalKeyboardKey.digit9: 0.9,
-        LogicalKeyboardKey.numpad0: 0.0,
-        LogicalKeyboardKey.numpad1: 0.1,
-        LogicalKeyboardKey.numpad2: 0.2,
-        LogicalKeyboardKey.numpad3: 0.3,
-        LogicalKeyboardKey.numpad4: 0.4,
-        LogicalKeyboardKey.numpad5: 0.5,
-        LogicalKeyboardKey.numpad6: 0.6,
-        LogicalKeyboardKey.numpad7: 0.7,
-        LogicalKeyboardKey.numpad8: 0.8,
-        LogicalKeyboardKey.numpad9: 0.9,
-      };
-      if (digitMap.containsKey(key)) {
-        final fraction = digitMap[key]!;
-        final dur = vv.duration;
-        if (dur > Duration.zero) {
-          seekTo(dur * fraction);
-          showToast('Seek to ${(fraction * 100).round()}%');
-        }
-      }
-    }
-  }
-
-  void _adjustSpeedRelative(double delta) {
-    const speeds = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
-    final current = playbackSpeed.value;
-    var index = speeds.indexOf(current);
-    if (index == -1) {
-      var minDiff = double.infinity;
-      var closestIdx = 3; // 1.0
-      for (var i = 0; i < speeds.length; i++) {
-        final diff = (speeds[i] - current).abs();
-        if (diff < minDiff) {
-          minDiff = diff;
-          closestIdx = i;
-        }
-      }
-      index = closestIdx;
-    }
-    final newIndex = (index + (delta > 0 ? 1 : -1)).clamp(0, speeds.length - 1);
-    setSpeed(speeds[newIndex]);
-    showToast('Speed: ${speeds[newIndex]}×');
-  }
-
-  // ─── Long press 2× ───────────────────────────────────────
-
-  void startLongPressSpeedUp() {
-    if (isLongPressSpeedUp.value) return;
-    _preLongPressSpeed = playbackSpeed.value;
-    videoPlayerController.setPlaybackSpeed(2);
-    playbackSpeed.value = 2.0;
-    isLongPressSpeedUp.value = true;
-  }
-
-  void endLongPressSpeedUp() {
-    if (!isLongPressSpeedUp.value) return;
-    videoPlayerController.setPlaybackSpeed(_preLongPressSpeed);
-    playbackSpeed.value = _preLongPressSpeed;
-    isLongPressSpeedUp.value = false;
-  }
-
-  // ─── Sleep timer ─────────────────────────────────────────
-
-  void setSleepTimer(Duration duration, {bool isEndOfVideo = false}) {
-    sleepTimerService.setActivePlayback(activePlayback);
-    sleepTimerService.startTimer(duration, isEndOfVideo: isEndOfVideo);
-    showToast(
-      isEndOfVideo
-          ? 'Sleep timer: End of video'
-          : 'Sleep timer: ${duration.inMinutes} min',
-    );
-  }
-
-  void extendSleepTimer(Duration addDuration) {
-    sleepTimerService.extendTimer(addDuration);
-    showToast('+${addDuration.inMinutes} min added to sleep timer');
-  }
-
-  void cancelSleepTimer() {
-    sleepTimerService.cancelTimer();
-    showToast('Sleep timer cancelled');
-  }
-
-  static void globalCancelSleepTimer() {
-    if (Get.isRegistered<SleepTimerService>()) {
-      Get.find<SleepTimerService>().cancelTimer();
-    }
-  }
-
-  static Future<void> triggerGlobalSleepPause() async {
-    final playersToPause = _activePlayers
-        .where((p) => p.isPlaying.value)
-        .toList();
-    if (playersToPause.isEmpty) {
-      playersToPause.addAll(_activePlayers.where((p) => p.isInitialized.value));
-    }
-
-    if (playersToPause.isNotEmpty) {
-      final originalVolumes = <TowerPlayerController, double>{};
-      for (final p in playersToPause) {
-        originalVolumes[p] = p.volume.value;
-      }
-
-      for (var i = 10; i >= 0; i--) {
-        for (final p in playersToPause) {
-          p.setVolume(originalVolumes[p]! * (i / 10));
-        }
-        await Future.delayed(const Duration(milliseconds: 100));
-      }
-
-      for (final p in playersToPause) {
-        await p.videoPlayerController.pause();
-        p.setVolume(originalVolumes[p]!);
-        p.showToast('Sleep timer paused playback');
-      }
-    }
-  }
-
-  // ─── Swipe gestures (Fullscreen) ─────────────────────────
-
-  void onVerticalDragStart(DragStartDetails d, Size size) {
-    // Start position not needed — swipe direction determined by velocity in onVerticalDragEnd
-  }
-
-  void onVerticalDragUpdate(DragUpdateDetails d, Size size) {
-    // Wait for drag end to determine swipe direction
-  }
-
-  void onVerticalDragEnd(DragEndDetails d) {
-    final velocity = d.primaryVelocity ?? 0;
-    if (velocity < -500) {
-      // Swipe UP -> Enter fullscreen
-      if (!isFullScreen.value) toggleFullscreen();
-    } else if (velocity > 500) {
-      // Swipe DOWN -> Exit fullscreen
-      if (isFullScreen.value) toggleFullscreen();
-    }
-  }
-
-  // ─── Shortcuts dialog ────────────────────────────────────
-
-  void showShortcutsDialog() {
-    Get.dialog(
-      const KeyboardShortcutsDialog(),
-      barrierColor: AppColors.bgPage.withValues(alpha: 0.8),
-    );
-  }
-
   // ─── Toast ───────────────────────────────────────────────
-
+  @override
   void showToast(String msg) {
     toastMessage.value = msg;
     _timers.set(
@@ -2669,7 +1409,6 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
   }
 
   // ─── Error recovery ──────────────────────────────────────
-
   void _scheduleRetry() {
     _retryCount++;
     _timers.set(
@@ -2679,8 +1418,12 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
         try {
           await videoPlayerController.initialize();
           await videoPlayerController.play();
-        } catch (e) {
-          debugPrint('[TowerPlayer] Retry failed: $e');
+        } catch (e, s) {
+          ErrorHandler.log(
+            e,
+            stackTrace: s,
+            tag: 'TowerPlayerController.scheduleRetry',
+          );
         }
       },
     );
@@ -2692,7 +1435,6 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
   }
 
   // ─── Analytics ───────────────────────────────────────────
-
   void _trackAnalytics(PlayerEvent event) => _events.add(event);
 
   void _startWatchTimer() {
@@ -2705,481 +1447,64 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
 
   void _stopWatchTimer() => _timers.cancel('watch');
 
-  // ─── Loop ────────────────────────────────────────────────
+  // ── Mixin Bridge Hooks & Backward-Compatible Delegators ────
+  @override
+  Rx<VideoPlayerValue> get rxValue => _rxValue;
 
-  void toggleLoop() {
-    isLooping.value = !isLooping.value;
-    try {
-      videoPlayerController.setLooping(isLooping.value);
-    } catch (_) {}
-  }
+  @override
+  PlaybackSource? get videoPlaybackSource => _videoPlaybackSource;
 
-  // ─── Language request dialog ─────────────────────────────
+  @override
+  VideoPlayerController? get audioTrackController => _audioTrackController;
 
-  void showRequestDialog(BuildContext context, String type) {
-    if (!Get.isRegistered<VideoController>(tag: tag)) return;
-    final vc = Get.find<VideoController>(tag: tag);
-    if (!vc.isAuthenticated) {
-      showToast('Please login to request languages');
-      return;
-    }
-    showDialog(
-      context: context,
-      builder: (_) => LanguageRequestDialog(
-        type: type,
-        onRequested: (lang) async {
-          final ok = await vc.requestLanguage(lang, type);
-          showToast(
-            ok ? 'Request submitted for $lang' : 'Failed to submit request',
-          );
-        },
-      ),
-    );
-  }
+  @override
+  set audioTrackController(VideoPlayerController? ctrl) =>
+      _audioTrackController = ctrl;
 
-  Future<void> _startAd({required bool isPreRoll}) async {
-    _isFinishingAd = false;
-    isShowingAd.value = true;
-    _stopWatchTimer();
-    if (videoPlayerController.value.isPlaying) {
-      try {
-        videoPlayerController.pause();
-      } catch (_) {}
-    }
-    if (_audioTrackController?.value.isPlaying == true) {
-      try {
-        _audioTrackController?.pause();
-      } catch (_) {}
-    }
+  @override
+  void startWatchTimer() => _startWatchTimer();
 
-    // Check for custom advertiser skippable campaigns first
-    final activeVideoAds = <AdItem>[];
-    if (Get.isRegistered<AdService>()) {
-      activeVideoAds.addAll(AdService.to.getSkippableVideoAds());
-    }
+  @override
+  void stopWatchTimer() => _stopWatchTimer();
 
-    if (activeVideoAds.isEmpty) {
-      _finishAd();
-      return;
-    }
-
-    final random = Random();
-    final selectedAd = activeVideoAds[random.nextInt(activeVideoAds.length)];
-
-    String? resolvedUrl;
-    if (selectedAd.resolutions != null && selectedAd.resolutions!.isNotEmpty) {
-      final resList = List<Map<String, dynamic>>.from(selectedAd.resolutions!);
-
-      // Select resolution based on global quality preference if set and not Auto
-      final pref = TowerPlayerController.globalQualityPreference;
-      Map<String, dynamic>? selectedResolution;
-
-      if (pref != null && pref != 'Auto') {
-        final cleanPref = pref.toLowerCase();
-        for (final res in resList) {
-          final label = (res['label'] as String? ?? '').toLowerCase();
-          if (label == cleanPref ||
-              label.contains(cleanPref) ||
-              cleanPref.contains(label)) {
-            selectedResolution = res;
-            break;
-          }
-        }
-      }
-
-      // If Auto or no direct match, pick optimal/highest resolution <= 1040p
-      if (selectedResolution == null) {
-        resList.sort(
-          (a, b) =>
-              (b['height'] as int? ?? 0).compareTo(a['height'] as int? ?? 0),
-        );
-        selectedResolution = resList.firstWhere(
-          (res) => (res['height'] as int? ?? 0) <= 1040,
-          orElse: () => resList.first,
-        );
-      }
-
-      if (selectedResolution['url'] != null) {
-        resolvedUrl = selectedResolution['url'] as String;
-        debugPrint(
-          '[TowerPlayerController] ✅ Playing resolved ad URL directly from campaign document (${selectedResolution['label']}): $resolvedUrl',
-        );
-      }
-    }
-
-    if (resolvedUrl == null || resolvedUrl.isEmpty) {
-      debugPrint(
-        '[TowerPlayerController] ⚠️ Ad has no resolved resolutions in ad_campaigns. Skipping ad and resuming video.',
-      );
-      _finishAd();
-      return;
-    }
-
-    final ad = MockAd(
-      videoUrl: resolvedUrl,
-      title: selectedAd.title,
-      description: selectedAd.description,
-      clickUrl: selectedAd.ctaTarget,
-      skippable: selectedAd.isSkippableAd,
-      duration: const Duration(seconds: 15),
-      subtitles: selectedAd.subtitles,
-      audioTracks: selectedAd.audioTracks,
-    );
-
-    currentAd.value = ad;
-    adCanSkip.value = false;
-    skipCountdown.value = ad.skippable ? 5 : 0;
-    adTimeRemaining.value = ad.duration.inSeconds;
-
-    final apc = VideoPlayerController.networkUrl(Uri.parse(ad.videoUrl));
-    adPlayerController = apc;
-
-    try {
-      await apc.initialize();
-      apc.addListener(_onAdVpcUpdate);
-      await apc.play();
-      _setupAdSubtitlesAndDubbing(ad);
-      update();
-    } catch (e) {
-      debugPrint(
-        '[TowerPlayer] Ad initialization failed: $e. Skipping ad and resuming video.',
-      );
-      _finishAd();
-    }
-  }
-
-  Future<void> _startSponsorAd(
-    AdItem sponsorAd, {
-    required bool isPreRoll,
-  }) async {
-    _isFinishingAd = false;
-    isShowingAd.value = true;
-    _stopWatchTimer();
-    if (videoPlayerController.value.isPlaying) {
-      try {
-        videoPlayerController.pause();
-      } catch (_) {}
-    }
-    if (_audioTrackController?.value.isPlaying == true) {
-      try {
-        _audioTrackController?.pause();
-      } catch (_) {}
-    }
-
-    // The first ad (pre-roll) plays videoUrl (non-skippable)
-    // The second ad (mid-roll) plays midrollVideoUrl (skippable, 5s countdown)
-    var resolvedUrl = isPreRoll
-        ? sponsorAd.videoUrl
-        : sponsorAd.midrollVideoUrl;
-
-    // Fallbacks if one is not defined
-    if (resolvedUrl == null || resolvedUrl.isEmpty) {
-      resolvedUrl =
-          sponsorAd.videoUrl ??
-          'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4';
-    }
-
-    final ad = MockAd(
-      videoUrl: resolvedUrl,
-      title: isPreRoll ? sponsorAd.sponsorBumperText : sponsorAd.title,
-      description: isPreRoll
-          ? 'Official Video Sponsor Bumper (5s Intro)'
-          : sponsorAd.description,
-      clickUrl: sponsorAd.ctaTarget,
-      skippable: !isPreRoll, // 5s bumper intro is non-skippable, mid-roll is skippable
-      duration: isPreRoll ? const Duration(seconds: 5) : const Duration(seconds: 15),
-      isSponsorBumper: isPreRoll,
-      subtitles: sponsorAd.subtitles,
-      audioTracks: sponsorAd.audioTracks,
-    );
-
-    currentAd.value = ad;
-    adCanSkip.value = false;
-    skipCountdown.value = ad.skippable ? 5 : 0;
-    adTimeRemaining.value = ad.duration.inSeconds;
-
-    final apc = VideoPlayerController.networkUrl(Uri.parse(ad.videoUrl));
-    adPlayerController = apc;
-
-    try {
-      await apc.initialize();
-      apc.addListener(_onAdVpcUpdate);
-      await apc.play();
-      _setupAdSubtitlesAndDubbing(ad);
-      update();
-    } catch (e) {
-      debugPrint(
-        '[TowerPlayer] Sponsor Ad initialization failed: $e. Skipping ad.',
-      );
-      _finishAd();
-    }
-  }
-
-  void _setupAdSubtitlesAndDubbing(MockAd ad) {
-    currentAdSubtitle.value = '';
-    adSubtitleSegments.clear();
-
-    final subs = ad.subtitles;
-    if (subs != null && subs.isNotEmpty) {
-      String? matchedLang;
-      if (subs.containsKey(activeSubLang.value)) {
-        matchedLang = activeSubLang.value;
-      } else if (subs.containsKey('en')) {
-        matchedLang = 'en';
-      } else if (subs.isNotEmpty) {
-        matchedLang = subs.keys.first;
-      }
-
-      if (matchedLang != null && subs[matchedLang] != null) {
-        activeAdSubtitleLang.value = matchedLang;
-        final rawContent = subs[matchedLang]!;
-        final segs = SubtitleParser.parse(rawContent);
-        adSubtitleSegments.assignAll(segs);
-      }
-    }
-
-    _disposeAdAudioTrack();
-    final dubs = ad.audioTracks;
-    if (dubs != null && dubs.isNotEmpty) {
-      final targetLang = activeAudioLang.value.toLowerCase();
-      String? matchedDubUrl;
-      for (final entry in dubs.entries) {
-        if (entry.key.toLowerCase() == targetLang || targetLang.contains(entry.key.toLowerCase())) {
-          matchedDubUrl = entry.value;
-          activeAdAudioLang.value = entry.key;
-          break;
-        }
-      }
-
-      if (matchedDubUrl != null && matchedDubUrl.isNotEmpty) {
-        _initializeAdAudioDub(matchedDubUrl);
-      } else {
-        activeAdAudioLang.value = 'original';
-      }
-    } else {
-      activeAdAudioLang.value = 'original';
-    }
-  }
-
-  void _initializeAdAudioDub(String url) {
-    try {
-      final apc = adPlayerController;
-      if (apc != null) {
-        apc.setVolume(0);
-      }
-      _adAudioTrackController = VideoPlayerController.networkUrl(Uri.parse(url));
-      _adAudioTrackController!.initialize().then((_) {
-        if (_adAudioTrackController == null || _isFinishingAd) return;
-        _adAudioTrackController!.setVolume(isMuted.value ? 0.0 : volume.value);
-        if (apc != null && apc.value.isPlaying) {
-          _adAudioTrackController!.play();
-        }
-      }).catchError((e) {
-        debugPrint('[TowerPlayer] Ad audio dub init error: $e');
-        apc?.setVolume(isMuted.value ? 0.0 : volume.value);
-      });
-    } catch (e) {
-      debugPrint('[TowerPlayer] Failed to init ad audio track: $e');
-    }
-  }
-
-  void _disposeAdAudioTrack() {
-    if (_adAudioTrackController != null) {
-      try {
-        _adAudioTrackController!.dispose();
-      } catch (_) {}
-      _adAudioTrackController = null;
-    }
-  }
-
-  void setAdSubtitleLanguage(String langCode) {
-    activeAdSubtitleLang.value = langCode;
-    final subs = currentAd.value?.subtitles;
-    if (subs != null && subs.containsKey(langCode)) {
-      final content = subs[langCode]!;
-      final segs = SubtitleParser.parse(content);
-      adSubtitleSegments.assignAll(segs);
-      if (adPlayerController != null) {
-        final pos = adPlayerController!.value.position;
-        final seg = SubtitleParser.findActiveSubtitle(adSubtitleSegments, pos);
-        currentAdSubtitle.value = seg?.text ?? '';
-      }
-    }
-  }
-
-  void toggleAdSubtitles() {
-    isAdSubtitlesEnabled.value = !isAdSubtitlesEnabled.value;
-    if (!isAdSubtitlesEnabled.value) {
-      currentAdSubtitle.value = '';
-    }
-  }
-
-  void setAdAudioLanguage(String langCode) {
-    activeAdAudioLang.value = langCode;
-    _disposeAdAudioTrack();
-    final apc = adPlayerController;
-    if (langCode == 'original' || currentAd.value?.audioTracks == null) {
-      apc?.setVolume(isMuted.value ? 0.0 : volume.value);
-      return;
-    }
-
-    final dubUrl = currentAd.value?.audioTracks?[langCode];
-    if (dubUrl != null && dubUrl.isNotEmpty) {
-      _initializeAdAudioDub(dubUrl);
-    } else {
-      apc?.setVolume(isMuted.value ? 0.0 : volume.value);
-    }
-  }
-
-  void _onAdVpcUpdate() {
-    if (_isFinishingAd || adPlayerController == null) return;
-    final val = adPlayerController!.value;
-
-    if (val.hasError) {
-      debugPrint('[TowerPlayer] Ad playback failed. Skipping ad.');
-      _finishAd();
-      return;
-    }
-
-    final pos = val.position;
-    final mediaDur = val.duration;
-    final targetDur = currentAd.value?.duration;
-
-    final effectiveDur = (targetDur != null && targetDur > Duration.zero)
-        ? (mediaDur > Duration.zero && mediaDur < targetDur ? mediaDur : targetDur)
-        : mediaDur;
-
-    adTimeRemaining.value = max(0, effectiveDur.inSeconds - pos.inSeconds);
-
-    if (currentAd.value?.skippable ?? false) {
-      final elapsed = pos.inSeconds;
-      if (elapsed >= 5) {
-        adCanSkip.value = true;
-        skipCountdown.value = 0;
-      } else {
-        adCanSkip.value = false;
-        skipCountdown.value = 5 - elapsed;
-      }
-    } else {
-      adCanSkip.value = false;
-      skipCountdown.value = 0;
-    }
-
-    // Sync Ad Subtitle text with current playback timestamp
-    if (isAdSubtitlesEnabled.value && adSubtitleSegments.isNotEmpty) {
-      final seg = SubtitleParser.findActiveSubtitle(adSubtitleSegments, pos);
-      currentAdSubtitle.value = seg?.text ?? '';
-    } else {
-      currentAdSubtitle.value = '';
-    }
-
-    // Sync Ad Dubbed Audio position and playback state
-    if (_adAudioTrackController != null && _adAudioTrackController!.value.isInitialized) {
-      final audioPos = _adAudioTrackController!.value.position;
-      final diff = (audioPos.inMilliseconds - pos.inMilliseconds).abs();
-      if (diff > 350) {
-        _adAudioTrackController!.seekTo(pos);
-      }
-      if (val.isPlaying && !_adAudioTrackController!.value.isPlaying) {
-        _adAudioTrackController!.play();
-      } else if (!val.isPlaying && _adAudioTrackController!.value.isPlaying) {
-        _adAudioTrackController!.pause();
-      }
-    }
-
-    if (pos >= effectiveDur && effectiveDur > Duration.zero) {
-      _finishAd();
-    }
-  }
-
-  void skipAd() {
-    if (adCanSkip.value && !_isFinishingAd) {
-      _finishAd();
-    }
-  }
-
-  Future<void> _finishAd() async {
-    if (_isFinishingAd) return;
-    _isFinishingAd = true;
-
-    _disposeAdAudioTrack();
-    currentAdSubtitle.value = '';
-    adSubtitleSegments.clear();
-
-    final apc = adPlayerController;
-    adPlayerController = null;
-    currentAd.value = null;
-    isShowingAd.value = false;
-
-    try {
-      apc?.removeListener(_onAdVpcUpdate);
-      apc?.pause();
-      apc?.dispose();
-    } catch (_) {}
-
-    hasError.value = false;
+  @override
+  void resetRetryCount() {
     _retryCount = 0;
-
-    if (tag != null && Get.isRegistered<VideoController>(tag: tag)) {
-      Get.find<VideoController>(tag: tag).showThumbnail.value = false;
-    } else if (Get.isRegistered<VideoController>()) {
-      Get.find<VideoController>().showThumbnail.value = false;
-    }
-
-    update();
-
-    try {
-      if (videoPlayerController.value.position > Duration.zero) {
-        await videoPlayerController.seekTo(Duration.zero);
-      }
-      await videoPlayerController.play();
-      isPlaying.value = true;
-      _rxValue.value = videoPlayerController.value;
-      chewieController?.play();
-      videoController?.chewieController?.play();
-      _videoPlaybackSource?.play();
-    } catch (e) {
-      debugPrint('[TowerPlayer] _finishAd error resuming playback: $e');
-      try {
-        if (e.toString().contains('NotAllowedError') ||
-            e.toString().contains('play()')) {
-          await videoPlayerController.setVolume(0);
-          await videoPlayerController.play();
-          isPlaying.value = true;
-          _rxValue.value = videoPlayerController.value;
-        } else {
-          await videoPlayerController.play();
-          isPlaying.value = true;
-          _rxValue.value = videoPlayerController.value;
-        }
-      } catch (_) {}
-    }
-
-    _startWatchTimer();
-    startHideTimer();
-    _isFinishingAd = false;
-    update();
   }
 
-  void togglePlayPauseAd() {
-    if (adPlayerController == null) return;
-    if (adPlayerController!.value.isPlaying) {
-      adPlayerController!.pause();
-    } else {
-      adPlayerController!.play();
+  @override
+  bool get isShowingAdValue => isShowingAd.value;
+
+  @override
+  bool get isFullScreenValue => isFullScreen.value;
+
+  @override
+  TimerBag get timers => _timers;
+
+  @override
+  int get seekStepSeconds {
+    if (Get.isRegistered<UserSettingsController>()) {
+      return UserSettingsController.to.playback.value.seekDurationSeconds;
     }
+    return 10;
   }
 
-  void toggleMuteAd() {
-    if (adPlayerController == null) return;
-    if (adPlayerController!.value.volume > 0) {
-      adPlayerController!.setVolume(0);
-    } else {
-      adPlayerController!.setVolume(volume.value);
-    }
-  }
+  @override
+  void trackAnalytics(PlayerEvent event) => _trackAnalytics(event);
+
+  // Backward-compatible delegators for private calls
+  SubtitleSegment? _findSubtitle(Duration pos) => findSubtitle(pos);
+  VideoChapter? _binarySearchChapter(Duration pos) => binarySearchChapter(pos);
+  void _startCommentsAutoPlay() => startCommentsAutoPlay();
+  void _stopCommentsAutoPlay() => stopCommentsAutoPlay();
+  void _updateAutoPlayComment() => updateAutoPlayComment();
+  void _navigateToVideo(Video video, VideoController vc) =>
+      executeNavigateToVideo(video, vc);
+  void _onTrackEnded() => onTrackEnded();
+  void _initABR() => initABR();
+  void _initAudioService() => initAudioService();
+  Future<void> _handleEnterBackground() => handleEnterBackground();
+  Future<void> _handleExitBackground() => handleExitBackground();
+  String _resolveBackgroundMediaUrl(VideoController vc) =>
+      resolveBackgroundMediaUrl(vc);
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// MAIN PLAYER WIDGET
-// ─────────────────────────────────────────────────────────────────────────────

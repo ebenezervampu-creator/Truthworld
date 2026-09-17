@@ -1,13 +1,15 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/algorithm/user_signal_tracker.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/memberships_controller.dart';
 import 'package:truthworld/features/subscriptions/presentation/controllers/subscription_controller.dart';
-import 'package:truthworld/theme/app_theme.dart';
 
 class ChannelSubscriptionController extends BaseController {
   FirebaseAuth get _auth => FirebaseAuth.instance;
@@ -19,6 +21,11 @@ class ChannelSubscriptionController extends BaseController {
   final RxBool isSubscribed = false.obs;
   final RxBool isLoadingSubscription = true.obs;
   final RxInt subscriberCount = 0.obs;
+
+  // Channel Membership reactive state
+  final RxBool isChannelMember = false.obs;
+  final Rxn<ChannelMember> currentMembership = Rxn<ChannelMember>();
+  StreamSubscription? _membershipListener;
 
   // Track channels subscribed to during this app session for "new subscriber" analytics
   final Set<String> _sessionSubscribedChannels = {};
@@ -33,38 +40,19 @@ class ChannelSubscriptionController extends BaseController {
 
 
   void _showSuccessSnackbar(String message) {
-    Get.snackbar('Success', message,
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.green.withOpacity(0.1),
-        colorText: Colors.green);
+    AppSnackbar.success(message);
   }
 
   void _showErrorSnackbar(String message) {
-    Get.snackbar('Error', message,
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red.withOpacity(0.1),
-        colorText: Colors.red);
+    AppSnackbar.error(message);
   }
 
   void _showSignInPrompt() {
-    Get.snackbar(
-      'Sign In Required',
+    AppSnackbar.warning(
       'Please sign in to subscribe to channels.',
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: AppColors.bgSurface,
-      colorText: AppColors.textPrimary,
-      margin: const EdgeInsets.all(16),
-      borderRadius: 12,
-      mainButton: TextButton(
-        onPressed: AuthService.to.signInWithGoogle,
-        child: const Text(
-          'SIGN IN',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
+      title: 'Sign In Required',
+      actionLabel: 'SIGN IN',
+      onAction: AuthService.to.signInWithGoogle,
     );
   }
 
@@ -111,6 +99,9 @@ class ChannelSubscriptionController extends BaseController {
       if (Get.isRegistered<SubscriptionController>()) {
         Get.find<SubscriptionController>().loadSubscriptions();
       }
+      if (Get.isRegistered<UserSignalTracker>()) {
+        Get.find<UserSignalTracker>().trackSubscribe(channelId: channelId);
+      }
       _showSuccessSnackbar('Subscribed successfully');
       return true;
     } catch (e) {
@@ -121,7 +112,8 @@ class ChannelSubscriptionController extends BaseController {
         }
         return false;
       }
-      _showErrorSnackbar('Failed to subscribe: $e');
+      ErrorHandler.log(e, tag: 'ChannelSubscriptionController');
+      _showErrorSnackbar('Unable to subscribe to channel. Please try again.');
       return false;
     }
   }
@@ -202,6 +194,7 @@ class ChannelSubscriptionController extends BaseController {
   }
 
   void listenSubscription(String channelId) {
+    listenMembership(channelId);
     if (!AuthService.to.isAuthenticated.value) {
       isSubscribed.value = false;
       isLoadingSubscription.value = false;
@@ -242,12 +235,81 @@ class ChannelSubscriptionController extends BaseController {
             }
             isLoadingSubscription.value = false;
           },
-          onError: (error) {
+          onError: (error, stackTrace) {
+            ErrorHandler.log(error, stackTrace: stackTrace, tag: 'ChannelSubscriptionController._subscriptionListener');
             isSubscribed.value = false;
             isLoadingSubscription.value = false;
           },
         );
     trackSubscription(_subscriptionListener!);
+  }
+
+  void listenMembership(String channelId) {
+    if (!AuthService.to.isAuthenticated.value) {
+      isChannelMember.value = false;
+      currentMembership.value = null;
+      return;
+    }
+    final uid = AuthService.to.uid;
+    if (uid.isEmpty || channelId.isEmpty) {
+      isChannelMember.value = false;
+      currentMembership.value = null;
+      return;
+    }
+
+    _membershipListener?.cancel();
+    _membershipListener = _firestore
+        .collection(_channelsCol)
+        .doc(channelId)
+        .collection('members')
+        .doc(uid)
+        .snapshots()
+        .listen(
+          (snapshot) {
+            if (snapshot.exists && snapshot.data() != null) {
+              final data = snapshot.data()!;
+              final status = (data['status'] ?? 'active').toString().toLowerCase();
+              if (status == 'active') {
+                isChannelMember.value = true;
+                currentMembership.value = ChannelMember.fromMap(data, snapshot.id);
+                return;
+              }
+            }
+            _checkUserMembershipFallback(channelId, uid);
+          },
+          onError: (error, stackTrace) {
+            ErrorHandler.log(error, stackTrace: stackTrace, tag: 'ChannelSubscriptionController.listenMembership');
+            _checkUserMembershipFallback(channelId, uid);
+          },
+        );
+    trackSubscription(_membershipListener!);
+  }
+
+  void _checkUserMembershipFallback(String channelId, String uid) {
+    _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('channel_memberships')
+        .doc(channelId)
+        .get()
+        .then((doc) {
+          if (doc.exists && doc.data() != null) {
+            final data = doc.data()!;
+            final status = (data['status'] ?? 'active').toString().toLowerCase();
+            if (status == 'active') {
+              isChannelMember.value = true;
+              currentMembership.value = ChannelMember.fromMap(data, doc.id);
+              return;
+            }
+          }
+          isChannelMember.value = false;
+          currentMembership.value = null;
+        })
+        .catchError((e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'ChannelSubscriptionController._checkUserMembershipFallback');
+          isChannelMember.value = false;
+          currentMembership.value = null;
+        });
   }
 
   Future<void> updateNotificationPreference(
@@ -268,8 +330,9 @@ class ChannelSubscriptionController extends BaseController {
       notificationsEnabled.value = isAll;
       notificationOption.value = option;
       _showSuccessSnackbar('Notification preferences updated');
-    } catch (e) {
-      _showErrorSnackbar('Failed to update notifications');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'ChannelSubscriptionController.updateNotificationPreference');
+      _showErrorSnackbar('Unable to update notifications. Please try again.');
     }
   }
 
@@ -286,6 +349,8 @@ class ChannelSubscriptionController extends BaseController {
                 ? count
                 : (count as num).toInt();
           }
+        }, onError: (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'ChannelSubscriptionController.fetchSubscriberCount');
         });
     trackSubscription(_countListener!);
   }
@@ -307,7 +372,9 @@ class ChannelSubscriptionController extends BaseController {
         .collection(_subsCol)
         .doc(subDocId)
         .snapshots()
-        .listen((snap) => rx.value = snap.exists));
+        .listen((snap) => rx.value = snap.exists, onError: (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'ChannelSubscriptionController.isSubscribedTo');
+        }));
 
     return rx;
   }
@@ -349,10 +416,21 @@ class ChannelSubscriptionController extends BaseController {
       }
 
       subscribedChannels.assignAll(channels);
-    } catch (e) {
-      debugPrint('Error fetching subscribed channels: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'ChannelSubscriptionController.fetchSubscribedChannels');
     } finally {
       isLoadingSubscription.value = false;
     }
+  }
+
+  @override
+  void onClose() {
+    _subscriptionListener?.cancel();
+    _subscriptionListener = null;
+    _membershipListener?.cancel();
+    _membershipListener = null;
+    _countListener?.cancel();
+    _countListener = null;
+    super.onClose();
   }
 }

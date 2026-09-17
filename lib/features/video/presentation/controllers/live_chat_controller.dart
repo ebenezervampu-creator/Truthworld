@@ -1,15 +1,18 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/cashfree_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/live_chat_message.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/services/live_chat_service.dart';
-import 'package:truthworld/theme/app_colors.dart';
 
 /// GetX Controller for Live Chat interactions, streaming, auto-scrolling, and Superchats.
-class LiveChatController extends GetxController {
+class LiveChatController extends BaseController {
   LiveChatController({required this.videoId, this.video});
 
   final String videoId;
@@ -19,20 +22,24 @@ class LiveChatController extends GetxController {
 
   final RxList<LiveChatMessage> messages = <LiveChatMessage>[].obs;
   final Rx<LiveChatMessage?> pinnedMessage = Rx<LiveChatMessage?>(null);
-  final RxBool isLoading = true.obs;
   final RxBool isSending = false.obs;
   final RxBool isAutoScrollEnabled = true.obs;
   final RxInt unreadCount = 0.obs;
   final RxInt cooldownSeconds = 0.obs;
 
-  final TextEditingController textController = TextEditingController();
-  final ScrollController scrollController = ScrollController();
+  late final TextEditingController textController =
+      trackTextController(TextEditingController());
+  late final ScrollController scrollController =
+      trackScrollController(ScrollController());
 
   StreamSubscription? _messageSubscription;
   StreamSubscription? _pinnedSubscription;
   Timer? _cooldownTicker;
 
   String get currentUserId => AuthService.to.uid;
+  String get currentUserName =>
+      AuthService.to.user?.displayName ?? 'Anonymous';
+  String get currentUserPhoto => AuthService.to.user?.photoURL ?? '';
   bool get isCreator =>
       currentUserId.isNotEmpty && (video?.ownerId == currentUserId);
 
@@ -46,31 +53,46 @@ class LiveChatController extends GetxController {
   void _initStreams() {
     if (videoId.isEmpty) return;
 
-    isLoading.value = true;
+    setViewState(ViewState.loading);
 
     // Stream live messages (bounded to 100)
-    _messageSubscription = _service.streamMessages(videoId).listen(
-      (newMessages) {
-        final previousCount = messages.length;
-        messages.assignAll(newMessages);
-        isLoading.value = false;
+    _messageSubscription = trackSubscription(
+      _service.streamMessages(videoId).listen(
+        (newMessages) {
+          final previousCount = messages.length;
+          messages.assignAll(newMessages);
+          setViewState(ViewState.success);
 
-        if (isAutoScrollEnabled.value) {
-          _scrollToBottom();
-        } else if (newMessages.length > previousCount) {
-          unreadCount.value += newMessages.length - previousCount;
-        }
-      },
-      onError: (e) {
-        isLoading.value = false;
-        debugPrint('[LiveChatController] Error listening to messages: $e');
-      },
+          if (isAutoScrollEnabled.value) {
+            _scrollToBottom();
+          } else if (newMessages.length > previousCount) {
+            unreadCount.value += newMessages.length - previousCount;
+          }
+        },
+        onError: (e, stackTrace) {
+          setViewState(ViewState.error);
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'LiveChatController.streamMessages',
+          );
+        },
+      ),
     );
 
     // Stream pinned superchat
-    _pinnedSubscription = _service.streamPinnedMessage(videoId).listen((pinned) {
-      pinnedMessage.value = pinned;
-    });
+    _pinnedSubscription = trackSubscription(
+      _service.streamPinnedMessage(videoId).listen(
+        (pinned) {
+          pinnedMessage.value = pinned;
+        },
+        onError: (e, stackTrace) => ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'LiveChatController.streamPinnedMessage',
+        ),
+      ),
+    );
   }
 
   void _initScrollListener() {
@@ -116,25 +138,18 @@ class LiveChatController extends GetxController {
     final text = textController.text.trim();
     if (text.isEmpty || isSending.value) return;
 
+    final validation = ContentValidator.validate(text, fieldName: 'Chat message');
+    if (!validation.isValid) {
+      AppSnackbar.warning(validation.message);
+      return;
+    }
+
     if (!AuthService.to.isAuthenticated.value || currentUserId.isEmpty) {
-      Get.snackbar(
-        'Sign In Required',
+      AppSnackbar.info(
         'Please sign in to participate in live chat.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.bgSurface,
-        colorText: AppColors.textPrimary,
-        margin: const EdgeInsets.all(16),
-        borderRadius: 12,
-        mainButton: TextButton(
-          onPressed: AuthService.to.signInWithGoogle,
-          child: const Text(
-            'SIGN IN',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
+        title: 'Sign In Required',
+        actionLabel: 'SIGN IN',
+        onAction: AuthService.to.signInWithGoogle,
       );
       return;
     }
@@ -153,10 +168,11 @@ class LiveChatController extends GetxController {
       final auth = AuthService.to;
       final userName = auth.activeDisplayName;
       final userPhoto = auth.activePhotoUrl;
+      final cleanText = ContentValidator.cleanProfanity(text);
 
       await _service.sendMessage(
         videoId: videoId,
-        text: text,
+        text: cleanText,
         userName: userName,
         userProfilePicUrl: userPhoto,
         channelId: auth.userChannel?.id,
@@ -168,9 +184,9 @@ class LiveChatController extends GetxController {
       resumeAutoScroll();
       _startCooldownTicker();
     } catch (e) {
+      ErrorHandler.log(e);
       AppSnackbar.error(
-        e.toString().replaceAll('Exception:', '').trim(),
-        title: 'Message Not Sent',
+        'Unable to send message. Please try again.',
       );
     } finally {
       isSending.value = false;
@@ -180,14 +196,16 @@ class LiveChatController extends GetxController {
   void _startCooldownTicker() {
     cooldownSeconds.value = 2; // 2s slow mode
     _cooldownTicker?.cancel();
-    _cooldownTicker = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (cooldownSeconds.value > 1) {
-        cooldownSeconds.value--;
-      } else {
-        cooldownSeconds.value = 0;
-        timer.cancel();
-      }
-    });
+    _cooldownTicker = trackTimer(
+      Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (cooldownSeconds.value > 1) {
+          cooldownSeconds.value--;
+        } else {
+          cooldownSeconds.value = 0;
+          timer.cancel();
+        }
+      }),
+    );
   }
 
   /// Send Superchat fan support
@@ -197,33 +215,29 @@ class LiveChatController extends GetxController {
     String currency = 'USD',
   }) async {
     if (!AuthService.to.isAuthenticated.value || currentUserId.isEmpty || video == null) {
-      Get.snackbar(
-        'Sign In Required',
+      AppSnackbar.info(
         'Please sign in to send a Superchat.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.bgSurface,
-        colorText: AppColors.textPrimary,
-        margin: const EdgeInsets.all(16),
-        borderRadius: 12,
-        mainButton: TextButton(
-          onPressed: AuthService.to.signInWithGoogle,
-          child: const Text(
-            'SIGN IN',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
+        title: 'Sign In Required',
+        actionLabel: 'SIGN IN',
+        onAction: AuthService.to.signInWithGoogle,
       );
       return false;
     }
 
+    if (text.isNotEmpty) {
+      final validation = ContentValidator.validate(text, fieldName: 'Superchat message');
+      if (!validation.isValid) {
+        AppSnackbar.warning(validation.message);
+        return false;
+      }
+    }
+
     try {
+      final cleanText = ContentValidator.cleanProfanity(text);
       final success = await _service.sendSuperchat(
         videoId: videoId,
         channelId: video!.channelId,
-        text: text,
+        text: cleanText,
         amount: amount,
         currency: currency,
       );
@@ -237,10 +251,67 @@ class LiveChatController extends GetxController {
       }
       return success;
     } catch (e) {
+      ErrorHandler.log(e);
       AppSnackbar.error(
-        e.toString().replaceAll('Exception:', '').trim(),
-        title: 'Superchat Failed',
+        'Unable to complete Super Chat. Please try again.',
       );
+      return false;
+    }
+  }
+
+  /// Send Superchat fan support directly via Cashfree PG
+  Future<bool> sendSuperchatWithCashfree({
+    required double amountINR,
+    required String text,
+  }) async {
+    if (!AuthService.to.isAuthenticated.value || currentUserId.isEmpty || video == null) {
+      AppSnackbar.info(
+        'Please sign in to send a Superchat.',
+        title: 'Sign In Required',
+        actionLabel: 'SIGN IN',
+        onAction: AuthService.to.signInWithGoogle,
+      );
+      return false;
+    }
+
+    if (text.isNotEmpty) {
+      final validation = ContentValidator.validate(text, fieldName: 'Superchat message');
+      if (!validation.isValid) {
+        AppSnackbar.warning(validation.message);
+        return false;
+      }
+    }
+
+    try {
+      final cleanText = ContentValidator.cleanProfanity(text);
+      final paymentResult = await CashfreePaymentService.to.startPayment(
+        amount: amountINR,
+        purpose: 'superchat',
+        orderNote: 'Superchat on ${video!.title}',
+        metadata: {
+          'channelId': video!.channelId,
+          'videoId': videoId,
+          'text': cleanText,
+          'userName': currentUserName,
+          'userProfilePicUrl': currentUserPhoto,
+        },
+      );
+
+      if (paymentResult.success) {
+        AppSnackbar.success(
+          'Thank you for supporting the creator! 🎉',
+          title: 'Superchat Sent!',
+        );
+        resumeAutoScroll();
+        return true;
+      } else if (paymentResult.errorMessage != null &&
+          !paymentResult.errorMessage!.toLowerCase().contains('cancel')) {
+        AppSnackbar.error(paymentResult.errorMessage!);
+      }
+      return false;
+    } catch (e, stackTrace) {
+      ErrorHandler.log(e, stackTrace: stackTrace, tag: 'LiveChatController.sendSuperchatWithCashfree');
+      AppSnackbar.error('Unable to complete Super Chat payment. Please try again.');
       return false;
     }
   }
@@ -262,12 +333,11 @@ class LiveChatController extends GetxController {
       );
       AppSnackbar.success(
         'Moderation action "$action" applied.',
-        title: 'Action Completed',
       );
     } catch (e) {
+      ErrorHandler.log(e);
       AppSnackbar.error(
-        e.toString().replaceAll('Exception:', '').trim(),
-        title: 'Moderation Error',
+        'Unable to complete moderation action. Please try again.',
       );
     }
   }

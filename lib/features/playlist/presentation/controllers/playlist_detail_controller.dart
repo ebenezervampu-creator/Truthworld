@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 
@@ -35,8 +36,12 @@ class PlaylistDetailController extends BaseController {
         DeepLinkService.instance.cachePlaylist(playlist);
         activePlaylist.value = playlist;
       }
-    } catch (e) {
-      debugPrint('[PlaylistDetailController] Error loading deep link playlist: $e');
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'PlaylistDetailController.loadPlaylistFromDeepLink',
+      );
     } finally {
       rxIsLoading.value = false;
     }

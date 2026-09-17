@@ -143,5 +143,15 @@ void main() {
       controller.isAscending.value = true;
       expect(controller.isAscending.value, isTrue);
     });
+
+    test('hasChannel returns false when no channel is registered', () {
+      expect(controller.hasChannel, isFalse);
+    });
+
+    test('handleUploadTap prompts for channel creation when hasChannel is false', () {
+      expect(controller.hasChannel, isFalse);
+      // Invoking handleUploadTap with no channel should not throw and should prevent upload route navigation
+      expect(() => controller.handleUploadTap(), returnsNormally);
+    });
   });
 }

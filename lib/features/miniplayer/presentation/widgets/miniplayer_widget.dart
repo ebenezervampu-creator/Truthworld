@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/features/miniplayer/data/models/miniplayer_model.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -62,9 +63,10 @@ class _FloatingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MiniplayerConfig.isMobileLayout(screenSize.width);
     final width = MiniplayerConfig.widthForScreen(screenSize.width);
     final height =
-        MiniplayerConfig.heightForWidth(width) +
+        MiniplayerConfig.heightForWidth(width, isMobile: isMobile) +
         2.0; // Account for top/bottom borders
     final cardSize = Size(width, height);
 
@@ -134,7 +136,10 @@ class _CardBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final videoHeight = cardSize.width / MiniplayerConfig.videoAspectRatio;
+    final isMobile = MiniplayerConfig.isMobileLayout(screenSize.width);
+    final videoHeight = isMobile
+        ? (cardSize.height - 2.0)
+        : (cardSize.width / MiniplayerConfig.videoAspectRatio);
 
     return Material(
       type: MaterialType.transparency,
@@ -164,15 +169,19 @@ class _CardBody extends StatelessWidget {
                 behavior: HitTestBehavior.opaque,
                 onPanUpdate: (d) =>
                     controller.onPanCard(d.delta, cardSize, screenSize),
-                onTap: controller.toggleMobileControls,
-                child: _VideoFrame(controller: controller),
+                onTap: controller.openFullScreen,
+                child: _VideoFrame(
+                  controller: controller,
+                  isMobile: isMobile,
+                ),
               ),
             ),
-            _InfoBar(
-              controller: controller,
-              cardSize: cardSize,
-              screenSize: screenSize,
-            ),
+            if (!isMobile)
+              _InfoBar(
+                controller: controller,
+                cardSize: cardSize,
+                screenSize: screenSize,
+              ),
           ],
         ),
       ),
@@ -185,8 +194,156 @@ class _CardBody extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _VideoFrame extends StatelessWidget {
-  const _VideoFrame({required this.controller});
+  const _VideoFrame({
+    required this.controller,
+    this.isMobile = false,
+  });
   final MiniplayerController controller;
+  final bool isMobile;
+
+  Widget _buildMobileControls() {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Subtle vignette
+        IgnorePointer(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  AppColors.bgPage.withValues(alpha: 0.40),
+                  Colors.transparent,
+                  AppColors.bgPage.withValues(alpha: 0.30),
+                ],
+                stops: const [0.0, 0.45, 1.0],
+              ),
+            ),
+          ),
+        ),
+
+        // Tap area to open full screen
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: controller.openFullScreen,
+          ),
+        ),
+
+        // Left / Top-left: Play / Pause circular button
+        Positioned(
+          top: 8,
+          left: 8,
+          child: Obx(() {
+            final playing = controller.isPlaying.value;
+            return Material(
+              color: AppColors.bgPage.withValues(alpha: 0.65),
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: controller.togglePlayPause,
+                child: Padding(
+                  padding: const EdgeInsets.all(7),
+                  child: Icon(
+                    playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    size: 20,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+
+        // Right / Top-right: Close circular button
+        Positioned(
+          top: 8,
+          right: 8,
+          child: Material(
+            color: AppColors.bgPage.withValues(alpha: 0.65),
+            shape: const CircleBorder(),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: controller.dismiss,
+              child: const Padding(
+                padding: EdgeInsets.all(7),
+                child: Icon(
+                  Icons.close_rounded,
+                  size: 20,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDesktopControls() {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Subtle vignette so icons stay legible.
+        IgnorePointer(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  AppColors.bgPage.withValues(alpha: 0.35),
+                  Colors.transparent,
+                  AppColors.bgPage.withValues(alpha: 0.25),
+                ],
+                stops: const [0.0, 0.45, 1.0],
+              ),
+            ),
+          ),
+        ),
+
+        // Top-left: Expand button + "I" hotkey hint.
+        Positioned(
+          top: 6,
+          left: 6,
+          child: _ExpandButton(controller: controller),
+        ),
+
+        // Top-right: Close and CC buttons.
+        Positioned(
+          top: 6,
+          right: 6,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Obx(() {
+                final enabled = controller.subtitlesEnabled.value;
+                return _OverlayIconButton(
+                  icon: enabled
+                      ? Icons.subtitles_rounded
+                      : Icons.subtitles_outlined,
+                  tooltip: 'Subtitles (CC)',
+                  onTap: controller.toggleSubtitles,
+                );
+              }),
+              const SizedBox(width: 6),
+              _OverlayIconButton(
+                icon: Icons.close_rounded,
+                tooltip: 'Close (Esc)',
+                onTap: controller.dismiss,
+              ),
+            ],
+          ),
+        ),
+
+        // Center: Play / Pause.
+        Center(
+          child: _CenterPlayButton(controller: controller),
+        ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -219,7 +376,13 @@ class _VideoFrame extends StatelessWidget {
           try {
             w = vpc.value.size.width;
             h = vpc.value.size.height;
-          } catch (_) {}
+          } catch (e, s) {
+            ErrorHandler.log(
+              e,
+              stackTrace: s,
+              tag: 'MiniplayerWidget.getVideoSize',
+            );
+          }
           if (w <= 0) w = 16;
           if (h <= 0) h = 9;
           return FittedBox(
@@ -324,67 +487,7 @@ class _VideoFrame extends StatelessWidget {
             duration: const Duration(milliseconds: 180),
             child: IgnorePointer(
               ignoring: !showOverlay,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  // Subtle vignette so icons stay legible.
-                  IgnorePointer(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            AppColors.bgPage.withValues(alpha: 0.35),
-                            Colors.transparent,
-                            AppColors.bgPage.withValues(alpha: 0.25),
-                          ],
-                          stops: const [0.0, 0.45, 1.0],
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  // Top-left: Expand button + "I" hotkey hint.
-                  Positioned(
-                    top: 6,
-                    left: 6,
-                    child: _ExpandButton(controller: controller),
-                  ),
-
-                  // Top-right: Close and CC buttons.
-                  Positioned(
-                    top: 6,
-                    right: 6,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Obx(() {
-                          final enabled = controller.subtitlesEnabled.value;
-                          return _OverlayIconButton(
-                            icon: enabled
-                                ? Icons.subtitles_rounded
-                                : Icons.subtitles_outlined,
-                            tooltip: 'Subtitles (CC)',
-                            onTap: controller.toggleSubtitles,
-                          );
-                        }),
-                        const SizedBox(width: 6),
-                        _OverlayIconButton(
-                          icon: Icons.close_rounded,
-                          tooltip: 'Close (Esc)',
-                          onTap: controller.dismiss,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Center: Play / Pause.
-                  Center(
-                    child: _CenterPlayButton(controller: controller),
-                  ),
-                ],
-              ),
+              child: isMobile ? _buildMobileControls() : _buildDesktopControls(),
             ),
           );
         }),

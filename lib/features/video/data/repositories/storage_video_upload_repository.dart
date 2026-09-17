@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/network/result.dart';
 import 'package:truthworld/features/video/domain/repositories/video_upload_repository.dart';
@@ -37,19 +38,25 @@ class StorageVideoUploadRepository implements VideoUploadRepository {
       final uploadTask = ref.putFile(file, metadata);
 
       if (onProgress != null) {
-        uploadTask.snapshotEvents.listen((event) {
-          if (event.totalBytes > 0) {
-            final progress = event.bytesTransferred / event.totalBytes;
-            onProgress(progress);
-          }
-        });
+        uploadTask.snapshotEvents.listen(
+          (event) {
+            if (event.totalBytes > 0) {
+              final progress = event.bytesTransferred / event.totalBytes;
+              onProgress(progress);
+            }
+          },
+          onError: (error, stackTrace) {
+            ErrorHandler.log(error, stackTrace: stackTrace, context: 'StorageVideoUploadRepository.uploadTask');
+          },
+        );
       }
 
       final snapshot = await uploadTask;
       final downloadUrl = await snapshot.ref.getDownloadURL();
       return Result.success(downloadUrl);
-    } catch (e) {
-      return Result.failure(GenericAppException(message: e.toString()));
+    } catch (e, stackTrace) {
+      ErrorHandler.log(e, stackTrace: stackTrace, context: 'StorageVideoUploadRepository.uploadVideoFile');
+      return Result.failure(AppException.from(e, stackTrace));
     }
   }
 
@@ -71,8 +78,9 @@ class StorageVideoUploadRepository implements VideoUploadRepository {
       final snapshot = await uploadTask;
       final downloadUrl = await snapshot.ref.getDownloadURL();
       return Result.success(downloadUrl);
-    } catch (e) {
-      return Result.failure(GenericAppException(message: e.toString()));
+    } catch (e, stackTrace) {
+      ErrorHandler.log(e, stackTrace: stackTrace, context: 'StorageVideoUploadRepository.uploadThumbnailBytes');
+      return Result.failure(AppException.from(e, stackTrace));
     }
   }
 
@@ -87,8 +95,9 @@ class StorageVideoUploadRepository implements VideoUploadRepository {
 
       await docRef.set(data);
       return Result.success(id);
-    } catch (e) {
-      return Result.failure(GenericAppException(message: e.toString()));
+    } catch (e, stackTrace) {
+      ErrorHandler.log(e, stackTrace: stackTrace, context: 'StorageVideoUploadRepository.saveVideoMetadata');
+      return Result.failure(AppException.from(e, stackTrace));
     }
   }
 }

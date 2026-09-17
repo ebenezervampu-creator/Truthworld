@@ -4,6 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
 import 'package:truthworld/features/search/data/models/search_result.dart';
 import 'package:truthworld/features/search/presentation/controllers/search_controller.dart'
@@ -39,10 +42,9 @@ class SubscribeButton extends StatelessWidget {
         onTap: () async {
           final user = FirebaseAuth.instance.currentUser;
           if (user == null) {
-            Get.snackbar(
-              'Sign In Required',
+            AppSnackbar.warning(
               'Please sign in to subscribe to channels.',
-              snackPosition: SnackPosition.BOTTOM,
+              title: 'Sign In Required',
             );
             return;
           }
@@ -101,10 +103,9 @@ class FollowButton extends StatelessWidget {
         onTap: () async {
           final user = FirebaseAuth.instance.currentUser;
           if (user == null) {
-            Get.snackbar(
-              'Sign In Required',
+            AppSnackbar.warning(
               'Please sign in to follow topics.',
-              snackPosition: SnackPosition.BOTTOM,
+              title: 'Sign In Required',
             );
             return;
           }
@@ -122,14 +123,19 @@ class FollowButton extends StatelessWidget {
                     (data?['featuredVideoIds'] as List?)?.length ??
                     0;
               }
-            } catch (_) {}
+            } catch (e, s) {
+              ErrorHandler.log(
+                e,
+                stackTrace: s,
+                tag: 'TopicCard.fetchTopicCount',
+              );
+            }
           }
 
           if (finalCount <= 0 && !isFollowing) {
-            Get.snackbar(
-              'Unavailable',
+            AppSnackbar.info(
               'This topic has no videos.',
-              snackPosition: SnackPosition.BOTTOM,
+              title: 'Unavailable',
             );
             return;
           }
@@ -214,59 +220,68 @@ class SearchResultCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Thumbnail with Duration
-            SizedBox(
-              width: MediaQuery.of(context).size.width * 0.38,
-              child: Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: AspectRatio(
-                      aspectRatio: 16 / 9,
-                      child: ColoredBox(
-                        color: AppColors.textSecondary,
-                        child: result.thumbnail.isNotEmpty
-                            ? CachedNetworkImage(
-                                imageUrl: result.thumbnail,
-                                fit: BoxFit.cover,
-                                placeholder: (context, url) =>
-                                    const ColoredBox(color: AppColors.bgDivider),
-                                errorWidget: (context, url, error) => const Icon(
-                                  Icons.play_circle_outline,
-                                  color: AppColors.textPrimary,
-                                ),
-                              )
-                            : const Icon(
-                                Icons.play_circle_outline,
-                                color: AppColors.textPrimary,
-                              ),
-                      ),
-                    ),
-                  ),
-                if (durationStr != null)
-                  Positioned(
-                    bottom: 6,
-                    right: 6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.bgPage.withValues(alpha: 0.8),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        durationStr,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
+            Builder(
+              builder: (context) {
+                final screenWidth = MediaQuery.of(context).size.width;
+                final isWide = screenWidth >= 600;
+                final thumbWidth = isWide
+                    ? (screenWidth * 0.32).clamp(240.0, 360.0)
+                    : (screenWidth * 0.38).clamp(140.0, 200.0);
+                return SizedBox(
+                  width: thumbWidth,
+                  child: Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: AspectRatio(
+                          aspectRatio: 16 / 9,
+                          child: ColoredBox(
+                            color: AppColors.textSecondary,
+                            child: result.thumbnail.isNotEmpty
+                                ? CachedNetworkImage(
+                                    imageUrl: result.thumbnail,
+                                    fit: BoxFit.cover,
+                                    placeholder: (context, url) =>
+                                        const ColoredBox(color: AppColors.bgDivider),
+                                    errorWidget: (context, url, error) => const Icon(
+                                      Icons.play_circle_outline,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.play_circle_outline,
+                                    color: AppColors.textPrimary,
+                                  ),
+                          ),
                         ),
                       ),
-                    ),
+                    if (durationStr != null)
+                      Positioned(
+                        bottom: 6,
+                        right: 6,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.8),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            durationStr,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                   ),
-              ],
-              ),
+                );
+              },
             ),
             const SizedBox(width: 12),
             // Video Metadata
@@ -334,42 +349,48 @@ class SearchResultCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  // Quality badge & snippet mock description
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 4,
-                          vertical: 1,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.bgDivider,
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                        child: const Text(
-                          '4K',
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
+                  // Category badge & metadata snippet
+                  if ((result.category != null && result.category!.isNotEmpty) ||
+                      (result.language != null && result.language!.isNotEmpty)) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        if (result.category != null && result.category!.isNotEmpty) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 1,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.bgDivider,
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                            child: Text(
+                              result.category!.toUpperCase(),
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      const Expanded(
-                        child: Text(
-                          'Watch in high quality truth stream.',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: AppColors.textTertiary,
-                            fontSize: 11,
+                          const SizedBox(width: 6),
+                        ],
+                        if (result.language != null && result.language!.isNotEmpty)
+                          Expanded(
+                            child: Text(
+                              result.language!.toUpperCase(),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: AppColors.textTertiary,
+                                fontSize: 11,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -1083,6 +1104,7 @@ class _SearchBarState extends State<SearchBar> {
     final textField = TextField(
       controller: widget.controller,
       focusNode: _focusNode,
+      inputFormatters: [TruthworldTextInputFormatters.englishOnly],
       onChanged: widget.onChanged,
       onSubmitted: (_) => widget.onSearchSubmitted(),
       autofocus: true,

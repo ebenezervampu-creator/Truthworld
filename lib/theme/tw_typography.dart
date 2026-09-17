@@ -175,6 +175,10 @@ class TWTypography extends ThemeExtension<TWTypography> {
 
 /// Helper extension to easily access TruthWorld typography from [BuildContext].
 extension TWTypographyThemeExtension on BuildContext {
-  TWTypography get themeTypography => Theme.of(this).extension<TWTypography>()!;
-  TWTypography get twTypography => Theme.of(this).extension<TWTypography>()!;
+  TWTypography get themeTypography =>
+      Theme.of(this).extension<TWTypography>() ??
+      TWTypography.defaults(Theme.of(this).colorScheme.onSurface);
+  TWTypography get twTypography =>
+      Theme.of(this).extension<TWTypography>() ??
+      TWTypography.defaults(Theme.of(this).colorScheme.onSurface);
 }

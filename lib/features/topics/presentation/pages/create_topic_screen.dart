@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/topic_management_controller.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
@@ -30,8 +31,12 @@ class CreateTopicScreen extends StatelessWidget {
             .get();
         return snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
       }
-    } catch (e) {
-      debugPrint('Error fetching channel videos for topic creation: $e');
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'CreateTopicScreen._fetchVideos',
+      );
     }
     return [];
   }

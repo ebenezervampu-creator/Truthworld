@@ -10,10 +10,11 @@ import 'package:get_storage/get_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/image_cropper_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart';
-import 'package:truthworld/theme/app_colors.dart';
 
 class CustomizationController extends BaseController with ContentValidationMixin {
   CustomizationController({required this.channelId, required this.ownerId});
@@ -115,7 +116,14 @@ class CustomizationController extends BaseController with ContentValidationMixin
                 '';
             if (aUrl.isNotEmpty) avatarUrl.value = aUrl;
           }
-        }));
+        },
+        onError: (e, stackTrace) => ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'CustomizationController._listenToChannelChanges',
+        ),
+      ),
+    );
   }
 
   Future<void> loadChannelData() async {
@@ -176,12 +184,9 @@ class CustomizationController extends BaseController with ContentValidationMixin
         }
       }
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to load channel data: $e',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to load channel details. Please try again.',
       );
     } finally {
       rxIsLoading.value = false;
@@ -214,18 +219,13 @@ class CustomizationController extends BaseController with ContentValidationMixin
         }, SetOptions(merge: true));
       }
 
-      Get.snackbar(
-        'Verification Bypassed',
+      AppSnackbar.success(
         "Successfully approved the ${isBanner ? 'banner' : 'avatar'} for local testing.",
-        backgroundColor: AppColors.success,
-        colorText: AppColors.textPrimary,
       );
     } catch (e) {
-      Get.snackbar(
-        'Bypass Failed',
-        e.toString(),
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to complete verification update. Please try again.',
       );
     }
   }
@@ -269,18 +269,13 @@ class CustomizationController extends BaseController with ContentValidationMixin
         avatarStatusReason.value = userReason;
       }
 
-      Get.snackbar(
-        'Manual Review Requested',
-        'Your image has been queued for manual moderation review.',
-        backgroundColor: AppColors.success,
-        colorText: AppColors.textPrimary,
+      AppSnackbar.success(
+        'Your image has been queued for manual review.',
       );
     } catch (e) {
-      Get.snackbar(
-        'Request Failed',
-        e.toString(),
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to submit request for manual review. Please try again.',
       );
     }
   }
@@ -315,12 +310,9 @@ class CustomizationController extends BaseController with ContentValidationMixin
         }
       }
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to pick image: $e',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to select image. Please try again.',
       );
     }
   }
@@ -346,25 +338,13 @@ class CustomizationController extends BaseController with ContentValidationMixin
   Future<void> saveChanges() async {
     final name = channelNameController.text.trim();
     if (name.isEmpty) {
-      Get.snackbar(
-        'Required',
-        'Channel name cannot be empty',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
-      );
+      AppSnackbar.warning('Please enter a channel name before saving.');
       return;
     }
 
     final nameVal = await validateContent(name, fieldName: 'Channel Name');
     if (!nameVal.isValid) {
-      Get.snackbar(
-        'Inappropriate Content',
-        nameVal.message,
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
-      );
+      AppSnackbar.warning(nameVal.message);
       return;
     }
 
@@ -374,13 +354,7 @@ class CustomizationController extends BaseController with ContentValidationMixin
         fieldName: 'Channel Handle',
       );
       if (!handleVal.isValid) {
-        Get.snackbar(
-          'Inappropriate Content',
-          handleVal.message,
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: AppColors.error,
-          colorText: AppColors.textPrimary,
-        );
+        AppSnackbar.warning(handleVal.message);
         return;
       }
     }
@@ -391,13 +365,7 @@ class CustomizationController extends BaseController with ContentValidationMixin
         fieldName: 'Channel Description',
       );
       if (!descVal.isValid) {
-        Get.snackbar(
-          'Inappropriate Content',
-          descVal.message,
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: AppColors.error,
-          colorText: AppColors.textPrimary,
-        );
+        AppSnackbar.warning(descVal.message);
         return;
       }
     }
@@ -412,13 +380,7 @@ class CustomizationController extends BaseController with ContentValidationMixin
     if (tags.isNotEmpty) {
       final tagsVal = await validateTags(tags);
       if (!tagsVal.isValid) {
-        Get.snackbar(
-          'Inappropriate Content',
-          tagsVal.message,
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: AppColors.error,
-          colorText: AppColors.textPrimary,
-        );
+        AppSnackbar.warning(tagsVal.message);
         return;
       }
     }
@@ -429,13 +391,7 @@ class CustomizationController extends BaseController with ContentValidationMixin
         fieldName: 'Contact Email',
       );
       if (!emailVal.isValid) {
-        Get.snackbar(
-          'Inappropriate Content',
-          emailVal.message,
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: AppColors.error,
-          colorText: AppColors.textPrimary,
-        );
+        AppSnackbar.warning(emailVal.message);
         return;
       }
     }
@@ -446,13 +402,7 @@ class CustomizationController extends BaseController with ContentValidationMixin
         fieldName: 'Website URL',
       );
       if (!webVal.isValid) {
-        Get.snackbar(
-          'Inappropriate Content',
-          webVal.message,
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: AppColors.error,
-          colorText: AppColors.textPrimary,
-        );
+        AppSnackbar.warning(webVal.message);
         return;
       }
     }
@@ -468,13 +418,7 @@ class CustomizationController extends BaseController with ContentValidationMixin
           fieldName: '${entry.key} Link',
         );
         if (!linkVal.isValid) {
-          Get.snackbar(
-            'Inappropriate Content',
-            linkVal.message,
-            snackPosition: SnackPosition.BOTTOM,
-            backgroundColor: AppColors.error,
-            colorText: AppColors.textPrimary,
-          );
+          AppSnackbar.warning(linkVal.message);
           return;
         }
       }
@@ -590,26 +534,25 @@ class CustomizationController extends BaseController with ContentValidationMixin
       newAvatarBytes.value = null;
       newBannerBytes.value = null;
 
-      Get.snackbar(
-        'Success',
+      AppSnackbar.success(
         'Channel updated successfully!',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.success,
-        colorText: AppColors.textPrimary,
       );
 
       // Redirect to the Dashboard tab (tab index 1)
       try {
         final dashboardController = Get.find<DashboardController>();
         dashboardController.selectedIndex.value = 1;
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'CustomizationController.redirectToDashboard',
+        );
+      }
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to save changes: $e',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to save changes. Please try again.',
       );
     } finally {
       isSaving.value = false;

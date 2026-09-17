@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/config/app_config.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart'
     as app_exceptions;
 
@@ -109,11 +110,11 @@ class AppNavigationController extends BaseController {
                       'viewCount': FieldValue.increment(1),
                       'updatedAt': FieldValue.serverTimestamp(),
                     }, SetOptions(merge: true))
-                    .catchError((_) {});
+                    .catchError((e, s) => ErrorHandler.log(e, stackTrace: s, tag: 'AppNavigationController.channelMetricsWeb'));
               }
             }
-          } catch (e) {
-            debugPrint('Error updating views on Web: $e');
+          } catch (e, stackTrace) {
+            ErrorHandler.log(e, stackTrace: stackTrace, tag: 'AppNavigationController.updateViewsWeb');
           }
         } else {
           await _firestore
@@ -167,7 +168,7 @@ class AppNavigationController extends BaseController {
                 'viewCount': FieldValue.increment(1),
                 'updatedAt': FieldValue.serverTimestamp(),
               }, SetOptions(merge: true))
-              .catchError((_) {});
+              .catchError((e, s) => ErrorHandler.log(e, stackTrace: s, tag: 'AppNavigationController.channelMetricsAnon'));
         }
       }
 
@@ -176,10 +177,8 @@ class AppNavigationController extends BaseController {
           'MainController: View counted for video $videoId (Qualified: $isQualified, User: $userId)',
         );
       }
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Error updating views: $e');
-      }
+    } catch (e, stackTrace) {
+      ErrorHandler.log(e, stackTrace: stackTrace, tag: 'AppNavigationController.updateViews');
     }
   }
 
@@ -274,18 +273,20 @@ class AppNavigationController extends BaseController {
         return true;
       }
       return true;
-    } on http.ClientException catch (e) {
+    } on http.ClientException catch (e, stackTrace) {
       // Caught client exception usually indicates CORS preflight blocking or missing network connection
-      if (kDebugMode) {
-        debugPrint(
-          'MainController: Analytics endpoint unreachable or blocked by CORS preflight ($e). Failing silently to prevent UI disruption.',
-        );
-      }
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'AppNavigationController.trackWatchEvent.clientException',
+      );
       return false;
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('MainController: Error calling trackWatchEvent: $e');
-      }
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'AppNavigationController.trackWatchEvent',
+      );
       return false;
     }
   }
@@ -306,8 +307,12 @@ class AppNavigationController extends BaseController {
           .doc(videoId)
           .update({'shareCount': FieldValue.increment(1)})
           .timeout(_defaultTimeout);
-    } catch (e) {
-      debugPrint('Error incrementing share count: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'AppNavigationController.incrementShareCount',
+      );
     }
   }
 

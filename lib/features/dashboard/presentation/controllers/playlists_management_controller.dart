@@ -3,12 +3,12 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
@@ -144,8 +144,8 @@ class PlaylistsManagementController extends BaseController
               for (final doc in ownerSnap.docs) {
                 itemsMap[doc.id] = PlaylistModel.fromDocumentSnapshot(doc);
               }
-            } catch (e) {
-              debugPrint('Error fetching owner playlists: $e');
+            } catch (e, s) {
+              ErrorHandler.log(e, stackTrace: s, tag: 'PlaylistsManagementController.fetchOwnerPlaylists');
             }
           }
 
@@ -179,8 +179,8 @@ class PlaylistsManagementController extends BaseController
               final video = Video.fromDocumentSnapshot(doc);
               videos.add(video);
               cachedVideos[video.id] = video;
-            } catch (e) {
-              debugPrint('Error parsing video ${doc.id}: $e');
+            } catch (e, s) {
+              ErrorHandler.log(e, stackTrace: s, tag: 'PlaylistsManagementController.parseVideo');
             }
           }
         }
@@ -194,7 +194,9 @@ class PlaylistsManagementController extends BaseController
               .where('channelId', isEqualTo: id)
               .get();
           addVideoDocs(q1.docs);
-        } catch (_) {}
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'PlaylistsManagementController.queryByChannelId');
+        }
 
         try {
           final q2 = await _firestore
@@ -202,7 +204,9 @@ class PlaylistsManagementController extends BaseController
               .where('ownerId', isEqualTo: id)
               .get();
           addVideoDocs(q2.docs);
-        } catch (_) {}
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'PlaylistsManagementController.queryByOwnerId');
+        }
 
         try {
           final q3 = await _firestore
@@ -210,7 +214,9 @@ class PlaylistsManagementController extends BaseController
               .where('userId', isEqualTo: id)
               .get();
           addVideoDocs(q3.docs);
-        } catch (_) {}
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'PlaylistsManagementController.queryByUserId');
+        }
 
         // Also check channel subcollection channels/{id}/videos
         try {
@@ -220,14 +226,16 @@ class PlaylistsManagementController extends BaseController
               .collection(FirestoreCollections.videos)
               .get();
           addVideoDocs(qSub.docs);
-        } catch (_) {}
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'PlaylistsManagementController.querySubcollection');
+        }
       }
 
       // Sort newest videos first
       videos.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return videos;
-    } catch (e) {
-      debugPrint('Error fetching channel videos: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'PlaylistsManagementController.fetchChannelVideos');
       return [];
     }
   }
@@ -262,8 +270,8 @@ class PlaylistsManagementController extends BaseController
             cachedVideos[video.id] = video;
             result.add(video);
           }
-        } catch (e) {
-          debugPrint('Error batch fetching videos: $e');
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'PlaylistsManagementController.batchFetchVideos');
         }
       }
     }
@@ -297,8 +305,8 @@ class PlaylistsManagementController extends BaseController
       final uploadTask = ref.putData(bytes, metadata);
       await uploadTask.timeout(const Duration(seconds: 20));
       return await ref.getDownloadURL();
-    } catch (e) {
-      debugPrint('Error uploading playlist thumbnail: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'PlaylistsManagementController.uploadPlaylistThumbnail');
       return null;
     }
   }
@@ -401,20 +409,14 @@ class PlaylistsManagementController extends BaseController
         });
       }
 
-      AppSnackbar.show(
-        'Success',
+      AppSnackbar.success(
         'Playlist "$cleanName" created successfully.',
-        backgroundColor: AppColors.success,
-        colorText: AppColors.textPrimary,
       );
       return true;
     } catch (e) {
-      debugPrint('Error creating playlist: $e');
-      AppSnackbar.show(
-        'Error',
-        'Failed to create playlist: $e',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to create playlist. Please try again.',
       );
       return false;
     } finally {
@@ -480,20 +482,14 @@ class PlaylistsManagementController extends BaseController
           .doc(playlistId)
           .update(updateData);
 
-      AppSnackbar.show(
-        'Updated',
+      AppSnackbar.success(
         'Playlist details updated.',
-        backgroundColor: AppColors.success,
-        colorText: AppColors.textPrimary,
       );
       return true;
     } catch (e) {
-      debugPrint('Error updating playlist: $e');
-      AppSnackbar.show(
-        'Error',
-        'Failed to update playlist: $e',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to update playlist. Please try again.',
       );
       return false;
     }
@@ -545,20 +541,14 @@ class PlaylistsManagementController extends BaseController
         }, SetOptions(merge: true));
       }
 
-      AppSnackbar.show(
-        'Saved',
+      AppSnackbar.success(
         'Playlist videos updated.',
-        backgroundColor: AppColors.success,
-        colorText: AppColors.textPrimary,
       );
       return true;
     } catch (e) {
-      debugPrint('Error updating playlist videos: $e');
-      AppSnackbar.show(
-        'Error',
-        'Failed to save video changes: $e',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to save video changes. Please try again.',
       );
       return false;
     }
@@ -572,20 +562,14 @@ class PlaylistsManagementController extends BaseController
           .doc(playlistId)
           .delete();
 
-      AppSnackbar.show(
-        'Deleted',
+      AppSnackbar.success(
         'Playlist deleted successfully.',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
       );
       return true;
     } catch (e) {
-      debugPrint('Error deleting playlist: $e');
-      AppSnackbar.show(
-        'Error',
-        'Failed to delete playlist: $e',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to delete playlist. Please try again.',
       );
       return false;
     }

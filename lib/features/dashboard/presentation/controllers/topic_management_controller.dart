@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/services/feedback/feedback_service.dart';
@@ -84,11 +85,13 @@ class TopicManagementController extends BaseController {
       debugPrint(
         '✅ [TopicManagementController] Storage auth ready for user: ${user.uid}',
       );
-    } catch (e) {
-      debugPrint(
-        '❌ [TopicManagementController] Failed to prepare Storage auth: $e',
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'TopicManagementController.prepareStorageAuth',
       );
-      throw Exception('Storage auth preparation failed: $e');
+      throw Exception('Storage auth preparation failed.');
     }
   }
 
@@ -114,8 +117,12 @@ class TopicManagementController extends BaseController {
         '🔗 [TopicManagementController] Uploaded thumbnail URL: $downloadUrl',
       );
       return downloadUrl;
-    } catch (e) {
-      debugPrint('❌ [TopicManagementController] Thumbnail Upload error: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'TopicManagementController.uploadThumbnail',
+      );
       return null;
     }
   }
@@ -180,8 +187,12 @@ class TopicManagementController extends BaseController {
       addDocs(subQuery.docs);
 
       return videos;
-    } catch (e) {
-      debugPrint('Error fetching channel videos: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'TopicManagementController.fetchChannelVideos',
+      );
       return [];
     }
   }
@@ -200,11 +211,9 @@ class TopicManagementController extends BaseController {
     try {
       // 0. Validate at least 1 video is selected
       if (selectedVideoIds.isEmpty) {
-        AppSnackbar.show(
-          'Video Required',
+        AppSnackbar.warning(
           'At least 1 video is required to create a topic.',
-          backgroundColor: AppColors.error,
-          colorText: AppColors.textPrimary,
+          title: 'Video Required',
         );
         throw Exception('At least 1 video is required to create a topic');
       }
@@ -218,11 +227,9 @@ class TopicManagementController extends BaseController {
           .replaceAll(RegExp('[^a-zA-Z0-9_-]'), '-')
           .replaceAll(RegExp('-+'), '-');
       if (cleanHandle.isEmpty) {
-        AppSnackbar.show(
-          'Validation Error',
+        AppSnackbar.warning(
           'Topic handle is required and must contain alphanumeric characters.',
-          backgroundColor: AppColors.error,
-          colorText: AppColors.textPrimary,
+          title: 'Handle Required',
         );
         throw Exception('Topic handle is required');
       }
@@ -237,11 +244,9 @@ class TopicManagementController extends BaseController {
           .get();
 
       if (existingHandle.docs.isNotEmpty) {
-        AppSnackbar.show(
-          'Action Restricted',
+        AppSnackbar.warning(
           'Topic handle is already taken. Please choose a different one.',
-          backgroundColor: AppColors.error,
-          colorText: AppColors.textPrimary,
+          title: 'Handle Taken',
         );
         throw Exception('Topic handle is already taken');
       }
@@ -308,19 +313,14 @@ class TopicManagementController extends BaseController {
         await batch.commit();
       }
 
-      AppSnackbar.show(
-        'Success',
-        'Topic created successfully',
-        backgroundColor: AppColors.success,
-        colorText: AppColors.textPrimary,
+      AppSnackbar.success(
+        'Topic created successfully.',
       );
     } catch (e) {
+      ErrorHandler.log(e);
       if (e is! Exception || !e.toString().contains('Topic handle')) {
-        AppSnackbar.show(
-          'Error',
-          'Failed to create topic: $e',
-          backgroundColor: AppColors.error,
-          colorText: AppColors.textPrimary,
+        AppSnackbar.error(
+          'Unable to create topic. Please try again.',
         );
       }
       rethrow;
@@ -334,8 +334,12 @@ class TopicManagementController extends BaseController {
           .where('topicId', isEqualTo: topicSlug)
           .get();
       return snap.docs.map((doc) => doc.id).toList();
-    } catch (e) {
-      debugPrint('Error fetching topic videos: $e');
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'TopicManagementController.fetchTopicVideos',
+      );
       return [];
     }
   }
@@ -352,11 +356,9 @@ class TopicManagementController extends BaseController {
   }) async {
     try {
       if (selectedVideoIds.isEmpty) {
-        AppSnackbar.show(
-          'Video Required',
+        AppSnackbar.warning(
           'A topic must contain at least 1 video.',
-          backgroundColor: AppColors.error,
-          colorText: AppColors.textPrimary,
+          title: 'Video Required',
         );
         throw Exception('A topic must contain at least 1 video');
       }
@@ -412,18 +414,13 @@ class TopicManagementController extends BaseController {
 
       await batch.commit();
 
-      AppSnackbar.show(
-        'Success',
-        'Topic updated successfully',
-        backgroundColor: AppColors.success,
-        colorText: AppColors.textPrimary,
+      AppSnackbar.success(
+        'Topic updated successfully.',
       );
     } catch (e) {
-      AppSnackbar.show(
-        'Error',
-        'Failed to update topic: $e',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to update topic. Please try again.',
       );
     }
   }
@@ -439,18 +436,13 @@ class TopicManagementController extends BaseController {
             'deletionRequestedAt': FieldValue.serverTimestamp(),
           });
       topicsList.removeWhere((t) => t.id == topic.id);
-      AppSnackbar.show(
-        'Success',
-        'Topic is now private and scheduled for deletion in 30 days',
-        backgroundColor: AppColors.success,
-        colorText: AppColors.textPrimary,
+      AppSnackbar.success(
+        'Topic is now private and scheduled for deletion in 30 days.',
       );
     } catch (e) {
-      AppSnackbar.show(
-        'Error',
-        'Failed to schedule topic deletion: $e',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to schedule topic deletion. Please try again.',
       );
     }
   }
@@ -466,11 +458,9 @@ class TopicManagementController extends BaseController {
   void copyLink(Topic topic) {
     final url = DeepLinkService.topicUrl(topic.routePathParameter);
     Clipboard.setData(ClipboardData(text: url));
-    AppSnackbar.show(
-      'Link Copied',
-      'Topic link copied to clipboard: $url',
-      backgroundColor: const Color(0xFF10B981),
-      colorText: AppColors.textPrimary,
+    AppSnackbar.success(
+      'Topic link copied to clipboard.',
+      title: 'Link Copied',
     );
   }
 

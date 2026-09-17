@@ -1,9 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
 /// Centralized service for managing user content preferences (hidden videos, blocked channels).
@@ -52,8 +52,8 @@ class UserPreferencesService extends GetxService {
       if (rawBlockedNames != null) {
         blockedChannelNames.assignAll(rawBlockedNames.map((e) => e.toString()));
       }
-    } catch (e) {
-      debugPrint('[UserPreferencesService] Error loading local storage: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'UserPreferencesService._loadFromStorage');
     }
   }
 
@@ -65,8 +65,8 @@ class UserPreferencesService extends GetxService {
         _keyBlockedChannelNames,
         blockedChannelNames.toList(),
       );
-    } catch (e) {
-      debugPrint('[UserPreferencesService] Error saving to storage: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'UserPreferencesService._saveToStorage');
     }
   }
 
@@ -101,8 +101,8 @@ class UserPreferencesService extends GetxService {
           _saveToStorage();
         }
       }
-    } catch (e) {
-      debugPrint('[UserPreferencesService] Firestore sync error: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'UserPreferencesService._syncFromFirestore');
     }
   }
 
@@ -121,9 +121,11 @@ class UserPreferencesService extends GetxService {
               'notInterestedVideoIds': FieldValue.arrayUnion([videoId]),
               'updatedAt': FieldValue.serverTimestamp(),
             }, SetOptions(merge: true));
-      } catch (e) {
-        debugPrint(
-          '[UserPreferencesService] Error syncing hideVideo to Firestore: $e',
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'UserPreferencesService.hideVideo',
         );
       }
     }
@@ -144,9 +146,11 @@ class UserPreferencesService extends GetxService {
               'notInterestedVideoIds': FieldValue.arrayRemove([videoId]),
               'updatedAt': FieldValue.serverTimestamp(),
             }, SetOptions(merge: true));
-      } catch (e) {
-        debugPrint(
-          '[UserPreferencesService] Error syncing unhideVideo to Firestore: $e',
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'UserPreferencesService.unhideVideo',
         );
       }
     }
@@ -182,9 +186,11 @@ class UserPreferencesService extends GetxService {
             .collection(FirestoreCollections.users)
             .doc(user.uid)
             .set(updates, SetOptions(merge: true));
-      } catch (e) {
-        debugPrint(
-          '[UserPreferencesService] Error syncing blockChannel to Firestore: $e',
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'UserPreferencesService.blockChannel',
         );
       }
     }
@@ -216,9 +222,11 @@ class UserPreferencesService extends GetxService {
             .collection(FirestoreCollections.users)
             .doc(user.uid)
             .set(updates, SetOptions(merge: true));
-      } catch (e) {
-        debugPrint(
-          '[UserPreferencesService] Error syncing unblockChannel to Firestore: $e',
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'UserPreferencesService.unblockChannel',
         );
       }
     }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:truthworld/features/video/presentation/views/player/panels/player_settings_panels.dart';
@@ -146,8 +147,12 @@ class AdOverlay extends StatelessWidget {
                           Uri.parse(ad.clickUrl),
                           mode: LaunchMode.externalApplication,
                         );
-                      } catch (e) {
-                        debugPrint('Could not launch ${ad.clickUrl}: $e');
+                      } catch (e, s) {
+                        ErrorHandler.log(
+                          e,
+                          stackTrace: s,
+                          tag: 'AdOverlay.launchAdUrl',
+                        );
                       }
                     },
                     borderRadius: BorderRadius.circular(8),
@@ -354,7 +359,7 @@ class AdOverlay extends StatelessWidget {
     });
   }
 
-  Widget _buildAdSubtitlesButton(BuildContext context, MockAd ad) {
+  Widget _buildAdSubtitlesButton(BuildContext context, PlaybackAd ad) {
     final subs = ad.subtitles ?? {};
     return Container(
       decoration: BoxDecoration(
@@ -424,7 +429,7 @@ class AdOverlay extends StatelessWidget {
     );
   }
 
-  Widget _buildAdDubbingButton(BuildContext context, MockAd ad) {
+  Widget _buildAdDubbingButton(BuildContext context, PlaybackAd ad) {
     final dubs = ad.audioTracks ?? {};
     return Container(
       decoration: BoxDecoration(

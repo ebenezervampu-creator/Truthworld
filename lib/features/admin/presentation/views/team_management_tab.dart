@@ -2,6 +2,9 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/utils/content_validator.dart';
+import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -888,6 +891,7 @@ class TeamManagementTab extends StatelessWidget {
                 // Name
                 TextField(
                   controller: nameCtrl,
+                  inputFormatters: TruthworldTextInputFormatters.standard,
                   style: const TextStyle(color: AppColors.textPrimary),
                   decoration: InputDecoration(
                     labelText: 'Member Name / Designation',
@@ -928,6 +932,7 @@ class TeamManagementTab extends StatelessWidget {
                               color: Colors.white,
                               size: 18,
                             ),
+                            tooltip: isObscure.value ? 'Show Password' : 'Hide Password',
                             onPressed: isObscure.toggle,
                           ),
                         ],
@@ -958,11 +963,19 @@ class TeamManagementTab extends StatelessWidget {
                                 final email = emailCtrl.text.trim();
                                 final pass = passCtrl.text.trim();
                                 if (email.isEmpty || pass.isEmpty) {
-                                  Get.snackbar('Error', 'Please fill in email and password.');
+                                  AppSnackbar.warning('Please fill in email and password.');
                                   return;
                                 }
+                                final name = nameCtrl.text.trim();
+                                if (name.isNotEmpty) {
+                                  final nameVal = ContentValidator.validate(name, checkEnglishOnly: false, fieldName: 'Member Name');
+                                  if (!nameVal.isValid) {
+                                    AppSnackbar.warning(nameVal.message);
+                                    return;
+                                  }
+                                }
                                 if (selectedRoles.isEmpty) {
-                                  Get.snackbar('Error', 'Please select at least one role for this member.');
+                                  AppSnackbar.warning('Please select at least one role for this member.');
                                   return;
                                 }
                                 isSubmitting.value = true;
@@ -975,7 +988,7 @@ class TeamManagementTab extends StatelessWidget {
                                   password: pass,
                                   role: primaryRole,
                                   roles: rolesList,
-                                  name: nameCtrl.text.trim(),
+                                  name: name,
                                 );
                                 isSubmitting.value = false;
                                 if (success) {
@@ -1065,6 +1078,7 @@ class TeamManagementTab extends StatelessWidget {
 
                 TextField(
                   controller: nameCtrl,
+                  inputFormatters: TruthworldTextInputFormatters.standard,
                   style: const TextStyle(color: AppColors.textPrimary),
                   decoration: InputDecoration(
                     labelText: 'Name',
@@ -1117,11 +1131,12 @@ class TeamManagementTab extends StatelessWidget {
                       style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
                     ),
                     value: isSuspended.value,
+                    activeTrackColor: AppColors.error.withValues(alpha: 0.5),
                     activeColor: AppColors.error,
                     onChanged: (val) => isSuspended.value = val,
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 22),
 
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
@@ -1137,8 +1152,16 @@ class TeamManagementTab extends StatelessWidget {
                             ? null
                             : () async {
                                 if (selectedRoles.isEmpty) {
-                                  Get.snackbar('Error', 'Please select at least one role.');
+                                  AppSnackbar.warning('Please select at least one role.');
                                   return;
+                                }
+                                final name = nameCtrl.text.trim();
+                                if (name.isNotEmpty) {
+                                  final nameVal = ContentValidator.validate(name, checkEnglishOnly: false, fieldName: 'Member Name');
+                                  if (!nameVal.isValid) {
+                                    AppSnackbar.warning(nameVal.message);
+                                    return;
+                                  }
                                 }
                                 isSaving.value = true;
                                 final rolesList = selectedRoles.toList();
@@ -1149,8 +1172,8 @@ class TeamManagementTab extends StatelessWidget {
                                   'role': primaryRole,
                                   'status': isSuspended.value ? 'suspended' : 'active',
                                 };
-                                if (nameCtrl.text.trim().isNotEmpty) {
-                                  updates['name'] = nameCtrl.text.trim();
+                                if (name.isNotEmpty) {
+                                  updates['name'] = name;
                                 }
                                 if (passCtrl.text.trim().isNotEmpty) {
                                   updates['password'] = passCtrl.text.trim();
@@ -1317,11 +1340,15 @@ class TeamManagementTab extends StatelessWidget {
                               final confirm = confirmPassCtrl.text.trim();
 
                               if (current.isEmpty || newPass.isEmpty) {
-                                Get.snackbar('Error', 'Please fill in all password fields.');
+                                AppSnackbar.warning('Please fill in all password fields.');
+                                return;
+                              }
+                              if (newPass.length < 6) {
+                                AppSnackbar.warning('New password must be at least 6 characters long.');
                                 return;
                               }
                               if (newPass != confirm) {
-                                Get.snackbar('Error', 'New passwords do not match.');
+                                AppSnackbar.warning('New passwords do not match.');
                                 return;
                               }
                               isSaving.value = true;

@@ -1,15 +1,18 @@
-import 'dart:async';
+
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
-
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
+import 'package:truthworld/core/services/ai/ai_search_service.dart';
+import 'package:truthworld/core/services/ai/models/ai_search_intent.dart';
 import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
 import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
-import 'package:truthworld/core/services/feedback/feedback_service.dart';
+import 'package:truthworld/core/services/algorithm/user_signal_tracker.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/data/models/topic_categories.dart';
 import 'package:truthworld/features/topics/data/repositories/topic_repository.dart';
@@ -33,6 +36,11 @@ class ExploreTopicsController extends BaseController {
   final Rx<ExploreMode> exploreMode = ExploreMode.discover.obs;
   final RxString searchQuery = ''.obs;
 
+  // AI-Assisted Interactive Search state
+  final Rx<AiSearchIntent?> activeAiIntent = Rx<AiSearchIntent?>(null);
+  final RxBool isAiSearching = false.obs;
+
+
   // Topic videos map: topic.id/slug -> List<Video>
   final RxMap<String, List<Video>> topicVideosMap = <String, List<Video>>{}.obs;
   final RxMap<String, bool> isLoadingVideosMap = <String, bool>{}.obs;
@@ -46,8 +54,11 @@ class ExploreTopicsController extends BaseController {
   DocumentSnapshot? _lastDoc;
   static const int _pageSize = 20;
 
-  // Search Debouncer
-  Timer? _debounceTimer;
+  // UI & Navigation Controllers
+  final ScrollController scrollController = ScrollController();
+  final TextEditingController searchController = TextEditingController();
+  late final PageController pageController;
+  final RxInt currentTopicIndex = 0.obs;
 
   // ==========================================================================
   // LIFECYCLE
@@ -55,12 +66,54 @@ class ExploreTopicsController extends BaseController {
   @override
   void onInit() {
     super.onInit();
+    pageController = PageController();
+    pageController.addListener(_onPageScroll);
+
+    searchController.addListener(() {
+      if (searchController.text != searchQuery.value) {
+        updateSearchQuery(searchController.text);
+      }
+    });
+
+    addWorker(
+      ever(topics, (_) {
+        if (pageController.hasClients) {
+          pageController.jumpToPage(0);
+          currentTopicIndex.value = 0;
+        }
+      }),
+    );
+
     initialFetch();
+    // GetX debounce worker replaces manual Timer — auto-disposed in BaseController.onClose()
+    addWorker(
+      debounce(
+        searchQuery,
+        (_) => loadTopics(reset: true),
+        time: const Duration(milliseconds: 400),
+      ),
+    );
+  }
+
+  void _onPageScroll() {
+    if (pageController.hasClients) {
+      final page = pageController.page ?? 0.0;
+      final index = page.round();
+      if (currentTopicIndex.value != index) {
+        currentTopicIndex.value = index;
+      }
+      if (page >= topics.length - 2) {
+        loadMoreTopics();
+      }
+    }
   }
 
   @override
   void onClose() {
-    _debounceTimer?.cancel();
+    pageController.removeListener(_onPageScroll);
+    pageController.dispose();
+    scrollController.dispose();
+    searchController.dispose();
     super.onClose();
   }
 
@@ -85,7 +138,12 @@ class ExploreTopicsController extends BaseController {
 
       // 3. Fetch paginated topics
       await loadTopics(reset: true);
-    } catch (e) {
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'ExploreTopicsController.onInit',
+      );
       rxErrorMessage.value = FriendlyErrorTranslator.getFriendlyMessage(
         e,
         defaultActionMessage: 'load topic feed',
@@ -117,14 +175,78 @@ class ExploreTopicsController extends BaseController {
     try {
       var newTopics = <Topic>[];
 
-      // If search query is present, perform case-insensitive local/filter lookup
+      // If search query is present, perform AI semantic lookup and scoring
       if (searchQuery.isNotEmpty) {
-        // Query-driven searching (zero-cost cached scan lookup fallback for MVP)
-        final prefix = searchQuery.value.trim();
-        newTopics = await _repository.searchTopics(prefix, limit: _pageSize);
-        rxHasMore.value =
-            false; // Search results are currently non-paginated for search accuracy
+        final raw = searchQuery.value.trim();
+        isAiSearching.value = true;
+        final intent = await AiSearchService.instance.parseQuery(
+          raw,
+          scope: SearchScope.topics,
+        );
+        activeAiIntent.value = intent;
+
+        final candidateMap = <String, Topic>{};
+
+        // 1. Prefix query for direct keywords
+        if (intent.cleanKeywords.isNotEmpty) {
+          for (final kw in intent.cleanKeywords.take(2)) {
+            final prefixResults =
+                await _repository.searchTopics(kw, limit: 30);
+            for (final t in prefixResults) {
+              candidateMap[t.id] = t;
+            }
+          }
+        }
+
+        // 2. Full scan of active topics to match semantic synonyms, subdomains, categories
+        try {
+          final snapshot = await FirebaseFirestore.instance
+              .collection(FirestoreCollections.topics)
+              .where('status', isEqualTo: 'active')
+              .limit(100)
+              .get();
+          for (final doc in snapshot.docs) {
+            final t = Topic.fromDocumentSnapshot(doc);
+            if (t.isValidTopic && t.videoCount > 0) {
+              candidateMap[t.id] = t;
+            }
+          }
+        } catch (e, stackTrace) {
+          ErrorHandler.log(e, stackTrace: stackTrace, tag: 'ExploreTopicsController.aiScanActiveTopics');
+        }
+
+        // 3. Score candidates with AiSearchService.scoreTopic
+        final scored = <MapEntry<Topic, double>>[];
+        for (final topic in candidateMap.values) {
+          final score = AiSearchService.instance.scoreTopic(topic, intent);
+          if (score > 0) {
+            scored.add(MapEntry(topic, score));
+          }
+        }
+
+        scored.sort((a, b) => b.value.compareTo(a.value));
+        newTopics = scored.map((e) => e.key).toList();
+
+        if (intent.resultMode == SearchResultMode.ranked && newTopics.isNotEmpty) {
+          final maxTrending = newTopics.fold<double>(
+            1.0,
+            (max, t) => t.trendingScore > max ? t.trendingScore : max,
+          );
+          final scoreMap = {for (final e in scored) e.key.id: e.value};
+          newTopics.sort((a, b) {
+            final relA = scoreMap[a.id] ?? 0.0;
+            final relB = scoreMap[b.id] ?? 0.0;
+            final trendA = a.trendingScore / maxTrending;
+            final trendB = b.trendingScore / maxTrending;
+            final rankA = (relA * 0.70) + (trendA * 30.0);
+            final rankB = (relB * 0.70) + (trendB * 30.0);
+            return rankB.compareTo(rankA);
+          });
+        }
+
+        rxHasMore.value = false;
       } else {
+        activeAiIntent.value = null;
         // Standard paginated database retrieval
         if (exploreMode.value == ExploreMode.trending) {
           newTopics = await _repository.fetchTrendingTopics(
@@ -132,7 +254,7 @@ class ExploreTopicsController extends BaseController {
             category: selectedCategory.value,
           );
         } else if (exploreMode.value == ExploreMode.yearly) {
-          // Yearly trended topics mock-query (pull by category or lower video count fallback)
+          // Yearly trended topics query (pull by category or lower video count fallback)
           newTopics = await _repository.fetchTopics(
             lastDoc: _lastDoc,
             category: selectedCategory.value,
@@ -186,14 +308,19 @@ class ExploreTopicsController extends BaseController {
 
       // Fetch videos for newly added topics
       uniqueNewTopics.forEach(fetchVideosForTopic);
-    } catch (e) {
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'ExploreTopicsController.loadTopics',
+      );
       rxErrorMessage.value = FriendlyErrorTranslator.getFriendlyMessage(
         e,
         defaultActionMessage: 'load topics',
       );
       if (!reset) {
-        SnackbarService.error(
-          message: FriendlyErrorTranslator.getFriendlyMessage(
+        AppSnackbar.error(
+          FriendlyErrorTranslator.getFriendlyMessage(
             e,
             defaultActionMessage: 'load more topics',
           ),
@@ -202,6 +329,7 @@ class ExploreTopicsController extends BaseController {
     } finally {
       rxIsLoading.value = false;
       isLoadingMore.value = false;
+      isAiSearching.value = false;
     }
   }
 
@@ -219,8 +347,14 @@ class ExploreTopicsController extends BaseController {
         videos = await _repository.getVideosByTopic(topic.id);
       }
       topicVideosMap[key] = videos;
-    } catch (e) {
-      debugPrint('Error fetching videos for topic ${topic.title}: $e');
+      if (Get.isRegistered<UserSignalTracker>()) {
+        Get.find<UserSignalTracker>().trackTopicExplored(
+          topicSlug: topic.slug.isNotEmpty ? topic.slug : topic.id,
+          category: topic.category,
+        );
+      }
+    } catch (e, stackTrace) {
+      ErrorHandler.log(e, stackTrace: stackTrace, tag: 'ExploreTopicsController.fetchVideosForTopic');
       topicVideosMap[key] = [];
     } finally {
       isLoadingVideosMap[key] = false;
@@ -273,9 +407,11 @@ class ExploreTopicsController extends BaseController {
             categoryCounts[normalized] = (categoryCounts[normalized] ?? 0) + 1;
           }
         }
-      } catch (e) {
-        debugPrint(
-          'ExploreTopicsController: Error querying videos for categories: $e',
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'ExploreTopicsController.queryVideosForCategories',
         );
       }
 
@@ -304,9 +440,11 @@ class ExploreTopicsController extends BaseController {
                 (categoryCounts[normalized] ?? 0) + vCount;
           }
         }
-      } catch (e) {
-        debugPrint(
-          'ExploreTopicsController: Error querying topics for categories: $e',
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'ExploreTopicsController.queryTopicsForCategories',
         );
       }
 
@@ -351,7 +489,7 @@ class ExploreTopicsController extends BaseController {
                 id: catName.toLowerCase().replaceAll(' ', '_'),
                 title: catName,
                 imageUrl:
-                    'https://images.unsplash.com/photo-1541701494587-cb58502866ab?auto=format&fit=crop&w=1200&q=90',
+                    'https://images.unsplash.com/photo-1541701494587-cb58502866ab?auto=format&fit=crop&w=400&q=75',
               ),
             );
           }
@@ -359,9 +497,11 @@ class ExploreTopicsController extends BaseController {
       });
 
       availableCategories.assignAll(qualifying);
-    } catch (e) {
-      debugPrint(
-        'ExploreTopicsController: Error fetching available categories: $e',
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'ExploreTopicsController.fetchAvailableCategories',
       );
     } finally {
       isLoadingCategories.value = false;
@@ -376,6 +516,12 @@ class ExploreTopicsController extends BaseController {
   void selectCategory(String category) {
     if (selectedCategory.value == category) return;
     selectedCategory.value = category;
+    if (category != 'all' && Get.isRegistered<UserSignalTracker>()) {
+      Get.find<UserSignalTracker>().trackTopicExplored(
+        topicSlug: category,
+        category: category,
+      );
+    }
     loadTopics(reset: true);
   }
 
@@ -386,19 +532,25 @@ class ExploreTopicsController extends BaseController {
     loadTopics(reset: true);
   }
 
-  /// Handle search query updates with 400ms debounce
+  /// Handle search query updates — 400ms GetX debounce worker fires loadTopics automatically
   void updateSearchQuery(String query) {
     searchQuery.value = query;
+  }
 
-    _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(milliseconds: 400), () {
-      loadTopics(reset: true);
-    });
+
+  /// Clear active AI topic query
+  void clearAiSearch() {
+    activeAiIntent.value = null;
+    clearSearch();
   }
 
   /// Clear the active search filter
   void clearSearch() {
+    activeAiIntent.value = null;
     searchQuery.value = '';
+    if (searchController.text.isNotEmpty) {
+      searchController.clear();
+    }
     loadTopics(reset: true);
   }
 

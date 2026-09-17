@@ -20,7 +20,7 @@ import { generatePlaylistSchema } from "./schema/playlistSchema";
 import { generateCommunityPostSchema } from "./schema/communityPostSchema";
 import { generateOrganizationSchema } from "./schema/organizationSchema";
 import { buildSemanticSsrHtml } from "./render/htmlRenderer";
-import { getCachedSnapshot, saveSnapshot, computeEtag } from "./cache/storageCache";
+import { getCachedSnapshot, saveSnapshot } from "./cache/storageCache";
 import { logSeoEvent } from "./monitor/searchHealth";
 import {
   generateSitemapIndex,
@@ -306,6 +306,12 @@ export const seoServer = onRequest(
             ]
           }
         }));
+        return;
+      }
+      if (path === "/truthworld-indexnow-key-2026.txt") {
+        res.set("Content-Type", "text/plain");
+        res.set("Cache-Control", "public, max-age=86400");
+        res.status(200).send("truthworld-indexnow-key-2026");
         return;
       }
       if (path === "/truthworld_indexnow_key_2026.txt") {
@@ -602,6 +608,41 @@ export const seoServer = onRequest(
               { name: rawTitle, url: canonicalUrl }
             ]);
 
+            // Query related videos for continuous crawl graph
+            let relatedVideosList: Array<{ title: string; url: string }> = [];
+            try {
+              let rQuery = db.collection("videos").limit(8);
+              if (docData.category) {
+                rQuery = db.collection("videos").where("category", "==", docData.category).limit(8);
+              } else if (docData.channelId) {
+                rQuery = db.collection("videos").where("channelId", "==", docData.channelId).limit(8);
+              }
+              const rSnap = await rQuery.get();
+              rSnap.forEach(rd => {
+                if (rd.id !== docId) {
+                  const rData = rd.data();
+                  const rTitle = (rData.title || "").trim();
+                  const rVis = (rData.visibility || "public").toLowerCase();
+                  const rSt = (rData.status || "").toLowerCase();
+                  if (rTitle && rVis !== "private" && rSt !== "deleted" && rSt !== "draft") {
+                    relatedVideosList.push({ title: rTitle, url: `${DOMAIN}/watch?v=${rd.id}` });
+                  }
+                }
+              });
+            } catch (_) {}
+
+            // Topic items for this video
+            const videoTopicItems: Array<{ title: string; url: string }> = [];
+            if (Array.isArray(docData.topics)) {
+              for (const t of docData.topics) {
+                if (typeof t === "string" && t.trim()) {
+                  videoTopicItems.push({ title: `#${t.trim()}`, url: `${DOMAIN}/topic/${encodeURIComponent(t.trim().toLowerCase())}` });
+                }
+              }
+            } else if (docData.category) {
+              videoTopicItems.push({ title: `#${docData.category}`, url: `${DOMAIN}/browse` });
+            }
+
             const finalHtml = buildSemanticSsrHtml({
               title: pageTitle,
               description: pageDescription,
@@ -620,7 +661,9 @@ export const seoServer = onRequest(
               contentHeading: rawTitle,
               authorName: channelName,
               authorUrl: authorUrl,
-              transcriptExcerpt: docData.transcript || docData.captionsText
+              transcriptExcerpt: docData.transcript || docData.captionsText,
+              relatedItems: relatedVideosList,
+              topicItems: videoTopicItems
             });
 
             const saved = await saveSnapshot(cacheKey, finalHtml);
@@ -739,6 +782,44 @@ export const seoServer = onRequest(
               pageDescription = `Watch family-safe, verified videos from ${channelName} on Truthworld. • ${subStr} • ${vidStr}`;
             }
 
+            // Query creator's public videos for crawl continuity
+            let channelVideosHtml = "";
+            const channelRelatedVideos: Array<{ title: string; url: string }> = [];
+            try {
+              const cvSnap = await db.collection("videos")
+                .where("channelId", "==", docData.id)
+                .limit(12)
+                .get();
+
+              if (!cvSnap.empty) {
+                channelVideosHtml = `
+  <section class="tw-channel-uploads" style="margin-top: 32px; border-top: 1px solid #27272a; padding-top: 24px;">
+    <h3 style="color: #f4f4f5; font-size: 18px; margin-bottom: 16px; font-weight: 600;">Videos by ${escapeHtml(channelName)}</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px;">
+                `;
+                cvSnap.forEach(cvd => {
+                  const cvData = cvd.data();
+                  const cvTitle = escapeHtml((cvData.title || "Video").trim());
+                  const cvUrl = `${DOMAIN}/watch?v=${cvd.id}`;
+                  const cvImg = escapeHtml(ensureAbsoluteImageUrl(cvData.thumbnailUrl || cvData.thumbnail) || `${DOMAIN}/icons/og-image.png`);
+                  channelRelatedVideos.push({ title: (cvData.title || "Video").trim(), url: cvUrl });
+
+                  channelVideosHtml += `
+      <div style="background: #140521; border: 1px solid #27272a; border-radius: 8px; overflow: hidden;">
+        <a href="${cvUrl}" style="display: block; aspect-ratio: 16/9; background: #000;">
+          <img src="${cvImg}" alt="${cvTitle}" loading="lazy" style="width: 100%; height: 100%; object-fit: cover;" />
+        </a>
+        <div style="padding: 10px;">
+          <h4 style="font-size: 13px; line-height: 1.4; margin: 0;">
+            <a href="${cvUrl}" style="color: #f4f4f5; text-decoration: none;">${cvTitle}</a>
+          </h4>
+        </div>
+      </div>`;
+                });
+                channelVideosHtml += `\n    </div>\n  </section>`;
+              }
+            } catch (_) {}
+
             const channelImage = await resolveChannelImage(db, docData.id, docData);
             const channelSchema = generateChannelSchema(docData, canonicalChannelUrl, channelImage);
             const breadcrumbs = generateBreadcrumbData([
@@ -758,7 +839,9 @@ export const seoServer = onRequest(
               breadcrumbHtml: breadcrumbs.html,
               contentHeading: `${channelName}${handleWithAt ? ` (${handleWithAt})` : ""}`,
               authorName: channelName,
-              authorUrl: canonicalChannelUrl
+              authorUrl: canonicalChannelUrl,
+              customBodyHtml: channelVideosHtml,
+              relatedItems: channelRelatedVideos
             });
 
             const saved = await saveSnapshot(cacheKey, finalHtml);
@@ -1205,46 +1288,174 @@ export const seoServer = onRequest(
         return;
       }
 
-      // ADVERTISEMENTS / ADVERTISER ROUTE
+      // ─── 2b. ADVERTISEMENTS / ADVERTISER ROUTE ──────────────────────────────
+      // 301 Redirect alternative advertiser paths to the canonical /advertisements URL
       if (
         lowerPath === "/advertiser" ||
         lowerPath.startsWith("/advertiser/") ||
-        lowerPath === "/advertisements" ||
-        lowerPath.startsWith("/advertisements/") ||
         lowerPath === "/ads" ||
         lowerPath.startsWith("/ads/")
       ) {
-        const cacheKey = `advertisements_page`;
+        const targetUrl = `${DOMAIN}/advertisements`;
+        res.redirect(301, targetUrl);
+        return;
+      }
+
+      // CANONICAL ADVERTISEMENTS ROUTE (/advertisements, /advertisements/**)
+      if (
+        lowerPath === "/advertisements" ||
+        lowerPath.startsWith("/advertisements/")
+      ) {
+        const canonicalAdvertisementsUrl = `${DOMAIN}/advertisements`;
+        const cacheKey = `advertisements_canonical_page_v3`;
         const cached = await getCachedSnapshot(cacheKey);
         if (cached) {
-          logSeoEvent({ eventType: "cache_hit", path: canonicalUrl, durationMs: Date.now() - startTime });
+          logSeoEvent({ eventType: "cache_hit", path: canonicalAdvertisementsUrl, durationMs: Date.now() - startTime });
           sendHtmlResponse(req, res, cached.html, cached.etag, cached.lastModified);
           return;
         }
 
         const adBreadcrumbs = generateBreadcrumbData([
-          { name: "Truthworld Advertisements", url: canonicalUrl }
+          { name: "Truthworld Advertisements", url: canonicalAdvertisementsUrl }
         ]);
 
-        const adSchema = {
+        const adServiceSchema = {
           "@context": "https://schema.org",
-          "@type": "WebApplication",
-          "name": "Truthworld Advertisements",
-          "url": canonicalUrl,
-          "applicationCategory": "BusinessApplication",
-          "operatingSystem": "All",
-          "description": "Create, manage, and scale high-impact video ad campaigns targeting engaged audiences on Truthworld Advertisements."
+          "@type": "Service",
+          "name": "Truthworld Video Advertisements Platform",
+          "provider": {
+            "@type": "Organization",
+            "name": "Truthworld",
+            "url": DOMAIN
+          },
+          "url": canonicalAdvertisementsUrl,
+          "serviceType": "Video Advertising & Brand Promotion",
+          "description": "High-impact video advertising platform offering targeted in-stream video ads, AI-powered multilingual dubbing in 70+ languages, and verified engagement analytics.",
+          "offers": {
+            "@type": "Offer",
+            "priceCurrency": "USD",
+            "description": "Custom budget campaigns with flexible CPV, CPM, and direct creator sponsorships"
+          }
         };
 
+        const adFaqSchema = {
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "What ad formats are available on Truthworld?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Truthworld provides high-impact in-stream video ads, non-skippable mid-roll ads, interactive pinned sponsor comments, display banners, and direct creator sponsorship integrations."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "How does Truthworld's AI dubbing and localization benefit advertisers?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Advertiser campaigns on Truthworld can be automatically localized with AI audio dubbing into 70+ languages and subtitles into 100+ languages, allowing your brand to reach global audiences seamlessly without expensive multi-language production shoots."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "How does audience targeting work for Truthworld video ads?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "You can target engaged viewers using granular topic categories, verified channel niches, geographic locations, languages, and viewer demographics with real-time performance optimization."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "What metrics and analytics are provided to advertisers?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Advertisers have full access to real-time analytics including verified impressions, video completion rate (VCR), click-through rate (CTR), cost-per-view (CPV), audience demographics, and conversions."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "How do I launch a video advertisement campaign on Truthworld?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Simply log in with your Truthworld account at https://www.truthworld.in/advertisements, upload your video or creative assets, configure your target audience and budget, and submit your campaign for review."
+              }
+            }
+          ]
+        };
+
+        const richAdvertisementsHtml = `
+  <section style="margin-top: 32px; border-top: 1px solid #27272a; padding-top: 24px;">
+    <h2 style="font-size: 20px; font-weight: bold; color: #f4f4f5; margin-bottom: 12px;">Grow Your Brand with Verified High-Retention Video Ads</h2>
+    <p style="line-height: 1.6; color: #d4d4d8; font-size: 15px; margin-bottom: 16px;">
+      Truthworld Advertisements connects businesses, creators, and brands with highly engaged, family-safe audiences. Our platform combines next-generation video streaming with AI-powered moderation, ensuring brand safety alongside unmatched retention and viewer trust.
+    </p>
+
+    <h3 style="font-size: 18px; font-weight: 600; color: #c084fc; margin: 20px 0 10px;">Why Advertise on Truthworld?</h3>
+    <ul style="line-height: 1.8; color: #d4d4d8; font-size: 14px; padding-left: 20px; margin-bottom: 20px;">
+      <li><strong>Unmatched Brand Safety:</strong> Automated fact-checking and AI content moderation ensure your brand only appears alongside verified, brand-safe video content.</li>
+      <li><strong>AI Multilingual Localization:</strong> Automatically dub your commercial video creatives into 70+ languages and generate subtitles in 100+ languages to capture international markets at zero extra production cost.</li>
+      <li><strong>High View-Through Rates:</strong> Non-intrusive ad placement and intelligent frequency capping keep viewers engaged without ad fatigue.</li>
+      <li><strong>Granular Audience Targeting:</strong> Segment audiences by niche topics, creator channels, geographic territory, viewer language, and device type.</li>
+      <li><strong>Transparent Metrics & Real-time ROI:</strong> Detailed dashboard reporting verified impressions, completion rates, click-through rates, and conversion attribution.</li>
+    </ul>
+
+    <h3 style="font-size: 18px; font-weight: 600; color: #c084fc; margin: 20px 0 10px;">Supported Video Ad Formats</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 24px;">
+      <div style="background: #18181b; padding: 16px; border-radius: 8px; border: 1px solid #27272a;">
+        <h4 style="color: #ffffff; font-size: 16px; margin-bottom: 8px;">In-Stream Pre-Roll & Mid-Roll</h4>
+        <p style="color: #a1a1aa; font-size: 13px; line-height: 1.5;">Deliver 15s to 30s video spots directly inside high-engagement video content with interactive call-to-action buttons.</p>
+      </div>
+      <div style="background: #18181b; padding: 16px; border-radius: 8px; border: 1px solid #27272a;">
+        <h4 style="color: #ffffff; font-size: 16px; margin-bottom: 8px;">Direct Creator Sponsorships</h4>
+        <p style="color: #a1a1aa; font-size: 13px; line-height: 1.5;">Partner with verified creators for sponsored channel integrations, pinned commentary, and product showcases.</p>
+      </div>
+      <div style="background: #18181b; padding: 16px; border-radius: 8px; border: 1px solid #27272a;">
+        <h4 style="color: #ffffff; font-size: 16px; margin-bottom: 8px;">Interactive Feed Banners</h4>
+        <p style="color: #a1a1aa; font-size: 13px; line-height: 1.5;">Promote products, apps, and services in Truthworld's trending and topic discovery feeds.</p>
+      </div>
+      <div style="background: #18181b; padding: 16px; border-radius: 8px; border: 1px solid #27272a;">
+        <h4 style="color: #ffffff; font-size: 16px; margin-bottom: 8px;">Multilingual Dubbed Ads</h4>
+        <p style="color: #a1a1aa; font-size: 13px; line-height: 1.5;">Leverage our AI voice cloning and lip-sync pipeline to broadcast your advertisement in any regional dialect.</p>
+      </div>
+    </div>
+
+    <h3 style="font-size: 18px; font-weight: 600; color: #c084fc; margin: 24px 0 12px;">Frequently Asked Questions</h3>
+    <div style="background: #12011f; padding: 16px; border-radius: 8px; border: 1px solid #3b0764; margin-bottom: 24px;">
+      <details style="margin-bottom: 12px; cursor: pointer;" open>
+        <summary style="font-weight: 600; color: #f4f4f5; font-size: 15px; padding: 6px 0;">What is the minimum campaign budget on Truthworld?</summary>
+        <p style="color: #d4d4d8; font-size: 14px; line-height: 1.6; margin-top: 6px; padding-left: 12px;">You have 100% control over your daily and total campaign budget. Start testing campaigns with small initial budgets and scale as you verify positive ROI and conversion metrics.</p>
+      </details>
+      <details style="margin-bottom: 12px; cursor: pointer;">
+        <summary style="font-weight: 600; color: #f4f4f5; font-size: 15px; padding: 6px 0;">How does AI dubbing for ad creatives work?</summary>
+        <p style="color: #d4d4d8; font-size: 14px; line-height: 1.6; margin-top: 6px; padding-left: 12px;">When you submit your video ad in our portal, you can enable AI Localization. Our system automatically transcribes, translates, and generates studio-quality voiceovers in selected languages (Hindi, Spanish, Telugu, Tamil, French, German, Japanese, etc.) maintaining the emotional tone of your original creative.</p>
+      </details>
+      <details style="margin-bottom: 12px; cursor: pointer;">
+        <summary style="font-weight: 600; color: #f4f4f5; font-size: 15px; padding: 6px 0;">How are ads reviewed before going live?</summary>
+        <p style="color: #d4d4d8; font-size: 14px; line-height: 1.6; margin-top: 6px; padding-left: 12px;">All ad campaigns undergo automated multimodal Gemini AI moderation and editorial review to verify adherence to our Community Guidelines, factuality standards, and brand safety compliance within 24 hours.</p>
+      </details>
+      <details style="margin-bottom: 6px; cursor: pointer;">
+        <summary style="font-weight: 600; color: #f4f4f5; font-size: 15px; padding: 6px 0;">How do I track impressions and conversions?</summary>
+        <p style="color: #d4d4d8; font-size: 14px; line-height: 1.6; margin-top: 6px; padding-left: 12px;">The Truthworld Advertiser Studio provides interactive graphs, click attribution, viewer retention curves, and downloadable CSV audit reports for every active and completed campaign.</p>
+      </details>
+    </div>
+
+    <div style="text-align: center; margin: 32px 0 16px;">
+      <a href="https://www.truthworld.in/advertisements" style="display: inline-block; background: #9B30FF; color: #ffffff; padding: 14px 28px; border-radius: 8px; font-weight: bold; font-size: 16px; text-decoration: none; box-shadow: 0 4px 14px rgba(155, 48, 255, 0.4);">Launch Your Campaign on Truthworld</a>
+    </div>
+  </section>`;
+
         const finalHtml = buildSemanticSsrHtml({
-          title: "Truthworld Advertisements - Video Ad Campaigns & Growth",
-          description: "Reach engaged viewers with targeted video advertisement campaigns, transparent analytics, and high ROI on Truthworld Advertisements.",
-          url: canonicalUrl,
+          title: "Truthworld Advertisements - Video Ad Campaigns & High-ROI Brand Growth",
+          description: "Reach engaged viewers with targeted video advertisement campaigns, AI multilingual dubbing in 70+ languages, transparent analytics, and high ROI on Truthworld Advertisements.",
+          url: canonicalAdvertisementsUrl,
           type: "website",
           robots: "index, follow",
-          jsonLd: [adSchema, adBreadcrumbs.jsonLd, ...orgSchemas],
+          jsonLd: [adServiceSchema, adFaqSchema, adBreadcrumbs.jsonLd, ...orgSchemas],
           breadcrumbHtml: adBreadcrumbs.html,
-          contentHeading: "Truthworld Advertisements - Video Ad Platform"
+          contentHeading: "Truthworld Advertisements - Video Ad Platform & Brand Growth",
+          customBodyHtml: richAdvertisementsHtml
         });
 
         const saved = await saveSnapshot(cacheKey, finalHtml);
@@ -1253,16 +1464,213 @@ export const seoServer = onRequest(
       }
 
       // ─── 3. Fallback / Default Homepage HTML ─────────────────────────────────
+      const homeCacheKey = "homepage_v5_ssr";
+      const cachedHome = await getCachedSnapshot(homeCacheKey);
+      if (cachedHome) {
+        logSeoEvent({ eventType: "cache_hit", path: canonicalUrl, durationMs: Date.now() - startTime });
+        sendHtmlResponse(req, res, cachedHome.html, cachedHome.etag, cachedHome.lastModified);
+        return;
+      }
+
+      // Fetch featured public videos
+      let featuredVideos: any[] = [];
+      try {
+        let vSnap = await db.collection("videos")
+          .where("visibility", "in", ["public", "Public"])
+          .limit(16)
+          .get();
+
+        if (vSnap.empty) {
+          vSnap = await db.collection("videos")
+            .where("status", "in", ["published", "ready", "active"])
+            .limit(16)
+            .get();
+        }
+        if (vSnap.empty) {
+          vSnap = await db.collection("videos").limit(16).get();
+        }
+
+        vSnap.forEach(d => {
+          const data = d.data();
+          const st = (data.status || "").toLowerCase();
+          const vis = (data.visibility || "public").toLowerCase();
+          const rawTitle = (data.title || "").trim();
+          const lowerTitle = rawTitle.toLowerCase();
+
+          if (
+            st !== "deleted" &&
+            st !== "rejected" &&
+            st !== "draft" &&
+            vis !== "private" &&
+            vis !== "draft" &&
+            rawTitle &&
+            lowerTitle !== "untitled" &&
+            !lowerTitle.startsWith("untitled") &&
+            !lowerTitle.startsWith("uploading")
+          ) {
+            featuredVideos.push({ id: d.id, ...data, title: rawTitle });
+          }
+        });
+      } catch (err) {
+        console.warn("Failed to fetch featured videos for homepage SSR", err);
+      }
+
+      // Fetch featured creator channels
+      let featuredChannels: any[] = [];
+      try {
+        const cSnap = await db.collection("channels").limit(8).get();
+        cSnap.forEach(d => {
+          const data = d.data();
+          const st = (data.status || "").toLowerCase();
+          const name = (data.displayName || data.name || data.channelName || "").trim();
+          if (st !== "suspended" && st !== "banned" && st !== "deleted" && name && !name.toLowerCase().startsWith("untitled")) {
+            featuredChannels.push({ id: d.id, ...data, resolvedName: name });
+          }
+        });
+      } catch (err) {
+        console.warn("Failed to fetch featured channels for homepage SSR", err);
+      }
+
+      // Fetch active topics
+      let popularTopics: any[] = [];
+      try {
+        const tSnap = await db.collection("topics").limit(12).get();
+        tSnap.forEach(d => {
+          const data = d.data();
+          const st = (data.status || "").toLowerCase();
+          const slug = (data.slug || d.id).trim();
+          const title = (data.title || data.name || "").trim();
+          if (st !== "deleted" && st !== "inactive" && slug && title && !title.toLowerCase().startsWith("untitled")) {
+            popularTopics.push({ slug, title });
+          }
+        });
+      } catch (err) {
+        console.warn("Failed to fetch popular topics for homepage SSR", err);
+      }
+
+      // JSON-LD ItemList for featured videos
+      const videoItemListSchema = featuredVideos.length > 0 ? {
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        "name": "Featured & Trending Videos on Truthworld",
+        "itemListElement": featuredVideos.map((v, idx) => ({
+          "@type": "ListItem",
+          "position": idx + 1,
+          "item": {
+            "@type": "VideoObject",
+            "name": v.title,
+            "description": v.description || `Watch ${v.title} on Truthworld.`,
+            "thumbnailUrl": [ensureAbsoluteImageUrl(v.thumbnailUrl || v.thumbnail) || `${DOMAIN}/icons/og-image.png`],
+            "uploadDate": formatDate(v.uploadedAt || v.createdAt),
+            "url": `${DOMAIN}/watch?v=${v.id}`
+          }
+        }))
+      } : null;
+
+      const homepageSchemas = videoItemListSchema ? [...orgSchemas, videoItemListSchema] : orgSchemas;
+
+      // Construct semantic HTML body
+      let homepageBodyHtml = `
+  <section class="tw-hero" style="margin-bottom: 32px; padding: 24px; background: linear-gradient(135deg, #180029 0%, #0d0014 100%); border-radius: 12px; border: 1px solid #3b0764;">
+    <h2 style="font-size: 22px; font-weight: bold; color: #ffffff; margin-bottom: 8px;">Watch Verified Videos, AI-Dubbed in 70+ Languages</h2>
+    <p style="color: #d4d4d8; font-size: 15px; line-height: 1.6; max-width: 800px;">
+      Truthworld is the next-generation video platform with automated fact-checking, AI multilingual voice translation, and high-retention streaming. Explore trending topics, creator channels, and family-safe content below.
+    </p>
+  </section>
+      `;
+
+      if (featuredVideos.length > 0) {
+        homepageBodyHtml += `
+  <section class="tw-featured-videos" style="margin-bottom: 40px;">
+    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px;">
+      <h2 style="font-size: 20px; font-weight: bold; color: #f4f4f5;">Trending & Featured Videos</h2>
+      <a href="${DOMAIN}/trending" style="color: #c084fc; font-size: 14px; text-decoration: none; font-weight: 500;">View all trending &rarr;</a>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px;">
+        `;
+        for (const v of featuredVideos) {
+          const vTitle = escapeHtml((v.title || "Video").trim());
+          const vUrl = `${DOMAIN}/watch?v=${v.id}`;
+          const vImg = escapeHtml(ensureAbsoluteImageUrl(v.thumbnailUrl || v.thumbnail) || `${DOMAIN}/icons/og-image.png`);
+          const cName = escapeHtml(v.channelName || "Creator");
+          const cHandle = v.channelHandle ? `@${v.channelHandle.replace(/^@/, "")}` : "";
+          const cUrl = cHandle ? `${DOMAIN}/${cHandle}` : (v.channelId ? `${DOMAIN}/channel/${v.channelId}` : DOMAIN);
+          const viewCount = v.viewCount || v.views || 0;
+          const viewStr = viewCount >= 1000 ? `${(viewCount / 1000).toFixed(1)}K views` : `${viewCount} views`;
+
+          homepageBodyHtml += `
+      <article style="background: #140521; border: 1px solid #27272a; border-radius: 10px; overflow: hidden; display: flex; flex-direction: column;">
+        <a href="${vUrl}" style="text-decoration: none; display: block; position: relative; aspect-ratio: 16/9; background: #000; overflow: hidden;">
+          <img src="${vImg}" alt="${vTitle}" loading="lazy" style="width: 100%; height: 100%; object-fit: cover;" />
+        </a>
+        <div style="padding: 12px; display: flex; flex-direction: column; flex-grow: 1;">
+          <h3 style="font-size: 15px; font-weight: 600; line-height: 1.4; margin-bottom: 6px;">
+            <a href="${vUrl}" style="color: #f4f4f5; text-decoration: none;">${vTitle}</a>
+          </h3>
+          <div style="margin-top: auto; font-size: 13px; color: #a1a1aa;">
+            <a href="${cUrl}" style="color: #c084fc; text-decoration: none; font-weight: 500;">${cName}</a>
+            <div style="margin-top: 4px; font-size: 12px; color: #71717a;">${viewStr}</div>
+          </div>
+        </div>
+      </article>`;
+        }
+        homepageBodyHtml += `\n    </div>\n  </section>`;
+      }
+
+      if (featuredChannels.length > 0) {
+        homepageBodyHtml += `
+  <section class="tw-featured-channels" style="margin-bottom: 40px;">
+    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px;">
+      <h2 style="font-size: 20px; font-weight: bold; color: #f4f4f5;">Popular Creator Channels</h2>
+      <a href="${DOMAIN}/browse" style="color: #c084fc; font-size: 14px; text-decoration: none; font-weight: 500;">Explore all channels &rarr;</a>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px;">
+        `;
+        for (const c of featuredChannels) {
+          const handle = (c.handle || "").replace(/^@/, "");
+          const cUrl = handle ? `${DOMAIN}/@${handle}` : `${DOMAIN}/channel/${c.id}`;
+          const cName = escapeHtml(c.resolvedName);
+          const cImg = escapeHtml(ensureAbsoluteImageUrl(c.avatarUrl || c.photoUrl || c.imageUrl) || `${DOMAIN}/icons/Icon-192.png`);
+          const subs = c.subscriberCount || c.subscribers || c.stats?.subscriberCount || 0;
+          const subStr = subs >= 1000 ? `${(subs / 1000).toFixed(1)}K subscribers` : `${subs} subscribers`;
+
+          homepageBodyHtml += `
+      <div style="background: #140521; border: 1px solid #27272a; border-radius: 8px; padding: 16px; text-align: center;">
+        <a href="${cUrl}" style="text-decoration: none; display: inline-block;">
+          <img src="${cImg}" alt="${cName}" loading="lazy" style="width: 64px; height: 64px; border-radius: 50%; object-fit: cover; margin-bottom: 8px; border: 2px solid #9B30FF;" />
+          <h3 style="color: #f4f4f5; font-size: 14px; font-weight: 600; margin-bottom: 4px;">${cName}</h3>
+        </a>
+        <p style="color: #a1a1aa; font-size: 12px;">${subStr}</p>
+      </div>`;
+        }
+        homepageBodyHtml += `\n    </div>\n  </section>`;
+      }
+
+      if (popularTopics.length > 0) {
+        homepageBodyHtml += `
+  <section class="tw-popular-topics" style="margin-bottom: 32px;">
+    <h2 style="font-size: 18px; font-weight: bold; color: #f4f4f5; margin-bottom: 12px;">Explore Topics & Categories</h2>
+    <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+        `;
+        for (const t of popularTopics) {
+          homepageBodyHtml += `<a href="${DOMAIN}/topic/${t.slug}" style="background: #1f0b2f; color: #e9d5ff; border: 1px solid #581c87; padding: 6px 14px; border-radius: 20px; font-size: 13px; text-decoration: none; font-weight: 500;">#${escapeHtml(t.title)}</a>`;
+        }
+        homepageBodyHtml += `\n    </div>\n  </section>`;
+      }
+
       const homepageHtml = buildSemanticSsrHtml({
         title: "Truthworld - Watch, Share & Create Verified Videos",
         description: "Watch family-safe videos with AI dubbing in 70+ languages & 100+ subtitles. Automated fact-checking, creator studio tools, and 100% creator revenue.",
         url: canonicalUrl,
         type: "website",
-        jsonLd: orgSchemas
+        jsonLd: homepageSchemas,
+        customBodyHtml: homepageBodyHtml,
+        relatedItems: featuredVideos.slice(0, 8).map(v => ({ title: v.title, url: `${DOMAIN}/watch?v=${v.id}` })),
+        topicItems: popularTopics.slice(0, 8).map(t => ({ title: `#${t.title}`, url: `${DOMAIN}/topic/${t.slug}` }))
       });
 
-      const etagStr = computeEtag(homepageHtml);
-      sendHtmlResponse(req, res, homepageHtml, etagStr, new Date().toUTCString());
+      const savedHome = await saveSnapshot(homeCacheKey, homepageHtml);
+      sendHtmlResponse(req, res, homepageHtml, savedHome.etag, savedHome.lastModified);
       return;
 
     } catch (error) {

@@ -265,7 +265,7 @@ class BillingTabView extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'Saved Payment Methods',
+                'Payment Gateway & Security',
                 style: TextStyle(
                   fontFamily: TWTypography.brandFamily,
                   fontSize: 16,
@@ -274,14 +274,14 @@ class BillingTabView extends StatelessWidget {
                 ),
               ),
               OutlinedButton.icon(
-                onPressed: () => _showAddCardDialog(context),
+                onPressed: () => _showTopUpDialog(context),
                 icon: const Icon(
-                  Icons.credit_card_rounded,
+                  Icons.add_circle_outline_rounded,
                   color: Colors.white,
                   size: 16,
                 ),
                 label: const Text(
-                  'Add Card',
+                  'Recharge Balance',
                   style: TextStyle(
                     fontFamily: TWTypography.uiFamily,
                     fontSize: 13,
@@ -300,133 +300,56 @@ class BillingTabView extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          Obx(() {
-            final cards = controller.savedCards;
-            if (cards.isEmpty) {
-              return const Padding(
-                padding: EdgeInsets.symmetric(vertical: 16),
-                child: Text(
-                  'No payment methods saved yet.',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                ),
-              );
-            }
-
-            return Wrap(
-              spacing: 16,
-              runSpacing: 16,
-              children: cards.map((card) {
-                final isDefault = card['isDefault'] == true;
-                return Container(
-                  width: 320,
-                  padding: const EdgeInsets.all(16),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1C1C1F),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFF2E2E33)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1C1C1F),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isDefault ? AppColors.brand : const Color(0xFF2E2E33),
-                      width: isDefault ? 1.5 : 1,
-                    ),
+                    color: AppColors.brand.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
                   ),
+                  child: const Icon(
+                    Icons.security_rounded,
+                    color: AppColors.textPrimary,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                const Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.payment_rounded,
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                card['brand'] as String? ?? 'Card',
-                                style: const TextStyle(
-                                  fontFamily: TWTypography.uiFamily,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                          if (isDefault)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: AppColors.brand.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: const Text(
-                                'DEFAULT',
-                                style: TextStyle(
-                                  fontFamily: TWTypography.uiFamily,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.brand,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
                       Text(
-                        '•••• •••• •••• ${card['last4']}',
-                        style: const TextStyle(
+                        'Cashfree Payment Gateway (RBI Tokenized)',
+                        style: TextStyle(
                           fontFamily: TWTypography.uiFamily,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
                           color: Colors.white,
-                          letterSpacing: 1.5,
                         ),
                       ),
-                      const SizedBox(height: 10),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                card['holderName'] as String? ?? '',
-                                style: const TextStyle(
-                                  fontFamily: TWTypography.uiFamily,
-                                  fontSize: 12,
-                                  color: Colors.white70,
-                                ),
-                              ),
-                              Text(
-                                'Exp ${card['expiry']}',
-                                style: const TextStyle(
-                                  fontFamily: TWTypography.uiFamily,
-                                  fontSize: 11,
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.delete_outline_rounded,
-                              color: Colors.white,
-                              size: 18,
-                            ),
-                            tooltip: 'Remove card',
-                            onPressed: () {
-                              controller.removeSavedCard(card['id'] as String);
-                            },
-                          ),
-                        ],
+                      SizedBox(height: 4),
+                      Text(
+                        'Supports Instant UPI (Google Pay, PhonePe, Paytm, BHIM), Netbanking (50+ banks), Debit/Credit Cards, and Wallets with 256-bit SSL encryption.',
+                        style: TextStyle(
+                          fontFamily: TWTypography.uiFamily,
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ],
                   ),
-                );
-              }).toList(),
-            );
-          }),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -877,7 +800,7 @@ class BillingTabView extends StatelessWidget {
               foregroundColor: Colors.black,
             ),
             child: const Text(
-              'Pay & Add Funds',
+              'Pay with Cashfree',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
@@ -886,135 +809,7 @@ class BillingTabView extends StatelessWidget {
     );
   }
 
-  void _showAddCardDialog(BuildContext context) {
-    final holderController = TextEditingController();
-    final numberController = TextEditingController();
-    final expController = TextEditingController();
 
-    Get.dialog(
-      AlertDialog(
-        backgroundColor: const Color(0xFF161618),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFF27272A)),
-        ),
-        title: const Text(
-          'Add Credit / Debit Card',
-          style: TextStyle(
-            fontFamily: TWTypography.brandFamily,
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-          ),
-        ),
-        content: SizedBox(
-          width: 400,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: holderController,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: 'Cardholder Name',
-                  labelStyle: const TextStyle(color: AppColors.textSecondary),
-                  filled: true,
-                  fillColor: const Color(0xFF121214),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: numberController,
-                keyboardType: TextInputType.number,
-                maxLength: 16,
-                style: const TextStyle(color: Colors.white, fontFamily: TWTypography.uiFamily),
-                decoration: InputDecoration(
-                  labelText: 'Card Number',
-                  counterText: '',
-                  labelStyle: const TextStyle(color: AppColors.textSecondary),
-                  filled: true,
-                  fillColor: const Color(0xFF121214),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: expController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        labelText: 'MM/YY',
-                        labelStyle: const TextStyle(color: AppColors.textSecondary),
-                        filled: true,
-                        fillColor: const Color(0xFF121214),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      obscureText: true,
-                      maxLength: 4,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        labelText: 'CVV',
-                        counterText: '',
-                        labelStyle: const TextStyle(color: AppColors.textSecondary),
-                        filled: true,
-                        fillColor: const Color(0xFF121214),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: Get.back,
-            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final numStr = numberController.text.trim();
-              if (numStr.length >= 4) {
-                final last4 = numStr.substring(numStr.length - 4);
-                final brand = numStr.startsWith('4') ? 'Visa' : 'Mastercard';
-                controller.addSavedCard({
-                  'id': 'card_${DateTime.now().millisecondsSinceEpoch}',
-                  'brand': brand,
-                  'last4': last4,
-                  'expiry': expController.text.trim().isEmpty ? '12/28' : expController.text.trim(),
-                  'holderName': holderController.text.trim().isEmpty ? 'Advertiser' : holderController.text.trim(),
-                  'isDefault': false,
-                });
-                Get.back();
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.brand,
-              foregroundColor: Colors.black,
-            ),
-            child: const Text('Save Card', style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-  }
 
   void _showEditTaxInfoDialog(BuildContext context) {
     final companyController = TextEditingController(text: controller.billingCompanyName.value);

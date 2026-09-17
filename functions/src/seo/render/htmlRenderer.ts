@@ -25,6 +25,8 @@ export interface HtmlRenderOptions {
   embedUrl?: string;
   durationSeconds?: number;
   uploadDate?: string;
+  // Custom semantic HTML content for rich landing pages
+  customBodyHtml?: string;
 }
 
 export function truncateTranscriptToSentence(transcript?: string, maxChars: number = 2500): string {
@@ -197,9 +199,19 @@ export function buildSemanticSsrHtml(options: HtmlRenderOptions): string {
 
   const semanticBodyHtml = `
   <!-- Truthworld SEO Snapshot | Schema Version: ${SCHEMA_VERSION} | Snapshot Version: ${SNAPSHOT_VERSION} -->
-  <header style="padding: 16px; background: #090011; border-bottom: 1px solid #27272a; display: flex; justify-content: space-between; align-items: center;">
-    <a href="${DOMAIN}" style="font-size: 20px; font-weight: bold; color: #9B30FF; text-decoration: none;">Truthworld</a>
-    <a href="${DOMAIN}/search" style="color: #a1a1aa; text-decoration: none; font-size: 14px;">Search</a>
+  <header style="padding: 14px 20px; background: #090011; border-bottom: 1px solid #27272a; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px;">
+    <div style="display: flex; align-items: center; gap: 24px;">
+      <a href="${DOMAIN}" style="font-size: 20px; font-weight: bold; color: #9B30FF; text-decoration: none; letter-spacing: -0.5px;">Truthworld</a>
+      <nav style="display: flex; align-items: center; gap: 16px; font-size: 14px;">
+        <a href="${DOMAIN}/trending" style="color: #d4d4d8; text-decoration: none; font-weight: 500;">Trending</a>
+        <a href="${DOMAIN}/browse" style="color: #d4d4d8; text-decoration: none; font-weight: 500;">Browse</a>
+        <a href="${DOMAIN}/studio" style="color: #d4d4d8; text-decoration: none; font-weight: 500;">Studio</a>
+        <a href="${DOMAIN}/advertisements" style="color: #d4d4d8; text-decoration: none; font-weight: 500;">Advertisements</a>
+      </nav>
+    </div>
+    <div>
+      <a href="${DOMAIN}/search" style="color: #a1a1aa; text-decoration: none; font-size: 14px; background: #18181b; padding: 6px 14px; border-radius: 16px; border: 1px solid #27272a;">Search</a>
+    </div>
   </header>
 
   ${options.breadcrumbHtml || ""}
@@ -212,12 +224,49 @@ export function buildSemanticSsrHtml(options: HtmlRenderOptions): string {
       <p style="margin-top: 12px; line-height: 1.5; color: #d4d4d8; font-size: 15px;">${escapeHtml(options.description)}</p>
       ${topicLinksHtml}
       ${transcriptHtml}
+      ${options.customBodyHtml || ""}
     </article>
     ${relatedLinksHtml}
   </main>
 
-  <footer style="margin-top: 48px; padding: 24px 16px; border-top: 1px solid #27272a; text-align: center; color: #71717a; font-size: 13px;">
-    <p>&copy; ${new Date().getFullYear()} Truthworld. All rights reserved. Verify before you share.</p>
+  <footer style="margin-top: 48px; padding: 32px 20px 24px; border-top: 1px solid #27272a; background: #08000f; color: #a1a1aa; font-family: Roboto, sans-serif; font-size: 13px;">
+    <div style="max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 24px; margin-bottom: 24px; text-align: left;">
+      <div>
+        <h4 style="color: #f4f4f5; font-size: 14px; margin-bottom: 12px; font-weight: 600;">Discover</h4>
+        <ul style="list-style: none; padding: 0; margin: 0; line-height: 2;">
+          <li><a href="${DOMAIN}" style="color: #a1a1aa; text-decoration: none;">Home Feed</a></li>
+          <li><a href="${DOMAIN}/trending" style="color: #a1a1aa; text-decoration: none;">Trending Videos</a></li>
+          <li><a href="${DOMAIN}/browse" style="color: #a1a1aa; text-decoration: none;">Browse Categories & Topics</a></li>
+          <li><a href="${DOMAIN}/search" style="color: #a1a1aa; text-decoration: none;">Search Truthworld</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4 style="color: #f4f4f5; font-size: 14px; margin-bottom: 12px; font-weight: 600;">Creators & Brands</h4>
+        <ul style="list-style: none; padding: 0; margin: 0; line-height: 2;">
+          <li><a href="${DOMAIN}/studio" style="color: #a1a1aa; text-decoration: none;">Truthworld Studio</a></li>
+          <li><a href="${DOMAIN}/advertisements" style="color: #a1a1aa; text-decoration: none;">Truthworld Advertisements</a></li>
+          <li><a href="${DOMAIN}/feedback" style="color: #a1a1aa; text-decoration: none;">Creator Feedback</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4 style="color: #f4f4f5; font-size: 14px; margin-bottom: 12px; font-weight: 600;">Trust & Safety</h4>
+        <ul style="list-style: none; padding: 0; margin: 0; line-height: 2;">
+          <li><a href="${DOMAIN}/about" style="color: #a1a1aa; text-decoration: none;">About Truthworld</a></li>
+          <li><a href="${DOMAIN}/community-guidelines" style="color: #a1a1aa; text-decoration: none;">Community Guidelines</a></li>
+          <li><a href="${DOMAIN}/copyright-complaint" style="color: #a1a1aa; text-decoration: none;">DMCA / Copyright Complaints</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4 style="color: #f4f4f5; font-size: 14px; margin-bottom: 12px; font-weight: 600;">Legal</h4>
+        <ul style="list-style: none; padding: 0; margin: 0; line-height: 2;">
+          <li><a href="${DOMAIN}/privacy" style="color: #a1a1aa; text-decoration: none;">Privacy Policy</a></li>
+          <li><a href="${DOMAIN}/terms" style="color: #a1a1aa; text-decoration: none;">Terms of Service</a></li>
+        </ul>
+      </div>
+    </div>
+    <div style="border-top: 1px solid #1c1917; padding-top: 16px; text-align: center; color: #71717a; font-size: 12px;">
+      <p>&copy; ${new Date().getFullYear()} Truthworld. All rights reserved. Verify before you share.</p>
+    </div>
   </footer>
   `;
 

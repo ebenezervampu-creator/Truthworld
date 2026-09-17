@@ -62,21 +62,25 @@ class ShimmerVideoListCard extends StatelessWidget {
                 children: [
                   _bone(width: double.infinity, height: 16),
                   const SizedBox(height: 8),
-                  _bone(width: 200),
+                  FractionallySizedBox(
+                    widthFactor: 0.7,
+                    alignment: Alignment.centerLeft,
+                    child: _bone(),
+                  ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
                       _bone(width: 24, height: 24, radius: 12),
                       const SizedBox(width: 8),
-                      _bone(width: 100, height: 12),
+                      Expanded(child: _bone(height: 12)),
                     ],
                   ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      _bone(width: 60, height: 10),
+                      Expanded(child: _bone(height: 10)),
                       const SizedBox(width: 12),
-                      _bone(width: 60, height: 10),
+                      Expanded(child: _bone(height: 10)),
                     ],
                   ),
                 ],

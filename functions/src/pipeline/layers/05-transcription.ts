@@ -91,11 +91,17 @@ export class TranscriptionLayer {
 
       // 3. Submit to AssemblyAI (v7.2: Enhanced with Creator Intelligence)
       const isAccuracyMode = executionPlan.priorityMode === "accuracy";
+      const hasAutoChapters = Boolean(executionPlan.autoChapters);
+      // AssemblyAI constraint: 'universal-3-pro' is not compatible with 'auto_chapters'.
+      const speechModels = hasAutoChapters
+        ? ["universal-2"]
+        : (isAccuracyMode ? ["universal-3-pro"] : ["universal-3-pro", "universal-2"]);
+
       const sub = await axios.post(
         `${ASSEMBLY_BASE}/transcript`,
         {
           audio_url: accessibleUrl,
-          speech_models: isAccuracyMode ? ["universal-3-pro"] : ["universal-3-pro", "universal-2"], // Prefer premium model in accuracy mode
+          speech_models: speechModels,
           speaker_labels: shouldDiarize,
           language_detection: !executionPlan.primaryLanguage, // Skip if language provided
           language_code: executionPlan.primaryLanguage,      // Inject creator language
@@ -104,7 +110,7 @@ export class TranscriptionLayer {
           boost_param: isAccuracyMode ? "high" : "default",   // v7.2 Priority Mode
           entity_detection: isAccuracyMode,                  // v7.2: Depth in accuracy mode
           content_safety: (executionPlan.sensitiveTopics?.length ?? 0) > 0, // Enable safety detection if topics selected
-          auto_chapters: executionPlan.autoChapters ?? false, // ✅ v7.5: Native chapter generation
+          auto_chapters: hasAutoChapters, // ✅ v7.5: Native chapter generation
         },
         { headers }
       );
@@ -767,7 +773,7 @@ export class TranscriptionLayer {
 
   private async extractAudio(jobId: string, videoUrl: string): Promise<string | null> {
     const url = PIPELINE_CONFIG.FFMPEG_SERVICE_URL;
-    if (!url) return null;
+    if (!url || url.includes("placeholder")) return null;
     try {
       const resp = await axios.post(
         `${url}/extract-audio`,

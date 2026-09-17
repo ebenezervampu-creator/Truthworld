@@ -1,0 +1,581 @@
+import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
+import 'package:intl/intl.dart';
+import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/utils/watch_time_formatter.dart';
+import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
+
+class AnalyticsData {
+  AnalyticsData(this.date, this.views);
+  final DateTime date;
+  final int views;
+}
+
+// ==========================================================================
+// MODERNIZED DASHBOARD SCREEN - NOW WITH LIVE ANALYTICS AND SYNCFUSION CHARTS
+// ==========================================================================
+
+class DashboardController extends BaseController {
+  DashboardController({String channelId = ''}) : _channelId = channelId;
+  String _channelId;
+  String get channelId => _channelId;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  final Rx<Channel?> currentChannel = Rx<Channel?>(null);
+  final RxBool showApprovalBanner = false.obs;
+
+  RxInt selectedIndex = 1.obs;
+  RxBool isDrawerExpanded = true.obs;
+  RxBool rxIsLoading = true.obs;
+  RxString rxErrorMessage = ''.obs;
+
+  RxMap<String, dynamic> channelStats = <String, dynamic>{}.obs;
+  RxList<Video> recentVideos = <Video>[].obs;
+  RxList<AnalyticsData> analyticsData = <AnalyticsData>[].obs;
+  RxString searchQuery = ''.obs;
+
+  RxInt copyrightClaimsCount = 0.obs;
+  final RxInt totalWatchTimeSeconds = 0.obs;
+
+  // Reactive Revenue & Earning Streams
+  final RxDouble rxMembershipsRevenue = 0.0.obs;
+  final RxDouble rxSuperchatRevenue = 0.0.obs;
+  final RxDouble rxAdsRevenue = 0.0.obs;
+  final RxDouble rxWatchTimeRevenue = 0.0.obs;
+  final RxDouble rxTotalRevenue = 0.0.obs;
+  final RxInt rxActiveMembersCount = 0.obs;
+  final RxInt rxActiveTiersCount = 0.obs;
+
+  double get watchMinutes => totalWatchTimeSeconds.value / 60.0;
+  double get watchHours => totalWatchTimeSeconds.value / 3600.0;
+
+  String get formattedWatchTime =>
+      WatchTimeFormatter.format(totalWatchTimeSeconds.value);
+  String get formattedWatchTimeCompact =>
+      WatchTimeFormatter.format(totalWatchTimeSeconds.value, compact: true);
+
+  /// Returns watch hours for a specific video
+  double getVideoWatchHours(Video video) {
+    return video.totalWatchTimeSeconds / 3600.0;
+  }
+
+  /// Checks if a specific video has reached 10 hours watch time for cash withdrawal
+  bool isVideoWithdrawalEligible(Video video) {
+    return getVideoWatchHours(video) >= 10.0;
+  }
+
+  StreamSubscription? _statsSubscription;
+  StreamSubscription? _videosSubscription;
+  StreamSubscription? _analyticsSubscription;
+  StreamSubscription? _channelSubscription;
+  StreamSubscription? _copyrightSubscription;
+  StreamSubscription? _membersSubscription;
+  StreamSubscription? _membershipTiersSubscription;
+  StreamSubscription? _revenueStatementsSubscription;
+  Timer? _loadingTimeoutTimer;
+
+  /// Get filtered videos based on search query
+  List<Video> get filteredVideos {
+    if (searchQuery.value.isEmpty) {
+      return recentVideos.toList();
+    }
+    final query = searchQuery.value.toLowerCase();
+    return recentVideos
+        .where(
+          (video) =>
+              video.title.toLowerCase().contains(query) ||
+              video.description.toLowerCase().contains(query) ||
+              video.tags.any((tag) => tag.toLowerCase().contains(query)),
+        )
+        .toList();
+  }
+
+  @override
+  void onInit() {
+    super.onInit();
+    if (_channelId.isEmpty) {
+      if (Get.parameters.containsKey('channelId') &&
+          Get.parameters['channelId']!.isNotEmpty) {
+        _channelId = Get.parameters['channelId']!;
+      } else if (Get.arguments is Map &&
+          Get.arguments.containsKey('channelId') &&
+          Get.arguments['channelId'] != null) {
+        _channelId = Get.arguments['channelId'].toString();
+      } else if (Get.arguments is Map &&
+          Get.arguments.containsKey('channel') &&
+          Get.arguments['channel'] != null) {
+        final ch = Get.arguments['channel'];
+        if (ch is Channel) {
+          _channelId = ch.id;
+          currentChannel.value = ch;
+        } else if (ch is Map) {
+          _channelId = (ch['id'] ?? '').toString();
+        }
+      } else if (Get.isRegistered<AuthService>() &&
+          AuthService.to.rxUserChannel.value != null) {
+        _channelId = AuthService.to.rxUserChannel.value!.id;
+        currentChannel.value = AuthService.to.rxUserChannel.value;
+      }
+    }
+    if (_channelId.isNotEmpty) {
+      _initializeData();
+    } else {
+      rxIsLoading.value = false;
+      rxErrorMessage.value = 'No channel provided.';
+    }
+  }
+
+  void updateChannelId(String id) {
+    if (id.isNotEmpty && id != _channelId) {
+      _channelId = id;
+      _initializeData();
+    }
+  }
+
+  @override
+  void onClose() {
+    _loadingTimeoutTimer?.cancel();
+    _statsSubscription?.cancel();
+    _videosSubscription?.cancel();
+    _analyticsSubscription?.cancel();
+    _channelSubscription?.cancel();
+    _copyrightSubscription?.cancel();
+    _membersSubscription?.cancel();
+    _membershipTiersSubscription?.cancel();
+    _revenueStatementsSubscription?.cancel();
+    super.onClose();
+  }
+
+  void _initializeData() {
+    rxIsLoading.value = true;
+    _loadChannelStats();
+    _loadRecentVideos();
+    _loadAnalyticsData();
+    _loadCopyrightStatus();
+    // Use managed Timer to set loading to false after a short period,
+    // allowing streams to populate data.
+    _loadingTimeoutTimer = Timer(const Duration(seconds: 2), () {
+      if (rxIsLoading.value) {
+        rxIsLoading.value = false;
+      }
+    });
+  }
+
+  void _loadChannelStats() {
+    _loadRevenueAndMemberships();
+
+    // 1. Listen to the main channel document for real-time totals (subs, views, watchTime)
+    final channelRef = _firestore
+        .collection(FirestoreCollections.channels)
+        .doc(channelId);
+    trackSubscription(
+      _channelSubscription = channelRef.snapshots().listen(
+        (snapshot) {
+          if (snapshot.exists) {
+            final data = snapshot.data();
+            if (data != null) {
+              if (data.containsKey('totalWatchTimeSeconds')) {
+                totalWatchTimeSeconds.value =
+                    (data['totalWatchTimeSeconds'] as num).toInt();
+              } else if (data.containsKey('totalWatchTimeMinutes')) {
+                totalWatchTimeSeconds.value =
+                    (((data['totalWatchTimeMinutes'] as num).toDouble()) * 60)
+                        .toInt();
+              } else if (data['metrics'] is Map &&
+                  (data['metrics'] as Map)['totalWatchTimeMinutes'] != null) {
+                totalWatchTimeSeconds.value =
+                    ((((data['metrics'] as Map)['totalWatchTimeMinutes'] as num).toDouble()) * 60)
+                        .toInt();
+              } else if (data['metrics'] is Map &&
+                  (data['metrics'] as Map)['totalWatchTimeSeconds'] != null) {
+                totalWatchTimeSeconds.value =
+                    ((data['metrics'] as Map)['totalWatchTimeSeconds'] as num)
+                        .toInt();
+              }
+
+              final superchat =
+                  (data['superchatRevenueTotal'] as num?)?.toDouble() ?? 0.0;
+              if (superchat > 0) {
+                rxSuperchatRevenue.value = superchat;
+              }
+              final ads = (data['adsRevenueTotal'] as num?)?.toDouble() ?? 0.0;
+              if (ads > 0) {
+                rxAdsRevenue.value = ads;
+              }
+              _updateRevenueStats();
+            }
+
+            final channel = Channel.fromDocumentSnapshot(snapshot);
+            currentChannel.value = channel;
+
+            final isDismissedInDoc =
+                snapshot.data()?['brandingApprovedDismissed'] == true ||
+                    snapshot.data()?['approvalBannerDismissed'] == true ||
+                    channel.brandingApprovedDismissed;
+            final isDismissedInStorage =
+                GetStorage().read<bool>('approval_shown_${channel.id}') == true;
+
+            if (isDismissedInDoc || isDismissedInStorage) {
+              showApprovalBanner.value = false;
+            } else if (channel.status == ChannelStatus.active ||
+                channel.geminiApproved == true) {
+              showApprovalBanner.value = true;
+              GetStorage().write('approval_shown_${channel.id}', true);
+            } else {
+              showApprovalBanner.value = false;
+            }
+
+            channelStats.value = {
+              ...channelStats,
+              'views': _formatNumber(channel.viewCount),
+              'subscribers': _formatNumber(channel.subscriberCount),
+              'watchTime': formattedWatchTime,
+              'revenue': channelStats['revenue'] ??
+                  (rxTotalRevenue.value > 0
+                      ? '₹${rxTotalRevenue.value.toStringAsFixed(2)}'
+                      : '₹0.00'),
+              'viewsChange': channelStats['viewsChange'] ?? '+0%',
+              'watchTimeChange': channelStats['watchTimeChange'] ?? '+0%',
+              'subscribersChange': channelStats['subscribersChange'] ?? '+0',
+              'revenueChange': channelStats['revenueChange'] ?? '+₹0.00',
+            };
+          }
+        },
+        onError: (e, stackTrace) => ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'DashboardController._channelSubscription',
+        ),
+      ),
+    );
+
+    // 2. Listen to the summary document for detailed analytics (watch time, trends)
+    final summaryRef = _firestore
+        .collection(FirestoreCollections.channels)
+        .doc(channelId)
+        .collection('stats')
+        .doc('summary');
+    trackSubscription(_statsSubscription = summaryRef.snapshots().listen(
+      (snapshot) {
+        if (snapshot.exists) {
+          final data = snapshot.data()!;
+          final summaryWatchSeconds =
+              (data['totalWatchTimeSeconds'] as num?)?.toInt() ?? 0;
+          if (summaryWatchSeconds > 0) {
+            totalWatchTimeSeconds.value = summaryWatchSeconds;
+          }
+          channelStats.value = {
+            ...channelStats,
+            'views': _formatNumber(data['totalViews'] ?? channelStats['views'] ?? 0),
+            'watchTime': formattedWatchTime,
+            'subscribers': _formatNumber(data['subscribers'] ?? channelStats['subscribers'] ?? 0),
+            'revenue': channelStats['revenue'] ??
+                (rxTotalRevenue.value > 0
+                    ? '\$${rxTotalRevenue.value.toStringAsFixed(2)}'
+                    : r'$0.00'),
+            'viewsChange': '+0%',
+            'watchTimeChange': '+0%',
+            'subscribersChange': '+0',
+            'revenueChange': channelStats['revenueChange'] ?? r'+$0.00',
+          };
+        }
+      },
+      onError: (error, stackTrace) {
+        ErrorHandler.log(
+          error,
+          stackTrace: stackTrace,
+          tag: 'DashboardController._statsSubscription',
+        );
+        rxErrorMessage.value = 'Failed to load channel stats.';
+      },
+    ));
+  }
+
+  void _loadRevenueAndMemberships() {
+    if (channelId.isEmpty) return;
+
+    // 1. Members stream for active fan funding
+    final membersRef = _firestore
+        .collection(FirestoreCollections.channels)
+        .doc(channelId)
+        .collection('members');
+    trackSubscription(
+      _membersSubscription = membersRef.snapshots().listen(
+        (snapshot) {
+          final activeDocs = snapshot.docs.where((doc) {
+            final data = doc.data();
+            return (data['status'] ?? 'active').toString().toLowerCase() ==
+                'active';
+          }).toList();
+
+          rxActiveMembersCount.value = activeDocs.length;
+
+          var totalMemberships = 0.0;
+          for (final doc in activeDocs) {
+            final data = doc.data();
+            totalMemberships += (data['price'] as num?)?.toDouble() ?? 0.0;
+          }
+
+          rxMembershipsRevenue.value = totalMemberships;
+          _updateRevenueStats();
+        },
+        onError: (e, stackTrace) => ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'DashboardController._membersSubscription',
+        ),
+      ),
+    );
+
+    // 2. Membership Tiers stream for fallback member counts & active tiers
+    final tiersRef = _firestore
+        .collection(FirestoreCollections.channels)
+        .doc(channelId)
+        .collection('membership_tiers');
+    trackSubscription(
+      _membershipTiersSubscription = tiersRef.snapshots().listen(
+        (snapshot) {
+          var activeTiers = 0;
+          var tierMembersRevenue = 0.0;
+          var tierMembersCount = 0;
+
+          for (final doc in snapshot.docs) {
+            final data = doc.data();
+            if (data['isEnabled'] != false) {
+              activeTiers++;
+              final price = (data['price'] as num?)?.toDouble() ?? 0.0;
+              final count = (data['memberCount'] as num?)?.toInt() ?? 0;
+              tierMembersRevenue += price * count;
+              tierMembersCount += count;
+            }
+          }
+
+          rxActiveTiersCount.value = activeTiers;
+          if (rxMembershipsRevenue.value == 0.0 && tierMembersRevenue > 0.0) {
+            rxMembershipsRevenue.value = tierMembersRevenue;
+            if (rxActiveMembersCount.value == 0) {
+              rxActiveMembersCount.value = tierMembersCount;
+            }
+          }
+          _updateRevenueStats();
+        },
+        onError: (e, stackTrace) => ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'DashboardController._membershipTiersSubscription',
+        ),
+      ),
+    );
+
+    // 3. Revenue statements stream
+    final statementsRef = _firestore
+        .collection('revenue_statements')
+        .where('channelId', isEqualTo: channelId)
+        .limit(1);
+    trackSubscription(
+      _revenueStatementsSubscription = statementsRef.snapshots().listen(
+        (snapshot) {
+          if (snapshot.docs.isNotEmpty) {
+            final data = snapshot.docs.first.data();
+            final ads = (data['grossAdsRevenue'] as num?)?.toDouble() ?? 0.0;
+            if (ads > 0) {
+              rxAdsRevenue.value = ads;
+            }
+            final subs = (data['grossSubsRevenue'] as num?)?.toDouble() ?? 0.0;
+            if (subs > 0 && rxSuperchatRevenue.value == 0) {
+              rxSuperchatRevenue.value = subs;
+            }
+            _updateRevenueStats();
+          }
+        },
+        onError: (e, stackTrace) => ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'DashboardController._revenueStatementsSubscription',
+        ),
+      ),
+    );
+  }
+
+  void _updateRevenueStats() {
+    final total = rxMembershipsRevenue.value +
+        rxSuperchatRevenue.value +
+        rxAdsRevenue.value +
+        rxWatchTimeRevenue.value;
+    rxTotalRevenue.value = total;
+
+    final formattedRev = '₹${total.toStringAsFixed(2)}';
+    final formattedChange =
+        total > 0 ? '+₹${total.toStringAsFixed(2)}' : '+₹0.00';
+
+    channelStats.value = {
+      ...channelStats,
+      'revenue': formattedRev,
+      'revenueChange': formattedChange,
+    };
+  }
+
+  void _loadRecentVideos() {
+    final videosRef = _firestore
+        .collection(FirestoreCollections.videos)
+        .where('channelId', isEqualTo: channelId)
+        .orderBy('uploadedAt', descending: true)
+        .limit(20); // Fetch more for better fallback
+    trackSubscription(_videosSubscription = videosRef.snapshots().listen(
+      (snapshot) {
+        recentVideos.value = snapshot.docs
+            .map(Video.fromDocumentSnapshot)
+            .toList();
+
+        // Fallback view count from recent videos if still zero
+        if ((channelStats['views'] == '0' || channelStats['views'] == null) &&
+            recentVideos.isNotEmpty) {
+          final totalViews = recentVideos.fold(
+            0,
+            (acc, v) => acc + v.viewCount,
+          );
+          if (totalViews > 0) {
+            channelStats.value = {
+              ...channelStats,
+              'views': _formatNumber(totalViews),
+            };
+          }
+        }
+
+        // Fallback watch time from recent videos if channel watch time is zero
+        if (totalWatchTimeSeconds.value == 0 && recentVideos.isNotEmpty) {
+          final totalVideoWatchSeconds = recentVideos.fold<int>(
+            0,
+            (acc, v) => acc + v.totalWatchTimeSeconds,
+          );
+          if (totalVideoWatchSeconds > 0) {
+            totalWatchTimeSeconds.value = totalVideoWatchSeconds;
+            channelStats.value = {
+              ...channelStats,
+              'watchTime': formattedWatchTime,
+            };
+          }
+        }
+      },
+      onError: (error, stackTrace) {
+        ErrorHandler.log(
+          error,
+          stackTrace: stackTrace,
+          tag: 'DashboardController._loadRecentVideos',
+        );
+        rxErrorMessage.value = 'Failed to load recent videos.';
+      },
+    ));
+  }
+
+  void _loadAnalyticsData() {
+    final endDate = DateTime.now();
+    final startDate = endDate.subtract(
+      const Duration(days: 27),
+    ); // Last 28 days
+    final statsRef = _firestore
+        .collection(FirestoreCollections.channels)
+        .doc(channelId)
+        .collection('daily_stats')
+        .where(
+          FieldPath.documentId,
+          isGreaterThanOrEqualTo: DateFormat('yyyy-MM-dd').format(startDate),
+        )
+        .orderBy(FieldPath.documentId);
+
+    trackSubscription(_analyticsSubscription = statsRef.snapshots().listen(
+      (snapshot) {
+        if (snapshot.docs.isNotEmpty) {
+          final data = <AnalyticsData>[];
+          for (var i = 0; i < 28; i++) {
+            final date = startDate.add(Duration(days: i));
+            final dateString = DateFormat('yyyy-MM-dd').format(date);
+            final doc = snapshot.docs.firstWhere(
+              (d) => d.id == dateString,
+              orElse: () => snapshot.docs[0],
+            );
+            data.add(AnalyticsData(date, doc.data()['views'] ?? 0));
+          }
+          analyticsData.value = data;
+        } else {
+          // Fill with zeros if no data
+          analyticsData.value = List.generate(
+            28,
+            (i) => AnalyticsData(startDate.add(Duration(days: i)), 0),
+          );
+        }
+      },
+      onError: (error, stackTrace) {
+        ErrorHandler.log(
+          error,
+          stackTrace: stackTrace,
+          tag: 'DashboardController._loadAnalyticsData',
+        );
+        rxErrorMessage.value = 'Failed to load analytics data.';
+      },
+    ));
+  }
+
+  void _loadCopyrightStatus() {
+    if (channelId.isEmpty) return;
+    _copyrightSubscription = _firestore
+        .collection('copyright_claims')
+        .where('channelId', isEqualTo: channelId)
+        .snapshots()
+        .listen(
+          (snapshot) {
+            copyrightClaimsCount.value = snapshot.docs.length;
+          },
+          onError: (e, stackTrace) => ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'DashboardController._loadCopyrightStatus',
+          ),
+        );
+  }
+
+  String _formatNumber(int number) {
+    if (number >= 1000000) {
+      return '${(number / 1000000).toStringAsFixed(1)}M';
+    } else if (number >= 1000) {
+      return '${(number / 1000).toStringAsFixed(1)}K';
+    }
+    return number.toString();
+  }
+
+  void setSelectedIndex(int index) => selectedIndex.value = index;
+  void toggleDrawer() => isDrawerExpanded.value = !isDrawerExpanded.value;
+  void setSearchQuery(String query) => searchQuery.value = query;
+  void retryLoad() => _initializeData();
+
+  Future<void> dismissApprovalBanner() async {
+    showApprovalBanner.value = false;
+    final targetId =
+        channelId.isNotEmpty ? channelId : (currentChannel.value?.id ?? '');
+    if (targetId.isNotEmpty) {
+      GetStorage().write('approval_shown_$targetId', true);
+      try {
+        await _firestore
+            .collection(FirestoreCollections.channels)
+            .doc(targetId)
+            .update({
+          'brandingApprovedDismissed': true,
+          'approvalBannerDismissed': true,
+        });
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'DashboardController.dismissApprovalBanner',
+        );
+      }
+    }
+  }
+}

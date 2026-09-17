@@ -148,11 +148,9 @@ class StudioAccessGuard extends GetMiddleware {
       return const RouteSettings(name: '/');
     }
 
-    // 2. If user IS authenticated BUT has no channel -> redirect directly to channel creation wizard
-    if (!auth.hasChannel.value && auth.userChannel == null) {
-      return const RouteSettings(name: '/channelscreen');
-    }
-
+    // 2. Authentication verified: Allow DashboardScreen to mount and resolve channel asynchronously.
+    // DashboardScreen displays a loading spinner (isSelectingDefault) and safely queries Firestore
+    // before making an authoritative redirect to /channelscreen if no channel exists.
     return null;
   }
 }
@@ -181,7 +179,8 @@ class RouteProtection {
       return false;
     }
 
-    if (!authService.hasChannel.value && authService.userChannel == null) {
+    final channel = await authService.ensureChannelLoaded();
+    if (channel == null && !authService.hasChannel.value) {
       await Get.toNamed('/channelscreen');
       return false;
     }

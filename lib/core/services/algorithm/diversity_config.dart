@@ -87,4 +87,13 @@ class DiversityConfig {
     explorationRate: 0.05,
     smallCreatorBoostFactor: 1.2,
   );
+
+  static const unexplored = DiversityConfig(
+    maxConsecutiveSameTopic: 2,
+    maxConsecutiveSameCategory: 3,
+    maxCreatorExposurePercent: 0.15,
+    maxSingleTopicShare: 0.25,
+    explorationRate: 0.20,
+    smallCreatorBoostFactor: 1.4,
+  );
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/utils/content_validator.dart';
+import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -419,6 +421,7 @@ class CreativeAssetsTabView extends StatelessWidget {
             children: [
               TextField(
                 controller: titleController,
+                inputFormatters: TruthworldTextInputFormatters.standard,
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
                   labelText: 'Asset Name / Title',
@@ -516,9 +519,17 @@ class CreativeAssetsTabView extends StatelessWidget {
           ElevatedButton(
             onPressed: () {
               final title = titleController.text.trim();
-              if (title.isNotEmpty) {
-                final type = typeChoice.value;
-                controller.addCreativeAsset({
+              if (title.isEmpty) {
+                AppSnackbar.warning('Please enter an asset title.');
+                return;
+              }
+              final val = ContentValidator.validate(title, checkEnglishOnly: false, fieldName: 'Asset Title');
+              if (!val.isValid) {
+                AppSnackbar.warning(val.message);
+                return;
+              }
+              final type = typeChoice.value;
+              controller.addCreativeAsset({
                   'id': 'asset_${DateTime.now().millisecondsSinceEpoch}',
                   'title': title,
                   'type': type,
@@ -531,7 +542,6 @@ class CreativeAssetsTabView extends StatelessWidget {
                   'campaignUsage': 0,
                 });
                 Get.back();
-              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.brand,

@@ -23,7 +23,7 @@ export interface RevenueStatement {
 
 export interface PayoutSettings {
   userId: string;
-  method: "upi" | "bank_transfer" | "stripe";
+  method: "upi" | "bank_transfer";
   details: Record<string, any>;
   autoPayout: boolean;
   minThreshold: number;

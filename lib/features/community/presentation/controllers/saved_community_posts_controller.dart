@@ -2,13 +2,14 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/exceptions/app_exceptions.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
-import 'package:truthworld/theme/app_theme.dart';
 
 class SavedCommunityPostsController extends BaseController {
   final RxList<CommunityPostModel> posts = <CommunityPostModel>[].obs;
@@ -60,10 +61,10 @@ class SavedCommunityPostsController extends BaseController {
             posts.value = list;
             rxIsLoading.value = false;
           },
-          onError: (Object error) {
-            rxErrorMessage.value = error.toString();
+          onError: (Object error, StackTrace stackTrace) {
+            ErrorHandler.log(error, stackTrace: stackTrace, context: 'SavedCommunityPostsController');
+            rxErrorMessage.value = AppException.from(error, stackTrace).displayMessage;
             rxIsLoading.value = false;
-            debugPrint('Error listening to saved community posts: $error');
           },
         );
   }
@@ -80,25 +81,13 @@ class SavedCommunityPostsController extends BaseController {
           .doc(postId)
           .delete();
 
-      Get.snackbar(
-        'Removed',
-        'Post removed from Saved Posts',
-        snackPosition: SnackPosition.TOP,
-        backgroundColor: const Color(0xFF6366F1),
-        colorText: AppColors.textPrimary,
-        margin: const EdgeInsets.all(16),
-        borderRadius: 12,
-        icon: const Icon(Icons.bookmark_border, color: AppColors.textPrimary),
+      AppSnackbar.success(
+        'Post removed from saved posts.',
       );
     } on Exception catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to remove saved post: $e',
-        snackPosition: SnackPosition.TOP,
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
-        margin: const EdgeInsets.all(16),
-        borderRadius: 12,
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to remove saved post. Please try again.',
       );
     }
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -1178,7 +1179,12 @@ class _AboutPageState extends State<AboutPage> with TickerProviderStateMixin {
           ElevatedButton(
             onPressed: () {
               HapticFeedback.lightImpact();
-              Get.toNamed('/channelscreen');
+              if (AuthService.to.hasChannel.value ||
+                  AuthService.to.userChannel != null) {
+                StudioLauncher.openStudio();
+              } else {
+                Get.toNamed('/channelscreen');
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.textPrimary,
@@ -1189,9 +1195,11 @@ class _AboutPageState extends State<AboutPage> with TickerProviderStateMixin {
               ),
               elevation: 0,
             ),
-            child: const Text(
-              'Start Creating Verified Content',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            child: Text(
+              AuthService.to.hasChannel.value
+                  ? 'Open Creator Studio'
+                  : 'Start Creating Verified Content',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
             ),
           ),
         ],

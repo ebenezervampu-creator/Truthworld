@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -260,15 +261,13 @@ class AdReportsTab extends StatelessWidget {
                                           .doc(reportId)
                                           .update({'status': 'resolved'});
 
-                                      AppSnackbar.show(
-                                        'Campaign Paused',
+                                      AppSnackbar.success(
                                         'Ad campaign status set to rejected and report resolved.',
                                       );
                                     } catch (e) {
-                                      AppSnackbar.show(
-                                        'Error',
-                                        'Failed to pause ad campaign: $e',
-                                        backgroundColor: AppColors.error,
+                                      ErrorHandler.log(e);
+                                      AppSnackbar.error(
+                                        'Unable to pause ad campaign. Please try again.',
                                       );
                                     }
                                   },
@@ -301,9 +300,11 @@ class AdReportsTab extends StatelessWidget {
                                         'Report Resolved',
                                         'Report marked as resolved.',
                                       );
-                                    } catch (e) {
-                                      debugPrint(
-                                        'Error resolving report: $e',
+                                    } catch (e, s) {
+                                      ErrorHandler.log(
+                                        e,
+                                        stackTrace: s,
+                                        tag: 'AdReportsTab.resolveReport',
                                       );
                                     }
                                   },

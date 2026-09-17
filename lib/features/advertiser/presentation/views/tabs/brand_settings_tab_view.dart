@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -124,6 +125,7 @@ class BrandSettingsTabView extends StatelessWidget {
               Expanded(
                 child: TextField(
                   controller: nameCtrl,
+                  inputFormatters: TruthworldTextInputFormatters.standard,
                   style: const TextStyle(color: Colors.white),
                   decoration: const InputDecoration(
                     labelText: 'Brand / Organization Name',
@@ -138,6 +140,7 @@ class BrandSettingsTabView extends StatelessWidget {
               Expanded(
                 child: TextField(
                   controller: catCtrl,
+                  inputFormatters: TruthworldTextInputFormatters.standard,
                   style: const TextStyle(color: Colors.white),
                   decoration: const InputDecoration(
                     labelText: 'Industry Category',
@@ -153,6 +156,7 @@ class BrandSettingsTabView extends StatelessWidget {
           const SizedBox(height: 14),
           TextField(
             controller: tagCtrl,
+            inputFormatters: TruthworldTextInputFormatters.standard,
             style: const TextStyle(color: Colors.white),
             decoration: const InputDecoration(
               labelText: 'Brand Motto / Tagline',
@@ -199,12 +203,38 @@ class BrandSettingsTabView extends StatelessWidget {
             alignment: Alignment.centerRight,
             child: ElevatedButton.icon(
               onPressed: () {
+                final name = nameCtrl.text.trim();
+                final tag = tagCtrl.text.trim();
+                final cat = catCtrl.text.trim();
+
+                final nameVal = ContentValidator.validate(name, fieldName: 'Brand Name', minLength: 2, maxLength: 80);
+                if (!nameVal.isValid) {
+                  AppSnackbar.warning(nameVal.message);
+                  return;
+                }
+
+                if (tag.isNotEmpty) {
+                  final tagVal = ContentValidator.validate(tag, fieldName: 'Brand Tagline', maxLength: 150);
+                  if (!tagVal.isValid) {
+                    AppSnackbar.warning(tagVal.message);
+                    return;
+                  }
+                }
+
+                if (cat.isNotEmpty) {
+                  final catVal = ContentValidator.validate(cat, fieldName: 'Industry Category', maxLength: 50);
+                  if (!catVal.isValid) {
+                    AppSnackbar.warning(catVal.message);
+                    return;
+                  }
+                }
+
                 controller.saveBrandSettings(
-                  name: nameCtrl.text.trim(),
-                  tagline: tagCtrl.text.trim(),
+                  name: name,
+                  tagline: tag,
                   website: webCtrl.text.trim(),
                   email: emailCtrl.text.trim(),
-                  category: catCtrl.text.trim(),
+                  category: cat,
                 );
               },
               icon: const Icon(Icons.save_rounded, color: Colors.white, size: 16),
@@ -600,6 +630,7 @@ class BrandSettingsTabView extends StatelessWidget {
             children: [
               TextField(
                 controller: nameCtrl,
+                inputFormatters: TruthworldTextInputFormatters.standard,
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
                   labelText: 'Full Name',
@@ -657,10 +688,17 @@ class BrandSettingsTabView extends StatelessWidget {
             onPressed: () {
               final name = nameCtrl.text.trim();
               final email = emailCtrl.text.trim();
-              if (name.isNotEmpty && email.isNotEmpty) {
-                controller.inviteTeamMember(name, email, roleChoice.value);
-                Get.back();
+              if (name.isEmpty || email.isEmpty) {
+                AppSnackbar.warning('Please enter member name and email.');
+                return;
               }
+              final nameVal = ContentValidator.validate(name, fieldName: 'Member Name', minLength: 2, maxLength: 80);
+              if (!nameVal.isValid) {
+                AppSnackbar.warning(nameVal.message);
+                return;
+              }
+              controller.inviteTeamMember(name, email, roleChoice.value);
+              Get.back();
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.brand,

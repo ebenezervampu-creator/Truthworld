@@ -14,6 +14,14 @@
 
 import * as fs from "fs";
 import * as path from "path";
+import * as admin from "firebase-admin";
+if (!admin.apps.length) {
+  try {
+    admin.initializeApp();
+  } catch {
+    // Ignore in standalone tests
+  }
+}
 import { BenchmarkRunner } from "./runner";
 import { BenchmarkDataset, BenchmarkRun, BenchmarkMetrics } from "./types";
 

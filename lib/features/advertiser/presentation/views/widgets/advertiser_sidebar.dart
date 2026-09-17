@@ -4,7 +4,25 @@ import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-/// Modular sidebar widget for Advertiser Portal.
+/// Modular drawer widget for Advertiser Portal navigation.
+class AdvertiserDrawer extends StatelessWidget {
+  const AdvertiserDrawer({
+    required this.controller,
+    super.key,
+  });
+
+  final AdvertiserPortalController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return AdvertiserSidebar(
+      controller: controller,
+      isDrawer: true,
+    );
+  }
+}
+
+/// Modular sidebar widget for Advertiser Portal navigation.
 class AdvertiserSidebar extends StatelessWidget {
   const AdvertiserSidebar({
     required this.controller,
@@ -17,6 +35,34 @@ class AdvertiserSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (isDrawer) {
+      return _buildDrawer(context, controller);
+    }
+    return _buildSidebar(context, controller);
+  }
+
+  Widget _buildDrawer(
+    BuildContext context,
+    AdvertiserPortalController controller,
+  ) {
+    return Drawer(
+      backgroundColor: const Color(0xFF161618),
+      child: Column(
+        children: [
+          _buildSidebarHeader(context),
+          const Divider(color: Color(0xFF27272A), height: 1),
+          Expanded(
+            child: _buildSidebarItems(context, controller, isDrawer: true),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSidebar(
+    BuildContext context,
+    AdvertiserPortalController controller,
+  ) {
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFF161618),
@@ -32,7 +78,7 @@ class AdvertiserSidebar extends StatelessWidget {
             _buildSidebarHeader(context),
             const Divider(color: Color(0xFF27272A), height: 1),
             Expanded(
-              child: _buildSidebarItems(context),
+              child: _buildSidebarItems(context, controller, isDrawer: false),
             ),
           ],
         ),
@@ -42,41 +88,51 @@ class AdvertiserSidebar extends StatelessWidget {
 
   Widget _buildSidebarHeader(BuildContext context) {
     return const Padding(
-      padding: EdgeInsets.all(24),
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       child: Row(
         children: [
           AppLogo(),
           SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Truthworld',
-                style: TextStyle(
-                  fontFamily: TWTypography.brandFamily,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Truthworld',
+                  style: TextStyle(
+                    fontFamily: TWTypography.brandFamily,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              SizedBox(height: 2),
-              Text(
-                'Advertiser Studio',
-                style: TextStyle(
-                  fontFamily: TWTypography.uiFamily,
-                  color: AppColors.brand,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
+                SizedBox(height: 2),
+                Text(
+                  'ADVERTISER STUDIO',
+                  style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.brand,
+                    letterSpacing: 1.2,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSidebarItems(BuildContext context) {
+  Widget _buildSidebarItems(
+    BuildContext context,
+    AdvertiserPortalController controller, {
+    required bool isDrawer,
+  }) {
     final icons = <IconData>[
       Icons.dashboard_rounded,
       Icons.campaign_rounded,
@@ -91,48 +147,45 @@ class AdvertiserSidebar extends StatelessWidget {
       Icons.settings_rounded,
     ];
 
-    return Obx(() {
-      final selected = controller.selectedIndex.value;
-      return ListView.builder(
-        itemCount: controller.tabTitles.length,
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemBuilder: (context, index) {
-          final title = controller.tabTitles[index];
-          final icon = icons[index];
-          final isSelected = selected == index;
-
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      children: [
+        for (int i = 0; i < controller.tabTitles.length; i++)
+          Material(
+            color: Colors.transparent,
             child: ListTile(
-              leading: Icon(
-                icon,
-                color: Colors.white,
-                size: 20,
-              ),
-              title: Text(
-                title,
-                style: TextStyle(
-                  fontFamily: TWTypography.uiFamily,
-                  color: isSelected ? Colors.white : AppColors.textSecondary,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                  fontSize: 14,
-                ),
-              ),
-              selected: isSelected,
+              selected: controller.selectedIndex.value == i,
               selectedTileColor: AppColors.brand.withValues(alpha: 0.12),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
+              leading: Icon(
+                icons[i],
+                color: Colors.white,
+                size: 20,
+              ),
+              title: Text(
+                controller.tabTitles[i],
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontWeight: controller.selectedIndex.value == i
+                      ? FontWeight.bold
+                      : FontWeight.w500,
+                  color: controller.selectedIndex.value == i
+                      ? Colors.white
+                      : AppColors.textSecondary,
+                  fontSize: 14,
+                ),
+              ),
               onTap: () {
-                controller.selectedIndex.value = index;
+                controller.selectedIndex.value = i;
                 if (isDrawer) {
-                  Navigator.of(context).pop();
+                  Get.back();
                 }
               },
             ),
-          );
-        },
-      );
-    });
+          ),
+      ],
+    );
   }
 }

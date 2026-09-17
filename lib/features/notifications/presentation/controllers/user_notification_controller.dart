@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
 import 'package:truthworld/features/notifications/data/services/user_notification_service.dart';
@@ -19,7 +19,6 @@ class UserNotificationController extends BaseController {
   RxBool isSearching = false.obs;
 
   StreamSubscription<List<UserNotification>>? _subscription;
-  StreamSubscription<User?>? _authSubscription;
   String _currentUserId = '';
 
   String get userId {
@@ -35,27 +34,35 @@ class UserNotificationController extends BaseController {
 
   @override
   void onClose() {
-    _authSubscription?.cancel();
-    _subscription?.cancel();
+    // BaseController.onClose() handles all tracked subscriptions via trackSubscription()
     super.onClose();
   }
 
   void _listenToAuthChanges() {
-    _authSubscription =
-        FirebaseAuth.instance.authStateChanges().listen((user) {
-      final newUid = user?.uid ?? '';
-      if (newUid != _currentUserId) {
-        _currentUserId = newUid;
-        if (newUid.isEmpty || (user?.isAnonymous ?? false)) {
-          _subscription?.cancel();
-          _subscription = null;
-          notifications.clear();
-          rxIsLoading.value = false;
-        } else {
-          _listenToCloudNotifications();
-        }
-      }
-    });
+    // Track auth subscription for automatic disposal on controller close
+    trackSubscription(
+      FirebaseAuth.instance.authStateChanges().listen(
+        (user) {
+          final newUid = user?.uid ?? '';
+          if (newUid != _currentUserId) {
+            _currentUserId = newUid;
+            if (newUid.isEmpty || (user?.isAnonymous ?? false)) {
+              _subscription?.cancel();
+              _subscription = null;
+              notifications.clear();
+              rxIsLoading.value = false;
+            } else {
+              _listenToCloudNotifications();
+            }
+          }
+        },
+        onError: (e, stackTrace) => ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'UserNotificationController._listenToAuthChanges',
+        ),
+      ),
+    );
 
     final initialUser = FirebaseAuth.instance.currentUser;
     if (initialUser != null && !initialUser.isAnonymous) {
@@ -78,20 +85,27 @@ class UserNotificationController extends BaseController {
 
     rxIsLoading.value = true;
 
-    _subscription = _service
-        .getNotificationsStream(uid, limit: 100)
-        .listen(
-          (list) {
-            notifications.value = list;
-            rxIsLoading.value = false;
-          },
-          onError: (e) {
-            debugPrint('Error in real-time cloud notifications stream: $e');
-            rxIsLoading.value = false;
-            // Fallback to callable on stream error
-            _fetchFromCloudFunction();
-          },
-        );
+    // Track subscription for automatic cleanup in BaseController.onClose()
+    _subscription = trackSubscription(
+      _service
+          .getNotificationsStream(uid, limit: 100)
+          .listen(
+            (list) {
+              notifications.value = list;
+              rxIsLoading.value = false;
+            },
+            onError: (e, stackTrace) {
+              ErrorHandler.log(
+                e,
+                stackTrace: stackTrace,
+                tag: 'UserNotificationController.getNotificationsStream',
+              );
+              rxIsLoading.value = false;
+              // Fallback to callable on stream error
+              _fetchFromCloudFunction();
+            },
+          ),
+    );
   }
 
   /// Fallback fetch via callable Cloud Function
@@ -99,8 +113,12 @@ class UserNotificationController extends BaseController {
     try {
       final list = await _service.fetchNotificationsViaCallable(limit: 100);
       notifications.value = list;
-    } catch (e) {
-      debugPrint('Error fetching cloud notifications via Cloud Function: $e');
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'UserNotificationController.fetchFromCloudFunction',
+      );
     } finally {
       rxIsLoading.value = false;
     }

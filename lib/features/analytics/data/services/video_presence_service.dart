@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/utils/firebase_rtdb_helper.dart';
 import 'package:uuid/uuid.dart';
@@ -60,11 +60,19 @@ class VideoPresenceService extends GetxService {
           logger.info('RTDB reconnected. Restoring live presence session: $_currentSessionId', tag: _tag);
           _reestablishSession();
         }
-      }, onError: (Object e) {
-        debugPrint('[$_tag] .info/connected listener error: $e');
+      }, onError: (Object e, StackTrace s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: '$_tag.connectionSubscription',
+        );
       });
-    } catch (e) {
-      debugPrint('[$_tag] Error attaching .info/connected listener: $e');
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: '$_tag.listenToConnectionState',
+      );
     }
   }
 
@@ -91,8 +99,12 @@ class VideoPresenceService extends GetxService {
       await ref.set(sessionData);
       await ref.onDisconnect().remove();
       logger.info('Presence session re-established: $sessionId for video: $videoId', tag: _tag);
-    } catch (e) {
-      debugPrint('[$_tag] Error re-establishing session on reconnect: $e');
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: '$_tag.reestablishSession',
+      );
     }
   }
 
@@ -176,11 +188,19 @@ class VideoPresenceService extends GetxService {
         'position': _lastPosition,
         'watchedSeconds': _lastWatchedSeconds,
         'updatedAt': ServerValue.timestamp,
-      }).catchError((Object e) {
-        debugPrint('[$_tag] Heartbeat update error: $e');
+      }).catchError((Object e, StackTrace s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: '$_tag.heartbeat.update',
+        );
       });
-    } catch (e) {
-      debugPrint('[$_tag] Heartbeat update error: $e');
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: '$_tag.heartbeat',
+      );
     }
   }
 
@@ -218,8 +238,12 @@ class VideoPresenceService extends GetxService {
     if (ref != null) {
       try {
         await ref.onDisconnect().cancel();
-      } catch (e) {
-        debugPrint('[$_tag] Warning cancelling onDisconnect: $e');
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: '$_tag.internalStopWatching.onDisconnect',
+        );
       }
       try {
         await ref.remove();
@@ -227,8 +251,12 @@ class VideoPresenceService extends GetxService {
           'Live presence stopped for video: $videoId (session: $sessionId)',
           tag: _tag,
         );
-      } catch (e) {
-        debugPrint('[$_tag] Error removing presence session: $e');
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: '$_tag.internalStopWatching.remove',
+        );
       }
     }
   }
@@ -244,12 +272,20 @@ class VideoPresenceService extends GetxService {
         final val = event.snapshot.value;
         if (val is num) return val.toInt();
         return 0;
-      }).handleError((Object error) {
-        debugPrint('[$_tag] Error in live viewer count stream: $error');
+      }).handleError((Object error, StackTrace stackTrace) {
+        ErrorHandler.log(
+          error,
+          stackTrace: stackTrace,
+          tag: '$_tag.getLiveViewerCountStream',
+        );
         return 0;
       });
-    } catch (e) {
-      debugPrint('[$_tag] Failed to create live viewer stream: $e');
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: '$_tag.getLiveViewerCountStream.create',
+      );
       return Stream.value(0);
     }
   }
@@ -265,8 +301,12 @@ class VideoPresenceService extends GetxService {
       final val = snapshot.value;
       if (val is num) return val.toInt();
       return 0;
-    } catch (e) {
-      debugPrint('[$_tag] Error fetching live viewer count: $e');
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: '$_tag.getLiveViewerCount',
+      );
       return 0;
     }
   }

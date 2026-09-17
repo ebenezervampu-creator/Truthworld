@@ -1,0 +1,146 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:get/get.dart';
+import 'package:truthworld/components/ui/google_onboarding_controller.dart';
+import 'package:truthworld/core/services/auth_service.dart';
+
+import '../test_helpers/mock_firebase.dart';
+
+void main() {
+  setUpAll(() async {
+    await setupMockFirebase();
+  });
+
+  setUp(() {
+    Get.reset();
+    Get.testMode = true;
+    Get.put<AuthService>(AuthService());
+  });
+
+  tearDown(Get.reset);
+
+  group('GoogleOnboardingController - Matching & Inferences', () {
+    late GoogleOnboardingController controller;
+
+    setUp(() {
+      controller = GoogleOnboardingController();
+    });
+
+    tearDown(() {
+      controller.onClose();
+    });
+
+    test('matches age groups exactly and case-insensitively', () {
+      expect(controller.matchAgeGroup('Under 13'), 'Under 13');
+      expect(controller.matchAgeGroup('under 13'), 'Under 13');
+      expect(controller.matchAgeGroup('65+'), '65+');
+      expect(controller.matchAgeGroup('Prefer not to say'), 'Prefer not to say');
+    });
+
+    test('matches age groups with ASCII hyphen and en-dash variants', () {
+      // ASCII hyphen matches unicode en-dash option
+      expect(controller.matchAgeGroup('45-54'), '45–54');
+      expect(controller.matchAgeGroup('45–54'), '45–54');
+      expect(controller.matchAgeGroup('18-24'), '18–24');
+      expect(controller.matchAgeGroup('18–24'), '18–24');
+      expect(controller.matchAgeGroup(' 25 - 34 '), '25–34');
+    });
+
+    test('infers age group from numeric age', () {
+      expect(controller.inferAgeGroupFromAge(10), 'Under 13');
+      expect(controller.inferAgeGroupFromAge(15), '13–17');
+      expect(controller.inferAgeGroupFromAge(21), '18–24');
+      expect(controller.inferAgeGroupFromAge(30), '25–34');
+      expect(controller.inferAgeGroupFromAge(40), '35–44');
+      expect(controller.inferAgeGroupFromAge(48), '45–54');
+      expect(controller.inferAgeGroupFromAge(60), '55–64');
+      expect(controller.inferAgeGroupFromAge(70), '65+');
+    });
+  });
+
+  group('GoogleOnboardingController - Pre-selection from AuthService', () {
+    test('pre-selects age group and gender when saved in AuthService', () {
+      final auth = AuthService.to;
+      auth.userAgeGroup.value = '45–54';
+      auth.userGender.value = 'Male';
+
+      final controller = GoogleOnboardingController();
+      expect(controller.selectedAgeGroup.value, '45–54');
+      expect(controller.selectedGender.value, 'Male');
+      expect(controller.selfDescribeController.text, isEmpty);
+
+      controller.onClose();
+    });
+
+    test('pre-selects age group when stored with ASCII hyphen', () {
+      final auth = AuthService.to;
+      auth.userAgeGroup.value = '45-54'; // ASCII hyphen
+      auth.userGender.value = 'Female';
+
+      final controller = GoogleOnboardingController();
+      expect(controller.selectedAgeGroup.value, '45–54');
+      expect(controller.selectedGender.value, 'Female');
+
+      controller.onClose();
+    });
+
+    test('falls back to numeric userAge when userAgeGroup is not set', () {
+      final auth = AuthService.to;
+      auth.userAgeGroup.value = null;
+      auth.userAge.value = 50;
+      auth.userGender.value = 'Non-binary';
+
+      final controller = GoogleOnboardingController();
+      expect(controller.selectedAgeGroup.value, '45–54');
+      expect(controller.selectedGender.value, 'Non-binary');
+
+      controller.onClose();
+    });
+
+    test('parses Self-describe gender with custom description', () {
+      final auth = AuthService.to;
+      auth.userAgeGroup.value = '25–34';
+      auth.userGender.value = 'Self-describe: Two-spirit';
+
+      final controller = GoogleOnboardingController();
+      expect(controller.selectedAgeGroup.value, '25–34');
+      expect(controller.selectedGender.value, 'Self-describe');
+      expect(controller.selfDescribeController.text, 'Two-spirit');
+
+      controller.onClose();
+    });
+
+    test('parses custom non-standard gender into Self-describe', () {
+      final auth = AuthService.to;
+      auth.userGender.value = 'Other';
+
+      final controller = GoogleOnboardingController();
+      expect(controller.selectedGender.value, 'Self-describe');
+      expect(controller.selfDescribeController.text, 'Other');
+
+      controller.onClose();
+    });
+
+    test('allows updating and deselecting age group and gender', () {
+      final auth = AuthService.to;
+      auth.userAgeGroup.value = '45–54';
+      auth.userGender.value = 'Male';
+
+      final controller = GoogleOnboardingController();
+      expect(controller.selectedAgeGroup.value, '45–54');
+
+      // Change age group
+      controller.selectAgeGroup('55–64');
+      expect(controller.selectedAgeGroup.value, '55–64');
+
+      // Deselect age group
+      controller.selectAgeGroup(null);
+      expect(controller.selectedAgeGroup.value, isNull);
+
+      // Deselect gender
+      controller.selectGender(null);
+      expect(controller.selectedGender.value, isNull);
+
+      controller.onClose();
+    });
+  });
+}

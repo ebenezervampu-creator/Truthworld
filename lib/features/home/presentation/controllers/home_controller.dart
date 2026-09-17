@@ -5,10 +5,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_discovery_controller.dart';
@@ -99,6 +101,8 @@ class HomeController extends BaseController {
         _resetLibraryData();
         discovery.subscribedChannelList.clear();
       }
+    }, onError: (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'HomeController.currentUser');
     }));
 
     final currentUid = _authService.user?.uid;
@@ -114,6 +118,15 @@ class HomeController extends BaseController {
     _connectivitySubscription?.cancel();
     _downloadsListSub?.cancel();
     _resetLibraryData();
+    if (Get.isRegistered<HomeDiscoveryController>()) {
+      Get.delete<HomeDiscoveryController>(force: true);
+    }
+    if (Get.isRegistered<HomeNavigationController>()) {
+      Get.delete<HomeNavigationController>(force: true);
+    }
+    if (Get.isRegistered<HomeFeedController>()) {
+      Get.delete<HomeFeedController>(force: true);
+    }
     super.onClose();
   }
 
@@ -128,6 +141,8 @@ class HomeController extends BaseController {
         discovery.fetchFeaturedTopics();
         discovery.fetchSubscribedChannels();
       }
+    }, onError: (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'HomeController.onConnectivityChanged');
     });
     trackSubscription(_connectivitySubscription!);
   }
@@ -153,8 +168,8 @@ class HomeController extends BaseController {
       hasClips.value = results[6].docs.isNotEmpty;
 
       _setupDownloadsListener();
-    } catch (e) {
-      debugPrint('HomeController: Error checking user library data: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'HomeController._checkUserLibraryData');
     }
   }
 
@@ -168,6 +183,8 @@ class HomeController extends BaseController {
     _downloadsListSub?.cancel();
     _downloadsListSub = downloadsCtrl.videos.listen((videosList) {
       hasDownloads.value = videosList.isNotEmpty;
+    }, onError: (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'HomeController.downloadsListener');
     });
     trackSubscription(_downloadsListSub!);
   }
@@ -226,19 +243,17 @@ class HomeController extends BaseController {
     if (exception.isRetryable) {
       _showErrorWithRetry(displayMessage);
     } else {
-      Get.snackbar('Sign-In Error', displayMessage, snackPosition: SnackPosition.BOTTOM, backgroundColor: const Color(0xFFD32F2F), colorText: AppColors.textPrimary, duration: const Duration(seconds: 5), icon: const Icon(Icons.error, color: AppColors.textPrimary));
+      AppSnackbar.error(displayMessage, title: 'Sign-In Failed');
     }
   }
 
   void _showErrorWithRetry(String message) {
-    Get.snackbar(
-      'Sign-In Error', message,
-      snackPosition: SnackPosition.BOTTOM, backgroundColor: const Color(0xFFD32F2F), colorText: AppColors.textPrimary,
-      duration: const Duration(seconds: 7), icon: const Icon(Icons.error, color: AppColors.textPrimary),
-      mainButton: TextButton(
-        onPressed: retryGoogleSignIn,
-        child: const Text('Retry', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
-      ),
+    AppSnackbar.error(
+      message,
+      title: 'Sign-In Failed',
+      actionLabel: 'Retry',
+      onAction: retryGoogleSignIn,
+      duration: const Duration(seconds: 7),
     );
   }
 

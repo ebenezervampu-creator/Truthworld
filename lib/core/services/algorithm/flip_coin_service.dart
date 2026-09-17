@@ -76,7 +76,7 @@ class FlipCoinService extends GetxService {
       return 'breakthroughs and benefits of ai';
     }
     if (lower == 'iran president') {
-      return 'israel presidentdiplomacy';
+      return 'israel president diplomacy';
     }
     if (lower == 'pro') {
       return 'anti';
@@ -92,7 +92,7 @@ class FlipCoinService extends GetxService {
       RegExp(r'\brisks? of ai\b', caseSensitive: false):
           'breakthroughs and benefits of ai',
       RegExp(r'\biran president\b', caseSensitive: false):
-          'israel presidentdiplomacy',
+          'israel president diplomacy',
       RegExp(r'\brisks of\b', caseSensitive: false):
           'breakthroughs and benefits of',
       RegExp(r'\bbenefits of\b', caseSensitive: false): 'risks and harms of',
@@ -411,14 +411,17 @@ class FlipCoinService extends GetxService {
       contrastScore += 0.4;
     }
 
-    // 3. Category Polarity / Contrast
+    // 3. Category Polarity / Contrast & Unexplored Horizon Boost
     final cat = candidateVideo.category.trim();
     final catAffinity = profile.categoryAffinities[cat] ?? 0.0;
 
     if (cat.isNotEmpty) {
       final isTopCategory = profile.top3Categories.any((c) => c.toLowerCase() == cat.toLowerCase());
 
-      if (isTopCategory) {
+      if (profile.isUnexploredCategory(cat)) {
+        // High boost for user's completely unexplored categories (The Other Side horizon)
+        contrastScore += 0.6;
+      } else if (isTopCategory) {
         // If it's in user's top category, it MUST have strong keyword/stance contrast to qualify!
         if (keywordMatchCount == 0 && (candidateVideo.coinBattlePairVideoId == null || candidateVideo.coinBattlePairVideoId!.isEmpty)) {
           // Pure same-side video in user's top category -> DISQUALIFY
@@ -430,11 +433,25 @@ class FlipCoinService extends GetxService {
       }
     }
 
-    // 4. Topic Affinity Inversion Check
+    // 4. Topic Affinity Inversion Check & Unexplored Topic Boost
     final topicAffinity = profile.getCombinedTopicAffinity(candidateVideo.topics.cast<String>());
     if (topicAffinity > 0.6 && keywordMatchCount == 0) {
       // Strongly aligned with user's standard topic with 0 opposing viewpoint keywords -> DISQUALIFY
       return 0.0;
+    }
+
+    // Boost if candidate contains topics that user has NOT yet explored
+    var hasUnexploredTopic = false;
+    for (final topic in candidateVideo.topics) {
+      final slug = topic.toLowerCase().trim();
+      if (!profile.exploredTopicSlugs.contains(slug) &&
+          !profile.topicAffinities.containsKey('topic:$slug')) {
+        hasUnexploredTopic = true;
+        break;
+      }
+    }
+    if (hasUnexploredTopic) {
+      contrastScore += 0.4;
     }
 
     // 5. Unfamiliar / Diverse Channel Boost

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Unified toast/notification system for Truthworld.
@@ -24,13 +25,15 @@ class AppToast {
     String? title,
     VoidCallback? onAction,
     String? actionLabel,
+    Duration? duration,
   }) {
     _show(
-      title: title ?? 'Success',
+      title: title,
       message: message,
       type: _ToastType.success,
       onAction: onAction,
       actionLabel: actionLabel,
+      duration: duration,
     );
   }
 
@@ -40,13 +43,15 @@ class AppToast {
     String? title,
     VoidCallback? onAction,
     String? actionLabel,
+    Duration? duration,
   }) {
     _show(
-      title: title ?? 'Error',
+      title: title,
       message: message,
       type: _ToastType.error,
       onAction: onAction,
       actionLabel: actionLabel ?? (onAction != null ? 'Retry' : null),
+      duration: duration,
     );
   }
 
@@ -56,13 +61,15 @@ class AppToast {
     String? title,
     VoidCallback? onAction,
     String? actionLabel,
+    Duration? duration,
   }) {
     _show(
-      title: title ?? 'Info',
+      title: title,
       message: message,
       type: _ToastType.info,
       onAction: onAction,
       actionLabel: actionLabel,
+      duration: duration,
     );
   }
 
@@ -72,25 +79,32 @@ class AppToast {
     String? title,
     VoidCallback? onAction,
     String? actionLabel,
+    Duration? duration,
   }) {
     _show(
-      title: title ?? 'Warning',
+      title: title,
       message: message,
       type: _ToastType.warning,
       onAction: onAction,
       actionLabel: actionLabel,
+      duration: duration,
     );
   }
 
   // ── Internal ────────────────────────────────────────────────────────────
 
   static void _show({
-    required String title,
     required String message,
     required _ToastType type,
+    String? title,
     VoidCallback? onAction,
     String? actionLabel,
+    Duration? duration,
   }) {
+    if (Get.testMode || Get.context == null || Get.overlayContext == null) {
+      return;
+    }
+
     final context = Get.context;
     final colors = context?.colors;
     final radius = context?.radius;
@@ -101,20 +115,18 @@ class AppToast {
       Get.closeAllSnackbars();
     }
 
-    // Determine if the title is redundant (e.g. standard semantic labels)
-    final titleLower = title.toLowerCase().trim();
+    final sanitizedTitle = UserFeedbackSanitizer.sanitizeTitle(title);
+    final sanitizedMessage = UserFeedbackSanitizer.sanitizeMessage(message);
+
+    // Determine if the title is redundant (e.g. empty or matches semantic name)
     final typeName = type.name.toLowerCase();
-    final isTitleRedundant =
-        title.isEmpty ||
-        titleLower == 'success' ||
-        titleLower == 'error' ||
-        titleLower == 'info' ||
-        titleLower == 'warning' ||
-        titleLower == typeName;
+    final isTitleRedundant = sanitizedTitle == null ||
+        sanitizedTitle.isEmpty ||
+        sanitizedTitle.toLowerCase() == typeName;
 
     final inlineText = isTitleRedundant
         ? TextSpan(
-            text: message,
+            text: sanitizedMessage,
             style: TextStyle(
               color: colors?.textPrimary ?? AppColors.textPrimary,
               fontWeight: FontWeight.w500,
@@ -123,14 +135,14 @@ class AppToast {
         : TextSpan(
             children: [
               TextSpan(
-                text: '$title: ',
+                text: '$sanitizedTitle: ',
                 style: TextStyle(
                   color: colors?.textPrimary ?? AppColors.textPrimary,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               TextSpan(
-                text: message,
+                text: sanitizedMessage,
                 style: TextStyle(
                   color: colors?.textSecondary ?? AppColors.textSecondary,
                   fontWeight: FontWeight.w400,
@@ -147,7 +159,7 @@ class AppToast {
         children: [
           Icon(
             config.icon,
-            color: config.color,
+            color: Colors.white,
             size: 20,
           ),
           const SizedBox(width: 12),
@@ -197,7 +209,7 @@ class AppToast {
       ),
       messageText: const SizedBox.shrink(),
       snackPosition: SnackPosition.BOTTOM,
-      duration: config.duration,
+      duration: duration ?? config.duration,
       margin: const EdgeInsets.only(bottom: 24, left: 16, right: 16),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       borderRadius: radius?.lgValue ?? 12,

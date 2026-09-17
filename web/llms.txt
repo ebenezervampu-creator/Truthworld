@@ -1,0 +1,23 @@
+# Truthworld
+
+> Truthworld is a high-integrity, family-safe video streaming and creator monetization platform featuring automated AI-powered fact checking, localization and dubbing across 70+ languages, 100+ subtitle options, and 100% ad revenue share for creators.
+
+Truthworld empowers content creators and viewers through algorithmic transparency, verified claims, multi-language speech dubbing, creator studio analytics, and high-impact transparent advertising.
+
+## Core Features
+- [AI Fact Checking](https://www.truthworld.in): Real-time multi-layered claim verification and credibility labels.
+- [Voice Dubbing & Localization](https://www.truthworld.in): Voice dubbing across 70+ languages with synchronized subtitles.
+- [Creator Studio](https://www.truthworld.in/studio): Complete channel management, upload pipeline, and real-time revenue analytics.
+- [Advertisements Platform](https://www.truthworld.in/advertisements): Transparent video advertising campaigns with detailed performance tracking.
+- [Discover & Trending](https://www.truthworld.in/trending): Community-driven topic discussions, curated playlists, and trending verified video stories.
+
+## Navigation & Resources
+- [Home](https://www.truthworld.in/): Main video feed and curated recommendations.
+- [Explore Topics](https://www.truthworld.in/browse): Browse categorized topics, channels, and verified content.
+- [Creator Studio](https://www.truthworld.in/studio): Creator dashboard, video management, and channel customization.
+- [Advertiser Portal](https://www.truthworld.in/advertisements): Campaign management and advertising console.
+- [Trending](https://www.truthworld.in/trending): Most popular and trending videos across Truthworld.
+- [Community Guidelines](https://www.truthworld.in/guidelines): Safety policies, content verification standards, and community guidelines.
+
+## Optional
+- [Full Documentation](https://www.truthworld.in/llms-full.txt): In-depth architectural and developer documentation for LLM agents.

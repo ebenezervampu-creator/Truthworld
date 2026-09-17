@@ -101,29 +101,63 @@
   }
   </script>
 
-  <!-- ── Viewport & Theme ──────────────────────────────── -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- ── Viewport & WCAG Accessibility Compliance ──────── -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
   <meta name="theme-color" content="#9B30FF" />
+  <script>
+    // Ensure WCAG 1.4.4 / Lighthouse Accessibility 100%: Prevent Flutter Web engine from locking viewport zoom
+    (function() {
+      function enforceAccessibleViewport(meta) {
+        if (!meta) return;
+        var content = meta.getAttribute('content') || '';
+        if (content.indexOf('user-scalable=no') !== -1 || content.indexOf('maximum-scale=1.0') !== -1 || meta.hasAttribute('flt-viewport')) {
+          meta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes');
+        }
+      }
+      var existing = document.querySelector('meta[name="viewport"]');
+      if (existing) enforceAccessibleViewport(existing);
+      var observer = new MutationObserver(function(mutations) {
+        for (var i = 0; i < mutations.length; i++) {
+          var added = mutations[i].addedNodes;
+          for (var j = 0; j < added.length; j++) {
+            var node = added[j];
+            if (node.nodeType === 1 && node.tagName === 'META') {
+              if (node.getAttribute('name') === 'viewport' || node.hasAttribute('flt-viewport')) {
+                enforceAccessibleViewport(node);
+              }
+            }
+          }
+        }
+      });
+      observer.observe(document.head || document.documentElement, { childList: true, subtree: true });
+    })();
+  </script>
+
+  <!-- ── Performance Preload Hints ──────────────────────── -->
+  <link rel="preload" href="https://www.gstatic.com/flutter-canvaskit/0cd610717bde95fd88343c64f81c11ba4e5c0010/chromium/canvaskit.wasm" as="fetch" type="application/wasm" crossorigin="anonymous" />
 
   <!-- ── PWA & Icons ───────────────────────────────────── -->
   <link rel="icon" type="image/png" href="favicon.png" />
   <link rel="apple-touch-icon" href="icons/Icon-192.png" />
   <link rel="manifest" href="manifest.json" />
 
-  <!-- ── Image Cropper (Web) ──────────────────────────── -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
+  <!-- ── Image Cropper (Web - Local First-Party) ────────── -->
+  <link rel="stylesheet" href="assets/cropper/cropper.min.css" />
+  <script src="assets/cropper/cropper.min.js" defer></script>
 
-  <!-- ── Preloads (cuts TTI) ───────────────────────────── -->
-  <link rel="preload" href="flutter_bootstrap.js" as="script" />
-
-  <!-- ── Fonts ─────────────────────────────────────────── -->
+  <!-- ── Fonts (Asynchronous & Non-Render-Blocking) ───── -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons|Material+Icons+Rounded|Material+Icons+Outlined&display=swap" rel="stylesheet">
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Noto+Sans:wght@400;500;700&family=Noto+Color+Emoji&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Noto+Sans:wght@400;500;700&family=Noto+Color+Emoji&display=swap" media="print" onload="this.media='all'" />
+  <noscript>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Noto+Sans:wght@400;500;700&family=Noto+Color+Emoji&display=swap" />
+  </noscript>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/icon?family=Material+Icons|Material+Icons+Rounded|Material+Icons+Outlined&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons|Material+Icons+Rounded|Material+Icons+Outlined&display=swap" media="print" onload="this.media='all'" />
+  <noscript>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons|Material+Icons+Rounded|Material+Icons+Outlined&display=swap" />
+  </noscript>
 
   <!-- ── Basic CSS -->
   <style>
@@ -137,10 +171,22 @@
     }
   </style>
 </head>
-
 <body>
   <script>
-    self.FIREBASE_APPCHECK_DEBUG_TOKEN = 'aeb2d92a-1f8d-4014-819d-b24f3ffefec3';
+    // Only enable App Check debug token on localhost for local testing (never in production)
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      self.FIREBASE_APPCHECK_DEBUG_TOKEN = 'aeb2d92a-1f8d-4014-819d-b24f3ffefec3';
+    }
+
+    // Clean URL query parameters used for cache busting
+    if (window.location.search && (window.location.search.indexOf('_v=') !== -1 || window.location.search.indexOf('_force_update=') !== -1)) {
+      var cleanSearch = window.location.search
+        .replace(/([?&])_v=\d+(&|$)/, '$1')
+        .replace(/([?&])_force_update=\d+(&|$)/, '$1')
+        .replace(/[?&]$/, '');
+      var cleanUrl = window.location.pathname + cleanSearch + window.location.hash;
+      window.history.replaceState({}, document.title, cleanUrl);
+    }
 
     // Startup error fallback to prevent silent black screen
     window.addEventListener('error', function(e) {
@@ -154,7 +200,7 @@
       console.error('[Truthworld Web Unhandled Rejection]', e.reason);
     });
 
-    // Unregister legacy service workers to force latest deployment assets
+    // Unregister legacy service workers and purge CacheStorage to prevent stale web builds
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then(function(registrations) {
         for (var registration of registrations) {
@@ -164,9 +210,110 @@
         console.warn('ServiceWorker cleanup error:', err);
       });
     }
+    if ('caches' in window) {
+      caches.keys().then(function(names) {
+        for (var name of names) {
+          caches.delete(name);
+        }
+      }).catch(function(err) {
+        console.warn('CacheStorage cleanup error:', err);
+      });
+    }
+
+    // Evict stale topic and feed caches from GetStorage while strictly preserving user auth and preferences
+    try {
+      var gs = localStorage.getItem('GetStorage');
+      if (gs) {
+        var parsed = JSON.parse(gs);
+        var modified = false;
+        var staleKeys = [
+          'featured_topics_cache',
+          'for_you_topics_cache',
+          'qualifying_categories_cache',
+          'home_videos_cache',
+          'feed_home',
+          'feed_unexplored',
+          'feed_trending',
+          'feed_popular',
+          'feed_new',
+          'feed_flip_coin',
+          'feed_music'
+        ];
+        for (var i = 0; i < staleKeys.length; i++) {
+          var k = staleKeys[i];
+          if (parsed[k] !== undefined) {
+            delete parsed[k];
+            modified = true;
+          }
+        }
+        for (var key in parsed) {
+          if (parsed.hasOwnProperty(key) && key.indexOf('feed_') === 0) {
+            delete parsed[key];
+            modified = true;
+          }
+        }
+        if (modified) {
+          localStorage.setItem('GetStorage', JSON.stringify(parsed));
+        }
+      }
+      localStorage.removeItem('featured_topics_cache');
+      localStorage.removeItem('for_you_topics_cache');
+      localStorage.removeItem('qualifying_categories_cache');
+      localStorage.removeItem('home_videos_cache');
+    } catch (err) {
+      console.warn('Local feed cache cleanup error:', err);
+    }
+
+    // Automatic Live Update Detector: Detects new deployments & auto-refreshes seamlessly
+    (function() {
+      var currentBuild = null;
+      function checkAppUpdate() {
+        fetch('version.json?_v=' + Date.now(), { cache: 'no-store' })
+          .then(function(response) {
+            if (!response.ok) return null;
+            return response.json();
+          })
+          .then(function(data) {
+            if (!data) return;
+            var buildSignature = (data.version || '') + '-' + (data.build_number || '');
+            if (currentBuild === null) {
+              currentBuild = buildSignature;
+            } else if (currentBuild !== buildSignature) {
+              console.log('[Truthworld] New deployment detected (' + buildSignature + '). Auto-refreshing to latest version...');
+              if ('caches' in window) {
+                caches.keys().then(function(names) {
+                  return Promise.all(names.map(function(name) { return caches.delete(name); }));
+                }).finally(function() {
+                  window.location.reload();
+                });
+              } else {
+                window.location.reload();
+              }
+            }
+          })
+          .catch(function() {});
+      }
+
+      // Check when user returns or focuses the window
+      document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') {
+          checkAppUpdate();
+        }
+      });
+      window.addEventListener('focus', checkAppUpdate);
+
+      // Periodically check in background every 2 minutes
+      setInterval(checkAppUpdate, 120000);
+      checkAppUpdate();
+    })();
   </script>
 
-  <!-- Flutter bootstrap -->
-  <script src="flutter_bootstrap.js"></script>
+  <!-- Flutter bootstrap with dynamic cache-busting -->
+  <script>
+    var script = document.createElement('script');
+    script.src = 'flutter_bootstrap.js?v=' + Date.now();
+    script.type = 'application/javascript';
+    document.body.appendChild(script);
+  </script>
 </body>
 </html>

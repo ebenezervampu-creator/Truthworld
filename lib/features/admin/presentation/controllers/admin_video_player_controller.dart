@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:video_player/video_player.dart';
@@ -89,15 +90,18 @@ class AdminVideoPlayerController extends BaseController {
                 );
           await ctrl.initialize();
           initializedCtrl = ctrl;
-          debugPrint('[AdminVideoPlayerController] Successfully initialized: $targetUrl');
           break;
-        } catch (e) {
-          debugPrint('[AdminVideoPlayerController] Failed init candidate ($targetUrl): $e');
+        } catch (e, s) {
+          ErrorHandler.log(
+            e,
+            stackTrace: s,
+            tag: 'AdminVideoPlayerController.initializeCandidate',
+          );
         }
       }
 
       if (initializedCtrl == null) {
-        error.value = 'Error loading video player: Format error or unsupported stream source.';
+        error.value = 'Unable to load video player: Unsupported stream format.';
         return;
       }
 
@@ -118,7 +122,7 @@ class AdminVideoPlayerController extends BaseController {
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
-                'Video error: $errorMessage',
+                errorMessage,
                 style: const TextStyle(
                   fontFamily: TWTypography.uiFamily,
                   color: AppColors.error,
@@ -132,9 +136,13 @@ class AdminVideoPlayerController extends BaseController {
       );
 
       isPlayerInitialized.value = true;
-    } catch (e) {
-      debugPrint('[AdminVideoPlayerController] General init error: $e');
-      error.value = 'Error loading video player: $e';
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'AdminVideoPlayerController.initializePlayer',
+      );
+      error.value = 'Unable to load video player. Please try again.';
     }
   }
 
@@ -193,10 +201,21 @@ class AdminVideoPlayerController extends BaseController {
       try {
         final fastUrl = StorageUtils.getFastDownloadUrl(clean);
         if (fastUrl.startsWith('http')) return fastUrl;
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'AdminVideoPlayerController._resolveUrl.fastUrl',
+        );
+      }
       try {
         return await FirebaseStorage.instance.refFromURL(clean).getDownloadURL();
-      } catch (_) {
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'AdminVideoPlayerController._resolveUrl.storageRef',
+        );
         return null;
       }
     }
@@ -208,7 +227,12 @@ class AdminVideoPlayerController extends BaseController {
     if (!clean.startsWith('http://') && !clean.startsWith('https://') && !clean.startsWith('blob:') && !clean.startsWith('data:')) {
       try {
         return StorageUtils.getFastDownloadUrl(clean);
-      } catch (_) {
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'AdminVideoPlayerController._resolveUrl.storageUtils',
+        );
         return null;
       }
     }
@@ -220,19 +244,43 @@ class AdminVideoPlayerController extends BaseController {
     if (chewieCtrl != null) {
       try {
         chewieCtrl!.pause();
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'AdminVideoPlayerController._safeDisposeControllers.chewiePause',
+        );
+      }
       try {
         chewieCtrl!.dispose();
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'AdminVideoPlayerController._safeDisposeControllers.chewieDispose',
+        );
+      }
       chewieCtrl = null;
     }
     if (videoCtrl != null) {
       try {
         videoCtrl!.pause();
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'AdminVideoPlayerController._safeDisposeControllers.videoPause',
+        );
+      }
       try {
         videoCtrl!.dispose();
-      } catch (_) {}
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'AdminVideoPlayerController._safeDisposeControllers.videoDispose',
+        );
+      }
       videoCtrl = null;
     }
   }

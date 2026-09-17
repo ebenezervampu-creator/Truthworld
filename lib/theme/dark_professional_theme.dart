@@ -358,7 +358,16 @@ ThemeData darkProfessionalTheme = ThemeData(
       color: Color(0xFFB8B8B8),
       fontWeight: FontWeight.w500,
       fontSize: 14,
-      height: 1.43,
     ),
   ),
 );
+
+// Layout Constants
+const double kTabletBreakpoint = 600;
+const double kDesktopBreakpoint = 1000;
+const double kSideNavWidth = 280;
+const double kCompactSideNavWidth = 80;
+const double kBottomNavBarHeight = kToolbarHeight;
+
+// Theme alias for backwards compatibility
+ThemeData get modernDarkProfessionalTheme => darkProfessionalTheme;

@@ -8,7 +8,7 @@ import 'package:truthworld/theme/app_theme.dart';
 /// from the Channel Creation page (channel_screen_wizard.dart).
 /// Uses sleek dark blue styling for demand & opportunity highlights.
 /// Complies 100% with project Icon Color Guidelines (icons always use white / AppColors.textPrimary).
-class CategoryInsightsScreen extends StatelessWidget {
+class CategoryInsightsScreen extends GetView<CategoryInsightsController> {
   final String channelId;
   final bool isDarkMode;
 
@@ -17,11 +17,6 @@ class CategoryInsightsScreen extends StatelessWidget {
     required this.isDarkMode,
     super.key,
   });
-
-  CategoryInsightsController get controller =>
-      Get.isRegistered<CategoryInsightsController>()
-          ? Get.find<CategoryInsightsController>()
-          : Get.put(CategoryInsightsController());
 
   @override
   Widget build(BuildContext context) {

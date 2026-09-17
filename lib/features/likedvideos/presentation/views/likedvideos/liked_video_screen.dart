@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/likedvideos/presentation/controllers/likedvideos_controller.dart';
@@ -48,37 +49,29 @@ class ResponsiveUtils {
 // MAIN WIDGET
 // ==========================================================================
 
-class LikedVideoScreen extends StatelessWidget {
+class LikedVideoScreen extends GetView<LikedVideosController> {
   const LikedVideoScreen({super.key, this.isDashboard = false});
   final bool isDashboard;
 
-  LikedVideosController get controller =>
-      Get.isRegistered<LikedVideosController>()
-          ? Get.find<LikedVideosController>()
-          : Get.put(LikedVideosController());
-
   @override
   Widget build(BuildContext context) {
-    return Obx(() {
-      final currentUser = AuthService.to.currentUser.value;
+    return Scaffold(
+      backgroundColor: AppColors.bgPage,
+      body: Obx(() {
+        final currentUser = AuthService.to.currentUser.value;
 
-      if (currentUser == null) {
-        return const Scaffold(
-          backgroundColor: AppColors.bgPage,
-          body: Center(
+        if (currentUser == null) {
+          return const Center(
             child: Text(
               'Please login to see liked videos',
               style: TextStyle(color: AppColors.textPrimary),
             ),
-          ),
-        );
-      }
+          );
+        }
 
-      return Scaffold(
-        backgroundColor: AppColors.bgPage,
-        body: _buildMainContent(),
-      );
-    });
+        return _buildMainContent();
+      }),
+    );
   }
 
   Widget _buildMainContent() {
@@ -105,6 +98,7 @@ class LikedVideoScreen extends StatelessWidget {
                               ),
                             ),
                             child: TextField(
+                              inputFormatters: [TruthworldTextInputFormatters.englishOnly],
                               onChanged: (value) =>
                                   controller.searchQuery.value = value,
                               style: const TextStyle(
@@ -120,13 +114,13 @@ class LikedVideoScreen extends StatelessWidget {
                                 ),
                                 prefixIcon: const Icon(
                                   Icons.search,
-                                  color: AppColors.textSecondary,
+                                  color: AppColors.textPrimary,
                                   size: 20,
                                 ),
                                 suffixIcon: IconButton(
                                   icon: const Icon(
                                     Icons.close,
-                                    color: AppColors.textSecondary,
+                                    color: AppColors.textPrimary,
                                     size: 18,
                                   ),
                                   onPressed: () {
@@ -223,11 +217,45 @@ class LikedVideoScreen extends StatelessWidget {
               hasScrollBody: false,
               child: Center(
                 child: Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Text(
-                    'Error: ${controller.errorMessage}',
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    textAlign: TextAlign.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.info_outline_rounded,
+                        size: 48,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        controller.errorMessage,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: controller.retryFetch,
+                        icon: const Icon(
+                          Icons.refresh_rounded,
+                          size: 18,
+                          color: Colors.white,
+                        ),
+                        label: const Text(
+                          'Retry',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.bgSurfaceHover,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -437,46 +465,49 @@ class _LikedVideoListCard extends StatelessWidget {
 
   void _showOptions(BuildContext context) {
     Get.bottomSheet(
-      Container(
-        padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: AppColors.bgSurface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 24),
-              decoration: BoxDecoration(
-                color: AppColors.textDisabled,
-                borderRadius: BorderRadius.circular(2),
+      Material(
+        color: AppColors.bgSurface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 24),
+                decoration: BoxDecoration(
+                  color: AppColors.textDisabled,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            _buildOptionItem(
-              icon: Icons.delete_outline_rounded,
-              label: 'Remove from liked videos',
-              color: AppColors.error,
-              onTap: () {
-                Get.back();
-                _showRemoveConfirmation(context);
-              },
-            ),
-            _buildOptionItem(
-              icon: Icons.share_outlined,
-              label: 'Share',
-              onTap: Get.back,
-            ),
-            _buildOptionItem(
-              icon: Icons.playlist_add_rounded,
-              label: 'Save to playlist',
-              onTap: Get.back,
-            ),
-          ],
+              _buildOptionItem(
+                icon: Icons.delete_outline_rounded,
+                label: 'Remove from liked videos',
+                color: AppColors.error,
+                onTap: () {
+                  Get.back();
+                  _showRemoveConfirmation(context);
+                },
+              ),
+              _buildOptionItem(
+                icon: Icons.share_outlined,
+                label: 'Share',
+                onTap: Get.back,
+              ),
+              _buildOptionItem(
+                icon: Icons.playlist_add_rounded,
+                label: 'Save to playlist',
+                onTap: Get.back,
+              ),
+            ],
+          ),
         ),
       ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
     );
   }
 
@@ -491,10 +522,10 @@ class _LikedVideoListCard extends StatelessWidget {
       leading: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: (color ?? AppColors.brand).withValues(alpha: 0.1),
+          color: (color != null ? color.withValues(alpha: 0.15) : AppColors.bgSurfaceHover),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(icon, color: color ?? AppColors.textSecondary, size: 20),
+        child: Icon(icon, color: Colors.white, size: 20),
       ),
       title: Text(
         label,
@@ -540,7 +571,7 @@ class _LikedVideoListCard extends StatelessWidget {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.brand,
-              foregroundColor: AppColors.textPrimary,
+              foregroundColor: Colors.black,
               elevation: 0,
             ),
             child: const Text('Remove'),
