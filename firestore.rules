@@ -178,6 +178,13 @@ service cloud.firestore {
                           get(/databases/$(database)/documents/channels/$(channelId)).data.ownerId == request.auth.uid;
       }
 
+      // Distributed Counter Shards (20 shards for channel views)
+      match /shards/{shardId} {
+        allow read: if true;
+        allow create: if request.resource.data.keys().hasOnly(['views', 'updatedAt']);
+        allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'updatedAt']);
+      }
+
       // Videos subcollection (alternate path)
       match /videos/{videoId} {
         allow read: if true;
@@ -326,6 +333,13 @@ service cloud.firestore {
       match /views/{userId} {
         allow read: if isAuthenticated();
         allow write: if isAuthenticated() && request.auth.uid == userId;
+      }
+
+      // Distributed Counter Shards (20 shards for viral video views)
+      match /shards/{shardId} {
+        allow read: if true;
+        allow create: if request.resource.data.keys().hasOnly(['count', 'qualifiedCount', 'updatedAt']);
+        allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['count', 'qualifiedCount', 'updatedAt']);
       }
 
       // Likes/Dislikes subcollections
@@ -552,6 +566,13 @@ service cloud.firestore {
       match /{document=**} {
         allow read, write: if isAuthenticated() && request.auth.uid == userId;
       }
+    }
+
+    // Search Cache Collection (backend-only distributed cache for searchTruthWorld)
+    // Only the Cloud Function Admin SDK can read/write this collection.
+    // Client access is denied entirely to prevent cache poisoning and quota abuse.
+    match /search_cache/{docId} {
+      allow read, write: if false;
     }
 
     // Channel Subscribers Collection (Cloud Functions / New Schema)
