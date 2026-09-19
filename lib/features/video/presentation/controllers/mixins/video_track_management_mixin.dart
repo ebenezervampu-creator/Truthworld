@@ -453,9 +453,6 @@ mixin VideoTrackManagementMixin on GetxController {
     engagementController.fetchLanguageRequests(video.id);
   }
 
-  /// Backward-compatible alias.
-  void _listenToLanguageRequests() => listenToLanguageRequests();
-
   Future<void> submitLanguageRequest({
     required String language,
     required String type,

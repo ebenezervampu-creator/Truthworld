@@ -26,32 +26,34 @@ class DashboardHeader extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 16,
+          runSpacing: 12,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Channel Overview',
-                    style: TextStyle(
-                      fontSize: isMobile ? 24 : 32,
-                      fontWeight: FontWeight.bold,
-                      color: isDarkMode ? AppColors.textPrimary : Colors.black,
-                    ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Channel Overview',
+                  style: TextStyle(
+                    fontSize: isMobile ? 24 : 32,
+                    fontWeight: FontWeight.bold,
+                    color: isDarkMode ? AppColors.textPrimary : Colors.black,
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Last 28 days',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: isDarkMode
-                          ? AppColors.textSecondary
-                          : Colors.black,
-                    ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Last 28 days',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDarkMode
+                        ? AppColors.textSecondary
+                        : Colors.black,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
             if (channel != null)
               Container(
@@ -70,16 +72,20 @@ class DashboardHeader extends StatelessWidget {
                   children: [
                     const Icon(
                       Icons.verified_rounded,
-                      color: AppColors.textPrimary,
+                      color: Colors.white,
                       size: 16,
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      channelName,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w500,
-                        fontSize: 14,
+                    Flexible(
+                      child: Text(
+                        channelName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14,
+                        ),
                       ),
                     ),
                   ],

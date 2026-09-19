@@ -3,7 +3,6 @@ import 'package:get/get.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
 import 'package:truthworld/features/settings/presentation/views/settings/sections/sections.dart';
-import 'package:truthworld/features/settings/presentation/views/settings/widgets/settings_section_card.dart';
 import 'package:truthworld/features/settings/presentation/views/settings/widgets/settings_theme.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -94,16 +93,5 @@ class SettingsScreen extends StatelessWidget {
       ),
     );
   }
-
-  // Delegator for backward compatibility
-  Widget _buildSection(
-    BuildContext context, {
-    required String title,
-    required List<Widget> settings,
-  }) {
-    return SettingsSectionCard(
-      title: title,
-      children: settings,
-    );
-  }
 }
+

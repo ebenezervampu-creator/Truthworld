@@ -1,4 +1,4 @@
-﻿const path = require('path');
+const path = require('path');
 const fs = require('fs');
 
 async function main() {
@@ -10,6 +10,7 @@ async function main() {
     const outputPath = path.join(__dirname, 'functions.yaml');
     fs.writeFileSync(outputPath, JSON.stringify(wireFormat, null, 2));
     console.log('[manifest] Successfully generated functions.yaml (' + Object.keys(wireFormat.endpoints || {}).length + ' endpoints)');
+    process.exit(0);
   } catch (err) {
     console.error('[manifest] Error generating functions.yaml:', err);
     process.exit(1);

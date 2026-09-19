@@ -183,9 +183,10 @@ mixin UploadPipelineMixin on UploadControllerBase {
           final used =
               await getTodayUploadedDurationSeconds(selectedChannel.value!.id);
           todayUploadedDurationSeconds.value = used;
+          final maxDaily = selectedChannel.value!.maxDailyVideoDurationSeconds;
           remainingDailyDurationSeconds.value =
-              (1200 - used).clamp(0, 1200);
-          isDailyLimitReached.value = used >= 1200;
+              (maxDaily - used).clamp(0, maxDaily);
+          isDailyLimitReached.value = used >= maxDaily;
 
           final validation = validateChannelVideoUpload(
             selectedChannel.value!,

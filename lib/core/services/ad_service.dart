@@ -28,6 +28,7 @@ class AdService extends GetxService
   @override
   void onInit() {
     super.onInit();
+    if (Get.testMode) return;
     loadFromLocalCache();
     listenToAdCampaigns();
     loadUserInteractionCounts();

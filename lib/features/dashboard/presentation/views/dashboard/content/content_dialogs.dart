@@ -505,7 +505,7 @@ import 'package:truthworld/theme/app_theme.dart';
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.brand,
-                      foregroundColor: AppColors.textPrimary,
+                      foregroundColor: Colors.black,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 20,
                         vertical: 10,

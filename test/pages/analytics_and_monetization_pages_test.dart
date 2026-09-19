@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
 import 'package:truthworld/features/advertiser/presentation/views/advertiser_portal_screen.dart';
 import 'package:truthworld/features/analytics/data/models/creator_kyc_verification.dart';
@@ -25,6 +26,11 @@ void main() {
 
   setUpAll(() async {
     await setupMockFirebase();
+    CurrencyLocalizationService.enablePersistentStorage = false;
+  });
+
+  tearDownAll(() {
+    CurrencyLocalizationService.enablePersistentStorage = true;
   });
 
   tearDown(Get.reset);
@@ -213,6 +219,81 @@ void main() {
       expect(find.text('2. Identity & Address Proof'), findsOneWidget);
       expect(find.text('3. Bank Account Name Matching'), findsOneWidget);
       expect(find.text('Submit for Verification'), findsOneWidget);
+    });
+
+    test('11. RevenueAnalyticsController converts USD payments to INR and tracks dual currencies', () {
+      final currency = Get.isRegistered<CurrencyLocalizationService>()
+          ? CurrencyLocalizationService.to
+          : Get.put(CurrencyLocalizationService(), permanent: true);
+      currency.liveUsdToInrRate.value = 85.00;
+
+      final ctrl = !Get.isRegistered<RevenueAnalyticsController>()
+          ? Get.put(RevenueAnalyticsController())
+          : Get.find<RevenueAnalyticsController>();
+
+      // Simulate $0.10 USD membership payment from authentic stream calculation
+      const usdPrice = 0.10;
+      final inrValue = usdPrice * RevenueAnalyticsController.usdToInrRate; // 8.50
+
+      ctrl.superchatRevenue.value = 0.0;
+      ctrl.adsRevenue.value = 0.0;
+      ctrl.watchTimeRevenue.value = 0.0;
+      ctrl.originalUsdMemberships.value = usdPrice;
+      ctrl.membershipsRevenueINR.value = inrValue;
+      ctrl.membershipsRevenueUSD.value = usdPrice;
+      ctrl.membershipsRevenue.value = inrValue;
+      ctrl.totalRevenue.value = inrValue;
+      ctrl.totalRevenueUSD.value = inrValue / RevenueAnalyticsController.usdToInrRate;
+
+      // In INR view
+      ctrl.setCurrencyView('INR');
+      expect(ctrl.isViewingINR, isTrue);
+      expect(ctrl.totalRevenue.value, equals(8.50));
+      expect(ctrl.totalRevenueUSD.value, closeTo(0.10, 0.001));
+      expect(ctrl.formatCurrency(8.50), equals('₹8.50'));
+
+      // In USD view
+      ctrl.setCurrencyView('USD');
+      expect(ctrl.isViewingINR, isFalse);
+      expect(ctrl.formatCurrency(8.50), equals(r'$0.10'));
+    });
+
+    testWidgets('12. RevenueAnalyticsPage renders currency switcher and USD conversion badges', (tester) async {
+      addTearDown(() => tester.view.resetPhysicalSize());
+      await pumpPageInHarness(
+        tester,
+        const RevenueAnalyticsPage(),
+        onBeforePump: () {
+          final currency = Get.isRegistered<CurrencyLocalizationService>()
+              ? CurrencyLocalizationService.to
+              : Get.put(CurrencyLocalizationService(), permanent: true);
+          currency.liveUsdToInrRate.value = 85.00;
+
+          final ctrl = !Get.isRegistered<RevenueAnalyticsController>()
+              ? Get.put(RevenueAnalyticsController())
+              : Get.find<RevenueAnalyticsController>();
+
+          ctrl.rxIsLoading.value = false;
+          ctrl.channelName.value = 'Truth Channel';
+          ctrl.superchatRevenue.value = 0.0;
+          ctrl.adsRevenue.value = 0.0;
+          ctrl.watchTimeRevenue.value = 0.0;
+          ctrl.originalUsdMemberships.value = 0.10;
+          ctrl.membershipsRevenueINR.value = 8.50;
+          ctrl.membershipsRevenueUSD.value = 0.10;
+          ctrl.membershipsRevenue.value = 8.50;
+          ctrl.totalRevenue.value = 8.50;
+          ctrl.totalRevenueUSD.value = 0.10;
+          ctrl.setCurrencyView('INR');
+        },
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('₹ INR'), findsOneWidget);
+      expect(find.text(r'$ USD'), findsOneWidget);
+      expect(find.text('₹8.50'), findsWidgets);
+      expect(find.text(r'Available: ₹8.50 (≈ $0.10 USD)'), findsOneWidget);
+      expect(find.text('Exchange Rate: 1 USD = ₹85.00 INR'), findsOneWidget);
     });
   });
 }

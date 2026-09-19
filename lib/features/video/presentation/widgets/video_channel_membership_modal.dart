@@ -1,9 +1,12 @@
+import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/cashfree_service.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/memberships_screen.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
@@ -260,7 +263,10 @@ class VideoChannelMembershipModal {
                   ),
                 ),
                 child: Text(
-                  '${tier.formattedPrice} / mo',
+                  (!Get.isRegistered<CurrencyLocalizationService>() || CurrencyLocalizationService.to.isIndianUser) &&
+                          tier.currency.toUpperCase() == 'USD'
+                      ? '${tier.formattedPriceForUser(true)} / mo (~${tier.formattedPrice})'
+                      : '${tier.formattedPriceForUser()} / mo',
                   style: AppTextStyles.bodyMedium.copyWith(
                     color: AppColors.brand,
                     fontWeight: FontWeight.bold,
@@ -328,6 +334,7 @@ class VideoChannelMembershipModal {
                 style: AppTextStyles.buttonText.copyWith(
                   fontWeight: FontWeight.bold,
                   fontSize: 14,
+                  color: Colors.black,
                 ),
               ),
             ),
@@ -353,9 +360,14 @@ class VideoChannelMembershipModal {
 
     Navigator.pop(context);
     try {
-      final amountINR = tier.currency.toUpperCase() == 'INR'
+      await CurrencyLocalizationService.to.fetchRealtimeRate();
+      final rate = Get.isRegistered<CurrencyLocalizationService>()
+          ? CurrencyLocalizationService.to.rate
+          : CurrencyLocalizationService.defaultRate;
+      final calculatedAmount = tier.currency.toUpperCase() == 'INR'
           ? tier.price
-          : (tier.price * 85.0).roundToDouble();
+          : (tier.price * rate);
+      final amountINR = math.max(1.0, double.parse(calculatedAmount.toStringAsFixed(2)));
       final paymentResult = await CashfreePaymentService.to.startPayment(
         amount: amountINR,
         purpose: 'channel_membership',

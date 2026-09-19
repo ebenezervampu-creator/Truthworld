@@ -87,6 +87,18 @@ class SubtitleSegment {
   final Duration start;
   final Duration end;
   final String text;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SubtitleSegment &&
+          runtimeType == other.runtimeType &&
+          start == other.start &&
+          end == other.end &&
+          text == other.text;
+
+  @override
+  int get hashCode => Object.hash(start, end, text);
 }
 
 class AudioTrack {

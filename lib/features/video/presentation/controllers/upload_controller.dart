@@ -30,19 +30,26 @@ class UploadController extends UploadControllerBase
         UploadPipelineMixin,
         UploadWizardMixin,
         UploadSubmissionMixin {
-  UploadController({VideoUploadRepository? uploadRepository})
-      : _uploadRepository = uploadRepository ?? StorageVideoUploadRepository();
+  UploadController({
+    VideoUploadRepository? uploadRepository,
+    FirebaseFirestore? firestore,
+    FirebaseStorage? firebaseStorage,
+  })  : _uploadRepository = uploadRepository ?? StorageVideoUploadRepository(),
+        _firestore = firestore ?? FirebaseFirestore.instance,
+        _firebaseStorage = firebaseStorage ?? FirebaseStorage.instance {
+    _bindLegacyPrimitiveSync();
+  }
 
   // Core Services
   final VideoUploadRepository _uploadRepository;
   @override
   VideoUploadRepository get uploadRepository => _uploadRepository;
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore;
   @override
   FirebaseFirestore get firestore => _firestore;
 
-  final FirebaseStorage _firebaseStorage = FirebaseStorage.instance;
+  final FirebaseStorage _firebaseStorage;
   @override
   FirebaseStorage get firebaseStorage => _firebaseStorage;
 
@@ -62,6 +69,245 @@ class UploadController extends UploadControllerBase
   UserNotificationService get userNotificationService =>
       _userNotificationService;
 
+  // ── Immutable State Snapshot (Single Source of Truth) ─────────────────────
+  final Rx<UploadState> _uploadState = const UploadState().obs;
+  @override
+  Rx<UploadState> get uploadState => _uploadState;
+
+  bool _isSyncingFromState = false;
+  bool _isSyncingToState = false;
+
+  @override
+  void emit(UploadState newState) {
+    if (_uploadState.value == newState) return;
+    _uploadState.value = newState;
+    _syncStateToPrimitives(newState);
+  }
+
+  @override
+  void updateState(UploadState Function(UploadState current) updater) {
+    emit(updater(_uploadState.value));
+  }
+
+  void _syncStateToPrimitives(UploadState s) {
+    if (_isSyncingToState) return;
+    _isSyncingFromState = true;
+    try {
+      if (selectedChannel.value != s.selectedChannel) {
+        selectedChannel.value = s.selectedChannel;
+      }
+      if (isChannelsLoading.value != s.isChannelsLoading) {
+        isChannelsLoading.value = s.isChannelsLoading;
+      }
+      if (channelsError.value != s.channelsError) {
+        channelsError.value = s.channelsError;
+      }
+      if (todayUploadedDurationSeconds.value != s.todayUploadedDurationSeconds) {
+        todayUploadedDurationSeconds.value = s.todayUploadedDurationSeconds;
+      }
+      if (remainingDailyDurationSeconds.value != s.remainingDailyDurationSeconds) {
+        remainingDailyDurationSeconds.value = s.remainingDailyDurationSeconds;
+      }
+      if (isDailyLimitReached.value != s.isDailyLimitReached) {
+        isDailyLimitReached.value = s.isDailyLimitReached;
+      }
+      if (isQuotaLoading.value != s.isQuotaLoading) {
+        isQuotaLoading.value = s.isQuotaLoading;
+      }
+      if (pickedVideo.value != s.pickedVideo) {
+        pickedVideo.value = s.pickedVideo;
+      }
+      if (pickedImage.value != s.pickedImage) {
+        pickedImage.value = s.pickedImage;
+      }
+      if (pickedCommunityImage.value != s.pickedCommunityImage) {
+        pickedCommunityImage.value = s.pickedCommunityImage;
+      }
+      if (isVideoPlayerInitialized.value != s.isVideoPlayerInitialized) {
+        isVideoPlayerInitialized.value = s.isVideoPlayerInitialized;
+      }
+      if (isVideoPlaying.value != s.isVideoPlaying) {
+        isVideoPlaying.value = s.isVideoPlaying;
+      }
+      if (currentVideoPosition.value != s.currentVideoPosition) {
+        currentVideoPosition.value = s.currentVideoPosition;
+      }
+      if (videoDuration.value != s.videoDuration) {
+        videoDuration.value = s.videoDuration;
+      }
+      if (videoDurationSeconds.value != s.videoDurationSeconds) {
+        videoDurationSeconds.value = s.videoDurationSeconds;
+      }
+      if (videoUrl.value != s.videoUrl) {
+        videoUrl.value = s.videoUrl;
+      }
+      if (thumbnailUrl.value != s.thumbnailUrl) {
+        thumbnailUrl.value = s.thumbnailUrl;
+      }
+      if (communityImageUrl.value != s.communityImageUrl) {
+        communityImageUrl.value = s.communityImageUrl;
+      }
+      if (communityImageStatus.value != s.communityImageStatus) {
+        communityImageStatus.value = s.communityImageStatus;
+      }
+      if (communityImageStatusReason.value != s.communityImageStatusReason) {
+        communityImageStatusReason.value = s.communityImageStatusReason;
+      }
+      if (videoUploadProgress.value != s.videoUploadProgress) {
+        videoUploadProgress.value = s.videoUploadProgress;
+      }
+      if (imageUploadProgress.value != s.imageUploadProgress) {
+        imageUploadProgress.value = s.imageUploadProgress;
+      }
+      if (uploadProgress.value != s.uploadProgress) {
+        uploadProgress.value = s.uploadProgress;
+      }
+      if (isUploading.value != s.isUploading) {
+        isUploading.value = s.isUploading;
+      }
+      if (isCommunityPostUploading.value != s.isCommunityPostUploading) {
+        isCommunityPostUploading.value = s.isCommunityPostUploading;
+      }
+      if (currentVideoId != s.currentVideoId) {
+        currentVideoId = s.currentVideoId;
+      }
+      if (selectedCategory.value != s.selectedCategory) {
+        selectedCategory.value = s.selectedCategory;
+      }
+      if (selectedVisibility.value != s.selectedVisibility) {
+        selectedVisibility.value = s.selectedVisibility;
+      }
+      if (isKidFriendly.value != s.isKidFriendly) {
+        isKidFriendly.value = s.isKidFriendly;
+      }
+      if (isShort.value != s.isShort) {
+        isShort.value = s.isShort;
+      }
+      if (uploadQuality.value != s.uploadQuality) {
+        uploadQuality.value = s.uploadQuality;
+      }
+      if (enableComments.value != s.enableComments) {
+        enableComments.value = s.enableComments;
+      }
+      if (allowRatings.value != s.allowRatings) {
+        allowRatings.value = s.allowRatings;
+      }
+      if (selectedPlaylist.value != s.selectedPlaylist) {
+        selectedPlaylist.value = s.selectedPlaylist;
+      }
+      if (isScheduled.value != s.isScheduled) {
+        isScheduled.value = s.isScheduled;
+      }
+      if (s.scheduledDate != null && scheduledDate.value != s.scheduledDate) {
+        scheduledDate.value = s.scheduledDate!;
+      }
+      if (finalstatus.value != s.finalstatus) {
+        finalstatus.value = s.finalstatus;
+      }
+      if (finalstatusReason.value != s.finalstatusReason) {
+        finalstatusReason.value = s.finalstatusReason;
+      }
+      if (titleValidationStatus.value != s.titleValidationStatus) {
+        titleValidationStatus.value = s.titleValidationStatus;
+      }
+      if (titleValidationReason.value != s.titleValidationReason) {
+        titleValidationReason.value = s.titleValidationReason;
+      }
+      if (descriptionValidationStatus.value != s.descriptionValidationStatus) {
+        descriptionValidationStatus.value = s.descriptionValidationStatus;
+      }
+      if (descriptionValidationReason.value != s.descriptionValidationReason) {
+        descriptionValidationReason.value = s.descriptionValidationReason;
+      }
+      if (hasConfirmedCopyrightDeclaration.value !=
+          s.hasConfirmedCopyrightDeclaration) {
+        hasConfirmedCopyrightDeclaration.value =
+            s.hasConfirmedCopyrightDeclaration;
+      }
+      if (videoModerationStatus.value != s.videoModerationStatus) {
+        videoModerationStatus.value = s.videoModerationStatus;
+      }
+      if (videoModerationReason.value != s.videoModerationReason) {
+        videoModerationReason.value = s.videoModerationReason;
+      }
+      if (videoModerationSummary.value != s.videoModerationSummary) {
+        videoModerationSummary.value = s.videoModerationSummary;
+      }
+      if (uploadStage.value != s.uploadStage) {
+        uploadStage.value = s.uploadStage;
+      }
+      if (uploadStageLabel.value != s.uploadStageLabel) {
+        uploadStageLabel.value = s.uploadStageLabel;
+      }
+      if (canAdvanceStage.value != s.canAdvanceStage) {
+        canAdvanceStage.value = s.canAdvanceStage;
+      }
+      if (isProcessing.value != s.isProcessing) {
+        isProcessing.value = s.isProcessing;
+      }
+      if (processingMessage.value != s.processingMessage) {
+        processingMessage.value = s.processingMessage;
+      }
+      if (isFormValid.value != s.isFormValid) {
+        isFormValid.value = s.isFormValid;
+      }
+      if (resumedVideoDraft.value != s.resumedVideoDraft) {
+        resumedVideoDraft.value = s.resumedVideoDraft;
+      }
+      if (videoMetadata != s.videoMetadata) {
+        videoMetadata = s.videoMetadata;
+      }
+      if (selectedTopicId.value != s.selectedTopicId) {
+        selectedTopicId.value = s.selectedTopicId;
+      }
+      if (isTopicsLoading.value != s.isTopicsLoading) {
+        isTopicsLoading.value = s.isTopicsLoading;
+      }
+      if (topicsError.value != s.topicsError) {
+        topicsError.value = s.topicsError;
+      }
+      if (topicSearchQuery.value != s.topicSearchQuery) {
+        topicSearchQuery.value = s.topicSearchQuery;
+      }
+    } finally {
+      _isSyncingFromState = false;
+    }
+  }
+
+  void _syncPrimitiveToState(UploadState Function(UploadState current) updater) {
+    if (_isSyncingFromState) return;
+    _isSyncingToState = true;
+    try {
+      _uploadState.value = updater(_uploadState.value);
+    } finally {
+      _isSyncingToState = false;
+    }
+  }
+
+  void _bindLegacyPrimitiveSync() {
+    addWorker(ever(selectedChannel, (c) => _syncPrimitiveToState((s) => s.copyWith(selectedChannel: c))));
+    addWorker(ever(todayUploadedDurationSeconds, (v) => _syncPrimitiveToState((s) => s.copyWith(todayUploadedDurationSeconds: v))));
+    addWorker(ever(remainingDailyDurationSeconds, (v) => _syncPrimitiveToState((s) => s.copyWith(remainingDailyDurationSeconds: v))));
+    addWorker(ever(isDailyLimitReached, (v) => _syncPrimitiveToState((s) => s.copyWith(isDailyLimitReached: v))));
+    addWorker(ever(isQuotaLoading, (v) => _syncPrimitiveToState((s) => s.copyWith(isQuotaLoading: v))));
+    addWorker(ever(isUploading, (v) => _syncPrimitiveToState((s) => s.copyWith(isUploading: v))));
+    addWorker(ever(uploadProgress, (v) => _syncPrimitiveToState((s) => s.copyWith(uploadProgress: v))));
+    addWorker(ever(videoUploadProgress, (v) => _syncPrimitiveToState((s) => s.copyWith(videoUploadProgress: v))));
+    addWorker(ever(imageUploadProgress, (v) => _syncPrimitiveToState((s) => s.copyWith(imageUploadProgress: v))));
+    addWorker(ever(pickedVideo, (v) => _syncPrimitiveToState((s) => s.copyWith(pickedVideo: v))));
+    addWorker(ever(pickedImage, (v) => _syncPrimitiveToState((s) => s.copyWith(pickedImage: v))));
+    addWorker(ever(pickedCommunityImage, (v) => _syncPrimitiveToState((s) => s.copyWith(pickedCommunityImage: v))));
+    addWorker(ever(uploadStage, (v) => _syncPrimitiveToState((s) => s.copyWith(uploadStage: v))));
+    addWorker(ever(uploadStageLabel, (v) => _syncPrimitiveToState((s) => s.copyWith(uploadStageLabel: v))));
+    addWorker(ever(canAdvanceStage, (v) => _syncPrimitiveToState((s) => s.copyWith(canAdvanceStage: v))));
+    addWorker(ever(isProcessing, (v) => _syncPrimitiveToState((s) => s.copyWith(isProcessing: v))));
+    addWorker(ever(processingMessage, (v) => _syncPrimitiveToState((s) => s.copyWith(processingMessage: v))));
+    addWorker(ever(isFormValid, (v) => _syncPrimitiveToState((s) => s.copyWith(isFormValid: v))));
+    addWorker(ever(videoModerationStatus, (v) => _syncPrimitiveToState((s) => s.copyWith(videoModerationStatus: v))));
+    addWorker(ever(videoModerationReason, (v) => _syncPrimitiveToState((s) => s.copyWith(videoModerationReason: v))));
+    addWorker(ever(hasConfirmedCopyrightDeclaration, (v) => _syncPrimitiveToState((s) => s.copyWith(hasConfirmedCopyrightDeclaration: v))));
+  }
+
   // Channel Selection & Channels List
   @override
   final Rx<Channel?> selectedChannel = Rx<Channel?>(null);
@@ -74,11 +320,11 @@ class UploadController extends UploadControllerBase
   @override
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? channelsSubscription;
 
-  // Daily Upload Quota (Standard Channel 20 min/day limit)
+  // Daily Upload Quota (Standard Channel 10 min/day limit)
   @override
   final RxInt todayUploadedDurationSeconds = 0.obs;
   @override
-  final RxInt remainingDailyDurationSeconds = 1200.obs;
+  final RxInt remainingDailyDurationSeconds = 600.obs;
   @override
   final RxBool isDailyLimitReached = false.obs;
   @override
@@ -298,44 +544,6 @@ class UploadController extends UploadControllerBase
     selectedPlaylist.value = id;
   }
 
-  // Backwards compatibility aliases for private references
-  UploadTask? get _videoUploadTask => videoUploadTask;
-  set _videoUploadTask(UploadTask? t) => videoUploadTask = t;
-
-  StreamSubscription? get _thumbnailModerationSubscription =>
-      thumbnailModerationSubscription;
-  set _thumbnailModerationSubscription(StreamSubscription? s) =>
-      thumbnailModerationSubscription = s;
-
-  StreamSubscription? get _communityImageModerationSubscription =>
-      communityImageModerationSubscription;
-  set _communityImageModerationSubscription(StreamSubscription? s) =>
-      communityImageModerationSubscription = s;
-
-  String? get _currentVideoId => currentVideoId;
-  set _currentVideoId(String? id) => currentVideoId = id;
-
-  Map<String, dynamic> get _videoMetadata => videoMetadata;
-  set _videoMetadata(Map<String, dynamic> m) => videoMetadata = m;
-
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
-      get _channelsSubscription => channelsSubscription;
-  set _channelsSubscription(
-    StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? s,
-  ) =>
-      channelsSubscription = s;
-
-  void _resetUploads() => resetUploads();
-  Future<void> _startImageUpload(
-    PlatformFile file, {
-    required bool forCommunity,
-  }) =>
-      startImageUpload(file, forCommunity: forCommunity);
-  Future<bool> _verifyAuthentication() => verifyAuthentication();
-  Future<bool> _refreshAuthToken() => refreshAuthToken();
-  Future<void> _ensureStorageAuthReady() => ensureStorageAuthReady();
-  bool _isCurrentStageValid() => isCurrentStageValid();
-
   @override
   void onInit() {
     super.onInit();
@@ -344,9 +552,11 @@ class UploadController extends UploadControllerBase
     fetchAvailableTopics();
 
     // Every video doesn't have video rating only when user enabled Factchecking
-    ever(aiFactCheckEnabled, (enabled) {
-      allowRatings.value = enabled;
-    });
+    addWorker(
+      ever(aiFactCheckEnabled, (enabled) {
+        allowRatings.value = enabled;
+      }),
+    );
   }
 
   @override

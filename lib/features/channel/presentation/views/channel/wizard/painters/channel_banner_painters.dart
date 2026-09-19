@@ -108,7 +108,3 @@ class YouTubeDesktopSafeAreaPainter extends YouTubeBannerSafeAreaPainter {
   const YouTubeDesktopSafeAreaPainter();
 }
 
-// Backward compatibility internal aliases
-typedef _YouTubeBannerSafeAreaPainter = YouTubeBannerSafeAreaPainter;
-typedef _YouTubeDesktopSafeAreaPainter = YouTubeDesktopSafeAreaPainter;
-

@@ -114,8 +114,9 @@ class StandardPlanCard extends StatelessWidget {
                     children: const [
                       PlanBadgeItem(text: '70% Revenue Share (Ads & Premium)'),
                       PlanBadgeItem(text: '100% Memberships & Superchats'),
-                      PlanBadgeItem(text: '20 min/day upload'),
-                      PlanBadgeItem(text: 'Up to 1080p'),
+                      PlanBadgeItem(text: '10 min/day upload'),
+                      PlanBadgeItem(text: 'Up to 4K UHD'),
+                      PlanBadgeItem(text: r'Standard Dubbing ($0.50/lang)'),
                     ],
                   ),
                 ],

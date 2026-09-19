@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:truthworld/core/services/local_playback_proxy.dart';
 import 'package:truthworld/core/services/media_crypto_service.dart';
 import 'package:truthworld/data/models/offline.dart';
-import 'package:truthworld/features/video/domain/database_helpers.dart';
+import 'package:truthworld/features/video/data/datasources/local/database_helpers.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/network/result.dart';
+import 'package:truthworld/domain/entities/comment_entity.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/domain/repositories/video_comments_repository.dart';
 
@@ -13,7 +14,7 @@ class FirestoreCommentsRepository implements VideoCommentsRepository {
   final FirebaseFirestore _firestore;
 
   @override
-  Stream<List<Comment>> streamComments(String videoId) {
+  Stream<List<CommentEntity>> streamComments(String videoId) {
     return _firestore
         .collection('videos')
         .doc(videoId)
@@ -21,12 +22,12 @@ class FirestoreCommentsRepository implements VideoCommentsRepository {
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snap) => snap.docs
-            .map(Comment.fromDocumentSnapshot)
+            .map((doc) => Comment.fromDocumentSnapshot(doc).toEntity())
             .toList());
   }
 
   @override
-  Future<Result<Comment>> postComment({
+  Future<Result<CommentEntity>> postComment({
     required String videoId,
     required String text,
     required String userId,
@@ -61,7 +62,7 @@ class FirestoreCommentsRepository implements VideoCommentsRepository {
         'commentCount': FieldValue.increment(1),
       });
 
-      return Result.success(comment);
+      return Result.success(comment.toEntity());
     } catch (e, stackTrace) {
       ErrorHandler.log(e, stackTrace: stackTrace, context: 'FirestoreCommentsRepository.postComment');
       return Result.failure(AppException.from(e, stackTrace));
@@ -71,10 +72,7 @@ class FirestoreCommentsRepository implements VideoCommentsRepository {
   @override
   Future<Result<void>> deleteComment(String commentId) async {
     try {
-      final snap = await _firestore.collectionGroup('comments').where('id', isEqualTo: commentId).get();
-      for (final doc in snap.docs) {
-        await doc.reference.delete();
-      }
+      await _firestore.collection('comments').doc(commentId).delete();
       return Result.success(null);
     } catch (e, stackTrace) {
       ErrorHandler.log(e, stackTrace: stackTrace, context: 'FirestoreCommentsRepository.deleteComment');
@@ -89,14 +87,23 @@ class FirestoreCommentsRepository implements VideoCommentsRepository {
     required bool isLike,
   }) async {
     try {
-      final snap = await _firestore.collectionGroup('comments').where('id', isEqualTo: commentId).get();
-      if (snap.docs.isNotEmpty) {
-        final docRef = snap.docs.first.reference;
-        final field = isLike ? 'likeCount' : 'dislikeCount';
-        await docRef.update({
-          field: FieldValue.increment(1),
-        });
-      }
+      final field = isLike ? 'likes' : 'dislikes';
+      final countField = isLike ? 'likeCount' : 'dislikeCount';
+      final ref = _firestore.collection('comments').doc(commentId);
+
+      await _firestore.runTransaction((tx) async {
+        final snap = await tx.get(ref);
+        if (!snap.exists) return;
+
+        final list = List<String>.from(snap.data()?[field] ?? []);
+        if (list.contains(userId)) {
+          list.remove(userId);
+        } else {
+          list.add(userId);
+        }
+        tx.update(ref, {field: list, countField: list.length});
+      });
+
       return Result.success(null);
     } catch (e, stackTrace) {
       ErrorHandler.log(e, stackTrace: stackTrace, context: 'FirestoreCommentsRepository.toggleCommentReaction');

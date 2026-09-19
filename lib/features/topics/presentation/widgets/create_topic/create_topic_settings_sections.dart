@@ -1,0 +1,179 @@
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
+import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:truthworld/features/topics/presentation/controllers/create_topic_controller.dart';
+import 'package:truthworld/features/topics/presentation/widgets/create_topic/create_topic_theme_helpers.dart';
+
+/// Section 6: Topic Category Dropdown
+Widget buildSection6Category(
+  BuildContext context,
+  CreateTopicController controller,
+  List<String> availableCategories,
+) {
+  return buildCreateTopicCardContainer(
+    context: context,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        buildCreateTopicSectionTitle(context, '6. Topic Category'),
+        const SizedBox(height: 4),
+        Text(
+          'Choose the category that best fits your topic.',
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.45),
+            fontSize: 12,
+          ),
+        ),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<String>(
+          isExpanded: true,
+          initialValue: controller.categoryController.text.isNotEmpty
+              ? controller.categoryController.text
+              : (availableCategories.isNotEmpty ? availableCategories.first : 'Science & Technology'),
+          dropdownColor: const Color(0xFF161618),
+          style: const TextStyle(color: Colors.white, fontSize: 14),
+          decoration: buildCreateTopicInputDecoration(
+            hintText: 'Select category',
+            prefixIcon: const Icon(Icons.science_outlined, color: Colors.white, size: 20),
+          ),
+          items: availableCategories
+              .map((cat) => DropdownMenuItem<String>(value: cat, child: Text(cat)))
+              .toList(),
+          onChanged: (val) {
+            if (val != null) {
+              controller.categoryController.text = val;
+            }
+          },
+        ),
+      ],
+    ),
+  );
+}
+
+/// Section 7: Topic Type (Public / Private with Passcode)
+Widget buildSection7TopicType(BuildContext context, CreateTopicController controller) {
+  return buildCreateTopicCardContainer(
+    context: context,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        buildCreateTopicSectionTitle(context, '7. Topic Type'),
+        const SizedBox(height: 4),
+        Text(
+          'Choose who can view this topic',
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.45),
+            fontSize: 12,
+          ),
+        ),
+        const SizedBox(height: 14),
+        Obx(() {
+          final isPublic = controller.selectedVisibility.value == TopicVisibilityType.public;
+          return InkWell(
+            onTap: () => controller.selectedVisibility.value = TopicVisibilityType.public,
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: isPublic ? const Color(0xFF1F1F24) : const Color(0xFF0F0F11),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isPublic ? Colors.white : Colors.white.withValues(alpha: 0.12),
+                  width: isPublic ? 1.5 : 1.0,
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.public_rounded, color: Colors.white, size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Public', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+                        Text(
+                          'Anyone can view this topic',
+                          style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.5)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Radio<TopicVisibilityType>(
+                    value: TopicVisibilityType.public,
+                    groupValue: controller.selectedVisibility.value,
+                    onChanged: (val) => controller.selectedVisibility.value = val!,
+                    activeColor: Colors.white,
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
+        const SizedBox(height: 10),
+        Obx(() {
+          final isPrivate = controller.selectedVisibility.value == TopicVisibilityType.private;
+          return Column(
+            children: [
+              InkWell(
+                onTap: () => controller.selectedVisibility.value = TopicVisibilityType.private,
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: isPrivate ? const Color(0xFF1F1F24) : const Color(0xFF0F0F11),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isPrivate ? Colors.white : Colors.white.withValues(alpha: 0.12),
+                      width: isPrivate ? 1.5 : 1.0,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.lock_rounded, color: Colors.white, size: 20),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Private', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+                            Text(
+                              'Only you can view this topic',
+                              style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.5)),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Radio<TopicVisibilityType>(
+                        value: TopicVisibilityType.private,
+                        groupValue: controller.selectedVisibility.value,
+                        onChanged: (val) => controller.selectedVisibility.value = val!,
+                        activeColor: Colors.white,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (isPrivate) ...[
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: controller.accessCodeController,
+                  obscureText: controller.obscureAccessCode.value,
+                  inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  decoration: buildCreateTopicInputDecoration(
+                    hintText: 'Enter Private Passcode',
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.visibility_off_rounded, color: Colors.white, size: 18),
+                      onPressed: controller.togglePasscodeVisibility,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          );
+        }),
+      ],
+    ),
+  );
+}

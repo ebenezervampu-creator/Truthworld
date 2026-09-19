@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/core/widgets/truth_credibility_badge.dart';
 import 'package:truthworld/features/video/presentation/widgets/analysis/video_analysis_confidence_bar.dart';
 import 'package:truthworld/features/video/presentation/widgets/analysis/video_analysis_helpers.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -60,13 +61,16 @@ import 'package:truthworld/theme/app_theme.dart';
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppColors.bgSurface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: TWRadius.xxlBorderRadius,
         border: Border.all(color: stateColor.withValues(alpha: 0.25)),
         boxShadow: [
           BoxShadow(
-            color: stateColor.withValues(alpha: 0.05),
+            color: (stateColor == AppColors.success
+                    ? const Color(0xFF00F2FE)
+                    : stateColor)
+                .withValues(alpha: 0.10),
             blurRadius: 16,
-            spreadRadius: 2,
+            spreadRadius: 1,
           ),
         ],
       ),
@@ -95,23 +99,15 @@ import 'package:truthworld/theme/app_theme.dart';
                   children: [
                     Row(
                       children: [
-                        Container(
+                        TruthCredibilityBadge(
+                          label: badgeText,
+                          color: stateColor,
+                          isVerified: stateColor == AppColors.success,
+                          isDisputed: stateColor == AppColors.warning,
+                          isFalse: stateColor == AppColors.error,
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
                             vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: stateColor.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            badgeText,
-                            style: context.twTypography.overline.copyWith(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w900,
-                              color: stateColor,
-                              letterSpacing: 1.1,
-                            ),
                           ),
                         ),
                         if (!isNotScored && confidenceTier.isNotEmpty) ...[

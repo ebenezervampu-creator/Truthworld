@@ -54,6 +54,12 @@ class LikedVideoScreen extends GetView<LikedVideosController> {
   final bool isDashboard;
 
   @override
+  LikedVideosController get controller =>
+      Get.isRegistered<LikedVideosController>()
+          ? Get.find<LikedVideosController>()
+          : Get.put(LikedVideosController());
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bgPage,

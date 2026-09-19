@@ -9,6 +9,7 @@ abstract class CommentRepository {
     int page = 1,
     int limit = 20,
     String sortBy = 'newest', // newest, top
+    dynamic startAfter,
   });
 
   /// Fetch replies for a comment.
@@ -17,6 +18,7 @@ abstract class CommentRepository {
     String commentId, {
     int page = 1,
     int limit = 10,
+    dynamic startAfter,
   });
 
   /// Post a new comment.

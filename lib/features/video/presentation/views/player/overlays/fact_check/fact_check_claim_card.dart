@@ -354,19 +354,19 @@ import 'package:url_launcher/url_launcher.dart';
                           icon: const Icon(
                             Icons.add_link_rounded,
                             size: 13,
-                            color: Colors.white,
+                            color: Colors.black,
                           ),
                           label: const Text(
                             'Provide Source',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                              color: Colors.black,
                             ),
                           ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.brand,
-                            foregroundColor: Colors.white,
+                            foregroundColor: Colors.black,
                             padding: const EdgeInsets.symmetric(vertical: 6),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),

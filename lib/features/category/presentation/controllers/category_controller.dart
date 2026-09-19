@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 
-class CategoryController extends BaseController {
+class CategoryController extends BaseController
+    with GetTickerProviderStateMixin {
   RxString selectedGenre = 'All'.obs;
   RxString selectedSort = 'Popularity'.obs;
   RxString selectedView = 'Grid'.obs;
@@ -17,6 +19,20 @@ class CategoryController extends BaseController {
 
   late String category;
   Timer? _searchDebounceTimer;
+
+  // Animation controllers & animations
+  late AnimationController fadeAnimationController;
+  late AnimationController slideAnimationController;
+  late AnimationController scaleAnimationController;
+  late AnimationController heroAnimationController;
+
+  late Animation<double> fadeAnimation;
+  late Animation<Offset> slideAnimation;
+  late Animation<double> scaleAnimation;
+  late Animation<double> heroAnimation;
+
+  final TextEditingController searchController = TextEditingController();
+  final ScrollController scrollController = ScrollController();
 
   final Map<String, List<String>> _categoryToGenres = {
     'education': [
@@ -446,6 +462,55 @@ class CategoryController extends BaseController {
     genres.value = _getGenresForCategory(category);
     selectedGenre.value = genres[0];
 
+    // Initialize animation controllers
+    fadeAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    slideAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    scaleAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+    heroAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    );
+
+    fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(
+        parent: fadeAnimationController,
+        curve: Curves.easeOutCubic,
+      ),
+    );
+    slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
+      CurvedAnimation(
+        parent: slideAnimationController,
+        curve: Curves.easeOutCubic,
+      ),
+    );
+    scaleAnimation = Tween<double>(begin: 0.95, end: 1).animate(
+      CurvedAnimation(
+        parent: scaleAnimationController,
+        curve: Curves.easeOutBack,
+      ),
+    );
+    heroAnimation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(
+        parent: heroAnimationController,
+        curve: Curves.easeOutExpo,
+      ),
+    );
+
+    heroAnimationController.forward();
+    fadeAnimationController.forward();
+    slideAnimationController.forward();
+    scaleAnimationController.forward();
+
     // Setup native GetX debounce worker for search
     addWorker(
       ever<String>(searchQuery, (_) {
@@ -466,6 +531,12 @@ class CategoryController extends BaseController {
 
   @override
   void onClose() {
+    fadeAnimationController.dispose();
+    slideAnimationController.dispose();
+    scaleAnimationController.dispose();
+    heroAnimationController.dispose();
+    searchController.dispose();
+    scrollController.dispose();
     _searchDebounceTimer?.cancel();
     super.onClose();
   }

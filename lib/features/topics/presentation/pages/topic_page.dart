@@ -605,7 +605,7 @@ class TopicPage extends StatelessWidget {
                     ),
                     child: const Icon(
                       Icons.play_arrow_rounded,
-                      color: AppColors.textPrimary,
+                      color: Colors.black,
                       size: 32,
                     ),
                   ),
@@ -709,7 +709,7 @@ class TopicPage extends StatelessWidget {
             label: const Text('Try Again'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.brand,
-              foregroundColor: AppColors.textPrimary,
+              foregroundColor: Colors.black,
               padding: const EdgeInsets.symmetric(
                 horizontal: 24,
                 vertical: 12,

@@ -28,6 +28,12 @@ class MyVideos extends GetView<MyVideosController> {
   const MyVideos({super.key, this.isDashboard = false});
   final bool isDashboard;
 
+  @override
+  MyVideosController get controller =>
+      Get.isRegistered<MyVideosController>()
+          ? Get.find<MyVideosController>()
+          : Get.put(MyVideosController());
+
   MyVideosController get _controller => controller;
 
   @override

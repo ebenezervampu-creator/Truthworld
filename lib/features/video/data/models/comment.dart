@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:truthworld/domain/entities/comment_entity.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
 
 class Comment {
@@ -186,6 +187,38 @@ class Comment {
       donationCurrency: donationCurrency ?? this.donationCurrency,
       isDonatedComment: isDonatedComment ?? this.isDonatedComment,
       donationColorHex: donationColorHex ?? this.donationColorHex,
+    );
+  }
+
+  /// Converts this data model to a pure domain [CommentEntity].
+  CommentEntity toEntity() {
+    return CommentEntity(
+      id: id,
+      videoId: videoId,
+      userId: userId,
+      userName: userName,
+      userAvatarUrl: userProfilePicUrl,
+      text: text,
+      likeCount: likeCount,
+      createdAt: createdAt.toDate(),
+      updatedAt: createdAt.toDate(),
+    );
+  }
+
+  /// Creates a [Comment] data model from a pure domain [CommentEntity].
+  static Comment fromEntity(CommentEntity entity) {
+    return Comment(
+      id: entity.id,
+      videoId: entity.videoId,
+      userId: entity.userId,
+      userName: entity.userName,
+      userProfilePicUrl: entity.userAvatarUrl,
+      channelId: entity.userId,
+      text: entity.text,
+      likeCount: entity.likeCount,
+      dislikeCount: 0,
+      reportCount: 0,
+      createdAt: Timestamp.fromDate(entity.createdAt),
     );
   }
 }

@@ -88,6 +88,8 @@ import 'package:truthworld/features/video/presentation/views/upload/models/uploa
 import 'package:truthworld/features/video/presentation/views/upload/upload_selection_screen.dart';
 import 'package:truthworld/features/video/presentation/views/video_screen.dart'
     deferred as video_screen;
+import 'package:truthworld/features/wallet/presentation/bindings/user_wallet_binding.dart';
+import 'package:truthworld/features/wallet/presentation/views/user_wallet_screen.dart';
 import 'package:truthworld/features/watchhistory/presentation/bindings/watch_history_binding.dart';
 import 'package:truthworld/features/watchhistory/presentation/views/watchhistory/watchhistory.dart'
     deferred as history;
@@ -526,6 +528,18 @@ class AppPages {
       page: () => const EditProfileScreen(),
       middlewares: [AuthGuard()],
       binding: EditProfileBinding(),
+    ),
+    GetPage(
+      name: '/user-wallet',
+      page: () => const UserWalletScreen(),
+      middlewares: [AuthGuard()],
+      binding: UserWalletBinding(),
+    ),
+    GetPage(
+      name: '/wallet',
+      page: () => const UserWalletScreen(),
+      middlewares: [AuthGuard()],
+      binding: UserWalletBinding(),
     ),
     GetPage(
       name: '/feedback',

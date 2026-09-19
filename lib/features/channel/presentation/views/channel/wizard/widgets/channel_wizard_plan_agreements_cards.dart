@@ -170,7 +170,7 @@ class ChannelWizardPlanCard extends StatelessWidget {
   // ========================================================================
 }
 
-class ChannelWizardAgreementsCard extends StatefulWidget {
+class ChannelWizardAgreementsCard extends StatelessWidget {
   final ChannelController controller;
   final bool isDarkMode;
   final bool contentOnly;
@@ -183,16 +183,6 @@ class ChannelWizardAgreementsCard extends StatefulWidget {
     super.key,
     this.contentOnly = false,
   });
-
-  @override
-  State<ChannelWizardAgreementsCard> createState() =>
-      _ChannelWizardAgreementsCardState();
-}
-
-class _ChannelWizardAgreementsCardState
-    extends State<ChannelWizardAgreementsCard> {
-  ChannelController get controller => widget.controller;
-  bool get isDarkMode => widget.isDarkMode;
 
   Future<void> _openTermsPage() async {
     final result = await Get.toNamed(
@@ -220,7 +210,7 @@ class _ChannelWizardAgreementsCardState
 
   @override
   Widget build(BuildContext context) {
-    if (widget.contentOnly) {
+    if (contentOnly) {
       return buildContent(context);
     }
     return Container(
@@ -293,7 +283,7 @@ class _ChannelWizardAgreementsCardState
             width: double.infinity,
             height: 48,
             child: ElevatedButton(
-              onPressed: controller.isSubmitting.value ? null : widget.onSubmit,
+              onPressed: controller.isSubmitting.value ? null : onSubmit,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.white,
                 foregroundColor: Colors.black,

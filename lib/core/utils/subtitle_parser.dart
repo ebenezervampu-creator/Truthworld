@@ -651,9 +651,19 @@ class SubtitleParser {
   static bool _isDatasetInSeconds(Iterable<Map> items) {
     if (items.isEmpty) return false;
 
+    // 1. If key explicitly says 'Ms', it is milliseconds
+    final first = items.first;
+    if (first.containsKey('startMs') ||
+        first.containsKey('startTimeMs') ||
+        first.containsKey('tStartMs') ||
+        first.containsKey('endMs') ||
+        first.containsKey('endTimeMs')) {
+      return false;
+    }
+
+    var totalDuration = 0.0;
+    var durationCount = 0;
     var maxVal = 0.0;
-    var hasDecimals = false;
-    var count = 0;
 
     for (final item in items) {
       final startRaw = item['start'] ??
@@ -666,46 +676,38 @@ class SubtitleParser {
           item['end_time'] ??
           item['endMs'];
 
-      if (startRaw != null) {
-        final s = (startRaw is num)
-            ? startRaw.toDouble()
-            : (double.tryParse(startRaw.toString()) ?? 0.0);
-        if (s > maxVal) maxVal = s;
-        if (s % 1 != 0) hasDecimals = true;
-        count++;
-      }
-      if (endRaw != null) {
-        final e = (endRaw is num)
-            ? endRaw.toDouble()
-            : (double.tryParse(endRaw.toString()) ?? 0.0);
-        if (e > maxVal) maxVal = e;
-        if (e % 1 != 0) hasDecimals = true;
-        count++;
+      final s = (startRaw is num)
+          ? startRaw.toDouble()
+          : (double.tryParse(startRaw?.toString() ?? '') ?? 0.0);
+      final e = (endRaw is num)
+          ? endRaw.toDouble()
+          : (double.tryParse(endRaw?.toString() ?? '') ?? 0.0);
+
+      if (s > maxVal) maxVal = s;
+      if (e > maxVal) maxVal = e;
+
+      if (e > s) {
+        totalDuration += e - s;
+        durationCount++;
       }
     }
 
-    if (count == 0) return false;
-
-    // If key explicitly says 'Ms', it is milliseconds
-    final first = items.first;
-    if (first.containsKey('startMs') ||
-        first.containsKey('startTimeMs') ||
-        first.containsKey('tStartMs')) {
+    // If maximum timestamp exceeds 86400 (24 hours in seconds), it is guaranteed milliseconds
+    if (maxVal > 86400) {
       return false;
     }
 
-    // If maximum timestamp <= 1000, it is 100% seconds
-    if (maxVal <= 1000) {
-      return true;
+    // 2. Duration-based speech acoustic check:
+    // Natural human speech words/phrases take 0.15s to 6.0s in seconds,
+    // or 150ms to 6000ms in milliseconds.
+    if (durationCount > 0) {
+      final avgDuration = totalDuration / durationCount;
+      // An average duration of 20 or more is physically milliseconds (no word/phrase averages 20+ seconds)
+      return avgDuration < 20.0;
     }
 
-    // If values have floating decimal fractions and maxVal < 14400 (4 hours in seconds), it is float seconds
-    if (hasDecimals && maxVal < 14400) {
-      return true;
-    }
-
-    // Otherwise it is milliseconds (e.g. 15000, 120000, 600000)
-    return false;
+    // Fallback: If max timestamp is under 600, consider it seconds
+    return maxVal < 600.0;
   }
 
   static List<SubtitleSegment> _finalizeSegments(List<SubtitleSegment> raw) {

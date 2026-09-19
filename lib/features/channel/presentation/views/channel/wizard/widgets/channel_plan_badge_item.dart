@@ -24,13 +24,16 @@ class PlanBadgeItem extends StatelessWidget {
         children: [
           const Icon(Icons.check, size: 12, color: Colors.white),
           const SizedBox(width: 6),
-          Text(
-            text,
-            style: const TextStyle(
-              fontFamily: TWTypography.uiFamily,
-              fontSize: 11,
-              color: Colors.white,
-              fontWeight: FontWeight.w500,
+          Flexible(
+            child: Text(
+              text,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                fontSize: 11,
+                color: Colors.white,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],
@@ -41,4 +44,3 @@ class PlanBadgeItem extends StatelessWidget {
 
 /// Backward compatibility alias
 typedef ChannelPlanBadgeItem = PlanBadgeItem;
-typedef _PlanBadgeItem = PlanBadgeItem;

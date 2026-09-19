@@ -245,7 +245,7 @@ class _TopBar extends StatelessWidget {
                     const Icon(
                       Icons.spatial_audio_rounded,
                       size: 14,
-                      color: AppColors.textPrimary,
+                      color: Colors.black,
                     ),
                     const SizedBox(width: 5),
                     Text(
@@ -253,14 +253,14 @@ class _TopBar extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
+                        color: Colors.black,
                       ),
                     ),
                     const SizedBox(width: 4),
                     const Icon(
                       Icons.arrow_drop_down,
                       size: 14,
-                      color: AppColors.textPrimary,
+                      color: Colors.black,
                     ),
                   ],
                 ),
@@ -661,7 +661,7 @@ class _AudioTrackSheet extends StatelessWidget {
                             child: const Icon(
                               Icons.check,
                               size: 14,
-                              color: AppColors.textPrimary,
+                              color: Colors.black,
                             ),
                           )
                         else

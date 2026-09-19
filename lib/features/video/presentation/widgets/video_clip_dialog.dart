@@ -42,13 +42,9 @@ class VideoClipDialog {
             : 300.0);
 
     if (totalDuration < 15.0) {
-      Get.snackbar(
-        'Clipping Unavailable',
+      AppSnackbar.info(
         'This video is too short to create clips from (minimum 15 seconds required).',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.bgSurface,
-        colorText: AppColors.textPrimary,
-        icon: const Icon(Icons.info_outline_rounded, color: Colors.white),
+        title: 'Clipping Unavailable',
       );
       return;
     }
@@ -70,7 +66,7 @@ class VideoClipDialog {
         padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
         decoration: const BoxDecoration(
           color: AppColors.bgSurface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(TWRadius.xxlVal)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -82,7 +78,7 @@ class VideoClipDialog {
                 height: 4,
                 decoration: BoxDecoration(
                   color: AppColors.textSecondary.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
+                  borderRadius: TWRadius.smBorderRadius,
                 ),
               ),
             ),
@@ -119,7 +115,7 @@ class VideoClipDialog {
                 filled: true,
                 fillColor: AppColors.bgSurface.withValues(alpha: 0.5),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: TWRadius.lgBorderRadius,
                   borderSide: BorderSide.none,
                 ),
                 contentPadding: const EdgeInsets.symmetric(
@@ -307,13 +303,13 @@ class VideoClipDialog {
                                 width: 18,
                                 height: 18,
                                 child: CircularProgressIndicator(
-                                  color: Colors.white,
+                                  color: Colors.black,
                                   strokeWidth: 2,
                                 ),
                               )
                             : const Icon(
                                 Icons.bookmark_add_rounded,
-                                color: Colors.white,
+                                color: Colors.black,
                                 size: 20,
                               ),
                         label: Text(
@@ -321,14 +317,14 @@ class VideoClipDialog {
                           style: GoogleFonts.roboto(
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                            color: Colors.black,
                           ),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.brand,
-                          foregroundColor: Colors.white,
+                          foregroundColor: Colors.black,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: TWRadius.xlBorderRadius,
                           ),
                           elevation: 4,
                           shadowColor: AppColors.brand.withValues(alpha: 0.4),
@@ -367,7 +363,7 @@ class VideoClipDialog {
                             width: 1.5,
                           ),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: TWRadius.xlBorderRadius,
                           ),
                           elevation: 0,
                         ),

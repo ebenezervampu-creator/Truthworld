@@ -74,19 +74,19 @@ export const getUserSafetyProfile = onRequest(
 
       const db = admin.firestore();
       
-      const [userTrustSnap, imageVerifSnap, videoJobsSnap, channelsSnap] = await Promise.all([
+      const [userTrustSnap, imageVerifCountSnap, videoJobsCountSnap, channelsSnap] = await Promise.all([
           db.collection("userTrust").doc(userId).get(),
-          db.collection("image_verification").where("userId", "==", userId).get(),
-          db.collection("video_jobs").where("userId", "==", userId).get(),
-          db.collection("channels").where("ownerId", "==", userId).get()
+          db.collection("image_verification").where("userId", "==", userId).count().get(),
+          db.collection("video_jobs").where("userId", "==", userId).count().get(),
+          db.collection("channels").where("ownerId", "==", userId).limit(20).get()
       ]);
 
       const profile = {
           trustScore: userTrustSnap.data()?.score || 0,
           strikeCount: userTrustSnap.data()?.strikes || 0,
           uploadStats: {
-              images: imageVerifSnap.size,
-              videos: videoJobsSnap.size
+              images: imageVerifCountSnap.data().count,
+              videos: videoJobsCountSnap.data().count
           },
           channels: channelsSnap.docs.map(d => ({id: d.id, ...d.data()})),
           accountStatus: userTrustSnap.data()?.accountStatus || "ACTIVE"

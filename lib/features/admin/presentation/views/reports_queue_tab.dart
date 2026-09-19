@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
@@ -361,21 +362,35 @@ class ReportsQueueTab extends StatelessWidget {
                           video['thumbnailUrl'].toString().isNotEmpty)
                         ClipRRect(
                           borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            video['thumbnailUrl'],
+                          child: CachedNetworkImage(
+                            imageUrl: video['thumbnailUrl'].toString(),
                             width: 120,
                             height: 68,
                             fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                Container(
-                                  width: 120,
-                                  height: 68,
-                                  color: const Color(0xFF212121),
-                                  child: const Icon(
-                                    Icons.broken_image,
-                                    color: Colors.white,
+                            memCacheWidth: 240,
+                            memCacheHeight: 136,
+                            placeholder: (context, url) => Container(
+                              width: 120,
+                              height: 68,
+                              color: const Color(0xFF212121),
+                              child: const Center(
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
                                   ),
                                 ),
+                              ),
+                            ),
+                            errorWidget: (context, url, error) => Container(
+                              width: 120,
+                              height: 68,
+                              color: const Color(0xFF212121),
+                              child: const Icon(
+                                Icons.broken_image,
+                                color: Colors.white,
+                              ),
+                            ),
                           ),
                         )
                       else

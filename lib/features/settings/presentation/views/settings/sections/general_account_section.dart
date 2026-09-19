@@ -23,6 +23,7 @@ class GeneralAccountSection extends StatelessWidget {
         _buildUserInfoTile(context),
         _buildAgeAndGenderTile(context),
         _buildSubscriptionTile(context),
+        _buildWalletTile(context),
         _buildAccountStatusTile(context),
         _buildLogoutTile(context),
       ],
@@ -332,6 +333,29 @@ class GeneralAccountSection extends StatelessWidget {
         ),
         trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
         onTap: () => Get.toNamed('/premium'),
+      );
+    });
+  }
+
+  Widget _buildWalletTile(BuildContext context) {
+    final auth = AuthService.to;
+    return Obx(() {
+      final balance = auth.userWalletBalance.value;
+      return ListTile(
+        leading: const Icon(
+          Icons.account_balance_wallet_outlined,
+          color: AppColors.textPrimary,
+        ),
+        title: const Text(
+          'TruthWorld Wallet',
+          style: TextStyle(fontSize: 16, color: AppColors.textPrimary),
+        ),
+        subtitle: Text(
+          'Balance: ₹${balance.toStringAsFixed(2)} • Tap to add money or view history',
+          style: TextStyle(fontSize: 13, color: context.colors.textSecondary),
+        ),
+        trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
+        onTap: () => Get.toNamed('/user-wallet'),
       );
     });
   }

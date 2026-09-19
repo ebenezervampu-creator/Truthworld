@@ -1,11 +1,15 @@
+import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/cashfree_service.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/data/models/channel.dart';
 
 enum WalletTransactionCategory {
+  walletTopup,
   customChannelPlan,
   storageTopup,
   bandwidthTopup,
@@ -17,6 +21,7 @@ enum WalletTransactionCategory {
 }
 
 class SpendableBalance {
+  final double fundedBalance;
   final double trialCreditRemaining;
   final double withdrawableRevenue;
   final double lockedRevenue;
@@ -25,10 +30,11 @@ class SpendableBalance {
     required this.trialCreditRemaining,
     required this.withdrawableRevenue,
     required this.lockedRevenue,
+    this.fundedBalance = 0.0,
   });
 
   double get totalRevenue => withdrawableRevenue + lockedRevenue;
-  double get totalSpendableBalance => trialCreditRemaining + totalRevenue;
+  double get totalSpendableBalance => fundedBalance + trialCreditRemaining + totalRevenue;
 
   bool canAfford(double amount) => totalSpendableBalance >= amount;
 }
@@ -39,6 +45,7 @@ class WalletTransaction {
   final String userId;
   final double amount;
   final double trialCreditDeducted;
+  final double fundedDeducted;
   final double revenueDeducted;
   final WalletTransactionCategory category;
   final String description;
@@ -59,6 +66,7 @@ class WalletTransaction {
     required this.balanceBefore,
     required this.balanceAfter,
     required this.timestamp,
+    this.fundedDeducted = 0.0,
     this.metadata,
   });
 
@@ -68,6 +76,7 @@ class WalletTransaction {
     'userId': userId,
     'amount': amount,
     'trialCreditDeducted': trialCreditDeducted,
+    'fundedDeducted': fundedDeducted,
     'revenueDeducted': revenueDeducted,
     'category': category.name,
     'description': description,
@@ -85,6 +94,8 @@ class WalletTransaction {
       amount: (map['amount'] as num?)?.toDouble() ?? 0.0,
       trialCreditDeducted:
           (map['trialCreditDeducted'] as num?)?.toDouble() ?? 0.0,
+      fundedDeducted:
+          (map['fundedDeducted'] as num?)?.toDouble() ?? 0.0,
       revenueDeducted: (map['revenueDeducted'] as num?)?.toDouble() ?? 0.0,
       category: WalletTransactionCategory.values.firstWhere(
         (e) => e.name == map['category'],
@@ -204,10 +215,56 @@ class ChannelWalletService {
     ),
   ];
 
-  /// Computes AI Feature generation cost based on selected capabilities and target languages
+  /// Dubbing rate per language for standard channels ($0.50/lang, min $1.50, cap $10.00)
+  static const double standardDubbingRatePerLanguage = 0.50;
+  static const double standardDubbingMinCost = 1.50;
+  static const double standardDubbingCapCost = 10.00;
+
+  /// Dubbing rate per language for custom channels ($0.25/lang - 50% Partner discount, min $0.75, cap $5.00)
+  static const double customDubbingRatePerLanguage = 0.25;
+  static const double customDubbingMinCost = 0.75;
+  static const double customDubbingCapCost = 5.00;
+
+  /// Get dubbing rate per language based on channel type
+  static double getDubbingRatePerLanguage(ChannelType type) {
+    return type == ChannelType.custom
+        ? customDubbingRatePerLanguage
+        : standardDubbingRatePerLanguage;
+  }
+
+  /// Get minimum dubbing job cost based on channel type
+  static double getDubbingMinCost(ChannelType type) {
+    return type == ChannelType.custom
+        ? customDubbingMinCost
+        : standardDubbingMinCost;
+  }
+
+  /// Get maximum dubbing cost cap based on channel type
+  static double getDubbingCapCost(ChannelType type) {
+    return type == ChannelType.custom
+        ? customDubbingCapCost
+        : standardDubbingCapCost;
+  }
+
+  /// Calculates dubbing generation cost based on language count and channel type
+  static double calculateDubbingCost({
+    required int languageCount,
+    ChannelType channelType = ChannelType.standard,
+  }) {
+    if (languageCount <= 0) return 0.0;
+    final rate = getDubbingRatePerLanguage(channelType);
+    final minCost = getDubbingMinCost(channelType);
+    final capCost = getDubbingCapCost(channelType);
+    return double.parse(
+      (languageCount * rate).clamp(minCost, capCost).toStringAsFixed(2),
+    );
+  }
+
+  /// Computes AI Feature generation cost based on selected capabilities, target languages, and channel type
   static double calculateAIFeatureCost({
     required Set<String> selectedFeatures,
     required List<String> targetLanguages,
+    ChannelType channelType = ChannelType.standard,
   }) {
     if (selectedFeatures.isEmpty) return 0.0;
 
@@ -220,8 +277,10 @@ class ChannelWalletService {
     }
 
     if (selectedFeatures.contains('dubbing')) {
-      // $0.50 per language, minimum $1.50
-      cost += (langCount * 0.50).clamp(1.50, 10.00);
+      cost += calculateDubbingCost(
+        languageCount: langCount,
+        channelType: channelType,
+      );
     }
 
     if (selectedFeatures.contains('factcheck')) {
@@ -238,7 +297,7 @@ class ChannelWalletService {
     return double.parse(cost.toStringAsFixed(2));
   }
 
-  /// Calculates the creator's live spendable balance combining trial credits and channel revenues
+  /// Calculates the creator's live spendable balance combining funded wallet balance, trial credits and channel revenues
   SpendableBalance getSpendableBalance({
     required Channel channel,
     double rawTotalRevenue = 0.0,
@@ -246,6 +305,7 @@ class ChannelWalletService {
     double lockedRevenue = 0.0,
   }) {
     final trialCredit = channel.infraConfig?.trialCreditRemainingUSD ?? 10.0;
+    final funded = channel.walletBalanceUSD;
     final withdrawable = withdrawableRevenue > 0
         ? withdrawableRevenue
         : (rawTotalRevenue * 0.5);
@@ -254,6 +314,7 @@ class ChannelWalletService {
         : (rawTotalRevenue - withdrawable).clamp(0.0, double.infinity);
 
     return SpendableBalance(
+      fundedBalance: funded,
       trialCreditRemaining: trialCredit,
       withdrawableRevenue: withdrawable,
       lockedRevenue: locked,
@@ -279,18 +340,28 @@ class ChannelWalletService {
 
     final balanceBefore = balance.totalSpendableBalance;
 
-    // Determine breakdown of deduction: Trial credits first, then accumulated revenue
-    var trialDeduction = 0.0;
-    var revenueDeduction = 0.0;
+    // Determine breakdown of deduction:
+    // 1. Trial/bonus credits first
+    // 2. Funded wallet balance second
+    // 3. Unwithdrawn revenue third
+    var remaining = amount;
 
-    if (balance.trialCreditRemaining >= amount) {
-      trialDeduction = amount;
-    } else {
-      trialDeduction = balance.trialCreditRemaining;
-      revenueDeduction = amount - trialDeduction;
+    var trialDeduction = 0.0;
+    if (balance.trialCreditRemaining > 0) {
+      trialDeduction = math.min(balance.trialCreditRemaining, remaining);
+      remaining -= trialDeduction;
     }
 
+    var fundedDeduction = 0.0;
+    if (remaining > 0 && balance.fundedBalance > 0) {
+      fundedDeduction = math.min(balance.fundedBalance, remaining);
+      remaining -= fundedDeduction;
+    }
+
+    final revenueDeduction = remaining;
+
     final newTrialRemaining = (balance.trialCreditRemaining - trialDeduction).clamp(0.0, 999999.0);
+    final newFundedBalance = (balance.fundedBalance - fundedDeduction).clamp(0.0, 999999.0);
     final balanceAfter = balanceBefore - amount;
 
     final txDocRef = _firestore.collection('channel_wallet_transactions').doc();
@@ -300,6 +371,7 @@ class ChannelWalletService {
       userId: userId,
       amount: amount,
       trialCreditDeducted: trialDeduction,
+      fundedDeducted: fundedDeduction,
       revenueDeducted: revenueDeduction,
       category: category,
       description: description,
@@ -333,13 +405,20 @@ class ChannelWalletService {
         lossPreventionMode: existingInfra.lossPreventionMode,
       );
 
+      final updateData = <String, dynamic>{
+        'infraConfig': updatedInfra.toMap(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      if (fundedDeduction > 0) {
+        updateData['walletBalanceUSD'] = newFundedBalance;
+        updateData['walletBalance'] = newFundedBalance;
+      }
+
       await _firestore
           .collection(FirestoreCollections.channels)
           .doc(channel.id)
-          .update({
-            'infraConfig': updatedInfra.toMap(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
+          .update(updateData);
 
       return transaction;
     } catch (e, stackTrace) {
@@ -495,7 +574,11 @@ class ChannelWalletService {
     required StorageTopupPack pack,
   }) async {
     try {
-      final amountINR = (pack.priceUSD * 85.0).roundToDouble();
+      await CurrencyLocalizationService.to.fetchRealtimeRate();
+      final rate = Get.isRegistered<CurrencyLocalizationService>()
+          ? CurrencyLocalizationService.to.rate
+          : CurrencyLocalizationService.defaultRate;
+      final amountINR = math.max(1.0, double.parse((pack.priceUSD * rate).toStringAsFixed(2)));
       final paymentResult = await CashfreePaymentService.to.startPayment(
         amount: amountINR,
         purpose: 'channel_topup',
@@ -526,7 +609,11 @@ class ChannelWalletService {
     required BandwidthTopupPack pack,
   }) async {
     try {
-      final amountINR = (pack.priceUSD * 85.0).roundToDouble();
+      await CurrencyLocalizationService.to.fetchRealtimeRate();
+      final rate = Get.isRegistered<CurrencyLocalizationService>()
+          ? CurrencyLocalizationService.to.rate
+          : CurrencyLocalizationService.defaultRate;
+      final amountINR = math.max(1.0, double.parse((pack.priceUSD * rate).toStringAsFixed(2)));
       final paymentResult = await CashfreePaymentService.to.startPayment(
         amount: amountINR,
         purpose: 'channel_topup',
@@ -565,6 +652,7 @@ class ChannelWalletService {
     final cost = calculateAIFeatureCost(
       selectedFeatures: features,
       targetLanguages: targetLanguages,
+      channelType: channel.channelType,
     );
 
     var category = WalletTransactionCategory.aiBundle;
@@ -585,10 +673,13 @@ class ChannelWalletService {
       description: 'AI Processing for "$videoTitle" (${features.join(", ")})',
       metadata: {
         'videoId': videoId,
+        'channelType': channel.channelType.name,
         'features': features.toList(),
         'targetLanguages': targetLanguages,
         'priorityMode': priorityMode,
         'costUSD': cost,
+        'dubbingRatePerLanguage': getDubbingRatePerLanguage(channel.channelType),
+        'voiceCloneIncluded': channel.channelType == ChannelType.custom,
       },
     );
 
@@ -612,6 +703,8 @@ class ChannelWalletService {
           'enablePath2': features.contains('dubbing') || features.contains('subtitles'),
           'autoChapters': autoChapters,
           'priorityMode': priorityMode,
+          'channelType': channel.channelType.name,
+          'dubbingMode': channel.channelType == ChannelType.custom ? 'voice_clone' : 'standard',
         },
         'updatedAt': DateTime.now().millisecondsSinceEpoch,
         'stages': {
@@ -639,6 +732,112 @@ class ChannelWalletService {
         tag: 'ChannelWalletService.spendForVideoAIFeatures',
       );
       return true;
+    }
+  }
+
+  /// Top up channel wallet with funded money via Cashfree PG
+  Future<bool> topupChannelWalletWithCashfree({
+    required Channel channel,
+    required double amountUSD,
+    required String userId,
+  }) async {
+    try {
+      await CurrencyLocalizationService.to.fetchRealtimeRate();
+      final rate = Get.isRegistered<CurrencyLocalizationService>()
+          ? CurrencyLocalizationService.to.rate
+          : CurrencyLocalizationService.defaultRate;
+      final amountINR = math.max(1.0, double.parse((amountUSD * rate).toStringAsFixed(2)));
+
+      final paymentResult = await CashfreePaymentService.to.startPayment(
+        amount: amountINR,
+        purpose: 'channel_wallet_topup',
+        orderNote: 'Channel Wallet Top-Up (\$${amountUSD.toStringAsFixed(2)})',
+        metadata: {
+          'channelId': channel.id,
+          'amountUSD': amountUSD,
+          'amountINR': amountINR,
+          'packType': 'balance',
+          'category': 'walletTopup',
+          'description': 'Channel Wallet Deposit (+\$${amountUSD.toStringAsFixed(2)})',
+        },
+      );
+
+      if (paymentResult.success) {
+        await topupChannelWalletDirect(
+          channelId: channel.id,
+          userId: userId,
+          amountUSD: amountUSD,
+          orderId: paymentResult.orderId,
+          description: 'Wallet Deposit (+\$${amountUSD.toStringAsFixed(2)}) via Cashfree',
+        );
+        return true;
+      }
+      return false;
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'ChannelWalletService.topupChannelWalletWithCashfree',
+      );
+      return false;
+    }
+  }
+
+  /// Directly increments channel wallet balance in Firestore and records a transaction
+  Future<WalletTransaction?> topupChannelWalletDirect({
+    required String channelId,
+    required String userId,
+    required double amountUSD,
+    String? orderId,
+    String? description,
+  }) async {
+    try {
+      final txDocRef = orderId != null && orderId.isNotEmpty
+          ? _firestore.collection('channel_wallet_transactions').doc(orderId)
+          : _firestore.collection('channel_wallet_transactions').doc();
+
+      final channelDocRef = _firestore.collection(FirestoreCollections.channels).doc(channelId);
+      final channelSnapshot = await channelDocRef.get();
+      final currentBalance = (channelSnapshot.data()?['walletBalanceUSD'] as num?)?.toDouble() ??
+          (channelSnapshot.data()?['walletBalance'] as num?)?.toDouble() ??
+          0.0;
+      final newBalance = currentBalance + amountUSD;
+
+      final transaction = WalletTransaction(
+        id: txDocRef.id,
+        channelId: channelId,
+        userId: userId,
+        amount: amountUSD,
+        trialCreditDeducted: 0.0,
+        revenueDeducted: 0.0,
+        category: WalletTransactionCategory.walletTopup,
+        description: description ?? 'Wallet Deposit (+\$${amountUSD.toStringAsFixed(2)})',
+        balanceBefore: currentBalance,
+        balanceAfter: newBalance,
+        timestamp: DateTime.now(),
+        metadata: {
+          'amountUSD': amountUSD,
+          'orderId': ?orderId,
+        },
+      );
+
+      await _firestore.runTransaction((batchTx) async {
+        batchTx.set(txDocRef, transaction.toMap());
+        batchTx.update(channelDocRef, {
+          'walletBalanceUSD': FieldValue.increment(amountUSD),
+          'walletBalance': FieldValue.increment(amountUSD),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      });
+
+      return transaction;
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'ChannelWalletService.topupChannelWalletDirect',
+      );
+      return null;
     }
   }
 

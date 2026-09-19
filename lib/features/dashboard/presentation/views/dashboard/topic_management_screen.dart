@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/feedback/feedback_service.dart';
+import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/topic_management_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/topics/topics_widgets.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
@@ -223,8 +225,16 @@ class TopicManagementScreen extends StatelessWidget {
                     return const TopicShimmerGrid();
                   }
                   if (snapshot.hasError) {
+                    ErrorHandler.log(
+                      snapshot.error,
+                      tag: 'TopicManagementScreen.stream',
+                    );
                     return TopicErrorState(
-                      error: snapshot.error.toString(),
+                      error: UserFeedbackSanitizer.sanitizeMessage(
+                        snapshot.error,
+                        defaultActionContext:
+                            'Unable to load topics. Please check your connection and try again.',
+                      ),
                       onRetry: () => _retryTrigger.value++,
                     );
                   }

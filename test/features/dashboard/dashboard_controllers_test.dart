@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/features/analytics/presentation/controllers/revenue_analytics_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/chapters_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
@@ -97,7 +98,7 @@ void main() {
 
     setUp(() {
       Get.reset();
-      controller = DashboardController(channelId: 'test_channel_123');
+      controller = DashboardController(channelId: 'test_channel_123', autoInitialize: false);
     });
 
     test('filteredVideos returns reactive copy and filters properly', () {
@@ -155,6 +156,43 @@ void main() {
       await tester.pump();
 
       expect(find.text('Count: 2'), findsOneWidget);
+    });
+
+    test('channelStats revenue reflects actual computed earnings (e.g. ₹9.60)', () {
+      controller.rxMembershipsRevenue.value = 9.60;
+      controller.updateRevenueStats();
+
+      expect(controller.rxTotalRevenue.value, equals(9.60));
+      expect(controller.channelStats['revenue'], equals('₹9.60'));
+      expect(controller.channelStats['revenueChange'], equals('+₹9.60'));
+    });
+
+    test('channelStats dynamically formats revenue and does not trap stale ₹0.00', () {
+      // Simulate initial zero revenue
+      controller.channelStats.value = {
+        'revenue': '₹0.00',
+        'revenueChange': '+₹0.00',
+      };
+
+      // Now revenue becomes available (e.g., from authentic tier supporter of $0.10 USD)
+      controller.rxMembershipsRevenue.value = 9.60;
+      controller.updateRevenueStats();
+
+      expect(controller.channelStats['revenue'], equals('₹9.60'));
+      expect(controller.channelStats['revenueChange'], equals('+₹9.60'));
+    });
+
+    test('bidirectional sync between RevenueAnalyticsController and DashboardController', () {
+      Get.put<DashboardController>(controller);
+      final revCtrl = Get.put(RevenueAnalyticsController());
+      revCtrl.channelId.value = 'test_channel_123';
+      revCtrl.membershipsRevenue.value = 9.60;
+
+      // When RevenueAnalyticsController recalculates, it should sync to matching DashboardController
+      revCtrl.setCurrencyView('INR'); // triggers _recalculateTotal
+
+      expect(controller.rxMembershipsRevenue.value, equals(9.60));
+      expect(controller.channelStats['revenue'], equals('₹9.60'));
     });
   });
 }

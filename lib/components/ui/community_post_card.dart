@@ -3,17 +3,12 @@ import 'package:get/get.dart';
 import 'package:truthworld/components/ui/community_post/community_post_widgets.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/community/presentation/controllers/community_post_controller.dart';
-import 'package:truthworld/features/community/presentation/views/widgets/community_post_comments.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 export 'package:truthworld/components/ui/community_post/community_post_widgets.dart';
 export 'package:truthworld/features/community/presentation/controllers/community_post_controller.dart'
     show CommunityPostCardReactionEngine, CommunityPostReactionState;
 export 'package:truthworld/features/community/presentation/views/widgets/community_post_comments.dart';
-
-// Backward compatibility aliases
-typedef _CommunityCommentItemWidget = CommunityCommentItemWidget;
-typedef _CommunityReplyItem = CommunityReplyItem;
 
 /// Declarative Community Post Card
 /// 100% AppTheme, Icon Guidelines Compliant, Zero setState Policy.

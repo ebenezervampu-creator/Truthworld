@@ -59,4 +59,8 @@ Treat authentication, authorization, payments, user data, copyright, moderation,
   - Keep files clean, modular, and performance-optimized.
   - Avoid bloated monolithic files; break down complex interfaces and controllers into focused, single-responsibility components.
   - Optimize memory and runtime latency: eliminate unnecessary memory allocations, minimize GC churn, enforce strict stream/timer disposal, and eliminate frame jank.
+- **Zero Invisible Elements & High Contrast Policy**:
+  - Always enforce strong visual contrast (WCAG AA compliant).
+  - Never pair white/brand backgrounds (`AppColors.brand`, `Colors.white`) with white foregrounds, white icons, white text, or white loading indicators. On white surfaces, all text, icons, and indicators MUST be black (`Colors.black`).
+  - Always run `flutter test test/core/ui_contrast_guard_test.dart` to verify zero contrast violations.
 - Do not claim something works unless it has been verified.

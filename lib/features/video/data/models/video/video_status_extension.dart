@@ -1,0 +1,78 @@
+import 'package:truthworld/features/video/data/models/video.dart';
+
+/// Extension providing lifecycle, draft, and moderation approval status evaluation for [Video].
+extension VideoStatusExtension on Video {
+  /// Returns true if video is approved by Gemini AI moderation or manual admin review.
+  bool get isApprovedByGeminiOrManual {
+    if (geminiApproved == false || isApproved == false) return false;
+    if (status == VideoStatus.rejected ||
+        status == VideoStatus.flagged ||
+        status == VideoStatus.pending_review ||
+        status == VideoStatus.draft ||
+        status == VideoStatus.uploading ||
+        status == VideoStatus.processing) {
+      return false;
+    }
+    if (geminiApproved == true || isApproved == true) return true;
+    if (status == VideoStatus.ready) return true;
+    return false;
+  }
+
+  /// Returns true if video is considered a draft or in preliminary stage.
+  bool get isDraft {
+    if (status == VideoStatus.draft || status == VideoStatus.uploading) {
+      return true;
+    }
+    final vis = visibility.trim().toLowerCase();
+    if (vis == 'draft' || vis == 'private_draft') return true;
+    final t = title.trim().toLowerCase();
+    if (t.isEmpty ||
+        t == 'uploading...' ||
+        t.startsWith('uploading') ||
+        t == 'untitled' ||
+        t == 'untitled draft' ||
+        t.startsWith('untitled')) {
+      return true;
+    }
+    return false;
+  }
+
+  /// Returns true if video title matches common untitled patterns.
+  bool get isUntitled {
+    final t = title.trim().toLowerCase();
+    if (t.isEmpty) return true;
+    if (t == 'untitled' ||
+        t == 'untitled video' ||
+        t == 'untitled draft' ||
+        t == 'untitled campaign' ||
+        t == 'untitled playlist' ||
+        t == 'untitled topic' ||
+        t.startsWith('untitled') ||
+        t == 'uploading...' ||
+        t.startsWith('uploading')) {
+      return true;
+    }
+    return false;
+  }
+
+  /// Returns true if video is currently uploading, transcoding, or pending review.
+  bool get isUploadingOrProcessing {
+    if (isDraft) return true;
+    if (status == VideoStatus.uploading ||
+        status == VideoStatus.processing ||
+        status == VideoStatus.draft ||
+        status == VideoStatus.pending_review) {
+      return true;
+    }
+    final statusName = status.name.toLowerCase();
+    if (statusName == 'uploading' ||
+        statusName == 'uploaded' ||
+        statusName == 'processing' ||
+        statusName == 'draft' ||
+        statusName == 'pending_review' ||
+        statusName == 'pending') {
+      return true;
+    }
+    return false;
+  }
+}

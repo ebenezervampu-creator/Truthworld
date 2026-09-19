@@ -5,6 +5,7 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/network/result.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/data/datasources/remote/channel_remote_datasource.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/domain/entities/channel_entity.dart';
 import 'package:truthworld/domain/repositories/channel_repository.dart';
@@ -12,44 +13,25 @@ import 'package:truthworld/domain/repositories/channel_repository.dart';
 class ChannelRepositoryImpl extends BaseRepository
     implements ChannelRepository {
   final FirebaseFirestore _firestore;
+  final ChannelRemoteDataSource _remoteDataSource;
 
   DocumentSnapshot? _lastSubDoc;
 
-  ChannelRepositoryImpl({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? FirebaseFirestore.instance;
+  ChannelRepositoryImpl({
+    FirebaseFirestore? firestore,
+    ChannelRemoteDataSource? remoteDataSource,
+  })  : _firestore = firestore ?? FirebaseFirestore.instance,
+        _remoteDataSource = remoteDataSource ??
+            FirestoreChannelRemoteDataSource(firestore: firestore);
 
   ChannelEntity _mapToEntity(Channel model) {
-    return ChannelEntity(
-      id: model.id,
-      name: model.name,
-      handle: model.handle,
-      ownerId: model.ownerId,
-      createdAt: model.createdAt.toDate(),
-      updatedAt: model.updatedAt.toDate(),
-      description: model.description,
-      avatarUrl: model.avatarUrl,
-      bannerUrl: model.bannerUrl,
-      subscriberCount: model.subscriberCount,
-      videoCount: model.videoCount,
-      totalViews: model.viewCount,
-      isVerified: model.isVerified,
-      status: model.status.name,
-      category: model.category,
-      categories: model.categories,
-      visibility: model.visibility,
-    );
+    return model.toEntity();
   }
 
   @override
   Future<Result<ChannelEntity>> getChannelById(String id) async {
     return safeFetch(() async {
-      final doc = await _firestore
-          .collection(FirestoreCollections.channels)
-          .doc(id)
-          .get();
-      if (!doc.exists) throw Exception('Channel not found');
-
-      final channel = Channel.fromDocumentSnapshot(doc);
+      final channel = await _remoteDataSource.getChannelById(id);
       return _mapToEntity(channel);
     });
   }
@@ -57,16 +39,7 @@ class ChannelRepositoryImpl extends BaseRepository
   @override
   Future<Result<ChannelEntity>> getChannelByHandle(String handle) async {
     return safeFetch(() async {
-      final handleLower = handle.toLowerCase();
-      final snapshot = await _firestore
-          .collection(FirestoreCollections.channels)
-          .where('handleLowercase', isEqualTo: handleLower)
-          .limit(1)
-          .get();
-
-      if (snapshot.docs.isEmpty) throw Exception('Channel not found');
-
-      final channel = Channel.fromDocumentSnapshot(snapshot.docs.first);
+      final channel = await _remoteDataSource.getChannelByHandle(handle);
       return _mapToEntity(channel);
     });
   }

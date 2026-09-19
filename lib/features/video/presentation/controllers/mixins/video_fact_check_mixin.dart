@@ -1,10 +1,9 @@
-import 'dart:convert';
-
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:http/http.dart' as http;
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/network/app_http_client.dart';
+import 'package:truthworld/core/utils/isolate_compute_utils.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -34,9 +33,9 @@ mixin VideoFactCheckMixin on GetxController {
         url = await FirebaseStorage.instance.refFromURL(url).getDownloadURL();
       }
 
-      final response = await http.get(Uri.parse(url));
+      final response = await AppHttpClient.get(Uri.parse(url));
       if (response.statusCode == 200) {
-        final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+        final decoded = await IsolateComputeUtils.parseJsonMapAsync(response.body);
         factCheckData.value = decoded;
 
         try {
@@ -126,9 +125,9 @@ mixin VideoFactCheckMixin on GetxController {
         url = await FirebaseStorage.instance.refFromURL(url).getDownloadURL();
       }
 
-      final response = await http.get(Uri.parse(url));
+      final response = await AppHttpClient.get(Uri.parse(url));
       if (response.statusCode == 200) {
-        factCheckData.value = jsonDecode(response.body) as Map<String, dynamic>;
+        factCheckData.value = await IsolateComputeUtils.parseJsonMapAsync(response.body);
         showFullDisclosurePanel();
       } else {
         throw Exception('Failed to load fact-check data');
@@ -153,5 +152,4 @@ mixin VideoFactCheckMixin on GetxController {
   }
 
   /// Backward-compatible alias.
-  void _showFullDisclosurePanel() => showFullDisclosurePanel();
 }

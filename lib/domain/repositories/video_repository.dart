@@ -11,6 +11,7 @@ abstract class VideoRepository {
   Future<Result<List<VideoEntity>>> getHomeFeed({
     int page = 1,
     int limit = 10,
+    dynamic startAfter,
   });
 
   /// Fetch a single video by its ID.
@@ -21,6 +22,7 @@ abstract class VideoRepository {
     String query, {
     int page = 1,
     int limit = 20,
+    dynamic startAfter,
   });
 
   /// Fetch videos by channel ID.
@@ -28,6 +30,7 @@ abstract class VideoRepository {
     String channelId, {
     int page = 1,
     int limit = 20,
+    dynamic startAfter,
   });
 
   /// Fetch trending videos.

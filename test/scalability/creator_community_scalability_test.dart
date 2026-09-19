@@ -284,11 +284,14 @@ void main() {
         ['es', 'fr', 'de', 'ja', 'zh', 'ar', 'hi'],
       ];
 
+      final channelTypes = [ChannelType.standard, ChannelType.custom];
+
       // Warmup pass
       for (var i = 0; i < 20; i++) {
         ChannelWalletService.calculateAIFeatureCost(
           selectedFeatures: featureSets[i % featureSets.length],
           targetLanguages: languages[i % languages.length],
+          channelType: channelTypes[i % channelTypes.length],
         );
       }
 
@@ -297,6 +300,7 @@ void main() {
         final cost = ChannelWalletService.calculateAIFeatureCost(
           selectedFeatures: featureSets[i % featureSets.length],
           targetLanguages: languages[i % languages.length],
+          channelType: channelTypes[i % channelTypes.length],
         );
         expect(cost, greaterThan(0.0));
       }

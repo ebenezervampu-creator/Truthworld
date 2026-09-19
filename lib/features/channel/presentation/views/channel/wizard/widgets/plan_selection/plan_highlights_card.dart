@@ -111,6 +111,11 @@ class PlanHighlightsCard extends StatelessWidget {
           'subtitle': '2-5 times faster processing speed & ultra HD playback',
         },
         {
+          'title': r'50% Off AI Dubbing ($0.25/language) & Vocal Identity',
+          'subtitle':
+              'Half-price dubbing with exclusive Studio Voice Cloning, fundable via monthly bonus credits',
+        },
+        {
           'title': '30+ Premium Features & Tools',
           'subtitle':
               'Advanced analytics, custom branding, live priority & priority CDN',
@@ -136,8 +141,14 @@ class PlanHighlightsCard extends StatelessWidget {
           'subtitle': 'Keep 100% of direct fan support from your community',
         },
         {
-          'title': '20 min/day Upload Limit (Up to 1080p Full HD)',
-          'subtitle': 'Fast processing and crisp Full HD streaming',
+          'title': '10 min/day Upload Limit (Up to 4K Ultra HD)',
+          'subtitle':
+              'Fast processing with up to 4K Ultra HD resolution (Free playback up to 1040p)',
+        },
+        {
+          'title': r'Standard AI Dubbing ($0.50/language)',
+          'subtitle':
+              'Translate and dub videos into 70+ languages on demand with zero upfront hardware costs',
         },
         {
           'title': '10+ Essential Creator Tools',
@@ -168,9 +179,15 @@ class PlanHighlightsCard extends StatelessWidget {
         },
         {
           'title':
-              '20 Min/Day (Standard) vs Unlimited Upload Duration & 4K (Custom)',
+              '10 Min/Day (Standard) vs Unlimited Upload Duration (Custom)',
           'subtitle':
-              'Standard uploads up to 1080p Full HD; Custom supports 4K Ultra HD & unlimited duration.',
+              'Standard uploads up to 10 min/day in 4K UHD; Custom supports unlimited duration & dedicated infrastructure.',
+        },
+        {
+          'title':
+              r'AI Multilingual Dubbing: $0.50/lang (Standard) vs $0.25/lang (Custom)',
+          'subtitle':
+              'Standard uses natural voice presets; Custom includes 50% discount and vocal identity voice cloning.',
         },
         {
           'title': 'Storage & Global CDN Infrastructure Tiers',
@@ -310,13 +327,14 @@ class PlanHighlightsCard extends StatelessWidget {
                     const SizedBox(width: 10),
                     const Expanded(
                       child: Text(
-                        'Note: We have Standard channels as 100% free to operate. TruthWorld covers video hosting & transcoding. You earn a 90% revenue share and as a partner tier, you pay 10% of direct fan support (Memberships, Superchats, etc.) as a platform commission.',
+                        r'Note: Standard channels are 100% free to operate with zero hosting fees. Truthworld takes 30% revenue share from ads and premium subscriptions (70% for creator), and 0% revenue share from superchats and memberships (100% for creator). Custom channels keep 100% revenue across all streams (0% platform cut) with plans starting at $15, $30, $45/mo.',
                         style: TextStyle(
                           fontSize: 12,
                           color: Color(0xFFD4D4D8),
                           height: 1.5,
                         ),
                       ),
+
                     ),
                   ],
                 ),

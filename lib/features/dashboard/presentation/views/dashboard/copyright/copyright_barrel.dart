@@ -1,0 +1,9 @@
+export 'package:truthworld/features/dashboard/presentation/controllers/copyright_controller.dart';
+export 'claim_card.dart';
+export 'claim_details_sheet.dart';
+export 'claims_summary_card.dart';
+export 'copyright_dialogs.dart';
+export 'copyright_empty_states.dart';
+export 'copyright_formatters.dart';
+export 'match_tool_header.dart';
+export 'match_video_card.dart';

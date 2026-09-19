@@ -72,9 +72,6 @@ mixin VideoErrorRecoveryMixin on GetxController {
     }
   }
 
-  /// Backward-compatible alias.
-  void _videoErrorListener() => videoErrorListener();
-
   /// Tries to recover from a format/source error by testing all available backup URLs.
   Future<void> attemptFormatFallback() async {
     if (_isRecoveringFromFormatError) return;
@@ -165,9 +162,6 @@ mixin VideoErrorRecoveryMixin on GetxController {
       rxIsLoading.value = false;
     }
   }
-
-  /// Backward-compatible alias.
-  Future<void> _attemptFormatFallback() => attemptFormatFallback();
 
   /// Attempts to re-initialize the player from the current position
   Future<void> attemptRecovery() async {

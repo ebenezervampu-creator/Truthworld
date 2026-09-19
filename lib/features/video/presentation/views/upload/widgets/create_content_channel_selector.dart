@@ -589,7 +589,7 @@ class CreateContentChannelSelector extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          '${_controller.todayUploadedDurationFormatted} / 20 min used today',
+                          '${_controller.todayUploadedDurationFormatted} / 10 min used today',
                           style: context.themeTypography.bodySmall.copyWith(
                             color: isDark
                                 ? AppColors.textTertiary

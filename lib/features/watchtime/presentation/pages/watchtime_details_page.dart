@@ -1,9 +1,8 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:get/get.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/watchtime/presentation/controllers/watchtime_details_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class WatchtimeDetailsPage extends StatelessWidget {
@@ -13,24 +12,18 @@ class WatchtimeDetailsPage extends StatelessWidget {
     super.key,
     this.video,
   });
+
   final String channelId;
   final bool isDarkMode;
   final Video? video;
 
-  Future<QuerySnapshot> _fetchVideosQuery() {
-    final col = FirebaseFirestore.instance.collection(FirestoreCollections.videos);
-    if (channelId.isNotEmpty) {
-      return col.where('channelId', isEqualTo: channelId).get();
-    }
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid != null && uid.isNotEmpty) {
-      return col.where('ownerId', isEqualTo: uid).get();
-    }
-    return col.limit(20).get();
-  }
-
   @override
   Widget build(BuildContext context) {
+    final controller = Get.put(
+      WatchtimeDetailsController(channelId: channelId),
+      tag: channelId.isNotEmpty ? channelId : 'default_watchtime',
+    );
+
     return Scaffold(
       backgroundColor: AppColors.bgPage,
       appBar: AppBar(
@@ -43,87 +36,92 @@ class WatchtimeDetailsPage extends StatelessWidget {
           color: Colors.white,
         ),
       ),
-      body: FutureBuilder<QuerySnapshot>(
-        future: _fetchVideosQuery(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return buildShimmerVideoList();
-          }
-          if (snapshot.hasError) {
-            return const Center(
-              child: Text(
-                'Unable to load watch time details. Please try again later.',
-                style: TextStyle(color: AppColors.textSecondary),
+      body: Obx(() {
+        if (controller.isLoading) {
+          return buildShimmerVideoList();
+        }
+
+        if (controller.isError) {
+          return Center(
+            child: Text(
+              controller.errorMessage.isNotEmpty
+                  ? controller.errorMessage
+                  : 'Unable to load watch time details. Please try again later.',
+              style: const TextStyle(color: AppColors.textSecondary),
+            ),
+          );
+        }
+
+        if (controller.videoItems.isEmpty) {
+          return const Center(
+            child: Text(
+              'No videos found.',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          );
+        }
+
+        return ListView.builder(
+          itemCount: controller.videoItems.length,
+          itemBuilder: (context, index) {
+            final item = controller.videoItems[index];
+            return Card(
+              color: AppColors.bgSurface,
+              margin: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
+              ),
+              child: ListTile(
+                title: Text(
+                  item.title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 6),
+                    Text(
+                      'Total Views: ${item.totalViews}',
+                      style: const TextStyle(color: AppColors.textSecondary),
+                    ),
+                    Text(
+                      'Unique Users: ${item.uniqueUsers}',
+                      style: const TextStyle(color: AppColors.textSecondary),
+                    ),
+                    Text(
+                      'Total Watch Seconds: ${item.totalWatchSeconds}',
+                      style: const TextStyle(color: AppColors.textSecondary),
+                    ),
+                    Text(
+                      'Avg Watch Seconds: ${item.avgWatchSeconds.toStringAsFixed(1)}',
+                      style: const TextStyle(color: AppColors.textSecondary),
+                    ),
+                    Text(
+                      'Completion Rate: ${item.completionRate.toStringAsFixed(1)}%',
+                      style: const TextStyle(color: AppColors.textSecondary),
+                    ),
+                    Text(
+                      'Full Watched: ${item.fullWatched}',
+                      style: const TextStyle(color: AppColors.textSecondary),
+                    ),
+                    Text(
+                      'Half Watched: ${item.halfWatched}',
+                      style: const TextStyle(color: AppColors.textSecondary),
+                    ),
+                    Text(
+                      'Under 20 Sec: ${item.under20Sec}',
+                      style: const TextStyle(color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
               ),
             );
-          }
-          final videos = snapshot.data?.docs ?? [];
-          if (videos.isEmpty) {
-            return const Center(child: Text('No videos found.'));
-          }
-          return ListView.builder(
-            itemCount: videos.length,
-            itemBuilder: (context, index) {
-              final video = videos[index];
-              return FutureBuilder<DocumentSnapshot>(
-                future: FirebaseFirestore.instance
-                    .collection('video_stats')
-                    .doc(video.id)
-                    .get(),
-                builder: (context, statsSnapshot) {
-                  if (!statsSnapshot.hasData) {
-                    return ListTile(
-                      title: Text((video['title'] as String?) ?? 'Untitled'),
-                    );
-                  }
-                  final stats =
-                      statsSnapshot.data?.data() as Map<String, dynamic>?;
-                  return Card(
-                    margin: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    child: ListTile(
-                      title: Text((video['title'] as String?) ?? 'Untitled'),
-                      subtitle: stats == null
-                          ? const Text('No stats available')
-                          : Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Total Views: \\${stats['totalViews'] ?? 0}',
-                                ),
-                                Text(
-                                  'Unique Users: \\${stats['uniqueUsers'] ?? 0}',
-                                ),
-                                Text(
-                                  'Total Watch Seconds: \\${stats['totalWatchSeconds'] ?? 0}',
-                                ),
-                                Text(
-                                  'Avg Watch Seconds: \\${stats['avgWatchSeconds'] ?? 0}',
-                                ),
-                                Text(
-                                  'Completion Rate: \\${stats['completionRate'] ?? 0}%',
-                                ),
-                                Text(
-                                  'Full Watched: \\${stats['fullWatched'] ?? 0}',
-                                ),
-                                Text(
-                                  'Half Watched: \\${stats['halfWatched'] ?? 0}',
-                                ),
-                                Text(
-                                  'Under 20 Sec: \\${stats['under20Sec'] ?? 0}',
-                                ),
-                              ],
-                            ),
-                    ),
-                  );
-                },
-              );
-            },
-          );
-        },
-      ),
+          },
+        );
+      }),
     );
   }
 }

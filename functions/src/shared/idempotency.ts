@@ -12,7 +12,7 @@ import { logger } from "./logger";
 const db = admin.firestore();
 const PROCESSED_EVENTS_TTL_MS = 86400000; // 24 hours
 
-export type IdempotencyStatus = "NEW" | "PROCESSING" | "COMPLETED";
+export type IdempotencyStatus = "NEW" | "PROCESSING" | "COMPLETED" | "FAILED";
 
 /**
  * 🔴 THE CRITICAL IDEMPOTENCY CHECK
@@ -42,9 +42,9 @@ export async function checkAndMarkEventId(
         const currentStatus = (data?.status as IdempotencyStatus) || "COMPLETED";
         const processedAt = data?.processedAt || 0;
 
-        // Self-healing for stale tasks
-        if (currentStatus === "PROCESSING" && Date.now() - processedAt > maxProcessingTimeMs) {
-          logger.warn("[Idempotency] Stale task detected — resetting", { eventId, jobId });
+        // Self-healing for stale or failed tasks: allow immediate re-run
+        if (currentStatus === "FAILED" || (currentStatus === "PROCESSING" && Date.now() - processedAt > maxProcessingTimeMs)) {
+          logger.warn("[Idempotency] Resetting failed or stale task", { eventId, jobId, previousStatus: currentStatus });
           transaction.update(docRef, { status: "PROCESSING", jobId, processedAt: Date.now() });
           return "NEW" as const;
         }
@@ -81,6 +81,19 @@ export async function markEventCompleted(eventId: string): Promise<void> {
     setCache(`event:${eventId}`, "COMPLETED", 3600);
   } catch (err) {
     logger.warn("[Idempotency] Failed marking completion", { eventId, err });
+  }
+}
+
+export async function markEventFailed(eventId: string, error?: string): Promise<void> {
+  try {
+    await db.collection("processed_events").doc(eventId).update({
+      status: "FAILED",
+      failedAt: Date.now(),
+      error: error || "Unknown error",
+    });
+    setCache(`event:${eventId}`, "FAILED", 10);
+  } catch (err) {
+    logger.warn("[Idempotency] Failed marking failure", { eventId, err });
   }
 }
 

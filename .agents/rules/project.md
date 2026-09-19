@@ -3,9 +3,23 @@ trigger: always_on
 description: Core project rules including icon colors and GetX state management standards
 ---
 
-# Icon Color Guidelines
-- Never use primary color or brand color (`AppColors.brand`, `AppColors.brandVariant`, `AppColors.brandHover`, `Theme.of(context).primaryColor`, etc.) in icons.
-- Always use white (`Colors.white` or `AppColors.textPrimary`) for icons across the entire Truthworld project.
+# UI Contrast & Accessibility Guidelines (ZERO White-on-White Policy)
+- **Brand & White Background Surfaces**:
+  - TruthWorld uses `AppColors.brand = Color(0xFFFFFFFF)` (pure white YouTube-style accent).
+  - Any button, badge, pill, or container with a white/brand background (`AppColors.brand`, `Colors.white`, or light opacity >= 0.6) MUST use black foreground:
+    - Button foreground: `foregroundColor: Colors.black` (or `Colors.black87`).
+    - Icons on white/brand surfaces MUST be `color: Colors.black` (or `Colors.black87`). NEVER use `Colors.white` or `AppColors.textPrimary` on white surfaces!
+    - Text on white/brand surfaces MUST be `color: Colors.black` (or `Colors.black87`).
+    - Loading spinners inside white buttons MUST be black (`CircularProgressIndicator(color: Colors.black)` or `AlwaysStoppedAnimation<Color>(Colors.black)`).
+- **Dark Background Surfaces**:
+  - On dark surfaces (`AppColors.bgPage`, `AppColors.bgSurface`, etc.), icons and text are white (`Colors.white`, `AppColors.textPrimary`).
+  - Never use brand/primary color for icons on dark surfaces (maintain clean YouTube-style white iconography).
+- **Dynamic Theme Adaptations**:
+  - Any component that supports light mode or dynamic surfaces (`isDarkMode ? AppColors.bgSurface : Colors.white`) MUST dynamically adapt icon and text colors: `color: isDarkMode ? Colors.white : Colors.black87`. Never hardcode `Colors.white` inside dynamic containers.
+- **Button Text Styles**:
+  - `AppTextStyles.buttonText` defaults to `AppColors.textPrimary` (white). When using `AppTextStyles.buttonText` on white/brand buttons, you MUST specify `.copyWith(color: Colors.black)` or omit it and rely directly on the button's `foregroundColor: Colors.black`.
+- **Contrast Guard Verification**:
+  - Always run `flutter test test/core/ui_contrast_guard_test.dart` to verify that no white-on-white violations exist.
 
 # State Management Guidelines
 - **Zero `setState` Policy**: Never use `setState()` in any view, widget, or component across the entire Truthworld project.

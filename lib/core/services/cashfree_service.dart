@@ -38,6 +38,9 @@ class CashfreePaymentService extends GetxService {
     return Get.find<CashfreePaymentService>();
   }
 
+  /// Whether native Cashfree PG callbacks should be registered (can be disabled in pure unit tests)
+  static bool enableNativeGateway = true;
+
   final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(
     region: 'asia-south1',
   );
@@ -55,6 +58,12 @@ class CashfreePaymentService extends GetxService {
   }
 
   void _initGatewayCallbacks() {
+    if (!enableNativeGateway) return;
+    final isMobile = !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS);
+    if (!isMobile) return;
+
     try {
       _cfGateway.setCallback(
         _onPaymentVerify,
@@ -149,14 +158,16 @@ class CashfreePaymentService extends GetxService {
       );
     }
 
-    if (amount <= 0) {
-      AppSnackbar.warning('Please enter a valid amount.');
+    if (amount.isNaN || amount.isInfinite || amount < 1.0) {
+      AppSnackbar.warning('Minimum transaction amount is ₹1.00.');
       return const CashfreePaymentResult(
         success: false,
         orderId: '',
-        errorMessage: 'Invalid amount',
+        errorMessage: 'Transaction amount must be at least ₹1.00',
       );
     }
+
+    final sanitizedAmount = double.parse(amount.toStringAsFixed(2));
 
     try {
       isProcessing.value = true;
@@ -164,7 +175,7 @@ class CashfreePaymentService extends GetxService {
       // 1. Authoritatively create order on server
       final createCallable = _functions.httpsCallable('createCashfreeOrder');
       final createResponse = await createCallable.call({
-        'amount': amount,
+        'amount': sanitizedAmount,
         'currency': 'INR',
         'purpose': purpose,
         'orderNote': orderNote,

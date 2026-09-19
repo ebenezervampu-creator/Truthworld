@@ -10,6 +10,12 @@ class TrendingVideosPage extends GetView<TrendingController> {
   final bool isDashboard;
 
   @override
+  TrendingController get controller =>
+      Get.isRegistered<TrendingController>()
+          ? Get.find<TrendingController>()
+          : Get.put(TrendingController());
+
+  @override
   Widget build(BuildContext context) {
     controller;
 
@@ -19,7 +25,7 @@ class TrendingVideosPage extends GetView<TrendingController> {
         return Scaffold(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           appBar: !isDashboard ? _buildAppBar(context, deviceType) : null,
-          body: SafeArea(child: Obx(() => _buildBody(context, deviceType))),
+          body: SafeArea(child: _buildBody(context, deviceType)),
         );
       },
     );
@@ -44,6 +50,7 @@ class TrendingVideosPage extends GetView<TrendingController> {
         IconButton(
           icon: Icon(
             Icons.filter_list,
+            color: Colors.white,
             size: deviceType == DeviceType.mobile ? 20 : 24,
           ),
           onPressed: () {
@@ -55,6 +62,7 @@ class TrendingVideosPage extends GetView<TrendingController> {
           IconButton(
             icon: Icon(
               Icons.view_list,
+              color: Colors.white,
               size: deviceType == DeviceType.mobile ? 20 : 24,
             ),
             onPressed: () {
@@ -67,20 +75,22 @@ class TrendingVideosPage extends GetView<TrendingController> {
   }
 
   Widget _buildBody(BuildContext context, DeviceType deviceType) {
-    if (controller.isLoading) {
-      return _buildLoadingState(context, deviceType);
-    }
-
-    if (controller.trendingVideos.isEmpty) {
-      return _buildEmptyState(context, deviceType);
-    }
-
     return ResponsiveContainer(
       child: Column(
         children: [
           _buildTrendingHeader(context, deviceType),
           SizedBox(height: context.layoutSpacing),
-          Expanded(child: _buildVideoGrid(context, deviceType)),
+          Expanded(
+            child: Obx(() {
+              if (controller.isLoading) {
+                return _buildLoadingState(context, deviceType);
+              }
+              if (controller.trendingVideos.isEmpty) {
+                return _buildEmptyState(context, deviceType);
+              }
+              return _buildVideoGrid(context, deviceType);
+            }),
+          ),
         ],
       ),
     );

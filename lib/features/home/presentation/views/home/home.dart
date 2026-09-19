@@ -19,13 +19,6 @@ export 'package:truthworld/features/home/presentation/models/home_sidebar_visibi
 export 'package:truthworld/theme/dark_professional_theme.dart';
 export 'widgets/home_widgets.dart';
 
-// Backward-compatibility aliases for decomposed widgets
-typedef _ModernSideNavigationRail = ModernSideNavigationRail;
-typedef _FeaturedVideoBanner = FeaturedVideoBanner;
-typedef _PersonalizedPlaylistsSection = PersonalizedPlaylistsSection;
-typedef _ModernMainContent = HomeMainContent;
-typedef _ModernVideoGridSection = HomeVideoGridSection;
-
 /// Main Home Shell view coordinating navigation rail, app bar, core tabs, and subpages.
 class Home extends GetView<HomeController> {
   const Home({super.key});

@@ -197,6 +197,7 @@ class AdaptiveBitrateController extends BaseController {
   // ── Configuration ─────────────────────────────────────────
   List<ResolutionTier> resolutionLadder = [];
   VideoPlayerController? _vpc;
+  int? maxHeightCap;
 
   // ABR tuning constants (Netflix/YouTube values)
   static const double _bandwidthSafetyFactor = 0.80; // Use 80% of measured BW
@@ -228,7 +229,9 @@ class AdaptiveBitrateController extends BaseController {
   void initialize({
     required List<ResolutionTier> ladder,
     required VideoPlayerController vpc,
+    int? maxHeightCap,
   }) {
+    this.maxHeightCap = maxHeightCap;
     resolutionLadder = ladder;
     _vpc = vpc;
 
@@ -252,6 +255,25 @@ class AdaptiveBitrateController extends BaseController {
     _startBandwidthProbing();
     _startStallDetection();
     _vpc!.addListener(_onVideoPlayerUpdate);
+  }
+
+  void updateMaxHeightCap(int? cap) {
+    if (maxHeightCap == cap) return;
+    maxHeightCap = cap;
+    if (isAutoMode.value) {
+      _runAbrDecision();
+    } else if (cap != null &&
+        currentTierIndex.value < resolutionLadder.length &&
+        resolutionLadder[currentTierIndex.value].height > cap) {
+      var fallback = 0;
+      for (var i = resolutionLadder.length - 1; i >= 0; i--) {
+        if (resolutionLadder[i].height <= cap) {
+          fallback = i;
+          break;
+        }
+      }
+      _switchToTier(fallback, reason: 'Cap update enforcement: height > $cap');
+    }
   }
 
   double _getInitialBandwidthHint() {
@@ -279,6 +301,13 @@ class AdaptiveBitrateController extends BaseController {
   }
 
   void setManualTier(int index) {
+    if (index < 0 || index >= resolutionLadder.length) return;
+    if (maxHeightCap != null && resolutionLadder[index].height > maxHeightCap!) {
+      debugPrint(
+        '[ABR] Manual switch to ${resolutionLadder[index].label} blocked by maxHeightCap ($maxHeightCap)',
+      );
+      return;
+    }
     isAutoMode.value = false;
     _switchToTier(index, reason: 'Manual selection', isManual: true);
   }
@@ -337,7 +366,16 @@ class AdaptiveBitrateController extends BaseController {
 
     // ── Find best sustainable tier ──
     var bestTier = 0;
+    for (var i = 0; i < resolutionLadder.length; i++) {
+      if (maxHeightCap == null || resolutionLadder[i].height <= maxHeightCap!) {
+        bestTier = i;
+        break;
+      }
+    }
     for (var i = resolutionLadder.length - 1; i >= 0; i--) {
+      if (maxHeightCap != null && resolutionLadder[i].height > maxHeightCap!) {
+        continue;
+      }
       if (effectiveBw >= resolutionLadder[i].minBandwidth) {
         bestTier = i;
         break;
@@ -369,15 +407,19 @@ class AdaptiveBitrateController extends BaseController {
         );
       }
     }
-    // ── Downgrade logic with hysteresis ──
+    // ── Downgrade logic with hysteresis & cap enforcement ──
     else if (bestTier < current) {
+      final isOverCap = maxHeightCap != null &&
+          current < resolutionLadder.length &&
+          resolutionLadder[current].height > maxHeightCap!;
       final currentRequired =
           resolutionLadder[current].minBandwidth * _downgradeHysteresisFactor;
-      if (effectiveBw < currentRequired) {
+      if (isOverCap || effectiveBw < currentRequired) {
         _switchToTier(
           bestTier,
-          reason:
-              'Downgrade: bw=${effectiveBw.toStringAsFixed(0)}kbps required=${currentRequired.toStringAsFixed(0)}',
+          reason: isOverCap
+              ? 'Cap enforcement: height > $maxHeightCap'
+              : 'Downgrade: bw=${effectiveBw.toStringAsFixed(0)}kbps required=${currentRequired.toStringAsFixed(0)}',
         );
       }
     }

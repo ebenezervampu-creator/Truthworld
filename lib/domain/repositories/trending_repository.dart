@@ -1,9 +1,12 @@
 import 'package:truthworld/core/network/result.dart';
+import 'package:truthworld/domain/entities/channel_entity.dart';
+import 'package:truthworld/domain/entities/topic_entity.dart';
+import 'package:truthworld/domain/entities/video_entity.dart';
 
 /// Repository interface for trending content operations.
 abstract class TrendingRepository {
   /// Fetch trending videos with pagination.
-  Future<Result<List<Map<String, dynamic>>>> getTrendingVideos({
+  Future<Result<List<VideoEntity>>> getTrendingVideos({
     int page = 1,
     int limit = 20,
     String? country,
@@ -11,12 +14,12 @@ abstract class TrendingRepository {
   });
 
   /// Fetch trending topics.
-  Future<Result<List<Map<String, dynamic>>>> getTrendingTopics({
+  Future<Result<List<TopicEntity>>> getTrendingTopics({
     int limit = 10,
   });
 
   /// Fetch trending creators.
-  Future<Result<List<Map<String, dynamic>>>> getTrendingCreators({
+  Future<Result<List<ChannelEntity>>> getTrendingCreators({
     int limit = 10,
   });
 }

@@ -236,7 +236,7 @@ class ErrorHandler {
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.brand,
-                  foregroundColor: AppColors.textPrimary,
+                  foregroundColor: Colors.black,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),

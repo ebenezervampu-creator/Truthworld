@@ -193,17 +193,18 @@ class VideoContentDetailsScreen extends StatelessWidget {
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.brand,
-                    foregroundColor: AppColors.textPrimary,
+                    foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  icon: const Icon(Icons.play_arrow_rounded, size: 20, color: Colors.white),
+                  icon: const Icon(Icons.play_arrow_rounded, size: 20, color: Colors.black),
                   label: Text(
                     'Watch',
                     style: AppTextStyles.buttonText.copyWith(
                       fontWeight: FontWeight.bold,
+                      color: Colors.black,
                     ),
                   ),
                   onPressed: () {
@@ -626,7 +627,7 @@ class VideoContentDetailsScreen extends StatelessWidget {
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.brand,
-                      foregroundColor: AppColors.textPrimary,
+                      foregroundColor: Colors.black,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 20,
                         vertical: 10,

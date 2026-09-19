@@ -87,6 +87,48 @@ interface RevenueDetails {
 }
 
 // =============================================================================
+// HELPER: Calculate live channel revenue when no statements are generated yet
+// =============================================================================
+
+async function calculateLiveChannelRevenue(
+  channelRef: admin.firestore.DocumentReference,
+  channelData: admin.firestore.DocumentData
+): Promise<number> {
+  const isCustom = channelData.type === "custom" || channelData.channelType === "custom";
+  const chSuperchats = Number(channelData.superchatRevenueTotal || 0);
+  const chAds = Number(channelData.adsRevenueTotal || 0);
+  let chMembers = Number(channelData.membershipRevenueTotal || channelData.membershipsRevenueTotal || 0);
+
+  if (chMembers === 0) {
+    try {
+      const membersSnap = await channelRef.collection("members").where("status", "==", "active").get();
+      for (const mDoc of membersSnap.docs) {
+        chMembers += Number(mDoc.data().price || 0);
+      }
+    } catch (_) {}
+
+    if (chMembers === 0) {
+      try {
+        const tiersSnap = await channelRef.collection("membership_tiers").where("isEnabled", "==", true).get();
+        for (const tDoc of tiersSnap.docs) {
+          const tData = tDoc.data();
+          const price = Number(tData.price || 0);
+          const count = Number(tData.memberCount || 0);
+          chMembers += price * count;
+        }
+      } catch (_) {}
+    }
+  }
+
+  const chWatchRevenue = Number(channelData.watchTimeRevenueTotal || 0);
+  const gross = chSuperchats + chAds + chMembers + chWatchRevenue;
+  if (isCustom) {
+    return Math.round(gross * 100) / 100;
+  }
+  return Math.round(((chAds * 0.70) + chSuperchats + chMembers + (chWatchRevenue * 0.70)) * 100) / 100;
+}
+
+// =============================================================================
 // CLOUD FUNCTION 1: Get Channel Overview Stats
 // =============================================================================
 
@@ -151,8 +193,13 @@ export const getChannelOverview = onCall(
         .limit(2)
         .get();
 
-      const currentRevenue = revenueSnap.empty ? 0 : (revenueSnap.docs[0].data().creatorShare || 0);
+      let currentRevenue = revenueSnap.empty ? 0 : (revenueSnap.docs[0].data().creatorShare || 0);
       const prevRevenue = revenueSnap.docs.length > 1 ? (revenueSnap.docs[1].data().creatorShare || 0) : 0;
+
+      // If no finalized revenue statements exist yet, derive live unwithdrawn revenue from channel metrics and members
+      if (currentRevenue === 0) {
+        currentRevenue = await calculateLiveChannelRevenue(channelRef, channelData);
+      }
 
       const overview: ChannelOverviewStats = {
         totalViews: currentStats.views,
@@ -588,9 +635,10 @@ export const getChannelRevenueDetails = onCall(
       const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
 
 
-      // Get revenue share settings
-      const adsShare = TYPE_REVENUE_SHARE[type as keyof typeof TYPE_REVENUE_SHARE]?.ads || 0.75;
-      const membersShare = TYPE_REVENUE_SHARE[type as keyof typeof TYPE_REVENUE_SHARE]?.members || 0.75;
+      // Get unified revenue share settings
+      const adsShare = TYPE_REVENUE_SHARE[type as keyof typeof TYPE_REVENUE_SHARE]?.ads ?? (type === "custom" ? 1.0 : 0.70);
+      const membersShare = TYPE_REVENUE_SHARE[type as keyof typeof TYPE_REVENUE_SHARE]?.members ?? 1.0;
+
 
 
       // Fetch revenue statements
@@ -618,8 +666,16 @@ export const getChannelRevenueDetails = onCall(
       });
 
       // Calculate totals
-      const lifetimeRevenue = monthlyEstimates.reduce((sum, m) => sum + m.creatorShare, 0);
-      const pendingRevenue = monthlyEstimates.find(m => m.month === new Date().toISOString().slice(0, 7))?.creatorShare || 0;
+      let lifetimeRevenue = monthlyEstimates.reduce((sum, m) => sum + m.creatorShare, 0);
+      let pendingRevenue = monthlyEstimates.find(m => m.month === new Date().toISOString().slice(0, 7))?.creatorShare || 0;
+
+      // If no finalized revenue statements exist yet, derive live unwithdrawn revenue
+      if (pendingRevenue === 0) {
+        pendingRevenue = await calculateLiveChannelRevenue(channelRef, channelData);
+        if (lifetimeRevenue === 0) {
+          lifetimeRevenue = pendingRevenue;
+        }
+      }
 
       // Get watch hours for monetization eligibility
       const now = new Date();

@@ -169,6 +169,18 @@ class MediaCryptoService {
       sha256Digest: digest,
     );
 
+    if (plaintext.length >= 65536) {
+      return compute(
+        _encryptBytesWorker,
+        _EncryptTaskParams(
+          plaintext: plaintext,
+          key: key,
+          iv: iv,
+          header: header,
+        ),
+      );
+    }
+
     final cipher = CTRStreamCipher(AESEngine());
     cipher.init(true, ParametersWithIV(KeyParameter(key), iv));
 
@@ -189,11 +201,25 @@ class MediaCryptoService {
   }) async {
     final header = parseHeader(encryptedData);
     final key = keyOverride ?? await getOrCreateDeviceKey();
+    final ciphertext = Uint8List.sublistView(encryptedData, headerSize);
+
+    if (ciphertext.length >= 65536) {
+      return compute(
+        _decryptBytesWorker,
+        _DecryptTaskParams(
+          ciphertext: ciphertext,
+          key: key,
+          iv: header.iv,
+          originalLength: header.originalLength,
+          expectedDigest: header.sha256Digest,
+          verifyChecksum: verifyChecksum,
+        ),
+      );
+    }
 
     final cipher = CTRStreamCipher(AESEngine());
     cipher.init(false, ParametersWithIV(KeyParameter(key), header.iv));
 
-    final ciphertext = Uint8List.sublistView(encryptedData, headerSize);
     final plaintext = Uint8List(ciphertext.length);
     cipher.processBytes(ciphertext, 0, ciphertext.length, plaintext, 0);
 
@@ -352,3 +378,70 @@ class EncryptedMediaHeader {
   final int originalLength;
   final Uint8List sha256Digest;
 }
+
+class _EncryptTaskParams {
+  const _EncryptTaskParams({
+    required this.plaintext,
+    required this.key,
+    required this.iv,
+    required this.header,
+  });
+
+  final Uint8List plaintext;
+  final Uint8List key;
+  final Uint8List iv;
+  final Uint8List header;
+}
+
+Uint8List _encryptBytesWorker(_EncryptTaskParams params) {
+  final cipher = CTRStreamCipher(AESEngine());
+  cipher.init(true, ParametersWithIV(KeyParameter(params.key), params.iv));
+
+  final ciphertext = Uint8List(params.plaintext.length);
+  cipher.processBytes(params.plaintext, 0, params.plaintext.length, ciphertext, 0);
+
+  final result = Uint8List(MediaCryptoService.headerSize + ciphertext.length);
+  result.setRange(0, MediaCryptoService.headerSize, params.header);
+  result.setRange(MediaCryptoService.headerSize, result.length, ciphertext);
+  return result;
+}
+
+class _DecryptTaskParams {
+  const _DecryptTaskParams({
+    required this.ciphertext,
+    required this.key,
+    required this.iv,
+    required this.originalLength,
+    required this.expectedDigest,
+    required this.verifyChecksum,
+  });
+
+  final Uint8List ciphertext;
+  final Uint8List key;
+  final Uint8List iv;
+  final int originalLength;
+  final Uint8List expectedDigest;
+  final bool verifyChecksum;
+}
+
+Uint8List _decryptBytesWorker(_DecryptTaskParams params) {
+  final cipher = CTRStreamCipher(AESEngine());
+  cipher.init(false, ParametersWithIV(KeyParameter(params.key), params.iv));
+
+  final plaintext = Uint8List(params.ciphertext.length);
+  cipher.processBytes(params.ciphertext, 0, params.ciphertext.length, plaintext, 0);
+
+  final result = (plaintext.length > params.originalLength)
+      ? Uint8List.sublistView(plaintext, 0, params.originalLength)
+      : plaintext;
+
+  if (params.verifyChecksum) {
+    final actualDigest = crypto.sha256.convert(result).bytes;
+    if (!listEquals(actualDigest, params.expectedDigest)) {
+      throw const FormatException('Decrypted media checksum verification failed (tampered or corrupted)');
+    }
+  }
+
+  return result;
+}
+

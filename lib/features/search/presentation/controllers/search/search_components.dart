@@ -1,0 +1,10 @@
+export 'search_analytics_tracker.dart';
+export 'search_execution_pipeline.dart';
+export 'search_filter_helper.dart';
+export 'search_history_cache_manager.dart';
+export 'search_models.dart';
+export 'search_navigation_handler.dart';
+export 'search_pagination_manager.dart';
+export 'search_rate_limiter.dart';
+export 'search_suggestions_engine.dart';
+export 'search_trending_manager.dart';

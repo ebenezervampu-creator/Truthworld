@@ -39,7 +39,7 @@ class AudioTracksLanguagesManager extends StatelessWidget {
             const Spacer(),
             ElevatedButton.icon(
               onPressed: onAddLanguage,
-              icon: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
+              icon: const Icon(Icons.add_rounded, size: 16, color: Colors.black),
               label: const Text('Add Language Layer'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.brand,
@@ -185,7 +185,7 @@ class AudioTracksRequestsGrid extends StatelessWidget {
                   ),
                   ElevatedButton.icon(
                     onPressed: () => onUploadDubForRequest(req.language),
-                    icon: const Icon(Icons.add_rounded, size: 14, color: Colors.white),
+                    icon: const Icon(Icons.add_rounded, size: 14, color: Colors.black),
                     label: const Text('Add Dub'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.brand,

@@ -75,7 +75,7 @@ class GlobalErrorBoundary extends StatelessWidget {
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.brand,
-                        foregroundColor: AppColors.textPrimary,
+                        foregroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 24,
                           vertical: 12,
@@ -86,7 +86,7 @@ class GlobalErrorBoundary extends StatelessWidget {
                       ),
                       icon: const Icon(
                         Icons.refresh_rounded,
-                        color: Colors.white, // Rule: Icons must be white
+                        color: Colors.black,
                         size: 20,
                       ),
                       label: const Text('Reload Page'),

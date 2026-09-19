@@ -452,6 +452,7 @@ export const getHomeFeed = onRequest(
 
       res.status(200).json({
         feed: response,
+        videos: response,
         hasMore: feed.length > limit,
         nextStartAfter: response.length > 0 ? response[response.length - 1].createdAt : null,
       });

@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_colors.dart';
+import 'package:truthworld/theme/tw_radius.dart';
 
 /// Active video header banner and action toolbar for desktop & tablet.
 class AudioTracksWorkspaceHeader extends StatelessWidget {
@@ -31,10 +32,47 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
   final bool isDarkMode;
   final VoidCallback onUploadTrack;
 
+  Widget _buildSaveButton({bool isMobile = false}) {
+    return Obx(() {
+      return ElevatedButton.icon(
+        onPressed: controller.isSaving.value ? null : controller.saveCurrentAudioTracks,
+        icon: controller.isSaving.value
+            ? const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                ),
+              )
+            : const Icon(Icons.save_rounded, size: 16, color: Colors.black),
+        label: Text(
+          controller.isSaving.value ? 'Saving...' : 'Save Changes',
+          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.brand,
+          foregroundColor: Colors.black,
+          padding: EdgeInsets.symmetric(
+            horizontal: isMobile ? 12 : 16,
+            vertical: isMobile ? 8 : 10,
+          ),
+          shape: RoundedRectangleBorder(borderRadius: TWRadius.mdBorderRadius),
+        ),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isMobile = width < 600;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 12 : 20,
+        vertical: isMobile ? 10 : 14,
+      ),
       decoration: BoxDecoration(
         color: surfaceColor,
         border: Border(bottom: BorderSide(color: borderColor)),
@@ -47,11 +85,11 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
             children: [
               // Video Thumbnail
               ClipRRect(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: TWRadius.mdBorderRadius,
                 child: CachedNetworkImage(
                   imageUrl: video.thumbnailUrl,
-                  width: 72,
-                  height: 48,
+                  width: isMobile ? 56 : 72,
+                  height: isMobile ? 38 : 48,
                   fit: BoxFit.cover,
                   errorWidget: (_, _, _) => Container(
                     color: Colors.grey[800],
@@ -72,7 +110,7 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.roboto(
-                        fontSize: 17,
+                        fontSize: isMobile ? 15 : 17,
                         fontWeight: FontWeight.bold,
                         color: textColor,
                       ),
@@ -88,7 +126,7 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
                                 color: AppColors.brand.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(10),
+                                borderRadius: TWRadius.mdBorderRadius,
                               ),
                               child: Text(
                                 '$count Dub Languages',
@@ -105,7 +143,7 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
                               color: Colors.grey.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: TWRadius.mdBorderRadius,
                             ),
                             child: Text(
                               'Original: English',
@@ -127,34 +165,10 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 16),
-
-              // Save Changes Button (Primary Action Top Right)
-              Obx(() {
-                return ElevatedButton.icon(
-                  onPressed: controller.isSaving.value ? null : controller.saveCurrentAudioTracks,
-                  icon: controller.isSaving.value
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
-                          ),
-                        )
-                      : const Icon(Icons.save_rounded, size: 16, color: Colors.white),
-                  label: Text(
-                    controller.isSaving.value ? 'Saving...' : 'Save Changes',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.brand,
-                    foregroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                );
-              }),
+              if (!isMobile) ...[
+                const SizedBox(width: 16),
+                _buildSaveButton(),
+              ],
             ],
           ),
 
@@ -165,6 +179,10 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
+                if (isMobile) ...[
+                  _buildSaveButton(isMobile: true),
+                  const SizedBox(width: 8),
+                ],
                 // Preview Player Toggle Button
                 Obx(() => OutlinedButton.icon(
                   onPressed: () => showPreviewPlayer.value = !showPreviewPlayer.value,
@@ -184,7 +202,7 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
                           ? AppColors.brand
                           : (isDarkMode ? const Color(0xFF333333) : AppColors.bgDivider),
                     ),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(borderRadius: TWRadius.mdBorderRadius),
                   ),
                 )),
                 const SizedBox(width: 8),
@@ -198,7 +216,7 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
                     backgroundColor: isDarkMode ? const Color(0xFF262626) : const Color(0xFFE5E7EB),
                     foregroundColor: textColor,
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(borderRadius: TWRadius.mdBorderRadius),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -221,7 +239,7 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     side: BorderSide(color: isDarkMode ? const Color(0xFF333333) : AppColors.bgDivider),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(borderRadius: TWRadius.mdBorderRadius),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -258,7 +276,7 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
                               ? AppColors.brand
                               : (isDarkMode ? const Color(0xFF333333) : AppColors.bgDivider),
                         ),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        shape: RoundedRectangleBorder(borderRadius: TWRadius.mdBorderRadius),
                       ),
                     ),
                   );
@@ -305,12 +323,13 @@ class AudioTracksMobileToolbar extends StatelessWidget {
         children: [
           ElevatedButton.icon(
             onPressed: onUploadTrack,
-            icon: const Icon(Icons.cloud_upload_rounded, size: 16, color: Colors.white),
+            icon: const Icon(Icons.cloud_upload_rounded, size: 16, color: Colors.black),
             label: const Text('Upload Track'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.brand,
               foregroundColor: Colors.black,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: TWRadius.mdBorderRadius),
             ),
           ),
           Obx(() => OutlinedButton.icon(
@@ -320,6 +339,7 @@ class AudioTracksMobileToolbar extends StatelessWidget {
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.textPrimary,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: TWRadius.mdBorderRadius),
             ),
           )),
           Obx(() {
@@ -332,6 +352,7 @@ class AudioTracksMobileToolbar extends StatelessWidget {
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.textPrimary,
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: TWRadius.mdBorderRadius),
               ),
             );
           }),
@@ -343,12 +364,13 @@ class AudioTracksMobileToolbar extends StatelessWidget {
                     height: 14,
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
                   )
-                : const Icon(Icons.save_rounded, size: 16, color: Colors.white),
+                : const Icon(Icons.save_rounded, size: 16, color: Colors.black),
             label: Text(controller.isSaving.value ? 'Saving' : 'Save'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.brand,
               foregroundColor: Colors.black,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: TWRadius.mdBorderRadius),
             ),
           ),
         ],

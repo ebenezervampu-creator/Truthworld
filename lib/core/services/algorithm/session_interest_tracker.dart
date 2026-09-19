@@ -11,6 +11,13 @@ class SessionInterestTracker {
   final List<SessionEvent> _events = [];
   DateTime? _lastEventTime;
 
+  SessionInterestTracker([List<SessionEvent>? initialEvents]) {
+    if (initialEvents != null && initialEvents.isNotEmpty) {
+      _events.addAll(initialEvents);
+      _lastEventTime = DateTime.now();
+    }
+  }
+
   /// Record a session event
   void recordEvent(SessionEvent event) {
     _checkSessionTimeout();

@@ -159,12 +159,16 @@ class SearchResult {
         map['createdAt'],
       ), // Fallback if serialization lost Timestamp type
       type: ResultType.values.firstWhere(
-        (e) => e.toString() == (map['type'] as String?),
+        (e) =>
+            e.toString() == (map['type'] as String?) ||
+            e.name == (map['type'] as String?),
         orElse: () => ResultType.video,
       ),
       durationMs: (map['durationMs'] as num?)?.toInt(),
       language: map['language'] as String?,
       category: map['category'] as String?,
+      relevanceScore:
+          (map['relevanceScore'] as num?)?.toDouble() ?? 0.0,
     );
   }
   final String id;

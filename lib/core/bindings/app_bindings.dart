@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
+import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
 import 'package:truthworld/features/feedback/presentation/views/feedback/feedbacks.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
@@ -21,6 +22,15 @@ class HomeBinding extends Bindings {
     Get.lazyPut<MainController>(MainController.new, fenix: true);
     Get.lazyPut<HomeController>(HomeController.new, fenix: true);
     Get.lazyPut<ChannelController>(ChannelController.new, fenix: true);
+    Get.lazyPut<ChannelSubscriptionController>(
+      ChannelSubscriptionController.new,
+      fenix: true,
+    );
+    Get.lazyPut<PlaylistController>(PlaylistController.new, fenix: true);
+    Get.lazyPut<PlaylistDialogController>(
+      PlaylistDialogController.new,
+      fenix: true,
+    );
     MiniplayerBinding().dependencies();
   }
 }
@@ -36,6 +46,14 @@ class VideoBinding extends Bindings {
         Get.parameters['videoId'];
     Get.lazyPut<VideoController>(VideoController.new, tag: videoId);
     Get.lazyPut<ChannelController>(ChannelController.new, tag: videoId);
+    Get.lazyPut<ChannelSubscriptionController>(
+      ChannelSubscriptionController.new,
+    );
+    Get.lazyPut<PlaylistController>(PlaylistController.new, fenix: true);
+    Get.lazyPut<PlaylistDialogController>(
+      PlaylistDialogController.new,
+      fenix: true,
+    );
   }
 }
 
@@ -52,6 +70,9 @@ class ChannelBinding extends Bindings {
   @override
   void dependencies() {
     Get.lazyPut<ChannelController>(ChannelController.new);
+    Get.lazyPut<ChannelSubscriptionController>(
+      ChannelSubscriptionController.new,
+    );
   }
 }
 

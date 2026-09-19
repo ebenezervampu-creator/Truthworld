@@ -10,8 +10,8 @@ import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
+import 'package:truthworld/features/video/data/datasources/local/database_helpers.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/features/video/domain/database_helpers.dart';
 import 'package:truthworld/features/video/presentation/controllers/downloadcontroller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:universal_html/html.dart' as html;
@@ -113,9 +113,6 @@ mixin VideoOfflineDownloadMixin on GetxController {
       rxIsLoading.value = false;
     }
   }
-
-  /// Backward-compatible alias.
-  Future<void> _initializeOfflinePlayback() => initializeOfflinePlayback();
 
   void prefetchNextPage() {
     if (recommendedVideos.length < 50) {
@@ -222,10 +219,6 @@ mixin VideoOfflineDownloadMixin on GetxController {
     return '';
   }
 
-  /// Backward-compatible alias.
-  Future<String> _resolveDownloadableMediaUrl({required bool isAudioOnly}) =>
-      resolveDownloadableMediaUrl(isAudioOnly: isAudioOnly);
-
   bool validateDownloadSettings() {
     if (!Get.isRegistered<UserSettingsController>()) return true;
     final dl = UserSettingsController.to.downloads.value;
@@ -244,9 +237,6 @@ mixin VideoOfflineDownloadMixin on GetxController {
 
     return true;
   }
-
-  /// Backward-compatible alias.
-  bool _validateDownloadSettings() => validateDownloadSettings();
 
   Future<void> saveAudioOffline() async {
     if (isDownloading.value) {

@@ -74,7 +74,7 @@ class MembershipsScreen extends StatelessWidget {
               ),
               icon: const Icon(
                 Icons.add_rounded,
-                color: Colors.white,
+                color: Colors.black,
                 size: 18,
               ),
               label: const Text('Add Tier'),

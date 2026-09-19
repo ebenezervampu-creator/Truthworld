@@ -10,9 +10,6 @@ class MetadataRow {
   final String value;
 }
 
-// Backward compatibility alias
-typedef _MetadataRow = MetadataRow;
-
 /// GetX Video Player wrapper for admin queue inspection
 class AdminVideoPlayer extends StatefulWidget {
   const AdminVideoPlayer({

@@ -160,6 +160,4 @@ mixin ChannelAvailabilityMixin on ChannelControllerBase {
   }
 
 
-  void _setupTextFieldListeners() => setupTextFieldListeners();
-  void _setupFormValidationListeners() => setupFormValidationListeners();
 }

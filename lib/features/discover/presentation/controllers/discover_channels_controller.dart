@@ -259,7 +259,7 @@ class DiscoverChannelsController extends BaseController {
   void onSearchChanged(String query) {
     searchQuery.value = query;
     if (_debounce?.isActive ?? false) _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 350), loadChannels);
+    _debounce = Timer(const Duration(milliseconds: 500), loadChannels);
   }
 
 
@@ -274,7 +274,8 @@ class DiscoverChannelsController extends BaseController {
     isBroadenedView.value = false;
     activeAiIntent.value = null;
     broadenedChannels.clear();
-    clearSearch();
+    searchController.clear();
+    searchQuery.value = '';
   }
 
   void clearSearch() {
@@ -289,16 +290,16 @@ class DiscoverChannelsController extends BaseController {
   Future<void> loadChannels() async {
     rxIsLoading.value = true;
     try {
+      final rawQuery = searchQuery.value.trim();
       final query = _firestore
           .collection(FirestoreCollections.channels)
           .where('status', isEqualTo: 'active');
 
-      final snapshot = await query.limit(200).get();
+      final snapshot = await query.limit(rawQuery.isNotEmpty ? 100 : 50).get();
       var loadedChannels = snapshot.docs
           .map(Channel.fromDocumentSnapshot)
           .toList();
 
-      final rawQuery = searchQuery.value.trim();
 
       if (rawQuery.isNotEmpty) {
         isAiSearching.value = true;

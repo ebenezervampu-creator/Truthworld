@@ -38,7 +38,6 @@ class PremiumFeatureItem {
 }
 
 typedef FeatureItem = PremiumFeatureItem;
-typedef _FeatureItem = PremiumFeatureItem;
 
 class PremiumPlanDetails {
   final String id;
@@ -57,7 +56,6 @@ class PremiumPlanDetails {
 }
 
 typedef PlanDetails = PremiumPlanDetails;
-typedef _PlanDetails = PremiumPlanDetails;
 
 class PremiumFaqItem {
   final String q;
@@ -67,7 +65,6 @@ class PremiumFaqItem {
 }
 
 typedef FaqItem = PremiumFaqItem;
-typedef _FaqItem = PremiumFaqItem;
 
 // ==========================================================================
 // DEFAULT DATA LISTS

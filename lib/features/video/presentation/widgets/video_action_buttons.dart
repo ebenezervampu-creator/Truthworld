@@ -6,8 +6,9 @@ import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
-import 'package:truthworld/features/playlist/presentation/views/playlist/show_diaglog.dart';
+import 'package:truthworld/features/playlist/presentation/views/playlist/show_dialog.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
+import 'package:truthworld/features/video/presentation/views/comments/premium_comment_input.dart';
 import 'package:truthworld/features/video/presentation/views/widgets/animated_reaction_button.dart';
 import 'package:truthworld/features/video/presentation/widgets/video_analysis_bottom_sheet.dart';
 import 'package:truthworld/features/video/presentation/widgets/video_channel_action_bar.dart';
@@ -22,6 +23,12 @@ import 'package:truthworld/theme/app_theme.dart';
 /// providing likes, dislikes, shares, offline downloads, clipping, playlist bookmarking,
 /// and AI claim analysis triggers.
 class VideoActionButtons {
+  static PlaylistController _getPlaylistController() {
+    return Get.isRegistered<PlaylistController>()
+        ? Get.find<PlaylistController>()
+        : Get.put(PlaylistController());
+  }
+
   static bool _isMobilePlatform(BuildContext context) {
     return MediaQuery.of(context).size.width < TWBreakpoints.desktop;
   }
@@ -144,6 +151,22 @@ class VideoActionButtons {
                 ),
                 const SizedBox(width: 8),
 
+                // Super Thanks
+                _buildModernCapsuleButton(
+                  icon: Icons.favorite_outline,
+                  label: 'Thanks',
+                  onTap: () {
+                    if (!isUserSignedIn) return onSignInPrompt();
+                    PremiumCommentInput.showSuperThanksModal(
+                      context,
+                      videoId: controller.video.id,
+                      channelId: controller.video.channelId,
+                      videoTitle: controller.video.title,
+                    );
+                  },
+                ),
+                const SizedBox(width: 8),
+
                 // Share
                 _buildModernCapsuleButton(
                   icon: Icons.share_rounded,
@@ -173,9 +196,10 @@ class VideoActionButtons {
                 // Rating / Watch Later
                 Obx(() {
                   controller.rxVideo.value;
-                  Get.find<PlaylistController>().playlists.length;
+                  final playlistCtrl = _getPlaylistController();
+                  playlistCtrl.playlists.length;
                   final isInWatchLater =
-                      Get.find<PlaylistController>().isInWatchLater(
+                      playlistCtrl.isInWatchLater(
                         controller.video.id,
                       );
                   return _buildModernCapsuleButton(
@@ -385,6 +409,22 @@ class VideoActionButtons {
                             const SizedBox(width: 8),
                           ],
 
+                          // Super Thanks
+                          _buildModernCapsuleButton(
+                            icon: Icons.favorite_outline,
+                            label: 'Thanks',
+                            onTap: () {
+                              if (!isUserSignedIn) return onSignInPrompt();
+                              PremiumCommentInput.showSuperThanksModal(
+                                context,
+                                videoId: controller.video.id,
+                                channelId: controller.video.channelId,
+                                videoTitle: controller.video.title,
+                              );
+                            },
+                          ),
+                          const SizedBox(width: 8),
+
                           // Share
                           _buildModernCapsuleButton(
                             icon: Icons.share_rounded,
@@ -415,9 +455,10 @@ class VideoActionButtons {
                           // Rating / Watch Later
                           Obx(() {
                             controller.rxVideo.value;
-                            Get.find<PlaylistController>().playlists.length;
+                            final playlistCtrl = _getPlaylistController();
+                            playlistCtrl.playlists.length;
                             final isInWatchLater =
-                                Get.find<PlaylistController>().isInWatchLater(
+                                playlistCtrl.isInWatchLater(
                                   controller.video.id,
                                 );
                             return _buildModernCapsuleButton(

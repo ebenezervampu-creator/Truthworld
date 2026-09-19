@@ -11,10 +11,10 @@ import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
+import 'package:truthworld/features/video/data/datasources/local/database_helpers.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
-import 'package:truthworld/features/video/domain/database_helpers.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
 import 'package:truthworld/features/video/presentation/views/player/tower_custom_player.dart';
@@ -49,6 +49,7 @@ mixin VideoPlaybackFlowMixin on GetxController {
   Future<void> fetchAvailableResolutions();
   Future<void> fetchAvailableSubtitles();
   Future<void> fetchAvailableAudioTracks();
+  Future<void> loadTranscriptForVideo();
   Future<void> initializeVideoPlayer({String? overrideUrl});
   void disposePlayer();
   void videoListener();
@@ -130,7 +131,7 @@ mixin VideoPlaybackFlowMixin on GetxController {
               const SizedBox(height: 16),
               ElevatedButton.icon(
                 onPressed: onRetry,
-                icon: const Icon(Icons.refresh, color: Colors.white),
+                icon: const Icon(Icons.refresh, color: Colors.black),
                 label: const Text('Retry'),
               ),
             ],
@@ -320,6 +321,7 @@ mixin VideoPlaybackFlowMixin on GetxController {
         fetchAvailableSubtitles(),
         fetchAvailableAudioTracks(),
       ]);
+      unawaited(loadTranscriptForVideo());
     }();
 
     // Check if we have an active handoff controller (from miniplayer or card hover)
@@ -401,5 +403,4 @@ mixin VideoPlaybackFlowMixin on GetxController {
     }
   }
 
-  Future<void> _startPlaybackFlow() => startPlaybackFlow();
 }

@@ -8,6 +8,9 @@ class TWGradients extends ThemeExtension<TWGradients> {
     required this.success,
     required this.warning,
     required this.error,
+    required this.credibilityHolo,
+    required this.truthGlow,
+    required this.truthDisputed,
   });
 
   factory TWGradients.defaults() {
@@ -37,6 +40,21 @@ class TWGradients extends ThemeExtension<TWGradients> {
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ),
+      credibilityHolo: LinearGradient(
+        colors: [Color(0xFF00F2FE), Color(0xFF4FACFE), Color(0xFF00E676)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+      truthGlow: LinearGradient(
+        colors: [Color(0x4010B981), Color(0x1400F2FE)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+      truthDisputed: LinearGradient(
+        colors: [Color(0x40F59E0B), Color(0x14EF4444)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
     );
   }
   final LinearGradient primary;
@@ -44,6 +62,9 @@ class TWGradients extends ThemeExtension<TWGradients> {
   final LinearGradient success;
   final LinearGradient warning;
   final LinearGradient error;
+  final LinearGradient credibilityHolo;
+  final LinearGradient truthGlow;
+  final LinearGradient truthDisputed;
 
   @override
   ThemeExtension<TWGradients> copyWith({
@@ -52,6 +73,9 @@ class TWGradients extends ThemeExtension<TWGradients> {
     LinearGradient? success,
     LinearGradient? warning,
     LinearGradient? error,
+    LinearGradient? credibilityHolo,
+    LinearGradient? truthGlow,
+    LinearGradient? truthDisputed,
   }) {
     return TWGradients(
       primary: primary ?? this.primary,
@@ -59,6 +83,9 @@ class TWGradients extends ThemeExtension<TWGradients> {
       success: success ?? this.success,
       warning: warning ?? this.warning,
       error: error ?? this.error,
+      credibilityHolo: credibilityHolo ?? this.credibilityHolo,
+      truthGlow: truthGlow ?? this.truthGlow,
+      truthDisputed: truthDisputed ?? this.truthDisputed,
     );
   }
 
@@ -74,6 +101,9 @@ class TWGradients extends ThemeExtension<TWGradients> {
       success: LinearGradient.lerp(success, other.success, t)!,
       warning: LinearGradient.lerp(warning, other.warning, t)!,
       error: LinearGradient.lerp(error, other.error, t)!,
+      credibilityHolo: LinearGradient.lerp(credibilityHolo, other.credibilityHolo, t)!,
+      truthGlow: LinearGradient.lerp(truthGlow, other.truthGlow, t)!,
+      truthDisputed: LinearGradient.lerp(truthDisputed, other.truthDisputed, t)!,
     );
   }
 }

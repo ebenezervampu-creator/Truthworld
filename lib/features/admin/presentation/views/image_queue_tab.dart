@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
@@ -219,12 +220,22 @@ class ImageQueueTab extends StatelessWidget {
                         children: [
                           Positioned.fill(
                             child: displayUrl.isNotEmpty
-                                ? Image.network(
-                                    displayUrl,
+                                ? CachedNetworkImage(
+                                    imageUrl: displayUrl,
                                     fit: BoxFit.cover,
-                                    cacheWidth: 350,
-                                    cacheHeight: 350,
-                                    errorBuilder: (context, error, stackTrace) =>
+                                    memCacheWidth: 350,
+                                    memCacheHeight: 350,
+                                    placeholder: (context, url) =>
+                                        const Center(
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                              Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                    errorWidget: (context, url, error) =>
                                         const Center(
                                           child: Icon(
                                             Icons.broken_image,
@@ -373,12 +384,22 @@ class ImageQueueTab extends StatelessWidget {
                   constraints: const BoxConstraints(maxHeight: 280),
                   width: double.infinity,
                   child: displayUrl.isNotEmpty
-                      ? Image.network(
-                          displayUrl,
+                      ? CachedNetworkImage(
+                          imageUrl: displayUrl,
                           fit: BoxFit.contain,
-                          cacheWidth: 600,
-                          cacheHeight: 600,
-                          errorBuilder: (context, error, stackTrace) =>
+                          memCacheWidth: 600,
+                          memCacheHeight: 600,
+                          placeholder: (context, url) =>
+                              const Center(
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor:
+                                      AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                              ),
+                          errorWidget: (context, url, error) =>
                               const Center(
                                 child: Icon(
                                   Icons.broken_image,

@@ -1,13 +1,14 @@
 import 'package:truthworld/core/network/result.dart';
-import 'package:truthworld/features/video/data/models/comment.dart';
+import 'package:truthworld/domain/entities/comment_entity.dart';
 
 /// Repository contract for video comment operations and thread management.
+/// Domain pure: uses [CommentEntity], never data layer models.
 abstract class VideoCommentsRepository {
   /// Stream comments for a video in real-time.
-  Stream<List<Comment>> streamComments(String videoId);
+  Stream<List<CommentEntity>> streamComments(String videoId);
 
   /// Post a new comment to a video.
-  Future<Result<Comment>> postComment({
+  Future<Result<CommentEntity>> postComment({
     required String videoId,
     required String text,
     required String userId,

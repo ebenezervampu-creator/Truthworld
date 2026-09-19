@@ -23,10 +23,13 @@ class MembershipTierCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isMobile = width < 600;
+
     return Container(
       decoration: BoxDecoration(
         color: isDarkMode ? AppColors.bgSurface : Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: TWRadius.xlBorderRadius,
         border: Border.all(
           color: tier.isEnabled
               ? (isDarkMode ? AppColors.bgDivider : Colors.grey.shade200)
@@ -34,7 +37,7 @@ class MembershipTierCard extends StatelessWidget {
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(isMobile ? 14 : 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -81,7 +84,7 @@ class MembershipTierCard extends StatelessWidget {
                           ),
                           decoration: BoxDecoration(
                             color: Colors.orange.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(4),
+                            borderRadius: TWRadius.smBorderRadius,
                           ),
                           child: const Text(
                             'PAUSED',
@@ -103,7 +106,7 @@ class MembershipTierCard extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: Colors.green.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: TWRadius.mdBorderRadius,
                   ),
                   child: Text(
                     '${tier.formattedPrice} / mo',
@@ -123,7 +126,7 @@ class MembershipTierCard extends StatelessWidget {
                   ),
                   color: isDarkMode ? AppColors.bgSurfaceHigh : Colors.white,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: TWRadius.mdBorderRadius,
                   ),
                   onSelected: (val) {
                     if (val == 'edit') {
@@ -268,7 +271,7 @@ class MembershipTierCard extends StatelessWidget {
                       color: isDarkMode
                           ? AppColors.bgSurfaceHigh
                           : Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: TWRadius.mdBorderRadius,
                       border: Border.all(
                         color: isDarkMode
                             ? AppColors.bgDivider
@@ -321,11 +324,14 @@ class EmptyTiersView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isMobile = width < 600;
+
     return Container(
-      padding: const EdgeInsets.all(32),
+      padding: EdgeInsets.all(isMobile ? 16 : 32),
       decoration: BoxDecoration(
         color: isDarkMode ? AppColors.bgSurface : Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: TWRadius.xlBorderRadius,
         border: Border.all(
           color: isDarkMode ? AppColors.bgDivider : Colors.grey.shade300,
         ),
@@ -340,17 +346,17 @@ class EmptyTiersView extends StatelessWidget {
                   : Colors.grey.shade100,
               shape: BoxShape.circle,
             ),
-            child: const Icon(
+            child: Icon(
               Icons.workspace_premium_rounded,
               size: 48,
-              color: Colors.white,
+              color: isDarkMode ? Colors.white : Colors.black87,
             ),
           ),
           const SizedBox(height: 16),
           Text(
             'No Membership Tiers Created Yet',
             style: TextStyle(
-              fontSize: 18,
+              fontSize: isMobile ? 16 : 18,
               fontWeight: FontWeight.bold,
               color: isDarkMode ? AppColors.textPrimary : Colors.black87,
             ),
@@ -378,19 +384,19 @@ class EmptyTiersView extends StatelessWidget {
                 onPressed: onApplyStarterBundles,
                 icon: const Icon(
                   Icons.auto_awesome_rounded,
-                  color: Colors.white,
+                  color: Colors.black,
                   size: 18,
                 ),
                 label: const Text('Setup Default Starter Tiers'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.brand,
                   foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 14,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 16 : 20,
+                    vertical: isMobile ? 12 : 14,
                   ),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: TWRadius.mdBorderRadius,
                   ),
                   textStyle: const TextStyle(
                     fontWeight: FontWeight.bold,
@@ -400,9 +406,9 @@ class EmptyTiersView extends StatelessWidget {
               ),
               OutlinedButton.icon(
                 onPressed: onCreateTier,
-                icon: const Icon(
+                icon: Icon(
                   Icons.add_rounded,
-                  color: Colors.white,
+                  color: isDarkMode ? Colors.white : Colors.black87,
                   size: 18,
                 ),
                 label: const Text('Create Custom Tier'),
@@ -415,12 +421,12 @@ class EmptyTiersView extends StatelessWidget {
                         ? AppColors.bgDivider
                         : Colors.grey.shade400,
                   ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 14,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 16 : 20,
+                    vertical: isMobile ? 12 : 14,
                   ),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: TWRadius.mdBorderRadius,
                   ),
                   textStyle: const TextStyle(
                     fontWeight: FontWeight.bold,

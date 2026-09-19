@@ -61,7 +61,7 @@ class AbTestingTabView extends StatelessWidget {
           onPressed: () => _showCreateExperimentDialog(context),
           icon: const Icon(
             Icons.science_rounded,
-            color: Colors.white,
+            color: Colors.black,
             size: 18,
           ),
           label: const Text(

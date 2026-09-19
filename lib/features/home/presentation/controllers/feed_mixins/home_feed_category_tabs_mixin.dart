@@ -171,7 +171,13 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
             if (isPub) {
               final owner = data['ownerId'] ?? data['userId'] ?? data['uploaderId'];
               if (currentUid != null && owner == currentUid) {
-                doc.reference.update({'status': 'published'}).catchError((_) {});
+                doc.reference.update({'status': 'published'}).catchError((e, s) {
+                  ErrorHandler.log(
+                    e,
+                    stackTrace: s,
+                    tag: 'HomeFeedCategoryTabsMixin.updateStatus',
+                  );
+                });
               }
             }
           }
@@ -402,11 +408,5 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
       );
     }
   }
-
-  // Backward compatibility private forwarders
-  Query _buildCategoryQuery({DocumentSnapshot? startAfter}) =>
-      buildCategoryQuery(startAfter: startAfter);
-  Future<void> _fetchMainFeedVideos() => fetchMainFeedVideos();
-  Future<void> _fetchCategoryTabVideos(String category) =>
-      fetchCategoryTabVideos(category);
 }
+

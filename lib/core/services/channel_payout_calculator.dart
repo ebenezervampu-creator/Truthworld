@@ -42,10 +42,10 @@ class ChannelPayoutCalculator {
       600; // 10 Hours
 
   /// Calculates revenue payout for a Standard Channel:
-  /// - Ad Revenue: 70% Creator / 30% Truthworld
-  /// - Premium Subscriptions: 70% Creator / 30% Truthworld
-  /// - Tips: 100% Creator / 0% Truthworld
-  /// - Channel Memberships: 100% Creator / 0% Truthworld
+  /// - Ad Revenue: 70% Creator / 30% Platform
+  /// - Premium Subscriptions: 70% Creator / 30% Platform
+  /// - Superchats & Tips: 100% Creator / 0% Platform
+  /// - Channel Memberships: 100% Creator / 0% Platform
   static ChannelPayoutBreakdown calculateStandardChannelPayout({
     required double adRevenue,
     required double premiumSubRevenue,
@@ -58,8 +58,8 @@ class ChannelPayoutCalculator {
     final creatorSub = premiumSubRevenue * 0.70;
     final platformSub = premiumSubRevenue * 0.30;
 
-    final creatorTips = tipsRevenue; // 100%
-    final creatorMemberships = membershipsRevenue; // 100%
+    final creatorTips = tipsRevenue; // 100% Creator / 0% Platform
+    final creatorMemberships = membershipsRevenue; // 100% Creator / 0% Platform
 
     final gross =
         adRevenue + premiumSubRevenue + tipsRevenue + membershipsRevenue;
@@ -78,13 +78,16 @@ class ChannelPayoutCalculator {
   }
 
   /// Calculates revenue payout for a Custom Channel:
-  /// - Gross Revenue - Infra Cost - Flat Service Fee
+  /// - Platform Revenue Share: 0% Platform from Ads, Premium Subs, Superchats, and Memberships (100% Creator retention).
+  /// - Custom channels take plans ($15, $30, $45/mo etc.) plus actual infrastructure costs.
+  /// - Net Payout: Gross Revenue - Infra Cost - Plan/Service Fee
   /// - Zero-Debt Protection: Payout is capped at floor of 0 (creator balance never goes negative).
   static ChannelPayoutBreakdown calculateCustomChannelPayout({
     required double grossRevenue,
     required double actualInfraCost,
     double flatPlatformFee = 25.0,
   }) {
+
     final netBeforeFee = grossRevenue - actualInfraCost - flatPlatformFee;
 
     // Zero-Debt Floor: Creator balance cannot drop below 0

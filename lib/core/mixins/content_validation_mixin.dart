@@ -439,9 +439,9 @@ class ContentValidator {
   }
 
   /// Validates video upload constraints for a channel:
-  /// - Standard Channels: Max 20 minutes (1,200 seconds) total daily video upload duration limit.
-  ///   If a channel uploaded 15 minutes today, they have 5 minutes remaining for that day.
-  ///   Single video duration cannot exceed 20 minutes (1,200 seconds) or the remaining daily quota.
+  /// - Standard Channels: Max 10 minutes (600 seconds) total daily video upload duration limit.
+  ///   If a channel uploaded 7 minutes today, they have 3 minutes remaining for that day.
+  ///   Single video duration cannot exceed 10 minutes (600 seconds) or the remaining daily quota.
   /// - Custom Channels: Unlimited daily uploads (single video supported up to 24 hours).
   static ContentValidationResult validateChannelVideoUpload(
     Channel channel, {
@@ -455,13 +455,13 @@ class ContentValidator {
         : (currentTotalDurationSeconds ?? 0);
 
     if (channel.channelType == ChannelType.standard) {
-      const maxDailySeconds = 1200; // 20 minutes
+      const maxDailySeconds = 600; // 10 minutes
 
       if (durationSeconds > maxDailySeconds) {
         return const ContentValidationResult(
           isValid: false,
           message:
-              'Standard channel video duration cannot exceed 20 minutes (1200 seconds). Upgrade to a Custom Channel to upload longer videos!',
+              'Standard channel video duration cannot exceed 10 minutes (600 seconds). Upgrade to a Custom Channel to upload longer videos!',
         );
       }
 
@@ -469,7 +469,7 @@ class ContentValidator {
         return const ContentValidationResult(
           isValid: false,
           message:
-              'Daily upload limit reached: Standard channels can upload up to 20 minutes of video per day. You have reached your 20-minute daily limit for today. You can upload again tomorrow, or upgrade to a Custom Channel for unlimited uploads!',
+              'Daily upload limit reached: Standard channels can upload up to 10 minutes of video per day. You have reached your 10-minute daily limit for today. You can upload again tomorrow, or upgrade to a Custom Channel for unlimited uploads!',
         );
       }
 
@@ -485,7 +485,7 @@ class ContentValidator {
         return ContentValidationResult(
           isValid: false,
           message:
-              'Daily limit exceeded: Standard channels can upload up to 20 minutes per day. You have already uploaded $uploadedFormatted today ($remainingFormatted remaining), but this video is $videoFormatted. Upgrade to a Custom Channel for unlimited uploads!',
+              'Daily limit exceeded: Standard channels can upload up to 10 minutes per day. You have already uploaded $uploadedFormatted today ($remainingFormatted remaining), but this video is $videoFormatted. Upgrade to a Custom Channel for unlimited uploads!',
         );
       }
     }
@@ -517,7 +517,7 @@ mixin ContentValidationMixin {
       ContentValidator.formatDurationMinutesSeconds(seconds);
 
   /// Validates video upload constraints for a channel:
-  /// - Standard Channels: Max 20 minutes (1,200 seconds) total daily video upload duration limit.
+  /// - Standard Channels: Max 10 minutes (600 seconds) total daily video upload duration limit.
   /// - Custom Channels: Unlimited daily uploads (single video supported up to 24 hours).
   ContentValidationResult validateChannelVideoUpload(
     Channel channel, {

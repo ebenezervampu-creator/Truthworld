@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/core/widgets/truth_credibility_badge.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/widgets/analysis/video_analysis_controller.dart';
@@ -83,7 +84,7 @@ import 'package:url_launcher/url_launcher.dart';
             analysisCtrl.expandedClaimIndices.add(index);
           }
         },
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: TWRadius.xlBorderRadius,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(14),
@@ -91,19 +92,19 @@ import 'package:url_launcher/url_launcher.dart';
           color: isExpanded
               ? color.withValues(alpha: 0.12)
               : color.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: TWRadius.xlBorderRadius,
           border: Border.all(
             color: isExpanded
-                ? color.withValues(alpha: 0.45)
+                ? (isVerified ? const Color(0xFF00E676) : color).withValues(alpha: 0.5)
                 : color.withValues(alpha: 0.18),
             width: isExpanded ? 1.5 : 1.0,
           ),
           boxShadow: isExpanded
               ? [
                   BoxShadow(
-                    color: color.withValues(alpha: 0.08),
-                    blurRadius: 12,
-                    spreadRadius: 2,
+                    color: (isVerified ? const Color(0xFF00F2FE) : color).withValues(alpha: 0.14),
+                    blurRadius: 14,
+                    spreadRadius: 1,
                   ),
                 ]
               : const [],
@@ -141,34 +142,19 @@ import 'package:url_launcher/url_launcher.dart';
                     children: [
                       Row(
                         children: [
-                          Container(
+                          TruthCredibilityBadge(
+                            label: statusBadgeText,
+                            color: color,
+                            icon: statusIcon,
+                            isVerified: isVerified,
+                            isDisputed: isDisputed,
+                            isFalse: isFalse,
+                            showGlow: isExpanded,
+                            fontSize: 9,
+                            iconSize: 11,
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: color.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  statusIcon,
-                                  size: 11,
-                                  color: Colors.white,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  statusBadgeText,
-                                  style: context.twTypography.overline.copyWith(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.bold,
-                                    color: color,
-                                    letterSpacing: 0.8,
-                                  ),
-                                ),
-                              ],
+                              horizontal: 7,
+                              vertical: 2.5,
                             ),
                           ),
                           () {
@@ -385,19 +371,19 @@ import 'package:url_launcher/url_launcher.dart';
                       icon: const Icon(
                         Icons.add_link_rounded,
                         size: 14,
-                        color: Colors.white,
+                        color: Colors.black,
                       ),
                       label: Text(
                         'Provide Source',
                         style: context.twTypography.button.copyWith(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: Colors.black,
                         ),
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.brand,
-                        foregroundColor: Colors.white,
+                        foregroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),

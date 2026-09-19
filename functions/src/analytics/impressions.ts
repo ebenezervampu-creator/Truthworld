@@ -135,11 +135,12 @@ export const aggregateVideoViews = onSchedule(
 
     const runStartedAt = admin.firestore.Timestamp.now();
 
-    // Fetch new raw views
+    // Fetch new raw views (bounded to 2000 documents per batch)
     const snapshot = await db
       .collection("views_raw")
       .where("timestamp", ">", lastProcessedAt)
       .orderBy("timestamp", "asc")
+      .limit(2000)
       .get();
 
     if (snapshot.empty) {
@@ -159,14 +160,12 @@ export const aggregateVideoViews = onSchedule(
       if (videoId && typeof videoId === "string") {
         const existing = videoCounts.get(videoId) || { rawViews: 0, qualifiedViews: 0 };
         existing.rawViews += 1;
-        if (isQualified) {
-          existing.qualifiedViews += 1;
-        }
+        if (isQualified) existing.qualifiedViews += 1;
         videoCounts.set(videoId, existing);
       }
     }
 
-    // Write counts back to video documents in batches
+    // Atomically increment counts in videos collection
     let batch = db.batch();
     let ops = 0;
 
@@ -194,8 +193,12 @@ export const aggregateVideoViews = onSchedule(
       await batch.commit();
     }
 
-    // Save progress cursor
-    await metaRef.set({ lastProcessedAt: runStartedAt }, { merge: true });
+    // Save progress cursor to the last processed document's timestamp
+    const lastDocData = snapshot.docs[snapshot.docs.length - 1].data();
+    const progressCursor = lastDocData?.timestamp instanceof admin.firestore.Timestamp
+      ? lastDocData.timestamp
+      : runStartedAt;
+    await metaRef.set({ lastProcessedAt: progressCursor }, { merge: true });
     logger.info(`aggregateVideoViews: finished. Aggregated ${snapshot.size} views for ${videoCounts.size} videos.`);
   }
 );
@@ -219,36 +222,26 @@ export const cleanupOldViews = onSchedule(
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    const snapshot = await db
-      .collection("views_raw")
-      .where("timestamp", "<", admin.firestore.Timestamp.fromDate(sevenDaysAgo))
-      .limit(1000)
-      .get();
+    let totalPurged = 0;
+    while (true) {
+      const snapshot = await db
+        .collection("views_raw")
+        .where("timestamp", "<", admin.firestore.Timestamp.fromDate(sevenDaysAgo))
+        .limit(450)
+        .get();
 
-    if (snapshot.empty) {
-      logger.info("cleanupOldViews: no old raw views to purge");
-      return;
-    }
+      if (snapshot.empty) break;
 
-    logger.info(`cleanupOldViews: purging ${snapshot.size} old raw views`);
-
-    let batch = db.batch();
-    let ops = 0;
-
-    for (const doc of snapshot.docs) {
-      if (ops >= 450) {
-        await batch.commit();
-        batch = db.batch();
-        ops = 0;
+      const batch = db.batch();
+      for (const doc of snapshot.docs) {
+        batch.delete(doc.ref);
       }
-      batch.delete(doc.ref);
-      ops++;
-    }
-
-    if (ops > 0) {
       await batch.commit();
+      totalPurged += snapshot.size;
+
+      if (snapshot.size < 450 || totalPurged >= 4500) break;
     }
 
-    logger.info(`cleanupOldViews: purged ${snapshot.size} raw view documents`);
+    logger.info(`cleanupOldViews: finished. Purged total of ${totalPurged} raw view documents`);
   }
 );

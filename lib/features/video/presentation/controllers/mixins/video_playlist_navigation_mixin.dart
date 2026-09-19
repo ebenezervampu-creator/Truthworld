@@ -61,10 +61,6 @@ mixin VideoPlaylistNavigationMixin on GetxController {
     }
   }
 
-  /// Backward-compatible alias.
-  void _handleVideoCompletion(VideoPlayerValue value) =>
-      handleVideoCompletion(value);
-
   void processVideoCompletion() {
     final towerPlayerController =
         Get.isRegistered<TowerPlayerController>(tag: video.id)
@@ -94,9 +90,6 @@ mixin VideoPlaylistNavigationMixin on GetxController {
     }
   }
 
-  /// Backward-compatible alias.
-  void _processVideoCompletion() => processVideoCompletion();
-
   void autoplayNextVideo() {
     if (recommendedVideos.isEmpty) {
       debugPrint('[VideoController] No recommended videos for autoplay');
@@ -122,9 +115,6 @@ mixin VideoPlaylistNavigationMixin on GetxController {
       },
     );
   }
-
-  /// Backward-compatible alias.
-  void _autoplayNextVideo() => autoplayNextVideo();
 
   void playNext() {
     if (playlistVideos.isNotEmpty &&
@@ -226,10 +216,6 @@ mixin VideoPlaylistNavigationMixin on GetxController {
       rxIsLoading.value = false;
     }
   }
-
-  /// Backward-compatible alias.
-  Future<void> _fetchFirstPlaylistVideo(String videoId) =>
-      fetchFirstPlaylistVideo(videoId);
 
   Future<void> fetchPlaylistVideos() async {
     await videoPlaylistController.fetchPlaylistVideos();

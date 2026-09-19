@@ -1,18 +1,17 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
-import 'package:truthworld/core/services/auth_service.dart';
-import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/presentation/controllers/claim_source_submission_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
+
+export 'package:truthworld/features/video/presentation/controllers/claim_source_submission_controller.dart';
 
 /// 🏛 ClaimSourceSubmissionDialog
 ///
 /// Allows Truthworld Premium subscribers and Channel Members to submit
 /// supporting evidence sources for specific claims or the entire video.
-class ClaimSourceSubmissionDialog extends StatefulWidget {
+class ClaimSourceSubmissionDialog extends StatelessWidget {
   const ClaimSourceSubmissionDialog({
     required this.video,
     super.key,
@@ -43,357 +42,252 @@ class ClaimSourceSubmissionDialog extends StatefulWidget {
   }
 
   @override
-  State<ClaimSourceSubmissionDialog> createState() =>
-      _ClaimSourceSubmissionDialogState();
-}
-
-class _ClaimSourceSubmissionDialogState
-    extends State<ClaimSourceSubmissionDialog> {
-  final _urlController = TextEditingController();
-  final _titleController = TextEditingController();
-  final _noteController = TextEditingController();
-  late final RxString _selectedTarget;
-  final RxBool _isSubmitting = false.obs;
-
-  bool get _isPremiumUser => AuthService.to.isPremiumUser.value;
-  bool get _isChannelOwner =>
-      AuthService.to.user?.uid != null &&
-      (AuthService.to.user!.uid == widget.video.ownerId ||
-          AuthService.to.user!.uid == widget.video.channelId);
-
-  // Users are eligible if they are Premium subscribers or Channel Owners/Members
-  bool get _isEligible => _isPremiumUser || _isChannelOwner;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.initialClaim != null) {
-      _selectedTarget =
-          (widget.initialClaim!['claim'] ?? widget.initialClaim!['text'] ?? '')
-              .toString()
-              .obs;
-    } else {
-      _selectedTarget = 'Entire Video'.obs;
-    }
-  }
-
-  Future<void> _submitSource() async {
-    final url = _urlController.text.trim();
-    if (url.isEmpty || !url.startsWith('http')) {
-      AppSnackbar.warning(
-        'Please enter a valid HTTP/HTTPS source link.',
-      );
-      return;
-    }
-
-    final title = _titleController.text.trim();
-    if (title.isNotEmpty) {
-      final v = ContentValidator.validate(
-        title,
-        fieldName: 'Source Title',
-        maxLength: 200,
-      );
-      if (!v.isValid) {
-        AppSnackbar.warning(v.message);
-        return;
-      }
-    }
-
-    final note = _noteController.text.trim();
-    if (note.isNotEmpty) {
-      final v = ContentValidator.validate(
-        note,
-        fieldName: 'Citation Note',
-        maxLength: 1000,
-      );
-      if (!v.isValid) {
-        AppSnackbar.warning(v.message);
-        return;
-      }
-    }
-
-    _isSubmitting.value = true;
-
-    try {
-      final user = AuthService.to.user;
-      final firestore = FirebaseFirestore.instance;
-
-      final sourceData = {
-        'videoId': widget.video.id,
-        'target': _selectedTarget.value,
-        'url': url,
-        'title': _titleController.text.trim(),
-        'note': _noteController.text.trim(),
-        'submittedBy': user?.uid,
-        'submittedByEmail': user?.email,
-        'submittedByName': user?.displayName ?? 'Anonymous User',
-        'submittedAt': FieldValue.serverTimestamp(),
-        'status': 'pending_review',
-      };
-
-      await firestore.collection('claim_sources').add(sourceData);
-
-      if (mounted) {
-        Navigator.of(context).pop();
-        AppSnackbar.success(
-          'Thank you! Your supporting evidence has been submitted for credibility review.',
-        );
-      }
-    } catch (e) {
-      ErrorHandler.log(e);
-      if (mounted) {
-        _isSubmitting.value = false;
-        AppSnackbar.error(
-          'Unable to submit source. Please try again.',
-        );
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _urlController.dispose();
-    _titleController.dispose();
-    _noteController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-        top: 24,
-        left: 24,
-        right: 24,
+    return GetBuilder<ClaimSourceSubmissionController>(
+      init: ClaimSourceSubmissionController(
+        video: video,
+        claims: claims,
+        initialClaim: initialClaim,
       ),
-      decoration: BoxDecoration(
-        color: AppColors.bgSurface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        border: Border.all(color: AppColors.bgDivider),
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Row(
+      builder: (controller) {
+        return Container(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+            top: 24,
+            left: 24,
+            right: 24,
+          ),
+          decoration: BoxDecoration(
+            color: AppColors.bgSurface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border.all(color: AppColors.bgDivider),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.library_add_check_rounded,
-                    color: AppColors.textPrimary,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Provide Evidence Source',
-                        style: AppTextStyles.titleMedium.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
-                        ),
+                // Header
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      Text(
-                        'Submit citations for video claims',
-                        style: AppTextStyles.caption.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
+                      child: const Icon(
+                        Icons.library_add_check_rounded,
+                        color: AppColors.textPrimary,
+                        size: 20,
                       ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(
-                    Icons.close_rounded,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-
-            // If not eligible (not Premium or Channel Member), show Upgrade Card
-            if (!_isEligible)
-              _buildUpgradeCard()
-            else ...[
-              // Target Selection (Claim or Entire Video)
-              Text(
-                'Target Claim / Scope',
-                style: AppTextStyles.bodyMedium.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              _buildTargetSelector(),
-              const SizedBox(height: 16),
-
-              // Source URL input
-              Text(
-                'Source URL',
-                style: AppTextStyles.bodyMedium.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 6),
-              TextField(
-                controller: _urlController,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 13,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'https://example.com/research-paper',
-                  hintStyle: TextStyle(
-                    color: AppColors.textSecondary.withValues(alpha: 0.6),
-                  ),
-                  filled: true,
-                  fillColor: AppColors.bgInput,
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppColors.bgDivider),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Optional Title / Author
-              Text(
-                'Source Title / Author (Optional)',
-                style: AppTextStyles.bodyMedium.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 6),
-              TextField(
-                controller: _titleController,
-                inputFormatters: TruthworldTextInputFormatters.standard,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 13,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'e.g. Nature Journal Article / Harvard Study',
-                  hintStyle: TextStyle(
-                    color: AppColors.textSecondary.withValues(alpha: 0.6),
-                  ),
-                  filled: true,
-                  fillColor: AppColors.bgInput,
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppColors.bgDivider),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Citation Note
-              Text(
-                'Citation Excerpt / Note (Optional)',
-                style: AppTextStyles.bodyMedium.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 6),
-              TextField(
-                controller: _noteController,
-                inputFormatters: TruthworldTextInputFormatters.standard,
-                maxLines: 2,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 13,
-                ),
-                decoration: InputDecoration(
-                  hintText:
-                      'Briefly explain how this source verifies or clarifies the claim...',
-                  hintStyle: TextStyle(
-                    color: AppColors.textSecondary.withValues(alpha: 0.6),
-                  ),
-                  filled: true,
-                  fillColor: AppColors.bgInput,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppColors.bgDivider),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Submit button
-              Obx(() {
-                final isSubmitting = _isSubmitting.value;
-                return SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton.icon(
-                    onPressed: isSubmitting ? null : _submitSource,
-                    icon: isSubmitting
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Provide Evidence Source',
+                            style: AppTextStyles.titleMedium.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary,
                             ),
-                          )
-                        : const Icon(
-                            Icons.send_rounded,
-                            color: AppColors.textPrimary,
-                            size: 18,
                           ),
-                    label: Text(
-                      isSubmitting
-                          ? 'Submitting...'
-                          : 'Submit Evidence to Credibility System',
-                      style: AppTextStyles.bodyMedium.copyWith(
-                        fontWeight: FontWeight.bold,
+                          Text(
+                            'Submit citations for video claims',
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(
+                        Icons.close_rounded,
                         color: AppColors.textPrimary,
                       ),
                     ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF10B981),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // If not eligible (not Premium or Channel Member), show Upgrade Card
+                if (!controller.isEligible)
+                  _buildUpgradeCard(context)
+                else ...[
+                  // Target Selection (Claim or Entire Video)
+                  Text(
+                    'Target Claim / Scope',
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildTargetSelector(controller),
+                  const SizedBox(height: 16),
+
+                  // Source URL input
+                  Text(
+                    'Source URL',
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: controller.urlController,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'https://example.com/research-paper',
+                      hintStyle: TextStyle(
+                        color: AppColors.textSecondary.withValues(alpha: 0.6),
+                      ),
+                      filled: true,
+                      fillColor: AppColors.bgInput,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: AppColors.bgDivider),
                       ),
                     ),
                   ),
-                );
-              }),
-            ],
-          ],
-        ),
-      ),
+                  const SizedBox(height: 16),
+
+                  // Optional Title / Author
+                  Text(
+                    'Source Title / Author (Optional)',
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: controller.titleController,
+                    inputFormatters: TruthworldTextInputFormatters.standard,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'e.g. Nature Journal Article / Harvard Study',
+                      hintStyle: TextStyle(
+                        color: AppColors.textSecondary.withValues(alpha: 0.6),
+                      ),
+                      filled: true,
+                      fillColor: AppColors.bgInput,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: AppColors.bgDivider),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Citation Note
+                  Text(
+                    'Citation Excerpt / Note (Optional)',
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: controller.noteController,
+                    inputFormatters: TruthworldTextInputFormatters.standard,
+                    maxLines: 2,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                    ),
+                    decoration: InputDecoration(
+                      hintText:
+                          'Briefly explain how this source verifies or clarifies the claim...',
+                      hintStyle: TextStyle(
+                        color: AppColors.textSecondary.withValues(alpha: 0.6),
+                      ),
+                      filled: true,
+                      fillColor: AppColors.bgInput,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: AppColors.bgDivider),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Submit button
+                  Obx(() {
+                    final isSubmitting = controller.isSubmitting.value;
+                    return SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        onPressed: isSubmitting
+                            ? null
+                            : () => controller.submitSource(context),
+                        icon: isSubmitting
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.send_rounded,
+                                color: AppColors.textPrimary,
+                                size: 18,
+                              ),
+                        label: Text(
+                          isSubmitting
+                              ? 'Submitting...'
+                              : 'Submit Evidence to Credibility System',
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF10B981),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildTargetSelector() {
+  Widget _buildTargetSelector(ClaimSourceSubmissionController controller) {
     final targets = <String>['Entire Video'];
-    for (final c in widget.claims) {
+    for (final c in claims) {
       if (c is Map) {
         final text = (c['claim'] ?? c['text'] ?? '').toString();
         if (text.isNotEmpty && !targets.contains(text)) {
@@ -402,8 +296,8 @@ class _ClaimSourceSubmissionDialogState
       }
     }
 
-    if (!targets.contains(_selectedTarget.value)) {
-      targets.insert(0, _selectedTarget.value);
+    if (!targets.contains(controller.selectedTarget.value)) {
+      targets.insert(0, controller.selectedTarget.value);
     }
 
     return Container(
@@ -416,7 +310,7 @@ class _ClaimSourceSubmissionDialogState
       child: DropdownButtonHideUnderline(
         child: Obx(
           () => DropdownButton<String>(
-            value: _selectedTarget.value,
+            value: controller.selectedTarget.value,
             isExpanded: true,
             dropdownColor: AppColors.bgSurface,
             icon: const Icon(
@@ -439,7 +333,7 @@ class _ClaimSourceSubmissionDialogState
             }).toList(),
             onChanged: (val) {
               if (val != null) {
-                _selectedTarget.value = val;
+                controller.selectedTarget.value = val;
               }
             },
           ),
@@ -448,7 +342,7 @@ class _ClaimSourceSubmissionDialogState
     );
   }
 
-  Widget _buildUpgradeCard() {
+  Widget _buildUpgradeCard(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(

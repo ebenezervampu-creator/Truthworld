@@ -17,22 +17,26 @@ class WatchLater {
     required this.uploadedAt,
   });
 
-  factory WatchLater.fromDocumentSnapshot(DocumentSnapshot doc) {
-    final data = doc.data()! as Map<String, dynamic>;
+  factory WatchLater.fromMap(Map<String, dynamic> data, [String? docId]) {
     return WatchLater(
-      id: doc.id,
-      userId: data['userId'] ?? '',
-      videoId: data['videoId'] ?? '',
-      videoTitle: data['videoTitle'] ?? '',
-      videoThumbnailUrl: data['videoThumbnailUrl'] ?? '',
-      channelId: data['channelId'] ?? '',
-      channelName: data['channelName'] ?? '',
+      id: docId ?? (data['id'] as String? ?? ''),
+      userId: data['userId'] as String? ?? '',
+      videoId: data['videoId'] as String? ?? '',
+      videoTitle: data['videoTitle'] as String? ?? '',
+      videoThumbnailUrl: data['videoThumbnailUrl'] as String? ?? '',
+      channelId: data['channelId'] as String? ?? '',
+      channelName: data['channelName'] as String? ?? '',
       addedAt: TimestampUtils.parse(data['addedAt']),
-      duration: data['duration'] ?? '',
-      channelImage: data['channelImage'] ?? '',
-      views: data['views'] ?? 0,
+      duration: data['duration'] as String? ?? '',
+      channelImage: data['channelImage'] as String? ?? '',
+      views: (data['views'] as num?)?.toInt() ?? 0,
       uploadedAt: TimestampUtils.parse(data['uploadedAt']),
     );
+  }
+
+  factory WatchLater.fromDocumentSnapshot(DocumentSnapshot doc) {
+    final data = (doc.data() as Map<String, dynamic>?) ?? {};
+    return WatchLater.fromMap(data, doc.id);
   }
   final String id;
   final String userId;

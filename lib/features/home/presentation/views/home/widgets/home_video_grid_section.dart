@@ -10,9 +10,6 @@ import 'package:truthworld/features/community/data/models/community_post_model.d
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/dark_professional_theme.dart';
 
-/// Backward-compatibility typedef for legacy private name.
-typedef _ModernVideoGridSection = HomeVideoGridSection;
-
 /// Responsive video grid section supporting list on mobile and masonry grid on desktop/tablet.
 class HomeVideoGridSection extends StatelessWidget {
   const HomeVideoGridSection({

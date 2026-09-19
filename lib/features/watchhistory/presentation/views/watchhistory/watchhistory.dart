@@ -1,5 +1,4 @@
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/video_options_sheet.dart';
@@ -25,6 +24,12 @@ const Color buttonBg = AppColors.bgSurfaceHover;
 class WatchHistory extends GetView<WatchHistoryController> {
   const WatchHistory({super.key, this.isDashboard = false});
   final bool isDashboard;
+
+  @override
+  WatchHistoryController get controller =>
+      Get.isRegistered<WatchHistoryController>()
+          ? Get.find<WatchHistoryController>()
+          : Get.put(WatchHistoryController());
 
   WatchHistoryController get _controller => controller;
 
@@ -102,143 +107,100 @@ class WatchHistory extends GetView<WatchHistoryController> {
             ),
           ),
         ),
-        StreamBuilder<QuerySnapshot>(
-          stream: _controller.getHistoryStream(userId),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) => const ShimmerVideoListCard(),
-                  childCount: 6,
+        Obx(() {
+          if (_controller.rxIsLoading.value && _controller.historyVideos.isEmpty) {
+            return SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) => const ShimmerVideoListCard(),
+                childCount: 6,
+              ),
+            );
+          }
+
+          if (_controller.rxErrorMessage.value.isNotEmpty) {
+            return SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(
+                child: Text(
+                  _controller.rxErrorMessage.value,
+                  style: const TextStyle(color: AppColors.textPrimary),
                 ),
-              );
-            }
+              ),
+            );
+          }
 
-            if (snapshot.hasError) {
-              return SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(
-                  child: Text(
-                    'Error: ${snapshot.error}',
-                    style: const TextStyle(color: AppColors.textPrimary),
-                  ),
+          final videos = _controller.historyVideos;
+          if (videos.isEmpty) {
+            return const SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(
+                child: Text(
+                  'No watch history found',
+                  style: TextStyle(color: AppColors.textPrimary),
                 ),
-              );
+              ),
+            );
+          }
+
+          final categoriesSet = <String>{'All'};
+          for (final v in videos) {
+            if (v.category.isNotEmpty) {
+              categoriesSet.add(v.category);
             }
+          }
+          final categories = categoriesSet.toList();
 
-            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              return const SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(
-                  child: Text(
-                    'No watch history found',
-                    style: TextStyle(color: AppColors.textPrimary),
-                  ),
-                ),
-              );
-            }
+          var displayVideos = List<Video>.from(videos);
 
-            final videos = snapshot.data!.docs.map((doc) {
-              final data = doc.data()! as Map<String, dynamic>;
-              final durationRaw =
-                  (data['duration'] != null &&
-                      data['duration'] != '0:00' &&
-                      data['duration'] != '00:00')
-                  ? data['duration']
-                  : (data['videoDuration'] ?? data['durationMs']);
-              return Video(
-                id: (data['videoId'] as String?) ?? doc.id,
-                channelId: (data['channelId'] as String?) ?? '',
-                channelName: (data['channelName'] as String?) ?? '',
-                channelAvatarUrl:
-                    (data['channelImage'] as String?) ??
-                    (data['channelAvatarUrl'] as String?) ??
-                    '',
-                title: (data['title'] as String?) ?? 'Unknown Video',
-                description: (data['description'] as String?) ?? '',
-                thumbnailUrl: (data['thumbnailUrl'] as String?) ?? '',
-                videoUrl: (data['videoUrl'] as String?) ?? '',
-                ownerId: (data['ownerId'] as String?) ?? '',
-                views: (data['views'] as int?) ?? 0,
-                likeCount: (data['likeCount'] as int?) ?? 0,
-                duration: durationRaw,
-                uploadedAt:
-                    (data['watchedAt'] as Timestamp?)?.toDate() ??
-                    DateTime.now(),
-                language: (data['language'] as String?) ?? 'en',
-                category: (data['category'] as String?) ?? 'General',
-                tags: List<String>.from(
-                  (data['tags'] as Iterable<dynamic>?) ?? [],
-                ),
-                factCheckUrl: (data['factCheckUrl'] as String?) ?? '',
-                mediaSubtitles: {},
-                audioTracks: {},
-                chapters: [],
-              );
-            }).toList();
+          // Filter by category
+          if (_controller.selectedCategory.value != 'All') {
+            displayVideos = displayVideos
+                .where(
+                  (v) => v.category == _controller.selectedCategory.value,
+                )
+                .toList();
+          }
 
-            final categoriesSet = <String>{'All'};
-            for (final v in videos) {
-              if (v.category.isNotEmpty) {
-                categoriesSet.add(v.category);
-              }
-            }
-            final categories = categoriesSet.toList();
+          final groupedVideos = _controller.groupVideosByDate(
+            displayVideos,
+          );
 
-            return Obx(() {
-              var displayVideos = List<Video>.from(videos);
+          return SliverMainAxisGroup(
+            slivers: [
+              if (categories.length > 1)
+                SliverToBoxAdapter(child: _buildCategoryChips(categories)),
+              SliverList(
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final dateKey = groupedVideos.keys.elementAt(index);
+                  final dateVideos = groupedVideos[dateKey]!;
 
-              // Filter by category
-              if (_controller.selectedCategory.value != 'All') {
-                displayVideos = displayVideos
-                    .where(
-                      (v) => v.category == _controller.selectedCategory.value,
-                    )
-                    .toList();
-              }
-
-              final groupedVideos = _controller.groupVideosByDate(
-                displayVideos,
-              );
-
-              return SliverMainAxisGroup(
-                slivers: [
-                  if (categories.length > 1)
-                    SliverToBoxAdapter(child: _buildCategoryChips(categories)),
-                  SliverList(
-                    delegate: SliverChildBuilderDelegate((context, index) {
-                      final dateKey = groupedVideos.keys.elementAt(index);
-                      final dateVideos = groupedVideos[dateKey]!;
-
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
-                            child: Text(
-                              dateKey,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: primaryText,
-                              ),
-                            ),
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+                        child: Text(
+                          dateKey,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: primaryText,
                           ),
-                          ...dateVideos.map(
-                            (video) => _WatchHistoryListCard(
-                              video: video,
-                              controller: _controller,
-                            ),
-                          ),
-                        ],
-                      );
-                    }, childCount: groupedVideos.length),
-                  ),
-                ],
-              );
-            });
-          },
-        ),
+                        ),
+                      ),
+                      ...dateVideos.map(
+                        (video) => _WatchHistoryListCard(
+                          video: video,
+                          controller: _controller,
+                        ),
+                      ),
+                    ],
+                  );
+                }, childCount: groupedVideos.length),
+              ),
+            ],
+          );
+        }),
       ],
     );
   }

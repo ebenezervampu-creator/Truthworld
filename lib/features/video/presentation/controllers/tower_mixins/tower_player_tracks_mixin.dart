@@ -5,8 +5,9 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:http/http.dart' as http;
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/network/app_http_client.dart';
+import 'package:truthworld/core/utils/isolate_compute_utils.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/core/utils/subtitle_parser.dart';
 import 'package:truthworld/features/video/presentation/controllers/playback_source.dart';
@@ -26,6 +27,7 @@ mixin TowerPlayerTracksMixin on GetxController {
   RxBool get isMuted;
   RxDouble get volume;
   String? get tag;
+  VideoController? get videoController;
   void trackAnalytics(PlayerEvent event);
   void showToast(String msg);
   void closeSettings();
@@ -44,12 +46,26 @@ mixin TowerPlayerTracksMixin on GetxController {
   final RxList<AudioTrack> audioTracks = <AudioTrack>[].obs;
 
   void syncActiveSubtitle() {
-    if (isClosed || subtitleSegments.isEmpty) {
+    if (isClosed) return;
+
+    // Bidirectional fallback: If local subtitleSegments is empty, check VideoController
+    if (subtitleSegments.isEmpty) {
+      final vc = videoController;
+      if (vc != null && vc.transcriptSegments.isNotEmpty) {
+        subtitleSegments.assignAll(vc.transcriptSegments);
+      }
+    }
+
+    if (subtitleSegments.isEmpty) {
       if (currentSubtitle.value.isNotEmpty) currentSubtitle.value = '';
       if (activeSubtitleSegment.value != null) activeSubtitleSegment.value = null;
       return;
     }
-    final pos = activePlayback.position;
+    // Read directly from the VideoPlayerController for the most up-to-date
+    // position. Going through activePlayback.position uses VideoPlaybackSource
+    // which caches the value via a listener and can be up to ~200ms stale
+    // when the native platform position-update event hasn't fired yet.
+    final pos = videoPlayerController.value.position;
     final seg = SubtitleParser.findActiveSubtitle(subtitleSegments, pos);
     final text = seg?.text ?? '';
     if (currentSubtitle.value != text) {
@@ -57,6 +73,7 @@ mixin TowerPlayerTracksMixin on GetxController {
     }
     if (activeSubtitleSegment.value != seg) {
       activeSubtitleSegment.value = seg;
+      videoController?.transcriptController.updateActiveSegment(seg);
     }
   }
 
@@ -100,7 +117,7 @@ mixin TowerPlayerTracksMixin on GetxController {
 
       try {
         final resolvedUrl = StorageUtils.getFastDownloadUrl(url);
-        final response = await http.get(Uri.parse(resolvedUrl));
+        final response = await AppHttpClient.get(Uri.parse(resolvedUrl));
         if (response.statusCode == 200) {
           content = utf8.decode(response.bodyBytes, allowMalformed: true);
         }
@@ -136,7 +153,7 @@ mixin TowerPlayerTracksMixin on GetxController {
       }
 
       if (content != null && content.isNotEmpty) {
-        parseSubtitleContent(content);
+        await parseSubtitleContent(content);
       }
     } catch (e, stackTrace) {
       ErrorHandler.log(
@@ -150,8 +167,9 @@ mixin TowerPlayerTracksMixin on GetxController {
     }
   }
 
-  void parseSubtitleContent(String content) {
-    final segs = SubtitleParser.parse(content);
+  Future<void> parseSubtitleContent(String content) async {
+    final segs = await IsolateComputeUtils.parseSubtitlesAsync(content);
+    if (isClosed) return;
     if (segs.isNotEmpty) {
       subtitleSegments.assignAll(segs);
       syncActiveSubtitle();
@@ -186,7 +204,7 @@ mixin TowerPlayerTracksMixin on GetxController {
           audioTrackController = VideoPlayerController.networkUrl(
             Uri.parse(track.url!),
           );
-          audioTrackController!.initialize().then((_) {
+          audioTrackController!.initialize().then((_) async {
             if (audioTrackController == null) return;
 
             audioTrackController!.setVolume(
@@ -199,11 +217,11 @@ mixin TowerPlayerTracksMixin on GetxController {
             final currentPos = videoPlayerController.value.position;
             final audioDur = audioTrackController!.value.duration;
             if (audioDur > Duration.zero && currentPos <= audioDur) {
-              audioTrackController!.seekTo(currentPos);
+              await audioTrackController!.seekTo(currentPos);
             }
 
-            if (videoPlayerController.value.isPlaying) {
-              audioTrackController!.play();
+            if (videoPlayerController.value.isPlaying && audioTrackController != null) {
+              await audioTrackController!.play();
             }
           });
         } else {

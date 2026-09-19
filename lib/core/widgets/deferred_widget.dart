@@ -103,13 +103,14 @@ class DeferredWidget extends StatelessWidget {
                     const SizedBox(height: 20),
                     ElevatedButton.icon(
                       onPressed: controller.load,
-                      icon: const Icon(Icons.refresh, color: Colors.white, size: 18),
+                      icon: const Icon(Icons.refresh, color: Colors.black, size: 18),
                       label: const Text(
                         'Retry',
-                        style: TextStyle(color: Colors.white),
+                        style: TextStyle(color: Colors.black),
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.brand,
+                        foregroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 20,
                           vertical: 12,

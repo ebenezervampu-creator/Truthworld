@@ -64,9 +64,6 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
     return 'direct';
   }
 
-  /// Backward-compatible alias.
-  String _detectTrafficSource() => detectTrafficSource();
-
   String normalizeTrafficSource(String source) {
     const mapping = {
       'clip': 'clip',
@@ -87,10 +84,6 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
     return mapping[source] ?? source;
   }
 
-  /// Backward-compatible alias.
-  String _normalizeTrafficSource(String source) =>
-      normalizeTrafficSource(source);
-
   String classifyExternalReferrer(String referrer) {
     final lower = referrer.toLowerCase();
     if (lower.contains('whatsapp') || lower.contains('wa.me')) {
@@ -110,10 +103,6 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
     return 'direct_link';
   }
 
-  /// Backward-compatible alias.
-  String _classifyExternalReferrer(String referrer) =>
-      classifyExternalReferrer(referrer);
-
   void flushRemainingWatchTime() {
     final currentWatchSeconds = watchStopwatch.elapsed.inSeconds;
     final delta = currentWatchSeconds - lastPingWatchSeconds;
@@ -123,9 +112,6 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
       pingWatchEvent('watch_ping', currentWatchSeconds, totalDuration, delta);
     }
   }
-
-  /// Backward-compatible alias.
-  void _flushRemainingWatchTime() => flushRemainingWatchTime();
 
   Future<void> pingWatchEvent(
     String eventType,
@@ -150,15 +136,6 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
     );
   }
 
-  /// Backward-compatible alias.
-  Future<void> _pingWatchEvent(
-    String eventType,
-    int position,
-    int duration,
-    int deltaSeconds,
-  ) =>
-      pingWatchEvent(eventType, position, duration, deltaSeconds);
-
   bool canCountQualifiedView() {
     try {
       final storage = GetStorage();
@@ -174,9 +151,6 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
       return true;
     }
   }
-
-  /// Backward-compatible alias.
-  bool _canCountQualifiedView() => canCountQualifiedView();
 
   void markQualifiedViewTimestamp() {
     try {
@@ -194,9 +168,6 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
       );
     }
   }
-
-  /// Backward-compatible alias.
-  void _markQualifiedViewTimestamp() => markQualifiedViewTimestamp();
 
   Future<void> fireMilestoneEvent(
     String eventType,
@@ -239,14 +210,6 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
     );
   }
 
-  /// Backward-compatible alias.
-  Future<void> _fireMilestoneEvent(
-    String eventType,
-    int position,
-    int duration,
-  ) =>
-      fireMilestoneEvent(eventType, position, duration);
-
   Future<void> resolveViewerIdentity() async {
     try {
       final identityService = Get.find<ViewerIdentityService>();
@@ -260,9 +223,6 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
       viewerHash = AuthService.to.uid.isNotEmpty ? AuthService.to.uid : '';
     }
   }
-
-  /// Backward-compatible alias.
-  Future<void> _resolveViewerIdentity() => resolveViewerIdentity();
 
   Future<void> syncWatchHistory(
     int currentWatchSeconds,
@@ -350,10 +310,4 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
     }
   }
 
-  /// Backward-compatible alias.
-  Future<void> _syncWatchHistory(
-    int currentWatchSeconds,
-    int totalDuration,
-  ) =>
-      syncWatchHistory(currentWatchSeconds, totalDuration);
 }

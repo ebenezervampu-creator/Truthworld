@@ -250,21 +250,6 @@ class ChannelController extends ChannelControllerBase
   @override
   final RxBool isLoadingVideos = false.obs;
 
-  // Backward compatibility getters
-  FirebaseFirestore get _firestore => firestore;
-  FirebaseAuth get _auth => auth;
-  FirebaseStorage get _storage => storage;
-  Uuid get _uuid => uuid;
-  ImageVerificationService get _imageVerificationService => imageVerificationService;
-  String get _lastAutoSlug => lastAutoSlug;
-  set _lastAutoSlug(String val) => lastAutoSlug = val;
-  StreamSubscription? get _detailsAvatarSub => detailsAvatarSub;
-  set _detailsAvatarSub(StreamSubscription? s) => detailsAvatarSub = s;
-  StreamSubscription? get _detailsBannerSub => detailsBannerSub;
-  set _detailsBannerSub(StreamSubscription? s) => detailsBannerSub = s;
-  Map<String, StreamSubscription> get _moderationListeners => moderationListeners;
-  Map<String, Timer> get _moderationTimers => moderationTimers;
-
   @override
   void onInit() {
     super.onInit();
@@ -543,6 +528,8 @@ class ChannelController extends ChannelControllerBase
       sub.cancel();
     }
     moderationListeners.clear();
+    detailsAvatarSub?.cancel();
+    detailsBannerSub?.cancel();
 
     // Call clear state to ensure all listeners/subscriptions are removed
     clearChannelDetailsState();
@@ -598,7 +585,4 @@ class ChannelController extends ChannelControllerBase
   void showSuccessSnackbar(String message) {
     AppSnackbar.success(message);
   }
-
-
-  void _resetForm() => resetForm();
 }

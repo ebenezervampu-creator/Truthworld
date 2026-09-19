@@ -35,6 +35,7 @@ class WhyChoosePlanCard extends StatelessWidget {
           'Flexible Cloud Storage & Global CDN Bandwidth scaled to your audience',
           'Dedicated 24/7 VIP Account Manager & Direct Technical Support',
           '4K HDR Video Encoding & Custom Transcoding Pipelines',
+          r'50% Off AI Dubbing ($0.25/lang) & Studio Vocal Identity Cloning included',
           'Custom Integration & Payout Contract SLAs',
           '100% Free Premium Features (Value ₹25,999/year included)',
         ];
@@ -45,6 +46,7 @@ class WhyChoosePlanCard extends StatelessWidget {
           '5 TB High-Speed Global CDN: Fast global streaming (~15,000+ hrs)',
           '4K HDR Video & Lossless Audio encoding',
           r'$20 FREE Monthly Bonus Credit included',
+          r'50% Off AI Dubbing ($0.25/lang) & Studio Vocal Identity Cloning included',
           'VIP Priority 24/7 Account Support & HD Transcoding',
           '100% Free Premium Features (Value ₹25,999/year included)',
         ];
@@ -55,6 +57,7 @@ class WhyChoosePlanCard extends StatelessWidget {
           '1.5 TB High-Speed Global CDN: Fast streaming (~5,000 hrs)',
           '4K Ultra HD Uploads (3840x2160) + High Bitrate',
           r'$10 FREE Monthly Bonus Credit included',
+          r'50% Off AI Dubbing ($0.25/lang) & Studio Vocal Identity Cloning included',
           'Priority Live Support & Fast HD Transcoding',
           '100% Free Premium Features (Value ₹25,999/year included)',
         ];
@@ -65,6 +68,7 @@ class WhyChoosePlanCard extends StatelessWidget {
           '500 GB High-Speed Global CDN: Ultra-fast streaming (~1,500+ hrs)',
           '4K Ultra HD Uploads (3840x2160) & Unlimited Uploads/Day',
           'Google Cloud & Firebase Backend Egress Included',
+          r'50% Off AI Dubbing ($0.25/lang) & Studio Vocal Identity Cloning included',
           'Standard Priority Support & Fast Transcoding',
           '100% Free Premium Features (Value ₹25,999/year included)',
         ];
@@ -75,8 +79,9 @@ class WhyChoosePlanCard extends StatelessWidget {
         'TruthWorld Covers Hosting: Free video transcoding & storage',
         '70% Revenue Share: Earn 70% from ads & subscriptions',
         '100% Direct Fan Revenue: Keep 100% Memberships & Superchats',
-        'Up to 1080p Full HD Uploads: High quality video playback',
-        '20 Min/Day Upload Limit: Ideal for starting out creators',
+        'Up to 4K Ultra HD Uploads: High quality video playback',
+        '10 Min/Day Upload Limit: Ideal for starting out creators',
+        r'Pay-As-You-Go Dubbing: $0.50/language with standard voice presets from channel earnings',
         'Easy Upgrade Anytime: Switch to Custom plan whenever you grow',
       ];
 
@@ -84,8 +89,9 @@ class WhyChoosePlanCard extends StatelessWidget {
         'Select between 100% Free Standard Channel or Scalable Custom Channel',
         'Earn 70% to 100% Revenue Share on Ads & Premium Subscriptions',
         'Keep 100% Direct Fan Revenue: 0% Platform Commission on Memberships & Superchats',
-        'Standard Plan: 100% Free with 20 min/day uploads in 1080p Full HD',
+        'Standard Plan: 100% Free with 10 min/day uploads in up to 4K Ultra HD',
         'Custom Plan: Unlimited uploads, 4K Ultra HD & Cloud Storage up to 1 TB',
+        r'AI Dubbing: $0.50/lang (Standard) vs 50% Partner Discount $0.25/lang + Voice Cloning (Custom)',
         r'Custom Bonus: Instant $10 FREE Monthly Bonus Credit included',
         'Easy Upgrade: Switch or upgrade your plan anytime from Channel Settings',
       ];

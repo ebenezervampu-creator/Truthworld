@@ -1,213 +1,133 @@
-import 'dart:async';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
-import 'package:truthworld/core/constants/firestore_collections.dart';
-import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
-import 'package:truthworld/core/services/logger_service.dart';
-import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
-import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
+import 'package:truthworld/features/playlist/presentation/controllers/playlist/playlist_barrel.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
+export 'playlist/playlist_barrel.dart';
+
+/// Central coordinator for user playlists, watch later synchronization,
+/// channel playlists, and video collections.
 class PlaylistController extends BaseController with ContentValidationMixin {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  StreamSubscription<QuerySnapshot>? _channelsSubscription;
-  StreamSubscription<QuerySnapshot>? _playlistsSubscription;
-  // Use a getter to safely retrieve the current user ID
-  String get user => FirebaseAuth.instance.currentUser?.uid ?? '';
-
-  RxList<Channel> channels = <Channel>[].obs;
-  RxList<PlaylistModel> playlists = <PlaylistModel>[].obs;
-  RxList<PlaylistModel> publicPlaylists =
-      <PlaylistModel>[].obs; // For upload screen
-  Rx<Channel?> selectedChannel = Rx<Channel?>(null);
-  RxBool rxIsLoading = false.obs;
-  final RxBool isPlaylistsLoaded = false.obs;
-  final RxBool isPublicPlaylistsLoaded = false.obs;
-
-  // UI State for PlaylistScreen
-  final RxBool isSearching = false.obs;
-  final RxBool isSearchExpanded = false.obs;
-  final RxBool isListView = true.obs;
-  final RxString sortBy = 'recent'.obs;
-  final RxBool isAscending = false.obs;
-  final RxString searchQuery = ''.obs;
-  final RxInt refreshTick = 0.obs;
-  final RxSet<String> selectedVideoIds = <String>{}.obs;
-  final RxString selectedPlaylistType = 'private'.obs;
-
-  // Filter State
-  final RxString selectedCategory = 'Playlists'.obs;
-  final List<String> categories = [
-    'Playlists',
-    'Music',
-    'Podcasts',
-    'Courses',
-    'Owned',
-    'Saved',
-  ];
-
-  void setCategory(String category) => selectedCategory.value = category;
-
-  void toggleView() => isListView.value = !isListView.value;
-
-  void toggleSearch() {
-    isSearching.value = !isSearching.value;
-    if (!isSearching.value) searchQuery.value = '';
-  }
-
-  void setSortBy(String newSortBy) {
-    if (sortBy.value == newSortBy) {
-      isAscending.value = !isAscending.value;
-    } else {
-      sortBy.value = newSortBy;
-      isAscending.value = false;
-    }
-  }
-
-  void updateSearchQuery(String query) => searchQuery.value = query;
-
-  void toggleVideoSelection(String videoId) {
-    if (selectedVideoIds.contains(videoId)) {
-      selectedVideoIds.remove(videoId);
-    } else {
-      selectedVideoIds.add(videoId);
-    }
-    selectedVideoIds.refresh();
-  }
-
-  void refreshPlaylistsTick() => refreshTick.value++;
-
-  List<PlaylistModel> get allUserPlaylists {
-    final map = <String, PlaylistModel>{};
-    for (final p in playlists) {
-      map[p.id] = p;
-    }
-    for (final p in publicPlaylists) {
-      if (user.isEmpty ||
-          p.ownerId == user ||
-          (selectedChannel.value != null &&
-              p.channelId == selectedChannel.value!.channelId)) {
-        map[p.id] = p;
-      }
-    }
-    return map.values.toList();
-  }
-
-  Iterable<PlaylistModel> get userCreatedPlaylists {
-    final filtered = allUserPlaylists.where((p) {
-      final name = p.playlistName.toLowerCase().trim();
-      // Filter out watch later playlists (various spellings)
-      final isWatchLater =
-          name == 'watch later' ||
-          name == 'watchlater' ||
-          name == 'watch_later' ||
-          name.contains('watch later');
-
-      final hasThumbnail = p.thumbnailUrl.trim().isNotEmpty;
-
-      return !isWatchLater && name.isNotEmpty && hasThumbnail;
-    });
-
-    logger.debug(
-      'Playlist filtering: ${playlists.length} total → ${filtered.length} visible',
-      tag: 'PLAYLIST',
-    );
-    return filtered;
-  }
-
-  final RxList<String> watchLaterVideoIds = <String>[].obs;
-  StreamSubscription? _watchLaterSub;
-
-  void listenToWatchLater() {
-    _watchLaterSub?.cancel();
-    if (user.isEmpty) {
-      watchLaterVideoIds.clear();
-      return;
-    }
-    _watchLaterSub = _firestore
-        .collection(FirestoreCollections.users)
-        .doc(user)
-        .collection('watch_later')
-        .snapshots()
-        .listen(
-          (snapshot) {
-            watchLaterVideoIds.value = snapshot.docs
-                .map((doc) => doc.id)
-                .toList();
-          },
-          onError: (error, stackTrace) {
-            ErrorHandler.log(
-              error,
-              stackTrace: stackTrace,
-              tag: 'PlaylistController._initWatchLaterSync',
-            );
-          },
+  PlaylistController({
+    FirebaseFirestore? firestore,
+    PlaylistSyncManager? syncManager,
+    PlaylistWatchLaterManager? watchLaterManager,
+    PlaylistVideoManager? videoManager,
+    PlaylistCrudManager? crudManager,
+    PlaylistUiFilterManager? filterManager,
+  }) {
+    final fs = firestore ?? FirebaseFirestore.instance;
+    _syncManager = syncManager ??
+        PlaylistSyncManager(getUserId: () => user, firestore: fs);
+    _watchLaterManager = watchLaterManager ??
+        PlaylistWatchLaterManager(
+          getUserId: () => user,
+          firestore: fs,
+          rxIsLoading: rxIsLoading,
+        );
+    _videoManager = videoManager ??
+        PlaylistVideoManager(getUserId: () => user, firestore: fs);
+    _filterManager = filterManager ?? PlaylistUiFilterManager();
+    _crudManager = crudManager ??
+        PlaylistCrudManager(
+          getUserId: () => user,
+          syncManager: _syncManager,
+          refreshPlaylistsTick: _filterManager.refreshPlaylistsTick,
+          firestore: fs,
         );
   }
 
-  PlaylistModel? getWatchLaterPlaylist() {
-    // Return a virtual playlist model populated from watchLaterVideoIds
-    return PlaylistModel(
-      id: 'watchlater',
-      playlistName: 'Watch Later',
-      videoIds: watchLaterVideoIds,
-      isPublic: false,
-      ownerId: user,
-      channelId: '',
-      createdAt: DateTime.now(),
-    );
-  }
+  late final PlaylistSyncManager _syncManager;
+  late final PlaylistWatchLaterManager _watchLaterManager;
+  late final PlaylistVideoManager _videoManager;
+  late final PlaylistCrudManager _crudManager;
+  late final PlaylistUiFilterManager _filterManager;
 
-  /// Toggle video in "Watch Later" playlist
-  Future<void> toggleWatchLater(String videoId) async {
-    if (user.isEmpty) {
-      AppSnackbar.warning('Please sign in to update Watch Later.');
-      return;
-    }
-    try {
-      rxIsLoading.value = true;
-      final ref = _firestore
-          .collection(FirestoreCollections.users)
-          .doc(user)
-          .collection('watch_later')
-          .doc(videoId);
+  // Current authenticated user ID
+  String get user => FirebaseAuth.instance.currentUser?.uid ?? '';
 
-      final isAlreadyIn = watchLaterVideoIds.contains(videoId);
-      if (isAlreadyIn) {
-        await ref.delete();
-        AppSnackbar.success('Removed from Watch Later');
-      } else {
-        await ref.set({
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-        AppSnackbar.success('Added to Watch Later');
-      }
-    } catch (e) {
-      ErrorHandler.log(e, context: 'playlist_controller.toggleWatchLater');
-      AppSnackbar.error('Unable to update Watch Later. Please try again.');
-    } finally {
-      rxIsLoading.value = false;
-    }
-  }
+  // Reactive state pass-throughs
+  RxList<Channel> get channels => _syncManager.channels;
+  set channels(RxList<Channel> val) => _syncManager.channels.value = val;
 
-  bool isInWatchLater(String videoId) {
-    return watchLaterVideoIds.contains(videoId);
-  }
+  RxList<PlaylistModel> get playlists => _syncManager.playlists;
+  set playlists(RxList<PlaylistModel> val) =>
+      _syncManager.playlists.value = val;
+
+  RxList<PlaylistModel> get publicPlaylists => _syncManager.publicPlaylists;
+  set publicPlaylists(RxList<PlaylistModel> val) =>
+      _syncManager.publicPlaylists.value = val;
+
+  Rx<Channel?> get selectedChannel => _syncManager.selectedChannel;
+  set selectedChannel(Rx<Channel?> val) =>
+      _syncManager.selectedChannel.value = val.value;
+
+  final RxBool rxIsLoading = false.obs;
+
+  RxBool get isPlaylistsLoaded => _syncManager.isPlaylistsLoaded;
+  RxBool get isPublicPlaylistsLoaded => _syncManager.isPublicPlaylistsLoaded;
+
+  // UI state pass-throughs
+  RxBool get isSearching => _filterManager.isSearching;
+  RxBool get isSearchExpanded => _filterManager.isSearchExpanded;
+  RxBool get isListView => _filterManager.isListView;
+  RxString get sortBy => _filterManager.sortBy;
+  RxBool get isAscending => _filterManager.isAscending;
+  RxString get searchQuery => _filterManager.searchQuery;
+  RxInt get refreshTick => _filterManager.refreshTick;
+  RxSet<String> get selectedVideoIds => _filterManager.selectedVideoIds;
+  RxString get selectedPlaylistType => _filterManager.selectedPlaylistType;
+
+  // Filter state
+  RxString get selectedCategory => _filterManager.selectedCategory;
+  List<String> get categories => _filterManager.categories;
+
+  void setCategory(String category) => _filterManager.setCategory(category);
+  void toggleView() => _filterManager.toggleView();
+  void toggleSearch() => _filterManager.toggleSearch();
+  void setSortBy(String newSortBy) => _filterManager.setSortBy(newSortBy);
+  void updateSearchQuery(String query) =>
+      _filterManager.updateSearchQuery(query);
+  void toggleVideoSelection(String videoId) =>
+      _filterManager.toggleVideoSelection(videoId);
+  void refreshPlaylistsTick() => _filterManager.refreshPlaylistsTick();
+
+  List<PlaylistModel> get allUserPlaylists =>
+      _filterManager.getAllUserPlaylists(
+        playlists: playlists,
+        publicPlaylists: publicPlaylists,
+        user: user,
+        selectedChannel: selectedChannel.value,
+      );
+
+  Iterable<PlaylistModel> get userCreatedPlaylists =>
+      _filterManager.getUserCreatedPlaylists(
+        allUserPlaylists: allUserPlaylists,
+        rawPlaylists: playlists,
+      );
+
+  // Watch Later pass-throughs
+  RxList<String> get watchLaterVideoIds =>
+      _watchLaterManager.watchLaterVideoIds;
+  void listenToWatchLater() => _watchLaterManager.listenToWatchLater();
+  PlaylistModel? getWatchLaterPlaylist() =>
+      _watchLaterManager.getWatchLaterPlaylist();
+  Future<void> toggleWatchLater(String videoId) =>
+      _watchLaterManager.toggleWatchLater(videoId);
+  bool isInWatchLater(String videoId) =>
+      _watchLaterManager.isInWatchLater(videoId);
 
   @override
   void onInit() {
     super.onInit();
     fetchChannels();
 
-    // Listen to authentication state changes from AuthService
-    // This ensures playlists are fetched only when a user is logged in
     addWorker(
       ever(AuthService.to.currentUser, (u) {
         if (u != null) {
@@ -215,20 +135,12 @@ class PlaylistController extends BaseController with ContentValidationMixin {
           fetchPublicPlaylists();
           listenToWatchLater();
         } else {
-          // If user logs out, cancel the subscription and clear the list
-          _playlistsSubscription?.cancel();
-          playlists.clear();
-          isPlaylistsLoaded.value = false;
-          _publicPlaylistsSubscription?.cancel();
-          publicPlaylists.clear();
-          isPublicPlaylistsLoaded.value = false;
-          _watchLaterSub?.cancel();
-          watchLaterVideoIds.clear();
+          _syncManager.handleUserLoggedOut();
+          _watchLaterManager.watchLaterVideoIds.clear();
         }
       }),
     );
 
-    // Initial fetch if user is already authenticated
     if (user.isNotEmpty) {
       fetchPlaylists();
       fetchPublicPlaylists();
@@ -238,956 +150,112 @@ class PlaylistController extends BaseController with ContentValidationMixin {
 
   @override
   void onClose() {
-    _channelsSubscription?.cancel();
-    _playlistsSubscription?.cancel();
-    _publicPlaylistsSubscription?.cancel();
-    _watchLaterSub?.cancel();
+    _syncManager.dispose();
+    _watchLaterManager.dispose();
     super.onClose();
   }
 
-  // ===================== Playlist CRUD =====================
-
-  /// Create a new playlist
+  // Playlist CRUD pass-throughs
   Future<PlaylistModel?> createPlayList(
     String playlistName, {
     bool isPublic = false,
     List<String> videoIds = const [],
     String description = '',
     String customThumbnailUrl = '',
-  }) async {
-    final nameVal = await validateContent(playlistName, fieldName: 'Playlist Name');
-    if (!nameVal.isValid) {
-      AppSnackbar.warning(nameVal.message);
-      return null;
-    }
-
-    if (description.trim().isNotEmpty) {
-      final descVal = await validateContent(
-        description,
-        fieldName: 'Playlist Description',
-      );
-      if (!descVal.isValid) {
-        AppSnackbar.warning(descVal.message);
-        return null;
-      }
-    }
-
-    try {
-      final playlistRef = isPublic
-          ? _firestore.collection('public_playlists').doc()
-          : _firestore
-                .collection(FirestoreCollections.users)
-                .doc(user)
-                .collection(FirestoreCollections.playlists)
-                .doc();
-
-      var thumbnailUrl = customThumbnailUrl.isNotEmpty ? customThumbnailUrl : null;
-      if ((thumbnailUrl == null || thumbnailUrl.isEmpty) && videoIds.isNotEmpty) {
-        final videoDoc = await _firestore
-            .collection(FirestoreCollections.videos)
-            .doc(videoIds.first)
-            .get();
-        if (videoDoc.exists) {
-          thumbnailUrl = videoDoc.data()?['thumbnailUrl'];
-        }
-      }
-
-      // Set sortIndex to current count for proper ordering
-      final currentCount = playlists.length;
-
-      // Get channel ID - try selected channel first, then find user's channel
-      var channelId = selectedChannel.value?.channelId ?? '';
-      if (channelId.isEmpty && channels.isNotEmpty) {
-        // Find channel owned by current user
-        final userChannel = channels.firstWhere(
-          (c) => c.ownerId == user,
-          orElse: () => channels.first,
-        );
-        channelId = userChannel.channelId;
-        // Also update selectedChannel for future use
-        selectedChannel.value = userChannel;
-      }
-
-      final playlist = PlaylistModel(
-        id: playlistRef.id,
-        playlistName: playlistName,
-        description: description,
-        videoIds: videoIds.take(10).toList(),
-        videoCount: videoIds.length,
+  }) =>
+      _crudManager.createPlayList(
+        playlistName,
         isPublic: isPublic,
-        ownerId: user,
-        channelId: channelId,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        thumbnailUrl: thumbnailUrl ?? '',
-        sortIndex: currentCount,
+        videoIds: videoIds,
+        description: description,
+        customThumbnailUrl: customThumbnailUrl,
       );
 
-      await playlistRef.set(playlist.toMap());
-
-      // Write video items to the subcollection
-      for (var i = 0; i < videoIds.length; i++) {
-        await playlistRef.collection('items').doc(videoIds[i]).set({
-          'videoId': videoIds[i],
-          'addedAt': FieldValue.serverTimestamp(),
-          'position': i,
-        });
-      }
-
-      // Add to local list immediately for UI update (only if not already added by stream)
-      if (isPublic) {
-        if (!publicPlaylists.any((p) => p.id == playlist.id)) {
-          publicPlaylists.add(playlist);
-        }
-      } else {
-        if (!playlists.any((p) => p.id == playlist.id)) {
-          playlists.add(playlist);
-        }
-      }
-
-      // Refresh to ensure consistency
-      refreshPlaylistsTick();
-
-      logger.debug(
-        '✅ Created playlist: ${playlist.playlistName} (${playlist.id})',
-      );
-
-      AppSnackbar.success('Playlist created successfully!');
-
-      return playlist;
-    } catch (e) {
-      ErrorHandler.log(e);
-      AppSnackbar.error('Unable to create playlist. Please try again.');
-      return null;
-    }
-  }
-
-  /// Delete an entire playlist
-  Future<void> deletePlaylist(String playlistId, bool isPublic) async {
-    try {
-      final ref = isPublic
-          ? _firestore.collection('public_playlists').doc(playlistId)
-          : _firestore
-                .collection(FirestoreCollections.users)
-                .doc(user)
-                .collection(FirestoreCollections.playlists)
-                .doc(playlistId);
-
-      await ref.delete();
-
-      AppSnackbar.success('Playlist deleted successfully!');
-    } catch (e) {
-      ErrorHandler.log(e);
-      AppSnackbar.error('Unable to delete playlist. Please try again.');
-    }
-  }
-
-  /// Internal helper to update playlist thumbnail based on the first video
-  Future<void> _updateThumbnail(
-    DocumentReference ref,
-    List<String> videoIds,
-  ) async {
-    if (videoIds.isEmpty) {
-      await ref.update({'thumbnailUrl': null});
-    } else {
-      final videoDoc = await _firestore
-          .collection(FirestoreCollections.videos)
-          .doc(videoIds.first)
-          .get();
-      if (videoDoc.exists) {
-        await ref.update({'thumbnailUrl': videoDoc.data()?['thumbnailUrl']});
-      }
-    }
-  }
-
-  // ===================== Video Management =====================
-
-  Future<List<String>> fetchPlaylistVideoIds(
-    String playlistId,
-    bool isPublic, {
-    String? ownerId,
-  }) async {
-    try {
-      if (playlistId == 'watchlater') {
-        return watchLaterVideoIds;
-      }
-      final targetUser = (ownerId != null && ownerId.isNotEmpty)
-          ? ownerId
-          : user;
-      final ref = isPublic
-          ? _firestore.collection('public_playlists').doc(playlistId)
-          : _firestore
-                .collection(FirestoreCollections.users)
-                .doc(targetUser)
-                .collection(FirestoreCollections.playlists)
-                .doc(playlistId);
-
-      QuerySnapshot snapshot;
-      try {
-        snapshot = await ref.collection('items').orderBy('addedAt').get();
-      } catch (_) {
-        snapshot = await ref.collection('items').get();
-      }
-
-      if (snapshot.docs.isEmpty) {
-        final doc = await ref.get();
-        if (doc.exists && doc.data() != null) {
-          final rawIds = doc.data()!['videoIds'];
-          if (rawIds is List) {
-            return List<String>.from(rawIds);
-          }
-        }
-      }
-
-      return snapshot.docs.map((doc) => doc.id).toList();
-    } catch (e) {
-      logger.debug('❌ Error fetching playlist video IDs: $e');
-      return [];
-    }
-  }
-
-  /// Add multiple videos to a playlist
-  Future<void> addMultipleVideosToPlaylist(
-    String playlistId,
-    List<String> videoIdsToAdd,
-    bool isPublic,
-  ) async {
-    try {
-      final ref = isPublic
-          ? _firestore.collection('public_playlists').doc(playlistId)
-          : _firestore
-                .collection(FirestoreCollections.users)
-                .doc(user)
-                .collection(FirestoreCollections.playlists)
-                .doc(playlistId);
-
-      final snapshot = await ref.get();
-      if (!snapshot.exists) throw 'Playlist not found';
-
-      final currentVideoIds = List<String>.from(
-        snapshot.data()?['videoIds'] ?? [],
-      );
-      var addedCount = 0;
-
-      final currentTotalCount = snapshot.data()?['videoCount'] ?? 0;
-
-      for (final vid in videoIdsToAdd) {
-        final itemDoc = await ref.collection('items').doc(vid).get();
-        if (!itemDoc.exists) {
-          await ref.collection('items').doc(vid).set({
-            'videoId': vid,
-            'addedAt': FieldValue.serverTimestamp(),
-            'position': currentTotalCount + addedCount,
-          });
-          if (!currentVideoIds.contains(vid)) {
-            currentVideoIds.add(vid);
-          }
-          addedCount++;
-        }
-      }
-
-      if (addedCount > 0) {
-        final cappedVideoIds = currentVideoIds.take(10).toList();
-        await ref.update({
-          'videoIds': cappedVideoIds,
-          'videoCount': FieldValue.increment(addedCount),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-
-        // Update thumbnail if it was null or we added the first video
-        if (currentVideoIds.length == addedCount ||
-            snapshot.data()?['thumbnailUrl'] == null) {
-          await _updateThumbnail(ref, currentVideoIds);
-        }
-        AppSnackbar.success('Videos added to playlist!');
-      } else {
-        AppSnackbar.info('All selected videos are already in the playlist.');
-      }
-    } catch (e) {
-      ErrorHandler.log(e);
-      AppSnackbar.error('Unable to add videos to playlist. Please try again.');
-    }
-  }
-
-  /// Add video to playlist
-  Future<void> addVideoToPlaylist(
-    String playlistId,
-    String videoId,
-    bool isPublic,
-  ) async {
-    try {
-      var targetRef = isPublic
-          ? _firestore.collection('public_playlists').doc(playlistId)
-          : _firestore
-                .collection(FirestoreCollections.users)
-                .doc(user)
-                .collection(FirestoreCollections.playlists)
-                .doc(playlistId);
-
-      var snapshot = await targetRef.get();
-      if (!snapshot.exists) {
-        // Fallback: check the other collection in case isPublic flag was flipped
-        final altRef = !isPublic
-            ? _firestore.collection('public_playlists').doc(playlistId)
-            : _firestore
-                  .collection(FirestoreCollections.users)
-                  .doc(user)
-                  .collection(FirestoreCollections.playlists)
-                  .doc(playlistId);
-        final altSnapshot = await altRef.get();
-        if (altSnapshot.exists) {
-          targetRef = altRef;
-          snapshot = altSnapshot;
-        } else {
-          throw 'Playlist not found';
-        }
-      }
-
-      final itemDoc = await targetRef.collection('items').doc(videoId).get();
-      if (!itemDoc.exists) {
-        // Write to subcollection
-        await targetRef.collection('items').doc(videoId).set({
-          'videoId': videoId,
-          'addedAt': FieldValue.serverTimestamp(),
-          'position': (snapshot.data()?['videoCount'] ?? 0),
-        });
-
-        // Update parent doc
-        final currentVideoIds = List<String>.from(
-          snapshot.data()?['videoIds'] ?? [],
-        );
-        if (!currentVideoIds.contains(videoId)) {
-          currentVideoIds.add(videoId);
-        }
-        final cappedVideoIds = currentVideoIds.take(10).toList();
-
-        await targetRef.update({
-          'videoIds': cappedVideoIds,
-          'videoCount': FieldValue.increment(1),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-
-        // Always update thumbnail when first video added or if null
-        if (currentVideoIds.length == 1 ||
-            snapshot.data()?['thumbnailUrl'] == null) {
-          await _updateThumbnail(targetRef, currentVideoIds);
-        }
-
-        AppSnackbar.success('Video added to playlist!');
-      } else {
-        AppSnackbar.info('Video is already in this playlist.');
-      }
-    } catch (e) {
-      ErrorHandler.log(e);
-      AppSnackbar.error('Unable to add video to playlist. Please try again.');
-    }
-  }
-
-  /// Remove video from playlist
-  Future<void> removeVideoFromPlaylist(
-    String playlistId,
-    String videoId,
-    bool isPublic,
-  ) async {
-    try {
-      final ref = isPublic
-          ? _firestore.collection('public_playlists').doc(playlistId)
-          : _firestore
-                .collection(FirestoreCollections.users)
-                .doc(user)
-                .collection(FirestoreCollections.playlists)
-                .doc(playlistId);
-
-      final snapshot = await ref.get();
-      if (!snapshot.exists) throw 'Playlist not found';
-
-      final itemDoc = await ref.collection('items').doc(videoId).get();
-      if (itemDoc.exists) {
-        // Delete from subcollection
-        await ref.collection('items').doc(videoId).delete();
-
-        // Get updated videoIds list for cache. We need to fetch from the subcollection to rebuild the first 10 items!
-        final itemsSnap = await ref
-            .collection('items')
-            .orderBy('addedAt')
-            .limit(10)
-            .get();
-        final newCachedIds = itemsSnap.docs.map((doc) => doc.id).toList();
-
-        // Calculate new total count
-        final currentCount = snapshot.data()?['videoCount'] ?? 0;
-        final newCount = currentCount > 0 ? currentCount - 1 : 0;
-
-        await ref.update({
-          'videoIds': newCachedIds,
-          'videoCount': newCount,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-
-        await _updateThumbnail(ref, newCachedIds);
-
-        AppSnackbar.success('Video removed from playlist!');
-      }
-    } catch (e) {
-      ErrorHandler.log(e);
-      AppSnackbar.error('Unable to remove video from playlist. Please try again.');
-    }
-  }
-
-  /// Delete a specific video from **all playlists** (optional)
-  Future<void> deleteVideoFromAllPlaylists(String videoId) async {
-    try {
-      final userPlaylists = await _firestore
-          .collection(FirestoreCollections.users)
-          .doc(user)
-          .collection(FirestoreCollections.playlists)
-          .get();
-
-      final publicPlaylists = await _firestore
-          .collection('public_playlists')
-          .limit(50)
-          .get();
-
-      final allDocs = [...userPlaylists.docs, ...publicPlaylists.docs];
-      if (allDocs.isEmpty) return;
-
-      // Check item existence in parallel
-      final checkFutures = allDocs.map((doc) async {
-        try {
-          final itemDoc = await doc.reference
-              .collection('items')
-              .doc(videoId)
-              .get();
-          if (itemDoc.exists) {
-            return doc;
-          }
-        } catch (e) {
-          logger.debug('Error checking item in playlist ${doc.id}: $e');
-        }
-        return null;
-      }).toList();
-
-      final matchedResults = await Future.wait(checkFutures);
-      final affectedDocs = matchedResults
-          .whereType<QueryDocumentSnapshot<Map<String, dynamic>>>()
-          .toList();
-
-      if (affectedDocs.isEmpty) {
-        AppSnackbar.success('Video removed from all playlists!');
-        return;
-      }
-
-      final batch = _firestore.batch();
-      for (final doc in affectedDocs) {
-        final itemRef = doc.reference.collection('items').doc(videoId);
-        batch.delete(itemRef);
-
-        final currentCount = (doc.data()['videoCount'] as num?)?.toInt() ?? 0;
-        final newCount = currentCount > 0 ? currentCount - 1 : 0;
-        final currentVideoIds = List<String>.from(
-          doc.data()['videoIds'] as List? ?? [],
-        );
-        currentVideoIds.remove(videoId);
-
-        batch.update(doc.reference, {
-          'videoIds': currentVideoIds,
-          'videoCount': newCount,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-      }
-
-      await batch.commit();
-
-      AppSnackbar.success('Video removed from all playlists!');
-    } catch (e) {
-      ErrorHandler.log(e);
-      AppSnackbar.error('Unable to remove video from playlists. Please try again.');
-    }
-  }
-
-  // ===================== Fetching =====================
-
-  Stream<List<PlaylistModel>> getPrivatePlaylists() {
-    if (user.isEmpty) {
-      logger.debug('⚠️ getPrivatePlaylists: No user logged in');
-      return Stream.value([]);
-    }
-
-    return _firestore
-        .collection(FirestoreCollections.users)
-        .doc(user)
-        .collection(FirestoreCollections.playlists)
-        .orderBy('sortIndex')
-        .orderBy('createdAt', descending: true)
-        .limit(50)
-        .snapshots()
-        .handleError((error) {
-          logger.debug('❌ getPrivatePlaylists error: $error');
-          return <PlaylistModel>[];
-        })
-        .map(
-          (snap) => snap.docs.map(PlaylistModel.fromDocumentSnapshot).toList(),
-        );
-  }
-
-  Stream<List<PlaylistModel>> getPublicPlaylists() {
-    return _firestore
-        .collection('public_playlists')
-        .orderBy('sortIndex')
-        .orderBy('createdAt', descending: true)
-        .limit(50)
-        .snapshots()
-        .handleError((error) {
-          logger.debug('❌ getPublicPlaylists error: $error');
-          return <PlaylistModel>[];
-        })
-        .map(
-          (snap) => snap.docs.map(PlaylistModel.fromDocumentSnapshot).toList(),
-        );
-  }
+  Future<void> deletePlaylist(String playlistId, bool isPublic) =>
+      _crudManager.deletePlaylist(playlistId, isPublic);
 
   Future<PlaylistModel> getPlaylist(
     String playlistId, {
     required bool isPublic,
-  }) async {
-    final doc = isPublic
-        ? await _firestore.collection('public_playlists').doc(playlistId).get()
-        : await _firestore
-              .collection(FirestoreCollections.users)
-              .doc(user)
-              .collection(FirestoreCollections.playlists)
-              .doc(playlistId)
-              .get();
-
-    if (!doc.exists) throw Exception('Playlist not found');
-    return PlaylistModel.fromDocumentSnapshot(doc);
-  }
-
-  Future<List<Video>> fetchVideos(List<String> videoIds) async {
-    if (videoIds.isEmpty) return [];
-    const batchSize = 10;
-    final videos = <Video>[];
-
-    for (var i = 0; i < videoIds.length; i += batchSize) {
-      final batchIds = videoIds.skip(i).take(batchSize).toList();
-      final snapshot = await _firestore
-          .collection(FirestoreCollections.videos)
-          .where(FieldPath.documentId, whereIn: batchIds)
-          .get();
-      videos.addAll(snapshot.docs.map(Video.fromDocumentSnapshot));
-    }
-
-    final videoMap = <String, Video>{for (final v in videos) v.id: v};
-    return videoIds
-        .map((id) => videoMap[id] ?? _getPlaceholderVideo(id))
-        .toList();
-  }
-
-  Video _getPlaceholderVideo(String id) {
-    return Video(
-      id: id,
-      title: 'Video not found',
-      description: '',
-      thumbnailUrl: '',
-      ownerId: '',
-      channelId: '',
-      channelName: '',
-      category: '',
-      tags: [],
-    );
-  }
-
-  // ===================== Share Playlist =====================
-  Future<void> sharePlaylist(String playlistId, {String? name}) async {
-    try {
-      // Find cached playlist in controller state
-      final playlist = playlists.firstWhereOrNull((p) => p.id == playlistId) ??
-          publicPlaylists.firstWhereOrNull((p) => p.id == playlistId);
-
-      final playlistName = name ?? playlist?.playlistName ?? 'Playlist';
-      final thumbnailUrl = playlist?.thumbnailUrl;
-      final videoCount = playlist?.videoCount;
-
-      Get.find<MainController>().sharePlaylist(
-        playlistId,
-        playlistName,
-        thumbnailUrl: thumbnailUrl,
-        videoCount: videoCount,
-      );
-    } catch (e, stackTrace) {
-      logger.error(
-        '❌ Error sharing playlist',
-        error: e,
-        stackTrace: stackTrace,
-      );
-    }
-  }
+  }) =>
+      _crudManager.getPlaylist(playlistId, isPublic: isPublic);
 
   Future<void> editPlaylist(
     String playlistId,
     String newName,
     bool isPublic,
-  ) async {
-    final validation = ContentValidator.validate(
-      newName,
-      fieldName: 'Playlist Name',
-      maxLength: 100,
-    );
-    if (!validation.isValid) {
-      AppSnackbar.warning(validation.message);
-      return;
-    }
-
-    try {
-      final ref = isPublic
-          ? _firestore.collection('public_playlists').doc(playlistId)
-          : _firestore
-                .collection(FirestoreCollections.users)
-                .doc(user)
-                .collection(FirestoreCollections.playlists)
-                .doc(playlistId);
-
-      await ref.update({
-        'name': newName,
-        'playlistName': newName,
-        'status': 'underReview',
-        'geminiApproved': null,
-        'moderationReason': null,
-        'updatedAt': Timestamp.now(),
-      });
-
-      // Refresh the playlists to update UI
-      refreshPlaylistsTick();
-
-      AppSnackbar.success('Playlist renamed successfully!');
-    } catch (e) {
-      ErrorHandler.log(e);
-      AppSnackbar.error('Unable to rename playlist. Please try again.');
-    }
-  }
-
-  // ===================== Update Sort Index =====================
+  ) =>
+      _crudManager.editPlaylist(playlistId, newName, isPublic);
 
   Future<void> updateSortIndex(
     String playlistId,
     int newIndex,
     bool isPublic,
-  ) async {
-    try {
-      final ref = isPublic
-          ? _firestore.collection('public_playlists').doc(playlistId)
-          : _firestore
-                .collection(FirestoreCollections.users)
-                .doc(user)
-                .collection(FirestoreCollections.playlists)
-                .doc(playlistId);
-
-      await ref.update({'sortIndex': newIndex, 'updatedAt': Timestamp.now()});
-
-      refreshPlaylistsTick();
-    } catch (e) {
-      logger.debug('❌ Error updating sort index: $e');
-    }
-  }
-
-  // ===================== Toggle Visibility =====================
+  ) =>
+      _crudManager.updateSortIndex(playlistId, newIndex, isPublic);
 
   Future<void> togglePlaylistVisibility(
     String playlistId,
     bool currentIsPublic,
-  ) async {
-    try {
-      if (currentIsPublic) {
-        final doc = await _firestore
-            .collection('public_playlists')
-            .doc(playlistId)
-            .get();
-        final playlist = PlaylistModel.fromDocumentSnapshot(doc);
-        await _firestore
-            .collection(FirestoreCollections.users)
-            .doc(user)
-            .collection(FirestoreCollections.playlists)
-            .doc(playlistId)
-            .set(
-              playlist.toMap()
-                ..['isPublic'] = false
-                ..['status'] = 'underReview'
-                ..['geminiApproved'] = null
-                ..['moderationReason'] = null,
-            );
-        await _firestore
-            .collection('public_playlists')
-            .doc(playlistId)
-            .delete();
-      } else {
-        final doc = await _firestore
-            .collection(FirestoreCollections.users)
-            .doc(user)
-            .collection(FirestoreCollections.playlists)
-            .doc(playlistId)
-            .get();
-        final playlist = PlaylistModel.fromDocumentSnapshot(doc);
-        await _firestore
-            .collection('public_playlists')
-            .doc(playlistId)
-            .set(
-              playlist.toMap()
-                ..['isPublic'] = true
-                ..['status'] = 'underReview'
-                ..['geminiApproved'] = null
-                ..['moderationReason'] = null,
-            );
-        await _firestore
-            .collection(FirestoreCollections.users)
-            .doc(user)
-            .collection(FirestoreCollections.playlists)
-            .doc(playlistId)
-            .delete();
-      }
-      AppSnackbar.success('Playlist visibility updated!');
-    } catch (e) {
-      ErrorHandler.log(e);
-      AppSnackbar.error('Unable to update playlist visibility. Please try again.');
-    }
-  }
+  ) =>
+      _crudManager.togglePlaylistVisibility(playlistId, currentIsPublic);
 
-  // ===================== Fetch Channels =====================
+  Future<void> sharePlaylist(String playlistId, {String? name}) =>
+      _crudManager.sharePlaylist(playlistId, name: name);
 
-  void fetchChannels() {
-    // Cancel existing subscription
-    _channelsSubscription?.cancel();
-
-    // Guard: Only fetch if authenticated (assuming channels collection is protected)
-    if (user.isEmpty) {
-      logger.debug('⚠️ fetchChannels: No user logged in, skipping listener');
-      return;
-    }
-
-    _channelsSubscription = _firestore
-        .collection(FirestoreCollections.channels)
-        .where('ownerId', isEqualTo: user)
-        .snapshots()
-        .listen(
-          (snapshot) async {
-            var loaded = snapshot.docs
-                .map(Channel.fromDocumentSnapshot)
-                .where((c) => c.status != ChannelStatus.deleted)
-                .toList();
-
-            if (loaded.isEmpty) {
-              try {
-                final userSnap = await _firestore
-                    .collection(FirestoreCollections.channels)
-                    .where('userId', isEqualTo: user)
-                    .get();
-                loaded = userSnap.docs
-                    .map(Channel.fromDocumentSnapshot)
-                    .where((c) => c.status != ChannelStatus.deleted)
-                    .toList();
-              } catch (e, s) {
-                ErrorHandler.log(
-                  e,
-                  stackTrace: s,
-                  tag: 'PlaylistController.fetchChannels.fallback',
-                );
-              }
-            }
-
-            if (loaded.isEmpty && AuthService.to.userChannel != null) {
-              final authCh = AuthService.to.userChannel!;
-              if (authCh.status != ChannelStatus.deleted) {
-                loaded = [authCh];
-              }
-            }
-
-            channels.value = loaded;
-            logger.debug('✅ Channels loaded: ${channels.length}');
-          },
-          onError: (error, stackTrace) {
-            ErrorHandler.log(
-              error,
-              stackTrace: stackTrace,
-              tag: 'PlaylistController.fetchChannels',
-            );
-            if (AuthService.to.userChannel != null) {
-              channels.value = [AuthService.to.userChannel!];
-            }
-          },
-        );
-  }
-
-  void fetchPlaylists() {
-    // Cancel existing subscription to avoid duplicates
-    _playlistsSubscription?.cancel();
-
-    if (user.isEmpty) {
-      logger.debug('📋 Cannot fetch playlists: no user logged in');
-      isPlaylistsLoaded.value = false;
-      return;
-    }
-
-    _playlistsSubscription = _firestore
-        .collection(FirestoreCollections.users)
-        .doc(user)
-        .collection(FirestoreCollections.playlists)
-        .snapshots()
-        .listen(
-          (snapshot) {
-            final loadedPlaylists = snapshot.docs
-                .map((doc) {
-                  try {
-                    return PlaylistModel.fromDocumentSnapshot(doc);
-                  } catch (e) {
-                    logger.debug('❌ Error parsing playlist ${doc.id}: $e');
-                    return null;
-                  }
-                })
-                .where((p) => p != null)
-                .cast<PlaylistModel>()
-                .toList();
-
-            playlists.value = loadedPlaylists;
-            isPlaylistsLoaded.value = true;
-            logger.debug('📋 Loaded ${playlists.length} playlists');
-          },
-          onError: (error) {
-            isPlaylistsLoaded.value = true;
-            if (error.toString().contains('permission-denied')) {
-              logger.debug(
-                '📋 PlaylistController: Permission denied listening to playlists for user $user.',
-              );
-            } else {
-              logger.debug(
-                '❌ PlaylistController: Error listening to playlists: $error',
-              );
-            }
-          },
-        );
-  }
-
-  /// Force refresh playlists by manually fetching and updating
-  Future<void> refreshPlaylists() async {
-    if (user.isEmpty) {
-      logger.debug('📋 Cannot refresh playlists: no user logged in');
-      return;
-    }
-
-    try {
-      final snapshot = await _firestore
-          .collection(FirestoreCollections.users)
-          .doc(user)
-          .collection(FirestoreCollections.playlists)
-          .get();
-
-      final loadedPlaylists = snapshot.docs
-          .map((doc) {
-            try {
-              return PlaylistModel.fromDocumentSnapshot(doc);
-            } catch (e) {
-              logger.debug(
-                '❌ Error parsing playlist ${doc.id} during refresh: $e',
-              );
-              return null;
-            }
-          })
-          .where((p) => p != null)
-          .cast<PlaylistModel>()
-          .toList();
-
-      playlists.value = loadedPlaylists;
-      isPlaylistsLoaded.value = true;
-      logger.debug('📋 Force refreshed ${playlists.length} playlists');
-    } catch (e) {
-      logger.debug('❌ Error force refreshing playlists: $e');
-    }
-  }
-
-  // ===================== Public Playlists for Upload Screen =====================
-
-  StreamSubscription<QuerySnapshot>? _publicPlaylistsSubscription;
-
-  /// Fetch public playlists for upload screen dropdown
-  void fetchPublicPlaylists() {
-    // Cancel existing subscription
-    _publicPlaylistsSubscription?.cancel();
-
-    // Guard: Only fetch if authenticated
-    if (user.isEmpty) {
-      logger.debug(
-        '⚠️ fetchPublicPlaylists: No user logged in, skipping listener',
+  // Video Management pass-throughs
+  Future<List<String>> fetchPlaylistVideoIds(
+    String playlistId,
+    bool isPublic, {
+    String? ownerId,
+  }) =>
+      _videoManager.fetchPlaylistVideoIds(
+        playlistId,
+        isPublic,
+        ownerId: ownerId,
+        watchLaterVideoIds: watchLaterVideoIds,
       );
-      isPublicPlaylistsLoaded.value = false;
-      return;
-    }
 
-    _publicPlaylistsSubscription = _firestore
-        .collection('public_playlists')
-        .orderBy('sortIndex')
-        .orderBy('createdAt', descending: true)
-        .limit(50)
-        .snapshots()
-        .listen(
-          (snapshot) {
-            final loadedPlaylists = snapshot.docs
-                .map((doc) {
-                  try {
-                    return PlaylistModel.fromDocumentSnapshot(doc);
-                  } catch (e) {
-                    logger.debug(
-                      '❌ Error parsing public playlist ${doc.id}: $e',
-                    );
-                    return null;
-                  }
-                })
-                .where((p) => p != null && p.thumbnailUrl.trim().isNotEmpty)
-                .cast<PlaylistModel>()
-                .toList();
-
-            publicPlaylists.value = loadedPlaylists;
-            isPublicPlaylistsLoaded.value = true;
-            logger.debug(
-              '📋 Loaded ${publicPlaylists.length} public playlists',
-            );
-          },
-          onError: (error, stackTrace) {
-            isPublicPlaylistsLoaded.value = true;
-            ErrorHandler.log(
-              error,
-              stackTrace: stackTrace,
-              tag: 'PlaylistController.fetchPublicPlaylists',
-            );
-          },
-        );
-  }
-
-  /// Force refresh public playlists
-  Future<void> refreshPublicPlaylists() async {
-    try {
-      final snapshot = await _firestore
-          .collection('public_playlists')
-          .orderBy('sortIndex')
-          .orderBy('createdAt', descending: true)
-          .get();
-
-      final loadedPlaylists = snapshot.docs
-          .map((doc) {
-            try {
-              return PlaylistModel.fromDocumentSnapshot(doc);
-            } catch (e) {
-              logger.debug('❌ Error parsing public playlist ${doc.id}: $e');
-              return null;
-            }
-          })
-          .where((p) => p != null && p.thumbnailUrl.trim().isNotEmpty)
-          .cast<PlaylistModel>()
-          .toList();
-
-      publicPlaylists.value = loadedPlaylists;
-      logger.debug(
-        '📋 Force refreshed ${publicPlaylists.length} public playlists',
+  Future<void> addMultipleVideosToPlaylist(
+    String playlistId,
+    List<String> videoIdsToAdd,
+    bool isPublic,
+  ) =>
+      _videoManager.addMultipleVideosToPlaylist(
+        playlistId,
+        videoIdsToAdd,
+        isPublic,
       );
-    } catch (e) {
-      logger.debug('❌ Error refreshing public playlists: $e');
-    }
-  }
+
+  Future<void> addVideoToPlaylist(
+    String playlistId,
+    String videoId,
+    bool isPublic,
+  ) =>
+      _videoManager.addVideoToPlaylist(playlistId, videoId, isPublic);
+
+  Future<void> removeVideoFromPlaylist(
+    String playlistId,
+    String videoId,
+    bool isPublic,
+  ) =>
+      _videoManager.removeVideoFromPlaylist(playlistId, videoId, isPublic);
+
+  Future<void> deleteVideoFromAllPlaylists(String videoId) =>
+      _videoManager.deleteVideoFromAllPlaylists(videoId);
+
+  Future<List<Video>> fetchVideos(List<String> videoIds) =>
+      _videoManager.fetchVideos(videoIds);
+
+  // Fetching & sync pass-throughs
+  Stream<List<PlaylistModel>> getPrivatePlaylists() =>
+      _syncManager.getPrivatePlaylists();
+  Stream<List<PlaylistModel>> getPublicPlaylists() =>
+      _syncManager.getPublicPlaylists();
+  void fetchChannels() => _syncManager.fetchChannels();
+  void fetchPlaylists() => _syncManager.fetchPlaylists();
+  Future<void> refreshPlaylists() => _syncManager.refreshPlaylists();
+  void fetchPublicPlaylists() => _syncManager.fetchPublicPlaylists();
+  Future<void> refreshPublicPlaylists() =>
+      _syncManager.refreshPublicPlaylists();
 }

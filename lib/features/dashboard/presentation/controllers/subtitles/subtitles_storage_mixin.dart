@@ -7,11 +7,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show Uint8List, kIsWeb;
 import 'package:flutter/material.dart' show UniqueKey;
-import 'package:http/http.dart' as http;
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
+import 'package:truthworld/core/network/app_http_client.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/core/utils/isolate_compute_utils.dart';
 import 'package:truthworld/core/utils/subtitle_parser.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles/subtitle_cue_model.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles/subtitles_controller_base.dart';
@@ -42,7 +43,7 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
               .getDownloadURL();
         }
 
-        final response = await http.get(Uri.parse(downloadUrl));
+        final response = await AppHttpClient.get(Uri.parse(downloadUrl));
         if (response.statusCode == 200) {
           contentToParse = response.body;
         } else {
@@ -66,7 +67,7 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
       }
     }
 
-    final segments = SubtitleParser.parse(contentToParse);
+    final segments = await IsolateComputeUtils.parseSubtitlesAsync(contentToParse);
     if (segments.isNotEmpty) {
       currentCues.value = segments.map((seg) {
         return SubtitleCue(

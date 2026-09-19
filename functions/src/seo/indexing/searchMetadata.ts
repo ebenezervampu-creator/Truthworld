@@ -1,8 +1,13 @@
 import * as admin from "firebase-admin";
+import { computeTextEmbedding } from "../../search/embeddingService";
 
 export async function updateVideoSearchMetadata(db: admin.firestore.Firestore, videoId: string, data: any) {
   if (!videoId) return;
-  const searchDoc = {
+
+  const embeddingText = `${data.title || ""} ${data.channelName || ""} ${data.category || ""} ${(data.tags || []).join(" ")}`.trim();
+  const embeddingVector = embeddingText.length > 3 ? await computeTextEmbedding(embeddingText) : null;
+
+  const searchDoc: Record<string, any> = {
     id: videoId,
     title: data.title || "",
     titleLowercase: (data.title || "").toLowerCase(),
@@ -17,7 +22,18 @@ export async function updateVideoSearchMetadata(db: admin.firestore.Firestore, v
     updatedAt: admin.firestore.FieldValue.serverTimestamp()
   };
 
+  if (embeddingVector && embeddingVector.length > 0) {
+    searchDoc.embedding = admin.firestore.FieldValue.vector(embeddingVector);
+  }
+
   await db.collection("video_search").doc(videoId).set(searchDoc, { merge: true });
+
+  if (embeddingVector && embeddingVector.length > 0) {
+    await db.collection("videos").doc(videoId).set({
+      embedding: admin.firestore.FieldValue.vector(embeddingVector),
+      titleLowercase: (data.title || "").toLowerCase(),
+    }, { merge: true });
+  }
 }
 
 export async function updateChannelSearchMetadata(db: admin.firestore.Firestore, channelId: string, data: any) {

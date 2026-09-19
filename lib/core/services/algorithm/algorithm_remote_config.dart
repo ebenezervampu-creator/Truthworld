@@ -175,7 +175,7 @@ class AlgorithmRemoteConfig extends GetxService {
 
   String _homeFeedEndpoint = const String.fromEnvironment(
     'TRUTHWORLD_HOME_FEED_ENDPOINT',
-    defaultValue: 'https://asia-south1-truthworld-app.cloudfunctions.net/getHomeFeed',
+    defaultValue: 'https://asia-south1-truthworld-1.cloudfunctions.net/getHomeFeed',
   );
   String get homeFeedEndpoint => _homeFeedEndpoint;
 

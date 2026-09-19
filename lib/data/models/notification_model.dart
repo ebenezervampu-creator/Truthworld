@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/utils/timestamp_utils.dart';
+import 'package:truthworld/domain/entities/notification_entity.dart';
 
 class NotificationModel {
   NotificationModel({
@@ -41,4 +42,34 @@ class NotificationModel {
   final String? imageUrl;
   final String? actionUrl;
   final Map<String, dynamic>? metadata;
+
+  /// Converts this data model to a pure domain [NotificationEntity].
+  NotificationEntity toEntity() {
+    return NotificationEntity(
+      id: id,
+      title: title,
+      message: message,
+      type: type,
+      timestamp: timestamp,
+      isRead: isRead,
+      imageUrl: imageUrl,
+      actionUrl: actionUrl,
+      metadata: metadata,
+    );
+  }
+
+  /// Creates a [NotificationModel] data model from a pure domain [NotificationEntity].
+  static NotificationModel fromEntity(NotificationEntity entity) {
+    return NotificationModel(
+      id: entity.id,
+      title: entity.title,
+      message: entity.message,
+      type: entity.type,
+      timestamp: entity.timestamp,
+      isRead: entity.isRead,
+      imageUrl: entity.imageUrl,
+      actionUrl: entity.actionUrl,
+      metadata: entity.metadata,
+    );
+  }
 }

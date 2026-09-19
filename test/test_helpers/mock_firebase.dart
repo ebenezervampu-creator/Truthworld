@@ -1,7 +1,9 @@
 import 'package:firebase_core/firebase_core.dart';
 // ignore: depend_on_referenced_packages
 import 'package:firebase_core_platform_interface/test.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get_storage/get_storage.dart';
 
 class MockFirebaseAppWithStorage implements TestFirebaseCoreHostApi {
   @override
@@ -53,6 +55,15 @@ class MockFirebaseAppWithStorage implements TestFirebaseCoreHostApi {
 
 Future<void> setupMockFirebase() async {
   TestWidgetsFlutterBinding.ensureInitialized();
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(
+    const MethodChannel('plugins.flutter.io/path_provider'),
+    (methodCall) async => '.',
+  );
+  try {
+    await GetStorage.init();
+  } catch (_) {}
+
   TestFirebaseCoreHostApi.setUp(MockFirebaseAppWithStorage());
 
   try {

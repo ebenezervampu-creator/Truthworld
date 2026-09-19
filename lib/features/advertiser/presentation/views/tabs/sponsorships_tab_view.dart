@@ -501,7 +501,7 @@ class SponsorshipsTabView extends StatelessWidget {
                     onPressed: () => _showProposalDialog(context, creator),
                     icon: const Icon(
                       Icons.send_rounded,
-                      color: Colors.white,
+                      color: Colors.black,
                       size: 16,
                     ),
                     label: const Text(

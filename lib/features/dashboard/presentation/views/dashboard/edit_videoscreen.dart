@@ -1,180 +1,96 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
-import 'package:truthworld/core/ux/app_snackbar.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/edit_video_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class EditVideoScreen extends StatefulWidget {
+export 'package:truthworld/features/dashboard/presentation/controllers/edit_video_controller.dart';
+
+class EditVideoScreen extends StatelessWidget {
   const EditVideoScreen({required this.video, super.key});
   final Video video;
 
   @override
-  State<EditVideoScreen> createState() => _EditVideoScreenState();
-}
-
-class _EditVideoScreenState extends State<EditVideoScreen> {
-  late final TextEditingController _titleController;
-  late final TextEditingController _descriptionController;
-  late final TextEditingController _tagsController;
-  late final RxString _selectedVisibility;
-  late final RxBool _isKidFriendly;
-  late final RxBool _showLikeCount;
-  late final RxBool _showDislikeCount;
-
-  final _formKey = GlobalKey<FormState>();
-  final VideoManagementController _controller =
-      Get.isRegistered<VideoManagementController>()
-          ? Get.find<VideoManagementController>()
-          : Get.put(VideoManagementController());
-
-  @override
-  void initState() {
-    super.initState();
-    _titleController = TextEditingController(text: widget.video.title);
-    _descriptionController = TextEditingController(
-      text: widget.video.description,
-    );
-    _tagsController = TextEditingController(text: widget.video.tags.join(', '));
-    _selectedVisibility = widget.video.visibility.obs;
-    _isKidFriendly = widget.video.isKidFriendly.obs;
-    _showLikeCount = widget.video.showLikeCount.obs;
-    _showDislikeCount = widget.video.showDislikeCount.obs;
-  }
-
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _descriptionController.dispose();
-    _tagsController.dispose();
-    super.dispose();
-  }
-
-  void _onSave() {
-    if (_formKey.currentState!.validate()) {
-      final title = _titleController.text.trim();
-      final titleResult = ContentValidator.validate(title, fieldName: 'Title');
-      if (!titleResult.isValid) {
-        AppSnackbar.warning(titleResult.message);
-        return;
-      }
-
-      final description = _descriptionController.text.trim();
-      if (description.isNotEmpty) {
-        final descResult = ContentValidator.validate(
-          description,
-          fieldName: 'Description',
-        );
-        if (!descResult.isValid) {
-          AppSnackbar.warning(descResult.message);
-          return;
-        }
-      }
-
-      final tags = _tagsController.text
-          .split(',')
-          .map((e) => e.trim())
-          .where((e) => e.isNotEmpty)
-          .take(5)
-          .toList();
-
-      if (tags.isNotEmpty) {
-        final tagsResult = ContentValidator.validateTags(tags);
-        if (!tagsResult.isValid) {
-          AppSnackbar.warning(tagsResult.message);
-          return;
-        }
-      }
-
-      final updatedData = {
-        'title': title,
-        'description': description,
-        'tags': tags,
-        'visibility': _selectedVisibility.value,
-        'isKidFriendly': _isKidFriendly.value,
-        'showLikeCount': _showLikeCount.value,
-        'showDislikeCount': _showDislikeCount.value,
-      };
-      _controller.updateVideo(widget.video.id, updatedData);
-      Get.back();
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.bgPage,
-      appBar: AppBar(
-        title: Text(
-          'Edit Video',
-          style: AppTextStyles.titleLarge,
-        ),
-        backgroundColor: AppColors.bgSurface,
-        elevation: 0,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: ElevatedButton.icon(
-              onPressed: _onSave,
-              icon: const Icon(Icons.save, size: 18, color: Colors.white),
-              label: Text('Save', style: AppTextStyles.buttonText),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.brand,
-                foregroundColor: Colors.black,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+    return GetBuilder<EditVideoController>(
+      init: EditVideoController(video: video),
+      tag: video.id,
+      builder: (controller) {
+        return Scaffold(
+          backgroundColor: AppColors.bgPage,
+          appBar: AppBar(
+            title: Text(
+              'Edit Video',
+              style: AppTextStyles.titleLarge,
+            ),
+            backgroundColor: AppColors.bgSurface,
+            elevation: 0,
+            actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: ElevatedButton.icon(
+                  onPressed: controller.save,
+                  icon: const Icon(Icons.save, size: 18, color: Colors.black),
+                  label: Text('Save', style: AppTextStyles.buttonText.copyWith(color: Colors.black)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.brand,
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
                 ),
+              ),
+            ],
+          ),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Form(
+              key: controller.formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildTextField(
+                    controller: controller.titleController,
+                    label: 'Title',
+                    validator: ContentValidator.formValidator('Title'),
+                  ),
+                  const SizedBox(height: 20),
+                  _buildTextField(
+                    controller: controller.descriptionController,
+                    label: 'Description',
+                    maxLines: 5,
+                    validator: ContentValidator.formValidator('Description', required: false),
+                  ),
+                  const SizedBox(height: 20),
+                  _buildTextField(
+                    controller: controller.tagsController,
+                    label: 'Tags (comma separated, max 5)',
+                    validator: (val) {
+                      if (val != null && val.trim().isNotEmpty) {
+                        final tagList = val.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+                        if (tagList.length > 5) {
+                          return 'Maximum 5 tags allowed';
+                        }
+                        for (final tag in tagList) {
+                          final res = ContentValidator.validate(tag, fieldName: 'Tag');
+                          if (!res.isValid) return res.message;
+                        }
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  _buildDropdownField(controller),
+                  const SizedBox(height: 20),
+                  _buildSwitchField(controller),
+                ],
               ),
             ),
           ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildTextField(
-                controller: _titleController,
-                label: 'Title',
-                validator: ContentValidator.formValidator('Title'),
-              ),
-              const SizedBox(height: 20),
-              _buildTextField(
-                controller: _descriptionController,
-                label: 'Description',
-                maxLines: 5,
-                validator: ContentValidator.formValidator('Description', required: false),
-              ),
-              const SizedBox(height: 20),
-              _buildTextField(
-                controller: _tagsController,
-                label: 'Tags (comma separated, max 5)',
-                validator: (val) {
-                  if (val != null && val.trim().isNotEmpty) {
-                    final tagList = val.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-                    if (tagList.length > 5) {
-                      return 'Maximum 5 tags allowed';
-                    }
-                    for (final tag in tagList) {
-                      final res = ContentValidator.validate(tag, fieldName: 'Tag');
-                      if (!res.isValid) return res.message;
-                    }
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 20),
-              _buildDropdownField(),
-              const SizedBox(height: 20),
-              _buildSwitchField(),
-            ],
-          ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -207,7 +123,7 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
     );
   }
 
-  Widget _buildDropdownField() {
+  Widget _buildDropdownField(EditVideoController controller) {
     final options = [
       {'value': 'public', 'label': 'Public (Everyone can watch)'},
       {'value': 'private', 'label': 'Private (Only you can watch)'},
@@ -218,7 +134,7 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
 
     return Obx(
       () {
-        var current = _selectedVisibility.value.toLowerCase().replaceAll(' ', '_');
+        var current = controller.selectedVisibility.value.toLowerCase().replaceAll(' ', '_');
         if (current == 'members') current = 'members_only';
         if (current == 'subscribers') current = 'subscribers_only';
         if (!options.any((o) => o['value'] == current)) {
@@ -229,7 +145,7 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
           initialValue: current,
           onChanged: (value) {
             if (value != null) {
-              _selectedVisibility.value = value;
+              controller.selectedVisibility.value = value;
             }
           },
           items: options
@@ -261,7 +177,7 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
     );
   }
 
-  Widget _buildSwitchField() {
+  Widget _buildSwitchField(EditVideoController controller) {
     return Column(
       children: [
         Obx(
@@ -270,9 +186,9 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
               'Is this video "Made for Kids"?',
               style: AppTextStyles.bodyMedium,
             ),
-            value: _isKidFriendly.value,
+            value: controller.isKidFriendly.value,
             onChanged: (value) {
-              _isKidFriendly.value = value;
+              controller.isKidFriendly.value = value;
             },
             activeThumbColor: AppColors.brand,
             tileColor: AppColors.bgSurface,
@@ -294,9 +210,9 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
                 color: AppColors.textSecondary,
               ),
             ),
-            value: _showLikeCount.value,
+            value: controller.showLikeCount.value,
             onChanged: (value) {
-              _showLikeCount.value = value;
+              controller.showLikeCount.value = value;
             },
             activeThumbColor: AppColors.brand,
             tileColor: AppColors.bgSurface,
@@ -318,9 +234,9 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
                 color: AppColors.textSecondary,
               ),
             ),
-            value: _showDislikeCount.value,
+            value: controller.showDislikeCount.value,
             onChanged: (value) {
-              _showDislikeCount.value = value;
+              controller.showDislikeCount.value = value;
             },
             activeThumbColor: AppColors.brand,
             tileColor: AppColors.bgSurface,

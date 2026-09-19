@@ -3,6 +3,8 @@ import 'package:truthworld/core/base/base_repository.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/network/result.dart';
+import 'package:truthworld/domain/entities/topic_entity.dart';
+import 'package:truthworld/domain/entities/video_entity.dart';
 import 'package:truthworld/domain/repositories/home_repository.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -11,23 +13,17 @@ import 'package:truthworld/features/video/data/models/video.dart';
 class HomeRepositoryImpl extends BaseRepository implements HomeRepository {
   final FirebaseFirestore _firestore;
 
-  DocumentSnapshot? _lastFeedDoc;
-  DocumentSnapshot? _lastCategoryDoc;
-  DocumentSnapshot? _lastTopicDoc;
-  DocumentSnapshot? _lastCommunityDoc;
-
   HomeRepositoryImpl({FirebaseFirestore? firestore})
       : _firestore = firestore ?? FirebaseFirestore.instance;
 
   @override
-  Future<Result<List<Video>>> getHomeFeed({
+  Future<Result<List<VideoEntity>>> getHomeFeed({
     int page = 1,
     int limit = 20,
     String? category,
+    dynamic startAfter,
   }) async {
     return safeFetch(() async {
-      if (page == 1) _lastFeedDoc = null;
-
       var query = _firestore
           .collection(FirestoreCollections.videos)
           .where('status', isEqualTo: 'published')
@@ -39,31 +35,26 @@ class HomeRepositoryImpl extends BaseRepository implements HomeRepository {
         query = query.where('category', isEqualTo: category);
       }
 
-      if (_lastFeedDoc != null) {
-        query = query.startAfterDocument(_lastFeedDoc!);
+      if (startAfter is DocumentSnapshot) {
+        query = query.startAfterDocument(startAfter);
       }
 
       final snapshot = await query.get();
 
-      if (snapshot.docs.isNotEmpty) {
-        _lastFeedDoc = snapshot.docs.last;
-      }
-
       return snapshot.docs
-          .map(Video.fromDocumentSnapshot)
+          .map((doc) => Video.fromDocumentSnapshot(doc).toEntity())
           .toList();
     });
   }
 
   @override
-  Future<Result<List<Video>>> getVideosByCategory(
+  Future<Result<List<VideoEntity>>> getVideosByCategory(
     String category, {
     int page = 1,
     int limit = 20,
+    dynamic startAfter,
   }) async {
     return safeFetch(() async {
-      if (page == 1) _lastCategoryDoc = null;
-
       var query = _firestore
           .collection(FirestoreCollections.videos)
           .where('status', isEqualTo: 'published')
@@ -72,24 +63,20 @@ class HomeRepositoryImpl extends BaseRepository implements HomeRepository {
           .orderBy('createdAt', descending: true)
           .limit(limit);
 
-      if (_lastCategoryDoc != null) {
-        query = query.startAfterDocument(_lastCategoryDoc!);
+      if (startAfter is DocumentSnapshot) {
+        query = query.startAfterDocument(startAfter);
       }
 
       final snapshot = await query.get();
 
-      if (snapshot.docs.isNotEmpty) {
-        _lastCategoryDoc = snapshot.docs.last;
-      }
-
       return snapshot.docs
-          .map(Video.fromDocumentSnapshot)
+          .map((doc) => Video.fromDocumentSnapshot(doc).toEntity())
           .toList();
     });
   }
 
   @override
-  Future<Result<List<Topic>>> getFeaturedTopics({int limit = 10}) async {
+  Future<Result<List<TopicEntity>>> getFeaturedTopics({int limit = 10}) async {
     return safeFetch(() async {
       try {
         final snapshot = await _firestore
@@ -102,6 +89,7 @@ class HomeRepositoryImpl extends BaseRepository implements HomeRepository {
         final topics = snapshot.docs
             .map(Topic.fromDocumentSnapshot)
             .where((t) => t.isValidTopic && t.videoCount > 0)
+            .map((t) => t.toEntity())
             .toList();
         if (topics.isNotEmpty) return topics;
       } catch (e, s) {
@@ -121,19 +109,19 @@ class HomeRepositoryImpl extends BaseRepository implements HomeRepository {
       return fallbackSnapshot.docs
           .map(Topic.fromDocumentSnapshot)
           .where((t) => t.isValidTopic && t.videoCount > 0)
+          .map((t) => t.toEntity())
           .toList();
     });
   }
 
   @override
-  Future<Result<List<Video>>> getVideosByTopic(
+  Future<Result<List<VideoEntity>>> getVideosByTopic(
     String topicId, {
     int page = 1,
     int limit = 20,
+    dynamic startAfter,
   }) async {
     return safeFetch(() async {
-      if (page == 1) _lastTopicDoc = null;
-
       var query = _firestore
           .collection(FirestoreCollections.videos)
           .where('status', isEqualTo: 'published')
@@ -142,18 +130,14 @@ class HomeRepositoryImpl extends BaseRepository implements HomeRepository {
           .orderBy('createdAt', descending: true)
           .limit(limit);
 
-      if (_lastTopicDoc != null) {
-        query = query.startAfterDocument(_lastTopicDoc!);
+      if (startAfter is DocumentSnapshot) {
+        query = query.startAfterDocument(startAfter);
       }
 
       final snapshot = await query.get();
 
-      if (snapshot.docs.isNotEmpty) {
-        _lastTopicDoc = snapshot.docs.last;
-      }
-
       return snapshot.docs
-          .map(Video.fromDocumentSnapshot)
+          .map((doc) => Video.fromDocumentSnapshot(doc).toEntity())
           .toList();
     });
   }
@@ -162,25 +146,20 @@ class HomeRepositoryImpl extends BaseRepository implements HomeRepository {
   Future<Result<List<Map<String, dynamic>>>> getCommunityPosts({
     int page = 1,
     int limit = 10,
+    dynamic startAfter,
   }) async {
     return safeFetch(() async {
-      if (page == 1) _lastCommunityDoc = null;
-
       var query = _firestore
           .collection(FirestoreCollections.community)
           .where('visibility', isEqualTo: 'public')
           .orderBy('createdAt', descending: true)
           .limit(limit);
 
-      if (_lastCommunityDoc != null) {
-        query = query.startAfterDocument(_lastCommunityDoc!);
+      if (startAfter is DocumentSnapshot) {
+        query = query.startAfterDocument(startAfter);
       }
 
       final snapshot = await query.get();
-
-      if (snapshot.docs.isNotEmpty) {
-        _lastCommunityDoc = snapshot.docs.last;
-      }
 
       return snapshot.docs
           .map((doc) => {'id': doc.id, ...doc.data()})

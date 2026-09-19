@@ -8,6 +8,7 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_mixins/channel_controller_base.dart';
+import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/memberships_controller.dart';
 
 mixin ChannelManagementMixin on ChannelControllerBase {
@@ -84,7 +85,18 @@ mixin ChannelManagementMixin on ChannelControllerBase {
   @override
   void fetchSubscriberCount(String channelId) => subController.fetchSubscriberCount(channelId);
 
-  String get formattedSubscribers => FormatUtils.formatCount(subscriberCount.value);
+  String get formattedSubscribers {
+    final chId = selectedChannel.value?.channelId;
+    final registryCount = (chId != null && chId.isNotEmpty)
+        ? ChannelSubscriptionController.channelSubscriberCounts[chId]
+        : null;
+    final count = registryCount ?? subscriberCount.value;
+    if (count > 0) {
+      return FormatUtils.formatCount(count);
+    }
+    final fallback = selectedChannel.value?.subscriberCount ?? 0;
+    return FormatUtils.formatCount(fallback > 0 ? fallback : count);
+  }
 
   // ==========================================================================
   // MODERATION

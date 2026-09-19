@@ -153,7 +153,7 @@ class QualityPanel extends StatelessWidget {
                       .where((t) => avail.any((r) => r.height == t.height))
                       .map((tier) {
                         final idx = tiers.indexWhere((t) => t.height == tier.height);
-                        final isPremiumRes = tier.height > 1080;
+                        final isPremiumRes = tier.height > 1040;
 
                         return SelectTile(
                           label: tier.label,

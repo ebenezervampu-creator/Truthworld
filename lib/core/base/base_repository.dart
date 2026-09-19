@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
@@ -34,7 +35,12 @@ abstract class BaseRepository {
           debugPrint(
             '🟡 [Repository Retry] Attempt $attempts/$maxRetries for [${appException.code}]',
           );
-          await Future.delayed(retryDelay * attempts);
+          // Exponential backoff with randomized jitter to prevent thundering herd
+          final baseBackoffMs = retryDelay.inMilliseconds * (1 << min(attempts - 1, 6));
+          final cappedBackoffMs = min(baseBackoffMs, 10000); // 10s max cap
+          final jitterMs = Random().nextInt(max(1, (cappedBackoffMs * 0.25).toInt()));
+          final delayDuration = Duration(milliseconds: cappedBackoffMs + jitterMs);
+          await Future.delayed(delayDuration);
           continue;
         }
         debugPrint(

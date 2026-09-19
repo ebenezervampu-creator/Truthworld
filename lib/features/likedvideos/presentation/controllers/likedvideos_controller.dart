@@ -9,9 +9,20 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/data/repositories/library_repository_impl.dart';
+import 'package:truthworld/domain/repositories/library_repository.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
 class LikedVideosController extends BaseController {
+  final LibraryRepository _libraryRepository;
+
+  LikedVideosController({
+    LibraryRepository? libraryRepository,
+  }) : _libraryRepository = libraryRepository ??
+            (Get.isRegistered<LibraryRepository>()
+                ? Get.find<LibraryRepository>()
+                : LibraryRepositoryImpl());
+
   RxString searchQuery = ''.obs;
   RxBool isSearching = false.obs;
   RxBool isSearchExpanded = false.obs;
@@ -23,15 +34,13 @@ class LikedVideosController extends BaseController {
   RxString selectedCategory = 'All'.obs;
   RxBool isListView = true.obs;
 
-  StreamSubscription<QuerySnapshot>? _subscription;
-
   @override
   void onInit() {
     super.onInit();
-    _listenToVideos();
+    fetchLikedVideos();
   }
 
-  void _listenToVideos() {
+  Future<void> fetchLikedVideos() async {
     rxIsLoading.value = true;
     rxErrorMessage.value = '';
 
@@ -42,57 +51,41 @@ class LikedVideosController extends BaseController {
       return;
     }
 
-    _subscription?.cancel();
-    _subscription = trackSubscription(
-      FirebaseFirestore.instance
-          .collection(FirestoreCollections.users)
-          .doc(currentUser.uid)
-          .collection('likedVideos')
-          .orderBy('timestamp', descending: !isAscending.value)
-          .snapshots()
-          .listen(
-          (snapshot) async {
-            try {
-              if (snapshot.docs.isEmpty) {
-                videos.value = [];
-                rxIsLoading.value = false;
-                return;
-              }
+    try {
+      final result = await _libraryRepository.getLikedVideos(currentUser.uid, limit: 50);
+      if (result.isFailure) {
+        rxErrorMessage.value = result.exceptionOrNull?.displayMessage ?? 'Unable to load liked videos';
+        rxIsLoading.value = false;
+        return;
+      }
 
-              final videoIds = snapshot.docs.map((d) => d.id).toList();
-              final videoDocs = await _fetchVideosInBatches(videoIds);
+      final likedDocs = result.dataOrNull ?? [];
+      if (likedDocs.isEmpty) {
+        videos.value = [];
+        rxIsLoading.value = false;
+        return;
+      }
 
-              // Re-order to match the liked timestamp order from snapshot
-              // Use a map for faster lookup
-              final videoMap = {for (final v in videoDocs) v.id: v};
-              final orderedVideos = videoIds
-                  .where(videoMap.containsKey)
-                  .map((id) => videoMap[id]!)
-                  .toList();
+      final videoIds = likedDocs.map((d) => d['id'] as String).toList();
+      final videoDocs = await _fetchVideosInBatches(videoIds);
 
-              videos.value = orderedVideos;
-              rxIsLoading.value = false;
-            } catch (error, stackTrace) {
-              ErrorHandler.log(
-                error,
-                stackTrace: stackTrace,
-                tag: 'LikedVideosController._fetchVideosInBatches',
-              );
-              rxErrorMessage.value = AppException.from(error, stackTrace).displayMessage;
-              rxIsLoading.value = false;
-            }
-          },
-          onError: (error, stackTrace) {
-            ErrorHandler.log(
-              error,
-              stackTrace: stackTrace,
-              tag: 'LikedVideosController._listenToVideos',
-            );
-            rxErrorMessage.value = AppException.from(error, stackTrace).displayMessage;
-            rxIsLoading.value = false;
-          },
-        ),
-    );
+      final videoMap = {for (final v in videoDocs) v.id: v};
+      final orderedVideos = videoIds
+          .where(videoMap.containsKey)
+          .map((id) => videoMap[id]!)
+          .toList();
+
+      videos.value = orderedVideos;
+      rxIsLoading.value = false;
+    } catch (error, stackTrace) {
+      ErrorHandler.log(
+        error,
+        stackTrace: stackTrace,
+        tag: 'LikedVideosController.fetchLikedVideos',
+      );
+      rxErrorMessage.value = AppException.from(error, stackTrace).displayMessage;
+      rxIsLoading.value = false;
+    }
   }
 
   Future<List<Video>> _fetchVideosInBatches(List<String> videoIds) async {
@@ -143,7 +136,7 @@ class LikedVideosController extends BaseController {
       isAscending.value = false;
     }
 
-    _listenToVideos();
+    fetchLikedVideos();
     HapticFeedback.lightImpact();
   }
 
@@ -153,8 +146,7 @@ class LikedVideosController extends BaseController {
   }
 
   void retryFetch() {
-    _subscription?.cancel();
-    _listenToVideos();
+    fetchLikedVideos();
     HapticFeedback.mediumImpact();
   }
 
@@ -163,12 +155,13 @@ class LikedVideosController extends BaseController {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) return;
 
-      await FirebaseFirestore.instance
-          .collection(FirestoreCollections.users)
-          .doc(currentUser.uid)
-          .collection('likedVideos')
-          .doc(videoId)
-          .delete();
+      videos.removeWhere((v) => v.id == videoId);
+
+      final result = await _libraryRepository.toggleLikeVideo(currentUser.uid, videoId);
+      if (result.isFailure) {
+        AppSnackbar.error('Unable to remove video from likes. Please try again.');
+        return;
+      }
 
       AppSnackbar.info('Video removed from Liked Videos.');
     } catch (e) {
@@ -265,11 +258,5 @@ class LikedVideosController extends BaseController {
       'Dec',
     ];
     return months[month - 1];
-  }
-
-  @override
-  void onClose() {
-    _subscription?.cancel();
-    super.onClose();
   }
 }

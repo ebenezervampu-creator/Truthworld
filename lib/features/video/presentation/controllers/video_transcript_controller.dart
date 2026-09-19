@@ -1,15 +1,16 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:http/http.dart' as http;
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/network/app_http_client.dart';
+import 'package:truthworld/core/utils/isolate_compute_utils.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
-import 'package:truthworld/core/utils/subtitle_parser.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
@@ -26,6 +27,11 @@ class VideoTranscriptController extends BaseController {
   final RxString moderationSummary = ''.obs;
   final RxBool isLoadingSummary = false.obs;
 
+  final ScrollController transcriptScrollController = ScrollController();
+  final RxInt activeSegmentIndex = (-1).obs;
+  final RxBool autoScrollEnabled = true.obs;
+  DateTime _lastAutoScroll = DateTime(2000);
+
   void toggleTranscriptVisibility() {
     isTranscriptVisible.value = !isTranscriptVisible.value;
   }
@@ -34,13 +40,55 @@ class VideoTranscriptController extends BaseController {
     isSummaryVisible.value = !isSummaryVisible.value;
   }
 
+  void updateActiveSegment(SubtitleSegment? seg) {
+    if (seg == null) {
+      if (activeSegmentIndex.value != -1) activeSegmentIndex.value = -1;
+      return;
+    }
+    final idx = transcriptSegments.indexOf(seg);
+    if (idx != -1 && idx != activeSegmentIndex.value) {
+      activeSegmentIndex.value = idx;
+      if (autoScrollEnabled.value && isTranscriptVisible.value) {
+        _smoothScrollToIndex(idx);
+      }
+    }
+  }
+
+  void _smoothScrollToIndex(int index) {
+    final now = DateTime.now();
+    if (now.difference(_lastAutoScroll).inMilliseconds < 150) return;
+    _lastAutoScroll = now;
+
+    if (transcriptScrollController.hasClients) {
+      final target = (index * 52.0 - 120.0).clamp(
+        0.0,
+        transcriptScrollController.position.maxScrollExtent,
+      );
+      transcriptScrollController.animateTo(
+        target,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
   /// Proactively finds, downloads, and parses the transcript/subtitles for [video].
   Future<void> loadTranscriptForVideo(Video video, {String? defaultSubtitleUrl}) async {
     final playerCtrl = TowerPlayerController.getForTagOrActive(video.id);
 
-    if (transcriptSegments.isNotEmpty && playerCtrl?.subtitleSegments.isNotEmpty == true) {
+    // 0. Fast-path memory cache checks
+    if (transcriptSegments.isNotEmpty) {
+      if (playerCtrl != null && playerCtrl.subtitleSegments.isEmpty) {
+        playerCtrl.subtitleSegments.assignAll(transcriptSegments);
+      }
       return;
     }
+    if (playerCtrl != null && playerCtrl.subtitleSegments.isNotEmpty) {
+      transcriptSegments.assignAll(playerCtrl.subtitleSegments);
+      return;
+    }
+
+    if (isLoadingTranscript.value) return;
 
     isLoadingTranscript.value = true;
     playerCtrl?.isLoadingSubtitles.value = true;
@@ -100,6 +148,7 @@ class VideoTranscriptController extends BaseController {
       // 5. Direct probe into Firebase Storage for pipeline-generated transcripts
       final storage = FirebaseStorage.instance;
       final probePaths = [
+        'transcripts/${video.id}/full.json',
         'subtitles/${video.id}/en.vtt',
         'subtitles/${video.id}/en.srt',
         'subtitles/${video.id}/transcript.json',
@@ -116,7 +165,7 @@ class VideoTranscriptController extends BaseController {
           final data = await storage.ref(p).getData();
           if (data != null && data.isNotEmpty) {
             final content = utf8.decode(data, allowMalformed: true);
-            final segs = parseTranscriptContent(content);
+            final segs = await parseTranscriptContent(content);
             if (segs.isNotEmpty) {
               transcriptSegments.assignAll(segs);
               playerCtrl?.subtitleSegments.assignAll(segs);
@@ -150,7 +199,7 @@ class VideoTranscriptController extends BaseController {
       String? content;
       try {
         final resolvedUrl = StorageUtils.getFastDownloadUrl(url);
-        final response = await http.get(Uri.parse(resolvedUrl));
+        final response = await AppHttpClient.get(Uri.parse(resolvedUrl));
         if (response.statusCode == 200) {
           content = utf8.decode(response.bodyBytes, allowMalformed: true);
         }
@@ -177,7 +226,7 @@ class VideoTranscriptController extends BaseController {
       }
 
       if (content != null && content.isNotEmpty) {
-        return parseTranscriptContent(content);
+        return await parseTranscriptContent(content);
       }
     } catch (e, stackTrace) {
       ErrorHandler.log(
@@ -189,8 +238,8 @@ class VideoTranscriptController extends BaseController {
     return [];
   }
 
-  List<SubtitleSegment> parseTranscriptContent(String content) {
-    return SubtitleParser.parse(content);
+  Future<List<SubtitleSegment>> parseTranscriptContent(String content) {
+    return IsolateComputeUtils.parseSubtitlesAsync(content);
   }
 
   /// Fetches the AI Summary from moderation.summary in the video document or credibility cache
@@ -241,5 +290,11 @@ class VideoTranscriptController extends BaseController {
     } finally {
       isLoadingSummary.value = false;
     }
+  }
+
+  @override
+  void onClose() {
+    transcriptScrollController.dispose();
+    super.onClose();
   }
 }

@@ -55,6 +55,12 @@ class DownloadsPage extends GetView<DownloadsController> {
   final bool isDashboard;
 
   @override
+  DownloadsController get controller =>
+      Get.isRegistered<DownloadsController>()
+          ? Get.find<DownloadsController>()
+          : Get.put(DownloadsController());
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bgPage,
@@ -666,7 +672,7 @@ class _DownloadVideoListCard extends StatelessWidget {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.brand,
-              foregroundColor: AppColors.textPrimary,
+              foregroundColor: Colors.black,
               elevation: 0,
             ),
             child: const Text('Delete'),

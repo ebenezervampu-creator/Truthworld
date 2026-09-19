@@ -10,12 +10,8 @@ extension DocumentReferenceCacheExtension<T> on DocumentReference<T> {
       if (cacheDoc.exists && cacheDoc.data() != null) {
         return cacheDoc;
       }
-    } catch (e, stackTrace) {
-      ErrorHandler.log(
-        e,
-        stackTrace: stackTrace,
-        tag: 'DocumentReferenceCacheExtension.getCacheFirst.cacheMiss',
-      );
+    } catch (_) {
+      // Expected cache miss when document is not yet stored in local client cache.
     }
     try {
       return await get();
@@ -39,12 +35,8 @@ extension QueryCacheExtension<T> on Query<T> {
       if (cacheQuery.docs.isNotEmpty) {
         return cacheQuery;
       }
-    } catch (e, stackTrace) {
-      ErrorHandler.log(
-        e,
-        stackTrace: stackTrace,
-        tag: 'QueryCacheExtension.getCacheFirst.cacheMiss',
-      );
+    } catch (_) {
+      // Expected cache miss when query is not yet cached locally.
     }
     try {
       return await get();

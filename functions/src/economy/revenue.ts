@@ -12,17 +12,18 @@ const db = () => admin.firestore();
  */
 export function calculateShare(
   gross: number,
-  sourceType: "ads" | "members",
+  sourceType: "ads" | "premiumSubs" | "superchats" | "members",
   channelType: ChannelType,
   hasPaidSubscriptionBuyout: boolean = false
 ): number {
-  if (sourceType === "members" && channelType === "custom" && hasPaidSubscriptionBuyout) {
-    return gross; // 100% for custom channels with buyout
+  if (channelType === "custom") {
+    return gross; // 100% for custom channels across all streams (0% platform cut)
   }
 
-  const share = TYPE_REVENUE_SHARE[channelType][sourceType];
+  const share = (TYPE_REVENUE_SHARE.standard as Record<string, number>)[sourceType] ?? 0.70;
   return gross * share;
 }
+
 
 /**
  * 📈 GET CREATOR REVENUE (Callable)
@@ -52,17 +53,32 @@ export const getCreatorRevenue = onCall(
 
       let currentMonthViews = 0;
       let currentMonthGross = 0;
+      let currentMonthEstimatedCreatorShare = 0;
 
       for (const chDoc of channelsSnap.docs) {
         const chData = chDoc.data() || {};
-        currentMonthViews += Number(chData.stats?.views || chData.views || 0);
-        currentMonthGross += Number(chData.superchatRevenueTotal || 0);
+        const isCustom = chData.type === "custom" || chData.channelType === "custom";
+        const chViews = Number(chData.stats?.views || chData.views || 0);
+        const chSuperchats = Number(chData.superchatRevenueTotal || 0);
+        const chAds = Number(chData.adsRevenueTotal || 0);
+        let chMembers = 0;
+
+        currentMonthViews += chViews;
         try {
           const membersSnap = await chDoc.ref.collection("members").where("status", "==", "active").get();
           for (const mDoc of membersSnap.docs) {
-            currentMonthGross += Number(mDoc.data().price || 0);
+            chMembers += Number(mDoc.data().price || 0);
           }
         } catch (_) {}
+
+        const chGross = chSuperchats + chAds + chMembers;
+        currentMonthGross += chGross;
+
+        if (isCustom) {
+          currentMonthEstimatedCreatorShare += chGross;
+        } else {
+          currentMonthEstimatedCreatorShare += (chAds * 0.70) + chSuperchats + chMembers;
+        }
       }
 
       // If a current-month statement exists, prefer its audited values
@@ -70,8 +86,9 @@ export const getCreatorRevenue = onCall(
       const grossRevenue = currentMonthDoc
         ? (currentMonthDoc.grossAdsRevenue + currentMonthDoc.grossSubsRevenue)
         : currentMonthGross;
-      const creatorShare = currentMonthDoc ? currentMonthDoc.creatorShare : (grossRevenue * 0.70);
+      const creatorShare = currentMonthDoc ? currentMonthDoc.creatorShare : currentMonthEstimatedCreatorShare;
       const views = currentMonthDoc ? (currentMonthDoc.metadata?.totalViews ?? currentMonthViews) : currentMonthViews;
+
 
       return {
         currentMonth,
@@ -121,10 +138,24 @@ export async function syncChannelStatements(channel: any, userId: string): Promi
     logger.warn(`[Economy] Could not fetch members for ${channelId}:`, mErr);
   }
 
+  const channelType: "standard" | "custom" =
+    (channel.type === "custom" || channel.channelType === "custom") ? "custom" : "standard";
+
   const grossRevenue = superchatRevenue + adsRevenue + membershipsRevenue;
-  // Creator share: 70% standard platform split on ads/superchats + 100% on memberships
-  const creatorShare = Math.round((((superchatRevenue + adsRevenue) * 0.70) + membershipsRevenue) * 100) / 100;
-  const platformFee = Math.round((superchatRevenue + adsRevenue) * 0.30 * 100) / 100;
+  // Unified Revenue Share Rule:
+  // - Standard: 70% Creator / 30% Platform on Ads & Premium Subs, 100% Creator / 0% Platform on Superchats & Memberships.
+  // - Custom: 100% Creator / 0% Platform on all sources (Custom channels take plans $15, $30, $45/mo etc.).
+  let creatorShare = 0;
+  let platformFee = 0;
+
+  if (channelType === "custom") {
+    creatorShare = Math.round(grossRevenue * 100) / 100;
+    platformFee = 0;
+  } else {
+    creatorShare = Math.round(((adsRevenue * 0.70) + superchatRevenue + membershipsRevenue) * 100) / 100;
+    platformFee = Math.round((adsRevenue * 0.30) * 100) / 100;
+  }
+
 
   if (!existingSnap.exists) {
     await statementRef.set({

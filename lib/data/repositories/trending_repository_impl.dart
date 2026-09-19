@@ -2,7 +2,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/base/base_repository.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/network/result.dart';
+import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/domain/entities/channel_entity.dart';
+import 'package:truthworld/domain/entities/topic_entity.dart';
+import 'package:truthworld/domain/entities/video_entity.dart';
 import 'package:truthworld/domain/repositories/trending_repository.dart';
+import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 
 class TrendingRepositoryImpl extends BaseRepository implements TrendingRepository {
   final FirebaseFirestore _firestore;
@@ -11,7 +17,7 @@ class TrendingRepositoryImpl extends BaseRepository implements TrendingRepositor
       : _firestore = firestore ?? FirebaseFirestore.instance;
 
   @override
-  Future<Result<List<Map<String, dynamic>>>> getTrendingVideos({
+  Future<Result<List<VideoEntity>>> getTrendingVideos({
     int page = 1,
     int limit = 20,
     String? country,
@@ -29,12 +35,14 @@ class TrendingRepositoryImpl extends BaseRepository implements TrendingRepositor
       query = query.orderBy('viewCount', descending: true).limit(limit);
 
       final snapshot = await query.get();
-      return snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()! as Map<String, dynamic>}).toList();
+      return snapshot.docs
+          .map((doc) => Video.fromDocumentSnapshot(doc).toEntity())
+          .toList();
     });
   }
 
   @override
-  Future<Result<List<Map<String, dynamic>>>> getTrendingTopics({
+  Future<Result<List<TopicEntity>>> getTrendingTopics({
     int limit = 10,
   }) async {
     return safeFetch(() async {
@@ -46,14 +54,15 @@ class TrendingRepositoryImpl extends BaseRepository implements TrendingRepositor
           .get();
 
       return snapshot.docs
-          .map((doc) => {'id': doc.id, ...doc.data()})
-          .where((data) => ((data['videoCount'] as num?)?.toInt() ?? 0) > 0)
+          .map(Topic.fromDocumentSnapshot)
+          .where((t) => t.isValidTopic && t.videoCount > 0)
+          .map((t) => t.toEntity())
           .toList();
     });
   }
 
   @override
-  Future<Result<List<Map<String, dynamic>>>> getTrendingCreators({
+  Future<Result<List<ChannelEntity>>> getTrendingCreators({
     int limit = 10,
   }) async {
     return safeFetch(() async {
@@ -63,7 +72,9 @@ class TrendingRepositoryImpl extends BaseRepository implements TrendingRepositor
           .limit(limit)
           .get();
 
-      return snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
+      return snapshot.docs
+          .map((doc) => Channel.fromDocumentSnapshot(doc).toEntity())
+          .toList();
     });
   }
 }

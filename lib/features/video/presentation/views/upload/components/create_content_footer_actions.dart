@@ -55,7 +55,7 @@ class CreateContentDesktopFooterActions extends StatelessWidget {
                 : contentController.handleVideoUpload,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.brand,
-              foregroundColor: Colors.white,
+              foregroundColor: Colors.black,
               padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
@@ -63,7 +63,7 @@ class CreateContentDesktopFooterActions extends StatelessWidget {
                 ? const SizedBox(
                     height: 20,
                     width: 20,
-                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                    child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2),
                   )
                 : const Text('Publish Video', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
@@ -122,7 +122,7 @@ class CreateContentMobileFooterActions extends StatelessWidget {
                     : contentController.handleVideoUpload,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.brand,
-                  foregroundColor: Colors.white,
+                  foregroundColor: Colors.black,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
@@ -130,7 +130,7 @@ class CreateContentMobileFooterActions extends StatelessWidget {
                     ? const SizedBox(
                         height: 20,
                         width: 20,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2),
                       )
                     : const Text('Publish Video', style: TextStyle(fontWeight: FontWeight.bold)),
               ),

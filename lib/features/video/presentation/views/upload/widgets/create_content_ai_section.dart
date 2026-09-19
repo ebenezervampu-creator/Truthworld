@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/services/channel_wallet_service.dart';
+import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization/channel_wallet_topup_sheet.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -49,6 +52,13 @@ class CreateContentAISection extends StatelessWidget {
       final filteredDubLangs = dubbingSearchQuery.value.isEmpty
           ? allDubbingLangs
           : allDubbingLangs.where((l) => l.toLowerCase().contains(dubbingSearchQuery.value.toLowerCase())).toList();
+
+      final isCustom = controller.selectedChannel.value?.channelType == ChannelType.custom;
+      final channelType = isCustom ? ChannelType.custom : ChannelType.standard;
+      final dubbingCost = ChannelWalletService.calculateDubbingCost(
+        languageCount: selectedDubLangs.length,
+        channelType: channelType,
+      );
 
       return Material(
         color: const Color(0xFF161618),
@@ -151,6 +161,172 @@ class CreateContentAISection extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Dubbing Pricing Card for Standard vs Custom Channels
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: isCustom
+                              ? const Color(0xFF1F1235)
+                              : const Color(0xFF141418),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isCustom
+                                ? const Color(0xFF7C3AED).withValues(alpha: 0.5)
+                                : const Color(0xFF27272A),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 3,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isCustom
+                                        ? const Color(0xFF7C3AED)
+                                        : const Color(0xFF27272A),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    isCustom ? 'CUSTOM CHANNEL' : 'STANDARD CHANNEL',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    isCustom
+                                        ? r'$0.25 / language (50% Partner Discount)'
+                                        : r'$0.50 / language (Min $1.50)',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              isCustom
+                                  ? '✓ Studio Vocal Identity & Voice Cloning included at no extra charge • Deducted from monthly bonus credit & channel revenue.'
+                                  : 'Standard AI voice synthesis • Funded from channel balance & trial credit. (Tip: Custom channels get 50% discount & Voice Cloning).',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.7),
+                                fontSize: 11,
+                                height: 1.3,
+                              ),
+                            ),
+                            if (selectedDubLangs.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.black26,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      '${selectedDubLangs.length} ${selectedDubLangs.length == 1 ? "language" : "languages"} selected',
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Estimated Cost: \$${dubbingCost.toStringAsFixed(2)}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 8),
+                            // Channel Wallet Balance & Quick Add Money
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black12,
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: Colors.white10),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.account_balance_wallet_outlined,
+                                        color: Colors.white70,
+                                        size: 14,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Wallet: \$${(controller.selectedChannel.value?.walletBalanceUSD ?? 0.0).toStringAsFixed(2)}',
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  if (controller.selectedChannel.value != null)
+                                    GestureDetector(
+                                      onTap: () {
+                                        ChannelWalletTopupSheet.show(
+                                          context,
+                                          channel: controller.selectedChannel.value!,
+                                        );
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 3,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.brand,
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: const Text(
+                                          '+ Add Money',
+                                          style: TextStyle(
+                                            color: Colors.black,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                       TextField(
                         onChanged: (v) => dubbingSearchQuery.value = v,
                         style: const TextStyle(color: Colors.white, fontSize: 12),

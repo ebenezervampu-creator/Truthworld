@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/features/video/data/models/claim_verdict_helper.dart';
+import 'package:truthworld/features/video/data/models/fact_check_data_parser.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:truthworld/features/video/presentation/views/player/overlays/fact_check/fact_check_overlay_widgets.dart';
@@ -98,110 +98,38 @@ class FactCheckOverlay extends StatelessWidget {
                   );
                 }
 
-                final reportData = vc?.factCheckData ?? <String, dynamic>{};
-                final report = video?.uiReport;
+                final parsed = FactCheckDataParser.parse(
+                  vc?.factCheckData,
+                  fallbackReport: video?.uiReport,
+                  fallbackTrustScore: video != null && video.trustScore > 0
+                      ? video.trustScore
+                      : null,
+                  isVideoFactChecked: video?.isFactChecked == true,
+                );
 
-                final analysisState = (reportData['analysisState'] ??
-                        reportData['state'] ??
-                        report?.summary.analysisState ??
-                        (video?.isFactChecked == true
-                            ? 'VERIFIED'
-                            : 'ANALYZED'))
-                    .toString();
-
-                final rawTrustScore = reportData['trustScore'] ??
-                    reportData['trustIndex'] ??
-                    reportData['score'] ??
-                    reportData['videoRating'] ??
-                    report?.summary.rating ??
-                    (video != null && video.trustScore > 0
-                        ? video.trustScore
-                        : null);
-                final trustScore = (rawTrustScore is num)
-                    ? rawTrustScore.toDouble()
-                    : null;
-
-                final trustLabel = (reportData['trustLabel'] ??
-                        reportData['label'] ??
-                        (trustScore != null
-                            ? getRatingLabel(trustScore)
-                            : (report?.summary.label.isNotEmpty == true
-                                ? report!.summary.label
-                                : analysisState)))
-                    .toString();
-
-                final confidenceRaw = reportData['confidence'] ??
-                    report?.summary.confidence;
-                final confidenceTier = (reportData['confidenceTier'] ??
-                        (confidenceRaw is String ? confidenceRaw : ''))
-                    .toString();
-                final confidenceVal = (confidenceRaw is num)
-                    ? (confidenceRaw > 1.0
-                        ? (confidenceRaw / 100.0)
-                        : confidenceRaw.toDouble())
-                    : (confidenceTier.toLowerCase() == 'high'
-                        ? 0.9
-                        : (confidenceTier.toLowerCase() == 'medium'
-                            ? 0.6
-                            : 0.4));
-
-                final viewerNote = (reportData['viewerNote'] ??
-                        reportData['narrative'] ??
-                        reportData['summary'] ??
-                        reportData['explanation'] ??
-                        reportData['uiReport']?['narrative'] ??
-                        report?.narrative ??
-                        report?.conclusion ??
-                        '')
-                    .toString();
-
-                final factors = (reportData['scoringFactors'] ??
-                        reportData['factors']) as Map? ??
-                    (video?.scoringFactors != null
-                        ? video!.scoringFactors!.toMap()
-                        : {});
-
-                final chapters = (reportData['chapters'] as List?) ?? [];
-
-                final rawClaimsList = (reportData['claims'] as List?) ??
-                    (reportData['uiReport']?['keyClaims'] as List?) ??
-                    report?.keyClaims.map((c) => c.toMap()).toList() ??
-                    [];
-                final claims = rawClaimsList.map(normalizeClaim).toList();
-
-                final rawSourcesList = (reportData['sources'] ??
-                        reportData['richSources'] as List?) as List? ??
-                    (reportData['uiReport']?['sources'] as List?) ??
-                    report?.sources.map((s) => s.toMap()).toList() ??
-                    [];
-                final sources = rawSourcesList.map(normalizeSource).toList();
-
-                final hasData = reportData.isNotEmpty ||
-                    report != null ||
-                    claims.isNotEmpty ||
-                    trustScore != null ||
-                    viewerNote.isNotEmpty;
-
-                if (!hasData) {
+                if (parsed.isEmpty) {
                   return NoFactCheckFallback(video: video, vc: vc);
                 }
 
+                final analysisState = parsed.analysisState;
+                final trustScore = parsed.trustScore;
+                final trustLabel = parsed.trustLabel;
+                final confidenceVal = parsed.confidenceVal;
+                final confidenceTier = parsed.confidenceTier;
+                final viewerNote = parsed.viewerNote;
+                final claims = parsed.claims.map(normalizeClaim).toList();
+                final sources = parsed.sources.map(normalizeSource).toList();
+                final factors = parsed.factors.isNotEmpty
+                    ? parsed.factors
+                    : (video?.scoringFactors != null
+                        ? video!.scoringFactors!.toMap()
+                        : const <String, dynamic>{});
+                final chapters = parsed.chapters;
                 final posSec = ctrl.vv.position.inMilliseconds / 1000.0;
 
-                // Compute empirical claim statistics using normalized verdict resolution
-                var verifiedCount = 0;
-                var cautionCount = 0;
-                var falseCount = 0;
-                for (final c in claims) {
-                  final verdict = ClaimVerdictHelper.resolveVerdict(c);
-                  if (verdict.isVerified) {
-                    verifiedCount++;
-                  } else if (verdict.isFalse) {
-                    falseCount++;
-                  } else {
-                    cautionCount++;
-                  }
-                }
+                final verifiedCount = parsed.verifiedCount;
+                final cautionCount = parsed.cautionCount;
+                final falseCount = parsed.falseCount;
 
                 return ListView(
                   controller: overlayCtrl.scrollController,

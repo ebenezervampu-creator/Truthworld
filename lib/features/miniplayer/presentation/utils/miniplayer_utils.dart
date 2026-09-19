@@ -49,6 +49,9 @@ class MiniplayerNavigationHelper {
       if (!args.containsKey('video')) {
         args['video'] = video;
       }
+      if (!args.containsKey('heroTag')) {
+        args['heroTag'] = 'video_${video.id}';
+      }
 
       // Determine the best resume timestamp
       var targetResume = resumePosition;

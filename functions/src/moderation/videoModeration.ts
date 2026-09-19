@@ -21,6 +21,7 @@
 import * as admin from "firebase-admin";
 import { onObjectFinalized } from "firebase-functions/v2/storage";
 import { onRequest } from "firebase-functions/v2/https";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import { requireAdmin } from "../utils/auth";
 import { notifyUser } from "../notifications/notifications";
 
@@ -32,7 +33,7 @@ const BUCKET_NAME = "truthworld-1.firebasestorage.app";
  * 🛡️ Storage Trigger — Moderate uploaded videos before pipeline processing.
  *
  * v2.0: Sends video GCS URI directly to Gemini — zero intermediate steps.
- * minInstances=1 eliminates cold start for the critical moderation path.
+ * minInstances=0, maxInstances=10 absorbs high-concurrency burst uploads without queue drop.
  */
 export const onVideoUploadedForModeration = onObjectFinalized(
   {
@@ -41,7 +42,8 @@ export const onVideoUploadedForModeration = onObjectFinalized(
     memory: "512MiB",      // No FFmpeg needed → less memory
     timeoutSeconds: 180,    // 3min — sized for videos up to 15min (Gemini internal timeout: 120s + retries)
     minInstances: 0,        // Scale-to-zero to optimize costs
-    maxInstances: 2,
+    maxInstances: 10,       // Scale up to 10 instances to handle burst uploads without 60s queue drop
+    retry: true,            // Auto-retry transient delivery failures
   },
   async (event) => {
     const filePath = event.data.name;
@@ -158,7 +160,24 @@ export const onVideoUploadedForModeration = onObjectFinalized(
       console.log("[VideoModeration] Sending GCS URI directly to Gemini:", { videoId, videoGcsUri });
 
       const { videoModerationService } = require("../pipeline/services/videoModerationService");
-      const result = await videoModerationService.moderate(videoGcsUri, contentType);
+      let result: any = null;
+      let lastErr: any = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          result = await videoModerationService.moderate(videoGcsUri, contentType);
+          break;
+        } catch (err: any) {
+          lastErr = err;
+          console.warn(`[VideoModeration] Gemini moderation attempt ${attempt}/3 failed for ${videoId}:`, err?.message || err);
+          if (attempt < 3) {
+            await new Promise((res) => setTimeout(res, attempt * 2000));
+          }
+        }
+      }
+
+      if (!result) {
+        throw lastErr || new Error("Gemini moderation failed after 3 attempts");
+      }
 
       // ─── Determine moderation status from v3.0 policy action ──────
       const moderationStatus = result.policyAction === "manual_review"
@@ -319,15 +338,18 @@ export const onVideoUploadedForModeration = onObjectFinalized(
       const errorMsg = error instanceof Error ? error.message : String(error);
       console.error("[VideoModeration] Failed:", { videoId, error: errorMsg });
 
-      // Write error state — but DON'T reject on transient errors in v2.0
-      // Instead, mark as "error" so it can be retried
+      // Write error state with retry metadata so scheduled self-healing can recover it
       await db.collection("videos").doc(videoId).update({
         "moderation.status": "error",
         "moderation.reason": `Moderation system error: ${errorMsg}`,
         "moderation.checkedAt": Date.now(),
+        "moderation.retryCount": admin.firestore.FieldValue.increment(1),
+        "moderation.nextRetryAt": Date.now() + 60000, // 1 min backoff
       }).catch((updateErr) => {
         console.error("[VideoModeration] Failed to write error state:", updateErr);
       });
+
+      throw error; // Re-throw to allow Eventarc delivery retry on transient infrastructure failures
     }
   }
 );
@@ -508,6 +530,111 @@ export const moderateVideoManual = onRequest(
     } catch (err) {
       console.error("[VideoModeration] Manual moderation failed:", err);
       res.status(500).json({ error: "Internal server error.", details: String(err) });
+    }
+  }
+);
+
+/**
+ * 🔄 SCHEDULED RETRY: Self-healing worker for stranded / errored video moderations
+ *
+ * Scans for videos stuck in 'moderation.status' == 'error' where retryCount < 5,
+ * and automatically re-executes moderation to unblock them.
+ */
+export const scheduledVideoModerationRetry = onSchedule(
+  {
+    schedule: "every 2 minutes",
+    region: REGION,
+    memory: "512MiB",
+    timeoutSeconds: 120,
+    maxInstances: 1,
+  },
+  async () => {
+    const now = Date.now();
+    try {
+      const erroredSnap = await db.collection("videos")
+        .where("moderation.status", "==", "error")
+        .limit(10)
+        .get();
+
+      if (erroredSnap.empty) {
+        return;
+      }
+
+      console.log(`[VideoModerationRetry] Found ${erroredSnap.size} errored videos to re-process`);
+
+      for (const doc of erroredSnap.docs) {
+        const videoData = doc.data();
+        const videoId = doc.id;
+        const retryCount = Number(videoData?.moderation?.retryCount || 0);
+        const nextRetryAt = Number(videoData?.moderation?.nextRetryAt || 0);
+
+        // Respect backoff window
+        if (nextRetryAt > now) {
+          continue;
+        }
+
+        if (retryCount >= 5) {
+          // Escalate to manual admin review after 5 failed retries
+          await doc.ref.update({
+            "moderation.status": "manual_review",
+            "moderation.reason": "Exceeded maximum automatic retry attempts (5). Routed to Admin for manual review.",
+            "moderation.policyAction": "manual_review",
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          continue;
+        }
+
+        const videoPath = videoData?.storage?.videoPath || `videos/${videoId}/original.mp4`;
+        const contentType = videoData?.contentType || "video/mp4";
+
+        console.log(`[VideoModerationRetry] Retrying moderation for video ${videoId} (attempt ${retryCount + 1})`);
+
+        await doc.ref.update({
+          "moderation.status": "processing",
+          "moderation.startedAt": now,
+          "moderation.retryCount": admin.firestore.FieldValue.increment(1),
+          "moderation.nextRetryAt": now + (retryCount + 1) * 60000,
+        });
+
+        try {
+          const videoGcsUri = `gs://${BUCKET_NAME}/${videoPath}`;
+          const { videoModerationService } = require("../pipeline/services/videoModerationService");
+          const result = await videoModerationService.moderate(videoGcsUri, contentType);
+
+          const moderationStatus = result.policyAction === "manual_review"
+            ? "manual_review"
+            : result.approved ? "approved" : "rejected";
+
+          await doc.ref.update({
+            "moderation.status": moderationStatus,
+            "moderation.reason": result.violationReason,
+            "moderation.topic": result.topic,
+            "moderation.intent": result.intent,
+            "moderation.policyAction": result.policyAction,
+            "moderation.riskLevel": result.riskLevel,
+            "moderation.policyReason": result.policyReason,
+            "moderation.explanation": result.explanation,
+            "moderation.violationCategories": result.violationCategories,
+            "moderation.confidenceScore": result.confidenceScore,
+            "moderation.summary": result.summary,
+            "moderation.processingTimeMs": result.processingTimeMs,
+            "moderation.checkedAt": Date.now(),
+            "moderation.model": "gemini-2.5-flash",
+            "moderation.version": "v3.0-intent-aware",
+          });
+
+          console.log(`[VideoModerationRetry] Successfully self-healed video: ${videoId} -> ${moderationStatus}`);
+        } catch (retryErr: any) {
+          console.error(`[VideoModerationRetry] Retry failed for video ${videoId}:`, retryErr?.message || retryErr);
+          await doc.ref.update({
+            "moderation.status": "error",
+            "moderation.reason": `Auto-retry error: ${retryErr?.message || String(retryErr)}`,
+            "moderation.checkedAt": Date.now(),
+          });
+        }
+      }
+    } catch (err) {
+      console.error("[VideoModerationRetry] Scheduled processor error:", err);
     }
   }
 );

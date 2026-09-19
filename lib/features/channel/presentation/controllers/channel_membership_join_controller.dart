@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +9,7 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/cashfree_service.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
@@ -47,6 +49,7 @@ class ChannelMembershipJoinController extends BaseController {
     super.onInit();
     _loadTiers();
     _checkMembership();
+    CurrencyLocalizationService.to.fetchRealtimeRate();
 
     if (Get.isRegistered<AuthService>()) {
       addWorker(ever(AuthService.to.isAuthenticated, (_) {
@@ -208,25 +211,42 @@ class ChannelMembershipJoinController extends BaseController {
 
     isProcessing.value = true;
     try {
-      final amountINR = tier.currency.toUpperCase() == 'INR'
+      // Ensure absolute latest real-time forex rate before initiating payment
+      await CurrencyLocalizationService.to.fetchRealtimeRate();
+
+      final isIndian = !Get.isRegistered<CurrencyLocalizationService>() ||
+          CurrencyLocalizationService.to.isIndianUser;
+      final rate = Get.isRegistered<CurrencyLocalizationService>()
+          ? CurrencyLocalizationService.to.rate
+          : CurrencyLocalizationService.defaultRate;
+      final calculatedAmount = tier.currency.toUpperCase() == 'INR'
           ? tier.price
-          : (tier.price * 85.0).roundToDouble();
+          : (tier.price * rate);
+      final amountINR = math.max(1.0, double.parse(calculatedAmount.toStringAsFixed(2)));
+      final orderNote = isIndian
+          ? (isUpgrading
+              ? 'Upgrade Membership: ${channel?.name ?? "Channel"} - ${tier.name}'
+              : 'Membership: ${channel?.name ?? "Channel"} - ${tier.name}')
+          : (isUpgrading
+              ? 'Upgrade Membership: ${channel?.name ?? "Channel"} - ${tier.name} (${tier.formattedPriceForUser(false)})'
+              : 'Membership: ${channel?.name ?? "Channel"} - ${tier.name} (${tier.formattedPriceForUser(false)})');
+
       final paymentResult = await CashfreePaymentService.to.startPayment(
         amount: amountINR,
         purpose: 'channel_membership',
-        orderNote: isUpgrading
-            ? 'Upgrade Membership: ${channel?.name ?? "Channel"} - ${tier.name}'
-            : 'Membership: ${channel?.name ?? "Channel"} - ${tier.name}',
+        orderNote: orderNote,
         metadata: {
           'channelId': channelId,
           'channelName': channel?.name ?? '',
           'tierId': tier.id,
           'tierName': tier.name,
-          'currency': tier.currency,
+          'currency': isIndian ? tier.currency : 'USD',
+          'tierCurrency': tier.currency,
           'isUpgrade': isUpgrading ? 'true' : 'false',
           'previousTierId': previousTierId ?? '',
           'userName': user.displayName ?? 'Channel Supporter',
           'userAvatarUrl': user.photoURL ?? '',
+          if (!isIndian) 'displayPrice': tier.formattedPriceForUser(false),
         },
       );
 

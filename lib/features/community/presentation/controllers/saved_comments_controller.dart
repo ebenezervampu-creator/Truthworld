@@ -18,21 +18,13 @@ class SavedCommentsController extends BaseController {
   final RxString searchQuery = ''.obs;
   final RxBool isSearching = false.obs;
 
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _subscription;
-
   @override
   void onInit() {
     super.onInit();
-    listenToSavedComments();
+    fetchSavedComments();
   }
 
-  @override
-  void onClose() {
-    _subscription?.cancel();
-    super.onClose();
-  }
-
-  void listenToSavedComments() {
+  Future<void> fetchSavedComments() async {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) {
       rxErrorMessage.value = 'User not authenticated';
@@ -43,33 +35,33 @@ class SavedCommentsController extends BaseController {
     rxIsLoading.value = true;
     rxErrorMessage.value = '';
 
-    _subscription?.cancel();
-    _subscription = FirebaseFirestore.instance
-        .collection(FirestoreCollections.users)
-        .doc(currentUser.uid)
-        .collection('savedComments')
-        .orderBy('savedAt', descending: true)
-        .snapshots()
-        .listen(
-          (snapshot) {
-            final list = <SavedCommentModel>[];
-            for (final doc in snapshot.docs) {
-              list.add(SavedCommentModel.fromMap(doc.data(), doc.id));
-            }
-            comments.value = list;
-            rxIsLoading.value = false;
-          },
-          onError: (Object error, StackTrace stackTrace) {
-            ErrorHandler.log(error, stackTrace: stackTrace, context: 'SavedCommentsController');
-            rxErrorMessage.value = AppException.from(error, stackTrace).displayMessage;
-            rxIsLoading.value = false;
-          },
-        );
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection(FirestoreCollections.users)
+          .doc(currentUser.uid)
+          .collection('savedComments')
+          .orderBy('savedAt', descending: true)
+          .limit(50)
+          .get();
+
+      final list = <SavedCommentModel>[];
+      for (final doc in snapshot.docs) {
+        list.add(SavedCommentModel.fromMap(doc.data(), doc.id));
+      }
+      comments.value = list;
+      rxIsLoading.value = false;
+    } catch (error, stackTrace) {
+      ErrorHandler.log(error, stackTrace: stackTrace, context: 'SavedCommentsController');
+      rxErrorMessage.value = AppException.from(error, stackTrace).displayMessage;
+      rxIsLoading.value = false;
+    }
   }
 
   Future<void> unsaveComment(String commentId) async {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
+
+    comments.removeWhere((c) => c.id == commentId);
 
     try {
       await FirebaseFirestore.instance
@@ -119,7 +111,7 @@ class SavedCommentsController extends BaseController {
   }
 
   void refreshComments() {
-    listenToSavedComments();
+    fetchSavedComments();
     HapticFeedback.mediumImpact();
   }
 

@@ -90,7 +90,7 @@ class VideoPlaylistBanner extends StatelessWidget {
                               child: const Text(
                                 'PLAYLIST',
                                 style: TextStyle(
-                                  color: Colors.white,
+                                  color: Colors.black,
                                   fontSize: 9,
                                   fontWeight: FontWeight.bold,
                                   letterSpacing: 0.5,

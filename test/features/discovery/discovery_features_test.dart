@@ -3,7 +3,6 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/features/category/presentation/controllers/category_controller.dart';
 import 'package:truthworld/features/discover/presentation/controllers/discover_channels_controller.dart';
-import 'package:truthworld/features/hashtag/presentation/controllers/hashtag_controller.dart';
 import 'package:truthworld/features/trending/presentation/controllers/trending_controller.dart';
 import '../../test_helpers/mock_firebase.dart';
 
@@ -127,22 +126,6 @@ void main() {
 
       controller.selectedGenre.value = 'Tutorials';
       expect(controller.selectedGenre.value, equals('Tutorials'));
-    });
-  });
-
-  group('HashtagController Tests', () {
-    late HashtagController controller;
-
-    setUp(() {
-      Get.reset();
-      controller = HashtagController();
-    });
-
-    test('controller initializes and disposes cleanly as BaseController', () {
-      expect(controller.state, equals(ViewState.idle));
-      controller.onInit();
-      expect(controller.state, equals(ViewState.idle));
-      controller.onClose();
     });
   });
 }

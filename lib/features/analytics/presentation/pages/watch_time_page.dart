@@ -1,5 +1,4 @@
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -438,25 +437,28 @@ class _WatchtimeRetentionCard extends StatelessWidget {
                 );
               }
 
-              return PieChart(
-                PieChartData(
-                  sections: data.map((d) {
-                    return PieChartSectionData(
-                      value: d.value,
-                      color: Color(d.color),
-                      title: '${d.percentage.toStringAsFixed(0)}%',
-                      titleStyle: const TextStyle(
+              return SfCircularChart(
+                margin: EdgeInsets.zero,
+                series: <CircularSeries>[
+                  DoughnutSeries<dynamic, String>(
+                    dataSource: data,
+                    xValueMapper: (dynamic d, _) => d.title as String,
+                    yValueMapper: (dynamic d, _) => d.value as num,
+                    pointColorMapper: (dynamic d, _) => Color(d.color as int),
+                    dataLabelMapper: (dynamic d, _) =>
+                        '${(d.percentage as double).toStringAsFixed(0)}%',
+                    dataLabelSettings: const DataLabelSettings(
+                      isVisible: true,
+                      textStyle: TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                       ),
-                      radius: 80,
-                      titlePositionPercentageOffset: 0.55,
-                    );
-                  }).toList(),
-                  centerSpaceRadius: 35,
-                  sectionsSpace: 2,
-                ),
+                    ),
+                    innerRadius: '45%',
+                    radius: '85%',
+                  ),
+                ],
               );
             }),
           ),

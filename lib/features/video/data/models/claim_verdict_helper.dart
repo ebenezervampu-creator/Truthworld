@@ -150,8 +150,8 @@ class ClaimVerdictHelper {
         icon: Icons.check_circle_rounded,
         category: 'Verified',
         summaryTakeaway:
-            'Factually accurate. Corroborated by independent authoritative sources and consensus documentation.',
-        microTakeaway: 'Confirmed by independent sources',
+            'This checks out. Multiple authoritative sources and verifiable records confirm it.',
+        microTakeaway: 'Confirmed by reliable sources',
         confidenceText: confStr,
         confidenceVal: confidence,
       );
@@ -170,7 +170,7 @@ class ClaimVerdictHelper {
         icon: Icons.check_circle_outline_rounded,
         category: 'Verified',
         summaryTakeaway:
-            'Substantially accurate with minor nuance or contextual variance.',
+            'Substantially accurate. The core fact is right, with only minor nuances or context.',
         microTakeaway: 'Substantially true with minor nuances',
         confidenceText: confStr,
         confidenceVal: confidence,
@@ -192,7 +192,7 @@ class ClaimVerdictHelper {
         icon: Icons.cancel_rounded,
         category: 'False',
         summaryTakeaway:
-            'Factually incorrect. Directly contradicted by established public records and verifiable evidence.',
+            'This is false. Directly contradicted by reliable public records and verified evidence.',
         microTakeaway: 'Contradicted by verified evidence',
         confidenceText: confStr,
         confidenceVal: confidence,
@@ -212,8 +212,8 @@ class ClaimVerdictHelper {
         icon: Icons.warning_rounded,
         category: 'False',
         summaryTakeaway:
-            'Contains distorted framing, omissions, or context that gives a false impression.',
-        microTakeaway: 'Distorted framing or missing context',
+            'This is misleading. It leaves out key context or frames details to give a false impression.',
+        microTakeaway: 'Missing key context or misleading framing',
         confidenceText: confStr,
         confidenceVal: confidence,
       );
@@ -231,8 +231,8 @@ class ClaimVerdictHelper {
         icon: Icons.balance_rounded,
         category: 'Caution',
         summaryTakeaway:
-            'Substantive disagreement exists between authoritative sources or empirical perspectives.',
-        microTakeaway: 'Conflicting consensus among sources',
+            'Experts disagree on this claim. Credible sources present conflicting evidence or views.',
+        microTakeaway: 'Conflicting evidence among sources',
         confidenceText: confStr,
         confidenceVal: confidence,
       );
@@ -252,8 +252,8 @@ class ClaimVerdictHelper {
         icon: Icons.sentiment_very_satisfied_rounded,
         category: 'Contextual',
         summaryTakeaway:
-            'Identified as figurative speech, satire, or hyperbole not intended as a literal empirical claim.',
-        microTakeaway: 'Figurative speech / satire, not literal claim',
+            'Figurative speech or satire. This was meant humorously or exaggerated, not as a literal fact.',
+        microTakeaway: 'Humor or figurative speech, not a literal claim',
         confidenceText: confStr,
         confidenceVal: confidence,
       );
@@ -274,8 +274,8 @@ class ClaimVerdictHelper {
         icon: Icons.auto_stories_rounded,
         category: 'Contextual',
         summaryTakeaway:
-            'Rooted in spiritual conviction or cultural tradition rather than empirical historical testability.',
-        microTakeaway: 'Spiritual conviction or cultural tradition',
+            'Matters of faith or tradition. Based on spiritual belief, not something empirical fact-checking proves or disproves.',
+        microTakeaway: 'Based on belief or tradition',
         confidenceText: confStr,
         confidenceVal: confidence,
       );
@@ -295,8 +295,8 @@ class ClaimVerdictHelper {
         icon: Icons.psychology_rounded,
         category: 'Contextual',
         summaryTakeaway:
-            'Subjective judgment or personal perspective not susceptible to binary true/false verification.',
-        microTakeaway: 'Subjective viewpoint, not empirical fact',
+            'Personal opinion or subjective judgment, rather than a factual statement.',
+        microTakeaway: 'Personal viewpoint, not a factual claim',
         confidenceText: confStr,
         confidenceVal: confidence,
       );
@@ -305,39 +305,39 @@ class ClaimVerdictHelper {
     // 9. Inconclusive / Unproven / Unsupported / Needs Context / Timeout
     var label = 'UNVERIFIED';
     var takeaway =
-        'Insufficient independent documentation available to conclusively verify or refute this claim.';
-    var micro = 'Insufficient documentation available';
+        'Under evaluation. Verification is ongoing or waiting for more corroborating data.';
+    var micro = 'Verification is ongoing';
 
     if (rawStatus == 'needs_context' || rawStatus.contains('context')) {
       label = 'NEEDS CONTEXT';
       takeaway =
-          'Additional context is essential to evaluate the accuracy of this statement.';
-      micro = 'Requires essential missing context';
+          'Needs more context. Important background is missing to fairly judge this claim.';
+      micro = 'Missing essential background context';
     } else if (rawStatus == 'outdated') {
       label = 'OUTDATED';
       takeaway =
-          'This claim was once accurate but has been superseded by newer developments.';
+          'Outdated. This was once accurate but newer information or events have superseded it.';
       micro = 'Superseded by newer developments';
     } else if (rawStatus == 'inconclusive' ||
         rawStatus.contains('inconclusive')) {
       label = 'INCONCLUSIVE';
       takeaway =
-          'Current evidence is balanced or inconclusive; definitive verification requires more data.';
-      micro = 'Evidence is balanced or inconclusive';
+          'Inconclusive. The available evidence is split, so a definitive verdict cannot be made yet.';
+      micro = 'Evidence is currently split or inconclusive';
     } else if (rawStatus == 'unsupported' ||
         rawStatus.contains('unsupported') ||
         rawStatus == 'unproven' ||
         rawStatus == 'limited_support') {
       label = 'UNSUPPORTED';
       takeaway =
-          'No reliable primary or secondary evidence was located to substantiate this statement.';
-      micro = 'No reliable evidence to substantiate';
+          'Unsupported. No credible documentation or proof was found to back this up.';
+      micro = 'No credible proof found to substantiate';
     } else if (rawStatus == 'verification_timeout' ||
         rawStatus.contains('timeout')) {
       label = 'EVALUATING';
       takeaway =
-          'Verification timed out or is awaiting additional crawler indexing.';
-      micro = 'Verification awaiting crawler indexing';
+          'Verification is in progress. Awaiting additional indexing and analysis.';
+      micro = 'Verification in progress';
     }
 
     return ClaimVerdictInfo(

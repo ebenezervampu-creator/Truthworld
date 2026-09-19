@@ -15,6 +15,52 @@ mixin HomeFeedAlgorithmTabsMixin on HomeFeedControllerBase {
   @override
   Future<void> fetchTrendingTabVideos() async {
     const limit = 60;
+
+    if (homeRepository != null) {
+      final repoRes = await homeRepository!.getHomeFeed(limit: limit);
+      if (repoRes.isSuccess && repoRes.dataOrNull != null && repoRes.dataOrNull!.isNotEmpty) {
+        final rawVideos = repoRes.dataOrNull!
+            .map(Video.fromEntity)
+            .toList()
+            .sanitizeForFeed();
+
+        rawVideos.sort((a, b) {
+          final daysA = DateTime.now().difference(a.createdAt.toDate()).inDays + 1;
+          final daysB = DateTime.now().difference(b.createdAt.toDate()).inDays + 1;
+          final viewsA = (a.views > 0 ? a.views : a.viewCount).toDouble();
+          final viewsB = (b.views > 0 ? b.views : b.viewCount).toDouble();
+          final scoreA = (viewsA * 0.5) +
+              (a.likes * 0.3) +
+              (a.commentCount * 0.2) +
+              ((1.0 / daysA) * 100) +
+              (a.trustScore * 10);
+          final scoreB = (viewsB * 0.5) +
+              (b.likes * 0.3) +
+              (b.commentCount * 0.2) +
+              ((1.0 / daysB) * 100) +
+              (b.trustScore * 10);
+          return scoreB.compareTo(scoreA);
+        });
+
+        if (Get.isRegistered<TruthworldAlgorithm>()) {
+          final algorithm = Get.find<TruthworldAlgorithm>();
+          final ranked = algorithm.rankVideos(
+            rawVideos,
+            RecommendationSurface.trending,
+            diversityConfig: DiversityConfig.trending,
+          );
+          final rankedVideos = ranked.map((s) => s.video).toList();
+          videos.assignAll(rankedVideos.isNotEmpty ? rankedVideos : rawVideos);
+        } else {
+          videos.assignAll(rawVideos);
+        }
+
+        saveVideosToCache('Trending');
+        if (rawVideos.length < limit) rxHasMore.value = false;
+        return;
+      }
+    }
+
     QuerySnapshot? results;
 
     try {
@@ -446,11 +492,5 @@ mixin HomeFeedAlgorithmTabsMixin on HomeFeedControllerBase {
       feedCacheManager.invalidateCategory('Flip Coin', userId: currentUserId);
     }
   }
-
-  // Backward compatibility private forwarders
-  Future<void> _fetchTrendingTabVideos() => fetchTrendingTabVideos();
-  Future<void> _fetchPopularTabVideos() => fetchPopularTabVideos();
-  Future<void> _fetchNewTabVideos() => fetchNewTabVideos();
-  Future<void> _fetchUnexploredTabVideos() => fetchUnexploredTabVideos();
-  Future<void> _fetchFlipCoinTabVideos() => fetchFlipCoinTabVideos();
 }
+

@@ -35,14 +35,24 @@ class ChannelMonetizationController extends GetxController {
   }
 
   SpendableBalance get spendableBalance {
-    final totalRev = adRevenue + premiumSubRevenue + tipsRevenue + membershipsRevenue;
+    final isCustom = channel.channelType == ChannelType.custom;
+    final totalRev =
+        adRevenue + premiumSubRevenue + tipsRevenue + membershipsRevenue;
+    final withdrawable = isCustom
+        ? totalRev
+        : ((adRevenue + premiumSubRevenue) * 0.70 +
+            tipsRevenue +
+            membershipsRevenue);
+    final platformCut =
+        isCustom ? 0.0 : ((adRevenue + premiumSubRevenue) * 0.30);
     return walletService.getSpendableBalance(
       channel: channel,
       rawTotalRevenue: totalRev,
-      withdrawableRevenue: totalRev * 0.70,
-      lockedRevenue: totalRev * 0.30,
+      withdrawableRevenue: withdrawable,
+      lockedRevenue: platformCut,
     );
   }
+
 
   // Real channel revenue metrics derived from channel activity
   double get adRevenue =>

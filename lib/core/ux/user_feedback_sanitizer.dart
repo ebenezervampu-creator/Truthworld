@@ -135,6 +135,8 @@ class UserFeedbackSanitizer {
             lowerTech.contains('failed host lookup') ||
             lowerTech.contains('network is unreachable') ||
             lowerTech.contains('connection refused') ||
+            lowerTech.contains('connection closed') ||
+            lowerTech.contains('connection abort') ||
             lowerTech.contains('network-request-failed')) {
           return 'You appear to be offline. Please check your internet connection and try again.';
         }
@@ -150,6 +152,12 @@ class UserFeedbackSanitizer {
         if (lowerTech.contains('unauthenticated')) {
           return 'Please sign in to continue.';
         }
+        if (lowerTech.contains('authentication failed') ||
+            lowerTech.contains('authentication_error') ||
+            lowerTech.contains('request_failed') ||
+            lowerTech.contains('paymentlink_')) {
+          return 'Payment service is temporarily unavailable. Please try again in a few moments or contact support.';
+        }
 
         // Otherwise transform "Failed to <action>" into "Unable to <action>. Please try again."
         if (actionPart.toLowerCase().startsWith('failed to ')) {
@@ -160,24 +168,30 @@ class UserFeedbackSanitizer {
           final action = actionPart.substring(10).trim();
           return 'Unable to $action. Please try again.';
         }
-        if (actionPart.isNotEmpty && !actionPart.contains('[')) {
+        final isActionTechnical = _technicalPatterns.any(actionPart.contains);
+        if (actionPart.isNotEmpty && !actionPart.contains('[') && !isActionTechnical) {
           return '$actionPart. Please try again.';
         }
       }
 
-      // Check root technical cause if no prefix
+      // Check root technical cause if no prefix or if prefix was technical
       final lower = msg.toLowerCase();
       if (lower.contains('permission-denied') || lower.contains('permission denied')) {
         return 'You do not have permission to perform this action.';
       }
       if (lower.contains('socketexception') ||
           lower.contains('failed host lookup') ||
+          lower.contains('network is unreachable') ||
+          lower.contains('connection refused') ||
+          lower.contains('connection closed') ||
+          lower.contains('connection abort') ||
+          lower.contains('network-request-failed') ||
           lower.contains('network') ||
           lower.contains('connection')) {
-        return 'Unable to connect. Please check your internet connection and try again.';
+        return 'You appear to be offline. Please check your internet connection and try again.';
       }
-      if (lower.contains('timeout')) {
-        return 'The connection timed out. Please try again in a moment.';
+      if (lower.contains('timeout') || lower.contains('timed out')) {
+        return 'The operation took too long. Please check your connection and try again.';
       }
       if (lower.contains('unauthenticated')) {
         return 'Please sign in to continue.';
@@ -191,13 +205,25 @@ class UserFeedbackSanitizer {
 
       // Fallback for technical errors
       if (defaultActionContext != null && defaultActionContext.isNotEmpty) {
+        final lower = defaultActionContext.toLowerCase();
+        if (lower.startsWith('unable to') ||
+            lower.startsWith('could not') ||
+            lower.startsWith('failed to') ||
+            lower.contains('please')) {
+          return defaultActionContext;
+        }
         return 'Unable to $defaultActionContext. Please try again.';
       }
       return 'Something went wrong. Please try again in a moment.';
     }
 
-    // Convert blunt developer phrasing like "Failed to X" into polite standard English
+    // Convert blunt developer phrasing like "Failed to X" or "Could not X" into polite standard English
     if (msg.toLowerCase().startsWith('failed to ')) {
+      final action = msg.substring(10).trim();
+      final cleanAction = action.endsWith('.') ? action.substring(0, action.length - 1) : action;
+      return 'Unable to $cleanAction. Please try again.';
+    }
+    if (msg.toLowerCase().startsWith('could not ')) {
       final action = msg.substring(10).trim();
       final cleanAction = action.endsWith('.') ? action.substring(0, action.length - 1) : action;
       return 'Unable to $cleanAction. Please try again.';

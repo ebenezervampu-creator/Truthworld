@@ -8,6 +8,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
+import 'package:truthworld/domain/usecases/video/get_video_by_id_usecase.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
@@ -43,10 +44,18 @@ class VideoController extends BaseController
         VideoPlaybackFlowMixin,
         VideoPlaybackEngineMixin,
         VideoEngagementActionsMixin {
-  VideoController({VideoRepository? videoRepository, this.tag})
-      : _videoRepository = videoRepository ?? FirestoreVideoRepository();
+  VideoController({
+    VideoRepository? videoRepository,
+    GetVideoByIdUseCase? getVideoByIdUseCase,
+    this.tag,
+  })  : _videoRepository = videoRepository ?? FirestoreVideoRepository(),
+        _getVideoByIdUseCase = getVideoByIdUseCase ??
+            (Get.isRegistered<GetVideoByIdUseCase>()
+                ? Get.find<GetVideoByIdUseCase>()
+                : null);
 
   final VideoRepository _videoRepository;
+  final GetVideoByIdUseCase? _getVideoByIdUseCase;
   final String? tag;
 
   @override
@@ -132,35 +141,22 @@ class VideoController extends BaseController
   set languageRequestsSubscription(StreamSubscription? s) =>
       _languageRequestsSubscription = s;
 
-  // Domain mixin delegators and backward-compatible aliases
-  void _videoErrorListener() => videoErrorListener();
-  Future<void> _attemptFormatFallback() => attemptFormatFallback();
-  bool get _isRecoveringFromFormatError => isRecoveringFromFormatError;
-  void _flushRemainingWatchTime() => flushRemainingWatchTime();
-  Future<void> _pingWatchEvent(String eventType, int position, int duration, int deltaSeconds) =>
-      pingWatchEvent(eventType, position, duration, deltaSeconds);
-  bool _canCountQualifiedView() => canCountQualifiedView();
-  void _markQualifiedViewTimestamp() => markQualifiedViewTimestamp();
-  Future<void> _fireMilestoneEvent(String eventType, int position, int duration) =>
-      fireMilestoneEvent(eventType, position, duration);
-  Future<void> _resolveViewerIdentity() => resolveViewerIdentity();
-  void _handleVideoCompletion(VideoPlayerValue value) =>
-      handleVideoCompletion(value);
-  Future<void> _syncWatchHistory(int currentWatchSeconds, int totalDuration) =>
-      syncWatchHistory(currentWatchSeconds, totalDuration);
-  String _detectTrafficSource() => detectTrafficSource();
-  Future<void> _initializeOfflinePlayback() => initializeOfflinePlayback();
-  void _listenToLanguageRequests() => listenToLanguageRequests();
-  Future<void> _fetchFirstPlaylistVideo(String videoId) =>
-      fetchFirstPlaylistVideo(videoId);
   @override
   Future<void> fetchRecommendations() =>
       recommendationsController.fetchRecommendations();
 
   Future<void> fetchVideoById(String id) async {
+    if (_getVideoByIdUseCase != null) {
+      final result = await _getVideoByIdUseCase(id);
+      result.when(
+        success: (entity) => _video.value = Video.fromEntity(entity),
+        failure: (err) => setError(err.displayMessage),
+      );
+      return;
+    }
     final result = await _videoRepository.getVideoById(id);
     result.when(
-      success: (data) => _video.value = data,
+      success: (entity) => _video.value = Video.fromEntity(entity),
       failure: (err) => setError(err.displayMessage),
     );
   }
@@ -386,14 +382,15 @@ class VideoController extends BaseController
 
   void onInit() {
     super.onInit();
-    videoPlaylistController = Get.isRegistered<VideoPlaylistController>()
-        ? Get.find<VideoPlaylistController>()
-        : Get.put(VideoPlaylistController());
-    transcriptController = Get.isRegistered<VideoTranscriptController>()
-        ? Get.find<VideoTranscriptController>()
-        : Get.put(VideoTranscriptController());
-    recommendationsController = Get.isRegistered<VideoRecommendationsController>()
-        ? Get.find<VideoRecommendationsController>()
+    final effectiveTag = tag ?? (video.id.isNotEmpty ? video.id : null);
+    videoPlaylistController = Get.isRegistered<VideoPlaylistController>(tag: effectiveTag)
+        ? Get.find<VideoPlaylistController>(tag: effectiveTag)
+        : Get.put(VideoPlaylistController(), tag: effectiveTag);
+    transcriptController = Get.isRegistered<VideoTranscriptController>(tag: effectiveTag)
+        ? Get.find<VideoTranscriptController>(tag: effectiveTag)
+        : Get.put(VideoTranscriptController(), tag: effectiveTag);
+    recommendationsController = Get.isRegistered<VideoRecommendationsController>(tag: effectiveTag)
+        ? Get.find<VideoRecommendationsController>(tag: effectiveTag)
         : Get.put(
             VideoRecommendationsController(
               getVideo: () => video,
@@ -401,6 +398,7 @@ class VideoController extends BaseController
               getPlaylistVideos: () => playlistVideos,
               getNavigatedFromTopic: () => navigatedFromTopic.value,
             ),
+            tag: effectiveTag,
           );
 
     rxIsOffline.value = (Get.arguments?['isOffline'] as bool?) ?? false;

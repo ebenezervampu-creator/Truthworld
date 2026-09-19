@@ -3,6 +3,7 @@ import 'package:truthworld/core/base/base_repository.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/network/result.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
+import 'package:truthworld/domain/entities/playlist_entity.dart';
 import 'package:truthworld/domain/repositories/playlist_repository.dart';
 
 class PlaylistRepositoryImpl extends BaseRepository
@@ -15,7 +16,7 @@ class PlaylistRepositoryImpl extends BaseRepository
     : _firestore = firestore ?? FirebaseFirestore.instance;
 
   @override
-  Future<Result<List<PlaylistModel>>> getPlaylists(
+  Future<Result<List<PlaylistEntity>>> getPlaylists(
     String userId, {
     int page = 1,
     int limit = 20,
@@ -39,35 +40,36 @@ class PlaylistRepositoryImpl extends BaseRepository
       }
 
       return snapshot.docs
-          .map(PlaylistModel.fromDocumentSnapshot)
+          .map((doc) => PlaylistModel.fromDocumentSnapshot(doc).toEntity())
           .toList();
     });
   }
 
   @override
-  Future<Result<PlaylistModel>> getPlaylistById(String id) async {
+  Future<Result<PlaylistEntity>> getPlaylistById(String id) async {
     return safeFetch(() async {
       final doc = await _firestore
           .collection(FirestoreCollections.playlists)
           .doc(id)
           .get();
       if (!doc.exists) throw Exception('Playlist not found');
-      return PlaylistModel.fromDocumentSnapshot(doc);
+      return PlaylistModel.fromDocumentSnapshot(doc).toEntity();
     });
   }
 
   @override
-  Future<Result<PlaylistModel>> createPlaylist(PlaylistModel playlist) async {
+  Future<Result<PlaylistEntity>> createPlaylist(PlaylistEntity playlist) async {
     return safeFetch(() async {
       final docRef = _firestore
           .collection(FirestoreCollections.playlists)
           .doc();
-      final data = playlist.toMap();
+      final model = PlaylistModel.fromEntity(playlist);
+      final data = model.toMap();
       data['id'] = docRef.id;
 
       await docRef.set(data);
       final doc = await docRef.get();
-      return PlaylistModel.fromDocumentSnapshot(doc);
+      return PlaylistModel.fromDocumentSnapshot(doc).toEntity();
     });
   }
 

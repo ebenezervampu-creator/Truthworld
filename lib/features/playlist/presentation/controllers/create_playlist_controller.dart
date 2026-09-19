@@ -174,7 +174,9 @@ class CreatePlaylistController extends BaseController {
 
       final videoIds = selectedVideos.map((v) => v.id).toList();
 
-      final playlistController = Get.find<PlaylistController>();
+      final playlistController = Get.isRegistered<PlaylistController>()
+          ? Get.find<PlaylistController>()
+          : Get.put(PlaylistController());
       final created = await playlistController.createPlayList(
         name,
         isPublic: isPublic.value,

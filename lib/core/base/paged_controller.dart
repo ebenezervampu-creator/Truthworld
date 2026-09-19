@@ -1,9 +1,11 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/network/result.dart';
 
 /// Generic base controller for all paginated lists, feeds, comments, and search results.
 /// Eliminates duplicate pagination logic across features.
+/// Supports both offset-based and Firestore cursor-based (startAfterDocument) pagination.
 abstract class PagedController<T> extends BaseController {
   PagedController({this.pageSize = 10});
   final RxList<T> itemList = <T>[].obs;
@@ -19,8 +21,22 @@ abstract class PagedController<T> extends BaseController {
 
   final int pageSize;
 
-  /// Abstract method implemented by feature controllers to fetch data for a given [page]
-  Future<Result<List<T>>> fetchPageData(int page);
+  /// Firestore cursor for document-based pagination
+  DocumentSnapshot? lastDocument;
+
+  /// Abstract or overridable method implemented by feature controllers for offset pagination.
+  Future<Result<List<T>>> fetchPageData(int page) async {
+    return Result.success(<T>[]);
+  }
+
+  /// Hook for cursor-based (startAfterDocument) pagination.
+  /// Subclasses can override this instead of [fetchPageData] for O(1) Firestore pagination.
+  Future<Result<List<T>>> fetchCursorPageData({
+    DocumentSnapshot? startAfter,
+    int? page,
+  }) {
+    return fetchPageData(page ?? currentPage);
+  }
 
   @override
   void onInit() {
@@ -32,10 +48,11 @@ abstract class PagedController<T> extends BaseController {
   Future<void> loadInitialData() async {
     _currentPage.value = 1;
     _hasMoreData.value = true;
+    lastDocument = null;
     setViewState(ViewState.loading);
 
     logPagination(1);
-    final result = await fetchPageData(1);
+    final result = await fetchCursorPageData(startAfter: null, page: 1);
     result.when(
       success: (data) {
         itemList.assignAll(data);
@@ -64,7 +81,7 @@ abstract class PagedController<T> extends BaseController {
     final nextPage = _currentPage.value + 1;
     logPagination(nextPage);
 
-    final result = await fetchPageData(nextPage);
+    final result = await fetchCursorPageData(startAfter: lastDocument, page: nextPage);
     result.when(
       success: (newData) {
         if (newData.isEmpty || newData.length < pageSize) {
@@ -88,8 +105,9 @@ abstract class PagedController<T> extends BaseController {
     setViewState(ViewState.refreshing);
     _currentPage.value = 1;
     _hasMoreData.value = true;
+    lastDocument = null;
 
-    final result = await fetchPageData(1);
+    final result = await fetchCursorPageData(startAfter: null, page: 1);
     result.when(
       success: (freshData) {
         itemList.assignAll(freshData);

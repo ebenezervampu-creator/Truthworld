@@ -175,9 +175,12 @@ export const createChannel = onCall(
         const now = Date.now();
         const channelType = data.type || 'standard';
         
-        // Revenue shares based on type
-        const adsRevShare = channelType === 'custom' ? 1.0 : 0.75;
-        const memberRevShare = channelType === 'custom' ? 0.75 : 1.0;
+        // Unified Revenue shares based on channel type:
+        // - Standard: 70% Creator on Ads & Premium Subs (30% Platform), 100% on Memberships & Superchats (0% Platform).
+        // - Custom: 100% Creator on all streams (0% Platform cut). Custom channels take plans ($15, $30, $45/mo etc.).
+        const adsRevShare = channelType === 'custom' ? 1.0 : 0.70;
+        const memberRevShare = 1.0;
+
 
         const channelDoc: any = {
           id: channelId,
@@ -222,7 +225,7 @@ export const createChannel = onCall(
             defaultPlatform,
           },
           limits: {
-            maxDurationSec: 10800,
+            maxDurationSec: channelType === "custom" ? 86400 : 600,
             maxChannels: 1,
           }
         };
@@ -294,13 +297,26 @@ export const switchChannelType = onCall(
           update.settings = {
             ...channel.settings,
             adsRevenueShare: 1.0, // Custom channels keep 100% ads
+            memberRevenueShare: 1.0, // Custom channels keep 100% memberships
+          };
+          update.limits = {
+            ...channel.limits,
+            maxDurationSec: 86400,
+            maxChannels: 1,
           };
         } else {
           update.settings = {
             ...channel.settings,
-            adsRevenueShare: 0.75, // Standard share
+            adsRevenueShare: 0.70, // Standard share (30% platform fee)
+            memberRevenueShare: 1.0, // Standard channels keep 100% memberships
+          };
+          update.limits = {
+            ...channel.limits,
+            maxDurationSec: 600, // Standard channels capped at 10 minutes (600s)
+            maxChannels: 1,
           };
         }
+
 
         tx.update(channelRef, update);
         return { success: true, newType: targetType };

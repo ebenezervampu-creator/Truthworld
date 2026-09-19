@@ -162,7 +162,7 @@ class PremiumComparisonSection extends StatelessWidget {
                 ),
                 buildPremiumTableRow(
                   'Stream Quality',
-                  'Up to 1080p',
+                  'Up to 1040p',
                   r'4K Ultra HD ($2, $3)',
                 ),
                 buildPremiumTableRow(

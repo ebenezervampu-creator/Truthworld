@@ -13,7 +13,10 @@ void showPlaylistOptionsSheet({
   required PlaylistModel playlist,
   PlaylistController? playlistController,
 }) {
-  final controller = playlistController ?? Get.find<PlaylistController>();
+  final controller = playlistController ??
+      (Get.isRegistered<PlaylistController>()
+          ? Get.find<PlaylistController>()
+          : Get.put<PlaylistController>(PlaylistController()));
 
   showModalBottomSheet<void>(
     context: context,

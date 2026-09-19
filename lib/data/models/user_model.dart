@@ -87,6 +87,7 @@ class UserModel {
     this.country,
     this.hasCompletedOnboarding = false,
     this.ageGroup,
+    this.walletBalance = 0.0,
   });
 
   /// Create from Firestore document snapshot
@@ -110,7 +111,7 @@ class UserModel {
       metadata: Map<String, dynamic>.from(data['metadata'] as Map? ?? {}),
       channelId: data['channelId'] as String?,
       gender: data['gender'] as String?,
-      age: (data['age'] as num?)?.toInt(),
+      age: _sanitizeAge((data['age'] as num?)?.toInt()),
       birthdate: data['birthdate'] as String?,
       location: data['location'] as String?,
       city: data['city'] as String?,
@@ -118,6 +119,7 @@ class UserModel {
       country: data['country'] as String?,
       hasCompletedOnboarding: data['hasCompletedOnboarding'] as bool? ?? false,
       ageGroup: data['ageGroup'] as String?,
+      walletBalance: (data['walletBalance'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
@@ -157,6 +159,7 @@ class UserModel {
   final String? country;
   final bool hasCompletedOnboarding;
   final String? ageGroup;
+  final double walletBalance;
 
   /// Serialize for Firestore document creation
   /// Uses `FieldValue.serverTimestamp()` for consistent timestamps
@@ -176,6 +179,7 @@ class UserModel {
       'metadata': metadata,
       'channelId': channelId,
       'hasCompletedOnboarding': hasCompletedOnboarding,
+      'walletBalance': walletBalance,
       if (gender != null) 'gender': gender,
       if (age != null) 'age': age,
       if (birthdate != null) 'birthdate': birthdate,
@@ -198,6 +202,7 @@ class UserModel {
       'status': status.value,
       'channelId': channelId,
       'hasCompletedOnboarding': hasCompletedOnboarding,
+      'walletBalance': walletBalance,
       if (gender != null) 'gender': gender,
       if (age != null) 'age': age,
       if (birthdate != null) 'birthdate': birthdate,
@@ -227,6 +232,7 @@ class UserModel {
     String? country,
     bool? hasCompletedOnboarding,
     String? ageGroup,
+    double? walletBalance,
   }) {
     return UserModel(
       uid: uid,
@@ -241,7 +247,7 @@ class UserModel {
       metadata: metadata ?? this.metadata,
       channelId: channelId ?? this.channelId,
       gender: gender ?? this.gender,
-      age: age ?? this.age,
+      age: _sanitizeAge(age) ?? this.age,
       birthdate: birthdate ?? this.birthdate,
       location: location ?? this.location,
       city: city ?? this.city,
@@ -250,7 +256,17 @@ class UserModel {
       hasCompletedOnboarding:
           hasCompletedOnboarding ?? this.hasCompletedOnboarding,
       ageGroup: ageGroup ?? this.ageGroup,
+      walletBalance: walletBalance ?? this.walletBalance,
     );
+  }
+
+  /// Rejects any age outside the valid human range [1, 120].
+  /// Returns null for out-of-range or null input so corrupt legacy / external
+  /// data is silently discarded rather than persisted.
+  static int? _sanitizeAge(int? raw) {
+    if (raw == null) return null;
+    if (raw < 1 || raw > 120) return null;
+    return raw;
   }
 
   /// Helper to convert Firestore Timestamp to DateTime

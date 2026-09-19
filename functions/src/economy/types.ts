@@ -31,9 +31,12 @@ export interface PayoutSettings {
 
 /**
  * ⚖️ REVENUE SHARE MATRIX
- * Defines the percentage the CREATOR keeps based on their channel type.
+ * Defines the percentage the CREATOR keeps based on their channel type:
+ * - Standard Channels: 70% from ads & premium subscriptions (30% Platform), 100% from superchats & memberships (0% Platform).
+ * - Custom Channels: 100% from all sources (0% Platform share); Custom channels take subscription/infrastructure plans ($15, $30, $45/mo etc.).
  */
 export const TYPE_REVENUE_SHARE = {
-  standard: { ads: 0.75, members: 1.00 },
-  custom: { ads: 1.00, members: 0.75 }, // 25% platform cut from memberships
+  standard: { ads: 0.70, premiumSubs: 0.70, superchats: 1.00, members: 1.00 },
+  custom: { ads: 1.00, premiumSubs: 1.00, superchats: 1.00, members: 1.00 },
 };
+

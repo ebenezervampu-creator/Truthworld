@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
@@ -509,7 +510,27 @@ class CreatorKycDialog extends StatelessWidget {
               clipBehavior: Clip.antiAlias,
               child: hasNewFile
                   ? Image.memory(imageBytes, fit: BoxFit.cover)
-                  : Image.network(existingUrl!, fit: BoxFit.cover),
+                  : CachedNetworkImage(
+                      imageUrl: existingUrl!,
+                      fit: BoxFit.cover,
+                      memCacheWidth: 100,
+                      memCacheHeight: 100,
+                      placeholder: (context, url) => const Center(
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                        ),
+                      ),
+                      errorWidget: (context, url, error) => const Center(
+                        child: Icon(
+                          Icons.broken_image,
+                          size: 16,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
             ),
             const SizedBox(width: 12),
             Expanded(

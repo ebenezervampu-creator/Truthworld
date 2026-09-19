@@ -66,7 +66,7 @@ class CreativeAssetsTabView extends StatelessWidget {
           onPressed: () => _showUploadAssetDialog(context),
           icon: const Icon(
             Icons.cloud_upload_rounded,
-            color: Colors.white,
+            color: Colors.black,
             size: 18,
           ),
           label: const Text(

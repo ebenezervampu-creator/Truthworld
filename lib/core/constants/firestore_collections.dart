@@ -34,11 +34,14 @@ class FirestoreCollections {
   static String videoComments(String videoId) => 'videos/$videoId/comments';
   static String videoLikes(String videoId) => 'videos/$videoId/likes';
   static String videoDislikes(String videoId) => 'videos/$videoId/dislikes';
+  static String videoShards(String videoId) => 'videos/$videoId/shards';
 
   // ── Channel Subcollections ────────────────────────────────────────
   static String channelVideos(String channelId) => 'channels/$channelId/videos';
   static String channelSubscribers(String channelId) =>
       'channels/$channelId/subscribers';
+  static String channelShards(String channelId) =>
+      'channels/$channelId/shards';
 
   // ── Playlist Subcollections ───────────────────────────────────────
   static String videoPlaylistItems(String playlistId) =>

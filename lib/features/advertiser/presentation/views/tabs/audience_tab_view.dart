@@ -63,7 +63,7 @@ class AudienceTabView extends StatelessWidget {
           onPressed: () => _showCreatePresetDialog(context),
           icon: const Icon(
             Icons.add_rounded,
-            color: Colors.white,
+            color: Colors.black,
             size: 18,
           ),
           label: const Text(

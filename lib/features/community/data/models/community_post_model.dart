@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:truthworld/domain/entities/community_post_entity.dart';
 import 'package:truthworld/features/community/data/models/poll_model.dart';
 
 /// Data model for a community post with multi-image and optional poll support.
@@ -204,4 +205,66 @@ class CommunityPostModel {
     'showDislikeCount': showDislikeCount,
     'isCommentsEnabled': isCommentsEnabled,
   };
+
+  /// Converts this data model to a pure domain [CommunityPostEntity].
+  CommunityPostEntity toEntity() {
+    return CommunityPostEntity(
+      id: id,
+      title: title,
+      description: description,
+      ownerId: ownerId,
+      channelId: channelId,
+      channelName: channelName,
+      channelImage: channelImage,
+      uploadedAt: uploadedAt,
+      selectedCategory: selectedCategory,
+      visibility: visibility,
+      images: images,
+      tags: tags,
+      likes: likes,
+      dislikes: dislikes,
+      dislikeCount: dislikeCount,
+      commentCount: commentCount,
+      views: views,
+      downloads: downloads,
+      isKidFriendly: isKidFriendly,
+      processed: processed,
+      isLikeEnabled: isLikeEnabled,
+      showLikeCount: showLikeCount,
+      isDislikeEnabled: isDislikeEnabled,
+      showDislikeCount: showDislikeCount,
+      isCommentsEnabled: isCommentsEnabled,
+    );
+  }
+
+  /// Creates a [CommunityPostModel] data model from a pure domain [CommunityPostEntity].
+  static CommunityPostModel fromEntity(CommunityPostEntity entity) {
+    return CommunityPostModel(
+      id: entity.id,
+      title: entity.title,
+      description: entity.description,
+      ownerId: entity.ownerId,
+      channelId: entity.channelId,
+      channelName: entity.channelName,
+      channelImage: entity.channelImage,
+      uploadedAt: entity.uploadedAt,
+      selectedCategory: entity.selectedCategory,
+      visibility: entity.visibility,
+      images: entity.images,
+      tags: entity.tags,
+      likes: entity.likes,
+      dislikes: entity.dislikes,
+      dislikeCount: entity.dislikeCount,
+      commentCount: entity.commentCount,
+      views: entity.views,
+      downloads: entity.downloads,
+      isKidFriendly: entity.isKidFriendly,
+      processed: entity.processed,
+      isLikeEnabled: entity.isLikeEnabled,
+      showLikeCount: entity.showLikeCount,
+      isDislikeEnabled: entity.isDislikeEnabled,
+      showDislikeCount: entity.showDislikeCount,
+      isCommentsEnabled: entity.isCommentsEnabled,
+    );
+  }
 }

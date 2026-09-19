@@ -11,6 +11,38 @@ class TranscriptSegmentTile extends StatelessWidget {
   final TowerPlayerController? playerCtrl;
   final String videoId;
 
+  static final TextStyle _monoActive = GoogleFonts.robotoMono(
+    color: AppColors.brand,
+    fontSize: 12,
+    fontWeight: FontWeight.bold,
+  );
+  static final TextStyle _monoInactive = GoogleFonts.robotoMono(
+    color: Colors.white70,
+    fontSize: 12,
+    fontWeight: FontWeight.normal,
+  );
+  static final TextStyle _textActive = GoogleFonts.roboto(
+    color: Colors.white,
+    fontSize: 13,
+    fontWeight: FontWeight.w600,
+    height: 1.3,
+  );
+  static final TextStyle _textInactive = GoogleFonts.roboto(
+    color: Colors.white70,
+    fontSize: 13,
+    fontWeight: FontWeight.normal,
+    height: 1.3,
+  );
+
+  static final BoxDecoration _activeBox = BoxDecoration(
+    color: AppColors.brand.withValues(alpha: 0.3),
+    borderRadius: BorderRadius.circular(4),
+  );
+  static final BoxDecoration _inactiveBox = BoxDecoration(
+    color: Colors.white.withValues(alpha: 0.08),
+    borderRadius: BorderRadius.circular(4),
+  );
+
   const TranscriptSegmentTile({
     required this.seg,
     required this.playerCtrl,
@@ -37,37 +69,17 @@ class TranscriptSegmentTile extends StatelessWidget {
                   horizontal: 6,
                   vertical: 2,
                 ),
-                decoration: BoxDecoration(
-                  color: isActive
-                      ? AppColors.brand.withValues(alpha: 0.3)
-                      : Colors.white.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(4),
-                ),
+                decoration: isActive ? _activeBox : _inactiveBox,
                 child: Text(
                   FormatUtils.formatDuration(seg.start),
-                  style: GoogleFonts.robotoMono(
-                    color: isActive
-                        ? AppColors.brand
-                        : Colors.white70,
-                    fontSize: 12,
-                    fontWeight: isActive
-                        ? FontWeight.bold
-                        : FontWeight.normal,
-                  ),
+                  style: isActive ? _monoActive : _monoInactive,
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   seg.text,
-                  style: GoogleFonts.roboto(
-                    color: isActive ? Colors.white : Colors.white70,
-                    fontSize: 13,
-                    fontWeight: isActive
-                        ? FontWeight.w600
-                        : FontWeight.normal,
-                    height: 1.3,
-                  ),
+                  style: isActive ? _textActive : _textInactive,
                 ),
               ),
             ],

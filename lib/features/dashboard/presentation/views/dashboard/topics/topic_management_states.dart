@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/topic_management_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -250,7 +251,11 @@ class TopicErrorState extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                error,
+                UserFeedbackSanitizer.sanitizeMessage(
+                  error,
+                  defaultActionContext:
+                      'Unable to load topics. Please check your connection and try again.',
+                ),
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontSize: 13,

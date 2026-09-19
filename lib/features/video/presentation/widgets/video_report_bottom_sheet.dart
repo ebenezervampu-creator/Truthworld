@@ -80,7 +80,7 @@ class VideoReportBottomSheet {
           padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
           decoration: const BoxDecoration(
             color: AppColors.bgSurface,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(TWRadius.xxlVal)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -92,7 +92,7 @@ class VideoReportBottomSheet {
                   height: 4,
                   decoration: BoxDecoration(
                     color: AppColors.textSecondary.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(2),
+                    borderRadius: TWRadius.smBorderRadius,
                   ),
                 ),
               ),
@@ -226,14 +226,14 @@ class VideoReportBottomSheet {
                             },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.brand,
-                        foregroundColor: Colors.white,
+                        foregroundColor: Colors.black,
                         disabledBackgroundColor: AppColors.brand.withValues(alpha: 0.3),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 24,
                           vertical: 12,
                         ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: TWRadius.pillBorderRadius,
                         ),
                       ),
                       child: Text(
@@ -292,7 +292,7 @@ class VideoReportBottomSheet {
                     filled: true,
                     fillColor: AppColors.bgInput,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: TWRadius.lgBorderRadius,
                       borderSide: BorderSide.none,
                     ),
                     counterStyle: const TextStyle(
@@ -341,13 +341,13 @@ class VideoReportBottomSheet {
                             },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.brand,
-                        foregroundColor: Colors.white,
+                        foregroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 24,
                           vertical: 12,
                         ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: TWRadius.pillBorderRadius,
                         ),
                       ),
                       child: Text(

@@ -10,11 +10,22 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/watch_later.dart';
+import 'package:truthworld/data/repositories/library_repository_impl.dart';
+import 'package:truthworld/domain/repositories/library_repository.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class WatchLaterController extends BaseController {
+  final LibraryRepository _libraryRepository;
+
+  WatchLaterController({
+    LibraryRepository? libraryRepository,
+  }) : _libraryRepository = libraryRepository ??
+            (Get.isRegistered<LibraryRepository>()
+                ? Get.find<LibraryRepository>()
+                : LibraryRepositoryImpl());
+
   final RxList<Video> watchLaterVideos = <Video>[].obs;
   final RxBool rxIsLoading = false.obs;
 
@@ -31,7 +42,6 @@ class WatchLaterController extends BaseController {
   final TextEditingController searchController = TextEditingController();
   final ScrollController scrollController = ScrollController();
 
-  StreamSubscription<QuerySnapshot>? _subscription;
 
   @override
   void onInit() {
@@ -48,7 +58,7 @@ class WatchLaterController extends BaseController {
     }
   }
 
-  void fetchWatchLaterVideos() {
+  Future<void> fetchWatchLaterVideos() async {
     rxIsLoading.value = true;
     setViewState(ViewState.loading);
 
@@ -63,103 +73,87 @@ class WatchLaterController extends BaseController {
       return;
     }
 
-    _subscription?.cancel();
-    final sub = FirebaseFirestore.instance
-        .collection(FirestoreCollections.users)
-        .doc(userId)
-        .collection('watch_later')
-        .snapshots()
-        .listen(
-      (snapshot) async {
-        if (snapshot.docs.isEmpty) {
-          watchLaterVideos.value = [];
-          rxIsLoading.value = false;
-          setViewState(ViewState.empty);
-          return;
-        }
-
-        try {
-          final parsedVideos = <Video>[];
-          final missingVideoIds = <String>[];
-
-          for (final doc in snapshot.docs) {
-            final data = doc.data();
-            final docId = doc.id;
-            final videoId = data['videoId'] as String? ?? docId;
-
-            if (data.containsKey('title') && data.containsKey('videoUrl')) {
-              parsedVideos.add(Video.fromDocumentSnapshot(doc));
-            } else if (data.containsKey('videoTitle')) {
-              final wl = WatchLater.fromDocumentSnapshot(doc);
-              parsedVideos.add(
-                Video(
-                  id: wl.videoId.isNotEmpty ? wl.videoId : wl.id,
-                  title: wl.videoTitle,
-                  description: '',
-                  thumbnailUrl: wl.videoThumbnailUrl,
-                  ownerId: wl.userId,
-                  channelId: wl.channelId,
-                  channelName: wl.channelName,
-                  channelAvatarUrl: wl.channelImage,
-                  category: 'General',
-                  tags: const [],
-                  viewCount: wl.views,
-                  duration: wl.duration,
-                  uploadedAt: wl.uploadedAt,
-                ),
-              );
-            } else {
-              missingVideoIds.add(videoId);
-            }
-          }
-
-          if (missingVideoIds.isNotEmpty) {
-            final fetchedVideos = await _fetchVideosInBatches(missingVideoIds);
-            parsedVideos.addAll(fetchedVideos);
-          }
-
-          final videoMap = {for (final v in parsedVideos) v.id: v};
-          final ordered = <Video>[];
-          for (final doc in snapshot.docs) {
-            final data = doc.data();
-            final docId = doc.id;
-            final vId = data['videoId'] as String? ?? docId;
-            if (videoMap.containsKey(vId)) {
-              ordered.add(videoMap[vId]!);
-            } else if (videoMap.containsKey(docId)) {
-              ordered.add(videoMap[docId]!);
-            }
-          }
-
-          watchLaterVideos.value = ordered;
-          rxIsLoading.value = false;
-          setViewState(
-            watchLaterVideos.isEmpty ? ViewState.empty : ViewState.success,
-          );
-        } catch (e, stackTrace) {
-          ErrorHandler.log(
-            e,
-            stackTrace: stackTrace,
-            tag: 'WatchLaterController.fetchWatchLaterVideos',
-          );
-          rxIsLoading.value = false;
-          setViewState(ViewState.error);
-        }
-      },
-      onError: (error, stackTrace) {
-        ErrorHandler.log(
-          error,
-          stackTrace: stackTrace,
-          tag: 'WatchLaterController.fetchWatchLaterVideos',
-        );
+    try {
+      final result = await _libraryRepository.getWatchLater(userId, limit: 50);
+      if (result.isFailure) {
         rxIsLoading.value = false;
         setViewState(ViewState.error);
-        AppSnackbar.error('Unable to load Watch Later videos. Please try again.');
-      },
-    );
+        return;
+      }
 
-    _subscription = sub;
-    trackSubscription(sub);
+      final docs = result.dataOrNull ?? [];
+      if (docs.isEmpty) {
+        watchLaterVideos.value = [];
+        rxIsLoading.value = false;
+        setViewState(ViewState.empty);
+        return;
+      }
+
+      final parsedVideos = <Video>[];
+      final missingVideoIds = <String>[];
+
+      for (final data in docs) {
+        final docId = data['id'] as String? ?? '';
+        final videoId = data['videoId'] as String? ?? docId;
+
+        if (data.containsKey('title') && data.containsKey('videoUrl')) {
+          parsedVideos.add(Video.fromMap(data));
+        } else if (data.containsKey('videoTitle')) {
+          final wl = WatchLater.fromMap(data, docId);
+          parsedVideos.add(
+            Video(
+              id: wl.videoId.isNotEmpty ? wl.videoId : wl.id,
+              title: wl.videoTitle,
+              description: '',
+              thumbnailUrl: wl.videoThumbnailUrl,
+              ownerId: wl.userId,
+              channelId: wl.channelId,
+              channelName: wl.channelName,
+              channelAvatarUrl: wl.channelImage,
+              category: 'General',
+              tags: const [],
+              viewCount: wl.views,
+              duration: wl.duration,
+              uploadedAt: wl.uploadedAt,
+            ),
+          );
+        } else {
+          missingVideoIds.add(videoId);
+        }
+      }
+
+      if (missingVideoIds.isNotEmpty) {
+        final fetchedVideos = await _fetchVideosInBatches(missingVideoIds);
+        parsedVideos.addAll(fetchedVideos);
+      }
+
+      final videoMap = {for (final v in parsedVideos) v.id: v};
+      final ordered = <Video>[];
+      for (final data in docs) {
+        final docId = data['id'] as String? ?? '';
+        final vId = data['videoId'] as String? ?? docId;
+        if (videoMap.containsKey(vId)) {
+          ordered.add(videoMap[vId]!);
+        } else if (videoMap.containsKey(docId)) {
+          ordered.add(videoMap[docId]!);
+        }
+      }
+
+      watchLaterVideos.value = ordered;
+      rxIsLoading.value = false;
+      setViewState(
+        watchLaterVideos.isEmpty ? ViewState.empty : ViewState.success,
+      );
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'WatchLaterController.fetchWatchLaterVideos',
+      );
+      rxIsLoading.value = false;
+      setViewState(ViewState.error);
+      AppSnackbar.error('Unable to load Watch Later videos. Please try again.');
+    }
   }
 
   Future<List<Video>> _fetchVideosInBatches(List<String> videoIds) async {
@@ -193,26 +187,8 @@ class WatchLaterController extends BaseController {
     if (userId.isEmpty) return;
 
     try {
-      final watchLaterRef = FirebaseFirestore.instance
-          .collection(FirestoreCollections.users)
-          .doc(userId)
-          .collection('watch_later');
-
-      final docRef = watchLaterRef.doc(videoId);
-      final docSnap = await docRef.get();
-      if (docSnap.exists) {
-        await docRef.delete();
-      } else {
-        final querySnap = await watchLaterRef
-            .where('videoId', isEqualTo: videoId)
-            .get();
-        for (final doc in querySnap.docs) {
-          await doc.reference.delete();
-        }
-      }
-
+      await _libraryRepository.toggleWatchLater(userId, videoId);
       watchLaterVideos.removeWhere((v) => v.id == videoId);
-
       AppSnackbar.success('Video removed from Watch Later.');
     } catch (e) {
       logException(e);
@@ -255,12 +231,16 @@ class WatchLaterController extends BaseController {
                     .doc(userId)
                     .collection('watch_later');
 
-                final snapshots = await collection.get();
-                final batch = FirebaseFirestore.instance.batch();
-                for (final doc in snapshots.docs) {
-                  batch.delete(doc.reference);
+                while (true) {
+                  final snapshots = await collection.limit(450).get();
+                  if (snapshots.docs.isEmpty) break;
+                  final batch = FirebaseFirestore.instance.batch();
+                  for (final doc in snapshots.docs) {
+                    batch.delete(doc.reference);
+                  }
+                  await batch.commit();
+                  if (snapshots.docs.length < 450) break;
                 }
-                await batch.commit();
                 watchLaterVideos.clear();
                 setViewState(ViewState.empty);
 
@@ -406,7 +386,6 @@ class WatchLaterController extends BaseController {
 
   @override
   void onClose() {
-    _subscription?.cancel();
     searchController.dispose();
     scrollController.dispose();
     super.onClose();

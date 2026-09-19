@@ -157,6 +157,19 @@ class TowerCustomPlayer extends StatelessWidget {
                             );
                           }),
 
+                            // ── Layer 0.05: Video Bottom Seam Guard ────────────────
+                            // Eliminates any 1px sub-pixel rounding gap, video encoding border,
+                            // or edge texture bleeding at the bottom boundary before page content.
+                            const Positioned(
+                              bottom: 0,
+                              left: 0,
+                              right: 0,
+                              height: 1.5,
+                              child: IgnorePointer(
+                                child: ColoredBox(color: AppColors.bgPage),
+                              ),
+                            ),
+
                             // ── Layer 0.1: Video Viewport Gestures (Background tap/seek/drag) ──
                             Positioned.fill(
                               child: GestureDetector(

@@ -123,9 +123,10 @@ mixin UploadMediaPickerMixin on UploadControllerBase {
         if (channel != null) {
           final todayUsed = await getTodayUploadedDurationSeconds(channel.id);
           todayUploadedDurationSeconds.value = todayUsed;
+          final maxDaily = channel.maxDailyVideoDurationSeconds;
           remainingDailyDurationSeconds.value =
-              (1200 - todayUsed).clamp(0, 1200);
-          isDailyLimitReached.value = todayUsed >= 1200;
+              (maxDaily - todayUsed).clamp(0, maxDaily);
+          isDailyLimitReached.value = todayUsed >= maxDaily;
 
           final validation = validateChannelVideoUpload(
             channel,

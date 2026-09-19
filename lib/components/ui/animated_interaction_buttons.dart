@@ -184,28 +184,30 @@ class _AnimatedLikeButtonState extends State<AnimatedLikeButton>
       highlightColor: Colors.transparent,
       child: Padding(
         padding: const EdgeInsets.all(6),
-        child: AnimatedBuilder(
-          animation: _particleController,
-          builder: (context, child) {
-            return CustomPaint(
-              foregroundPainter: widget.enableParticles
-                  ? _ParticleBurstPainter(
-                      progress: _particleController.value,
-                      color: activeColor,
-                    )
-                  : null,
-              child: child,
-            );
-          },
-          child: ScaleTransition(
-            scale: _scaleAnimation,
-            child:
-                widget.child ??
-                Icon(
-                  defaultIcon,
-                  size: widget.size,
-                  color: widget.isLiked ? activeColor : inactiveColor,
-                ),
+        child: RepaintBoundary(
+          child: AnimatedBuilder(
+            animation: _particleController,
+            builder: (context, child) {
+              return CustomPaint(
+                foregroundPainter: widget.enableParticles
+                    ? _ParticleBurstPainter(
+                        progress: _particleController.value,
+                        color: activeColor,
+                      )
+                    : null,
+                child: child,
+              );
+            },
+            child: ScaleTransition(
+              scale: _scaleAnimation,
+              child:
+                  widget.child ??
+                  Icon(
+                    defaultIcon,
+                    size: widget.size,
+                    color: widget.isLiked ? activeColor : inactiveColor,
+                  ),
+            ),
           ),
         ),
       ),

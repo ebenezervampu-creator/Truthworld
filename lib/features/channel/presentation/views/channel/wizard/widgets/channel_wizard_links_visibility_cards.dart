@@ -3,29 +3,21 @@ import 'package:get/get.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class ChannelWizardLinksCard extends StatefulWidget {
+class ChannelWizardLinksCard extends StatelessWidget {
   final ChannelController controller;
   final bool isDarkMode;
   final bool contentOnly;
   final TextEditingController Function(String key) getSocialController;
+  final RxBool showMoreLinks;
 
-  const ChannelWizardLinksCard({
+  ChannelWizardLinksCard({
     required this.controller,
     required this.isDarkMode,
     required this.getSocialController,
     this.contentOnly = false,
+    RxBool? showMoreLinks,
     super.key,
-  });
-
-  @override
-  State<ChannelWizardLinksCard> createState() => _ChannelWizardLinksCardState();
-}
-
-class _ChannelWizardLinksCardState extends State<ChannelWizardLinksCard> {
-  ChannelController get controller => widget.controller;
-  bool get isDarkMode => widget.isDarkMode;
-
-  final RxBool _showMoreLinks = false.obs;
+  }) : showMoreLinks = showMoreLinks ?? false.obs;
 
   static const Map<String, List<String>> _bannedSocialPlatformsByCountry = {
     'India': ['tiktok'],
@@ -154,7 +146,7 @@ class _ChannelWizardLinksCardState extends State<ChannelWizardLinksCard> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.contentOnly) {
+    if (contentOnly) {
       return buildContent(context);
     }
     return Container(
@@ -199,7 +191,7 @@ class _ChannelWizardLinksCardState extends State<ChannelWizardLinksCard> {
         if (controller.socialLinks.containsKey(bannedKey)) {
           controller.socialLinks.remove(bannedKey);
         }
-        widget.getSocialController(bannedKey).clear();
+        getSocialController(bannedKey).clear();
       }
 
       final standardLinks = [
@@ -281,13 +273,12 @@ class _ChannelWizardLinksCardState extends State<ChannelWizardLinksCard> {
       final allLinksList = [...filteredStandard, ...extraLinks];
 
       // Show top 6 links by default (Website + Email + top 4 social links), or any filled link
-      final visibleLinksList = _showMoreLinks.value
+      final visibleLinksList = showMoreLinks.value
           ? allLinksList
           : allLinksList.where((item) {
               final idx = allLinksList.indexOf(item);
               final key = item['key']! as String;
-              final hasValue = widget
-                  .getSocialController(key)
+              final hasValue = getSocialController(key)
                   .text
                   .trim()
                   .isNotEmpty;
@@ -295,7 +286,7 @@ class _ChannelWizardLinksCardState extends State<ChannelWizardLinksCard> {
             }).toList();
 
       final hasHiddenLinks =
-          allLinksList.length > visibleLinksList.length || _showMoreLinks.value;
+          allLinksList.length > visibleLinksList.length || showMoreLinks.value;
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -349,7 +340,7 @@ class _ChannelWizardLinksCardState extends State<ChannelWizardLinksCard> {
           const SizedBox(height: 16),
           ...visibleLinksList.map((item) {
             final itemKey = item['key']! as String;
-            final ctrl = widget.getSocialController(itemKey);
+            final ctrl = getSocialController(itemKey);
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: Row(
@@ -415,7 +406,7 @@ class _ChannelWizardLinksCardState extends State<ChannelWizardLinksCard> {
           if (hasHiddenLinks) ...[
             const SizedBox(height: 4),
             GestureDetector(
-              onTap: () => _showMoreLinks.value = !_showMoreLinks.value,
+              onTap: () => showMoreLinks.value = !showMoreLinks.value,
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
@@ -430,7 +421,7 @@ class _ChannelWizardLinksCardState extends State<ChannelWizardLinksCard> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      _showMoreLinks.value
+                      showMoreLinks.value
                           ? Icons.keyboard_arrow_up
                           : Icons.add,
                       size: 16,
@@ -438,7 +429,7 @@ class _ChannelWizardLinksCardState extends State<ChannelWizardLinksCard> {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      _showMoreLinks.value
+                      showMoreLinks.value
                           ? 'Show Less Links'
                           : 'Add More Links',
                       style: const TextStyle(

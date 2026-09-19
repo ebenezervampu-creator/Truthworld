@@ -88,6 +88,16 @@ async function fulfillOrder(
       }
     }
 
+    let userWalletDoc: admin.firestore.DocumentSnapshot | null = null;
+    let userWalletRef: admin.firestore.DocumentReference | null = null;
+    if (purpose === "user_wallet_topup" || purpose === "user_topup") {
+      const targetUserId = metadata.userId || userId;
+      if (targetUserId) {
+        userWalletRef = firestore.collection("users").doc(targetUserId);
+        userWalletDoc = await transaction.get(userWalletRef);
+      }
+    }
+
     // -------------------------------------------------------------
     // 2. ALL WRITES COMMENCE AFTER ALL READS ARE COMPLETE
     // -------------------------------------------------------------
@@ -201,11 +211,12 @@ async function fulfillOrder(
           );
         }
       }
-    } else if (purpose === "channel_topup") {
+    } else if (purpose === "channel_topup" || purpose === "channel_wallet_topup") {
       const channelId = metadata.channelId;
       if (channelId) {
         const channelRef = firestore.collection("channels").doc(channelId);
         const packType = metadata.packType;
+        const amountUSD = metadata.amountUSD || (amount > 0 ? Number((amount / 83.0).toFixed(2)) : 0);
 
         if (packType === "storage") {
           const additionalBytes = (metadata.gigabytes || 0) * 1024 * 1024 * 1024;
@@ -227,6 +238,16 @@ async function fulfillOrder(
             },
             { merge: true }
           );
+        } else if (packType === "balance" || purpose === "channel_wallet_topup") {
+          transaction.set(
+            channelRef,
+            {
+              walletBalanceUSD: admin.firestore.FieldValue.increment(amountUSD),
+              walletBalance: admin.firestore.FieldValue.increment(amountUSD),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
         }
 
         const txRef = firestore.collection("channel_wallet_transactions").doc(orderId);
@@ -234,14 +255,57 @@ async function fulfillOrder(
           id: orderId,
           channelId,
           userId,
-          amount,
-          category: metadata.category || "topup",
-          description: metadata.description || "Direct Pack Topup via Cashfree",
+          amount: amountUSD,
+          trialCreditDeducted: 0,
+          fundedDeducted: 0,
+          revenueDeducted: 0,
+          category: metadata.category || "walletTopup",
+          description: metadata.description || `Wallet Deposit (+$${amountUSD.toFixed(2)}) via Cashfree`,
           timestamp: admin.firestore.FieldValue.serverTimestamp(),
           paymentGateway: "cashfree",
+          metadata: {
+            ...metadata,
+            inrAmount: amount,
+          },
         });
       }
-    } else if (purpose === "superchat") {
+    } else if (purpose === "user_wallet_topup" || purpose === "user_topup") {
+      const targetUserId = metadata.userId || userId;
+      if (targetUserId && userWalletRef) {
+        const currentBal = (userWalletDoc && userWalletDoc.exists)
+          ? Number(userWalletDoc.data()?.walletBalance || 0)
+          : 0;
+        const newBal = currentBal + amount;
+
+        transaction.set(
+          userWalletRef,
+          {
+            walletBalance: newBal,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+
+        const userTxRef = userWalletRef.collection("wallet_transactions").doc(orderId);
+        transaction.set(userTxRef, {
+          id: orderId,
+          userId: targetUserId,
+          amount,
+          type: "credit",
+          category: metadata.category || "topup",
+          description: metadata.description || `Wallet Top-Up (+₹${amount.toFixed(2)}) via Cashfree`,
+          balanceBefore: currentBal,
+          balanceAfter: newBal,
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          paymentGateway: "cashfree",
+          orderId,
+          metadata: {
+            ...metadata,
+            inrAmount: amount,
+          },
+        });
+      }
+    } else if (purpose === "superchat" || purpose === "super_thanks") {
       const { channelId, videoId, text, userName, userProfilePicUrl, tierColor } = metadata;
       if (channelId) {
         const superchatRef = firestore
@@ -264,6 +328,43 @@ async function fulfillOrder(
           paymentIntentId: "cashfree",
           orderId,
           status: "completed",
+          type: purpose,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        if (purpose === "super_thanks") {
+          const donationRef = firestore
+            .collection("channels")
+            .doc(channelId)
+            .collection("donations")
+            .doc(orderId);
+
+          transaction.set(donationRef, {
+            id: orderId,
+            amount,
+            currency: "INR",
+            donorId: userId,
+            donorName: userName || "Supporter",
+            videoId: videoId || "",
+            orderId,
+            commentText: text || "",
+            donatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            type: "super_thanks",
+            status: "completed",
+          });
+        }
+
+        const receiptRef = firestore.collection("payment_receipts").doc(orderId);
+        transaction.set(receiptRef, {
+          orderId,
+          userId,
+          channelId,
+          videoId: videoId || "",
+          amount,
+          currency: "INR",
+          purpose,
+          status: "verified",
+          paymentGateway: "cashfree",
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
@@ -445,8 +546,16 @@ export const createCashfreeOrder = onCall(
       metadata = {},
     } = request.data || {};
 
-    if (typeof amount !== "number" || amount <= 0) {
-      throw new HttpsError("invalid-argument", "Invalid payment amount.");
+    if (
+      typeof amount !== "number" ||
+      isNaN(amount) ||
+      !isFinite(amount) ||
+      amount < 1.0
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Payment amount must be at least ₹1.00."
+      );
     }
 
     if (!purpose) {

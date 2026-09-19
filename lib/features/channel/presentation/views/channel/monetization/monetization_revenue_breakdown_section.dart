@@ -143,17 +143,24 @@ class ChannelRevenueBreakdownSection extends StatelessWidget {
 
           // Line Items
           ChannelRevenueRow(
-            label: 'Ad Revenue (70% Creator)',
-            creatorShare: controller.adRevenue * 0.70,
-            platformShare: controller.adRevenue * 0.30,
+            label: isCustom
+                ? 'Ad Revenue (100% Creator)'
+                : 'Ad Revenue (70% Creator)',
+            creatorShare:
+                isCustom ? controller.adRevenue : controller.adRevenue * 0.70,
+            platformShare: isCustom ? 0.0 : controller.adRevenue * 0.30,
           ),
           ChannelRevenueRow(
-            label: 'Premium Subs (70% Creator)',
-            creatorShare: controller.premiumSubRevenue * 0.70,
-            platformShare: controller.premiumSubRevenue * 0.30,
+            label: isCustom
+                ? 'Premium Subs (100% Creator)'
+                : 'Premium Subs (70% Creator)',
+            creatorShare: isCustom
+                ? controller.premiumSubRevenue
+                : controller.premiumSubRevenue * 0.70,
+            platformShare: isCustom ? 0.0 : controller.premiumSubRevenue * 0.30,
           ),
           ChannelRevenueRow(
-            label: 'Tips (100% Creator)',
+            label: 'Superchats & Tips (100% Creator)',
             creatorShare: controller.tipsRevenue,
             platformShare: 0.0,
           ),
@@ -162,6 +169,7 @@ class ChannelRevenueBreakdownSection extends StatelessWidget {
             creatorShare: controller.membershipsRevenue,
             platformShare: 0.0,
           ),
+
         ],
       ),
     );

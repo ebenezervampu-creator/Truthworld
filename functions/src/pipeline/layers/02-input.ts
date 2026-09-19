@@ -25,14 +25,20 @@ const SUPPORTED_LANGUAGES = [
 
 interface ChannelLimits {
   voiceCloning: boolean;
+  maxVideoDurationSeconds: number;
+  maxDailyDurationSeconds: number;
 }
 
 const TYPE_LIMITS: Record<ChannelType, ChannelLimits> = {
   standard: {
     voiceCloning: true,
+    maxVideoDurationSeconds: 600, // 10 minutes
+    maxDailyDurationSeconds: 600, // 10 minutes
   },
   custom: {
     voiceCloning: true,
+    maxVideoDurationSeconds: 86400, // 24 hours
+    maxDailyDurationSeconds: 86400, // 24 hours
   }
 };
 
@@ -66,6 +72,7 @@ export class InputLayer {
       generateDubbing: partial.generateDubbing ?? false,
       enableFactCheck: partial.enableFactCheck ?? true,
       priority: partial.priority ?? "normal",
+      duration: partial.duration,
     };
   }
 
@@ -74,6 +81,10 @@ export class InputLayer {
    */
   validateConfig(config: UserConfig): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
+
+    if (config.channelType === "standard" && config.duration && config.duration > 600) {
+      errors.push("Standard channel video duration cannot exceed 10 minutes (600 seconds)");
+    }
 
     if (!config.languages || config.languages.length === 0) {
       errors.push("At least one language is required");

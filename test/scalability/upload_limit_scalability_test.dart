@@ -55,29 +55,29 @@ void main() {
   // ── Group 1: Standard Limit Boundary Conditions ────────────────────────
 
   group('Standard Channel — Limit Boundary Conditions', () {
-    const maxDailySeconds = 1200; // 20 minutes
+    const maxDailySeconds = 600; // 10 minutes
 
-    test('Boundary: uploading exactly 20 min (1200s) with 0s already uploaded — VALID', () {
+    test('Boundary: uploading exactly 10 min (600s) with 0s already uploaded — VALID', () {
       final channel = _makeStandardChannel('ch_exact_boundary');
       final result = ContentValidator.validateChannelVideoUpload(
         channel,
         durationSeconds: maxDailySeconds, // exactly at the cap
       );
       expect(result.isValid, isTrue,
-          reason: 'A 20-minute upload with 0s used must be valid (at-boundary, not over).');
+          reason: 'A 10-minute upload with 0s used must be valid (at-boundary, not over).');
     });
 
-    test('Boundary: uploading 1201s single video — BLOCKED (over single-video cap)', () {
+    test('Boundary: uploading 601s single video — BLOCKED (over single-video cap)', () {
       final channel = _makeStandardChannel('ch_over_single');
       final result = ContentValidator.validateChannelVideoUpload(
         channel,
-        durationSeconds: 1201, // 1 second over 20-minute cap
+        durationSeconds: 601, // 1 second over 10-minute cap
       );
       expect(result.isValid, isFalse);
-      expect(result.message, contains('Standard channel video duration cannot exceed 20 minutes'));
+      expect(result.message, contains('Standard channel video duration cannot exceed 10 minutes'));
     });
 
-    test('Boundary: daily quota exactly reached (1200s used) — any upload BLOCKED', () {
+    test('Boundary: daily quota exactly reached (600s used) — any upload BLOCKED', () {
       final channel = _makeStandardChannel('ch_quota_exact');
       final result = ContentValidator.validateChannelVideoUpload(
         channel,
@@ -90,7 +90,7 @@ void main() {
 
     test('Boundary: 1s remaining quota — 1s upload VALID, 2s upload BLOCKED', () {
       final channel = _makeStandardChannel('ch_1s_remaining');
-      const usedSeconds = maxDailySeconds - 1; // 1199s used
+      const usedSeconds = maxDailySeconds - 1; // 599s used
 
       final validResult = ContentValidator.validateChannelVideoUpload(
         channel,
@@ -116,14 +116,14 @@ void main() {
         channel,
         durationSeconds: 0,
       );
-      // 0 is not > 1200, 0 used is not >= 1200, 0+0 is not > 1200
+      // 0 is not > 600, 0 used is not >= 600, 0+0 is not > 600
       expect(result.isValid, isTrue);
     });
 
     test('Partial daily quota used: correct remaining amount in error message', () {
       final channel = _makeStandardChannel('ch_partial_quota');
-      const used = 15 * 60; // 900s = 15 min
-      const newVideo = 6 * 60; // 360s = 6 min (over the 5 min remaining)
+      const used = 7 * 60; // 420s = 7 min
+      const newVideo = 4 * 60; // 240s = 4 min (over the 3 min remaining)
 
       final result = ContentValidator.validateChannelVideoUpload(
         channel,
@@ -131,9 +131,9 @@ void main() {
         dailyUploadedDurationSeconds: used,
       );
       expect(result.isValid, isFalse);
-      expect(result.message, contains('15 min today'));
-      expect(result.message, contains('5 min remaining'));
-      expect(result.message, contains('6 min'));
+      expect(result.message, contains('7 min today'));
+      expect(result.message, contains('3 min remaining'));
+      expect(result.message, contains('4 min'));
     });
   });
 
@@ -181,10 +181,10 @@ void main() {
 
       for (var i = 0; i < 100; i++) {
         final channel = _makeStandardChannel('ch_isolation_$i');
-        // Odd channels: 15 min used, 6 min new video → BLOCKED
-        // Even channels: 10 min used, 5 min new video → VALID
-        final usedSeconds = i.isOdd ? 15 * 60 : 10 * 60;
-        final newVideoSeconds = i.isOdd ? 6 * 60 : 5 * 60;
+        // Odd channels: 7 min used, 4 min new video → 7+4=11 min > 10 min → BLOCKED
+        // Even channels: 5 min used, 3 min new video → 5+3=8 min ≤ 10 min → VALID
+        final usedSeconds = i.isOdd ? 7 * 60 : 5 * 60;
+        final newVideoSeconds = i.isOdd ? 4 * 60 : 3 * 60;
 
         final result = ContentValidator.validateChannelVideoUpload(
           channel,
@@ -212,10 +212,10 @@ void main() {
         final standard = _makeStandardChannel('std_$i');
         final custom = _makeCustomChannel('cust_$i');
 
-        expect(standard.maxDailyVideoDurationSeconds, equals(1200),
-            reason: 'Standard channel $i must report 1200s daily limit.');
-        expect(standard.maxVideoDurationSeconds, equals(1200),
-            reason: 'Standard channel $i must report 1200s single-video limit.');
+        expect(standard.maxDailyVideoDurationSeconds, equals(600),
+            reason: 'Standard channel $i must report 600s daily limit.');
+        expect(standard.maxVideoDurationSeconds, equals(600),
+            reason: 'Standard channel $i must report 600s single-video limit.');
 
         expect(custom.maxDailyVideoDurationSeconds, equals(86400),
             reason: 'Custom channel $i must report 86400s (24h) daily limit.');
@@ -238,7 +238,7 @@ void main() {
         ContentValidator.validateChannelVideoUpload(
           channels[i],
           durationSeconds: 300, // 5 minutes
-          dailyUploadedDurationSeconds: (i % 3) * 400, // 0s, 400s, 800s cycling
+          dailyUploadedDurationSeconds: (i % 3) * 200, // 0s, 200s, 400s cycling
         );
       }
       stopwatch.stop();
@@ -260,19 +260,19 @@ void main() {
             ? _makeCustomChannel('ch_mixed_$i')
             : _makeStandardChannel('ch_mixed_$i');
 
-        // Upload a 25-minute video (1500s) — over standard limit, fine for custom
+        // Upload a 15-minute video (900s) — over standard limit (600s), fine for custom
         final result = ContentValidator.validateChannelVideoUpload(
           channel,
-          durationSeconds: 25 * 60, // 1500s
+          durationSeconds: 15 * 60, // 900s
         );
 
         if (isCustom) {
           expect(result.isValid, isTrue,
-              reason: 'Custom channel ch_mixed_$i must accept a 25-min upload.');
+              reason: 'Custom channel ch_mixed_$i must accept a 15-min upload.');
           validCount++;
         } else {
           expect(result.isValid, isFalse,
-              reason: 'Standard channel ch_mixed_$i must reject a 25-min single video.');
+              reason: 'Standard channel ch_mixed_$i must reject a 15-min single video.');
           blockedCount++;
         }
       }
@@ -290,12 +290,12 @@ void main() {
         'currentTotalDurationSeconds is used as fallback when '
         'dailyUploadedDurationSeconds is 0', () {
       final channel = _makeStandardChannel('ch_fallback');
-      // currentTotalDurationSeconds=900 (15 min), dailyUploadedDurationSeconds=0 (default)
-      // effectiveDailyUploaded should be 900
+      // currentTotalDurationSeconds=420 (7 min), dailyUploadedDurationSeconds=0 (default)
+      // effectiveDailyUploaded should be 420
       final result = ContentValidator.validateChannelVideoUpload(
         channel,
-        durationSeconds: 6 * 60, // 6 min — would push 15+6=21 min over cap
-        currentTotalDurationSeconds: 15 * 60, // 900s
+        durationSeconds: 4 * 60, // 4 min — would push 7+4=11 min over 10 min cap
+        currentTotalDurationSeconds: 7 * 60, // 420s
       );
       expect(result.isValid, isFalse,
           reason: 'currentTotalDurationSeconds must be used as the effective daily usage '
@@ -306,18 +306,18 @@ void main() {
         'dailyUploadedDurationSeconds takes precedence over '
         'currentTotalDurationSeconds when both are provided', () {
       final channel = _makeStandardChannel('ch_precedence');
-      // dailyUploadedDurationSeconds=600 (10 min) → 10+5=15 min ≤ 20 min → VALID
-      // currentTotalDurationSeconds=900 (15 min) → 15+5=20 min ≤ 20 min → also VALID
-      // But if dailyUploadedDurationSeconds=1100, that + 200 = 1300 > 1200 → BLOCKED
+      // dailyUploadedDurationSeconds=300 (5 min) → 5+3=8 min ≤ 10 min → VALID
+      // currentTotalDurationSeconds=420 (7 min) → 7+3=10 min ≤ 10 min → also VALID
+      // But if dailyUploadedDurationSeconds=550, that + 100 = 650 > 600 → BLOCKED
       final result = ContentValidator.validateChannelVideoUpload(
         channel,
-        durationSeconds: 200, // ~3.3 min
-        dailyUploadedDurationSeconds: 1100, // 18.3 min → takes precedence
-        currentTotalDurationSeconds: 600,   // 10 min — should be ignored
+        durationSeconds: 100, // ~1.6 min
+        dailyUploadedDurationSeconds: 550, // 9.16 min → takes precedence
+        currentTotalDurationSeconds: 300,   // 5 min — should be ignored
       );
       expect(result.isValid, isFalse,
-          reason: 'dailyUploadedDurationSeconds=1100 should take precedence over '
-              'currentTotalDurationSeconds=600. Upload of 200s should be blocked.');
+          reason: 'dailyUploadedDurationSeconds=550 should take precedence over '
+              'currentTotalDurationSeconds=300. Upload of 100s should be blocked.');
     });
   });
 }

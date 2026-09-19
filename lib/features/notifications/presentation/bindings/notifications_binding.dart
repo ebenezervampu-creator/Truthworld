@@ -1,4 +1,5 @@
 import 'package:get/get.dart';
+import 'package:truthworld/features/notifications/presentation/controllers/notification_view_controller.dart';
 import 'package:truthworld/features/notifications/presentation/controllers/user_notification_controller.dart';
 import 'package:truthworld/features/notifications/presentation/controllers/video_feed_notification_controller.dart';
 
@@ -7,5 +8,6 @@ class NotificationsBinding extends Bindings {
   void dependencies() {
     Get.lazyPut<UserNotificationController>(UserNotificationController.new);
     Get.lazyPut<VideoFeedNotificationController>(VideoFeedNotificationController.new);
+    Get.lazyPut<NotificationViewController>(NotificationViewController.new);
   }
 }

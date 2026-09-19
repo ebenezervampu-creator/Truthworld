@@ -451,4 +451,3 @@ class PersonalizedPlaylistsSection extends StatelessWidget {
 
 // Backward-compatibility aliases
 typedef HomePlaylistsSection = PersonalizedPlaylistsSection;
-typedef _PersonalizedPlaylistsSection = PersonalizedPlaylistsSection;

@@ -6,10 +6,12 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/cashfree_service.dart';
+import 'package:truthworld/core/services/user_wallet_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/live_chat_message.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/services/live_chat_service.dart';
+import 'package:truthworld/features/wallet/data/models/user_wallet_transaction.dart';
 
 /// GetX Controller for Live Chat interactions, streaming, auto-scrolling, and Superchats.
 class LiveChatController extends BaseController {
@@ -263,6 +265,8 @@ class LiveChatController extends BaseController {
   Future<bool> sendSuperchatWithCashfree({
     required double amountINR,
     required String text,
+    double? originalAmount,
+    String? originalCurrency,
   }) async {
     if (!AuthService.to.isAuthenticated.value || currentUserId.isEmpty || video == null) {
       AppSnackbar.info(
@@ -282,18 +286,30 @@ class LiveChatController extends BaseController {
       }
     }
 
+    if (amountINR.isNaN || amountINR.isInfinite || amountINR < 1.0) {
+      AppSnackbar.warning('Minimum Super Chat amount is ₹1.00.');
+      return false;
+    }
+
     try {
       final cleanText = ContentValidator.cleanProfanity(text);
+      final isUsd = originalCurrency == 'USD' && originalAmount != null;
+      final orderNote = isUsd
+          ? 'Superchat on ${video!.title} (\$${originalAmount.toStringAsFixed(2)} USD)'
+          : 'Superchat on ${video!.title}';
+      final sanitizedAmountINR = double.parse(amountINR.toStringAsFixed(2));
       final paymentResult = await CashfreePaymentService.to.startPayment(
-        amount: amountINR,
+        amount: sanitizedAmountINR,
         purpose: 'superchat',
-        orderNote: 'Superchat on ${video!.title}',
+        orderNote: orderNote,
         metadata: {
           'channelId': video!.channelId,
           'videoId': videoId,
           'text': cleanText,
           'userName': currentUserName,
           'userProfilePicUrl': currentUserPhoto,
+          if (isUsd) 'originalAmount': originalAmount,
+          'originalCurrency': originalCurrency ?? 'INR',
         },
       );
 
@@ -313,6 +329,88 @@ class LiveChatController extends BaseController {
       ErrorHandler.log(e, stackTrace: stackTrace, tag: 'LiveChatController.sendSuperchatWithCashfree');
       AppSnackbar.error('Unable to complete Super Chat payment. Please try again.');
       return false;
+    }
+  }
+
+  /// Send Superchat fan support directly from User Wallet (1-click, no PG redirect)
+  Future<bool> sendSuperchatWithWallet({
+    required double amountINR,
+    required String text,
+    double? originalAmount,
+    String? originalCurrency,
+  }) async {
+    if (!AuthService.to.isAuthenticated.value || currentUserId.isEmpty || video == null) {
+      AppSnackbar.info(
+        'Please sign in to send a Superchat.',
+        title: 'Sign In Required',
+        actionLabel: 'SIGN IN',
+        onAction: AuthService.to.signInWithGoogle,
+      );
+      return false;
+    }
+
+    if (text.isNotEmpty) {
+      final validation = ContentValidator.validate(text, fieldName: 'Superchat message');
+      if (!validation.isValid) {
+        AppSnackbar.warning(validation.message);
+        return false;
+      }
+    }
+
+    if (amountINR.isNaN || amountINR.isInfinite || amountINR < 1.0) {
+      AppSnackbar.warning('Minimum Super Chat amount is ₹1.00.');
+      return false;
+    }
+
+    final sanitizedAmountINR = double.parse(amountINR.toStringAsFixed(2));
+
+    // 1. Spend authoritatively from User Wallet
+    final walletService = UserWalletService.to;
+    if (!walletService.canAfford(sanitizedAmountINR)) {
+      AppSnackbar.warning(
+        'Insufficient wallet balance. Please add money or pay via Cashfree.',
+        title: 'Low Wallet Balance',
+      );
+      return false;
+    }
+
+    final cleanText = ContentValidator.cleanProfanity(text);
+    final isUsd = originalCurrency == 'USD' && originalAmount != null;
+
+    final tx = await walletService.spendWallet(
+      amountINR: sanitizedAmountINR,
+      category: UserWalletTransactionCategory.superchat,
+      description: 'Superchat on ${video!.title} (₹${sanitizedAmountINR.toStringAsFixed(2)})',
+      metadata: {
+        'channelId': video!.channelId,
+        'videoId': videoId,
+        'text': cleanText,
+        if (isUsd) 'originalAmount': originalAmount,
+        'originalCurrency': ?originalCurrency,
+      },
+    );
+
+    if (tx == null) return false;
+
+    // 2. Dispatch Superchat into channel & live chat stream
+    try {
+      final success = await _service.sendSuperchat(
+        videoId: videoId,
+        channelId: video!.channelId,
+        text: cleanText,
+        amount: isUsd ? originalAmount : sanitizedAmountINR,
+        currency: isUsd ? 'USD' : 'INR',
+      );
+
+      AppSnackbar.success(
+        'Thank you for supporting the creator with your wallet! 🎉',
+        title: 'Superchat Sent!',
+      );
+      resumeAutoScroll();
+      return success;
+    } catch (e, stackTrace) {
+      ErrorHandler.log(e, stackTrace: stackTrace, tag: 'LiveChatController.sendSuperchatWithWallet');
+      return true; // Wallet was debited and transaction logged
     }
   }
 

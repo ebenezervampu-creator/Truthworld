@@ -123,7 +123,7 @@ class BillingTabView extends StatelessWidget {
                   onPressed: () => _showTopUpDialog(context),
                   icon: const Icon(
                     Icons.add_circle_outline_rounded,
-                    color: Colors.white,
+                    color: Colors.black,
                     size: 18,
                   ),
                   label: const Text(

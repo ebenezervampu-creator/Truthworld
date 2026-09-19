@@ -1,16 +1,16 @@
 import 'package:truthworld/core/network/result.dart';
-import 'package:truthworld/data/models/playlist_model.dart';
+import 'package:truthworld/domain/entities/playlist_entity.dart';
 
 abstract class PlaylistRepository {
-  Future<Result<List<PlaylistModel>>> getPlaylists(
+  Future<Result<List<PlaylistEntity>>> getPlaylists(
     String userId, {
     int page = 1,
     int limit = 20,
   });
 
-  Future<Result<PlaylistModel>> getPlaylistById(String id);
+  Future<Result<PlaylistEntity>> getPlaylistById(String id);
 
-  Future<Result<PlaylistModel>> createPlaylist(PlaylistModel playlist);
+  Future<Result<PlaylistEntity>> createPlaylist(PlaylistEntity playlist);
 
   Future<Result<void>> deletePlaylist(String id);
 

@@ -6,6 +6,7 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:truthworld/core/widgets/ad_widgets.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
@@ -128,6 +129,8 @@ class VideoCommentsSheet {
               PremiumCommentInput(
                 key: ValueKey('main_comment_input_${controller.video.id}'),
                 videoId: controller.video.id,
+                channelId: controller.video.channelId,
+                videoTitle: controller.video.title,
                 onSubmit: (text, postAsChannel, channelId) async {
                   try {
                     final authService = AuthService.to;
@@ -351,10 +354,18 @@ class VideoCommentsSheet {
                         );
                       }
                       if (commentsController.commentsError.value != null) {
+                        final rawErr = commentsController.commentsError.value ?? '';
+                        final displayMsg = UserFeedbackSanitizer.sanitizeMessage(rawErr);
                         return Center(
-                          child: Text(
-                            'Error: ${commentsController.commentsError.value}',
-                            style: const TextStyle(color: Colors.redAccent),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Text(
+                              displayMsg.isNotEmpty
+                                  ? displayMsg
+                                  : 'Unable to load comments. Please check your connection.',
+                              style: const TextStyle(color: Colors.redAccent),
+                              textAlign: TextAlign.center,
+                            ),
                           ),
                         );
                       }

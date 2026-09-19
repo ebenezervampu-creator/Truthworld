@@ -16,7 +16,6 @@
 #include <firebase_core/firebase_core_plugin_c_api.h>
 #include <firebase_database/firebase_database_plugin_c_api.h>
 #include <firebase_storage/firebase_storage_plugin_c_api.h>
-#include <fullscreen_window/fullscreen_window_plugin_c_api.h>
 #include <permission_handler_windows/permission_handler_windows_plugin.h>
 #include <rive_common/rive_plugin.h>
 #include <share_plus/share_plus_windows_plugin_c_api.h>
@@ -44,8 +43,6 @@ void RegisterPlugins(flutter::PluginRegistry* registry) {
       registry->GetRegistrarForPlugin("FirebaseDatabasePluginCApi"));
   FirebaseStoragePluginCApiRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("FirebaseStoragePluginCApi"));
-  FullscreenWindowPluginCApiRegisterWithRegistrar(
-      registry->GetRegistrarForPlugin("FullscreenWindowPluginCApi"));
   PermissionHandlerWindowsPluginRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("PermissionHandlerWindowsPlugin"));
   RivePluginRegisterWithRegistrar(

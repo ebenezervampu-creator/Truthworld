@@ -23,7 +23,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
 import { v4 as uuidv4 } from "uuid";
 import { MessagingService } from "../shared/messaging";
-import { checkAndMarkEventId, markEventCompleted } from "../shared/idempotency";
+import { checkAndMarkEventId, markEventCompleted, markEventFailed } from "../shared/idempotency";
 import * as path from "path";
 import * as os from "os";
 import * as fs from "fs";
@@ -49,8 +49,8 @@ const REGION = "asia-south1";
 
 // ─── Resolution Configuration ────────────────────────────────────────────────
 
-/** Maximum resolution cap — 1080p standard, 2160p custom */
-const MAX_STANDARD_RESOLUTION_HEIGHT = 1080;
+/** Maximum resolution cap — 2160p (4K Ultra HD) */
+const MAX_STANDARD_RESOLUTION_HEIGHT = 2160;
 const MAX_CUSTOM_RESOLUTION_HEIGHT = 2160;
 
 /** Full resolution ladder (descending). Only resolutions ≤ source are generated. */
@@ -64,6 +64,8 @@ export interface ResolutionProfile {
 }
 
 export const STANDARD_RESOLUTION_LADDER: ResolutionProfile[] = [
+  { height: 2160, width: 3840, label: "2160p", bitrateKbps: 15000, audioBitrateKbps: 192, fps: 30 },
+  { height: 1440, width: 2560, label: "1440p", bitrateKbps: 10000, audioBitrateKbps: 160, fps: 30 },
   { height: 1080, width: 1920, label: "1080p", bitrateKbps: 4500, audioBitrateKbps: 128, fps: 30 },
   { height: 720, width: 1280, label: "720p", bitrateKbps: 2500, audioBitrateKbps: 128, fps: 30 },
   { height: 480, width: 854, label: "480p", bitrateKbps: 1200, audioBitrateKbps: 96, fps: 30 },
@@ -73,8 +75,6 @@ export const STANDARD_RESOLUTION_LADDER: ResolutionProfile[] = [
 ];
 
 export const CUSTOM_RESOLUTION_LADDER: ResolutionProfile[] = [
-  { height: 2160, width: 3840, label: "2160p", bitrateKbps: 15000, audioBitrateKbps: 192, fps: 30 },
-  { height: 1440, width: 2560, label: "1440p", bitrateKbps: 10000, audioBitrateKbps: 160, fps: 30 },
   ...STANDARD_RESOLUTION_LADDER,
 ];
 
@@ -126,9 +126,10 @@ export const onVideoUploadedForResolution = onObjectFinalized(
     bucket: "truthworld-1.firebasestorage.app",
     region: REGION,
     memory: "512MiB",       // 512MiB prevents OOM on Node.js 22 SDK initialization
-    timeoutSeconds: 60,
+    timeoutSeconds: 120,
     minInstances: 0,
-    maxInstances: 2,
+    maxInstances: 10,       // Scale up to 10 concurrent instances for burst uploads
+    retry: true,            // Auto-retry transient delivery failures
   },
   async (event) => {
     const filePath = event.data.name;
@@ -194,7 +195,7 @@ export const onVideoUploadedForResolution = onObjectFinalized(
       const fileSize = parseInt(String(metadata.size ?? "0"), 10);
       const codec = String(metadata.metadata?.codec ?? "unknown");
 
-      // Select ladder based on channelType (Standard up to 1080p, Custom up to 4K / 2160p)
+      // Select ladder based on channelType (Standard & Custom both support up to 4K / 2160p)
       const baseLadder = channelType === "custom" ? CUSTOM_RESOLUTION_LADDER : STANDARD_RESOLUTION_LADDER;
       const maxLadderHeight = channelType === "custom" ? MAX_CUSTOM_RESOLUTION_HEIGHT : MAX_STANDARD_RESOLUTION_HEIGHT;
 
@@ -432,18 +433,20 @@ export const handleResolution = onMessagePublished(
   {
     topic: "resolution.requested",
     region: REGION,
-    memory: "2GiB",         // 2GiB RAM guarantees zero OOM on 1080p/4K transcode
+    memory: "4GiB",         // 4GiB RAM guarantees zero OOM on 1080p/4K transcode & tmpfs downloads
     timeoutSeconds: 540,
     minInstances: 0,        // Scale-to-zero (0 idle cost)
-    maxInstances: 2,        // Max 2 concurrent workers to respect CPU quota
+    maxInstances: 10,       // Scale up to 10 concurrent workers for high-volume bursts
+    retry: true,            // Auto-retry transient worker failures
   },
   async (event) => {
     const t0 = Date.now();
     let videoId = "unknown";
+    let parsedEvent: any = null;
 
     try {
       // 1. Parse Pub/Sub message autonomously
-      const parsedEvent = MessagingService.parseMessage<{
+      parsedEvent = MessagingService.parseMessage<{
         jobId: string;
         eventId: string;
         data: {
@@ -497,7 +500,21 @@ export const handleResolution = onMessagePublished(
       const bucket = admin.storage().bucket(sourceBucket);
 
       try {
-        console.log(`[Resolution Worker] Downloading source: ${sourcePath}`, { videoId });
+        // Safe file size guard to prevent tmpfs RAM exhaustion (> 2.5 GB)
+        const [sourceMetadata] = await bucket.file(sourcePath).getMetadata();
+        const sourceSizeBytes = parseInt(String(sourceMetadata.size || "0"), 10);
+        const MAX_TRANSCODE_BYTES = 2.5 * 1024 * 1024 * 1024; // 2.5 GB cap
+        if (sourceSizeBytes > MAX_TRANSCODE_BYTES) {
+          console.warn(`[Resolution Worker] Source video exceeds 2.5 GB (${sourceSizeBytes} bytes). Skipping full transcode to protect container RAM.`, { videoId });
+          await db.collection("resolution_jobs").doc(videoId).update({
+            [`variants.${variantsToProcess[0]?.label || "default"}.status`]: "skipped",
+            [`variants.${variantsToProcess[0]?.label || "default"}.error`]: "Video exceeds maximum serverless transcode limit (> 2.5 GB)",
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          return;
+        }
+
+        console.log(`[Resolution Worker] Downloading source: ${sourcePath} (${(sourceSizeBytes / (1024 * 1024)).toFixed(1)} MB)`, { videoId });
         await bucket.file(sourcePath).download({ destination: localSourcePath });
 
         // Probe downloaded file directly with ffprobe for accurate dimensions
@@ -678,6 +695,11 @@ export const handleResolution = onMessagePublished(
     } catch (error) {
       console.error(`[Resolution Worker] Critical failure`, { videoId, error });
 
+      // Unblock idempotency so retries can immediately execute
+      if (parsedEvent?.eventId) {
+        await markEventFailed(parsedEvent.eventId, error instanceof Error ? error.message : String(error)).catch(() => {});
+      }
+
       if (videoId !== "unknown") {
         await db.collection("resolution_jobs").doc(videoId).update({
           status: "failed",
@@ -693,6 +715,7 @@ export const handleResolution = onMessagePublished(
 
 /**
  * Helper to sync completed resolution variant directly to videos collection in real-time.
+ * Uses atomic Firestore transactions to eliminate lost-update race conditions between concurrent workers.
  */
 async function syncVariantToVideoDoc(
   videoId: string,
@@ -704,48 +727,51 @@ async function syncVariantToVideoDoc(
 ): Promise<void> {
   try {
     const videoRef = db.collection("videos").doc(videoId);
-    const videoDoc = await videoRef.get();
-    if (!videoDoc.exists) return;
-
     const directUrl = downloadToken
       ? `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(outputPath)}?alt=media&token=${downloadToken}`
       : `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(outputPath)}?alt=media`;
 
-    const data = videoDoc.data() || {};
-    const existingAdaptive: Array<{ label: string; url: string; width: number; height: number; bitrate: number }> =
-      Array.isArray(data.adaptiveResolutions) ? [...data.adaptiveResolutions] : [];
+    await db.runTransaction(async (transaction) => {
+      const videoDoc = await transaction.get(videoRef);
+      if (!videoDoc.exists) return;
 
-    // Remove existing entry for this label if present
-    const filtered = existingAdaptive.filter(a => a.label !== variantLabel);
+      const data = videoDoc.data() || {};
+      const existingAdaptive: Array<{ label: string; url: string; width: number; height: number; bitrate: number }> =
+        Array.isArray(data.adaptiveResolutions) ? [...data.adaptiveResolutions] : [];
 
-    // Append new resolution entry
-    filtered.push({
-      label: variantLabel,
-      url: directUrl,
-      width: variant.width,
-      height: variant.height,
-      bitrate: variant.bitrateKbps * 1000,
+      // Remove existing entry for this label if present
+      const filtered = existingAdaptive.filter(a => a.label !== variantLabel);
+
+      // Append new resolution entry
+      filtered.push({
+        label: variantLabel,
+        url: directUrl,
+        width: variant.width,
+        height: variant.height,
+        bitrate: variant.bitrateKbps * 1000,
+      });
+
+      // Sort ladder descending: 2160p -> 1440p -> 1080p -> 720p -> 480p -> 360p -> 240p -> 144p
+      filtered.sort((a, b) => b.height - a.height);
+
+      const mediaVariants: Record<string, string> = {
+        ...(data.media?.variants || {}),
+        [variantLabel]: directUrl,
+      };
+
+      const updatePayload: Record<string, any> = {
+        adaptiveResolutions: filtered,
+        "media.adaptiveResolutions": filtered,
+        "media.variants": mediaVariants,
+        "media.maxQuality": filtered[0]?.label || variantLabel,
+        status: "ready", // Signals the player that playable resolutions exist
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+
+      transaction.update(videoRef, updatePayload);
     });
 
-    // Sort ladder descending: 2160p -> 1440p -> 1080p -> 720p -> 480p -> 360p -> 240p -> 144p
-    filtered.sort((a, b) => b.height - a.height);
-
-    const mediaVariants: Record<string, string> = {
-      ...(data.media?.variants || {}),
-      [variantLabel]: directUrl,
-    };
-
-    const updatePayload: Record<string, any> = {
-      adaptiveResolutions: filtered,
-      "media.adaptiveResolutions": filtered,
-      "media.variants": mediaVariants,
-      "media.maxQuality": filtered[0]?.label || variantLabel,
-      status: "ready", // Signals the player that playable resolutions exist
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    };
-
-    await videoRef.update(updatePayload);
-    console.log(`[Resolution Service] Synced ${variantLabel} with download token to video doc: ${videoId}`);
+    console.log(`[Resolution Service] Atomically synced ${variantLabel} with download token to video doc: ${videoId}`);
   } catch (err) {
     console.warn(`[Resolution Service] Failed to sync ${variantLabel} to video doc (non-fatal):`, err);
   }

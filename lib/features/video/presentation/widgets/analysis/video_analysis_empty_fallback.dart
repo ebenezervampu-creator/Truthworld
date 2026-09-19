@@ -143,7 +143,7 @@ class VideoAnalysisEmptyFallback extends StatelessWidget {
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.brand,
-                                foregroundColor: Colors.white,
+                                foregroundColor: Colors.black,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(24),
                                 ),
@@ -194,19 +194,19 @@ class VideoAnalysisEmptyFallback extends StatelessWidget {
               icon: const Icon(
                 Icons.bolt_rounded,
                 size: 18,
-                color: Colors.white,
+                color: Colors.black,
               ),
               label: Text(
                 'Fact-Check This Video',
                 style: context.twTypography.button.copyWith(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: Colors.black,
                 ),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.brand,
-                foregroundColor: Colors.white,
+                foregroundColor: Colors.black,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 24,
                   vertical: 14,

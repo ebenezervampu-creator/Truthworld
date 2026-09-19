@@ -18,21 +18,16 @@ class SavedCommunityPostsController extends BaseController {
   final RxString searchQuery = ''.obs;
   final RxBool isSearching = false.obs;
 
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _subscription;
-
   @override
   void onInit() {
     super.onInit();
-    listenToSavedPosts();
+    fetchSavedPosts();
   }
 
-  @override
-  void onClose() {
-    _subscription?.cancel();
-    super.onClose();
-  }
+  /// Backward-compatible alias for one-shot fetch of saved posts
+  Future<void> listenToSavedPosts() => fetchSavedPosts();
 
-  void listenToSavedPosts() {
+  Future<void> fetchSavedPosts() async {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) {
       rxErrorMessage.value = 'User not authenticated';
@@ -43,35 +38,35 @@ class SavedCommunityPostsController extends BaseController {
     rxIsLoading.value = true;
     rxErrorMessage.value = '';
 
-    _subscription?.cancel();
-    _subscription = FirebaseFirestore.instance
-        .collection(FirestoreCollections.users)
-        .doc(currentUser.uid)
-        .collection('savedCommunityPosts')
-        .orderBy('savedAt', descending: true)
-        .snapshots()
-        .listen(
-          (snapshot) {
-            final list = <CommunityPostModel>[];
-            for (final doc in snapshot.docs) {
-              final data = doc.data();
-              data['id'] = doc.id;
-              list.add(CommunityPostModel.fromMap(data));
-            }
-            posts.value = list;
-            rxIsLoading.value = false;
-          },
-          onError: (Object error, StackTrace stackTrace) {
-            ErrorHandler.log(error, stackTrace: stackTrace, context: 'SavedCommunityPostsController');
-            rxErrorMessage.value = AppException.from(error, stackTrace).displayMessage;
-            rxIsLoading.value = false;
-          },
-        );
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection(FirestoreCollections.users)
+          .doc(currentUser.uid)
+          .collection('savedCommunityPosts')
+          .orderBy('savedAt', descending: true)
+          .limit(50)
+          .get();
+
+      final list = <CommunityPostModel>[];
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        list.add(CommunityPostModel.fromMap(data));
+      }
+      posts.value = list;
+      rxIsLoading.value = false;
+    } catch (error, stackTrace) {
+      ErrorHandler.log(error, stackTrace: stackTrace, context: 'SavedCommunityPostsController');
+      rxErrorMessage.value = AppException.from(error, stackTrace).displayMessage;
+      rxIsLoading.value = false;
+    }
   }
 
   Future<void> unsavePost(String postId) async {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
+
+    posts.removeWhere((p) => p.id == postId);
 
     try {
       await FirebaseFirestore.instance
@@ -105,7 +100,7 @@ class SavedCommunityPostsController extends BaseController {
   }
 
   void refreshPosts() {
-    listenToSavedPosts();
+    fetchSavedPosts();
     HapticFeedback.mediumImpact();
   }
 

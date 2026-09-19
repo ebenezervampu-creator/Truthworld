@@ -3,6 +3,7 @@ import 'package:truthworld/core/base/base_repository.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/network/result.dart';
 import 'package:truthworld/data/models/notification_model.dart';
+import 'package:truthworld/domain/entities/notification_entity.dart';
 import 'package:truthworld/domain/repositories/notification_repository.dart';
 
 class NotificationRepositoryImpl extends BaseRepository
@@ -13,7 +14,7 @@ class NotificationRepositoryImpl extends BaseRepository
     : _firestore = firestore ?? FirebaseFirestore.instance;
 
   @override
-  Future<Result<List<NotificationModel>>> getNotifications(
+  Future<Result<List<NotificationEntity>>> getNotifications(
     String userId, {
     int limit = 20,
     dynamic cursor,
@@ -30,7 +31,7 @@ class NotificationRepositoryImpl extends BaseRepository
 
       final snapshot = await q.get();
       return snapshot.docs
-          .map(NotificationModel.fromDocumentSnapshot)
+          .map((doc) => NotificationModel.fromDocumentSnapshot(doc).toEntity())
           .toList();
     });
   }

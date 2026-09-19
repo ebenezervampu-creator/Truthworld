@@ -14,13 +14,26 @@ import 'package:truthworld/features/notifications/data/services/user_notificatio
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/domain/repositories/video_upload_repository.dart';
+import 'package:truthworld/features/video/presentation/controllers/upload_state.dart';
 import 'package:video_player/video_player.dart';
+
+export 'package:truthworld/features/video/presentation/controllers/upload_state.dart';
 
 abstract class UploadControllerBase extends BaseController
     with ContentValidationMixin {
   static const int maxTitleLength = 100;
   static const int maxDescriptionLength = 5000;
   static const int maxTags = 5;
+
+  // Immutable State Snapshot (Single Source of Truth)
+  Rx<UploadState> get uploadState;
+
+  /// Updates the immutable upload state atomically via [updater].
+  void updateState(UploadState Function(UploadState current) updater);
+
+  /// Directly emits a new immutable upload state snapshot.
+  void emit(UploadState newState);
+
   // Shared Firestore & Storage
   FirebaseFirestore get firestore;
   FirebaseStorage get firebaseStorage;

@@ -189,8 +189,5 @@ mixin HomeFeedScrollMixin on HomeFeedControllerBase {
       isLoadingMore.value = false;
     }
   }
-
-  // Backward compatibility private forwarders
-  void _bindScrollListener() => bindScrollListener();
-  void _scrollListener() => scrollListener();
 }
+

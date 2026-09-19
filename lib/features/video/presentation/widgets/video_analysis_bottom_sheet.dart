@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/features/video/data/models/fact_check_data_parser.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/widgets/analysis/video_analysis_widgets.dart';
@@ -40,11 +41,6 @@ class VideoAnalysisBottomSheet extends StatelessWidget {
   final int initialTabIndex;
   late final VideoController videoCtrl;
   late final VideoAnalysisController analysisCtrl;
-
-  // Backward compatibility state accessors forwarding to analysisCtrl
-  RxSet<int> get _expandedClaimIndices => analysisCtrl.expandedClaimIndices;
-  RxString get _selectedClaimFilter => analysisCtrl.selectedClaimFilter;
-
   BuildContext get context => Get.context!;
 
   @override
@@ -176,70 +172,12 @@ class VideoAnalysisBottomSheet extends StatelessWidget {
   }
 
   Widget _buildFormattedDashboard(Map<String, dynamic> data) {
-    final analysisState = (data['analysisState'] ?? data['state'] ?? 'VERIFIED')
-        .toString();
-    final scoreAvailable = data['scoreAvailable'] == true;
-    final viewerNote =
-        (data['viewerNote'] ??
-                data['narrative'] ??
-                data['summary'] ??
-                data['explanation'] ??
-                '')
-            .toString();
-
-    final rawTrustScore =
-        data['trustScore'] ??
-        data['trustIndex'] ??
-        data['score'] ??
-        data['videoRating'];
-    final trustScore = (rawTrustScore is num) ? rawTrustScore.toDouble() : null;
-
-    final trustLabel =
-        (data['trustLabel'] ??
-                data['label'] ??
-                (trustScore != null
-                    ? VideoAnalysisHelpers.getRatingLabel(trustScore)
-                    : analysisState))
-            .toString();
-
-    final confidenceRaw = data['confidence'];
-    final confidenceTier = (data['confidenceTier'] ?? '').toString();
-    final confidenceVal = (confidenceRaw is num)
-        ? (confidenceRaw > 1.0
-              ? (confidenceRaw / 100.0)
-              : confidenceRaw.toDouble())
-        : (confidenceTier.toLowerCase() == 'high'
-              ? 0.9
-              : (confidenceTier.toLowerCase() == 'medium' ? 0.6 : 0.3));
-
-    final chapters = (data['chapters'] as List?) ?? [];
-    final claims = (data['claims'] as List?) ?? [];
-    final sources =
-        (data['sources'] ?? data['richSources'] as List?) as List? ?? [];
-    final factors = (data['scoringFactors'] ?? data['factors']) as Map? ?? {};
-
-    var verifiedCount = 0;
-    var cautionCount = 0;
-    var falseCount = 0;
-    for (final c in claims) {
-      if (c is! Map) continue;
-      final status = (c['status'] ?? c['verificationStatus'] ?? '')
-          .toString()
-          .toLowerCase();
-      final isVerified = status == 'correct' ||
-          status == 'mostly_correct' ||
-          status == 'verified' ||
-          status == 'true' ||
-          c['isVerified'] == true;
-      final isFalse = status == 'false' || status == 'incorrect';
-      if (isVerified) {
-        verifiedCount++;
-      } else if (isFalse) {
-        falseCount++;
-      } else {
-        cautionCount++;
-      }
-    }
+    final parsed = FactCheckDataParser.parse(
+      data,
+      fallbackReport: video.uiReport,
+      fallbackTrustScore: video.trustScore > 0 ? video.trustScore : null,
+      isVideoFactChecked: video.isFactChecked,
+    );
 
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -247,48 +185,48 @@ class VideoAnalysisBottomSheet extends StatelessWidget {
       children: [
         // 1. Hero Status & Credibility Badge Card
         VideoAnalysisHeroCard(
-          analysisState: analysisState,
-          scoreAvailable: scoreAvailable,
-          trustScore: trustScore,
-          trustLabel: trustLabel,
-          confidenceVal: confidenceVal,
-          confidenceTier: confidenceTier,
-          totalClaims: claims.length,
-          verifiedCount: verifiedCount,
-          cautionCount: cautionCount,
-          falseCount: falseCount,
+          analysisState: parsed.analysisState,
+          scoreAvailable: parsed.scoreAvailable,
+          trustScore: parsed.trustScore,
+          trustLabel: parsed.trustLabel,
+          confidenceVal: parsed.confidenceVal,
+          confidenceTier: parsed.confidenceTier,
+          totalClaims: parsed.claims.length,
+          verifiedCount: parsed.verifiedCount,
+          cautionCount: parsed.cautionCount,
+          falseCount: parsed.falseCount,
         ),
         const SizedBox(height: 16),
 
         // 2. AI Viewer Note / Advisory
-        if (viewerNote.isNotEmpty) ...[
-          VideoAnalysisViewerNoteCard(note: viewerNote),
+        if (parsed.viewerNote.isNotEmpty) ...[
+          VideoAnalysisViewerNoteCard(note: parsed.viewerNote),
           const SizedBox(height: 16),
         ],
 
         // 3. Scoring Factors / Multi-Dimensional Breakdown
-        if (factors.isNotEmpty) ...[
-          VideoAnalysisFactorsCard(factors: factors),
+        if (parsed.factors.isNotEmpty) ...[
+          VideoAnalysisFactorsCard(factors: parsed.factors),
           const SizedBox(height: 16),
         ],
 
         // 4. Chapter Trust Breakdown & Topic Extraction
-        if (chapters.isNotEmpty) ...[
+        if (parsed.chapters.isNotEmpty) ...[
           VideoAnalysisChaptersSection(
-            chapters: chapters,
+            chapters: parsed.chapters,
             videoCtrl: videoCtrl,
           ),
           const SizedBox(height: 16),
         ],
 
         // 5. Fact-Checked Claims
-        if (claims.isNotEmpty) ...[
+        if (parsed.claims.isNotEmpty) ...[
           VideoAnalysisClaimsSection(
-            claims: claims,
-            allSources: sources,
-            verifiedCount: verifiedCount,
-            cautionCount: cautionCount,
-            falseCount: falseCount,
+            claims: parsed.claims,
+            allSources: parsed.sources,
+            verifiedCount: parsed.verifiedCount,
+            cautionCount: parsed.cautionCount,
+            falseCount: parsed.falseCount,
             videoCtrl: videoCtrl,
             analysisCtrl: analysisCtrl,
             video: video,
@@ -297,10 +235,14 @@ class VideoAnalysisBottomSheet extends StatelessWidget {
         ],
 
         // 6. Citations & Verified Sources
-        if (sources.isNotEmpty) ...[
-          VideoAnalysisSourcesSection(sources: sources),
+        if (parsed.sources.isNotEmpty) ...[
+          VideoAnalysisSourcesSection(sources: parsed.sources),
           const SizedBox(height: 16),
         ],
+
+        // 7. Transparent Scoring Methodology (IFCN / World-Class Standard)
+        const VideoAnalysisMethodologySection(),
+        const SizedBox(height: 24),
       ],
     );
   }

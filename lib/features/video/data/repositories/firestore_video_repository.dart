@@ -1,7 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/network/result.dart';
+import 'package:truthworld/core/services/distributed_counter_service.dart';
+import 'package:truthworld/domain/entities/video_entity.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/domain/repositories/video_repository.dart';
 
@@ -13,7 +16,7 @@ class FirestoreVideoRepository implements VideoRepository {
   final FirebaseFirestore _firestore;
 
   @override
-  Future<Result<Video>> getVideoById(String id) async {
+  Future<Result<VideoEntity>> getVideoById(String id) async {
     try {
       final doc = await _firestore.collection('videos').doc(id).get();
       if (!doc.exists || doc.data() == null) {
@@ -21,7 +24,7 @@ class FirestoreVideoRepository implements VideoRepository {
       }
       final data = doc.data()!;
       data['id'] = doc.id;
-      return Result.success(Video.fromMap(data));
+      return Result.success(Video.fromMap(data).toEntity());
     } catch (e, stackTrace) {
       ErrorHandler.log(e, stackTrace: stackTrace, context: 'FirestoreVideoRepository.getVideoById');
       return Result.failure(AppException.from(e, stackTrace));
@@ -29,7 +32,7 @@ class FirestoreVideoRepository implements VideoRepository {
   }
 
   @override
-  Future<Result<List<Video>>> getFeedVideos({int limit = 10}) async {
+  Future<Result<List<VideoEntity>>> getFeedVideos({int limit = 10}) async {
     try {
       final snap = await _firestore
           .collection('videos')
@@ -41,7 +44,7 @@ class FirestoreVideoRepository implements VideoRepository {
       final videos = snap.docs.map((doc) {
         final data = doc.data();
         data['id'] = doc.id;
-        return Video.fromMap(data);
+        return Video.fromMap(data).toEntity();
       }).toList();
 
       return Result.success(videos);
@@ -54,9 +57,10 @@ class FirestoreVideoRepository implements VideoRepository {
   @override
   Future<Result<void>> recordView(String videoId) async {
     try {
-      await _firestore.collection('videos').doc(videoId).update({
-        'views': FieldValue.increment(1),
-      });
+      final counterService = Get.isRegistered<DistributedCounterService>()
+          ? DistributedCounterService.to
+          : Get.put(DistributedCounterService());
+      await counterService.incrementVideoViews(videoId: videoId);
       return Result.success(null);
     } catch (e, stackTrace) {
       ErrorHandler.log(e, stackTrace: stackTrace, context: 'FirestoreVideoRepository.recordView');
@@ -91,7 +95,7 @@ class FirestoreVideoRepository implements VideoRepository {
   }
 
   @override
-  Future<Result<List<Video>>> getVideosByChannel(String channelId) async {
+  Future<Result<List<VideoEntity>>> getVideosByChannel(String channelId) async {
     try {
       final snap = await _firestore
           .collection('videos')
@@ -101,7 +105,7 @@ class FirestoreVideoRepository implements VideoRepository {
       final videos = snap.docs.map((doc) {
         final data = doc.data();
         data['id'] = doc.id;
-        return Video.fromMap(data);
+        return Video.fromMap(data).toEntity();
       }).toList();
 
       return Result.success(videos);

@@ -27,65 +27,109 @@ import 'package:truthworld/theme/app_theme.dart';
     final v = video;
     if (v == null) return const SizedBox.shrink();
 
-    return Row(
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: () => FactCheckDisputeDialog.show(context, v),
-            icon: const Icon(
-              Icons.gavel_rounded,
-              size: 13,
-              color: Colors.white,
-            ),
-            label: const Text(
-              'Dispute',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.groups_outlined,
+                size: 13,
+                color: AppColors.textTertiary,
               ),
-            ),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              side: BorderSide(
-                color: AppColors.error.withValues(alpha: 0.5),
+              const SizedBox(width: 5),
+              const Text(
+                'Community Review & Citations',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
+                  letterSpacing: 0.2,
+                ),
               ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  'IFCN Aligned',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textTertiary,
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: ElevatedButton.icon(
-            onPressed: () => ClaimSourceSubmissionDialog.show(
-              context: context,
-              video: v,
-              claims: claims,
-            ),
-            icon: const Icon(
-              Icons.add_link_rounded,
-              size: 13,
-              color: Colors.white,
-            ),
-            label: const Text(
-              'Provide Source',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => FactCheckDisputeDialog.show(context, v),
+                icon: const Icon(
+                  Icons.gavel_rounded,
+                  size: 13,
+                  color: Colors.white,
+                ),
+                label: const Text(
+                  'Dispute',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  side: BorderSide(
+                    color: AppColors.error.withValues(alpha: 0.5),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
               ),
             ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.brand,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+            const SizedBox(width: 8),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () => ClaimSourceSubmissionDialog.show(
+                  context: context,
+                  video: v,
+                  claims: claims,
+                ),
+                icon: const Icon(
+                  Icons.add_link_rounded,
+                  size: 13,
+                  color: Colors.black,
+                ),
+                label: const Text(
+                  'Provide Source',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.brand,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
               ),
             ),
-          ),
+          ],
         ),
       ],
     );
@@ -167,15 +211,15 @@ class NoFactCheckFallback extends StatelessWidget {
 
                   if (isAudioOnly) {
                     upgradeDescription =
-                        r'You currently have the $0.50 (₹40) Audio Premium plan. Upgrade to the $3 Fact-Checked Plan for only ₹209 ($3 - 40 rupees) to unlock verified and on-demand fact-checking on every video.';
+                        r'Viewing existing fact-checks is always free. Upgrade your $0.50 (₹40) plan to the $3 Fact-Checked Plan for only ₹209 ($3 - 40 rupees) to trigger on-demand AI claim verification on any unanalyzed video.';
                     buttonLabel = r'Upgrade for ₹209 ($3 - 40 rupees)';
                   } else if (hasFullPrem) {
                     upgradeDescription =
-                        r'You currently have TruthWorld Premium ($2). Upgrade to the $3 Fact-Checked Plan for only ₹80 ($3 - $2 credit applied) to unlock verified and on-demand fact-checking on every video.';
+                        r'Viewing existing fact-checks is always free. Upgrade your TruthWorld Premium ($2) to the $3 Fact-Checked Plan for only ₹80 ($3 - $2 credit applied) to trigger on-demand AI claim verification on any unanalyzed video.';
                     buttonLabel = r'Upgrade for ₹80 ($3 - $2)';
                   } else {
                     upgradeDescription =
-                        r'On-demand AI video fact-checking is exclusive to the $3 TruthWorld Premium + Fact-Checked Plan. Upgrade to fact-check any video instantly with AI claim verification and truth scores.';
+                        r'Viewing published fact-checks is 100% free for everyone. The $3 Fact-Checked Plan unlocks on-demand AI verification, allowing you to queue epistemic fact-checking and truth analysis on any unanalyzed video.';
                     buttonLabel = r'View $3 Fact-Checked Plan';
                   }
 
@@ -236,7 +280,7 @@ class NoFactCheckFallback extends StatelessWidget {
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.brand,
-                                foregroundColor: Colors.white,
+                                foregroundColor: Colors.black,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(24),
                                 ),
@@ -287,19 +331,19 @@ class NoFactCheckFallback extends StatelessWidget {
               icon: const Icon(
                 Icons.bolt_rounded,
                 size: 16,
-                color: Colors.white,
+                color: Colors.black,
               ),
               label: const Text(
                 'Fact-Check This Video',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: Colors.black,
                 ),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.brand,
-                foregroundColor: Colors.white,
+                foregroundColor: Colors.black,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 18,
                   vertical: 10,

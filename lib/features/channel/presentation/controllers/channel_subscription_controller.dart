@@ -3,24 +3,66 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/algorithm/user_signal_tracker.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/domain/usecases/channel/toggle_subscription_usecase.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/memberships_controller.dart';
 import 'package:truthworld/features/subscriptions/presentation/controllers/subscription_controller.dart';
 
 class ChannelSubscriptionController extends BaseController {
+  final ToggleSubscriptionUseCase? _toggleSubscriptionUseCase;
+
+  ChannelSubscriptionController({
+    ToggleSubscriptionUseCase? toggleSubscriptionUseCase,
+  }) : _toggleSubscriptionUseCase = toggleSubscriptionUseCase ??
+            (Get.isRegistered<ToggleSubscriptionUseCase>()
+                ? Get.find<ToggleSubscriptionUseCase>()
+                : null);
+
+  static ChannelSubscriptionController get to {
+    if (Get.isRegistered<ChannelSubscriptionController>()) {
+      return Get.find<ChannelSubscriptionController>();
+    }
+    return Get.put(ChannelSubscriptionController());
+  }
+
   FirebaseAuth get _auth => FirebaseAuth.instance;
   FirebaseFirestore get _firestore => FirebaseFirestore.instance;
 
   static const String _subsCol = 'subscriptions';
   static const String _channelsCol = 'channels';
 
+  /// Central reactive registry tracking real verified subscriber counts across all channels
+  static final RxMap<String, int> channelSubscriberCounts = <String, int>{}.obs;
+
   final RxBool isSubscribed = false.obs;
   final RxBool isLoadingSubscription = true.obs;
   final RxInt subscriberCount = 0.obs;
+
+  /// Returns real subscriber count for [channelId], prioritizing reactive registry, then [fallback], then local state
+  int getSubscriberCount(String channelId, {int? fallback}) {
+    if (channelId.isEmpty) return subscriberCount.value;
+    if (channelSubscriberCounts.containsKey(channelId)) {
+      return channelSubscriberCounts[channelId]!;
+    }
+    if (fallback != null && fallback > 0) {
+      channelSubscriberCounts[channelId] = fallback;
+      return fallback;
+    }
+    return subscriberCount.value;
+  }
+
+  /// Updates subscriber count in both per-channel registry and active state
+  void setSubscriberCount(String channelId, int count) {
+    if (channelId.isNotEmpty) {
+      channelSubscriberCounts[channelId] = count;
+    }
+    subscriberCount.value = count;
+  }
 
   // Channel Membership reactive state
   final RxBool isChannelMember = false.obs;
@@ -68,31 +110,64 @@ class ChannelSubscriptionController extends BaseController {
     }
 
     final subDocId = '${channelId}_$uid';
-    final subRef = _firestore.collection(_subsCol).doc(subDocId);
+    final legacySubRef = _firestore.collection(_subsCol).doc(subDocId);
+    final channelSubRef = _firestore
+        .collection(FirestoreCollections.channelSubscribers(channelId))
+        .doc(uid);
+    final userSubRef = _firestore
+        .collection(FirestoreCollections.userSubscriptions(uid))
+        .doc(channelId);
     final channelRef = _firestore.collection(_channelsCol).doc(channelId);
 
     try {
-      await _firestore.runTransaction((tx) async {
-        final txSubSnapshot = await tx.get(subRef);
-        if (txSubSnapshot.exists) {
-          throw Exception('already_subscribed');
+      if (_toggleSubscriptionUseCase != null) {
+        final res = await _toggleSubscriptionUseCase(
+          ToggleSubscriptionParams(channelId: channelId, userId: uid),
+        );
+        if (res.isFailure) {
+          throw res.exceptionOrNull ?? Exception('Failed to subscribe');
         }
-
-        tx.set(subRef, {
+        legacySubRef.set({
           'userId': uid,
           'channelId': channelId,
           'subscribedAt': FieldValue.serverTimestamp(),
           'notificationsEnabled': true,
-        });
+        }).catchError((_) {});
+      } else {
+        await _firestore.runTransaction((tx) async {
+          final txSubSnapshot = await tx.get(channelSubRef);
+          if (txSubSnapshot.exists) {
+            throw Exception('already_subscribed');
+          }
 
-        tx.update(channelRef, {
-          'subscriberCount': FieldValue.increment(1),
-          'lastActiveAt': FieldValue.serverTimestamp(),
-        });
-      }, maxAttempts: 3);
+          final now = FieldValue.serverTimestamp();
+          tx.set(channelSubRef, {
+            'userId': uid,
+            'timestamp': now,
+            'notificationsEnabled': true,
+          });
+          tx.set(userSubRef, {
+            'channelId': channelId,
+            'timestamp': now,
+            'notificationPreference': 'all',
+          });
+          tx.set(legacySubRef, {
+            'userId': uid,
+            'channelId': channelId,
+            'subscribedAt': now,
+            'notificationsEnabled': true,
+          });
+
+          tx.update(channelRef, {
+            'subscriberCount': FieldValue.increment(1),
+            'lastActiveAt': now,
+          });
+        }, maxAttempts: 3);
+      }
 
       isSubscribed.value = true;
-      subscriberCount.value++;
+      final current = channelSubscriberCounts[channelId] ?? subscriberCount.value;
+      setSubscriberCount(channelId, current + 1);
       if (_subscribedMap.containsKey(channelId)) {
         _subscribedMap[channelId]!.value = true;
       }
@@ -124,20 +199,39 @@ class ChannelSubscriptionController extends BaseController {
     if (uid.isEmpty) return false;
 
     final subDocId = '${channelId}_$uid';
-    final subRef = _firestore.collection(_subsCol).doc(subDocId);
+    final legacySubRef = _firestore.collection(_subsCol).doc(subDocId);
+    final channelSubRef = _firestore
+        .collection(FirestoreCollections.channelSubscribers(channelId))
+        .doc(uid);
+    final userSubRef = _firestore
+        .collection(FirestoreCollections.userSubscriptions(uid))
+        .doc(channelId);
     final channelRef = _firestore.collection(_channelsCol).doc(channelId);
 
     try {
-      await _firestore.runTransaction((tx) async {
-        final subDoc = await tx.get(subRef);
-        if (!subDoc.exists) return; // Already unsubscribed
+      if (_toggleSubscriptionUseCase != null) {
+        final res = await _toggleSubscriptionUseCase(
+          ToggleSubscriptionParams(channelId: channelId, userId: uid),
+        );
+        if (res.isFailure) {
+          throw res.exceptionOrNull ?? Exception('Failed to unsubscribe');
+        }
+        legacySubRef.delete().catchError((_) {});
+      } else {
+        await _firestore.runTransaction((tx) async {
+          final subDoc = await tx.get(channelSubRef);
+          if (!subDoc.exists) return; // Already unsubscribed
 
-        tx.delete(subRef);
-        tx.update(channelRef, {'subscriberCount': FieldValue.increment(-1)});
-      }, maxAttempts: 3);
+          tx.delete(channelSubRef);
+          tx.delete(userSubRef);
+          tx.delete(legacySubRef);
+          tx.update(channelRef, {'subscriberCount': FieldValue.increment(-1)});
+        }, maxAttempts: 3);
+      }
 
       isSubscribed.value = false;
-      subscriberCount.value = (subscriberCount.value - 1).clamp(0, 999999999);
+      final current = channelSubscriberCounts[channelId] ?? subscriberCount.value;
+      setSubscriberCount(channelId, (current - 1).clamp(0, 999999999));
       if (_subscribedMap.containsKey(channelId)) {
         _subscribedMap[channelId]!.value = false;
       }
@@ -158,15 +252,20 @@ class ChannelSubscriptionController extends BaseController {
       return;
     }
 
-    final wasSubscribed = isSubscribed.value;
-    isSubscribed.value = !wasSubscribed;
+    final wasSubscribed = _subscribedMap.containsKey(channelId)
+        ? _subscribedMap[channelId]!.value
+        : isSubscribed.value;
+    final nextState = !wasSubscribed;
+    isSubscribed.value = nextState;
     if (_subscribedMap.containsKey(channelId)) {
-      _subscribedMap[channelId]!.value = !wasSubscribed;
+      _subscribedMap[channelId]!.value = nextState;
     }
-    subscriberCount.value += wasSubscribed ? -1 : 1;
-    if (subscriberCount.value < 0) subscriberCount.value = 0;
+    final prevCount = channelSubscriberCounts[channelId] ?? subscriberCount.value;
+    final delta = nextState ? 1 : -1;
+    final optimisticCount = (prevCount + delta).clamp(0, 999999999);
+    setSubscriberCount(channelId, optimisticCount);
 
-    if (!wasSubscribed) {
+    if (nextState) {
       _sessionSubscribedChannels.add(channelId);
     } else {
       _sessionSubscribedChannels.remove(channelId);
@@ -183,8 +282,7 @@ class ChannelSubscriptionController extends BaseController {
       if (_subscribedMap.containsKey(channelId)) {
         _subscribedMap[channelId]!.value = wasSubscribed;
       }
-      subscriberCount.value += wasSubscribed ? 1 : -1;
-      if (subscriberCount.value < 0) subscriberCount.value = 0;
+      setSubscriberCount(channelId, prevCount);
       _sessionSubscribedChannels.remove(channelId);
     }
   }
@@ -194,6 +292,7 @@ class ChannelSubscriptionController extends BaseController {
   }
 
   void listenSubscription(String channelId) {
+    if (channelId.isEmpty) return;
     listenMembership(channelId);
     if (!AuthService.to.isAuthenticated.value) {
       isSubscribed.value = false;
@@ -214,33 +313,82 @@ class ChannelSubscriptionController extends BaseController {
     isLoadingSubscription.value = true;
     _subscriptionListener?.cancel();
 
-    final subDocId = '${channelId}_$uid';
-    _subscriptionListener = _firestore
+    // Primary: channels/$channelId/subscribers/$uid
+    final channelSubRef = _firestore
+        .collection(FirestoreCollections.channelSubscribers(channelId))
+        .doc(uid);
+
+    // Fallback 1: users/$uid/subscriptions/$channelId
+    final userSubRef = _firestore
+        .collection(FirestoreCollections.userSubscriptions(uid))
+        .doc(channelId);
+
+    // Fallback 2: subscriptions/${channelId}_$uid
+    final legacySubRef = _firestore
         .collection(_subsCol)
-        .doc(subDocId)
-        .snapshots()
-        .listen(
-          (snapshot) {
-            isSubscribed.value = snapshot.exists;
-            if (_subscribedMap.containsKey(channelId)) {
-              _subscribedMap[channelId]!.value = snapshot.exists;
-            }
-            if (snapshot.exists) {
-              final data = snapshot.data();
+        .doc('${channelId}_$uid');
+
+    _subscriptionListener = channelSubRef.snapshots().listen(
+      (snapshot) {
+        if (snapshot.exists) {
+          isSubscribed.value = true;
+          if (_subscribedMap.containsKey(channelId)) {
+            _subscribedMap[channelId]!.value = true;
+          }
+          final data = snapshot.data();
+          notificationsEnabled.value =
+              data?['notificationsEnabled'] ?? true;
+          notificationOption.value =
+              data?['notificationOption'] as String? ??
+              (notificationsEnabled.value ? 'all' : 'none');
+          isLoadingSubscription.value = false;
+        } else {
+          userSubRef.get().then((userSnap) {
+            if (userSnap.exists) {
+              isSubscribed.value = true;
+              if (_subscribedMap.containsKey(channelId)) {
+                _subscribedMap[channelId]!.value = true;
+              }
+              final data = userSnap.data();
               notificationsEnabled.value =
                   data?['notificationsEnabled'] ?? true;
               notificationOption.value =
-                  data?['notificationOption'] as String? ??
+                  data?['notificationPreference'] as String? ??
                   (notificationsEnabled.value ? 'all' : 'none');
+              isLoadingSubscription.value = false;
+            } else {
+              legacySubRef.get().then((legSnap) {
+                final exists = legSnap.exists;
+                isSubscribed.value = exists;
+                if (_subscribedMap.containsKey(channelId)) {
+                  _subscribedMap[channelId]!.value = exists;
+                }
+                if (exists) {
+                  final data = legSnap.data();
+                  notificationsEnabled.value =
+                      data?['notificationsEnabled'] ?? true;
+                  notificationOption.value =
+                      data?['notificationOption'] as String? ??
+                      (notificationsEnabled.value ? 'all' : 'none');
+                }
+                isLoadingSubscription.value = false;
+              }).catchError((_) {
+                isSubscribed.value = false;
+                isLoadingSubscription.value = false;
+              });
             }
-            isLoadingSubscription.value = false;
-          },
-          onError: (error, stackTrace) {
-            ErrorHandler.log(error, stackTrace: stackTrace, tag: 'ChannelSubscriptionController._subscriptionListener');
+          }).catchError((_) {
             isSubscribed.value = false;
             isLoadingSubscription.value = false;
-          },
-        );
+          });
+        }
+      },
+      onError: (error, stackTrace) {
+        ErrorHandler.log(error, stackTrace: stackTrace, tag: 'ChannelSubscriptionController._subscriptionListener');
+        isSubscribed.value = false;
+        isLoadingSubscription.value = false;
+      },
+    );
     trackSubscription(_subscriptionListener!);
   }
 
@@ -337,18 +485,51 @@ class ChannelSubscriptionController extends BaseController {
   }
 
   void fetchSubscriberCount(String channelId) {
+    if (channelId.isEmpty) return;
     _countListener?.cancel();
     _countListener = _firestore
         .collection(_channelsCol)
         .doc(channelId)
         .snapshots()
-        .listen((snapshot) {
+        .listen((snapshot) async {
+          var count = 0;
           if (snapshot.exists) {
-            final count = snapshot.data()?['subscriberCount'] ?? 0;
-            subscriberCount.value = count is int
-                ? count
-                : (count as num).toInt();
+            final data = snapshot.data();
+            final docCount = data?['subscriberCount'] ??
+                data?['subscribers'] ??
+                (data?['metrics'] is Map ? data!['metrics']['subscriberCount'] : null) ??
+                0;
+            count = docCount is int ? docCount : (docCount as num).toInt();
+          } else {
+            try {
+              final querySnap = await _firestore
+                  .collection(_channelsCol)
+                  .where('ownerId', isEqualTo: channelId)
+                  .limit(1)
+                  .get();
+              if (querySnap.docs.isNotEmpty) {
+                final data = querySnap.docs.first.data();
+                final docCount = data['subscriberCount'] ??
+                    data['subscribers'] ??
+                    (data['metrics'] is Map ? data['metrics']['subscriberCount'] : null) ??
+                    0;
+                count = docCount is int ? docCount : (docCount as num).toInt();
+              }
+            } catch (_) {}
           }
+
+          try {
+            final subColSnap = await _firestore
+                .collection(FirestoreCollections.channelSubscribers(channelId))
+                .count()
+                .get();
+            final subColCount = subColSnap.count ?? 0;
+            if (subColCount > count) {
+              count = subColCount;
+            }
+          } catch (_) {}
+
+          setSubscriberCount(channelId, count);
         }, onError: (e, s) {
           ErrorHandler.log(e, stackTrace: s, tag: 'ChannelSubscriptionController.fetchSubscriberCount');
         });
@@ -356,6 +537,7 @@ class ChannelSubscriptionController extends BaseController {
   }
 
   RxBool isSubscribedTo(String channelId) {
+    if (channelId.isEmpty) return false.obs;
     final user = _auth.currentUser;
     if (user == null) return false.obs;
 
@@ -366,15 +548,50 @@ class ChannelSubscriptionController extends BaseController {
     final rx = false.obs;
     _subscribedMap[channelId] = rx;
 
-    final subDocId = '${channelId}_${user.uid}';
-    // Use trackSubscription since we don't manage its cancellation manually
-    trackSubscription(_firestore
+    final uid = user.uid;
+
+    final channelSubRef = _firestore
+        .collection(FirestoreCollections.channelSubscribers(channelId))
+        .doc(uid);
+    final userSubRef = _firestore
+        .collection(FirestoreCollections.userSubscriptions(uid))
+        .doc(channelId);
+    final legacySubRef = _firestore
         .collection(_subsCol)
-        .doc(subDocId)
-        .snapshots()
-        .listen((snap) => rx.value = snap.exists, onError: (e, s) {
-          ErrorHandler.log(e, stackTrace: s, tag: 'ChannelSubscriptionController.isSubscribedTo');
-        }));
+        .doc('${channelId}_$uid');
+    final legacySubRef2 = _firestore
+        .collection(_subsCol)
+        .doc('${uid}_$channelId');
+
+    trackSubscription(channelSubRef.snapshots().listen((snap) {
+      if (snap.exists) {
+        rx.value = true;
+      } else {
+        userSubRef.get().then((uSnap) {
+          if (uSnap.exists) {
+            rx.value = true;
+          } else {
+            legacySubRef.get().then((lSnap) {
+              if (lSnap.exists) {
+                rx.value = true;
+              } else {
+                legacySubRef2.get().then((lSnap2) {
+                  rx.value = lSnap2.exists;
+                }).catchError((_) {
+                  rx.value = false;
+                });
+              }
+            }).catchError((_) {
+              rx.value = false;
+            });
+          }
+        }).catchError((_) {
+          rx.value = false;
+        });
+      }
+    }, onError: (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'ChannelSubscriptionController.isSubscribedTo');
+    }));
 
     return rx;
   }

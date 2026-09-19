@@ -20,26 +20,86 @@ class WatchHistoryController extends BaseController {
   final RxBool isHistoryPaused = false.obs;
   final RxString selectedCategory = 'All'.obs;
 
-  Stream<QuerySnapshot>? _historyStream;
-  String? _lastUserId;
+  final RxList<Video> historyVideos = <Video>[].obs;
+  final RxBool rxIsLoading = false.obs;
+  final RxString rxErrorMessage = ''.obs;
 
-  Stream<QuerySnapshot> getHistoryStream(String userId) {
-    if (_historyStream != null && _lastUserId == userId) {
-      return _historyStream!;
+  Future<void> fetchHistory({bool refresh = false}) async {
+    final userId = AuthService.to.uid;
+    if (userId.isEmpty) {
+      historyVideos.clear();
+      setViewState(ViewState.empty);
+      return;
     }
-    _lastUserId = userId;
-    _historyStream = FirebaseFirestore.instance
-        .collection(FirestoreCollections.users)
-        .doc(userId)
-        .collection('watch_history')
-        .orderBy('watchedAt', descending: true)
-        .limit(100)
-        .snapshots();
-    return _historyStream!;
+
+    if (!refresh && historyVideos.isNotEmpty) return;
+
+    rxIsLoading.value = true;
+    rxErrorMessage.value = '';
+    setViewState(ViewState.loading);
+
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection(FirestoreCollections.users)
+          .doc(userId)
+          .collection('watch_history')
+          .orderBy('watchedAt', descending: true)
+          .limit(100)
+          .get();
+
+      final parsed = snapshot.docs.map((doc) {
+        final data = doc.data();
+        final durationRaw = (data['duration'] != null &&
+                data['duration'] != '0:00' &&
+                data['duration'] != '00:00')
+            ? data['duration']
+            : (data['videoDuration'] ?? data['durationMs']);
+        return Video(
+          id: (data['videoId'] as String?) ?? doc.id,
+          channelId: (data['channelId'] as String?) ?? '',
+          channelName: (data['channelName'] as String?) ?? '',
+          channelAvatarUrl: (data['channelImage'] as String?) ??
+              (data['channelAvatarUrl'] as String?) ??
+              '',
+          title: (data['title'] as String?) ?? 'Unknown Video',
+          description: (data['description'] as String?) ?? '',
+          thumbnailUrl: (data['thumbnailUrl'] as String?) ?? '',
+          videoUrl: (data['videoUrl'] as String?) ?? '',
+          ownerId: (data['ownerId'] as String?) ?? '',
+          views: (data['views'] as int?) ?? 0,
+          likeCount: (data['likeCount'] as int?) ?? 0,
+          duration: durationRaw,
+          uploadedAt: (data['watchedAt'] as Timestamp?)?.toDate() ??
+              DateTime.now(),
+          language: (data['language'] as String?) ?? 'en',
+          category: (data['category'] as String?) ?? 'General',
+          tags: List<String>.from(
+            (data['tags'] as Iterable<dynamic>?) ?? [],
+          ),
+          factCheckUrl: (data['factCheckUrl'] as String?) ?? '',
+          mediaSubtitles: const {},
+          audioTracks: const {},
+          chapters: const [],
+        );
+      }).toList();
+
+      historyVideos.value = parsed;
+      rxIsLoading.value = false;
+      setViewState(parsed.isEmpty ? ViewState.empty : ViewState.success);
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'WatchHistoryController.fetchHistory',
+      );
+      rxErrorMessage.value = 'Unable to load watch history. Please try again.';
+      rxIsLoading.value = false;
+      handleError(e);
+    }
   }
 
   void retry() {
-    _historyStream = null;
+    fetchHistory(refresh: true);
     refreshTrigger.value++;
   }
 
@@ -51,6 +111,7 @@ class WatchHistoryController extends BaseController {
     super.onInit();
     scrollController.addListener(_onScroll);
     _loadHistorySettings();
+    fetchHistory();
   }
 
   void _loadHistorySettings() {
@@ -78,6 +139,8 @@ class WatchHistoryController extends BaseController {
   Future<void> deleteHistoryItem(String videoId) async {
     final userId = AuthService.to.uid;
     if (userId.isEmpty) return;
+
+    historyVideos.removeWhere((v) => v.id == videoId);
 
     try {
       await FirebaseFirestore.instance
@@ -112,19 +175,24 @@ class WatchHistoryController extends BaseController {
           TextButton(
             onPressed: () async {
               Get.back();
+              historyVideos.clear();
               try {
-                final batch = FirebaseFirestore.instance.batch();
                 final collection = FirebaseFirestore.instance
                     .collection(FirestoreCollections.users)
                     .doc(userId)
                     .collection('watch_history');
 
-                final snapshots = await collection.get();
-                for (final doc in snapshots.docs) {
-                  batch.delete(doc.reference);
+                // Delete in safe chunks of 450 to respect Firestore 500 operations per batch limit
+                while (true) {
+                  final snapshots = await collection.limit(450).get();
+                  if (snapshots.docs.isEmpty) break;
+                  final batch = FirebaseFirestore.instance.batch();
+                  for (final doc in snapshots.docs) {
+                    batch.delete(doc.reference);
+                  }
+                  await batch.commit();
+                  if (snapshots.docs.length < 450) break;
                 }
-
-                await batch.commit();
                 AppSnackbar.success('Watch history cleared');
               } catch (e) {
                 ErrorHandler.log(e, context: 'WatchHistoryController.clearAllHistory');
@@ -156,23 +224,32 @@ class WatchHistoryController extends BaseController {
           .doc(userId)
           .collection('watch_history');
 
-      final snapshots = await collection
-          .where('watchedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-          .where('watchedAt', isLessThanOrEqualTo: Timestamp.fromDate(end))
-          .get();
+      var deletedCount = 0;
+      while (true) {
+        final snapshots = await collection
+            .where('watchedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+            .where('watchedAt', isLessThanOrEqualTo: Timestamp.fromDate(end))
+            .limit(450)
+            .get();
 
-      if (snapshots.docs.isEmpty) {
-        setViewState(ViewState.idle);
-        AppSnackbar.info('No history found for $label');
-        return;
+        if (snapshots.docs.isEmpty) {
+          if (deletedCount == 0) {
+            setViewState(ViewState.idle);
+            AppSnackbar.info('No history found for $label');
+            return;
+          }
+          break;
+        }
+
+        final batch = FirebaseFirestore.instance.batch();
+        for (final doc in snapshots.docs) {
+          batch.delete(doc.reference);
+        }
+        await batch.commit();
+        deletedCount += snapshots.docs.length;
+        if (snapshots.docs.length < 450) break;
       }
 
-      final batch = FirebaseFirestore.instance.batch();
-      for (final doc in snapshots.docs) {
-        batch.delete(doc.reference);
-      }
-
-      await batch.commit();
       setViewState(ViewState.idle);
       AppSnackbar.success('Cleared history for $label');
     } catch (e) {

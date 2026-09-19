@@ -8,6 +8,7 @@ import 'package:truthworld/features/video/presentation/views/widgets/video_scree
 import 'package:truthworld/features/video/presentation/views/widgets/video_screen/video_playlist_drawer.dart';
 import 'package:truthworld/features/video/presentation/widgets/video_action_buttons.dart';
 import 'package:truthworld/features/video/presentation/widgets/video_description_box.dart';
+import 'package:truthworld/features/video/presentation/widgets/video_fact_check_card.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Video information header section displaying title, contextual banners, action controls, and description.
@@ -82,6 +83,8 @@ class VideoInfoHeader extends StatelessWidget {
               channelController: channelController,
               onSignInPrompt: onSignInPrompt,
             ),
+            const SizedBox(height: 12),
+            VideoFactCheckCard(controller: ctrl),
             const SizedBox(height: 16),
             VideoDescriptionBox(
               controller: ctrl,

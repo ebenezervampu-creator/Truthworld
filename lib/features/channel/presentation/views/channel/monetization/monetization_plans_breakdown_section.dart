@@ -224,12 +224,13 @@ class ChannelTierUpgradeCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             isCustom
-                ? r'Standard channels have $0 upfront monthly cost and a 70/30 ad split. Switching will take effect at the start of your next billing cycle.'
-                : 'Custom channels let you keep 100% of revenue. Requesting a switch locks your request to take effect on the 1st of next month.',
+                ? r'Standard channels have $0 upfront monthly cost, a 70/30 split on ads & premium subscriptions, and 100% creator share on superchats & memberships. Switching will take effect at the start of your next billing cycle.'
+                : r'Custom channels let you keep 100% of revenue across all sources with flexible infrastructure plans ($15, $30, $45/mo etc.). Requesting a switch locks your request to take effect on the 1st of next month.',
             style: typography.bodySmall.copyWith(
               color: AppColors.textSecondary,
             ),
           ),
+
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: (controller.isUpdating || hasPending)

@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_membership_join_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -267,7 +268,7 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   cur.price > 0
-                      ? 'Active Membership • ${cur.formattedPrice} / month'
+                      ? 'Active Membership • ${cur.formattedPriceForUser()} / month'
                       : 'Active Membership',
                   style: const TextStyle(
                     color: Color(0xFF34D399),
@@ -378,6 +379,12 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
     final tier = controller.selectedTier;
     if (tier == null) return const SizedBox.shrink();
 
+    final isIndian = !Get.isRegistered<CurrencyLocalizationService>() ||
+        CurrencyLocalizationService.to.isIndianUser;
+    final rate = Get.isRegistered<CurrencyLocalizationService>()
+        ? CurrencyLocalizationService.to.rate
+        : CurrencyLocalizationService.defaultRate;
+
     final isCurrentTier =
         controller.isMember.value && controller.currentMembership.value?.tierId == tier.id;
 
@@ -411,13 +418,26 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${tier.formattedPrice} / month',
+                    isIndian && tier.currency.toUpperCase() == 'USD'
+                        ? '${tier.formattedPriceForUser(true)} / month (~${tier.formattedPrice})'
+                        : '${tier.formattedPriceForUser(isIndian)} / month',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                  if (isIndian && tier.currency.toUpperCase() == 'USD') ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      '1 USD = ₹${rate.toStringAsFixed(2)} INR (Live Market Rate)',
+                      style: const TextStyle(
+                        color: Color(0xFF10B981),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ],
               ),
               // Loyalty Badge Preview
@@ -571,6 +591,8 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
     final isCurrentTier =
         controller.isMember.value && controller.currentMembership.value?.tierId == tier.id;
     final isUpgrading = controller.isMember.value && !isCurrentTier;
+    final isIndian = !Get.isRegistered<CurrencyLocalizationService>() ||
+        CurrencyLocalizationService.to.isIndianUser;
     final currentTierPrice = controller.currentMembership.value?.price ?? 0;
     final isHigher = tier.price > currentTierPrice;
     final actionLabel = isUpgrading
@@ -625,7 +647,7 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
                           ),
                         )
                       : Text(
-                          '$actionLabel for ${tier.formattedPrice} / month',
+                          '$actionLabel for ${tier.formattedPriceForUser(isIndian)} / month',
                           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                         ),
                 ),

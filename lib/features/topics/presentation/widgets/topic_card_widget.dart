@@ -10,7 +10,6 @@ import 'package:truthworld/features/dashboard/presentation/views/dashboard/topic
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/explore_topics_controller.dart';
 import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
-import 'package:truthworld/features/topics/presentation/controllers/topic_interaction_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Unified Responsive Topic Card Widget matching exact Channel Creation page fonts and theme architecture.
@@ -49,15 +48,6 @@ class TopicCardWidget extends StatelessWidget {
 
   FollowingTopicsController get _followingTopicsController =>
       Get.find<FollowingTopicsController>();
-
-  TopicInteractionController? get _interactionController {
-    if (topic == null || topic!.id.trim().isEmpty) return null;
-    final ctrl = Get.isRegistered<TopicInteractionController>(tag: topic!.id)
-        ? Get.find<TopicInteractionController>(tag: topic!.id)
-        : Get.put(TopicInteractionController(), tag: topic!.id);
-    ctrl.initializeTopic(topic!);
-    return ctrl;
-  }
 
   @override
   Widget build(BuildContext context) {

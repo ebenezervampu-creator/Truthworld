@@ -90,7 +90,7 @@ class MembershipTiersTab extends StatelessWidget {
                   onPressed: onOpenCreateTier,
                   icon: const Icon(
                     Icons.add_rounded,
-                    color: Colors.white,
+                    color: Colors.black,
                     size: 16,
                   ),
                   label: const Text('New Tier'),

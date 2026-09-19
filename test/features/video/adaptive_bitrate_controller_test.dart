@@ -97,5 +97,91 @@ void main() {
       expect(bestTierIndex, 5);
       expect(ladder[bestTierIndex].label, '1080p');
     });
+
+    test('ResolutionTier.defaultBitrateForHeight returns expected values up to 4K', () {
+      expect(ResolutionTier.defaultBitrateForHeight(2160), 15000);
+      expect(ResolutionTier.defaultBitrateForHeight(1440), 10000);
+      expect(ResolutionTier.defaultBitrateForHeight(1080), 5000);
+      expect(ResolutionTier.defaultBitrateForHeight(1040), 4500);
+      expect(ResolutionTier.defaultBitrateForHeight(720), 2500);
+      expect(ResolutionTier.defaultBitrateForHeight(480), 1000);
+    });
+
+    test('ABR selection with maxHeightCap = 1040 caps free users at 1040p on 50Mbps connection', () {
+      final ladder = ResolutionTier.defaultLadder;
+      // High speed connection (50 Mbps)
+      const effectiveBw = 50000.0 * 0.80; // 40,000 kbps
+
+      // For free user: maxHeightCap = 1040
+      const freeUserCap = 1040;
+      var bestTierFree = 0;
+      for (var i = 0; i < ladder.length; i++) {
+        if (ladder[i].height <= freeUserCap) {
+          bestTierFree = i;
+          break;
+        }
+      }
+      for (var i = ladder.length - 1; i >= 0; i--) {
+        if (ladder[i].height > freeUserCap) {
+          continue;
+        }
+        if (effectiveBw >= ladder[i].minBandwidth) {
+          bestTierFree = i;
+          break;
+        }
+      }
+
+      expect(ladder[bestTierFree].height, lessThanOrEqualTo(1040));
+      expect(ladder[bestTierFree].label, '1040p');
+
+      // For premium user: uncapped
+      var bestTierPremium = 0;
+      for (var i = ladder.length - 1; i >= 0; i--) {
+        if (effectiveBw >= ladder[i].minBandwidth) {
+          bestTierPremium = i;
+          break;
+        }
+      }
+
+      expect(ladder[bestTierPremium].height, 2160);
+      expect(ladder[bestTierPremium].label, '2160p');
+    });
+
+    test('setManualTier blocks tiers higher than maxHeightCap for free users', () {
+      final controller = AdaptiveBitrateController();
+      controller.resolutionLadder = ResolutionTier.defaultLadder;
+      controller.maxHeightCap = 1040;
+      controller.currentTierIndex.value = 0; // 144p
+
+      // Find indices
+      final idx720 = controller.resolutionLadder.indexWhere((t) => t.height == 720);
+      final idx1040 = controller.resolutionLadder.indexWhere((t) => t.height == 1040);
+      final idx1080 = controller.resolutionLadder.indexWhere((t) => t.height == 1080);
+      final idx2160 = controller.resolutionLadder.indexWhere((t) => t.height == 2160);
+
+      // Switching to 720p and 1040p should be allowed
+      controller.setManualTier(idx720);
+      expect(controller.currentTierIndex.value, idx720);
+
+      controller.setManualTier(idx1040);
+      expect(controller.currentTierIndex.value, idx1040);
+
+      // Switching to 1080p or 2160p should be blocked by maxHeightCap (remains 1040p)
+      controller.setManualTier(idx1080);
+      expect(controller.currentTierIndex.value, idx1040);
+
+      controller.setManualTier(idx2160);
+      expect(controller.currentTierIndex.value, idx1040);
+
+      // Downgrade enforcement on cap update
+      controller.maxHeightCap = null;
+      controller.setManualTier(idx2160);
+      expect(controller.currentTierIndex.value, idx2160);
+
+      // User loses premium -> cap set to 1040
+      controller.updateMaxHeightCap(1040);
+      expect(controller.currentTier.height, lessThanOrEqualTo(1040));
+      expect(controller.currentTier.label, '1040p');
+    });
   });
 }

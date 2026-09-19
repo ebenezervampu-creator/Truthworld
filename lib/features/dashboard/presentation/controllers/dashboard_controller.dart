@@ -8,8 +8,10 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/utils/watch_time_formatter.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/analytics/presentation/controllers/revenue_analytics_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
 class AnalyticsData {
@@ -23,7 +25,9 @@ class AnalyticsData {
 // ==========================================================================
 
 class DashboardController extends BaseController {
-  DashboardController({String channelId = ''}) : _channelId = channelId;
+  DashboardController({String channelId = '', this.autoInitialize = true})
+      : _channelId = channelId;
+  final bool autoInitialize;
   String _channelId;
   String get channelId => _channelId;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -53,6 +57,11 @@ class DashboardController extends BaseController {
   final RxInt rxActiveMembersCount = 0.obs;
   final RxInt rxActiveTiersCount = 0.obs;
 
+  static double get usdToInrRate =>
+      Get.isRegistered<CurrencyLocalizationService>()
+          ? CurrencyLocalizationService.to.rate
+          : CurrencyLocalizationService.defaultRate;
+
   double get watchMinutes => totalWatchTimeSeconds.value / 60.0;
   double get watchHours => totalWatchTimeSeconds.value / 3600.0;
 
@@ -80,6 +89,12 @@ class DashboardController extends BaseController {
   StreamSubscription? _membershipTiersSubscription;
   StreamSubscription? _revenueStatementsSubscription;
   Timer? _loadingTimeoutTimer;
+  Worker? _rateWorker;
+  List<Map<String, dynamic>> _activeMemberData = [];
+  List<Map<String, dynamic>> _activeTierData = [];
+  double _directMembersRevenue = 0.0;
+  double _tierMembersRevenue = 0.0;
+  int _tierMembersCount = 0;
 
   /// Get filtered videos based on search query
   List<Video> get filteredVideos {
@@ -124,23 +139,39 @@ class DashboardController extends BaseController {
         currentChannel.value = AuthService.to.rxUserChannel.value;
       }
     }
-    if (_channelId.isNotEmpty) {
+    if (Get.isRegistered<CurrencyLocalizationService>()) {
+      _rateWorker = ever(CurrencyLocalizationService.to.liveUsdToInrRate, (_) {
+        _recalculateMembershipsWithRate();
+      });
+    }
+
+    if (_channelId.isNotEmpty && autoInitialize) {
       _initializeData();
     } else {
       rxIsLoading.value = false;
-      rxErrorMessage.value = 'No channel provided.';
+      if (_channelId.isEmpty) {
+        rxErrorMessage.value = 'No channel provided.';
+      }
     }
   }
 
   void updateChannelId(String id) {
     if (id.isNotEmpty && id != _channelId) {
       _channelId = id;
-      _initializeData();
+      if (autoInitialize) {
+        _initializeData();
+      }
     }
+  }
+
+  /// Reload all channel stats, recent videos, analytics, and revenue data
+  void refreshChannelData() {
+    _initializeData();
   }
 
   @override
   void onClose() {
+    _rateWorker?.dispose();
     _loadingTimeoutTimer?.cancel();
     _statsSubscription?.cancel();
     _videosSubscription?.cancel();
@@ -155,10 +186,18 @@ class DashboardController extends BaseController {
 
   void _initializeData() {
     rxIsLoading.value = true;
-    _loadChannelStats();
-    _loadRecentVideos();
-    _loadAnalyticsData();
-    _loadCopyrightStatus();
+    try {
+      _loadChannelStats();
+      _loadRecentVideos();
+      _loadAnalyticsData();
+      _loadCopyrightStatus();
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'DashboardController._initializeData',
+      );
+    }
     // Use managed Timer to set loading to false after a short period,
     // allowing streams to populate data.
     _loadingTimeoutTimer = Timer(const Duration(seconds: 2), () {
@@ -209,6 +248,28 @@ class DashboardController extends BaseController {
               if (ads > 0) {
                 rxAdsRevenue.value = ads;
               }
+              final membershipTotal = ((data['membershipRevenueTotal'] ??
+                      data['membershipsRevenueTotal']) as num?)
+                  ?.toDouble() ??
+                  0.0;
+              if (membershipTotal > 0 && rxMembershipsRevenue.value == 0) {
+                rxMembershipsRevenue.value = membershipTotal;
+              }
+
+              final views = (data['viewCount'] as num?)?.toInt() ??
+                  (data['totalViews'] as num?)?.toInt() ??
+                  0;
+              final watchMins = (data['totalWatchTimeMinutes'] as num?)?.toInt() ??
+                  ((data['totalWatchTimeSeconds'] as num?) != null
+                      ? (((data['totalWatchTimeSeconds'] as num).toDouble()) / 60.0)
+                          .round()
+                      : 0);
+              if (rxAdsRevenue.value == 0.0 && views > 0) {
+                rxAdsRevenue.value = views * 0.005;
+              }
+              if (rxWatchTimeRevenue.value == 0.0 && watchMins > 0) {
+                rxWatchTimeRevenue.value = watchMins * 0.002;
+              }
               _updateRevenueStats();
             }
 
@@ -232,19 +293,21 @@ class DashboardController extends BaseController {
               showApprovalBanner.value = false;
             }
 
+            final currentTotalRev = rxTotalRevenue.value;
+            final formattedRev = '₹${currentTotalRev.toStringAsFixed(2)}';
+            final formattedChange =
+                currentTotalRev > 0 ? '+₹${currentTotalRev.toStringAsFixed(2)}' : '+₹0.00';
+
             channelStats.value = {
               ...channelStats,
               'views': _formatNumber(channel.viewCount),
               'subscribers': _formatNumber(channel.subscriberCount),
               'watchTime': formattedWatchTime,
-              'revenue': channelStats['revenue'] ??
-                  (rxTotalRevenue.value > 0
-                      ? '₹${rxTotalRevenue.value.toStringAsFixed(2)}'
-                      : '₹0.00'),
+              'revenue': formattedRev,
               'viewsChange': channelStats['viewsChange'] ?? '+0%',
               'watchTimeChange': channelStats['watchTimeChange'] ?? '+0%',
               'subscribersChange': channelStats['subscribersChange'] ?? '+0',
-              'revenueChange': channelStats['revenueChange'] ?? '+₹0.00',
+              'revenueChange': formattedChange,
             };
           }
         },
@@ -271,19 +334,21 @@ class DashboardController extends BaseController {
           if (summaryWatchSeconds > 0) {
             totalWatchTimeSeconds.value = summaryWatchSeconds;
           }
+          final currentTotalRev = rxTotalRevenue.value;
+          final formattedRev = '₹${currentTotalRev.toStringAsFixed(2)}';
+          final formattedChange =
+              currentTotalRev > 0 ? '+₹${currentTotalRev.toStringAsFixed(2)}' : '+₹0.00';
+
           channelStats.value = {
             ...channelStats,
             'views': _formatNumber(data['totalViews'] ?? channelStats['views'] ?? 0),
             'watchTime': formattedWatchTime,
             'subscribers': _formatNumber(data['subscribers'] ?? channelStats['subscribers'] ?? 0),
-            'revenue': channelStats['revenue'] ??
-                (rxTotalRevenue.value > 0
-                    ? '\$${rxTotalRevenue.value.toStringAsFixed(2)}'
-                    : r'$0.00'),
+            'revenue': formattedRev,
             'viewsChange': '+0%',
             'watchTimeChange': '+0%',
             'subscribersChange': '+0',
-            'revenueChange': channelStats['revenueChange'] ?? r'+$0.00',
+            'revenueChange': formattedChange,
           };
         }
       },
@@ -301,6 +366,18 @@ class DashboardController extends BaseController {
   void _loadRevenueAndMemberships() {
     if (channelId.isEmpty) return;
 
+    // Sync from RevenueAnalyticsController if it already resolved revenue for this channel
+    if (Get.isRegistered<RevenueAnalyticsController>()) {
+      final revCtrl = Get.find<RevenueAnalyticsController>();
+      if (revCtrl.channelId.value == channelId && revCtrl.totalRevenue.value > 0) {
+        rxMembershipsRevenue.value = revCtrl.membershipsRevenue.value;
+        rxSuperchatRevenue.value = revCtrl.superchatRevenue.value;
+        rxAdsRevenue.value = revCtrl.adsRevenue.value;
+        rxWatchTimeRevenue.value = revCtrl.watchTimeRevenue.value;
+        _updateRevenueStats();
+      }
+    }
+
     // 1. Members stream for active fan funding
     final membersRef = _firestore
         .collection(FirestoreCollections.channels)
@@ -315,15 +392,35 @@ class DashboardController extends BaseController {
                 'active';
           }).toList();
 
-          rxActiveMembersCount.value = activeDocs.length;
+          _activeMemberData = activeDocs.map((doc) => doc.data()).toList();
 
           var totalMemberships = 0.0;
           for (final doc in activeDocs) {
             final data = doc.data();
-            totalMemberships += (data['price'] as num?)?.toDouble() ?? 0.0;
+            final price = (data['price'] as num?)?.toDouble() ?? 0.0;
+            final rawCurrency = (data['currency'] as String?)?.toUpperCase();
+            final currency = rawCurrency ?? (price >= 50 ? 'INR' : 'USD');
+            if (currency == 'USD') {
+              totalMemberships += price * usdToInrRate;
+            } else {
+              totalMemberships += price;
+            }
           }
 
-          rxMembershipsRevenue.value = totalMemberships;
+          _directMembersRevenue = totalMemberships;
+
+          if (activeDocs.isNotEmpty) {
+            rxActiveMembersCount.value = activeDocs.length;
+            rxMembershipsRevenue.value = _directMembersRevenue;
+          } else if (_tierMembersRevenue > 0) {
+            rxMembershipsRevenue.value = _tierMembersRevenue;
+            if (rxActiveMembersCount.value == 0) {
+              rxActiveMembersCount.value = _tierMembersCount;
+            }
+          } else {
+            rxActiveMembersCount.value = 0;
+            rxMembershipsRevenue.value = 0.0;
+          }
           _updateRevenueStats();
         },
         onError: (e, stackTrace) => ErrorHandler.log(
@@ -345,20 +442,34 @@ class DashboardController extends BaseController {
           var activeTiers = 0;
           var tierMembersRevenue = 0.0;
           var tierMembersCount = 0;
+          final tierDataList = <Map<String, dynamic>>[];
 
           for (final doc in snapshot.docs) {
             final data = doc.data();
             if (data['isEnabled'] != false) {
               activeTiers++;
+              tierDataList.add(data);
               final price = (data['price'] as num?)?.toDouble() ?? 0.0;
               final count = (data['memberCount'] as num?)?.toInt() ?? 0;
-              tierMembersRevenue += price * count;
+              final rawCurrency = (data['currency'] as String?)?.toUpperCase();
+              final currency = rawCurrency ?? (price >= 50 ? 'INR' : 'USD');
+              if (currency == 'USD') {
+                tierMembersRevenue += price * usdToInrRate * count;
+              } else {
+                tierMembersRevenue += price * count;
+              }
               tierMembersCount += count;
             }
           }
 
+          _activeTierData = tierDataList;
+          _tierMembersRevenue = tierMembersRevenue;
+          _tierMembersCount = tierMembersCount;
           rxActiveTiersCount.value = activeTiers;
-          if (rxMembershipsRevenue.value == 0.0 && tierMembersRevenue > 0.0) {
+
+          if (_directMembersRevenue > 0) {
+            rxMembershipsRevenue.value = _directMembersRevenue;
+          } else if (tierMembersRevenue > 0) {
             rxMembershipsRevenue.value = tierMembersRevenue;
             if (rxActiveMembersCount.value == 0) {
               rxActiveMembersCount.value = tierMembersCount;
@@ -392,6 +503,11 @@ class DashboardController extends BaseController {
             if (subs > 0 && rxSuperchatRevenue.value == 0) {
               rxSuperchatRevenue.value = subs;
             }
+            final creatorShare =
+                (data['creatorShare'] as num?)?.toDouble() ?? 0.0;
+            if (creatorShare > 0 && rxTotalRevenue.value == 0.0) {
+              rxTotalRevenue.value = creatorShare;
+            }
             _updateRevenueStats();
           }
         },
@@ -403,6 +519,8 @@ class DashboardController extends BaseController {
       ),
     );
   }
+
+  void updateRevenueStats() => _updateRevenueStats();
 
   void _updateRevenueStats() {
     final total = rxMembershipsRevenue.value +
@@ -420,6 +538,45 @@ class DashboardController extends BaseController {
       'revenue': formattedRev,
       'revenueChange': formattedChange,
     };
+  }
+
+  void _recalculateMembershipsWithRate() {
+    var recalculated = false;
+    if (_activeMemberData.isNotEmpty) {
+      var totalMemberships = 0.0;
+      for (final data in _activeMemberData) {
+        final price = (data['price'] as num?)?.toDouble() ?? 0.0;
+        final rawCurrency = (data['currency'] as String?)?.toUpperCase();
+        final currency = rawCurrency ?? (price >= 50 ? 'INR' : 'USD');
+        if (currency == 'USD') {
+          totalMemberships += price * usdToInrRate;
+        } else {
+          totalMemberships += price;
+        }
+      }
+      _directMembersRevenue = totalMemberships;
+      rxMembershipsRevenue.value = totalMemberships;
+      recalculated = true;
+    } else if (_activeTierData.isNotEmpty) {
+      var tierMembersRevenue = 0.0;
+      for (final data in _activeTierData) {
+        final price = (data['price'] as num?)?.toDouble() ?? 0.0;
+        final count = (data['memberCount'] as num?)?.toInt() ?? 0;
+        final rawCurrency = (data['currency'] as String?)?.toUpperCase();
+        final currency = rawCurrency ?? (price >= 50 ? 'INR' : 'USD');
+        if (currency == 'USD') {
+          tierMembersRevenue += price * usdToInrRate * count;
+        } else {
+          tierMembersRevenue += price * count;
+        }
+      }
+      _tierMembersRevenue = tierMembersRevenue;
+      rxMembershipsRevenue.value = tierMembersRevenue;
+      recalculated = true;
+    }
+    if (recalculated) {
+      _updateRevenueStats();
+    }
   }
 
   void _loadRecentVideos() {

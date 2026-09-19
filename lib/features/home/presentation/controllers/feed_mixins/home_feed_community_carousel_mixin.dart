@@ -323,16 +323,5 @@ mixin HomeFeedCommunityCarouselMixin on HomeFeedControllerBase {
       );
     }
   }
-
-  // Backward compatibility private forwarders
-  Future<void> _fetchCarouselVideosInternal() => fetchCarouselVideosInternal();
-  Future<List<Video>> _fetchPublicVideos({int limit = 10}) =>
-      fetchPublicVideos(limit: limit);
-  Future<List<Video>> _fetchCategoryVideos(String category, {int limit = 10}) =>
-      fetchCategoryVideos(category, limit: limit);
-  Future<List<Video>> _fetchTrendingVideos({int limit = 10}) =>
-      fetchTrendingVideos(limit: limit);
-  Future<void> _fetchInitialCommunityPostsTab() =>
-      fetchInitialCommunityPostsTab();
-  Future<void> _fetchMoreCommunityPostsTab() => fetchMoreCommunityPostsTab();
 }
+

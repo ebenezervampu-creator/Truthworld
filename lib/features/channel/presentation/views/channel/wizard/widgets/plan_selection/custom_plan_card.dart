@@ -213,7 +213,7 @@ class CustomPlanCard extends StatelessWidget {
                       tierBadges = [
                         'Flexible Storage & CDN',
                         'Dedicated VIP Support & SLA',
-                        'Custom Integration',
+                        r'50% Off Dubbing ($0.25/lang)',
                         '100% Revenue Share',
                       ];
                     } else if (selectedTier == r'$45') {
@@ -222,6 +222,7 @@ class CustomPlanCard extends StatelessWidget {
                         '5 TB Global CDN Bandwidth',
                         '4K HDR Video',
                         r'$20 Monthly Bonus Credit',
+                        r'50% Off Dubbing ($0.25/lang)',
                         '100% Revenue Share',
                       ];
                     } else if (selectedTier == r'$30') {
@@ -230,6 +231,7 @@ class CustomPlanCard extends StatelessWidget {
                         '1.5 TB Global CDN Bandwidth',
                         '4K Ultra HD',
                         r'$10 Monthly Bonus Credit',
+                        r'50% Off Dubbing ($0.25/lang)',
                         '100% Revenue Share',
                       ];
                     } else {
@@ -238,6 +240,7 @@ class CustomPlanCard extends StatelessWidget {
                         '500 GB Global CDN Bandwidth',
                         '4K Ultra HD',
                         'Unlimited Uploads',
+                        r'50% Off Dubbing ($0.25/lang)',
                         '100% Revenue Share',
                       ];
                     }

@@ -8,8 +8,12 @@ import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
 import 'package:truthworld/core/services/algorithm/user_signal_tracker.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/services/digital_wellbeing_service.dart';
+import 'package:truthworld/core/services/distributed_counter_service.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
+import 'package:truthworld/data/datasources/remote/channel_remote_datasource.dart';
+import 'package:truthworld/data/datasources/remote/video_remote_datasource.dart';
 import 'package:truthworld/data/repositories/admin_repository_impl.dart';
 import 'package:truthworld/data/repositories/advertiser_repository_impl.dart';
 import 'package:truthworld/data/repositories/analytics_repository_impl.dart';
@@ -50,6 +54,15 @@ import 'package:truthworld/domain/repositories/subscription_repository.dart';
 import 'package:truthworld/domain/repositories/trending_repository.dart';
 import 'package:truthworld/domain/repositories/video_repository.dart';
 import 'package:truthworld/domain/repositories/watchtime_repository.dart';
+import 'package:truthworld/domain/usecases/channel/get_channel_by_id_usecase.dart';
+import 'package:truthworld/domain/usecases/channel/toggle_subscription_usecase.dart';
+import 'package:truthworld/domain/usecases/comment/add_comment_usecase.dart';
+import 'package:truthworld/domain/usecases/comment/get_comments_usecase.dart';
+import 'package:truthworld/domain/usecases/community/create_community_post_usecase.dart';
+import 'package:truthworld/domain/usecases/search/search_videos_usecase.dart';
+import 'package:truthworld/domain/usecases/video/get_trending_videos_usecase.dart';
+import 'package:truthworld/domain/usecases/video/get_video_by_id_usecase.dart';
+import 'package:truthworld/domain/usecases/video/toggle_like_video_usecase.dart';
 import 'package:truthworld/features/analytics/data/services/geolocation_service.dart';
 import 'package:truthworld/features/analytics/data/services/impression_tracking_service.dart';
 import 'package:truthworld/features/analytics/data/services/video_analytics_service.dart';
@@ -102,11 +115,15 @@ class InitialBinding extends Bindings {
 
     // Core analytics services (lazy, fenix for recreation if needed)
     Get.lazyPut(GeolocationService.new, fenix: true);
+    if (!Get.isRegistered<CurrencyLocalizationService>()) {
+      Get.put(CurrencyLocalizationService(), permanent: true);
+    }
     Get.lazyPut(VideoAnalyticsService.new, fenix: true);
     Get.lazyPut(VideoPresenceService.new, fenix: true);
     Get.lazyPut(ViewerIdentityService.new, fenix: true);
     Get.lazyPut(ImpressionTrackingService.new, fenix: true);
     Get.lazyPut(WatchHistoryService.new, fenix: true);
+    Get.lazyPut(DistributedCounterService.new, fenix: true);
 
     // Truthworld Personalization Engine Services
     Get.lazyPut(FlipCoinService.new, fenix: true);
@@ -152,11 +169,25 @@ class InitialBinding extends Bindings {
     Get.lazyPut<WatchTimeRepository>(WatchTimeRepositoryImpl.new, fenix: true);
     Get.lazyPut(TopicRepository.new, fenix: true);
 
-    // Topic Controllers
-    Get.lazyPut(FollowingTopicsController.new, fenix: true);
-    Get.lazyPut(ExploreTopicsController.new, fenix: true);
-    Get.lazyPut(TopicController.new, fenix: true);
-    Get.lazyPut(CreateTopicController.new, fenix: true);
+    Get.lazyPut<VideoRemoteDataSource>(FirestoreVideoRemoteDataSource.new, fenix: true);
+    Get.lazyPut<ChannelRemoteDataSource>(FirestoreChannelRemoteDataSource.new, fenix: true);
+
+    // Clean Architecture Domain Use Cases
+    Get.lazyPut(() => GetTrendingVideosUseCase(Get.find<TrendingRepository>()), fenix: true);
+    Get.lazyPut(() => GetVideoByIdUseCase(Get.find<VideoRepository>()), fenix: true);
+    Get.lazyPut(() => ToggleLikeVideoUseCase(Get.find<VideoRepository>()), fenix: true);
+    Get.lazyPut(() => SearchVideosUseCase(Get.find<SearchRepository>()), fenix: true);
+    Get.lazyPut(() => GetChannelByIdUseCase(Get.find<ChannelRepository>()), fenix: true);
+    Get.lazyPut(() => ToggleSubscriptionUseCase(Get.find<ChannelRepository>()), fenix: true);
+    Get.lazyPut(() => AddCommentUseCase(Get.find<CommentRepository>()), fenix: true);
+    Get.lazyPut(() => GetCommentsUseCase(Get.find<CommentRepository>()), fenix: true);
+    Get.lazyPut(() => CreateCommunityPostUseCase(Get.find<CommunityRepository>()), fenix: true);
+
+    // Topic Controllers (lazy, disposed when out of view)
+    Get.lazyPut(FollowingTopicsController.new);
+    Get.lazyPut(ExploreTopicsController.new);
+    Get.lazyPut(TopicController.new);
+    Get.lazyPut(CreateTopicController.new);
 
     // Core Feature Controllers
     if (!Get.isRegistered<UserSettingsController>()) {

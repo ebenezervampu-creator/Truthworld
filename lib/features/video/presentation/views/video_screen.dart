@@ -8,11 +8,7 @@ import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
-import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
-import 'package:truthworld/features/video/presentation/views/widgets/animated_reaction_button.dart';
-import 'package:truthworld/features/video/presentation/views/widgets/transcript_segment_tile.dart';
-import 'package:truthworld/features/video/presentation/views/widgets/video_comment_item_widget.dart';
 import 'package:truthworld/features/video/presentation/views/widgets/video_screen/video_screen_widgets.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -104,21 +100,6 @@ class VideoScreen extends GetView<VideoController> {
     return Get.put(MainController(), permanent: true);
   }
 
-  PlaylistController? get _playlistController {
-    try {
-      if (Get.isRegistered<PlaylistController>()) {
-        return Get.find<PlaylistController>();
-      }
-    } catch (e, stackTrace) {
-      ErrorHandler.log(
-        e,
-        stackTrace: stackTrace,
-        tag: 'VideoScreen.playlistControllerLookup',
-      );
-    }
-    return null;
-  }
-
   void _showSignInPrompt() {
     AppSnackbar.info(
       'Please sign in to proceed.',
@@ -129,9 +110,3 @@ class VideoScreen extends GetView<VideoController> {
   }
 }
 
-// Backward-compatible typedef aliases
-typedef _TranscriptSegmentTile = TranscriptSegmentTile;
-typedef _AnimatedReactionButton = AnimatedReactionButton;
-typedef _AnimatedReactionButtonState = AnimatedReactionButtonState;
-typedef _CommentItemWidget = CommentItemWidget;
-typedef _CommentItemWidgetState = CommentItemWidgetState;

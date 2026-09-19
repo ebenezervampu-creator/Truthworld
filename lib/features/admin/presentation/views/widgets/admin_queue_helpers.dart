@@ -8,8 +8,6 @@ import 'package:truthworld/theme/app_theme.dart';
 
 export 'package:truthworld/features/admin/presentation/views/widgets/admin_video_player.dart';
 
-typedef _MetadataRow = MetadataRow;
-
 /// Formatting helper for timestamps across admin tabs
 String formatAdminTimestamp(dynamic val) {
   if (val == null) return 'N/A';
@@ -22,9 +20,6 @@ String formatAdminTimestamp(dynamic val) {
   if (dt == null) return 'N/A';
   return DateFormat('yyyy-MM-dd HH:mm:ss').format(dt);
 }
-
-/// Backward compatibility alias
-String _formatTimestamp(dynamic val) => formatAdminTimestamp(val);
 
 /// Helper to render queue filter choice chips
 class AdminFilterChip extends StatelessWidget {

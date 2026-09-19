@@ -391,21 +391,7 @@ mixin UploadWizardMixin on UploadControllerBase {
 
   @override
   void resetUploads() {
-    videoUrl.value = '';
-    thumbnailUrl.value = '';
-    finalstatus.value = '';
-    finalstatusReason.value = '';
-    videoModerationStatus.value = 'PENDING';
-    videoModerationReason.value = '';
-    videoModerationSummary.value = '';
-    communityImageUrl.value = '';
-    communityImageStatus.value = '';
-    communityImageStatusReason.value = '';
-    videoUploadProgress.value = 0.0;
-    imageUploadProgress.value = 0.0;
-    uploadProgress.value = 0.0;
-    isCommunityPostUploading.value = false;
-    isShort.value = false;
+    // 1. Dispose external non-state resources
     videoUploadTask = null;
     currentUploadTaskVideo = null;
     currentUploadTaskCommunity = null;
@@ -413,15 +399,10 @@ mixin UploadWizardMixin on UploadControllerBase {
     communityImageModerationSubscription = null;
     thumbnailModerationSubscription?.cancel();
     thumbnailModerationSubscription = null;
-    pickedVideo.value = null;
-    pickedImage.value = null;
-    pickedCommunityImage.value = null;
     videoPlayerController?.dispose();
     videoPlayerController = null;
-    selectedPlaylist.value = '';
-    selectedTopicId.value = '';
-    newTopicData.clear();
-    isScheduled.value = false;
-    currentVideoId = null;
+
+    // 2. Atomically reset state in a single tick
+    updateState((s) => s.resetUploads());
   }
 }

@@ -96,9 +96,11 @@ class VideoPlayerStage extends StatelessWidget {
                       : 16 / 9,
                   child: ColoredBox(
                     color: Colors.black,
-                    child: VideoPlayerView(
-                      controller: controller,
-                      videoTag: videoTag,
+                    child: ClipRect(
+                      child: VideoPlayerView(
+                        controller: controller,
+                        videoTag: videoTag,
+                      ),
                     ),
                   ),
                 ),
@@ -261,14 +263,14 @@ class VideoPlayerView extends StatelessWidget {
                               children: [
                                 const Icon(
                                   Icons.verified_rounded,
-                                  color: Colors.white,
+                                  color: Colors.black,
                                   size: 10,
                                 ),
                                 const SizedBox(width: 3),
                                 Text(
                                   'TRUTHWORLD WATERMARK',
                                   style: GoogleFonts.roboto(
-                                    color: Colors.white,
+                                    color: Colors.black,
                                     fontSize: 8,
                                     fontWeight: FontWeight.w900,
                                     letterSpacing: 0.5,
@@ -302,7 +304,7 @@ class VideoPlayerView extends StatelessWidget {
                         child: Text(
                           'WATCH FULL',
                           style: GoogleFonts.roboto(
-                            color: Colors.white,
+                            color: Colors.black,
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
                           ),

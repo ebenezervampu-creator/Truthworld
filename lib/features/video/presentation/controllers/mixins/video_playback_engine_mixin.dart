@@ -11,6 +11,7 @@ import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
@@ -235,23 +236,14 @@ mixin VideoPlaybackEngineMixin on GetxController {
             await newVpc.seekTo(Duration(seconds: lastPos));
 
             // Show resume snackbar
-            Get.snackbar(
-              'Resuming Video',
+            AppSnackbar.info(
               'Resumed from ${Duration(seconds: lastPos).toString().split('.').first.padLeft(8, '0').substring(3)}',
-              snackPosition: SnackPosition.BOTTOM,
-              mainButton: TextButton(
-                onPressed: () {
-                  newVpc.seekTo(Duration.zero);
-                  Get.back();
-                },
-                child: const Text(
-                  'Start Over',
-                  style: TextStyle(color: AppColors.error),
-                ),
-              ),
+              title: 'Resuming Video',
+              actionLabel: 'Start Over',
+              onAction: () {
+                newVpc.seekTo(Duration.zero);
+              },
               duration: const Duration(seconds: 5),
-              backgroundColor: AppColors.bgPage.withValues(alpha: 0.7),
-              colorText: AppColors.textPrimary,
             );
           }
         }
@@ -357,7 +349,7 @@ mixin VideoPlaybackEngineMixin on GetxController {
                 const SizedBox(height: 16),
                 ElevatedButton.icon(
                   onPressed: initializeVideoPlayer,
-                  icon: const Icon(Icons.refresh, color: Colors.white),
+                  icon: const Icon(Icons.refresh, color: Colors.black),
                   label: const Text('Retry'),
                 ),
               ],

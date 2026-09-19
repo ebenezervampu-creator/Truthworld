@@ -72,9 +72,11 @@ class MembersListTab extends StatelessWidget {
                   dropdownColor: isDarkMode
                       ? AppColors.bgSurfaceHigh
                       : Colors.white,
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.arrow_drop_down,
-                    color: AppColors.textPrimary,
+                    color: isDarkMode
+                        ? AppColors.textPrimary
+                        : Colors.black87,
                   ),
                   items: [
                     DropdownMenuItem(
@@ -260,10 +262,10 @@ class EmptyMembersView extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const Icon(
+          Icon(
             Icons.people_outline_rounded,
             size: 44,
-            color: Colors.white,
+            color: isDarkMode ? Colors.white : Colors.black87,
           ),
           const SizedBox(height: 12),
           Text(

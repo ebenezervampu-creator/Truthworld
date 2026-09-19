@@ -1,8 +1,8 @@
 import 'package:truthworld/core/network/result.dart';
-import 'package:truthworld/data/models/notification_model.dart';
+import 'package:truthworld/domain/entities/notification_entity.dart';
 
 abstract class NotificationRepository {
-  Future<Result<List<NotificationModel>>> getNotifications(
+  Future<Result<List<NotificationEntity>>> getNotifications(
     String userId, {
     int limit = 20,
     dynamic cursor,

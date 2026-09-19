@@ -1,13 +1,20 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/cashfree_service.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
+import 'package:truthworld/core/services/user_wallet_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/features/video/data/services/comment_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
+import 'package:truthworld/features/wallet/data/models/user_wallet_transaction.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class PremiumCommentInputController extends BaseController {
@@ -44,11 +51,15 @@ class PremiumCommentInput extends StatelessWidget {
     super.key,
     this.isReply = false,
     this.onCancel,
+    this.channelId,
+    this.videoTitle,
   });
   final String videoId;
   final bool isReply;
   final Function(String text, bool postAsChannel, String? channelId) onSubmit;
   final VoidCallback? onCancel;
+  final String? channelId;
+  final String? videoTitle;
 
   @override
   Widget build(BuildContext context) {
@@ -198,8 +209,13 @@ class PremiumCommentInput extends StatelessWidget {
                           const SizedBox(width: 8),
                           if (!isReply) ...[
                             IconButton(
-                              onPressed: () =>
-                                  _showSuperThanksModal(context, videoId),
+                              onPressed: () => showSuperThanksModal(
+                                context,
+                                videoId: videoId,
+                                channelId: channelId,
+                                videoTitle: videoTitle,
+                                onSubmit: onSubmit,
+                              ),
                               icon: Container(
                                 padding: const EdgeInsets.all(6),
                                 decoration: BoxDecoration(
@@ -336,7 +352,13 @@ class PremiumCommentInput extends StatelessWidget {
     );
   }
 
-  void _showSuperThanksModal(BuildContext context, String videoId) {
+  static void showSuperThanksModal(
+    BuildContext context, {
+    required String videoId,
+    String? channelId,
+    String? videoTitle,
+    Function(String text, bool postAsChannel, String? channelId)? onSubmit,
+  }) {
     if (!AuthService.to.isAuthenticated.value) {
       AppSnackbar.warning(
         'Please sign in to send Super Thanks.',
@@ -347,11 +369,26 @@ class PremiumCommentInput extends StatelessWidget {
       return;
     }
 
-    final messageController = TextEditingController();
-    final selectedTierIndex = 1.obs; // Default $5.00
-    final isSubmitting = false.obs;
+    if (Get.isRegistered<CurrencyLocalizationService>()) {
+      CurrencyLocalizationService.to.fetchRealtimeRate();
+    }
 
-    final tiers = [
+    final isIndian = !Get.isRegistered<CurrencyLocalizationService>() ||
+        CurrencyLocalizationService.to.isIndianUser;
+    final rate = Get.isRegistered<CurrencyLocalizationService>()
+        ? CurrencyLocalizationService.to.rate
+        : CurrencyLocalizationService.defaultRate;
+
+    final inrTiers = [
+      {'amount': 40.0, 'color': '0xFF00B8D4', 'label': '₹40'},
+      {'amount': 100.0, 'color': '0xFF1E88E5', 'label': '₹100'},
+      {'amount': 200.0, 'color': '0xFF00C853', 'label': '₹200'},
+      {'amount': 500.0, 'color': '0xFFFFD600', 'label': '₹500'},
+      {'amount': 1000.0, 'color': '0xFFFF6D00', 'label': '₹1,000'},
+      {'amount': 2000.0, 'color': '0xFFD50000', 'label': '₹2,000'},
+    ];
+
+    final usdTiers = [
       {'amount': 2.0, 'color': '0xFF00B8D4', 'label': r'$2.00'},
       {'amount': 5.0, 'color': '0xFF1E88E5', 'label': r'$5.00'},
       {'amount': 10.0, 'color': '0xFF00C853', 'label': r'$10.00'},
@@ -359,6 +396,12 @@ class PremiumCommentInput extends StatelessWidget {
       {'amount': 50.0, 'color': '0xFFFF6D00', 'label': r'$50.00'},
       {'amount': 100.0, 'color': '0xFFD50000', 'label': r'$100.00'},
     ];
+
+    final tiers = isIndian ? inrTiers : usdTiers;
+    final selectedTierIndex = 1.obs; // Default 2nd tier
+    final messageController = TextEditingController();
+    final isSubmitting = false.obs;
+    final paymentMethod = 'cashfree'.obs;
 
     showModalBottomSheet<void>(
       context: context,
@@ -381,7 +424,21 @@ class PremiumCommentInput extends StatelessWidget {
                   int.parse(currentTier['color']! as String),
                 );
                 final amountStr = currentTier['label']! as String;
-                final amountVal = (currentTier['amount'] as num?)?.toDouble() ?? 0.0;
+                final amountVal =
+                    (currentTier['amount'] as num?)?.toDouble() ?? 0.0;
+                final amountINR = isIndian
+                    ? amountVal
+                    : double.parse((amountVal * rate).toStringAsFixed(2));
+
+                final walletService = Get.isRegistered<UserWalletService>()
+                    ? UserWalletService.to
+                    : null;
+                final userBal = walletService?.balance ?? 0.0;
+                final canPayWithWallet = userBal >= amountINR && amountINR > 0;
+
+                final isLightColor = tierColor.computeLuminance() > 0.45;
+                final buttonTextColor =
+                    isLightColor ? Colors.black : Colors.white;
 
                 return Column(
                   mainAxisSize: MainAxisSize.min,
@@ -409,9 +466,9 @@ class PremiumCommentInput extends StatelessWidget {
                             color: tierColor.withValues(alpha: 0.2),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(
-                            Icons.attach_money,
-                            color: Colors.white,
+                          child: Icon(
+                            Icons.favorite,
+                            color: tierColor,
                             size: 24,
                           ),
                         ),
@@ -466,6 +523,8 @@ class PremiumCommentInput extends StatelessWidget {
                           final itemColor = Color(
                             int.parse(item['color']! as String),
                           );
+                          final isItemLight =
+                              itemColor.computeLuminance() > 0.45;
                           return Padding(
                             padding: const EdgeInsets.only(right: 8),
                             child: ChoiceChip(
@@ -473,7 +532,9 @@ class PremiumCommentInput extends StatelessWidget {
                                 item['label']! as String,
                                 style: TextStyle(
                                   color: isSelected
-                                      ? Colors.white
+                                      ? (isItemLight
+                                          ? Colors.black
+                                          : Colors.white)
                                       : AppColors.textPrimary,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -488,7 +549,17 @@ class PremiumCommentInput extends StatelessWidget {
                         }),
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 6),
+                    Text(
+                      isIndian
+                          ? 'Equivalent to ~ \$${(amountVal / rate).toStringAsFixed(2)} USD (Live forex: ₹${rate.toStringAsFixed(2)} / \$1 USD)'
+                          : 'Billed via Cashfree PG as ₹${amountINR.toStringAsFixed(2)} INR (Live forex: ₹${rate.toStringAsFixed(2)} / \$1 USD)',
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
 
                     // YouTube-Style Donated Comment Preview Box
                     Container(
@@ -513,14 +584,14 @@ class PremiumCommentInput extends StatelessWidget {
                                   photoUrl: AuthService.to.activePhotoUrl,
                                   displayName: AuthService.to.activeDisplayName,
                                   radius: 16,
-                                  textColor: Colors.white,
+                                  textColor: buttonTextColor,
                                 ),
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Text(
                                     AuthService.to.activeDisplayName,
-                                    style: const TextStyle(
-                                      color: Colors.white,
+                                    style: TextStyle(
+                                      color: buttonTextColor,
                                       fontWeight: FontWeight.bold,
                                       fontSize: 14,
                                     ),
@@ -566,7 +637,8 @@ class PremiumCommentInput extends StatelessWidget {
                               controller: messageController,
                               maxLines: 3,
                               minLines: 2,
-                              inputFormatters: TruthworldTextInputFormatters.standard,
+                              inputFormatters:
+                                  TruthworldTextInputFormatters.standard,
                               style: const TextStyle(
                                 color: AppColors.textPrimary,
                                 fontSize: 14,
@@ -583,7 +655,65 @@ class PremiumCommentInput extends StatelessWidget {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
+
+                    // Payment Method Options (if user has wallet balance)
+                    if (canPayWithWallet) ...[
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ChoiceChip(
+                              label: const Center(
+                                child: Text(
+                                  'Cashfree PG',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              selected: paymentMethod.value == 'cashfree',
+                              selectedColor: AppColors.info,
+                              backgroundColor: AppColors.bgInput,
+                              labelStyle: TextStyle(
+                                color: paymentMethod.value == 'cashfree'
+                                    ? Colors.white
+                                    : AppColors.textPrimary,
+                              ),
+                              onSelected: (val) {
+                                if (val) paymentMethod.value = 'cashfree';
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ChoiceChip(
+                              label: Center(
+                                child: Text(
+                                  'Wallet (₹${userBal.toStringAsFixed(0)})',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              selected: paymentMethod.value == 'wallet',
+                              selectedColor: const Color(0xFF00C853),
+                              backgroundColor: AppColors.bgInput,
+                              labelStyle: TextStyle(
+                                color: paymentMethod.value == 'wallet'
+                                    ? Colors.white
+                                    : AppColors.textPrimary,
+                              ),
+                              onSelected: (val) {
+                                if (val) paymentMethod.value = 'wallet';
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                    ],
 
                     // Submit Button
                     SizedBox(
@@ -591,7 +721,7 @@ class PremiumCommentInput extends StatelessWidget {
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: tierColor,
-                          foregroundColor: Colors.white,
+                          foregroundColor: buttonTextColor,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -617,46 +747,228 @@ class PremiumCommentInput extends StatelessWidget {
                                   return;
                                 }
 
+                                if (amountINR < 1.0) {
+                                  AppSnackbar.warning(
+                                    'Minimum transaction amount is ₹1.00.',
+                                  );
+                                  return;
+                                }
+
                                 isSubmitting.value = true;
                                 try {
-                                  if (Get.isRegistered<CommentsController>()) {
-                                    final commentsCtrl =
+                                  final cleanText =
+                                      ContentValidator.cleanProfanity(text);
+
+                                  // Resolve target CommentsController and channel info
+                                  CommentsController? commentsCtrl;
+                                  final tag = 'comments_$videoId';
+                                  if (Get.isRegistered<CommentsController>(
+                                      tag: tag)) {
+                                    commentsCtrl =
+                                        Get.find<CommentsController>(tag: tag);
+                                  } else if (Get.isRegistered<
+                                      CommentsController>()) {
+                                    commentsCtrl =
                                         Get.find<CommentsController>();
-                                    await commentsCtrl.submitComment(
-                                      text: text,
-                                      donationAmount: amountVal,
-                                      isDonatedComment: true,
-                                      donationColorHex:
-                                          currentTier['color']! as String,
-                                    );
-                                  } else {
-                                    await onSubmit(text, false, null);
                                   }
 
-                                  if (!context.mounted) return;
-                                  Navigator.pop(context);
-                                  HapticFeedback.heavyImpact();
-                                  AppSnackbar.success(
-                                    'Thank you for supporting the creator with $amountStr! 🎉',
+                                  final effectiveChannelId = channelId ??
+                                      commentsCtrl?.video?.channelId ??
+                                      '';
+                                  final effectiveVideoTitle = videoTitle ??
+                                      commentsCtrl?.video?.title ??
+                                      'Video';
+
+                                  var paymentSucceeded = false;
+                                  var transactionOrderId = '';
+
+                                  if (paymentMethod.value == 'wallet' &&
+                                      Get.isRegistered<UserWalletService>() &&
+                                      UserWalletService.to
+                                          .canAfford(amountINR)) {
+                                    final tx = await UserWalletService.to
+                                        .spendWallet(
+                                      amountINR: amountINR,
+                                      category: UserWalletTransactionCategory
+                                          .superchat,
+                                      description:
+                                          'Super Thanks on $effectiveVideoTitle ($amountStr)',
+                                      metadata: {
+                                        'videoId': videoId,
+                                        'channelId': effectiveChannelId,
+                                        'type': 'super_thanks',
+                                        'originalAmount': amountVal,
+                                        'originalCurrency':
+                                            isIndian ? 'INR' : 'USD',
+                                      },
+                                    );
+                                    if (tx != null) {
+                                      paymentSucceeded = true;
+                                      transactionOrderId = tx.id;
+                                    } else {
+                                      AppSnackbar.error(
+                                        'Wallet payment could not be completed.',
+                                      );
+                                      return;
+                                    }
+                                  } else {
+                                    final orderNote = isIndian
+                                        ? 'Super Thanks on $effectiveVideoTitle ($amountStr)'
+                                        : 'Super Thanks on $effectiveVideoTitle ($amountStr ~ ₹${amountINR.toStringAsFixed(2)} INR)';
+
+                                    final paymentResult =
+                                        await CashfreePaymentService.to
+                                            .startPayment(
+                                      amount: amountINR,
+                                      purpose: 'super_thanks',
+                                      orderNote: orderNote,
+                                      metadata: {
+                                        'channelId': effectiveChannelId,
+                                        'videoId': videoId,
+                                        'text': cleanText,
+                                        'userName':
+                                            AuthService.to.activeDisplayName,
+                                        'userProfilePicUrl':
+                                            AuthService.to.activePhotoUrl,
+                                        'tierColor':
+                                            currentTier['color']! as String,
+                                        'originalAmount': amountVal,
+                                        'originalCurrency':
+                                            isIndian ? 'INR' : 'USD',
+                                      },
+                                    );
+
+                                    if (paymentResult.success) {
+                                      paymentSucceeded = true;
+                                      transactionOrderId =
+                                          paymentResult.orderId;
+                                    } else {
+                                      if (paymentResult.errorMessage != null &&
+                                          !paymentResult.errorMessage!
+                                              .toLowerCase()
+                                              .contains('cancel')) {
+                                        AppSnackbar.error(
+                                            paymentResult.errorMessage!);
+                                      }
+                                      return;
+                                    }
+                                  }
+
+                                  if (paymentSucceeded) {
+                                    final currencySymbol =
+                                        isIndian ? '₹' : r'$';
+                                    if (commentsCtrl != null) {
+                                      await commentsCtrl.submitComment(
+                                        text: cleanText,
+                                        donationAmount: amountVal,
+                                        donationCurrency: currencySymbol,
+                                        isDonatedComment: true,
+                                        donationColorHex:
+                                            currentTier['color']! as String,
+                                      );
+                                    } else if (onSubmit != null) {
+                                      await onSubmit(cleanText, false, null);
+                                    } else {
+                                      final authService = AuthService.to;
+                                      final hasChannel =
+                                          authService.hasChannel.value &&
+                                              authService.userChannel != null;
+                                      final commentService = CommentService();
+                                      await commentService.addComment(
+                                        videoId: videoId,
+                                        userId: authService.uid,
+                                        userName: authService.activeDisplayName,
+                                        userProfilePicUrl:
+                                            authService.activePhotoUrl,
+                                        channelId: hasChannel
+                                            ? authService.userChannel!.id
+                                            : authService.uid,
+                                        channelName: hasChannel
+                                            ? (authService.userChannel?.handle
+                                                        .isNotEmpty ==
+                                                    true
+                                                ? authService
+                                                    .userChannel!.handle
+                                                : authService
+                                                    .userChannel!.name)
+                                            : authService.activeDisplayName,
+                                        channelProfilePicUrl:
+                                            authService.activePhotoUrl,
+                                        text: cleanText,
+                                        donationAmount: amountVal,
+                                        donationCurrency: currencySymbol,
+                                        isDonatedComment: true,
+                                        donationColorHex:
+                                            currentTier['color']! as String,
+                                      );
+                                    }
+
+                                    if (effectiveChannelId.isNotEmpty) {
+                                      try {
+                                        await FirebaseFirestore.instance
+                                            .collection(
+                                                FirestoreCollections.channels)
+                                            .doc(effectiveChannelId)
+                                            .collection('donations')
+                                            .doc(transactionOrderId.isNotEmpty
+                                                ? transactionOrderId
+                                                : null)
+                                            .set({
+                                          'amount': amountINR,
+                                          'currency': isIndian ? 'INR' : 'USD',
+                                          'originalAmount': amountVal,
+                                          'donorId': AuthService.to.uid,
+                                          'donorName':
+                                              AuthService.to.activeDisplayName,
+                                          'videoId': videoId,
+                                          'text': cleanText,
+                                          'donatedAt':
+                                              FieldValue.serverTimestamp(),
+                                          'type': 'super_thanks',
+                                          'status': 'completed',
+                                        }, SetOptions(merge: true));
+                                      } catch (e, stackTrace) {
+                                        ErrorHandler.log(
+                                          e,
+                                          stackTrace: stackTrace,
+                                          tag: 'PremiumCommentInput.recordDonationFallback',
+                                        );
+                                      }
+                                    }
+
+                                    if (!context.mounted) return;
+                                    Navigator.pop(context);
+                                    HapticFeedback.heavyImpact();
+                                    AppSnackbar.success(
+                                      'Thank you for supporting the creator with $amountStr! 🎉',
+                                      title: 'Super Thanks Sent!',
+                                    );
+                                  }
+                                } catch (e, stackTrace) {
+                                  ErrorHandler.log(
+                                    e,
+                                    stackTrace: stackTrace,
+                                    tag: 'PremiumCommentInput.submitSuperThanks',
                                   );
-                                } catch (e) {
-                                  ErrorHandler.log(e);
                                   AppSnackbar.error(
-                                    'Unable to send Super Thanks. Please try again.',
+                                    'Unable to complete Super Thanks payment. Please try again.',
                                   );
                                 } finally {
                                   isSubmitting.value = false;
                                 }
                               },
-                        icon: const Icon(
-                          Icons.attach_money,
-                          color: Colors.white,
+                        icon: Icon(
+                          Icons.favorite,
+                          color: buttonTextColor,
                         ),
                         label: Text(
-                          'Buy & Send Super Thanks ($amountStr)',
-                          style: const TextStyle(
+                          paymentMethod.value == 'wallet'
+                              ? 'Send Super Thanks ($amountStr)'
+                              : 'Buy & Send Super Thanks ($amountStr)',
+                          style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 15,
+                            color: buttonTextColor,
                           ),
                         ),
                       ),

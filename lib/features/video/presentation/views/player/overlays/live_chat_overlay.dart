@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/live_chat_message.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -534,10 +535,10 @@ class LiveChatOverlay extends StatelessWidget {
     });
   }
 
-  void _showSuperchatDialog(
+  Future<void> _showSuperchatDialog(
     BuildContext context,
     LiveChatController controller,
-  ) {
+  ) async {
     if (!AuthService.to.isAuthenticated.value) {
       AppSnackbar.info(
         'Please sign in to send a Superchat.',
@@ -548,7 +549,14 @@ class LiveChatOverlay extends StatelessWidget {
       return;
     }
 
-    final amountController = TextEditingController(text: '5');
+    await CurrencyLocalizationService.to.fetchRealtimeRate();
+    final isIndian = !Get.isRegistered<CurrencyLocalizationService>() ||
+        CurrencyLocalizationService.to.isIndianUser;
+    final rate = Get.isRegistered<CurrencyLocalizationService>()
+        ? CurrencyLocalizationService.to.rate
+        : CurrencyLocalizationService.defaultRate;
+    final currencySymbol = isIndian ? '₹' : r'$';
+    final amountController = TextEditingController(text: isIndian ? '20' : '1');
     final messageController = TextEditingController();
 
     Get.bottomSheet(
@@ -580,14 +588,18 @@ class LiveChatOverlay extends StatelessWidget {
               controller: amountController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               style: const TextStyle(color: Colors.white, fontSize: 16),
-              decoration: const InputDecoration(
-                prefixText: '₹ ',
-                prefixStyle: TextStyle(color: Colors.white, fontSize: 16),
-                labelText: 'Amount (INR)',
-                labelStyle: TextStyle(color: AppColors.textSecondary),
+              decoration: InputDecoration(
+                prefixText: '$currencySymbol ',
+                prefixStyle: const TextStyle(color: Colors.white, fontSize: 16),
+                labelText: isIndian ? 'Amount (INR)' : 'Amount (USD)',
+                helperText: isIndian
+                    ? 'Direct creator tip in Indian Rupees (INR)'
+                    : 'Equivalent to ₹${rate.toStringAsFixed(2)} INR creator support per \$1 USD (Live)',
+                helperStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                labelStyle: const TextStyle(color: AppColors.textSecondary),
                 filled: true,
                 fillColor: AppColors.bgPage,
-                border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
+                border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
               ),
             ),
             const SizedBox(height: 12),
@@ -614,13 +626,24 @@ class LiveChatOverlay extends StatelessWidget {
                 ),
                 onPressed: () {
                   final amount = double.tryParse(amountController.text) ?? 0.0;
-                  if (amount > 0) {
-                    Get.back();
-                    controller.sendSuperchatWithCashfree(
-                      amountINR: amount,
-                      text: messageController.text.trim(),
-                    );
+                  if (amount <= 0) {
+                    AppSnackbar.warning('Please enter an amount to send Super Chat.');
+                    return;
                   }
+                  final amountINR = isIndian ? amount : (amount * rate);
+                  if (amountINR < 1.0) {
+                    AppSnackbar.warning(
+                      'Minimum Super Chat amount is ₹1.00 (${CurrencyLocalizationService.to.formatForUser(price: 1.0, itemCurrency: "INR")}).',
+                    );
+                    return;
+                  }
+                  Get.back();
+                  controller.sendSuperchatWithCashfree(
+                    amountINR: amountINR,
+                    text: messageController.text.trim(),
+                    originalAmount: isIndian ? null : amount,
+                    originalCurrency: isIndian ? 'INR' : 'USD',
+                  );
                 },
                 child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,

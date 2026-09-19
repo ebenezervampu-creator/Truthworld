@@ -6,7 +6,7 @@ import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/customization_controller.dart';
 import 'package:truthworld/theme/app_colors.dart';
 
-class ChannelCustomizationPage extends StatefulWidget {
+class ChannelCustomizationPage extends StatelessWidget {
   const ChannelCustomizationPage({
     required this.channelId,
     required this.ownerId,
@@ -16,34 +16,21 @@ class ChannelCustomizationPage extends StatefulWidget {
   final String ownerId;
 
   @override
-  State<ChannelCustomizationPage> createState() =>
-      _ChannelCustomizationPageState();
-}
-
-class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-  final _formKey = GlobalKey<FormState>();
-  late CustomizationController controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 4, vsync: this);
-    controller = Get.put(
-      CustomizationController(
-        channelId: widget.channelId,
-        ownerId: widget.ownerId,
+  Widget build(BuildContext context) {
+    return GetBuilder<CustomizationController>(
+      init: CustomizationController(
+        channelId: channelId,
+        ownerId: ownerId,
       ),
-      tag: widget.channelId,
+      tag: channelId,
+      builder: (controller) => _CustomizationView(controller: controller),
     );
   }
+}
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
+class _CustomizationView extends StatelessWidget {
+  const _CustomizationView({required this.controller});
+  final CustomizationController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -62,7 +49,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
         ),
         iconTheme: const IconThemeData(color: AppColors.textPrimary),
         bottom: TabBar(
-          controller: _tabController,
+          controller: controller.tabController,
           indicatorColor: AppColors.brand,
           indicatorWeight: 3,
           labelColor: AppColors.brand,
@@ -97,7 +84,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
                 padding: const EdgeInsets.only(right: 12),
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    if (_formKey.currentState!.validate()) {
+                    if (controller.formKey.currentState!.validate()) {
                       controller.saveChanges();
                     }
                   },
@@ -111,11 +98,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
                       vertical: 8,
                     ),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    textStyle: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
+                      borderRadius: BorderRadius.circular(20),
                     ),
                   ),
                 ),
@@ -133,13 +116,13 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
           );
         } else {
           return Form(
-            key: _formKey,
+            key: controller.formKey,
             child: Column(
               children: [
                 _buildModerationBanner(),
                 Expanded(
                   child: TabBarView(
-                    controller: _tabController,
+                    controller: controller.tabController,
                     children: [
                       _buildBrandingTab(),
                       _buildBasicInfoTab(),

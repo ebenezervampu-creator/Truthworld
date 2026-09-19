@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/features/premium/presentation/controllers/premium_controller.dart';
 import 'package:truthworld/features/premium/presentation/views/plans/premium_checkout_action_bar.dart';
 import 'package:truthworld/features/premium/presentation/views/plans/premium_constants.dart';
@@ -34,12 +35,20 @@ class PremiumPlanCard extends StatelessWidget {
     final isCurrent = ctrl.isCurrentPlan(plan.id);
     final isUpgrading = ctrl.isUpgrade(plan.id);
     final isLower = ctrl.isLowerTier(plan.id);
+    final isIndian = !Get.isRegistered<CurrencyLocalizationService>() ||
+        CurrencyLocalizationService.to.isIndianUser;
     final effectivePrice = ctrl.getEffectivePrice(plan.id);
     final credit = ctrl.getCreditApplied(plan.id);
+    final effectivePriceUSD = ctrl.getEffectivePriceUSD(plan.id);
+    final creditUSD = ctrl.getCreditAppliedUSD(plan.id);
 
     var priceDisplay = plan.priceLabel.contains('/')
         ? plan.priceLabel.split('/')[0]
         : plan.priceLabel;
+    if (!isIndian) {
+      final usdPrice = ctrl.getPriceUSDForPlan(plan.id);
+      priceDisplay = '\$${usdPrice.toStringAsFixed(usdPrice == 0.50 ? 2 : 0)}';
+    }
     String? originalPrice;
     String? upgradeBadgeText;
 
@@ -49,13 +58,20 @@ class PremiumPlanCard extends StatelessWidget {
       priceDisplay = 'Included';
     } else if (isUpgrading) {
       originalPrice = priceDisplay;
-      priceDisplay = '₹${effectivePrice.toInt()}';
-      if (credit == 40.0) {
-        upgradeBadgeText = r'Save ₹40 ($2 - 40 rupees)';
-      } else if (credit >= 160.0) {
-        upgradeBadgeText = r'Save $2 ($3 - $2)';
+      if (isIndian) {
+        priceDisplay = '₹${effectivePrice.toInt()}';
+        if (credit == 40.0) {
+          upgradeBadgeText = r'Save ₹40 ($2 - 40 rupees)';
+        } else if (credit >= 160.0) {
+          upgradeBadgeText = r'Save $2 ($3 - $2)';
+        } else {
+          upgradeBadgeText = 'Save ₹${credit.toInt()}';
+        }
       } else {
-        upgradeBadgeText = 'Save ₹${credit.toInt()}';
+        priceDisplay =
+            '\$${effectivePriceUSD.toStringAsFixed(effectivePriceUSD == 0.50 || effectivePriceUSD == 1.50 || effectivePriceUSD == 2.50 ? 2 : 0)}';
+        upgradeBadgeText =
+            'Save \$${creditUSD.toStringAsFixed(creditUSD == 0.50 ? 2 : 0)}';
       }
     }
 
@@ -174,14 +190,23 @@ class PremiumPlanCard extends StatelessWidget {
                               ),
                             ],
                           ),
-                          if (plan.priceLabel.contains('/') && !isCurrent && !isLower)
-                            Text(
-                              '/${plan.priceLabel.split('/')[1]}',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: secondaryText,
-                              ),
+                          if (plan.priceLabel.contains('/') && !isCurrent && !isLower) ...[
+                            Builder(
+                              builder: (context) {
+                                var period = plan.priceLabel.split('/')[1];
+                                if (!isIndian && period.contains('(')) {
+                                  period = period.split('(')[0].trim();
+                                }
+                                return Text(
+                                  '/$period',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: secondaryText,
+                                  ),
+                                );
+                              },
                             ),
+                          ],
                         ],
                       ),
                     ],

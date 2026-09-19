@@ -22,9 +22,11 @@ mixin UploadQuotaMixin on UploadControllerBase {
         remainingDailyDurationSeconds.value,
       );
 
-  /// Progress ratio (0.0 to 1.0) of today's 20-minute daily limit used
-  double get dailyQuotaUsedRatio =>
-      (todayUploadedDurationSeconds.value / 1200.0).clamp(0.0, 1.0);
+  /// Progress ratio (0.0 to 1.0) of today's 10-minute daily limit used
+  double get dailyQuotaUsedRatio {
+    final limit = selectedChannel.value?.maxDailyVideoDurationSeconds.toDouble() ?? 600.0;
+    return (todayUploadedDurationSeconds.value / limit).clamp(0.0, 1.0);
+  }
 
   /// Fetches the total duration in seconds of videos uploaded today by the given channel
   @override
@@ -106,29 +108,37 @@ mixin UploadQuotaMixin on UploadControllerBase {
     if (channel == null) return;
 
     if (channel.channelType != ChannelType.standard) {
-      todayUploadedDurationSeconds.value = 0;
-      remainingDailyDurationSeconds.value = 86400; // 24 hours
-      isDailyLimitReached.value = false;
+      updateState((s) => s.copyWith(
+            todayUploadedDurationSeconds: 0,
+            remainingDailyDurationSeconds: 86400, // 24 hours
+            isDailyLimitReached: false,
+          ));
       return;
     }
 
     try {
-      isQuotaLoading.value = true;
+      updateState((s) => s.copyWith(isQuotaLoading: true));
       final usedSeconds = await getTodayUploadedDurationSeconds(channel.id);
-      todayUploadedDurationSeconds.value = usedSeconds;
-      remainingDailyDurationSeconds.value =
-          (1200 - usedSeconds).clamp(0, 1200);
-      isDailyLimitReached.value = usedSeconds >= 1200;
+      final maxDaily = channel.maxDailyVideoDurationSeconds;
+      final remaining = (maxDaily - usedSeconds).clamp(0, maxDaily);
+      final limitReached = usedSeconds >= maxDaily;
+      updateState((s) => s.copyWith(
+            isQuotaLoading: false,
+            todayUploadedDurationSeconds: usedSeconds,
+            remainingDailyDurationSeconds: remaining,
+            isDailyLimitReached: limitReached,
+          ));
       debugPrint(
-        '📊 [UploadController] Daily quota for ${channel.channelName}: ${usedSeconds}s / 1200s used (${remainingDailyDurationSeconds.value}s remaining)',
+        '📊 [UploadController] Daily quota for ${channel.channelName}: ${usedSeconds}s / ${maxDaily}s used (${remaining}s remaining)',
       );
-    } finally {
-      isQuotaLoading.value = false;
+    } catch (e) {
+      updateState((s) => s.copyWith(isQuotaLoading: false));
+      rethrow;
     }
   }
 
   void selectChannel(Channel channel) {
-    selectedChannel.value = channel;
+    updateState((s) => s.copyWith(selectedChannel: channel));
     refreshDailyUploadQuota();
   }
 

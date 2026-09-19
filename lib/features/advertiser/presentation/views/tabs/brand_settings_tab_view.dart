@@ -237,7 +237,7 @@ class BrandSettingsTabView extends StatelessWidget {
                   category: cat,
                 );
               },
-              icon: const Icon(Icons.save_rounded, color: Colors.white, size: 16),
+              icon: const Icon(Icons.save_rounded, color: Colors.black, size: 16),
               label: const Text(
                 'Save Profile Changes',
                 style: TextStyle(

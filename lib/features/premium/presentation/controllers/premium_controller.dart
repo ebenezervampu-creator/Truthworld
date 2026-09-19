@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
@@ -6,6 +7,7 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/cashfree_service.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 
 class PremiumController extends BaseController {
@@ -19,6 +21,14 @@ class PremiumController extends BaseController {
     '4k_factchecked_monthly': 249.0,
     'family_monthly': 399.0,
     'individual_yearly': 1490.0,
+  };
+
+  static const Map<String, double> planPricesUSD = {
+    'audio_monthly': 0.50,
+    'individual_monthly': 2.0,
+    '4k_factchecked_monthly': 3.0,
+    'family_monthly': 4.99,
+    'individual_yearly': 17.99,
   };
 
   static const Map<String, String> planTitles = {
@@ -52,6 +62,10 @@ class PremiumController extends BaseController {
 
   double getPriceForPlan(String planId) {
     return planPricesINR[planId] ?? 169.0;
+  }
+
+  double getPriceUSDForPlan(String planId) {
+    return planPricesUSD[planId] ?? 2.0;
   }
 
   /// Checks if the target plan is an upgrade relative to user's currently active plan
@@ -89,7 +103,7 @@ class PremiumController extends BaseController {
     return targetPrice < currentPrice;
   }
 
-  /// Calculates the effective payable price.
+  /// Calculates the effective payable price in INR.
   /// If upgrading: target base price MINUS amount already paid for current active tier.
   /// - Audio Premium (₹40) -> $2 Premium (₹169): 169 - 40 = ₹129 ($2 - 40 rupees)
   /// - Audio Premium (₹40) -> $3 Fact-Checked (₹249): 249 - 40 = ₹209 ($3 - 40 rupees)
@@ -109,13 +123,51 @@ class PremiumController extends BaseController {
     return upgradeCost > 0 ? upgradeCost : 0.0;
   }
 
-  /// Amount of credit deducted from existing subscription
+  /// Calculates the effective payable price in USD for non-Indian viewers.
+  double getEffectivePriceUSD(String targetPlanId) {
+    final basePrice = getPriceUSDForPlan(targetPlanId);
+    if (!isUpgrade(targetPlanId)) {
+      return basePrice;
+    }
+
+    final auth = AuthService.to;
+    final currentPlanId = auth.premiumPlanId.value;
+    if (currentPlanId == null) return basePrice;
+
+    final currentPrice = getPriceUSDForPlan(currentPlanId);
+    final upgradeCost = basePrice - currentPrice;
+    return upgradeCost > 0 ? upgradeCost : 0.0;
+  }
+
+  /// Amount of credit deducted from existing subscription (INR)
   double getCreditApplied(String targetPlanId) {
     if (!isUpgrade(targetPlanId)) return 0.0;
     final auth = AuthService.to;
     final currentPlanId = auth.premiumPlanId.value;
     if (currentPlanId == null) return 0.0;
     return getPriceForPlan(currentPlanId);
+  }
+
+  /// Amount of credit deducted from existing subscription (USD)
+  double getCreditAppliedUSD(String targetPlanId) {
+    if (!isUpgrade(targetPlanId)) return 0.0;
+    final auth = AuthService.to;
+    final currentPlanId = auth.premiumPlanId.value;
+    if (currentPlanId == null) return 0.0;
+    return getPriceUSDForPlan(currentPlanId);
+  }
+
+  /// Formatted localized plan price string
+  String getFormattedPrice(String planId) {
+    final isIndian = !Get.isRegistered<CurrencyLocalizationService>() ||
+        CurrencyLocalizationService.to.isIndianUser;
+    if (isIndian) {
+      final price = planPricesINR[planId] ?? 169.0;
+      return '₹${price.toInt()}';
+    } else {
+      final price = planPricesUSD[planId] ?? 2.0;
+      return '\$${price.toStringAsFixed(price == 0.50 ? 2 : 0)}';
+    }
   }
 
   /// Initiates authentic Cashfree payment for the chosen subscription tier or upgrade
@@ -137,17 +189,26 @@ class PremiumController extends BaseController {
     try {
       rxIsLoading.value = true;
 
+      final isIndian = !Get.isRegistered<CurrencyLocalizationService>() ||
+          CurrencyLocalizationService.to.isIndianUser;
       final isUpgrading = isUpgrade(planId);
-      final amount = getEffectivePrice(planId);
-      final credit = getCreditApplied(planId);
+      final effectivePrice = getEffectivePrice(planId);
+      final amountINR = math.max(1.0, double.parse(effectivePrice.toStringAsFixed(2)));
+      final creditINR = getCreditApplied(planId);
+      final amountUSD = getEffectivePriceUSD(planId);
+      final creditUSD = getCreditAppliedUSD(planId);
       final title = planTitles[planId] ?? 'TruthWorld Premium';
 
-      final orderNote = isUpgrading
-          ? 'Upgrade to $title (₹${credit.toInt()} credit applied)'
-          : '$title Subscription';
+      final orderNote = isIndian
+          ? (isUpgrading
+              ? 'Upgrade to $title (₹${creditINR.toInt()} credit applied)'
+              : '$title Subscription')
+          : (isUpgrading
+              ? 'Upgrade to $title (\$${creditUSD.toStringAsFixed(creditUSD == 0.5 ? 2 : 0)} USD credit applied)'
+              : '$title Subscription');
 
       final paymentResult = await CashfreePaymentService.to.startPayment(
-        amount: amount,
+        amount: amountINR,
         purpose: 'premium_subscription',
         orderNote: orderNote,
         metadata: {
@@ -155,7 +216,10 @@ class PremiumController extends BaseController {
           'planTitle': title,
           'isUpgrade': isUpgrading,
           'previousPlanId': auth.premiumPlanId.value,
-          'creditApplied': credit,
+          'creditApplied': creditINR,
+          'currency': isIndian ? 'INR' : 'USD',
+          if (!isIndian) 'amountUSD': amountUSD,
+          if (!isIndian) 'creditUSD': creditUSD,
         },
       );
 
@@ -198,9 +262,13 @@ class PremiumController extends BaseController {
           }
         }
 
-        final successMessage = isUpgrading
-            ? 'Your plan has been upgraded to $title. ₹${credit.toInt()} credit was applied!'
-            : 'Your $title is now active. Enjoy ad-free 4K streaming and AI fact-checking!';
+        final successMessage = isIndian
+            ? (isUpgrading
+                ? 'Your plan has been upgraded to $title. ₹${creditINR.toInt()} credit was applied!'
+                : 'Your $title is now active. Enjoy ad-free 4K streaming and AI fact-checking!')
+            : (isUpgrading
+                ? 'Your plan has been upgraded to $title. \$${creditUSD.toStringAsFixed(creditUSD == 0.5 ? 2 : 0)} USD credit was applied!'
+                : 'Your $title is now active. Enjoy ad-free 4K streaming and AI fact-checking!');
 
         AppSnackbar.success(
           successMessage,

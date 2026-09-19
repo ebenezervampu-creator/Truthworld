@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:truthworld/core/constants/firestore_collections.dart';
@@ -20,6 +21,13 @@ class FeedAlgorithmService extends GetxService {
       if (configured.isNotEmpty) return configured;
     }
     return const String.fromEnvironment('TRUTHWORLD_HOME_FEED_ENDPOINT');
+  }
+
+  /// Server endpoint for public edge-cached feeds backed by Google Cloud CDN.
+  static String get publicFeedEndpoint {
+    const envEndpoint = String.fromEnvironment('TRUTHWORLD_FEED_ENDPOINT');
+    if (envEndpoint.isNotEmpty) return envEndpoint;
+    return 'https://www.truthworld.in/api/feed';
   }
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -48,9 +56,19 @@ class FeedAlgorithmService extends GetxService {
       },
     );
 
+    Map<String, String>? headers;
+    try {
+      final token = await FirebaseAuth.instance.currentUser?.getIdToken();
+      if (token != null && token.isNotEmpty) {
+        headers = {'Authorization': 'Bearer $token'};
+      }
+    } catch (_) {}
+
     http.Response? response;
     try {
-      response = await http.get(uri).timeout(const Duration(seconds: 3));
+      response = await http
+          .get(uri, headers: headers)
+          .timeout(const Duration(seconds: 3));
     } catch (e, stackTrace) {
       ErrorHandler.log(
         e,
@@ -58,7 +76,9 @@ class FeedAlgorithmService extends GetxService {
         tag: 'FeedAlgorithmService.getPersonalizedFeed.firstAttempt',
       );
       try {
-        response = await http.get(uri).timeout(const Duration(seconds: 5));
+        response = await http
+            .get(uri, headers: headers)
+            .timeout(const Duration(seconds: 5));
       } catch (retryError, retryStackTrace) {
         ErrorHandler.log(
           retryError,
@@ -71,7 +91,9 @@ class FeedAlgorithmService extends GetxService {
 
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
-      final List<dynamic> videosJson = data['videos'] ?? [];
+      final videosJson = (data['feed'] as List<dynamic>?) ??
+          (data['videos'] as List<dynamic>?) ??
+          [];
 
       final videos = videosJson
           .map((json) => Video.fromMap(Map<String, dynamic>.from(json)))
@@ -81,6 +103,50 @@ class FeedAlgorithmService extends GetxService {
     } else {
       throw Exception('Server returned ${response.statusCode}');
     }
+  }
+
+  /// Fetch edge-cached public feed backed by Google Cloud CDN (sub-50ms global latency).
+  /// Automatically falls back to Firestore on network failure or offline state.
+  Future<List<Video>> getPublicEdgeFeed({
+    String? category,
+    int limit = 24,
+    bool isTrending = false,
+  }) async {
+    final subPath = isTrending ? 'trending' : 'home';
+    final queryParams = <String, String>{
+      'limit': limit.toString(),
+      if (category != null && category.isNotEmpty && category != 'All')
+        'category': category,
+    };
+
+    final uri = Uri.parse('$publicFeedEndpoint/$subPath')
+        .replace(queryParameters: queryParams);
+
+    try {
+      final response = await http
+          .get(uri, headers: const {'Accept': 'application/json'})
+          .timeout(const Duration(milliseconds: 2500));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        final rawFeed = (data['feed'] as List<dynamic>?) ?? [];
+        if (rawFeed.isNotEmpty) {
+          final videos = rawFeed
+              .map((item) => Video.fromMap(Map<String, dynamic>.from(item as Map)))
+              .toList();
+          return VideoSanitizer.sanitizeForFeed(videos);
+        }
+      }
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'FeedAlgorithmService.getPublicEdgeFeed.fallback',
+      );
+    }
+
+    // High-availability fallback: Query Firestore directly
+    return _fallbackChronologicalFeed(category: category, limit: limit);
   }
 
   /// Apply lightweight client-side adjustments to server-ranked feed.

@@ -11,6 +11,7 @@ import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_mixins/channel_controller_base.dart';
+import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -100,6 +101,8 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
     clearChannelDetailsState();
 
     selectedChannel.value = channel;
+    subscriberCount.value = channel.subscriberCount;
+    ChannelSubscriptionController.channelSubscriberCounts[channel.channelId] = channel.subscriberCount;
 
     // Set initial values from the channel document
     detailsAvatarStatus.value = channel.avatarStatus ?? '';
@@ -118,21 +121,36 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
         detailsAvatarStatus.value = channel.avatarStatus ?? 'PENDING';
         detailsAvatarSub = imageVerificationService
             .streamVerificationStatus(channel.avatarFileId!)
-            .listen((result) {
-              detailsAvatarStatus.value = result.status.name.toUpperCase();
-              detailsAvatarReason.value = result.reason;
-              if (result.status == VerificationStatus.approved ||
-                  result.status == VerificationStatus.rejected ||
-                  result.status == VerificationStatus.flagged) {
-                firestore
-                    .collection(ChannelControllerBase.channelsCol)
-                    .doc(channel.id)
-                    .update({
-                      'avatarStatus': result.status.name.toUpperCase(),
-                    })
-                    .catchError((_) {});
-              }
-            });
+            .listen(
+              (result) {
+                detailsAvatarStatus.value = result.status.name.toUpperCase();
+                detailsAvatarReason.value = result.reason;
+                if (result.status == VerificationStatus.approved ||
+                    result.status == VerificationStatus.rejected ||
+                    result.status == VerificationStatus.flagged) {
+                  firestore
+                      .collection(ChannelControllerBase.channelsCol)
+                      .doc(channel.id)
+                      .update({
+                        'avatarStatus': result.status.name.toUpperCase(),
+                      })
+                      .catchError((e, s) {
+                        ErrorHandler.log(
+                          e,
+                          stackTrace: s,
+                          tag: 'ChannelDetailsMixin.updateAvatarStatus',
+                        );
+                      });
+                }
+              },
+              onError: (e, s) {
+                ErrorHandler.log(
+                  e,
+                  stackTrace: s,
+                  tag: 'ChannelDetailsMixin.detailsAvatarSub',
+                );
+              },
+            );
       }
 
       if (channel.bannerFileId != null &&
@@ -141,21 +159,36 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
         detailsBannerStatus.value = channel.bannerStatus ?? 'PENDING';
         detailsBannerSub = imageVerificationService
             .streamVerificationStatus(channel.bannerFileId!)
-            .listen((result) {
-              detailsBannerStatus.value = result.status.name.toUpperCase();
-              detailsBannerReason.value = result.reason;
-              if (result.status == VerificationStatus.approved ||
-                  result.status == VerificationStatus.rejected ||
-                  result.status == VerificationStatus.flagged) {
-                firestore
-                    .collection(ChannelControllerBase.channelsCol)
-                    .doc(channel.id)
-                    .update({
-                      'bannerStatus': result.status.name.toUpperCase(),
-                    })
-                    .catchError((_) {});
-              }
-            });
+            .listen(
+              (result) {
+                detailsBannerStatus.value = result.status.name.toUpperCase();
+                detailsBannerReason.value = result.reason;
+                if (result.status == VerificationStatus.approved ||
+                    result.status == VerificationStatus.rejected ||
+                    result.status == VerificationStatus.flagged) {
+                  firestore
+                      .collection(ChannelControllerBase.channelsCol)
+                      .doc(channel.id)
+                      .update({
+                        'bannerStatus': result.status.name.toUpperCase(),
+                      })
+                      .catchError((e, s) {
+                        ErrorHandler.log(
+                          e,
+                          stackTrace: s,
+                          tag: 'ChannelDetailsMixin.updateBannerStatus',
+                        );
+                      });
+                }
+              },
+              onError: (e, s) {
+                ErrorHandler.log(
+                  e,
+                  stackTrace: s,
+                  tag: 'ChannelDetailsMixin.detailsBannerSub',
+                );
+              },
+            );
       }
     }
 
@@ -375,6 +408,7 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
     hasPosts.value = false;
     hasTopics.value = false;
     channelVideoCount.value = 0;
+    subscriberCount.value = 0;
     selectedChannelTopic.value = null;
     topicVideosMap.clear();
     isLoadingVideosMap.clear();

@@ -21,9 +21,6 @@ import 'package:truthworld/features/topics/presentation/pages/explore_topics_pag
     deferred as explore_topics;
 import 'package:truthworld/theme/app_theme.dart';
 
-/// Backward-compatibility typedef for legacy private name.
-typedef _ModernMainContent = HomeMainContent;
-
 /// Main scrollable feed content coordinator for Home view.
 class HomeMainContent extends StatelessWidget {
   const HomeMainContent({

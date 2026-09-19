@@ -26,6 +26,12 @@ class WatchLaterScreen extends GetView<WatchLaterController> {
   const WatchLaterScreen({super.key, this.isDashboard = false});
   final bool isDashboard;
 
+  @override
+  WatchLaterController get controller =>
+      Get.isRegistered<WatchLaterController>()
+          ? Get.find<WatchLaterController>()
+          : Get.put(WatchLaterController());
+
   WatchLaterController get _controller => controller;
 
   @override

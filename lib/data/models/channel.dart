@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/utils/timestamp_utils.dart';
+import 'package:truthworld/domain/entities/channel_entity.dart';
 
 
 enum ChannelStatus {
@@ -169,6 +170,7 @@ class Channel {
     this.pendingChannelType,
     this.pendingTypeEffectiveDate,
     this.nextBillingCycleDate,
+    this.walletBalanceUSD = 0.0,
   }) : metrics = metrics ?? ChannelMetricsV2();
 
   factory Channel.fromMap(Map<String, dynamic> data, String docId) {
@@ -285,6 +287,9 @@ class Channel {
       nextBillingCycleDate: data['nextBillingCycleDate'] != null
           ? TimestampUtils.parse(data['nextBillingCycleDate'])
           : null,
+      walletBalanceUSD: (data['walletBalanceUSD'] as num?)?.toDouble() ??
+          (data['walletBalance'] as num?)?.toDouble() ??
+          0.0,
     );
   }
 
@@ -343,6 +348,7 @@ class Channel {
     ChannelType? pendingChannelType,
     Timestamp? pendingTypeEffectiveDate,
     Timestamp? nextBillingCycleDate,
+    double? walletBalanceUSD,
     String? ownerId,
     Timestamp? createdAt,
     Timestamp? updatedAt,
@@ -385,6 +391,7 @@ class Channel {
       pendingChannelType: pendingChannelType ?? this.pendingChannelType,
       pendingTypeEffectiveDate: pendingTypeEffectiveDate ?? this.pendingTypeEffectiveDate,
       nextBillingCycleDate: nextBillingCycleDate ?? this.nextBillingCycleDate,
+      walletBalanceUSD: walletBalanceUSD ?? this.walletBalanceUSD,
       ownerId: ownerId ?? this.ownerId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -434,6 +441,7 @@ class Channel {
   final Map<String, dynamic>? monetizationSettings;
   final ChannelType channelType;
   final CustomChannelInfraConfig? infraConfig;
+  final double walletBalanceUSD;
 
   // Billing Cycle Lock & Scheduled Tier Switch
   final ChannelType? pendingChannelType;
@@ -460,15 +468,15 @@ class Channel {
   bool get isMembersOnly => visibility.toLowerCase() == 'members' || visibility.toLowerCase() == 'members only';
   String get websiteUrl => socialLinks?['website'] ?? '';
 
-  // Standard Channel Constraints (20 min daily upload limit, up to 20 min duration per day)
+  // Standard Channel Constraints (10 min daily upload limit, up to 10 min duration per day)
   int get maxAllowedVideos => 999999;
   int get minVideoDurationSeconds => 0;
   int get maxDailyVideoDurationSeconds =>
-      channelType == ChannelType.standard ? 1200 : 86400; // 20 minutes (1200s) per day
+      channelType == ChannelType.standard ? 600 : 86400; // 10 minutes (600s) per day
   int get maxVideoDurationSeconds =>
-      channelType == ChannelType.standard ? 1200 : 86400; // 20 minutes (1200s) max per video
+      channelType == ChannelType.standard ? 600 : 86400; // 10 minutes (600s) max per video
   int get maxTotalVideoDurationSeconds =>
-      channelType == ChannelType.standard ? 1200 : 8640000; // 20 minutes daily total (1200s)
+      channelType == ChannelType.standard ? 600 : 8640000; // 10 minutes daily total (600s)
 
   String get channelRoute {
     if (handle.isNotEmpty) {
@@ -513,6 +521,8 @@ class Channel {
       'monetizationSettings': monetizationSettings,
       'channelType': channelType.name,
       'infraConfig': infraConfig?.toMap(),
+      'walletBalanceUSD': walletBalanceUSD,
+      'walletBalance': walletBalanceUSD,
       'pendingChannelType': pendingChannelType?.name,
       'pendingTypeEffectiveDate': pendingTypeEffectiveDate,
       'nextBillingCycleDate': nextBillingCycleDate,
@@ -521,5 +531,63 @@ class Channel {
       'featuredVideoIds': featuredVideoIds,
       'moderationReason': moderationReason,
     };
+  }
+
+  /// Converts this data model to a pure domain [ChannelEntity].
+  ChannelEntity toEntity() {
+    return ChannelEntity(
+      id: id,
+      name: name,
+      handle: handle,
+      description: description,
+      avatarUrl: avatarUrl,
+      bannerUrl: bannerUrl,
+      ownerId: ownerId,
+      subscriberCount: subscriberCount,
+      videoCount: videoCount,
+      totalViews: metrics.totalViews,
+      isVerified: isVerified,
+      status: status.name,
+      category: category,
+      categories: categories,
+      visibility: visibility,
+      createdAt: createdAt.toDate(),
+      updatedAt: updatedAt.toDate(),
+    );
+  }
+
+  /// Creates a [Channel] data model from a pure domain [ChannelEntity].
+  static Channel fromEntity(ChannelEntity entity) {
+    ChannelStatus parsedStatus;
+    try {
+      parsedStatus = ChannelStatus.values.firstWhere(
+        (s) => s.name.toLowerCase() == entity.status.toLowerCase(),
+        orElse: () => ChannelStatus.active,
+      );
+    } catch (_) {
+      parsedStatus = ChannelStatus.active;
+    }
+
+    return Channel(
+      id: entity.id,
+      name: entity.name,
+      nameLowercase: entity.name.toLowerCase(),
+      handle: entity.handle,
+      handleLowercase: entity.handle.toLowerCase(),
+      description: entity.description,
+      avatarUrl: entity.avatarUrl,
+      bannerUrl: entity.bannerUrl,
+      ownerId: entity.ownerId,
+      createdAt: Timestamp.fromDate(entity.createdAt),
+      updatedAt: Timestamp.fromDate(entity.updatedAt),
+      subscriberCount: entity.subscriberCount,
+      videoCount: entity.videoCount,
+      metrics: ChannelMetricsV2(totalViews: entity.totalViews),
+      isVerified: entity.isVerified,
+      status: parsedStatus,
+      category: entity.category,
+      categories: entity.categories,
+      visibility: entity.visibility,
+    );
   }
 }

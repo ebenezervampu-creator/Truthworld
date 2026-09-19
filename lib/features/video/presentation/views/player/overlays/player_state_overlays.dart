@@ -154,17 +154,19 @@ class _AcousticWaveformThemeVisualizerState
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _anim,
-      builder: (context, _) {
-        return CustomPaint(
-          size: Size.infinite,
-          painter: _AcousticWavePainter(
-            time: _anim.value * 2 * pi,
-            isPlaying: widget.isPlaying,
-          ),
-        );
-      },
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _anim,
+        builder: (context, _) {
+          return CustomPaint(
+            size: Size.infinite,
+            painter: _AcousticWavePainter(
+              time: _anim.value * 2 * pi,
+              isPlaying: widget.isPlaying,
+            ),
+          );
+        },
+      ),
     );
   }
 }
@@ -447,7 +449,8 @@ class _DoubleTapRippleState extends State<DoubleTapRipple>
       top: 0,
       bottom: 0,
       width: MediaQuery.of(context).size.width * 0.45,
-      child: LayoutBuilder(
+      child: RepaintBoundary(
+        child: LayoutBuilder(
         builder: (context, constraints) {
           return ClipPath(
             clipper: _YouTubeRippleClipper(isLeft: isLeft),
@@ -535,8 +538,9 @@ class _DoubleTapRippleState extends State<DoubleTapRipple>
           );
         },
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
 class _YouTubeRippleClipper extends CustomClipper<Path> {

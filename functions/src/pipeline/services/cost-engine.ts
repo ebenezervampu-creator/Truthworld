@@ -20,6 +20,23 @@ export const RATE_CARDS = {
   ffmpeg: { perSecond: 0.0001 },
 } as const;
 
+export const CHANNEL_DUBBING_PRICING = {
+  standard: {
+    ratePerLanguageUSD: 0.50,
+    minCostUSD: 1.50,
+    capCostUSD: 10.00,
+    voiceCloneIncluded: false,
+    tier: "standard_retail",
+  },
+  custom: {
+    ratePerLanguageUSD: 0.25, // 50% Partner discount
+    minCostUSD: 0.75,
+    capCostUSD: 5.00,
+    voiceCloneIncluded: true,
+    tier: "partner_discount",
+  },
+} as const;
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export interface CostEvent {
@@ -197,7 +214,10 @@ export class CostEngine {
 
   // Quota check (Legacy but kept for EdgeLayer)
   async checkQuota(userId: string, channelType: string, estimatedMinutes: number): Promise<{ allowed: boolean; reason?: string }> {
-    return { allowed: true }; // Unlimited for now under new model
+    if (channelType === "standard" && estimatedMinutes > 10) {
+      return { allowed: false, reason: "Standard channel video duration cannot exceed 10 minutes" };
+    }
+    return { allowed: true };
   }
 }
 

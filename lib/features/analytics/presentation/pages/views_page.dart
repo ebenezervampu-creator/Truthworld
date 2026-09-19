@@ -1,5 +1,4 @@
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -260,26 +259,28 @@ class ViewsPage extends StatelessWidget {
                       ),
                     );
                   }
-                  return PieChart(
-                    PieChartData(
-                      sections: data
-                          .map(
-                            (d) => PieChartSectionData(
-                              value: d.value,
-                              color: Color(d.color),
-                              title: '${d.percentage.toStringAsFixed(1)}%',
-                              titleStyle: const TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              radius: 60,
-                            ),
-                          )
-                          .toList(),
-                      centerSpaceRadius: 40,
-                      sectionsSpace: 2,
-                    ),
+                  return SfCircularChart(
+                    margin: EdgeInsets.zero,
+                    series: <CircularSeries>[
+                      DoughnutSeries<dynamic, String>(
+                        dataSource: data,
+                        xValueMapper: (dynamic d, _) => d.title as String,
+                        yValueMapper: (dynamic d, _) => d.value as num,
+                        pointColorMapper: (dynamic d, _) => Color(d.color as int),
+                        dataLabelMapper: (dynamic d, _) =>
+                            '${(d.percentage as double).toStringAsFixed(1)}%',
+                        dataLabelSettings: const DataLabelSettings(
+                          isVisible: true,
+                          textStyle: TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        innerRadius: '45%',
+                        radius: '85%',
+                      ),
+                    ],
                   );
                 }),
               ),

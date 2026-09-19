@@ -622,6 +622,10 @@ service cloud.firestore {
         }
       }
 
+      match /saved_playlists/{playlistId} {
+        allow read, write: if isOwner(userId);
+      }
+
       // User Clips subcollection
       match /clips/{clipId} {
         allow read, write: if isOwner(userId);

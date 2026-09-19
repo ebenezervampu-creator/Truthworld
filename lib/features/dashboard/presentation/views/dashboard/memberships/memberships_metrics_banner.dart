@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/memberships_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -94,10 +95,18 @@ class MembershipsMetricsSummary extends StatelessWidget {
       final activeMembers = controller.totalActiveMembers;
       final mrr = controller.monthlyRecurringRevenue;
       final activeTiers = controller.activeTiersCount;
+      final currencySymbol = controller.primaryCurrencySymbol;
+      final isUsd = currencySymbol == r'$';
       final currencyFormat = NumberFormat.currency(
-        symbol: controller.primaryCurrencySymbol,
+        symbol: currencySymbol,
         decimalDigits: 2,
       );
+      final rate = Get.isRegistered<CurrencyLocalizationService>()
+          ? CurrencyLocalizationService.to.rate
+          : CurrencyLocalizationService.defaultRate;
+      final incomeSubtitle = isUsd && mrr > 0
+          ? '≈ ₹${(mrr * rate).toStringAsFixed(2)} Payout'
+          : '100% Direct Payout';
 
       return Row(
         children: [
@@ -115,7 +124,7 @@ class MembershipsMetricsSummary extends StatelessWidget {
             child: MembershipMetricTile(
               title: 'Monthly Fan Income',
               value: currencyFormat.format(mrr),
-              subtitle: '100% Direct Payout',
+              subtitle: incomeSubtitle,
               icon: Icons.account_balance_wallet_rounded,
               isDarkMode: isDarkMode,
             ),
@@ -190,7 +199,7 @@ class MembershipMetricTile extends StatelessWidget {
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              Icon(icon, color: Colors.white, size: 18),
+              Icon(icon, color: isDarkMode ? Colors.white : Colors.black87, size: 18),
             ],
           ),
           const SizedBox(height: 8),

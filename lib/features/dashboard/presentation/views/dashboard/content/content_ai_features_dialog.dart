@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
+import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization/channel_wallet_topup_sheet.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -8,8 +11,19 @@ import 'package:truthworld/theme/app_theme.dart';
   void showGenerateAIFeaturesDialog(
     BuildContext context,
     Video video,
-    VideoManagementController controller,
-  ) {
+    VideoManagementController controller, {
+    ChannelType? channelType,
+  }) {
+    final effectiveChannelType = channelType ??
+        (Get.isRegistered<DashboardController>()
+            ? (Get.find<DashboardController>().currentChannel.value?.channelType ??
+                ChannelType.standard)
+            : ChannelType.standard);
+    final isCustom = effectiveChannelType == ChannelType.custom;
+    final currentChannel = Get.isRegistered<DashboardController>()
+        ? Get.find<DashboardController>().currentChannel.value
+        : null;
+
     final selectedLangs = <String>{'te', 'hi'}.obs;
     final selectedFeatures = <String>{
       'subtitles',
@@ -155,9 +169,12 @@ import 'package:truthworld/theme/app_theme.dart';
                       },
                     ),
                     buildFeatureCheckbox(
-                      title: 'AI Audio Dubbing Tracks',
-                      subtitle:
-                          'Generate natural AI voice tracks in Telugu, Hindi, etc.',
+                      title: isCustom
+                          ? r'AI Audio Dubbing Tracks (50% Off: $0.25/lang)'
+                          : r'AI Audio Dubbing Tracks ($0.50/lang)',
+                      subtitle: isCustom
+                          ? 'Natural AI voice tracks with Studio Vocal Identity & Voice Cloning included'
+                          : 'Generate natural AI voice tracks in Telugu, Hindi, etc.',
                       icon: Icons.record_voice_over_outlined,
                       value: selectedFeatures.contains('dubbing'),
                       onChanged: (val) {
@@ -311,13 +328,48 @@ import 'package:truthworld/theme/app_theme.dart';
                                 ),
                               ),
                               const SizedBox(height: 2),
-                              Text(
-                                r'Channel Revenue & $10 Trial Credit',
-                                style: AppTextStyles.labelMedium.copyWith(
-                                  color: Colors.green,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                ),
+                              Row(
+                                children: [
+                                  Text(
+                                    isCustom
+                                        ? 'Bonus & Revenue (Custom 50% Off)'
+                                        : r'Channel Wallet & $10 Credit',
+                                    style: AppTextStyles.labelMedium.copyWith(
+                                      color: isCustom ? const Color(0xFFC084FC) : Colors.green,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  if (currentChannel != null) ...[
+                                    const SizedBox(width: 8),
+                                    GestureDetector(
+                                      onTap: () {
+                                        ChannelWalletTopupSheet.show(
+                                          context,
+                                          channel: currentChannel,
+                                        );
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.brand,
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: const Text(
+                                          '+ Add Money',
+                                          style: TextStyle(
+                                            color: Colors.black,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ],
                           ),
@@ -333,7 +385,11 @@ import 'package:truthworld/theme/app_theme.dart';
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                '\$${ChannelWalletService.calculateAIFeatureCost(selectedFeatures: selectedFeatures.toSet(), targetLanguages: selectedLangs.toList()).toStringAsFixed(2)}',
+                                '\$${ChannelWalletService.calculateAIFeatureCost(
+                                  selectedFeatures: selectedFeatures.toSet(),
+                                  targetLanguages: selectedLangs.toList(),
+                                  channelType: effectiveChannelType,
+                                ).toStringAsFixed(2)}',
                                 style: AppTextStyles.titleMedium.copyWith(
                                   color: AppColors.textPrimary,
                                   fontWeight: FontWeight.bold,
@@ -379,6 +435,7 @@ import 'package:truthworld/theme/app_theme.dart';
                             'Generate & Pay from Balance',
                             style: AppTextStyles.buttonText.copyWith(
                               fontWeight: FontWeight.bold,
+                              color: Colors.black,
                             ),
                           ),
                           onPressed: selectedFeatures.isEmpty

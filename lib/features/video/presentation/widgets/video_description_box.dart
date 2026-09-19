@@ -491,32 +491,32 @@ class VideoDescriptionBox extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: segments.length,
-            itemBuilder: (context, index) {
-              final seg = segments[index];
-              return TranscriptSegmentTile(
-                seg: seg,
-                playerCtrl: playerCtrl,
-                videoId: controller.video.id,
-              );
-            },
+          Container(
+            height: 360,
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.25),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.08),
+              ),
+            ),
+            child: ListView.builder(
+              controller: controller.transcriptController.transcriptScrollController,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              itemCount: segments.length,
+              itemBuilder: (context, index) {
+                final seg = segments[index];
+                return TranscriptSegmentTile(
+                  seg: seg,
+                  playerCtrl: playerCtrl,
+                  videoId: controller.video.id,
+                );
+              },
+            ),
           ),
         ],
       );
     });
   }
-
-  String _formatTranscriptDuration(Duration d) {
-    final mins = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final secs = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    if (d.inHours > 0) {
-      return '${d.inHours}:$mins:$secs';
-    }
-    return '$mins:$secs';
-  }
-
-
 }
+

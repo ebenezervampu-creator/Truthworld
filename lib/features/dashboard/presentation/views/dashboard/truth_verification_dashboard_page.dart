@@ -6,6 +6,7 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/utils/content_validator.dart';
 import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 enum ClaimStatus { verified, unverified, disputed }
@@ -143,17 +144,18 @@ class TruthVerificationDashboardPage extends StatelessWidget {
             icon: const Icon(
               Icons.send_rounded,
               size: 16,
-              color: Colors.white,
+              color: Colors.black,
             ),
             label: Text(
               'Submit Citation',
               style: GoogleFonts.roboto(
-                color: Colors.white,
+                color: Colors.black,
                 fontWeight: FontWeight.bold,
               ),
             ),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.brand,
+              foregroundColor: Colors.black,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
@@ -219,10 +221,22 @@ class TruthVerificationDashboardPage extends StatelessWidget {
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
+            ErrorHandler.log(
+              snapshot.error,
+              tag: 'TruthVerificationDashboardPage.stream',
+            );
             return Center(
-              child: Text(
-                'Error loading verification data: ${snapshot.error}',
-                style: GoogleFonts.roboto(color: AppColors.error),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  UserFeedbackSanitizer.sanitizeMessage(
+                    snapshot.error,
+                    defaultActionContext:
+                        'Unable to load verification data. Please try again.',
+                  ),
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.roboto(color: AppColors.error),
+                ),
               ),
             );
           }

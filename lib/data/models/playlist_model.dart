@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/utils/timestamp_utils.dart';
+import 'package:truthworld/domain/entities/playlist_entity.dart';
 
 enum PlaylistVisibility { public, private, unlisted }
 
@@ -163,5 +164,41 @@ class PlaylistModel {
       'status': status,
       'moderationReason': moderationReason,
     };
+  }
+
+  /// Converts this data model to a pure domain [PlaylistEntity].
+  PlaylistEntity toEntity() {
+    return PlaylistEntity(
+      id: id,
+      ownerId: ownerId,
+      channelId: channelId,
+      name: name,
+      description: description,
+      thumbnailUrl: thumbnailUrl,
+      videoCount: videoCount,
+      videoIds: videoIds,
+      isPublic: isPublic,
+      status: status,
+      createdAt: createdAt.toDate(),
+      updatedAt: updatedAt.toDate(),
+    );
+  }
+
+  /// Creates a [PlaylistModel] data model from a pure domain [PlaylistEntity].
+  static PlaylistModel fromEntity(PlaylistEntity entity) {
+    return PlaylistModel(
+      id: entity.id,
+      ownerId: entity.ownerId,
+      channelId: entity.channelId,
+      name: entity.name,
+      description: entity.description,
+      thumbnailUrl: entity.thumbnailUrl,
+      videoCount: entity.videoCount,
+      videoIds: entity.videoIds,
+      isPublic: entity.isPublic,
+      status: entity.status,
+      createdAt: entity.createdAt != null ? Timestamp.fromDate(entity.createdAt!) : null,
+      updatedAt: entity.updatedAt != null ? Timestamp.fromDate(entity.updatedAt!) : null,
+    );
   }
 }

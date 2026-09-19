@@ -8,6 +8,7 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart';
 
@@ -85,6 +86,35 @@ class ChannelMembershipTier {
       return '₹${isWhole ? price.toInt() : price.toStringAsFixed(2)}';
     }
     return '\$${price.toStringAsFixed(2)}';
+  }
+
+  String formattedPriceForUser([bool? isIndianViewer]) {
+    final isIndian = isIndianViewer ??
+        (!Get.isRegistered<CurrencyLocalizationService>() ||
+            CurrencyLocalizationService.to.isIndianUser);
+
+    final rate = Get.isRegistered<CurrencyLocalizationService>()
+        ? CurrencyLocalizationService.to.rate
+        : CurrencyLocalizationService.defaultRate;
+
+    // Non-Indian user always sees prices in Dollars ($ USD)
+    if (!isIndian) {
+      if (currency.toUpperCase() == 'INR') {
+        final usd = price / rate;
+        final roundedUsd = usd >= 0.10 ? usd.toStringAsFixed(2) : '0.10';
+        return '\$$roundedUsd';
+      }
+      return '\$${price.toStringAsFixed(2)}';
+    }
+
+    // Indian user sees prices in Rupees (₹ INR)
+    if (currency.toUpperCase() == 'INR') {
+      final isWhole = price == price.truncateToDouble();
+      return '₹${isWhole ? price.toInt() : price.toStringAsFixed(2)}';
+    }
+    final inr = price * rate;
+    final isWhole = inr == inr.truncateToDouble();
+    return '₹${isWhole ? inr.toInt() : inr.toStringAsFixed(2)}';
   }
 
   Color get badgeColor {
@@ -196,6 +226,35 @@ class ChannelMember {
       return '₹${isWhole ? price.toInt() : price.toStringAsFixed(2)}';
     }
     return '\$${price.toStringAsFixed(2)}';
+  }
+
+  String formattedPriceForUser([bool? isIndianViewer]) {
+    final isIndian = isIndianViewer ??
+        (!Get.isRegistered<CurrencyLocalizationService>() ||
+            CurrencyLocalizationService.to.isIndianUser);
+
+    final rate = Get.isRegistered<CurrencyLocalizationService>()
+        ? CurrencyLocalizationService.to.rate
+        : CurrencyLocalizationService.defaultRate;
+
+    // Non-Indian user always sees in Dollars ($ USD)
+    if (!isIndian) {
+      if (currency.toUpperCase() == 'INR') {
+        final usd = price / rate;
+        final roundedUsd = usd >= 0.10 ? usd.toStringAsFixed(2) : '0.10';
+        return '\$$roundedUsd';
+      }
+      return '\$${price.toStringAsFixed(2)}';
+    }
+
+    // Indian user sees in Rupees (₹ INR)
+    if (currency.toUpperCase() == 'INR') {
+      final isWhole = price == price.truncateToDouble();
+      return '₹${isWhole ? price.toInt() : price.toStringAsFixed(2)}';
+    }
+    final inr = price * rate;
+    final isWhole = inr == inr.truncateToDouble();
+    return '₹${isWhole ? inr.toInt() : inr.toStringAsFixed(2)}';
   }
 
   Map<String, dynamic> toMap() => {
@@ -424,13 +483,33 @@ class MembershipsController extends BaseController with ContentValidationMixin {
 
   double get monthlyRecurringRevenue {
     var total = 0.0;
+    final isUsd = primaryCurrencySymbol == r'$';
+    final rate = Get.isRegistered<CurrencyLocalizationService>()
+        ? CurrencyLocalizationService.to.rate
+        : CurrencyLocalizationService.defaultRate;
+
     if (members.isNotEmpty) {
       for (final m in members.where((m) => m.status.toLowerCase() == 'active')) {
-        total += m.price;
+        final memberIsUsd = m.currency.toUpperCase() == 'USD';
+        if (isUsd && !memberIsUsd) {
+          total += m.price / rate;
+        } else if (!isUsd && memberIsUsd) {
+          total += m.price * rate;
+        } else {
+          total += m.price;
+        }
       }
     } else {
       for (final t in tiers.where((t) => t.isEnabled)) {
-        total += t.price * t.memberCount;
+        final tierIsUsd = t.currency.toUpperCase() == 'USD';
+        final rawTierTotal = t.price * t.memberCount;
+        if (isUsd && !tierIsUsd) {
+          total += rawTierTotal / rate;
+        } else if (!isUsd && tierIsUsd) {
+          total += rawTierTotal * rate;
+        } else {
+          total += rawTierTotal;
+        }
       }
     }
     return total;

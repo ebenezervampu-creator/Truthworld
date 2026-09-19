@@ -6,11 +6,11 @@ import 'package:ffmpeg_kit_flutter_new/return_code.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/network/app_http_client.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
@@ -527,7 +527,7 @@ class ClipShareService {
           '${tempDir.path}/source_${safeId}_${DateTime.now().millisecondsSinceEpoch}.mp4',
         );
 
-        final response = await http.get(Uri.parse(resolvedUrl));
+        final response = await AppHttpClient.get(Uri.parse(resolvedUrl));
         if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
           await tempDownloadedFile.writeAsBytes(response.bodyBytes);
           success = await _executeFFmpegClip(

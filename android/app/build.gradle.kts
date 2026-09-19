@@ -35,6 +35,10 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        ndk {
+            abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a"))
+        }
     }
 
     signingConfigs {
@@ -95,6 +99,18 @@ android {
             dimension = "mode"
             applicationId = "com.truthworld.advertiser"
             resValue("string", "app_name", "Truthworld Advertiser")
+        }
+    }
+
+    bundle {
+        abi {
+            enableSplit = true
+        }
+        density {
+            enableSplit = true
+        }
+        language {
+            enableSplit = true
         }
     }
 }

@@ -296,7 +296,7 @@ class LanguagePreferencesDialog extends StatelessWidget {
                     onPressed: save,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.brand,
-                      foregroundColor: AppColors.textPrimary,
+                      foregroundColor: Colors.black,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 20,
                         vertical: 12,
@@ -521,7 +521,7 @@ class LanguageSelectionDialog extends StatelessWidget {
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.brand,
-                    foregroundColor: AppColors.textPrimary,
+                    foregroundColor: Colors.black,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),

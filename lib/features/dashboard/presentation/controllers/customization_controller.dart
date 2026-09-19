@@ -16,10 +16,20 @@ import 'package:truthworld/core/services/image_cropper_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart';
 
-class CustomizationController extends BaseController with ContentValidationMixin {
+class CustomizationController extends BaseController
+    with ContentValidationMixin, GetSingleTickerProviderStateMixin {
   CustomizationController({required this.channelId, required this.ownerId});
   final String channelId;
   final String ownerId;
+
+  late final TabController tabController = TabController(length: 4, vsync: this);
+  final GlobalKey<FormState> formKey = GlobalKey<FormState>();
+
+  @override
+  void onClose() {
+    tabController.dispose();
+    super.onClose();
+  }
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
@@ -74,56 +84,6 @@ class CustomizationController extends BaseController with ContentValidationMixin
   void onInit() {
     super.onInit();
     loadChannelData();
-  }
-
-  void _listenToChannelChanges() {
-    trackSubscription(_firestore
-        .collection(FirestoreCollections.channels)
-        .doc(channelId)
-        .snapshots()
-        .listen((snapshot) {
-          if (snapshot.exists) {
-            final data = snapshot.data()!;
-            geminiApproved.value = (data['geminiApproved'] as bool?) ?? false;
-            status.value = (data['status'] as String?) ?? 'active';
-            if (geminiApproved.value) {
-              status.value = 'active';
-            }
-            moderationReason.value =
-                (data['moderationReason'] as String?) ?? '';
-            avatarStatus.value =
-                (data['avatarStatus'] as String?) ?? 'APPROVED';
-            bannerStatus.value =
-                (data['bannerStatus'] as String?) ?? 'APPROVED';
-            avatarStatusReason.value =
-                (data['avatarStatusReason'] as String?) ?? '';
-            bannerStatusReason.value =
-                (data['bannerStatusReason'] as String?) ?? '';
-            avatarFileId.value = (data['avatarFileId'] as String?) ?? '';
-            bannerFileId.value = (data['bannerFileId'] as String?) ?? '';
-
-            final bUrl =
-                (data['bannerImageUrl'] as String?) ??
-                (data['bannerUrl'] as String?) ??
-                (data['banner'] as String?) ??
-                (data['bannerPicUrl'] as String?) ??
-                '';
-            if (bUrl.isNotEmpty) bannerUrl.value = bUrl;
-
-            final aUrl =
-                (data['avatarUrl'] as String?) ??
-                (data['photoUrl'] as String?) ??
-                '';
-            if (aUrl.isNotEmpty) avatarUrl.value = aUrl;
-          }
-        },
-        onError: (e, stackTrace) => ErrorHandler.log(
-          e,
-          stackTrace: stackTrace,
-          tag: 'CustomizationController._listenToChannelChanges',
-        ),
-      ),
-    );
   }
 
   Future<void> loadChannelData() async {

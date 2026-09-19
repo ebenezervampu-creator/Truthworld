@@ -1,18 +1,19 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:truthworld/core/network/result.dart';
+import 'package:truthworld/domain/entities/topic_entity.dart';
+import 'package:truthworld/domain/entities/video_entity.dart';
 import 'package:truthworld/domain/repositories/home_repository.dart';
-import 'package:truthworld/features/topics/data/models/topic.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
 
 class FakeHomeRepository implements HomeRepository {
-  final List<Video> mockVideos = [];
-  final List<Topic> mockTopics = [];
+  final List<VideoEntity> mockVideos = [];
+  final List<TopicEntity> mockTopics = [];
 
   @override
-  Future<Result<List<Video>>> getHomeFeed({
+  Future<Result<List<VideoEntity>>> getHomeFeed({
     int page = 1,
     int limit = 20,
     String? category,
+    dynamic startAfter,
   }) async {
     final filtered = category != null
         ? mockVideos.where((v) => v.category == category).toList()
@@ -21,10 +22,11 @@ class FakeHomeRepository implements HomeRepository {
   }
 
   @override
-  Future<Result<List<Video>>> getVideosByCategory(
+  Future<Result<List<VideoEntity>>> getVideosByCategory(
     String category, {
     int page = 1,
     int limit = 20,
+    dynamic startAfter,
   }) async {
     return Result.success(
       mockVideos.where((v) => v.category == category).toList(),
@@ -32,15 +34,16 @@ class FakeHomeRepository implements HomeRepository {
   }
 
   @override
-  Future<Result<List<Topic>>> getFeaturedTopics({int limit = 10}) async {
+  Future<Result<List<TopicEntity>>> getFeaturedTopics({int limit = 10}) async {
     return Result.success(mockTopics.take(limit).toList());
   }
 
   @override
-  Future<Result<List<Video>>> getVideosByTopic(
+  Future<Result<List<VideoEntity>>> getVideosByTopic(
     String topicId, {
     int page = 1,
     int limit = 20,
+    dynamic startAfter,
   }) async {
     return Result.success(
       mockVideos.where((v) => v.topics.contains(topicId)).toList(),
@@ -51,6 +54,7 @@ class FakeHomeRepository implements HomeRepository {
   Future<Result<List<Map<String, dynamic>>>> getCommunityPosts({
     int page = 1,
     int limit = 10,
+    dynamic startAfter,
   }) async {
     return Result.success([
       {'id': 'post1', 'title': 'First Post', 'visibility': 'public'}

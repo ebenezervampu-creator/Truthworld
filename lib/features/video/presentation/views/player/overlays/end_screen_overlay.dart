@@ -471,7 +471,7 @@ class EndScreenOverlay extends StatelessWidget {
         child: FloatingActionButton(
           onPressed: ctrl.replayVideo,
           backgroundColor: AppColors.brand,
-          child: const Icon(Icons.replay_rounded, color: AppColors.textPrimary),
+          child: const Icon(Icons.replay_rounded, color: Colors.black),
         ),
       );
     }

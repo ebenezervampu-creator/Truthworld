@@ -3,6 +3,7 @@ import 'package:truthworld/core/base/base_repository.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/network/result.dart';
 import 'package:truthworld/domain/entities/comment_entity.dart';
+import 'package:truthworld/domain/entities/community_post_entity.dart';
 import 'package:truthworld/domain/repositories/community_repository.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 
@@ -10,54 +11,48 @@ class CommunityRepositoryImpl extends BaseRepository
     implements CommunityRepository {
   final FirebaseFirestore _firestore;
 
-  DocumentSnapshot? _lastPostDoc;
-  DocumentSnapshot? _lastCommentDoc;
-
   CommunityRepositoryImpl({FirebaseFirestore? firestore})
     : _firestore = firestore ?? FirebaseFirestore.instance;
 
   @override
-  Future<Result<List<CommunityPostModel>>> getCommunityPosts(
+  Future<Result<List<CommunityPostEntity>>> getCommunityPosts(
     String channelId, {
     int page = 1,
     int limit = 20,
+    dynamic startAfter,
   }) async {
     return safeFetch(() async {
-      if (page == 1) _lastPostDoc = null;
-
       var q = _firestore
           .collection(FirestoreCollections.community)
           .where('channelId', isEqualTo: channelId)
           .orderBy('uploadedAt', descending: true)
           .limit(limit);
 
-      if (page > 1 && _lastPostDoc != null) {
-        q = q.startAfterDocument(_lastPostDoc!);
+      if (startAfter is DocumentSnapshot) {
+        q = q.startAfterDocument(startAfter);
       }
 
       final snapshot = await q.get();
-      if (snapshot.docs.isNotEmpty) {
-        _lastPostDoc = snapshot.docs.last;
-      }
 
       return snapshot.docs
-          .map((doc) => CommunityPostModel.fromMap(doc.data()))
+          .map((doc) => CommunityPostModel.fromMap(doc.data()).toEntity())
           .toList();
     });
   }
 
   @override
-  Future<Result<CommunityPostModel>> createPost(CommunityPostModel post) async {
+  Future<Result<CommunityPostEntity>> createPost(CommunityPostEntity post) async {
     return safeFetch(() async {
       final docRef = _firestore
           .collection(FirestoreCollections.community)
           .doc();
-      final data = post.toMap();
+      final model = CommunityPostModel.fromEntity(post);
+      final data = model.toMap();
       data['id'] = docRef.id;
 
       await docRef.set(data);
       final doc = await docRef.get();
-      return CommunityPostModel.fromMap(doc.data()!);
+      return CommunityPostModel.fromMap(doc.data()!).toEntity();
     });
   }
 
@@ -178,23 +173,19 @@ class CommunityRepositoryImpl extends BaseRepository
     String postId, {
     int page = 1,
     int limit = 20,
+    dynamic startAfter,
   }) async {
     return safeFetch(() async {
-      if (page == 1) _lastCommentDoc = null;
-
       var q = _firestore
           .collection(FirestoreCollections.communityComments(postId))
           .orderBy('createdAt', descending: true)
           .limit(limit);
 
-      if (page > 1 && _lastCommentDoc != null) {
-        q = q.startAfterDocument(_lastCommentDoc!);
+      if (startAfter is DocumentSnapshot) {
+        q = q.startAfterDocument(startAfter);
       }
 
       final snapshot = await q.get();
-      if (snapshot.docs.isNotEmpty) {
-        _lastCommentDoc = snapshot.docs.last;
-      }
 
       return snapshot.docs.map((doc) {
         final data = doc.data();

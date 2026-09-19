@@ -13,6 +13,7 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/app_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/services/push_notification_service.dart';
@@ -43,8 +44,9 @@ void main() {
         // and "Zone mismatch" error when using runZonedGuarded.
         WidgetsFlutterBinding.ensureInitialized();
 
-        // Fix visibility_detector timer assertion error (_timer!.isActive) on web & frame scheduling
-        VisibilityDetectorController.instance.updateInterval = Duration.zero;
+        // Optimize visibility_detector update interval to prevent per-frame recalculations on scroll
+        VisibilityDetectorController.instance.updateInterval =
+            const Duration(milliseconds: 100);
 
         // Initialize logger first - before anything else
         logger.init(
@@ -73,7 +75,7 @@ void main() {
               }
               logger.info('Firebase initialized successfully', tag: 'Startup');
               FirebaseFirestore.instance.settings = const Settings(
-                persistenceEnabled: !kIsWeb,
+                persistenceEnabled: true,
                 cacheSizeBytes: 100 * 1024 * 1024,
               );
             })(),
@@ -138,40 +140,52 @@ void main() {
           Get.put(ConnectivityService(), permanent: true);
           Get.put(PushNotificationService(), permanent: true);
           Get.put(UserPreferencesService(), permanent: true);
+          final currencyService =
+              Get.put(CurrencyLocalizationService(), permanent: true);
 
-          // Auth MUST complete before app renders auth-dependent UI
-          await authService.init();
+          // Non-blocking asynchronous Auth session & provider initialization
+          final authInit = authService.init();
 
           // Set Crashlytics collection & user identifier on supported mobile platforms
           final isMobile = !kIsWeb &&
               (defaultTargetPlatform == TargetPlatform.android ||
                   defaultTargetPlatform == TargetPlatform.iOS);
           if (isMobile) {
-            await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(
-              !kDebugMode,
+            unawaited(
+              FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(
+                !kDebugMode,
+              ).then((_) {
+                FirebaseCrashlytics.instance.setCustomKey(
+                  'platform',
+                  defaultTargetPlatform.name,
+                );
+              }),
             );
-            FirebaseCrashlytics.instance.setCustomKey(
-              'platform',
-              defaultTargetPlatform.name,
+            unawaited(
+              authInit.then((_) {
+                final uid = authService.user?.uid;
+                if (uid != null) {
+                  FirebaseCrashlytics.instance.setUserIdentifier(uid);
+                }
+              }),
             );
-            final uid = authService.user?.uid;
-            if (uid != null) {
-              FirebaseCrashlytics.instance.setUserIdentifier(uid);
-            }
           }
 
-          // Run the app after critical services are ready
+          // Run the app immediately so first frame / splash paints in zero-wait time
           runApp(const Truthworld());
 
           // Non-critical service init in background
-          Future.wait([
-            Get.find<AppService>().init(),
-            Get.find<ConnectivityService>().init(),
-            Get.find<PushNotificationService>().init(),
-            DeepLinkService.instance.initAppLinks(),
-          ]).then((_) {
-            logger.info('All background services initialized', tag: 'Startup');
-          });
+          unawaited(
+            Future.wait([
+              Get.find<AppService>().init(),
+              Get.find<ConnectivityService>().init(),
+              Get.find<PushNotificationService>().init(),
+              DeepLinkService.instance.initAppLinks(),
+              currencyService.fetchRealtimeRate(),
+            ]).then((_) {
+              logger.info('All background services initialized', tag: 'Startup');
+            }),
+          );
         } catch (error, stackTrace) {
           logger.wtf(
             'Fatal error during initialization',
@@ -339,23 +353,34 @@ class Truthworld extends StatelessWidget {
           ),
         );
 
-        if (Get.isRegistered<UserSettingsController>()) {
-          return Obx(() {
-            final colorBlindMode =
-                UserSettingsController.to.accessibility.value.colorBlindSupport;
-            final matrix = ColorBlindMatrices.getMatrix(colorBlindMode);
-            if (matrix != null) {
-              return ColorFiltered(
-                colorFilter: ColorFilter.matrix(matrix),
-                child: content,
-              );
-            }
-            return content;
-          });
-        }
-
-        return content;
+        return _AccessibilityColorFilterWrapper(child: content);
       },
     );
+  }
+}
+
+/// Granular wrapper that isolates reactivity for color-blind filter matrix updates,
+/// completely eliminating full-app root widget tree rebuilds.
+class _AccessibilityColorFilterWrapper extends StatelessWidget {
+  final Widget child;
+  const _AccessibilityColorFilterWrapper({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!Get.isRegistered<UserSettingsController>()) {
+      return child;
+    }
+    return Obx(() {
+      final colorBlindMode =
+          UserSettingsController.to.accessibility.value.colorBlindSupport;
+      final matrix = ColorBlindMatrices.getMatrix(colorBlindMode);
+      if (matrix != null) {
+        return ColorFiltered(
+          colorFilter: ColorFilter.matrix(matrix),
+          child: child,
+        );
+      }
+      return child;
+    });
   }
 }

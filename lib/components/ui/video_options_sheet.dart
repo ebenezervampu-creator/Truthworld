@@ -9,7 +9,7 @@ import 'package:truthworld/core/services/user_preferences_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
-import 'package:truthworld/features/playlist/presentation/views/playlist/show_diaglog.dart';
+import 'package:truthworld/features/playlist/presentation/views/playlist/show_dialog.dart';
 import 'package:truthworld/features/search/presentation/controllers/search_controller.dart'
     as search_ctrl;
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -87,14 +87,11 @@ class VideoOptionsSheet extends StatelessWidget {
           ), // Premium dark theme matching screenshot
           borderRadius: BorderRadius.circular(16),
           clipBehavior: Clip.antiAlias,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListView(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                children: [
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
                   if (onRemoveFromHistory != null)
                     _buildMenuItem(
                       context,
@@ -354,12 +351,11 @@ class VideoOptionsSheet extends StatelessWidget {
                   ),
                 ],
               ),
-            ],
+            ),
           ),
         ),
-      ),
-    );
-  }
+      );
+    }
 
   Widget _buildMenuItem(
     BuildContext context, {
@@ -704,7 +700,7 @@ class VideoOptionsSheet extends StatelessWidget {
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.brand,
-                    foregroundColor: Colors.white,
+                    foregroundColor: Colors.black,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(24),
                     ),

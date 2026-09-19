@@ -734,5 +734,3 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
 
 // Backward-compatibility aliases
 typedef HomeFeaturedBanner = FeaturedVideoBanner;
-typedef _FeaturedVideoBanner = FeaturedVideoBanner;
-typedef _FeaturedVideoBannerState = FeaturedVideoBannerState;

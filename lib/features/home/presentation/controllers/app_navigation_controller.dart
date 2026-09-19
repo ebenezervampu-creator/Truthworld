@@ -4,13 +4,15 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
+
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/config/app_config.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
-import 'package:truthworld/core/exceptions/app_exceptions.dart'
-    as app_exceptions;
+import 'package:truthworld/core/exceptions/app_exceptions.dart' as app_exceptions;
+import 'package:truthworld/core/services/distributed_counter_service.dart';
 
 class AppNavigationController extends BaseController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -67,118 +69,67 @@ class AppNavigationController extends BaseController {
     }
   }
 
-  /// Increment view count for a video & channel (follows Unique User + Qualified View Strategy)
+  /// Increment view count for a video & channel using Distributed Counter Sharding (20 shards).
+  ///
+  /// Prevents write contention and transaction aborts on viral videos (>100,000 views/hr)
+  /// by spreading view writes uniformly across 20 sub-counters.
   Future<void> incrementViews({
     required String videoId,
     required String userId,
     required bool isQualified,
     String? channelId,
   }) async {
-    if (videoId.isEmpty) return;
+    if (videoId.trim().isEmpty) return;
 
     try {
-      final videoRef = _firestore.collection(FirestoreCollections.videos).doc(videoId);
+      final counterService = Get.isRegistered<DistributedCounterService>()
+          ? DistributedCounterService.to
+          : Get.put(DistributedCounterService());
 
-      // If user is authenticated, enforce one view per user
+      // If user is authenticated, enforce one view per user doc
       if (userId.isNotEmpty && userId != 'anonymous') {
-        final viewRef = videoRef.collection('views').doc(userId);
+        final viewRef = _firestore
+            .collection(FirestoreCollections.videos)
+            .doc(videoId)
+            .collection('views')
+            .doc(userId);
 
-        if (kIsWeb) {
-          try {
-            final viewDoc = await viewRef.get().timeout(_defaultTimeout);
-            if (!viewDoc.exists) {
-              await viewRef
-                  .set({
-                    'timestamp': FieldValue.serverTimestamp(),
-                  })
-                  .timeout(_defaultTimeout);
-
-              await videoRef
-                  .update({
-                    'viewCount': FieldValue.increment(1),
-                    if (isQualified)
-                      'qualifiedViewCount': FieldValue.increment(1),
-                  })
-                  .timeout(_defaultTimeout);
-
-              if (channelId != null && channelId.isNotEmpty) {
-                _firestore
-                    .collection(FirestoreCollections.channels)
-                    .doc(channelId)
-                    .set({
-                      'metrics': {'totalViews': FieldValue.increment(1)},
-                      'viewCount': FieldValue.increment(1),
-                      'updatedAt': FieldValue.serverTimestamp(),
-                    }, SetOptions(merge: true))
-                    .catchError((e, s) => ErrorHandler.log(e, stackTrace: s, tag: 'AppNavigationController.channelMetricsWeb'));
-              }
-            }
-          } catch (e, stackTrace) {
-            ErrorHandler.log(e, stackTrace: stackTrace, tag: 'AppNavigationController.updateViewsWeb');
-          }
-        } else {
-          await _firestore
-              .runTransaction((transaction) async {
-                final viewDoc = await transaction.get(viewRef);
-
-                if (!viewDoc.exists) {
-                  transaction.set(viewRef, {
-                    'timestamp': FieldValue.serverTimestamp(),
-                  });
-
-                  transaction.update(videoRef, {
-                    'viewCount': FieldValue.increment(1),
-                    if (isQualified)
-                      'qualifiedViewCount': FieldValue.increment(1),
-                  });
-
-                  if (channelId != null && channelId.isNotEmpty) {
-                    final channelRef = _firestore
-                        .collection(FirestoreCollections.channels)
-                        .doc(channelId);
-                    transaction.set(
-                      channelRef,
-                      {
-                        'metrics': {'totalViews': FieldValue.increment(1)},
-                        'viewCount': FieldValue.increment(1),
-                        'updatedAt': FieldValue.serverTimestamp(),
-                      },
-                      SetOptions(merge: true),
-                    );
-                  }
-                }
-              })
+        final viewDoc = await viewRef.get().timeout(_defaultTimeout);
+        if (!viewDoc.exists) {
+          // Record unique user view doc (independent document, zero contention)
+          await viewRef
+              .set({'timestamp': FieldValue.serverTimestamp()})
               .timeout(_defaultTimeout);
+
+          // Increment distributed counter shards
+          await counterService.incrementVideoViews(
+            videoId: videoId,
+            isQualified: isQualified,
+            channelId: channelId,
+            timeout: _defaultTimeout,
+          );
         }
       } else {
-        // Anonymous view (simple increment)
-        await videoRef
-            .update({
-              'viewCount': FieldValue.increment(1),
-              if (isQualified) 'qualifiedViewCount': FieldValue.increment(1),
-            })
-            .timeout(_defaultTimeout);
-
-        if (channelId != null && channelId.isNotEmpty) {
-          _firestore
-              .collection(FirestoreCollections.channels)
-              .doc(channelId)
-              .set({
-                'metrics': {'totalViews': FieldValue.increment(1)},
-                'viewCount': FieldValue.increment(1),
-                'updatedAt': FieldValue.serverTimestamp(),
-              }, SetOptions(merge: true))
-              .catchError((e, s) => ErrorHandler.log(e, stackTrace: s, tag: 'AppNavigationController.channelMetricsAnon'));
-        }
+        // Anonymous view (directly increment distributed counter shards)
+        await counterService.incrementVideoViews(
+          videoId: videoId,
+          isQualified: isQualified,
+          channelId: channelId,
+          timeout: _defaultTimeout,
+        );
       }
 
       if (kDebugMode) {
         debugPrint(
-          'MainController: View counted for video $videoId (Qualified: $isQualified, User: $userId)',
+          'MainController: Distributed view counted for video $videoId (Qualified: $isQualified, User: $userId)',
         );
       }
     } catch (e, stackTrace) {
-      ErrorHandler.log(e, stackTrace: stackTrace, tag: 'AppNavigationController.updateViews');
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'AppNavigationController.updateViews',
+      );
     }
   }
 

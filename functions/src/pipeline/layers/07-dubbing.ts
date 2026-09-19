@@ -552,7 +552,7 @@ export class DubbingEngine {
           // ✅ TTS cache fully wired — checks cache BEFORE calling ElevenLabs
           // Tiered Dubbing: Use the speaker-to-voice mapping (Clones or Presets)
           const ttsUrls = await this.parallelTTSWithCache(
-            jobId, normalised, targetLang, voiceMapping
+            jobId, userId, normalised, targetLang, voiceMapping
           );
 
           const syncInstructions = this.buildSyncInstructions(normalised, ttsUrls);
@@ -603,7 +603,13 @@ export class DubbingEngine {
             durationSec: executionPlan.duration || 0,
             processingMs: Date.now() - t0,
             voice: executionPlan.dubbingMode === "voice_clone" ? "cloned" : "standard",
-          }
+          },
+          pricing: {
+            channelType: executionPlan.channelType || "standard",
+            ratePerLanguageUSD: executionPlan.channelType === "custom" ? 0.25 : 0.50,
+            voiceCloneIncluded: executionPlan.channelType === "custom",
+            tier: executionPlan.channelType === "custom" ? "partner_discount" : "standard_retail",
+          },
         });
       }
 
@@ -647,6 +653,7 @@ export class DubbingEngine {
    */
   private async parallelTTSWithCache(
     jobId:        string,
+    userId:       string,
     segments:     DubbingSegment[],
     language:     string,
     voiceMapping: Record<string, string>
@@ -680,6 +687,9 @@ export class DubbingEngine {
             voiceId,
             speakerId: seg.speaker,
           });
+
+          // ✅ Cost tracking: record ElevenLabs TTS cost for synthesized characters
+          costEngine.recordTTSCost(jobId, userId, seg.translatedText.length).catch(() => {});
 
           // Store in cache for next time
           await this.performanceLayer.cacheTTSResult(

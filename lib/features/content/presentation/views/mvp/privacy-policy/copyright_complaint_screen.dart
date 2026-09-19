@@ -234,6 +234,7 @@ class CopyrightComplaintScreen extends GetView<CopyrightComplaintController> {
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.brand,
+                          foregroundColor: Colors.black,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -249,13 +250,13 @@ class CopyrightComplaintScreen extends GetView<CopyrightComplaintController> {
                                   strokeWidth: 2,
                                   valueColor:
                                       AlwaysStoppedAnimation<Color>(
-                                    Colors.white,
+                                    Colors.black,
                                   ),
                                 ),
                               )
                             : const Icon(
                                 Icons.gavel_rounded,
-                                color: Colors.white,
+                                color: Colors.black,
                               ),
                         label: Text(
                           controller.isSubmitting.value
@@ -266,7 +267,7 @@ class CopyrightComplaintScreen extends GetView<CopyrightComplaintController> {
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                            color: Colors.black,
                           ),
                         ),
                       ),
@@ -644,6 +645,7 @@ class CopyrightComplaintScreen extends GetView<CopyrightComplaintController> {
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.brand,
+                foregroundColor: Colors.black,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 32,
                   vertical: 14,
@@ -657,7 +659,7 @@ class CopyrightComplaintScreen extends GetView<CopyrightComplaintController> {
                 'Back to Platform',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: Colors.black,
                 ),
               ),
             ),

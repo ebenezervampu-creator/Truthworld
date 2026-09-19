@@ -45,6 +45,7 @@ void main() {
     late TestChannelSubscriptionController controller;
 
     setUp(() {
+      ChannelSubscriptionController.channelSubscriberCounts.clear();
       controller = TestChannelSubscriptionController();
     });
 

@@ -39,11 +39,6 @@ class LibraryController extends BaseController
   final RxBool isLoadingYourVideos = false.obs;
 
   StreamSubscription? _userSub;
-  StreamSubscription? _historySub;
-  StreamSubscription? _playlistsSub;
-  StreamSubscription? _likedSub;
-  StreamSubscription? _clipsSub;
-  StreamSubscription? _yourVideosSub;
 
   // Animation controllers and animations
   late AnimationController fadeAnimationController;
@@ -64,7 +59,7 @@ class LibraryController extends BaseController
       (user) {
         rxUser.value = user;
         if (user != null) {
-          _subscribeToUserData(user.uid);
+          loadUserData(user.uid);
         } else {
           _clearUserData();
         }
@@ -78,7 +73,7 @@ class LibraryController extends BaseController
     if (_userSub != null) trackSubscription(_userSub!);
 
     if (_auth.currentUser != null) {
-      _subscribeToUserData(_auth.currentUser!.uid);
+      loadUserData(_auth.currentUser!.uid);
     }
   }
 
@@ -128,6 +123,7 @@ class LibraryController extends BaseController
 
   @override
   void onClose() {
+    _userSub?.cancel();
     fadeAnimationController.dispose();
     slideAnimationController.dispose();
     scaleAnimationController.dispose();
@@ -135,7 +131,6 @@ class LibraryController extends BaseController
   }
 
   void _clearUserData() {
-    _cancelDataSubscriptions();
     watchHistory.clear();
     playlists.clear();
     likedVideos.clear();
@@ -143,78 +138,67 @@ class LibraryController extends BaseController
     yourVideos.clear();
   }
 
-  void _cancelAllSubscriptions() {
-    _userSub?.cancel();
-    _cancelDataSubscriptions();
-  }
-
-  void _cancelDataSubscriptions() {
-    _historySub?.cancel();
-    _playlistsSub?.cancel();
-    _likedSub?.cancel();
-    _clipsSub?.cancel();
-    _yourVideosSub?.cancel();
-  }
-
-  void _subscribeToUserData(String uid) {
-    _cancelDataSubscriptions();
-
+  Future<void> loadUserData(String uid) async {
     isLoadingHistory.value = true;
-    _historySub = _firestore
-        .collection(FirestoreCollections.users)
-        .doc(uid)
-        .collection('watch_history')
-        .orderBy('watchedAt', descending: true)
-        .limit(10)
-        .snapshots()
-        .listen(
-          (snapshot) {
-            watchHistory.value = snapshot.docs
-                .map(Video.fromDocumentSnapshot)
-                .toList();
-            isLoadingHistory.value = false;
-          },
-          onError: (e) {
-            isLoadingHistory.value = false;
-          },
-        );
-    if (_historySub != null) trackSubscription(_historySub!);
-
     isLoadingPlaylists.value = true;
-    _playlistsSub = _firestore
-        .collection(FirestoreCollections.users)
-        .doc(uid)
-        .collection('saved_playlists')
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .listen(
-          (snapshot) {
-            playlists.value = snapshot.docs
-                .map(PlaylistModel.fromDocumentSnapshot)
-                .toList();
-            isLoadingPlaylists.value = false;
-          },
-          onError: (e) {
-            isLoadingPlaylists.value = false;
-          },
-        );
-    if (_playlistsSub != null) trackSubscription(_playlistsSub!);
-
     isLoadingLiked.value = true;
-    _likedSub = _firestore
-        .collection(FirestoreCollections.users)
-        .doc(uid)
-        .collection('likedVideos')
-        .orderBy('timestamp', descending: true)
-        .limit(10)
-        .snapshots()
-        .listen(
-          (snapshot) async {
-            if (snapshot.docs.isEmpty) {
-              likedVideos.clear();
-              isLoadingLiked.value = false;
-              return;
-            }
+    isLoadingClips.value = true;
+    isLoadingYourVideos.value = true;
+
+    await Future.wait([
+      // 1. History (one-time fetch)
+      (() async {
+        try {
+          final snapshot = await _firestore
+              .collection(FirestoreCollections.users)
+              .doc(uid)
+              .collection('watch_history')
+              .orderBy('watchedAt', descending: true)
+              .limit(10)
+              .get();
+          watchHistory.value = snapshot.docs
+              .map(Video.fromDocumentSnapshot)
+              .toList();
+        } catch (e) {
+          debugPrint('LibraryController history error: $e');
+        } finally {
+          isLoadingHistory.value = false;
+        }
+      })(),
+
+      // 2. Playlists (one-time fetch)
+      (() async {
+        try {
+          final snapshot = await _firestore
+              .collection(FirestoreCollections.users)
+              .doc(uid)
+              .collection(FirestoreCollections.playlists)
+              .orderBy('createdAt', descending: true)
+              .limit(20)
+              .get();
+          playlists.value = snapshot.docs
+              .map(PlaylistModel.fromDocumentSnapshot)
+              .toList();
+        } catch (e) {
+          debugPrint('LibraryController playlists error: $e');
+        } finally {
+          isLoadingPlaylists.value = false;
+        }
+      })(),
+
+      // 3. Liked videos (one-time fetch)
+      (() async {
+        try {
+          final snapshot = await _firestore
+              .collection(FirestoreCollections.users)
+              .doc(uid)
+              .collection('likedVideos')
+              .orderBy('timestamp', descending: true)
+              .limit(10)
+              .get();
+          if (snapshot.docs.isEmpty) {
+            likedVideos.clear();
+          } else {
             final videoIds = snapshot.docs.map((doc) => doc.id).toList();
             final videoDocs = await _fetchVideosInBatches(videoIds);
             final videoMap = {for (final v in videoDocs) v.id: v};
@@ -223,54 +207,59 @@ class LibraryController extends BaseController
                 .map((id) => videoMap[id]!)
                 .toList();
             likedVideos.value = orderedVideos;
-            isLoadingLiked.value = false;
-          },
-          onError: (e) {
-            isLoadingLiked.value = false;
-          },
-        );
-    if (_likedSub != null) trackSubscription(_likedSub!);
+          }
+        } catch (e) {
+          debugPrint('LibraryController liked error: $e');
+        } finally {
+          isLoadingLiked.value = false;
+        }
+      })(),
 
-    isLoadingClips.value = true;
-    _clipsSub = _firestore
-        .collection(FirestoreCollections.users)
-        .doc(uid)
-        .collection('clips')
-        .orderBy('createdAt', descending: true)
-        .limit(10)
-        .snapshots()
-        .listen(
-          (snapshot) {
-            clips.value = snapshot.docs
-                .map(VideoClip.fromDocumentSnapshot)
-                .toList();
-            isLoadingClips.value = false;
-          },
-          onError: (e) {
-            isLoadingClips.value = false;
-          },
-        );
-    if (_clipsSub != null) trackSubscription(_clipsSub!);
+      // 4. Clips (one-time fetch)
+      (() async {
+        try {
+          final snapshot = await _firestore
+              .collection(FirestoreCollections.users)
+              .doc(uid)
+              .collection('clips')
+              .orderBy('createdAt', descending: true)
+              .limit(10)
+              .get();
+          clips.value = snapshot.docs
+              .map(VideoClip.fromDocumentSnapshot)
+              .toList();
+        } catch (e) {
+          debugPrint('LibraryController clips error: $e');
+        } finally {
+          isLoadingClips.value = false;
+        }
+      })(),
 
-    isLoadingYourVideos.value = true;
-    _yourVideosSub = _firestore
-        .collection(FirestoreCollections.videos)
-        .where('ownerId', isEqualTo: uid)
-        .snapshots()
-        .listen(
-          (snapshot) {
-            final list = snapshot.docs.map(Video.fromDocumentSnapshot).toList();
-            // Sort in-memory to prevent missing composite index errors
-            list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-            yourVideos.value = list.take(10).toList();
-            isLoadingYourVideos.value = false;
-          },
-          onError: (e) {
-            debugPrint('LibraryController yourVideos error: $e');
-            isLoadingYourVideos.value = false;
-          },
-        );
-    if (_yourVideosSub != null) trackSubscription(_yourVideosSub!);
+      // 5. Your Videos (one-time fetch)
+      (() async {
+        try {
+          final snapshot = await _firestore
+              .collection(FirestoreCollections.videos)
+              .where('ownerId', isEqualTo: uid)
+              .limit(20)
+              .get();
+          final list = snapshot.docs.map(Video.fromDocumentSnapshot).toList();
+          list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          yourVideos.value = list.take(10).toList();
+        } catch (e) {
+          debugPrint('LibraryController yourVideos error: $e');
+        } finally {
+          isLoadingYourVideos.value = false;
+        }
+      })(),
+    ]);
+  }
+
+  Future<void> refreshLibrary() async {
+    final uid = _auth.currentUser?.uid;
+    if (uid != null && uid.isNotEmpty) {
+      await loadUserData(uid);
+    }
   }
 
   Future<List<Video>> _fetchVideosInBatches(List<String> videoIds) async {

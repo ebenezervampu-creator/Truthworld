@@ -9,9 +9,6 @@ class CommentRepositoryImpl extends BaseRepository
     implements CommentRepository {
   final FirebaseFirestore _firestore;
 
-  DocumentSnapshot? _lastCommentDoc;
-  DocumentSnapshot? _lastReplyDoc;
-
   CommentRepositoryImpl({FirebaseFirestore? firestore})
     : _firestore = firestore ?? FirebaseFirestore.instance;
 
@@ -39,10 +36,9 @@ class CommentRepositoryImpl extends BaseRepository
     int page = 1,
     int limit = 20,
     String sortBy = 'newest',
+    dynamic startAfter,
   }) async {
     return safeFetch(() async {
-      if (page == 1) _lastCommentDoc = null;
-
       var q = _firestore
           .collection(FirestoreCollections.videoComments(videoId))
           .where('parentId', isNull: true);
@@ -56,14 +52,11 @@ class CommentRepositoryImpl extends BaseRepository
       }
       q = q.limit(limit);
 
-      if (page > 1 && _lastCommentDoc != null) {
-        q = q.startAfterDocument(_lastCommentDoc!);
+      if (startAfter is DocumentSnapshot) {
+        q = q.startAfterDocument(startAfter);
       }
 
       final snapshot = await q.get();
-      if (snapshot.docs.isNotEmpty) {
-        _lastCommentDoc = snapshot.docs.last;
-      }
 
       return snapshot.docs
           .map((doc) => _mapToEntity(doc.data(), doc.id))
@@ -77,24 +70,20 @@ class CommentRepositoryImpl extends BaseRepository
     String commentId, {
     int page = 1,
     int limit = 10,
+    dynamic startAfter,
   }) async {
     return safeFetch(() async {
-      if (page == 1) _lastReplyDoc = null;
-
       var q = _firestore
           .collection(FirestoreCollections.videoComments(videoId))
           .where('parentId', isEqualTo: commentId)
           .orderBy('createdAt', descending: false)
           .limit(limit);
 
-      if (page > 1 && _lastReplyDoc != null) {
-        q = q.startAfterDocument(_lastReplyDoc!);
+      if (startAfter is DocumentSnapshot) {
+        q = q.startAfterDocument(startAfter);
       }
 
       final snapshot = await q.get();
-      if (snapshot.docs.isNotEmpty) {
-        _lastReplyDoc = snapshot.docs.last;
-      }
 
       return snapshot.docs
           .map((doc) => _mapToEntity(doc.data(), doc.id))

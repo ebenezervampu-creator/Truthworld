@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/likedvideos/presentation/controllers/likedvideos_controller.dart';
 import 'package:truthworld/features/myvideos/presentation/controllers/my_videos_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -34,6 +35,7 @@ void main() {
 
     setUp(() {
       Get.reset();
+      Get.put<AuthService>(AuthService());
       controller = WatchHistoryController();
     });
 

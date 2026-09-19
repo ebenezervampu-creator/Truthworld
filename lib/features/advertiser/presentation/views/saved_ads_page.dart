@@ -5,109 +5,90 @@ import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/widgets/ad_widgets.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class SavedAdsPage extends StatefulWidget {
+class SavedAdsPage extends StatelessWidget {
   const SavedAdsPage({super.key});
 
   @override
-  State<SavedAdsPage> createState() => _SavedAdsPageState();
-}
-
-class _SavedAdsPageState extends State<SavedAdsPage>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0F),
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header Section
-            const Padding(
-              padding: EdgeInsets.fromLTRB(24, 24, 24, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Interacted Ads',
-                    style: TextStyle(
-                      fontFamily: TWTypography.brandFamily,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      letterSpacing: -0.5,
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor: const Color(0xFF0F0F0F),
+        body: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header Section
+              const Padding(
+                padding: EdgeInsets.fromLTRB(24, 24, 24, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Interacted Ads',
+                      style: TextStyle(
+                        fontFamily: TWTypography.brandFamily,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        letterSpacing: -0.5,
+                      ),
                     ),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    'Your liked and bookmarked advertiser sponsor layers',
-                    style: TextStyle(
-                      fontFamily: TWTypography.uiFamily,
-                      fontSize: 13,
-                      color: AppColors.textSecondary,
+                    SizedBox(height: 4),
+                    Text(
+                      'Your liked and bookmarked advertiser sponsor layers',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
+                  ],
+                ),
+              ),
+
+              // Tab Bar
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF161618),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF27272A)),
+                ),
+                child: const TabBar(
+                  indicatorColor: AppColors.brand,
+                  labelColor: Colors.white,
+                  unselectedLabelColor: AppColors.textSecondary,
+                  labelStyle: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
                   ),
-                ],
-              ),
-            ),
-
-            // Tab Bar
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF161618),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF27272A)),
-              ),
-              child: TabBar(
-                controller: _tabController,
-                indicatorColor: AppColors.brand,
-                labelColor: Colors.white,
-                unselectedLabelColor: AppColors.textSecondary,
-                labelStyle: const TextStyle(
-                  fontFamily: TWTypography.uiFamily,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
+                  unselectedLabelStyle: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontWeight: FontWeight.normal,
+                    fontSize: 14,
+                  ),
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  dividerColor: Colors.transparent,
+                  tabs: [
+                    Tab(icon: Icon(Icons.bookmark_rounded, color: Colors.white), text: 'Saved'),
+                    Tab(icon: Icon(Icons.thumb_up_rounded, color: Colors.white), text: 'Liked'),
+                  ],
                 ),
-                unselectedLabelStyle: const TextStyle(
-                  fontFamily: TWTypography.uiFamily,
-                  fontWeight: FontWeight.normal,
-                  fontSize: 14,
-                ),
-                indicatorSize: TabBarIndicatorSize.tab,
-                dividerColor: Colors.transparent,
-                tabs: const [
-                  Tab(icon: Icon(Icons.bookmark_rounded, color: Colors.white), text: 'Saved'),
-                  Tab(icon: Icon(Icons.thumb_up_rounded, color: Colors.white), text: 'Liked'),
-                ],
               ),
-            ),
 
-            // Tab Views
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildSavedTab(),
-                  _buildLikedTab(),
-                ],
+              // Tab Views
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    _buildSavedTab(),
+                    _buildLikedTab(),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

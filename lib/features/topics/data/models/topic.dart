@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/utils/timestamp_utils.dart';
+import 'package:truthworld/domain/entities/topic_entity.dart';
 
 enum TopicVisibilityType {
   public,
@@ -358,6 +359,65 @@ class Topic {
       return '/explore-topics';
     }
     return '/T/$param';
+  }
+
+  /// Converts this data model to a pure domain [TopicEntity].
+  TopicEntity toEntity() {
+    return TopicEntity(
+      id: id,
+      title: title,
+      slug: slug,
+      handle: handle,
+      description: description,
+      category: category,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      thumbnailUrl: thumbnailUrl,
+      coverImage: coverImage,
+      videoCount: videoCount,
+      postCount: postCount,
+      followerCount: followerCount,
+      views: views,
+      likeCount: likeCount,
+      commentCount: commentCount,
+      trendingScore: trendingScore,
+      status: status,
+      channelId: channelId,
+      creatorId: creatorId,
+      tags: tags,
+      featuredVideoIds: featuredVideoIds,
+      relatedTopics: relatedTopics,
+    );
+  }
+
+  /// Creates a [Topic] data model from a pure domain [TopicEntity].
+  static Topic fromEntity(TopicEntity entity) {
+    return Topic(
+      id: entity.id,
+      title: entity.title,
+      slug: entity.slug,
+      handle: entity.handle,
+      handleLowercase: entity.handle.toLowerCase(),
+      description: entity.description,
+      category: entity.category,
+      createdAt: entity.createdAt,
+      updatedAt: entity.updatedAt,
+      thumbnailUrl: entity.thumbnailUrl,
+      coverImage: entity.coverImage,
+      videoCount: entity.videoCount,
+      postCount: entity.postCount,
+      followerCount: entity.followerCount,
+      views: entity.views,
+      likeCount: entity.likeCount,
+      commentCount: entity.commentCount,
+      trendingScore: entity.trendingScore,
+      status: entity.status,
+      channelId: entity.channelId,
+      creatorId: entity.creatorId,
+      tags: entity.tags,
+      featuredVideoIds: entity.featuredVideoIds,
+      relatedTopics: entity.relatedTopics,
+    );
   }
 }
 

@@ -2,6 +2,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/adaptive_bitrate_controller.dart';
@@ -47,7 +48,14 @@ mixin TowerPlayerAbrMixin on GetxController {
       );
     }
 
-    abr.initialize(ladder: ladder, vpc: videoPlayerController);
+    final isPremium =
+        Get.isRegistered<AuthService>() && AuthService.to.hasFullPremium;
+
+    abr.initialize(
+      ladder: ladder,
+      vpc: videoPlayerController,
+      maxHeightCap: isPremium ? null : 1040,
+    );
     abr.isAdPlaying = () => isShowingAd.value;
 
     abr.onTierChanged = (tierIndex, isManual) {
@@ -96,7 +104,7 @@ mixin TowerPlayerAbrMixin on GetxController {
 
         if (targetQualityStr.contains('1080') ||
             targetQualityStr.contains('High')) {
-          pref = '1080p';
+          pref = isPremium ? '1080p' : '1040p';
         } else if (targetQualityStr.contains('720') ||
             targetQualityStr.contains('Medium')) {
           pref = '720p';
@@ -116,6 +124,14 @@ mixin TowerPlayerAbrMixin on GetxController {
       if (pref == 'Auto') {
         abr.enableAutoMode();
       } else {
+        if (!isPremium &&
+            (pref.contains('1080') ||
+                pref.contains('1440') ||
+                pref.contains('2160') ||
+                pref.contains('4k') ||
+                pref.contains('4K'))) {
+          pref = '1040p';
+        }
         final matchIdx = abr.resolutionLadder.indexWhere(
           (t) => t.label.contains(pref!),
         );
@@ -132,6 +148,11 @@ mixin TowerPlayerAbrMixin on GetxController {
 
   void selectQuality(int tierIndex) {
     if (tierIndex < 0 || tierIndex >= abr.resolutionLadder.length) return;
+    final isPremium =
+        Get.isRegistered<AuthService>() && AuthService.to.hasFullPremium;
+    if (!isPremium && abr.resolutionLadder[tierIndex].height > 1040) {
+      return;
+    }
     abr.setManualTier(tierIndex);
     TowerPlayerController.globalQualityPreference =
         abr.resolutionLadder[tierIndex].label;

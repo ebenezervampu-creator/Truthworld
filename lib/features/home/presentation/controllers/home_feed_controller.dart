@@ -251,12 +251,4 @@ class HomeFeedController extends HomeFeedControllerBase
       isLoadingVideos.value = false;
     }
   }
-
-  // Backward compatibility private forwarders
-  AuthService get _authService => authService;
-  FirebaseFirestore get _firestore => firestore;
-  FeedCacheManager get _feedCacheManager => feedCacheManager;
-  String get _selectedCategory => selectedCategory;
-  String? get _currentUserId => currentUserId;
-  Future<void> _fetchInitialVideosInternal() => fetchInitialVideosInternal();
 }

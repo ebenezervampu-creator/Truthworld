@@ -14,16 +14,15 @@ import 'package:truthworld/features/video/data/models/video.dart';
 /// Mixin managing feed caching, personalization pruning,
 /// interest profile dynamic re-ranking, and feed item synthesis.
 mixin HomeFeedCachePersonalizationMixin on HomeFeedControllerBase {
+  static final Map<String, String> _normalizedCatCache = {};
+
   @override
   bool matchesCategory(Video v, String cat) {
-    final target = cat.trim().toLowerCase();
-    final vCat = v.category.trim().toLowerCase();
-    if (vCat == target || vCat.contains(target) || target.contains(vCat)) return true;
-    if (v.tags.any((t) => t.trim().toLowerCase() == target || t.trim().toLowerCase().contains(target))) {
-      return true;
-    }
-    if (v.topics.any((t) => t.trim().toLowerCase() == target || t.trim().toLowerCase().contains(target))) {
-      return true;
+    final target = _normalizedCatCache[cat] ??= cat.trim().toLowerCase();
+    final tokens = v.categoryTokens;
+    if (tokens.contains(target)) return true;
+    for (final token in tokens) {
+      if (token.contains(target) || target.contains(token)) return true;
     }
     return false;
   }
@@ -215,10 +214,5 @@ mixin HomeFeedCachePersonalizationMixin on HomeFeedControllerBase {
 
     homeFeedItems.assignAll(mixed);
   }
-
-  // Backward compatibility private forwarders
-  bool _matchesCategory(Video v, String cat) => matchesCategory(v, cat);
-  void _rerankActiveFeedOnProfileUpdate() => rerankActiveFeedOnProfileUpdate();
-  void _loadCachedVideos([String? category]) => loadCachedVideos(category);
-  void _saveVideosToCache([String? category]) => saveVideosToCache(category);
 }
+

@@ -1,73 +1,28 @@
-import 'dart:async';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/core/constants/firestore_collections.dart';
-import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
-import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/wizard/widgets/channel_wizard_input_fields.dart';
+import 'package:truthworld/features/channel/presentation/views/channel/wizard/widgets/channel_wizard_view_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class ChannelWizardDetailsCard extends StatefulWidget {
+class ChannelWizardDetailsCard extends StatelessWidget {
   final ChannelController controller;
   final RxList<String> tagList;
   final bool isDarkMode;
+  final ChannelWizardViewController? wizardController;
 
   const ChannelWizardDetailsCard({
     required this.controller,
     required this.tagList,
     required this.isDarkMode,
+    this.wizardController,
     super.key,
   });
 
-  @override
-  State<ChannelWizardDetailsCard> createState() =>
-      _ChannelWizardDetailsCardState();
-}
-
-class _ChannelWizardDetailsCardState extends State<ChannelWizardDetailsCard> {
-  ChannelController get controller => widget.controller;
-  RxList<String> get _tagList => widget.tagList;
-  bool get isDarkMode => widget.isDarkMode;
-
-  final TextEditingController _tagInputController = TextEditingController();
-  final RxString _tagSearchQuery = ''.obs;
-  String get _tagQueryText => _tagSearchQuery.value;
-
-  final RxList<Map<String, dynamic>> _liveFirestoreSuggestions =
-      <Map<String, dynamic>>[].obs;
-  final RxBool _isSearchingTags = false.obs;
-
-  @override
-  void dispose() {
-    _tagInputController.dispose();
-    super.dispose();
-  }
-
-  void _addTag(String rawTag) {
-    final clean = rawTag.trim().replaceAll(',', '');
-    if (clean.isEmpty) return;
-    if (_tagList.length >= 5) {
-      AppSnackbar.warning(
-        'You can add up to 5 tags.',
-      );
-      return;
-    }
-    if (!_tagList.contains(clean)) {
-      _tagList.add(clean);
-      controller.tags.text = _tagList.join(', ');
-    }
-    _tagInputController.clear();
-    _tagSearchQuery.value = '';
-  }
-
-  void _removeTag(String tag) {
-    _tagList.remove(tag);
-    controller.tags.text = _tagList.join(', ');
-  }
+  ChannelWizardViewController get _wc =>
+      wizardController ?? Get.find<ChannelWizardViewController>();
 
   @override
   Widget build(BuildContext context) {
@@ -162,71 +117,6 @@ class _ChannelWizardDetailsCardState extends State<ChannelWizardDetailsCard> {
     );
   }
 
-  RxMap<String, int>? _realTagUsageMapObj;
-  RxMap<String, int> get _realTagUsageMap =>
-      _realTagUsageMapObj ??= <String, int>{}.obs;
-
-  Future<void> _fetchRealMatchingTagsFromFirestore(String query) async {
-    final cleanQuery = query.trim().toLowerCase();
-    if (cleanQuery.isEmpty) {
-      _liveFirestoreSuggestions.clear();
-      _isSearchingTags.value = false;
-      return;
-    }
-
-    _isSearchingTags.value = true;
-    try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection(FirestoreCollections.hashtags)
-          .where('tagLowercase', isGreaterThanOrEqualTo: cleanQuery)
-          .where('tagLowercase', isLessThanOrEqualTo: '$cleanQuery\uf8ff')
-          .limit(8)
-          .get();
-
-      final results = snapshot.docs.map((doc) {
-        final data = doc.data();
-        final name = data['name'] as String? ?? doc.id;
-        final count = (data['usageCount'] as num?)?.toInt() ?? 1;
-        _realTagUsageMap[name] = count;
-        return {
-          'name': name,
-          'usageCount': count,
-        };
-      }).toList();
-
-      _liveFirestoreSuggestions.assignAll(results);
-    } on FirebaseException catch (e, stackTrace) {
-      _liveFirestoreSuggestions.clear();
-      ErrorHandler.log(
-        e,
-        stackTrace: stackTrace,
-        tag: 'ChannelWizardDetailsCard.tagSearch.firebase',
-      );
-    } catch (e, stackTrace) {
-      _liveFirestoreSuggestions.clear();
-      ErrorHandler.log(
-        e,
-        stackTrace: stackTrace,
-        tag: 'ChannelWizardDetailsCard.tagSearch',
-      );
-    } finally {
-      _isSearchingTags.value = false;
-    }
-  }
-
-  String _getTagUsageCountFormatted(String tag) {
-    final count = _realTagUsageMap[tag] ?? 1;
-    if (count >= 1000000) {
-      final val = (count / 1000000).toStringAsFixed(1);
-      return '${val.endsWith('.0') ? val.substring(0, val.length - 2) : val}M';
-    }
-    if (count >= 1000) {
-      final val = (count / 1000).toStringAsFixed(1);
-      return '${val.endsWith('.0') ? val.substring(0, val.length - 2) : val}k';
-    }
-    return '$count';
-  }
-
   Widget _buildTagInputField() {
     return Container(
       decoration: BoxDecoration(
@@ -236,17 +126,17 @@ class _ChannelWizardDetailsCardState extends State<ChannelWizardDetailsCard> {
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: TextField(
-        controller: _tagInputController,
+        controller: _wc.tagInputController,
         inputFormatters: [TruthworldTextInputFormatters.englishOnly],
         style: const TextStyle(color: Colors.white, fontSize: 14),
         onChanged: (val) {
-          _tagSearchQuery.value = val.trim();
-          _fetchRealMatchingTagsFromFirestore(val);
+          _wc.tagSearchQuery.value = val.trim();
+          _wc.fetchRealMatchingTagsFromFirestore(val);
           if (val.contains(',')) {
-            _addTag(val);
+            _wc.addTag(val);
           }
         },
-        onSubmitted: _addTag,
+        onSubmitted: _wc.addTag,
         decoration: const InputDecoration(
           hintText: 'Add tags (type & press Enter or comma)',
           hintStyle: TextStyle(color: AppColors.textTertiary, fontSize: 13),
@@ -261,21 +151,21 @@ class _ChannelWizardDetailsCardState extends State<ChannelWizardDetailsCard> {
 
   Widget _buildTagAutocompleteSuggestions() {
     return Obx(() {
-      final query = _tagQueryText.toLowerCase().trim();
+      final query = _wc.tagQueryText.toLowerCase().trim();
       if (query.isEmpty) return const SizedBox.shrink();
 
-      final currentTags = _tagList.toList();
+      final currentTags = tagList.toList();
 
       // ONLY use real Firestore suggestions from the database
       final realMatches = <Map<String, dynamic>>[];
-      for (final item in _liveFirestoreSuggestions) {
+      for (final item in _wc.liveFirestoreSuggestions) {
         final name = item['name'] as String;
         if (!currentTags.contains(name)) {
           realMatches.add(item);
         }
       }
 
-      if (_isSearchingTags.value && realMatches.isEmpty) {
+      if (_wc.isSearchingTags.value && realMatches.isEmpty) {
         return Padding(
           padding: const EdgeInsets.only(top: 6),
           child: Container(
@@ -314,7 +204,7 @@ class _ChannelWizardDetailsCardState extends State<ChannelWizardDetailsCard> {
           padding: const EdgeInsets.only(top: 6),
           child: GestureDetector(
             onTap: () {
-              _addTag(_tagInputController.text);
+              _wc.addTag(_wc.tagInputController.text);
             },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -332,7 +222,7 @@ class _ChannelWizardDetailsCardState extends State<ChannelWizardDetailsCard> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'Add "$_tagQueryText"',
+                    'Add "${_wc.tagQueryText}"',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 13,
@@ -380,9 +270,9 @@ class _ChannelWizardDetailsCardState extends State<ChannelWizardDetailsCard> {
             const Divider(color: Color(0xFF27272A), height: 1),
             ...displayList.map((item) {
               final tag = item['name'] as String;
-              final usage = _getTagUsageCountFormatted(tag);
+              final usage = _wc.getTagUsageCountFormatted(tag);
               return InkWell(
-                onTap: () => _addTag(tag),
+                onTap: () => _wc.addTag(tag),
                 borderRadius: BorderRadius.circular(8),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
@@ -448,7 +338,7 @@ class _ChannelWizardDetailsCardState extends State<ChannelWizardDetailsCard> {
 
   Widget _buildTagChipsWrap() {
     return Obx(() {
-      final tags = _tagList.toList();
+      final tags = tagList.toList();
       return Wrap(
         spacing: 8,
         runSpacing: 8,
@@ -474,7 +364,7 @@ class _ChannelWizardDetailsCardState extends State<ChannelWizardDetailsCard> {
                   ),
                   const SizedBox(width: 6),
                   GestureDetector(
-                    onTap: () => _removeTag(tag),
+                    onTap: () => _wc.removeTag(tag),
                     child: const Icon(
                       Icons.close,
                       size: 14,
@@ -487,8 +377,8 @@ class _ChannelWizardDetailsCardState extends State<ChannelWizardDetailsCard> {
           ),
           GestureDetector(
             onTap: () {
-              if (_tagInputController.text.trim().isNotEmpty) {
-                _addTag(_tagInputController.text);
+              if (_wc.tagInputController.text.trim().isNotEmpty) {
+                _wc.addTag(_wc.tagInputController.text);
               }
             },
             child: Container(
@@ -750,7 +640,7 @@ class _ChannelWizardDetailsCardState extends State<ChannelWizardDetailsCard> {
         ]);
       }
 
-      final current = _tagList.toList();
+      final current = tagList.toList();
       final available = recommendedSet
           .where((s) => !current.contains(s))
           .toList();
@@ -773,9 +663,9 @@ class _ChannelWizardDetailsCardState extends State<ChannelWizardDetailsCard> {
             spacing: 6,
             runSpacing: 6,
             children: available.map((sTag) {
-              final usage = _getTagUsageCountFormatted(sTag);
+              final usage = _wc.getTagUsageCountFormatted(sTag);
               return GestureDetector(
-                onTap: () => _addTag(sTag),
+                onTap: () => _wc.addTag(sTag),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,

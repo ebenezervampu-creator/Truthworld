@@ -29,7 +29,6 @@ void main() {
         totalDuration: Duration(minutes: 10),
       );
       controller.mode.value = MiniplayerMode.collapsed;
-      controller.showMobileControls.value = true;
     });
 
     tearDown(Get.reset);
@@ -60,14 +59,60 @@ void main() {
       // On mobile, the title from _InfoBar should NOT be rendered in the miniplayer card
       expect(find.text('Global Peace and Washington D.C'), findsNothing);
 
-      // Overlay controls: Pause/Play and Close buttons should exist
+      // Overlay controls: Pause/Play, Close, and Expand buttons should exist
       expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
       expect(find.byIcon(Icons.close_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.open_in_full_rounded), findsOneWidget);
 
       // The close button dismisses the miniplayer
       await tester.tap(find.byIcon(Icons.close_rounded));
       await tester.pump();
 
+      expect(controller.mode.value, equals(MiniplayerMode.dismissed));
+    });
+
+    testWidgets('Mobile and webmobile viewport displays pause and cancel options while video is playing',
+        (tester) async {
+      const mobileWidth = 375.0;
+      const mobileHeight = 812.0;
+      tester.view.physicalSize = const Size(mobileWidth, mobileHeight);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      // Simulate active video playback where showMobileControls is false
+      controller.isPlaying.value = true;
+      controller.showMobileControls.value = false;
+
+      await tester.pumpWidget(
+        const GetMaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: mobileWidth,
+              height: mobileHeight,
+              child: MiniplayerWidget(),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+
+      // Pause button MUST be visible while playing on mobile/webmobile
+      expect(find.byIcon(Icons.pause_rounded), findsOneWidget);
+      // Cancel (close) button MUST be visible on mobile/webmobile
+      expect(find.byIcon(Icons.close_rounded), findsOneWidget);
+      // Expand button MUST also be visible
+      expect(find.byIcon(Icons.open_in_full_rounded), findsOneWidget);
+
+      // Tapping pause flips isPlaying to false
+      await tester.tap(find.byIcon(Icons.pause_rounded));
+      await tester.pump();
+      expect(controller.isPlaying.value, isFalse);
+
+      // Tapping close dismisses the miniplayer
+      await tester.tap(find.byIcon(Icons.close_rounded));
+      await tester.pump();
       expect(controller.mode.value, equals(MiniplayerMode.dismissed));
     });
 

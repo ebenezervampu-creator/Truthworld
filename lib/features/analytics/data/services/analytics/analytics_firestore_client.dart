@@ -1,0 +1,407 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/features/analytics/data/models/watch_event_model.dart';
+import 'package:truthworld/features/analytics/data/services/analytics/channel_analytics_aggregator.dart';
+import 'package:truthworld/features/analytics/data/services/analytics/fraud_overview.dart';
+import 'package:truthworld/features/analytics/data/services/analytics/video_analytics_aggregator.dart';
+
+/// Client executing Firestore queries and live counter fallbacks for video and channel analytics.
+class AnalyticsFirestoreClient {
+  AnalyticsFirestoreClient({FirebaseFirestore? firestore})
+      : _firestore = firestore ?? FirebaseFirestore.instance;
+
+  static const String _tag = 'AnalyticsFirestoreClient';
+  final FirebaseFirestore _firestore;
+  final _dateFormat = DateFormat('yyyy_MM_dd');
+  final _hourFormat = DateFormat('yyyy_MM_dd_HH');
+
+  /// Fetch DailyVideoStats documents for a video in a date range.
+  Future<List<DailyVideoStats>> fetchDailyVideoStats(
+    String videoId,
+    DateTime start,
+    DateTime end,
+  ) async {
+    try {
+      final startKey = _dateFormat.format(start);
+      final endKey = _dateFormat.format(end);
+
+      final snapshot = await _firestore
+          .collection('video_stats_daily')
+          .where('videoId', isEqualTo: videoId)
+          .get();
+
+      final allStats = snapshot.docs
+          .map((doc) => DailyVideoStats.fromMap(doc.data()))
+          .toList();
+
+      final filteredStats = allStats.where((stats) {
+        return stats.dateKey.compareTo(startKey) >= 0 &&
+            stats.dateKey.compareTo(endKey) <= 0;
+      }).toList();
+
+      filteredStats.sort((a, b) => b.dateKey.compareTo(a.dateKey));
+      return filteredStats.take(365).toList();
+    } catch (e) {
+      logger.warning('Error fetching daily video stats: $e', tag: _tag);
+      return [];
+    }
+  }
+
+  /// Build analytics from live video doc counters (fallback when no daily stats exist).
+  Future<VideoAnalyticsSnapshot> buildFromLiveVideoCounters(
+    String videoId,
+    String title,
+  ) async {
+    try {
+      final doc = await _firestore.collection('videos').doc(videoId).get();
+      if (!doc.exists) {
+        return const VideoAnalyticsAggregator().createEmptyVideoAnalytics(
+          videoId,
+          title,
+        );
+      }
+
+      final data = doc.data()!;
+      final viewCount = (data['viewCount'] as num?)?.toInt() ?? 0;
+      final watchTime = (data['totalWatchTimeSeconds'] as num?)?.toInt() ?? 0;
+
+      return VideoAnalyticsSnapshot(
+        videoId: videoId,
+        title: data['title'] as String? ?? title,
+        totalViews: viewCount,
+        totalUniqueViewers: viewCount,
+        averageWatchDuration: viewCount > 0 ? watchTime / viewCount : 0,
+        averageWatchPercentage: 0,
+        totalWatchTimeSeconds: watchTime,
+        usersCompletedVideo: 0,
+        watchtimeCategoryCount: {
+          for (final cat in WatchtimeCategory.values) cat: 0,
+        },
+        stateTraffic: {},
+        stateTrafficPercentage: {},
+        deviceTypeBreakdown: {},
+        qualityBreakdown: {},
+        generatedAt: DateTime.now(),
+        estimatedReadCount: 1,
+        dailyViews: {DateTime.now(): viewCount},
+        dailyWatchTime: {DateTime.now(): watchTime},
+      );
+    } catch (e) {
+      return const VideoAnalyticsAggregator().createEmptyVideoAnalytics(
+        videoId,
+        title,
+      );
+    }
+  }
+
+  /// Fetch daily channel stats documents.
+  Future<List<DailyChannelStats>> fetchDailyChannelStats(
+    String channelId,
+    DateTime start,
+    DateTime end,
+  ) async {
+    try {
+      final startKey = _dateFormat.format(start);
+      final endKey = _dateFormat.format(end);
+
+      final snapshot = await _firestore
+          .collection('channel_stats_daily')
+          .where('channelId', isEqualTo: channelId)
+          .get();
+
+      final allStats = snapshot.docs
+          .map((doc) => DailyChannelStats.fromMap(doc.data()))
+          .toList();
+
+      final filteredStats = allStats.where((stats) {
+        return stats.dateKey.compareTo(startKey) >= 0 &&
+            stats.dateKey.compareTo(endKey) <= 0;
+      }).toList();
+
+      filteredStats.sort((a, b) => b.dateKey.compareTo(a.dateKey));
+      return filteredStats.take(365).toList();
+    } catch (e) {
+      logger.warning('Error fetching daily channel stats: $e', tag: _tag);
+      return [];
+    }
+  }
+
+  /// Fetch video daily stats for a specific channel.
+  Future<List<DailyVideoStats>> fetchChannelVideoDailyStats(
+    String channelId,
+    DateTime start,
+    DateTime end,
+  ) async {
+    try {
+      final startKey = _dateFormat.format(start);
+      final endKey = _dateFormat.format(end);
+
+      final snapshot = await _firestore
+          .collection('video_stats_daily')
+          .where('channelId', isEqualTo: channelId)
+          .get();
+
+      final allStats = snapshot.docs
+          .map((doc) => DailyVideoStats.fromMap(doc.data()))
+          .toList();
+
+      final filteredStats = allStats.where((stats) {
+        return stats.dateKey.compareTo(startKey) >= 0 &&
+            stats.dateKey.compareTo(endKey) <= 0;
+      }).toList();
+
+      return filteredStats.take(500).toList();
+    } catch (e) {
+      logger.error('Error fetching channel video daily stats: $e', tag: _tag);
+      return [];
+    }
+  }
+
+  /// Build channel analytics from live document counters (fallback).
+  Future<ChannelAnalyticsSnapshot> buildChannelFromLiveCounters(
+    String channelId,
+    String channelName,
+  ) async {
+    try {
+      final doc = await _firestore.collection('channels').doc(channelId).get();
+      if (!doc.exists) {
+        return const ChannelAnalyticsAggregator().createEmptyChannelAnalytics(
+          channelId,
+          channelName,
+        );
+      }
+
+      final data = doc.data()!;
+      final metrics = data['metrics'] as Map<String, dynamic>? ?? {};
+      var views =
+          (metrics['totalViews'] as num?)?.toInt() ??
+          (data['viewCount'] as num?)?.toInt() ??
+          0;
+      var watchTimeSec =
+          (data['totalWatchTimeSeconds'] as num?)?.toInt() ??
+          (metrics['totalWatchTimeSeconds'] as num?)?.toInt() ??
+          (((metrics['totalWatchTimeMinutes'] as num?)?.toDouble() ??
+                  (data['totalWatchTimeMinutes'] as num?)?.toDouble() ??
+                  0) *
+              60)
+              .round();
+      final subCount = (data['subscriberCount'] as num?)?.toInt() ?? 0;
+
+      // If views or watch time are 0, aggregate from channel videos
+      if (views == 0 || watchTimeSec == 0) {
+        try {
+          final videosSnap = await _firestore
+              .collection('videos')
+              .where('channelId', isEqualTo: channelId)
+              .get();
+          var aggregatedViews = 0;
+          var aggregatedWatchSec = 0;
+          for (final vDoc in videosSnap.docs) {
+            final vData = vDoc.data();
+            aggregatedViews += (vData['viewCount'] as num?)?.toInt() ?? 0;
+            aggregatedWatchSec +=
+                (vData['totalWatchTimeSeconds'] as num?)?.toInt() ?? 0;
+          }
+          if (views == 0 && aggregatedViews > 0) views = aggregatedViews;
+          if (watchTimeSec == 0 && aggregatedWatchSec > 0) {
+            watchTimeSec = aggregatedWatchSec;
+          }
+        } catch (e, s) {
+          ErrorHandler.log(
+            e,
+            stackTrace: s,
+            tag: 'AnalyticsFirestoreClient.aggregateChannelMetrics',
+          );
+        }
+      }
+
+      return ChannelAnalyticsSnapshot(
+        channelId: channelId,
+        channelName: data['name'] as String? ?? channelName,
+        totalVideoWatches: views,
+        totalUniqueViewers: views,
+        averageWatchDuration: views > 0 ? watchTimeSec / views : 0,
+        averageWatchPercentage: 0,
+        totalWatchTimeSeconds: watchTimeSec,
+        stateTraffic: {},
+        stateTrafficPercentage: {},
+        countryTraffic: {},
+        countryTrafficPercentage: {},
+        dailySubscribers: {DateTime.now(): subCount},
+        dailyViews: {DateTime.now(): views},
+        dailyWatchTime: {DateTime.now(): watchTimeSec},
+        generatedAt: DateTime.now(),
+        videoCount: (data['videoCount'] as num?)?.toInt() ?? 0,
+        totalEngagementScore: 0,
+        subscribersGained: subCount,
+      );
+    } catch (e) {
+      logger.error('Error building channel from live counters: $e', tag: _tag);
+      return const ChannelAnalyticsAggregator().createEmptyChannelAnalytics(
+        channelId,
+        channelName,
+      );
+    }
+  }
+
+  /// Fetch last N hours of stats for a video.
+  Future<List<HourlyVideoStats>> getRecentHourlyStats(
+    String videoId, {
+    int hours = 24,
+  }) async {
+    try {
+      final cutoff = DateTime.now().subtract(Duration(hours: hours));
+      final cutoffKey = _hourFormat.format(cutoff);
+
+      final snapshot = await _firestore
+          .collection('video_stats_hourly')
+          .where('videoId', isEqualTo: videoId)
+          .where('hourKey', isGreaterThanOrEqualTo: cutoffKey)
+          .orderBy('hourKey', descending: true)
+          .limit(hours.clamp(1, 72))
+          .get();
+
+      return snapshot.docs
+          .map((doc) => HourlyVideoStats.fromMap(doc.data()))
+          .toList();
+    } catch (e) {
+      logger.warning('Error fetching hourly stats: $e', tag: _tag);
+      return [];
+    }
+  }
+
+  /// Get aggregated stats for today by summing hourly docs.
+  Future<HourlyVideoStats?> getTodayAggregatedHourly(String videoId) async {
+    try {
+      final today = _dateFormat.format(DateTime.now());
+
+      final snapshot = await _firestore
+          .collection('video_stats_hourly')
+          .where('videoId', isEqualTo: videoId)
+          .where('hourKey', isGreaterThanOrEqualTo: '${today}_00')
+          .where('hourKey', isLessThanOrEqualTo: '${today}_23')
+          .get();
+
+      if (snapshot.docs.isEmpty) return null;
+
+      final hourlyStats = snapshot.docs
+          .map((doc) => HourlyVideoStats.fromMap(doc.data()))
+          .toList();
+
+      var views = 0, unique = 0, watchTime = 0, subViews = 0, nonSubViews = 0;
+      var bounced = 0;
+      var w25 = 0;
+      var w50 = 0;
+      var w75 = 0;
+      var w100 = 0;
+      var flagged = 0;
+      final trafficSources = <String, int>{};
+
+      for (final h in hourlyStats) {
+        views += h.totalViews;
+        unique += h.uniqueViewers;
+        watchTime += h.totalWatchTimeSeconds;
+        subViews += h.subscriberViews;
+        nonSubViews += h.nonSubscriberViews;
+        bounced += h.bouncedUnder20s;
+        w25 += h.watched25Percent;
+        w50 += h.watched50Percent;
+        w75 += h.watched75Percent;
+        w100 += h.watched100Percent;
+        flagged += h.flaggedFraudViews;
+        VideoAnalyticsAggregator.mergeInto(
+          trafficSources,
+          h.trafficSourceBreakdown,
+        );
+      }
+
+      return HourlyVideoStats(
+        videoId: videoId,
+        channelId: hourlyStats.first.channelId,
+        hourKey: '${today}_aggregated',
+        totalViews: views,
+        uniqueViewers: unique,
+        totalWatchTimeSeconds: watchTime,
+        subscriberViews: subViews,
+        nonSubscriberViews: nonSubViews,
+        bouncedUnder20s: bounced,
+        watched25Percent: w25,
+        watched50Percent: w50,
+        watched75Percent: w75,
+        watched100Percent: w100,
+        trafficSourceBreakdown: trafficSources,
+        flaggedFraudViews: flagged,
+        hour: DateTime.now(),
+      );
+    } catch (e) {
+      logger.warning('Error fetching today hourly stats: $e', tag: _tag);
+      return null;
+    }
+  }
+
+  /// Check if a qualified view was already recorded today (server-side dedup).
+  Future<bool> hasQualifiedViewToday(String videoId, String userId) async {
+    try {
+      final today = _dateFormat.format(DateTime.now());
+      final dedupKey = '${videoId}_${userId}_$today';
+      final doc = await _firestore
+          .collection('qualified_views')
+          .doc(dedupKey)
+          .get();
+      return doc.exists;
+    } catch (e) {
+      logger.warning('Error checking dedup: $e', tag: _tag);
+      return false;
+    }
+  }
+
+  /// Get fraud overview for a video.
+  Future<FraudOverview> getFraudOverview(
+    String videoId, {
+    int days = 28,
+  }) async {
+    try {
+      final startKey = _dateFormat.format(
+        DateTime.now().subtract(Duration(days: days)),
+      );
+      final endKey = _dateFormat.format(DateTime.now());
+
+      final snapshot = await _firestore
+          .collection('video_stats_hourly')
+          .where('videoId', isEqualTo: videoId)
+          .where('hourKey', isGreaterThanOrEqualTo: '${startKey}_00')
+          .where('hourKey', isLessThanOrEqualTo: '${endKey}_23')
+          .limit(672)
+          .get();
+
+      var totalViews = 0;
+      var flaggedViews = 0;
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        totalViews += (data['totalViews'] as num?)?.toInt() ?? 0;
+        flaggedViews += (data['flaggedFraudViews'] as num?)?.toInt() ?? 0;
+      }
+
+      return FraudOverview(
+        totalViews: totalViews,
+        flaggedViews: flaggedViews,
+        cleanViews: totalViews - flaggedViews,
+        fraudRate: totalViews > 0 ? (flaggedViews / totalViews) * 100 : 0,
+      );
+    } catch (e) {
+      return FraudOverview.clean;
+    }
+  }
+
+  /// Get total live viewers for a channel from channel document.
+  Future<int> getChannelLiveViewerCount(String channelId) async {
+    try {
+      final doc = await _firestore.collection('channels').doc(channelId).get();
+      return (doc.data()?['liveViewerCount'] as num?)?.toInt() ?? 0;
+    } catch (e) {
+      return 0;
+    }
+  }
+}

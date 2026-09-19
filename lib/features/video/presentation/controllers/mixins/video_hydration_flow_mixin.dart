@@ -11,10 +11,10 @@ import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
+import 'package:truthworld/features/video/data/datasources/local/database_helpers.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
-import 'package:truthworld/features/video/domain/database_helpers.dart';
 import 'package:truthworld/features/video/domain/repositories/video_repository.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
@@ -91,28 +91,57 @@ mixin VideoHydrationFlowMixin on GetxController {
     _channelStream = FirebaseFirestore.instance
         .collection(FirestoreCollections.channels)
         .doc(channelId)
-        .snapshots();
+        .snapshots()
+        .asyncExpand((snapshot) async* {
+          if (snapshot.exists) {
+            yield snapshot;
+          } else {
+            try {
+              final querySnap = await FirebaseFirestore.instance
+                  .collection(FirestoreCollections.channels)
+                  .where('ownerId', isEqualTo: channelId)
+                  .limit(1)
+                  .get();
+              if (querySnap.docs.isNotEmpty) {
+                yield querySnap.docs.first;
+              } else {
+                yield snapshot;
+              }
+            } catch (_) {
+              yield snapshot;
+            }
+          }
+        });
     return _channelStream!;
   }
 
   void setupConnectivityListener() {
     connectivitySubscription = Get.find<ConnectivityService>()
         .onConnectivityChanged
-        .listen((results) {
-      final isConnected = results.any((r) => r != ConnectivityResult.none);
-      if (isConnected) {
-        if (rxIsOffline.value) {
-          rxIsOffline.value = false;
-        }
-        if (videoError.value) {
-          attemptRecovery();
-        }
-      } else {
-        if (!rxIsOffline.value) {
-          rxIsOffline.value = true;
-        }
-      }
-    });
+        .listen(
+          (results) {
+            final isConnected = results.any((r) => r != ConnectivityResult.none);
+            if (isConnected) {
+              if (rxIsOffline.value) {
+                rxIsOffline.value = false;
+              }
+              if (videoError.value) {
+                attemptRecovery();
+              }
+            } else {
+              if (!rxIsOffline.value) {
+                rxIsOffline.value = true;
+              }
+            }
+          },
+          onError: (e, s) {
+            ErrorHandler.log(
+              e,
+              stackTrace: s,
+              tag: 'VideoHydrationFlowMixin.connectivity',
+            );
+          },
+        );
   }
 
   void _initializeCommentsController() {

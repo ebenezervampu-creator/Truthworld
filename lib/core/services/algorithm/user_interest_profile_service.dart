@@ -440,7 +440,13 @@ class UserInterestProfileService extends GetxService {
         'recentSearchQueries': newRecentSearches,
         'searchTopicCounts': newSearchTopicCounts,
         if (category != null && category.isNotEmpty) 'categoryAffinities': newCategoryAffinities,
-      }, SetOptions(merge: true)).catchError((_) {});
+      }, SetOptions(merge: true)).catchError((e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'UserInterestProfileService.onSearchQuery',
+        );
+      });
     }
   }
 
@@ -479,7 +485,13 @@ class UserInterestProfileService extends GetxService {
         'exploredTopicSlugs': newExplored.toList(),
         'topicExploreCounts': newExploreCounts,
         'topicAffinities': newTopicAffinities,
-      }, SetOptions(merge: true)).catchError((_) {});
+      }, SetOptions(merge: true)).catchError((e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'UserInterestProfileService.onTopicExplored',
+        );
+      });
     }
   }
 
@@ -512,7 +524,13 @@ class UserInterestProfileService extends GetxService {
         'discoveredChannelIds': newDiscovered.toList(),
         'channelExploreCounts': newExploreCounts,
         'channelAffinities': newChannelAffinities,
-      }, SetOptions(merge: true)).catchError((_) {});
+      }, SetOptions(merge: true)).catchError((e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'UserInterestProfileService.onChannelDiscovered',
+        );
+      });
     }
   }
 

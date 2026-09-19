@@ -26,15 +26,13 @@ class MyVideosController extends BaseController {
   RxString rxErrorMessage = ''.obs;
   RxString selectedCategory = 'All'.obs;
 
-  StreamSubscription<QuerySnapshot>? _subscription;
-
   @override
   void onInit() {
     super.onInit();
-    _listenToVideos();
+    fetchVideos();
   }
 
-  void _listenToVideos() {
+  Future<void> fetchVideos() async {
     rxIsLoading.value = true;
     rxErrorMessage.value = '';
 
@@ -61,24 +59,19 @@ class MyVideosController extends BaseController {
         query = query.orderBy('title', descending: !isAscending.value);
     }
 
-    _subscription?.cancel();
-    final sub = query.snapshots().listen(
-      (snapshot) {
-        videos.value = snapshot.docs.map(Video.fromDocumentSnapshot).toList();
-        rxIsLoading.value = false;
-      },
-      onError: (error, stackTrace) {
-        ErrorHandler.log(
-          error,
-          stackTrace: stackTrace,
-          tag: 'MyVideosController._listenToVideos',
-        );
-        rxErrorMessage.value = AppException.from(error, stackTrace).displayMessage;
-        rxIsLoading.value = false;
-      },
-    );
-    _subscription = sub;
-    trackSubscription(sub);
+    try {
+      final snapshot = await query.limit(50).get();
+      videos.value = snapshot.docs.map(Video.fromDocumentSnapshot).toList();
+      rxIsLoading.value = false;
+    } catch (error, stackTrace) {
+      ErrorHandler.log(
+        error,
+        stackTrace: stackTrace,
+        tag: 'MyVideosController.fetchVideos',
+      );
+      rxErrorMessage.value = AppException.from(error, stackTrace).displayMessage;
+      rxIsLoading.value = false;
+    }
   }
 
   void setSearchQuery(String query) {
@@ -102,7 +95,7 @@ class MyVideosController extends BaseController {
     }
 
     // RE-FETCH with new server-side sorting
-    _listenToVideos();
+    fetchVideos();
     HapticFeedback.lightImpact();
   }
 
@@ -112,8 +105,7 @@ class MyVideosController extends BaseController {
   }
 
   void retryFetch() {
-    _subscription?.cancel();
-    _listenToVideos();
+    fetchVideos();
     HapticFeedback.mediumImpact();
   }
 
@@ -465,12 +457,5 @@ class MyVideosController extends BaseController {
         ),
       ),
     );
-  }
-
-  @override
-  void onClose() {
-    _subscription?.cancel();
-    _subscription = null;
-    super.onClose();
   }
 }
