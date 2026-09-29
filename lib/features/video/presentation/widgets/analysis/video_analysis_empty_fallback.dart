@@ -5,6 +5,7 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/core/widgets/truth_lottie_animation.dart';
 import 'package:truthworld/features/premium/presentation/controllers/premium_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -22,17 +23,13 @@ class VideoAnalysisEmptyFallback extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: AppColors.bgSurface,
                 shape: BoxShape.circle,
                 border: Border.all(color: AppColors.bgDivider),
               ),
-              child: const Icon(
-                Icons.verified_user_outlined,
-                color: Colors.white,
-                size: 64,
-              ),
+              child: TruthLottieAnimation.emptyClaims(size: 72),
             ),
             const SizedBox(height: 24),
             Text(

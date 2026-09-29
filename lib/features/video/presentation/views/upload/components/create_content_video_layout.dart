@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:truthworld/features/video/presentation/controllers/create_content_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_controller.dart';
-import 'package:truthworld/features/video/presentation/views/upload/components/create_content_desktop_header.dart';
 import 'package:truthworld/features/video/presentation/views/upload/components/create_content_footer_actions.dart';
 import 'package:truthworld/features/video/presentation/views/upload/components/create_content_page_header.dart';
 import 'package:truthworld/features/video/presentation/views/upload/widgets/create_content_ai_section.dart';
@@ -36,7 +35,6 @@ class CreateContentVideoLayout extends StatelessWidget {
           body: SafeArea(
             child: Column(
               children: [
-                if (isWide) CreateContentDesktopHeader(uploadController: uploadController),
                 Expanded(
                   child: SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
@@ -78,6 +76,10 @@ class CreateContentVideoLayout extends StatelessWidget {
                                         ),
                                         const SizedBox(height: 20),
                                         CreateContentCategorySection(
+                                          uploadController: uploadController,
+                                        ),
+                                        const SizedBox(height: 20),
+                                        CreateContentLanguageLockSection(
                                           uploadController: uploadController,
                                         ),
                                         const SizedBox(height: 20),
@@ -139,6 +141,10 @@ class CreateContentVideoLayout extends StatelessWidget {
                                   ),
                                   const SizedBox(height: 20),
                                   CreateContentCategorySection(
+                                    uploadController: uploadController,
+                                  ),
+                                  const SizedBox(height: 20),
+                                  CreateContentLanguageLockSection(
                                     uploadController: uploadController,
                                   ),
                                   const SizedBox(height: 20),

@@ -4,6 +4,7 @@ import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/utils/content_validator.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
+import 'package:truthworld/features/advertiser/presentation/controllers/location_autocomplete_controller.dart';
 import 'package:truthworld/features/advertiser/presentation/views/wizard/widgets/widgets.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -105,6 +106,8 @@ void showCreateCampaignWizard(
       ...existingCampaign!.targetLocations!.where((l) => l != 'Worldwide'),
   ].obs;
   final customLocationController = TextEditingController();
+  final locationAutocompleteController =
+      Get.put(LocationAutocompleteController());
 
   final targetAllLanguages = (existingCampaign?.targetLanguages == null ||
           existingCampaign!.targetLanguages!.isEmpty).obs;
@@ -112,6 +115,14 @@ void showCreateCampaignWizard(
     if (existingCampaign?.targetLanguages != null)
       ...existingCampaign!.targetLanguages!,
   ].obs;
+
+  final targetAllAudiences = (existingCampaign?.targetAudiences == null ||
+          existingCampaign!.targetAudiences!.isEmpty).obs;
+  final selectedAudiences = <String>[
+    if (existingCampaign?.targetAudiences != null)
+      ...existingCampaign!.targetAudiences!,
+  ].obs;
+  final customAudienceController = TextEditingController();
 
   final targetAllTopics = (existingCampaign?.targetTopics == null ||
           existingCampaign!.targetTopics!.isEmpty).obs;
@@ -156,6 +167,40 @@ void showCreateCampaignWizard(
     {'code': 'de', 'name': 'German'},
     {'code': 'ta', 'name': 'Tamil'},
     {'code': 'te', 'name': 'Telugu'},
+  ];
+
+  const availableAudiences = [
+    'All People / General Audience',
+    'Software Engineers & IT',
+    'Students & University Scholars',
+    'Doctors & Healthcare Professionals',
+    'Entrepreneurs & Business Owners',
+    'Marketers & Advertisers',
+    'Finance & Banking Professionals',
+    'Teachers & Educators',
+    'Content Creators & Influencers',
+    'Lawyers & Legal Professionals',
+    'Government & Public Sector',
+    'Sales & Business Development',
+    'Designers & Creative Artists',
+    'Engineers & Architects',
+    'Real Estate Agents & Brokers',
+    'Hospitality & Tourism Workers',
+    'Retail & E-Commerce Sellers',
+    'Freelancers & Remote Workers',
+    'Corporate Managers & Executives',
+    'Homemakers & Parents',
+    'Fitness Trainers & Athletes',
+    'Scientists & Researchers',
+    'Accountants & Tax Consultants',
+    'Journalists & Media Workers',
+    'Farmers & Agriculture Specialists',
+    'Tradespeople & Technicians',
+    'Logistics & Supply Chain Workers',
+    'Security & Defense Personnel',
+    'Musicians & Performing Artists',
+    'Writers & Authors',
+    'Human Resources (HR) & Recruiters',
   ];
 
   const availableTopics = [
@@ -394,8 +439,14 @@ void showCreateCampaignWizard(
                         targetWorldwide: targetWorldwide,
                         selectedLocations: selectedLocations,
                         customLocationController: customLocationController,
+                        locationAutocompleteController:
+                            locationAutocompleteController,
                         targetAllLanguages: targetAllLanguages,
                         selectedLanguages: selectedLanguages,
+                        targetAllAudiences: targetAllAudiences,
+                        selectedAudiences: selectedAudiences,
+                        availableAudiences: availableAudiences,
+                        customAudienceController: customAudienceController,
                         targetAllTopics: targetAllTopics,
                         selectedTopics: selectedTopics,
                         availableAgeGroups: availableAgeGroups,
@@ -417,6 +468,8 @@ void showCreateCampaignWizard(
                       selectedLocations: selectedLocations,
                       targetAllLanguages: targetAllLanguages,
                       selectedLanguages: selectedLanguages,
+                      targetAllAudiences: targetAllAudiences,
+                      selectedAudiences: selectedAudiences,
                       targetAllTopics: targetAllTopics,
                       selectedTopics: selectedTopics,
                       selectedBudget: selectedBudget,
@@ -525,6 +578,13 @@ void showCreateCampaignWizard(
                                   selectedLocations.isEmpty) {
                                 AppSnackbar.warning(
                                   'Please add at least one location or toggle "Worldwide".',
+                                );
+                                return;
+                              }
+                              if (!targetAllAudiences.value &&
+                                  selectedAudiences.isEmpty) {
+                                AppSnackbar.warning(
+                                  'Please select at least one targeted audience or toggle "All People / All Audiences".',
                                 );
                                 return;
                               }
@@ -687,6 +747,9 @@ void showCreateCampaignWizard(
                               targetTopics: targetAllTopics.value
                                   ? null
                                   : selectedTopics.toList(),
+                              targetAudiences: targetAllAudiences.value
+                                  ? null
+                                  : selectedAudiences.toList(),
                               existingCampaign: existingCampaign,
                             );
                           },

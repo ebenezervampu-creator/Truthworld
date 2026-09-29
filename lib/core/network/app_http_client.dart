@@ -34,7 +34,7 @@ class AppHttpClient {
     Duration? timeout,
   }) async {
     final mergedHeaders = <String, String>{
-      ...defaultKeepAliveHeaders,
+      if (!kIsWeb) ...defaultKeepAliveHeaders,
       ...?headers,
     };
 
@@ -51,7 +51,7 @@ class AppHttpClient {
     Duration? timeout,
   }) async {
     final mergedHeaders = <String, String>{
-      ...defaultKeepAliveHeaders,
+      if (!kIsWeb) ...defaultKeepAliveHeaders,
       ...?headers,
     };
 
@@ -67,7 +67,7 @@ class AppHttpClient {
     Duration? timeout,
   }) async {
     final mergedHeaders = <String, String>{
-      ...defaultKeepAliveHeaders,
+      if (!kIsWeb) ...defaultKeepAliveHeaders,
       ...?headers,
     };
 

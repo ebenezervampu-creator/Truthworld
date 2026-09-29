@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 // ==========================================================================
-// APP THEME COLORS & DESIGN TOKENS (YouTube Style)
+// APP THEME COLORS & DESIGN TOKENS
 // ==========================================================================
 
 const Color ytBackground = AppColors.bgPage;

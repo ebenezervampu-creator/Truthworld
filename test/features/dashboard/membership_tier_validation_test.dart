@@ -5,33 +5,33 @@ void main() {
   group('ChannelMembershipTier Minimum Price Constants & Helpers', () {
     test('verifies minimum price values for INR and USD', () {
       expect(ChannelMembershipTier.minPriceINR, equals(10.0));
-      expect(ChannelMembershipTier.minPriceUSD, equals(0.10));
+      expect(ChannelMembershipTier.minPriceUSD, equals(1.0));
     });
 
     test('minPriceFor returns correct minimum price according to currency', () {
       expect(ChannelMembershipTier.minPriceFor('INR'), equals(10.0));
       expect(ChannelMembershipTier.minPriceFor('inr'), equals(10.0));
-      expect(ChannelMembershipTier.minPriceFor('USD'), equals(0.10));
-      expect(ChannelMembershipTier.minPriceFor('usd'), equals(0.10));
-      expect(ChannelMembershipTier.minPriceFor(''), equals(0.10));
+      expect(ChannelMembershipTier.minPriceFor('USD'), equals(1.0));
+      expect(ChannelMembershipTier.minPriceFor('usd'), equals(1.0));
+      expect(ChannelMembershipTier.minPriceFor(''), equals(1.0));
     });
 
     test('minPriceLabel provides user-friendly labels with rupees and dollars', () {
       expect(ChannelMembershipTier.minPriceLabel('INR'), contains('10 rupees'));
-      expect(ChannelMembershipTier.minPriceLabel('USD'), contains('0.1 dollars'));
+      expect(ChannelMembershipTier.minPriceLabel('USD'), contains('1 dollar'));
     });
 
     test('validates whether a given price meets minimum pricing requirements', () {
       // INR minimum is 10 rupees
       expect(9.99 >= ChannelMembershipTier.minPriceFor('INR'), isFalse);
       expect(10.0 >= ChannelMembershipTier.minPriceFor('INR'), isTrue);
-      expect(29.0 >= ChannelMembershipTier.minPriceFor('INR'), isTrue);
+      expect(25.0 >= ChannelMembershipTier.minPriceFor('INR'), isTrue);
 
-      // USD minimum is 0.1 dollars ($0.10)
-      expect(0.05 >= ChannelMembershipTier.minPriceFor('USD'), isFalse);
-      expect(0.09 >= ChannelMembershipTier.minPriceFor('USD'), isFalse);
-      expect(0.10 >= ChannelMembershipTier.minPriceFor('USD'), isTrue);
-      expect(4.99 >= ChannelMembershipTier.minPriceFor('USD'), isTrue);
+      // USD minimum is 1 dollar ($1)
+      expect(0.50 >= ChannelMembershipTier.minPriceFor('USD'), isFalse);
+      expect(0.99 >= ChannelMembershipTier.minPriceFor('USD'), isFalse);
+      expect(1.0 >= ChannelMembershipTier.minPriceFor('USD'), isTrue);
+      expect(5.0 >= ChannelMembershipTier.minPriceFor('USD'), isTrue);
     });
   });
 
@@ -60,20 +60,28 @@ void main() {
     test('formats USD prices cleanly', () {
       final tierMinUSD = ChannelMembershipTier(
         id: 'tier_3',
-        name: 'Micro Supporter',
-        price: 0.10,
+        name: 'Supporter',
+        price: 1.0,
         perks: ['Perk 1'],
       );
       expect(tierMinUSD.currencySymbol, equals(r'$'));
-      expect(tierMinUSD.formattedPrice, equals(r'$0.10'));
+      expect(tierMinUSD.formattedPrice, equals(r'$1'));
 
       final tierStdUSD = ChannelMembershipTier(
         id: 'tier_4',
         name: 'Standard Patron',
-        price: 4.99,
+        price: 5.0,
         perks: ['Perk 1'],
       );
-      expect(tierStdUSD.formattedPrice, equals(r'$4.99'));
+      expect(tierStdUSD.formattedPrice, equals(r'$5'));
+
+      final tierDecUSD = ChannelMembershipTier(
+        id: 'tier_5',
+        name: 'Custom Patron',
+        price: 2.50,
+        perks: ['Perk 1'],
+      );
+      expect(tierDecUSD.formattedPrice, equals(r'$2.50'));
     });
   });
 

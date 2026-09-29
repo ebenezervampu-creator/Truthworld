@@ -116,14 +116,23 @@ class LibraryController extends BaseController
     );
 
     // Start animations
-    fadeAnimationController.forward();
-    slideAnimationController.forward();
-    scaleAnimationController.forward();
+    if (Get.testMode) {
+      fadeAnimationController.value = 1.0;
+      slideAnimationController.value = 1.0;
+      scaleAnimationController.value = 1.0;
+    } else {
+      fadeAnimationController.forward();
+      slideAnimationController.forward();
+      scaleAnimationController.forward();
+    }
   }
 
   @override
   void onClose() {
     _userSub?.cancel();
+    fadeAnimationController.stop();
+    slideAnimationController.stop();
+    scaleAnimationController.stop();
     fadeAnimationController.dispose();
     slideAnimationController.dispose();
     scaleAnimationController.dispose();

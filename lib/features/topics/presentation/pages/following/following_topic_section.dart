@@ -5,6 +5,7 @@ import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
 import 'package:truthworld/features/topics/presentation/pages/following/following_topic_video_card.dart';
 import 'package:truthworld/features/topics/presentation/pages/following/following_topics_empty_states.dart';
+import 'package:truthworld/features/topics/presentation/widgets/topic_notification_options_sheet.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Section representing a single followed topic, its horizontal video feed, and community posts.
@@ -78,14 +79,40 @@ class FollowingTopicSection extends StatelessWidget {
                   ),
                 ),
               ),
+              Obx(() {
+                final setting =
+                    controller.topicNotificationSettings[topic.id] ?? 'all';
+                final bellIcon = switch (setting) {
+                  'personalized' => Icons.notifications_outlined,
+                  'none' => Icons.notifications_off_outlined,
+                  _ => Icons.notifications_active_rounded,
+                };
+                return IconButton(
+                  icon: Icon(bellIcon, color: AppColors.textPrimary, size: 20),
+                  tooltip: 'Notification options',
+                  onPressed: () => TopicNotificationOptionsSheet.show(
+                    context,
+                    topic: topic,
+                  ),
+                );
+              }),
               PopupMenuButton<String>(
                 icon: const Icon(Icons.more_vert, color: AppColors.textPrimary),
                 color: const Color(0xFF212121),
                 onSelected: (value) {
                   if (value == 'view_topic') {
                     _navigateToTopicDetails();
+                  } else if (value == 'notifications') {
+                    TopicNotificationOptionsSheet.show(
+                      context,
+                      topic: topic,
+                    );
                   } else if (value == 'unfollow') {
-                    controller.toggleFollowTopic(topic);
+                    TopicNotificationOptionsSheet.showUnfollowConfirmation(
+                      context,
+                      topic: topic,
+                      controller: controller,
+                    );
                   }
                 },
                 itemBuilder: (context) => [
@@ -107,11 +134,28 @@ class FollowingTopicSection extends StatelessWidget {
                     ),
                   ),
                   const PopupMenuItem(
+                    value: 'notifications',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.notifications_outlined,
+                          color: AppColors.textPrimary,
+                          size: 20,
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          'Notification Options',
+                          style: TextStyle(color: AppColors.textPrimary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
                     value: 'unfollow',
                     child: Row(
                       children: [
                         Icon(
-                          Icons.bookmark_remove_outlined,
+                          Icons.person_remove_outlined,
                           color: AppColors.textPrimary,
                           size: 20,
                         ),

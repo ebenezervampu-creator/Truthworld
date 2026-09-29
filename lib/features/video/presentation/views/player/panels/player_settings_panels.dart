@@ -57,10 +57,14 @@ class SettingsPanel extends StatelessWidget {
                           return QualityPanel(ctrl: ctrl);
                         case 'subtitles':
                           return SubtitlesPanel(ctrl: ctrl);
+                        case 'subtitle_settings':
+                          return SubtitleSettingsPanel(ctrl: ctrl);
                         case 'subtitle_style':
                           return SubtitleStylePanel(ctrl: ctrl);
                         case 'language':
                           return LanguagePanel(ctrl: ctrl);
+                        case 'audio_settings':
+                          return AudioSettingsPanel(ctrl: ctrl);
                         case 'zoom':
                           return ZoomPanel(ctrl: ctrl);
                         case 'rating':

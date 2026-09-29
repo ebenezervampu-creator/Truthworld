@@ -384,8 +384,7 @@ class PremiumPlanSelectorSection extends StatelessWidget {
         const SizedBox(height: 20),
         PremiumPlansList(controller: controller),
         const SizedBox(height: 24),
-        if (!isDesktop)
-          PremiumCheckoutButton(controller: controller),
+        PremiumCheckoutButton(controller: controller),
       ],
     );
   }

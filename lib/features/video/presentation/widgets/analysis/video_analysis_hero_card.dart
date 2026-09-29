@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:truthworld/core/widgets/truth_credibility_badge.dart';
+import 'package:truthworld/core/widgets/truth_lottie_animation.dart';
 import 'package:truthworld/features/video/presentation/widgets/analysis/video_analysis_confidence_bar.dart';
-import 'package:truthworld/features/video/presentation/widgets/analysis/video_analysis_helpers.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
   class VideoAnalysisHeroCard extends StatelessWidget {
@@ -15,6 +15,7 @@ import 'package:truthworld/theme/app_theme.dart';
   final int verifiedCount;
   final int cautionCount;
   final int falseCount;
+  final String? tierBadgeLabel;
 
   const VideoAnalysisHeroCard({
     required this.analysisState,
@@ -27,6 +28,7 @@ import 'package:truthworld/theme/app_theme.dart';
     required this.verifiedCount,
     required this.cautionCount,
     required this.falseCount,
+    this.tierBadgeLabel,
     super.key,
   });
 
@@ -36,20 +38,14 @@ import 'package:truthworld/theme/app_theme.dart';
     final hasScore = scoreAvailable && trustScore != null && trustScore > 0;
     final isNotScored = !hasScore || trustLabel.toLowerCase().contains('not scored');
 
-    Color stateColor;
     String badgeText;
     if (!isNotScored) {
-      final scoreVal = trustScore > 5 ? trustScore : trustScore * 20;
-      stateColor = VideoAnalysisHelpers.getScoreColor(scoreVal);
       badgeText = analysisState.toUpperCase();
     } else if (falseCount > 0 && falseCount >= verifiedCount) {
-      stateColor = AppColors.error;
       badgeText = 'DISPUTED CONTENT';
     } else if (cautionCount > 0 && cautionCount > verifiedCount) {
-      stateColor = AppColors.warning;
       badgeText = 'CAUTION ADVISED';
     } else {
-      stateColor = AppColors.success;
       badgeText = totalClaims > 0 ? 'FACT-CHECK COMPLETE' : 'VERIFIED';
     }
 
@@ -58,38 +54,35 @@ import 'package:truthworld/theme/app_theme.dart';
         : trustLabel;
 
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.bgSurface,
-        borderRadius: TWRadius.xxlBorderRadius,
-        border: Border.all(color: stateColor.withValues(alpha: 0.25)),
-        boxShadow: [
-          BoxShadow(
-            color: (stateColor == AppColors.success
-                    ? const Color(0xFF00F2FE)
-                    : stateColor)
-                .withValues(alpha: 0.10),
-            blurRadius: 16,
-            spreadRadius: 1,
-          ),
-        ],
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.bgDivider.withValues(alpha: 0.8)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: stateColor.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: stateColor.withValues(alpha: 0.3)),
+              TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.85, end: 1.0),
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOutBack,
+                builder: (context, scale, child) => Transform.scale(
+                  scale: scale,
+                  child: child,
                 ),
-                child: const Icon(
-                  Icons.shield_outlined,
-                  size: 22,
-                  color: Colors.white,
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+                  ),
+                  child: TruthLottieAnimation.verifiedShield(
+                    size: 24,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -97,21 +90,47 @@ import 'package:truthworld/theme/app_theme.dart';
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 6,
+                      runSpacing: 4,
                       children: [
                         TruthCredibilityBadge(
                           label: badgeText,
-                          color: stateColor,
-                          isVerified: stateColor == AppColors.success,
-                          isDisputed: stateColor == AppColors.warning,
-                          isFalse: stateColor == AppColors.error,
+                          color: Colors.white,
+                          isVerified: !isNotScored || falseCount == 0,
+                          isDisputed: falseCount > 0 || cautionCount > 0,
+                          isFalse: falseCount > 0 && falseCount >= verifiedCount,
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
                             vertical: 3,
                           ),
                         ),
-                        if (!isNotScored && confidenceTier.isNotEmpty) ...[
-                          const SizedBox(width: 8),
+                        if (tierBadgeLabel != null && tierBadgeLabel!.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2.5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.22),
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Text(
+                              tierBadgeLabel!.toUpperCase(),
+                              style: const TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        if (!isNotScored && confidenceTier.isNotEmpty)
                           Text(
                             '${confidenceTier.toUpperCase()} CONFIDENCE',
                             style: context.twTypography.caption.copyWith(
@@ -119,18 +138,19 @@ import 'package:truthworld/theme/app_theme.dart';
                               fontWeight: FontWeight.bold,
                               color: AppColors.textTertiary,
                               letterSpacing: 0.8,
+                              fontFamily: TWTypography.uiFamily,
                             ),
                           ),
-                        ],
                       ],
                     ),
                     const SizedBox(height: 4),
                     Text(
                       headlineTitle,
                       style: context.twTypography.title.copyWith(
-                        fontSize: 17,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textPrimary,
+                        fontFamily: TWTypography.uiFamily,
                       ),
                     ),
                   ],
@@ -139,39 +159,51 @@ import 'package:truthworld/theme/app_theme.dart';
 
               // Trust Score gauge badge (if score is available)
               if (hasScore) ...[
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
+                TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.85, end: 1.0),
+                  duration: const Duration(milliseconds: 350),
+                  curve: Curves.easeOutBack,
+                  builder: (context, scale, child) => Transform.scale(
+                    scale: scale,
+                    child: child,
                   ),
-                  decoration: BoxDecoration(
-                    color: VideoAnalysisHelpers.getScoreColor(trustScore > 5 ? trustScore : trustScore * 20).withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: VideoAnalysisHelpers.getScoreColor(trustScore > 5 ? trustScore : trustScore * 20).withValues(alpha: 0.4),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
                     ),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        trustScore <= 5.0
-                            ? '${trustScore.toStringAsFixed(1)} / 5.0'
-                            : '${trustScore.toInt()}%',
-                        style: context.twTypography.title.copyWith(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
-                          color: VideoAnalysisHelpers.getScoreColor(trustScore > 5 ? trustScore : trustScore * 20),
-                        ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.25),
                       ),
-                      Text(
-                        'TRUST INDEX',
-                        style: context.twTypography.caption.copyWith(
-                          fontSize: 8,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textTertiary,
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          trustScore <= 5.0
+                              ? '${trustScore.toStringAsFixed(1)} / 5.0'
+                              : '${trustScore.toInt()}%',
+                          style: context.twTypography.title.copyWith(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            fontFamily: TWTypography.uiFamily,
+                          ),
                         ),
-                      ),
-                    ],
+                        Text(
+                          'TRUST INDEX',
+                          style: context.twTypography.caption.copyWith(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textTertiary,
+                            letterSpacing: 0.5,
+                            fontFamily: TWTypography.uiFamily,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -221,48 +253,60 @@ import 'package:truthworld/theme/app_theme.dart';
               style: context.twTypography.label.copyWith(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
-                color: AppColors.success,
+                color: Colors.white,
               ),
             ),
           ],
         ),
         const SizedBox(height: 6),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(3),
-          child: Container(
-            height: 6,
-            width: double.infinity,
-            color: Colors.white.withValues(alpha: 0.08),
-            child: Row(
-              children: [
-                if (verifiedFactor > 0)
-                  Expanded(
-                    flex: (verifiedFactor * 1000).toInt().clamp(1, 1000),
-                    child: Container(color: AppColors.success),
-                  ),
-                if (cautionFactor > 0)
-                  Expanded(
-                    flex: (cautionFactor * 1000).toInt().clamp(1, 1000),
-                    child: Container(color: AppColors.warning),
-                  ),
-                if (falseFactor > 0)
-                  Expanded(
-                    flex: (falseFactor * 1000).toInt().clamp(1, 1000),
-                    child: Container(color: AppColors.error),
-                  ),
-              ],
-            ),
-          ),
+        TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.0, end: 1.0),
+          duration: const Duration(milliseconds: 900),
+          curve: Curves.easeOutCubic,
+          builder: (context, animFactor, _) {
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: Container(
+                height: 6,
+                width: double.infinity,
+                color: Colors.white.withValues(alpha: 0.08),
+                child: Row(
+                  children: [
+                    if (verifiedFactor > 0)
+                      Expanded(
+                        flex: (verifiedFactor * 1000 * animFactor).toInt().clamp(1, 1000),
+                        child: Container(color: Colors.white),
+                      ),
+                    if (cautionFactor > 0)
+                      Expanded(
+                        flex: (cautionFactor * 1000 * animFactor).toInt().clamp(1, 1000),
+                        child: Container(color: Colors.white.withValues(alpha: 0.55)),
+                      ),
+                    if (falseFactor > 0)
+                      Expanded(
+                        flex: (falseFactor * 1000 * animFactor).toInt().clamp(1, 1000),
+                        child: Container(color: Colors.white.withValues(alpha: 0.20)),
+                      ),
+                    if (animFactor < 1.0)
+                      Expanded(
+                        flex: ((1.0 - animFactor) * 1000).toInt().clamp(1, 1000),
+                        child: const SizedBox.shrink(),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
         ),
         const SizedBox(height: 8),
         Row(
           children: [
-            _buildClaimLegendDot(context, AppColors.success, '$verified True'),
+            _buildClaimLegendDot(context, Colors.white, '$verified True'),
             const SizedBox(width: 12),
-            _buildClaimLegendDot(context, AppColors.warning, '$caution Unconfirmed'),
+            _buildClaimLegendDot(context, Colors.white.withValues(alpha: 0.55), '$caution Unconfirmed'),
             if (falseCount > 0) ...[
               const SizedBox(width: 12),
-              _buildClaimLegendDot(context, AppColors.error, '$falseCount False'),
+              _buildClaimLegendDot(context, Colors.white.withValues(alpha: 0.25), '$falseCount False'),
             ],
           ],
         ),

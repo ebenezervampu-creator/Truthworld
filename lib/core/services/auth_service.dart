@@ -1,11 +1,15 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_sign_in/google_sign_in.dart'
     hide GoogleSignInException;
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/auth/auth_barrel.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/services/push_notification_service.dart';
@@ -103,8 +107,7 @@ class AuthService extends GetxService {
   RxnString get userCity => _profileManager.userCity;
   RxnString get userState => _profileManager.userState;
   RxnString get userCountry => _profileManager.userCountry;
-  RxDouble get userWalletBalance => _profileManager.userWalletBalance;
-  double get walletBalance => _profileManager.userWalletBalance.value;
+  RxnString get userProfession => _profileManager.userProfession;
   RxBool get needsOnboarding => _profileManager.needsOnboarding;
 
   String get activeDisplayName => _profileManager.getActiveDisplayName(
@@ -304,16 +307,112 @@ class AuthService extends GetxService {
 
   Future<void> logout() => signOut();
 
-  /// Deletes user profile, marks associated channel as deleted, and deletes Firebase Auth user.
-  Future<void> deleteAccount() async {
+  /// Returns the primary auth provider ID for the current signed-in user ('google.com', 'password', etc.)
+  String get primaryAuthProvider {
+    final u = _auth.currentUser;
+    if (u == null || u.providerData.isEmpty) return 'none';
+    return u.providerData.first.providerId;
+  }
+
+  /// Re-authenticates the current user against their active authentication provider
+  /// to refresh the authentication token before sensitive operations (e.g. account deletion).
+  Future<UserCredential?> reauthenticate({String? password}) async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      throw const AuthException(
+        message: 'No authenticated user session found.',
+        userMessage: 'Please sign in to proceed.',
+        code: 'AUTH_UNAUTHENTICATED',
+      );
+    }
+
+    final providers =
+        currentUser.providerData.map((p) => p.providerId).toList();
+
+    if (providers.contains('google.com')) {
+      return _googleProvider.reauthenticateWithGoogle(currentUser);
+    } else if (providers.contains('password')) {
+      if (password == null || password.trim().isEmpty) {
+        throw const AuthException(
+          message: 'Password required for re-authentication.',
+          userMessage:
+              'Please enter your account password to verify your identity.',
+          code: 'AUTH_REQUIRES_PASSWORD',
+        );
+      }
+      final email = currentUser.email ?? '';
+      final cred = EmailAuthProvider.credential(
+        email: email,
+        password: password.trim(),
+      );
+      return currentUser.reauthenticateWithCredential(cred);
+    } else if (providers.contains('apple.com')) {
+      final appleProvider = AppleAuthProvider();
+      if (kIsWeb) {
+        return currentUser.reauthenticateWithPopup(appleProvider);
+      } else {
+        return currentUser.reauthenticateWithProvider(appleProvider);
+      }
+    } else {
+      // Fallback: try Google reauth if supported
+      try {
+        return await _googleProvider.reauthenticateWithGoogle(currentUser);
+      } catch (e) {
+        logger.warning('Re-authentication fallback failed: $e', tag: 'AUTH');
+        return null;
+      }
+    }
+  }
+
+  /// Deactivates user account: marks status as 'deactivated' in Firestore and signs out.
+  Future<void> deactivateAccount() async {
     final currentUser = _auth.currentUser;
     if (currentUser != null) {
-      final uidToDelete = currentUser.uid;
-      await _firestoreSync.deleteAccountData(uidToDelete);
-      await currentUser.delete();
-      _user.value = null;
-      _isAuthenticated.value = false;
-      needsOnboarding.value = false;
+      final uidToDeactivate = currentUser.uid;
+      await FirebaseFirestore.instance
+          .collection(FirestoreCollections.users)
+          .doc(uidToDeactivate)
+          .set({
+            'status': 'deactivated',
+            'deactivatedAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+
+      await signOut();
     }
+  }
+
+  /// Permanently deletes user profile, marks associated channel as deleted,
+  /// and deletes Firebase Auth user. Automatically handles re-authentication.
+  Future<void> deleteAccount({String? password}) async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) return;
+
+    final uidToDelete = currentUser.uid;
+
+    // Step 1: Re-authenticate to ensure fresh authentication token for sensitive deletion
+    if (!currentUser.isAnonymous) {
+      await reauthenticate(password: password);
+    }
+
+    // Step 2: Clean up Firestore documents while still authenticated
+    await _firestoreSync.deleteAccountData(uidToDelete);
+
+    // Step 3: Delete Firebase Auth user record
+    try {
+      await currentUser.delete();
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'requires-recent-login') {
+        // Retry reauth in case token expired during cleanup
+        await reauthenticate(password: password);
+        await currentUser.delete();
+      } else {
+        rethrow;
+      }
+    }
+
+    _user.value = null;
+    _isAuthenticated.value = false;
+    needsOnboarding.value = false;
   }
 }

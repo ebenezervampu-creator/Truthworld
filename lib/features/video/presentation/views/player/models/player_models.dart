@@ -14,14 +14,14 @@ class PT {
   static const Color border = Color(0xFF2A2A2A);
 
   // Layout
-  static const double kControlsHideMs = 3500; // YouTube uses ~3 s
+  static const double kControlsHideMs = 2200; // ~2.2 s auto-hide
   static const double kDoubleTapRippleMs = 700;
   static const double kToastDurationMs = 2000;
   static const double kHudFadeMs = 1200;
-  static const double kProgressBarH = 4;
-  static const double kProgressBarHover = 5;
-  static const double kThumbRadius = 7;
-  static const double kThumbRadiusDrag = 9;
+  static const double kProgressBarH = 3.5;
+  static const double kProgressBarHover = 5.5;
+  static const double kThumbRadius = 3.5;
+  static const double kThumbRadiusDrag = 6.0;
 }
 
 // ── Text Style Cache ──────────────────────────────────────────────────────────

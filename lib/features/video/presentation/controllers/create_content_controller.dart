@@ -9,13 +9,15 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/dashboard/data/models/draft_model.dart';
+import 'package:truthworld/features/playlist/presentation/controllers/create_playlist_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
+import 'package:truthworld/features/playlist/presentation/views/playlist/create_playlist_screen.dart';
 import 'package:truthworld/features/topics/presentation/widgets/create_topic_dialog.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_controller.dart';
 import 'package:truthworld/features/video/presentation/views/upload/models/upload_type.dart';
-import 'package:truthworld/features/video/presentation/views/upload/widgets/create_playlist_modal.dart';
 
 class CreateContentController extends GetxController {
   CreateContentController({
@@ -418,6 +420,7 @@ class CreateContentController extends GetxController {
     CreateTopicDialog.show(
       context: context,
       isDarkMode: isDark,
+      isFromUpload: true,
       channelVideosFuture: currentChannelId.isNotEmpty
           ? FirebaseFirestore.instance
                 .collection(FirestoreCollections.videos)
@@ -470,13 +473,26 @@ class CreateContentController extends GetxController {
     );
   }
 
-  void showCreatePlaylistModal(BuildContext context, bool isDark) {
-    showCreatePlaylistBottomSheet(
-      context,
-      isDark,
-      uploadController: uploadController,
-      playlistController: playlistController,
+  Future<void> showCreatePlaylistModal(BuildContext context, bool isDark) async {
+    final createCtrl = Get.isRegistered<CreatePlaylistController>()
+        ? Get.find<CreatePlaylistController>()
+        : Get.put(CreatePlaylistController());
+    createCtrl.resetForm();
+
+    final dynamic created = await Navigator.of(context).push<dynamic>(
+      MaterialPageRoute(
+        builder: (ctx) => const CreatePlaylistScreen(fromUpload: true),
+      ),
     );
+
+    if (created is PlaylistModel) {
+      playlistController.refreshPlaylistsTick();
+      await playlistController.refreshPlaylists();
+      uploadController.selectedPlaylist.value = created.id;
+      AppSnackbar.success(
+        'Playlist created! Video will be added upon publishing.',
+      );
+    }
   }
 }
 

@@ -54,6 +54,24 @@ void main() {
         expect(breakdown.platformShare, equals(0.0));
         expect(breakdown.isZeroDebtProtected, isFalse);
       });
+
+      test('applies 30% platform cut to memberships when noAdsForMembers is enabled', () {
+        final breakdown = ChannelPayoutCalculator.calculateStandardChannelPayout(
+          adRevenue: 100.0,
+          premiumSubRevenue: 50.0,
+          tipsRevenue: 20.0,
+          membershipsRevenue: 100.0,
+          noAdsForMembers: true,
+        );
+
+        expect(breakdown.grossRevenue, equals(270.0));
+        // Creator: 70 (ads) + 35 (subs) + 20 (tips) + 70 (70% of memberships) = 195.0
+        expect(breakdown.creatorPayout, closeTo(195.0, 0.001));
+        // Platform: 30 (ads) + 15 (subs) + 30 (30% of memberships) = 75.0
+        expect(breakdown.platformShare, closeTo(75.0, 0.001));
+        expect(breakdown.isMemberAdFreeEnabled, isTrue);
+        expect(breakdown.membershipPlatformCut, closeTo(30.0, 0.001));
+      });
     });
 
     group('Custom Channel Payouts & Zero-Debt Protection', () {
@@ -113,6 +131,23 @@ void main() {
         expect(breakdown.infraCostDeducted, equals(0.0));
       });
 
+      test('dispatches correctly for standard channel with noAdsForMembers enabled', () {
+        final channel = createTestChannel().copyWith(noAdsForMembers: true);
+
+        final breakdown = ChannelPayoutCalculator.calculatePayout(
+          channel,
+          adRevenue: 100.0,
+          membershipsRevenue: 100.0,
+        );
+
+        expect(breakdown.grossRevenue, equals(200.0));
+        // Creator: 70 (ads) + 70 (70% memberships) = 140.0
+        expect(breakdown.creatorPayout, closeTo(140.0, 0.001));
+        // Platform: 30 (ads) + 30 (30% memberships) = 60.0
+        expect(breakdown.platformShare, closeTo(60.0, 0.001));
+        expect(breakdown.isMemberAdFreeEnabled, isTrue);
+      });
+
       test('dispatches correctly for custom channel with configured fee', () {
         final infraConfig = CustomChannelInfraConfig(
           stripeConnectAccountId: 'acct_123',
@@ -136,58 +171,94 @@ void main() {
       });
     });
 
-    group('Video Withdrawal Eligibility Rules', () {
-      test('Custom channel earnings are immediately unlocked regardless of watch time', () {
+    group('Video Withdrawal Eligibility Rules (1k Views & 10h Watch Time)', () {
+      test('Custom channel requires both 10 hours watch time and 1,000 views', () {
         final channel = createTestChannel(channelType: ChannelType.custom);
 
-        // Even with 0 minutes watch time:
-        final eligibility = ChannelPayoutCalculator.calculateVideoWithdrawalEligibility(
+        // 1. Below watch time threshold (599 minutes), 1000 views: Locked
+        final lockedByTime = ChannelPayoutCalculator.calculateVideoWithdrawalEligibility(
           channel: channel,
           videoId: 'vid-custom-1',
           videoRevenue: 150.0,
-          videoWatchTimeMinutes: 0,
+          videoWatchTimeMinutes: 599,
+          videoViews: 1000,
         );
+        expect(lockedByTime.isUnlockedForWithdrawal, isFalse);
+        expect(lockedByTime.withdrawableAmount, equals(0.0));
+        expect(lockedByTime.pendingLockedAmount, equals(150.0));
 
-        expect(eligibility.isUnlockedForWithdrawal, isTrue);
-        expect(eligibility.withdrawableAmount, equals(150.0));
-        expect(eligibility.pendingLockedAmount, equals(0.0));
+        // 2. Met watch time (600 minutes), but below views threshold (999 views): Locked
+        final lockedByViews = ChannelPayoutCalculator.calculateVideoWithdrawalEligibility(
+          channel: channel,
+          videoId: 'vid-custom-1',
+          videoRevenue: 150.0,
+          videoWatchTimeMinutes: 600,
+          videoViews: 999,
+        );
+        expect(lockedByViews.isUnlockedForWithdrawal, isFalse);
+        expect(lockedByViews.withdrawableAmount, equals(0.0));
+        expect(lockedByViews.pendingLockedAmount, equals(150.0));
+
+        // 3. Exactly at both thresholds (600 minutes, 1,000 views): Unlocked
+        final exact = ChannelPayoutCalculator.calculateVideoWithdrawalEligibility(
+          channel: channel,
+          videoId: 'vid-custom-1',
+          videoRevenue: 150.0,
+          videoWatchTimeMinutes: 600,
+          videoViews: 1000,
+        );
+        expect(exact.isUnlockedForWithdrawal, isTrue);
+        expect(exact.withdrawableAmount, equals(150.0));
+        expect(exact.pendingLockedAmount, equals(0.0));
       });
 
-      test('Standard channel requires 10 hours (600 mins) watch time threshold', () {
+      test('Standard channel requires both 10 hours watch time and 1,000 views', () {
         final channel = createTestChannel();
 
-        // 1. Below threshold (599 minutes): Locked
+        // 1. Below watch time (599 mins), 1,000 views: Locked
         final locked = ChannelPayoutCalculator.calculateVideoWithdrawalEligibility(
           channel: channel,
           videoId: 'vid-std-1',
           videoRevenue: 85.0,
           videoWatchTimeMinutes: 599,
+          videoViews: 1000,
         );
-
         expect(locked.isUnlockedForWithdrawal, isFalse);
         expect(locked.withdrawableAmount, equals(0.0));
         expect(locked.pendingLockedAmount, equals(85.0));
 
-        // 2. Exactly at threshold (600 minutes): Unlocked
+        // 2. Below views (999 views), 600 mins: Locked
+        final lockedViews = ChannelPayoutCalculator.calculateVideoWithdrawalEligibility(
+          channel: channel,
+          videoId: 'vid-std-1',
+          videoRevenue: 85.0,
+          videoWatchTimeMinutes: 600,
+          videoViews: 999,
+        );
+        expect(lockedViews.isUnlockedForWithdrawal, isFalse);
+        expect(lockedViews.withdrawableAmount, equals(0.0));
+        expect(lockedViews.pendingLockedAmount, equals(85.0));
+
+        // 3. Exactly at thresholds (600 mins, 1000 views): Unlocked
         final exact = ChannelPayoutCalculator.calculateVideoWithdrawalEligibility(
           channel: channel,
           videoId: 'vid-std-1',
           videoRevenue: 85.0,
           videoWatchTimeMinutes: 600,
+          videoViews: 1000,
         );
-
         expect(exact.isUnlockedForWithdrawal, isTrue);
         expect(exact.withdrawableAmount, equals(85.0));
         expect(exact.pendingLockedAmount, equals(0.0));
 
-        // 3. Above threshold (1200 minutes / 20 hours): Unlocked
+        // 4. Above thresholds (1200 mins, 5000 views): Unlocked
         final above = ChannelPayoutCalculator.calculateVideoWithdrawalEligibility(
           channel: channel,
           videoId: 'vid-std-1',
           videoRevenue: 200.0,
           videoWatchTimeMinutes: 1200,
+          videoViews: 5000,
         );
-
         expect(above.isUnlockedForWithdrawal, isTrue);
         expect(above.withdrawableAmount, equals(200.0));
         expect(above.pendingLockedAmount, equals(0.0));

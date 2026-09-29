@@ -44,18 +44,9 @@ mixin TowerPlayerGesturesMixin on GetxController {
   double lastTapX = 0;
   double doubleTapX = 0;
 
-  void startHideTimer() {
-    timers.set('hide', Duration(milliseconds: PT.kControlsHideMs.toInt()), () {
-      if (vv.isPlaying &&
-          !settingsOpen.value &&
-          !isDragging.value &&
-          !showCommentsPopup.value &&
-          !showTranscriptPopup.value &&
-          !showFactCheckPopup.value) {
-        controlsVisible.value = false;
-      }
-    });
-  }
+  void startHideTimer([Duration? timeout]);
+  void setVolume(double val);
+  Future<void> seekTo(Duration position);
 
   void cancelPendingTap() {
     singleTapTimer?.cancel();
@@ -205,9 +196,57 @@ mixin TowerPlayerGesturesMixin on GetxController {
   void doubleTapLeft() => executeDoubleTapSeek(isLeft: true);
   void doubleTapRight() => executeDoubleTapSeek(isLeft: false);
 
-  void onVerticalDragStart(DragStartDetails d, Size size) {}
-  void onVerticalDragUpdate(DragUpdateDetails d, Size size) {}
+  Offset _dragStartPos = Offset.zero;
+  Offset _dragAccumulated = Offset.zero;
+  bool _intentResolved = false;
+  bool _isVerticalSwipeActive = false;
+
+  void onVerticalDragStart(DragStartDetails d, Size size) {
+    _dragStartPos = d.localPosition;
+    _dragAccumulated = Offset.zero;
+    _intentResolved = false;
+    _isVerticalSwipeActive = false;
+  }
+
+  void onVerticalDragUpdate(DragUpdateDetails d, Size size) {
+    _dragAccumulated += d.delta;
+
+    // Movement intent threshold (12px): ensures intentional vertical movement
+    if (!_intentResolved) {
+      if (_dragAccumulated.dy.abs() > 12.0 || _dragAccumulated.dx.abs() > 12.0) {
+        _intentResolved = true;
+        // Only activate if vertical movement is dominant (avoids accidental triggers)
+        if (_dragAccumulated.dy.abs() > _dragAccumulated.dx.abs() * 1.25) {
+          _isVerticalSwipeActive = true;
+        }
+      }
+    }
+
+    if (!_isVerticalSwipeActive || size.height <= 0) return;
+
+    final isLeft = _dragStartPos.dx < size.width / 2;
+    final delta = -d.delta.dy / size.height;
+
+    if (isLeft) {
+      // Left vertical zone = Screen Brightness
+      brightness.value = (brightness.value + delta).clamp(0.0, 1.0);
+      showSwipeBrightnessHUD.value = true;
+      swipeBrightnessLevel.value = brightness.value;
+    } else {
+      // Right vertical zone = Audio Volume
+      final newVol = (volume.value + delta).clamp(0.0, 1.0);
+      setVolume(newVol);
+      showSwipeVolumeHUD.value = true;
+      swipeVolumeLevel.value = newVol;
+    }
+  }
+
   void onVerticalDragEnd(DragEndDetails d) {
+    showSwipeBrightnessHUD.value = false;
+    showSwipeVolumeHUD.value = false;
+    _intentResolved = false;
+    _isVerticalSwipeActive = false;
+
     final velocity = d.primaryVelocity ?? 0;
     if (velocity < -500) {
       if (!isFullScreen.value) toggleFullscreen();

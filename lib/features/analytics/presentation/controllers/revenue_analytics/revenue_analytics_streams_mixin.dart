@@ -16,6 +16,7 @@ mixin RevenueAnalyticsStreamsMixin on RevenueAnalyticsStateBase {
   StreamSubscription? _statementsSub;
   StreamSubscription? _bankAccountSub;
   StreamSubscription? _kycSub;
+  StreamSubscription? _premiumSubsSub;
   Worker? _rateWorker;
 
   double _directMembersRevenue = 0.0;
@@ -40,6 +41,7 @@ mixin RevenueAnalyticsStreamsMixin on RevenueAnalyticsStateBase {
     _statementsSub?.cancel();
     _bankAccountSub?.cancel();
     _kycSub?.cancel();
+    _premiumSubsSub?.cancel();
   }
 
   /// Subscribes to authentic Firestore collections for revenue analytics.
@@ -67,14 +69,10 @@ mixin RevenueAnalyticsStreamsMixin on RevenueAnalyticsStateBase {
 
           final superchats =
               (data['superchatRevenueTotal'] as num?)?.toDouble() ?? 0.0;
-          if (superchats > 0) {
-            superchatRevenue.value = superchats;
-          }
+          superchatRevenue.value = superchats;
 
           final ads = (data['adsRevenueTotal'] as num?)?.toDouble() ?? 0.0;
-          if (ads > 0) {
-            adsRevenue.value = ads;
-          }
+          adsRevenue.value = ads;
 
           final views = (data['viewCount'] as num?)?.toInt() ??
               (data['totalViews'] as num?)?.toInt() ??
@@ -88,12 +86,9 @@ mixin RevenueAnalyticsStreamsMixin on RevenueAnalyticsStateBase {
                   : 0);
           totalWatchMinutes.value = watchMins;
 
-          if (adsRevenue.value == 0.0 && views > 0) {
-            adsRevenue.value = views * 0.005;
-          }
-          if (watchTimeRevenue.value == 0.0 && watchMins > 0) {
-            watchTimeRevenue.value = watchMins * 0.002;
-          }
+          final watchRevenue =
+              (data['watchTimeRevenueTotal'] as num?)?.toDouble() ?? 0.0;
+          watchTimeRevenue.value = watchRevenue;
 
           final membershipTotal = ((data['membershipRevenueTotal'] ??
                   data['membershipsRevenueTotal']) as num?)
@@ -110,6 +105,29 @@ mixin RevenueAnalyticsStreamsMixin on RevenueAnalyticsStateBase {
               (data['kycStatus'] as String? ?? '').toLowerCase().trim();
           if (kycStatus.isNotEmpty) {
             channelKycStatus.value = kycStatus;
+          }
+
+          // Evaluate Custom Channel Viral Surge Withdrawal Hold
+          final isCustom = (data['channelType'] ?? '').toString().toLowerCase() == 'custom';
+          if (isCustom) {
+            final infra = data['infraConfig'] is Map
+                ? Map<String, dynamic>.from(data['infraConfig'] as Map)
+                : null;
+            final isHeld = infra?['isWithdrawalHeld'] == true;
+            final holdReason = (infra?['withdrawalHoldReason'] ?? '').toString();
+            final usedBytes = (infra?['bandwidthUsedBytesThisMonth'] as num?)?.toInt() ?? 0;
+            final quotaBytes = (infra?['bandwidthQuotaBytesThisMonth'] as num?)?.toInt() ?? 0;
+            final isExceeded = quotaBytes > 0 && usedBytes > quotaBytes;
+
+            isWithdrawalHeld.value = isHeld || isExceeded;
+            withdrawalHoldReason.value = holdReason.isNotEmpty
+                ? holdReason
+                : (isWithdrawalHeld.value
+                    ? 'TruthWorld has covered 100% of your viral infrastructure costs! Revenue withdrawals are on hold until your custom plan is upgraded.'
+                    : '');
+          } else {
+            isWithdrawalHeld.value = false;
+            withdrawalHoldReason.value = '';
           }
 
           recalculateTotal();
@@ -183,9 +201,11 @@ mixin RevenueAnalyticsStreamsMixin on RevenueAnalyticsStateBase {
           activeMembersCount.value = 0;
           originalUsdMemberships.value = 0.0;
           originalInrMemberships.value = 0.0;
-          membershipsRevenueINR.value = 0.0;
-          membershipsRevenueUSD.value = 0.0;
-          membershipsRevenue.value = 0.0;
+          // Preserve cumulative membership earnings loaded from channel document
+          if (membershipsRevenue.value == 0.0) {
+            membershipsRevenueINR.value = 0.0;
+            membershipsRevenueUSD.value = 0.0;
+          }
         }
         recalculateTotal();
         rxIsLoading.value = false;
@@ -272,9 +292,14 @@ mixin RevenueAnalyticsStreamsMixin on RevenueAnalyticsStateBase {
 
     // 4. Revenue Statements Stream
     _statementsSub?.cancel();
-    _statementsSub = firestore
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    var statementsQuery = firestore
         .collection('revenue_statements')
-        .where('channelId', isEqualTo: chId)
+        .where('channelId', isEqualTo: chId);
+    if (uid != null && uid.isNotEmpty) {
+      statementsQuery = statementsQuery.where('userId', isEqualTo: uid);
+    }
+    _statementsSub = statementsQuery
         .limit(1)
         .snapshots()
         .listen(
@@ -282,13 +307,18 @@ mixin RevenueAnalyticsStreamsMixin on RevenueAnalyticsStateBase {
         if (snap.docs.isNotEmpty) {
           final data = snap.docs.first.data();
           final grossAds = (data['grossAdsRevenue'] as num?)?.toDouble() ?? 0.0;
-          if (grossAds > 0) {
+          if (grossAds > 0 && adsRevenue.value == 0.0) {
             adsRevenue.value = grossAds;
           }
-          final grossSubs =
-              (data['grossSubsRevenue'] as num?)?.toDouble() ?? 0.0;
-          if (grossSubs > 0 && superchatRevenue.value == 0.0) {
-            superchatRevenue.value = grossSubs;
+          final grossPremium =
+              (data['grossPremiumSubsRevenue'] as num?)?.toDouble() ?? 0.0;
+          if (grossPremium > 0 && premiumSubsRevenue.value == 0.0) {
+            premiumSubsRevenue.value = grossPremium;
+          }
+          final grossWatch =
+              (data['grossWatchTimeRevenue'] as num?)?.toDouble() ?? 0.0;
+          if (grossWatch > 0 && watchTimeRevenue.value == 0.0) {
+            watchTimeRevenue.value = grossWatch;
           }
           final creatorShare =
               (data['creatorShare'] as num?)?.toDouble() ?? 0.0;
@@ -363,6 +393,35 @@ mixin RevenueAnalyticsStreamsMixin on RevenueAnalyticsStateBase {
         );
       },
     );
+
+    // 7. Premium Subscription Revenue Stream
+    // Listens to the channel's cumulative premiumSubsRevenueTotal field,
+    // updated monthly by the distributePremiumRevenue Cloud Function.
+    _premiumSubsSub?.cancel();
+    _premiumSubsSub = firestore
+        .collection(FirestoreCollections.channels)
+        .doc(chId)
+        .snapshots()
+        .listen(
+      (doc) {
+        if (doc.exists) {
+          final data = doc.data() ?? {};
+          final premiumSubs =
+              (data['premiumSubsRevenueTotal'] as num?)?.toDouble() ?? 0.0;
+          if (premiumSubs != premiumSubsRevenue.value) {
+            premiumSubsRevenue.value = premiumSubs;
+            recalculateTotal();
+          }
+        }
+      },
+      onError: (err, stack) {
+        ErrorHandler.log(
+          err,
+          stackTrace: stack,
+          tag: 'RevenueAnalyticsStreamsMixin._premiumSubsSub',
+        );
+      },
+    );
   }
 
   /// Checks fallback KYC verification at root 'creator_kyc/{chId}'.
@@ -416,3 +475,4 @@ mixin RevenueAnalyticsStreamsMixin on RevenueAnalyticsStateBase {
     subscribeToAuthenticData();
   }
 }
+

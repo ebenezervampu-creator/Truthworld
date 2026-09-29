@@ -11,6 +11,7 @@ import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/services/digital_wellbeing_service.dart';
 import 'package:truthworld/core/services/distributed_counter_service.dart';
+import 'package:truthworld/core/services/pip_service.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/data/datasources/remote/channel_remote_datasource.dart';
 import 'package:truthworld/data/datasources/remote/video_remote_datasource.dart';
@@ -104,6 +105,11 @@ class InitialBinding extends Bindings {
     // Fallback registration if AuthService was not initialized prior to route resolution
     if (!Get.isRegistered<AuthService>()) {
       Get.put(AuthService(), permanent: true);
+    }
+
+    // Initialize Picture-in-Picture Service
+    if (!Get.isRegistered<PipService>()) {
+      Get.put(PipService(), permanent: true);
     }
 
     // Initialize miniplayer

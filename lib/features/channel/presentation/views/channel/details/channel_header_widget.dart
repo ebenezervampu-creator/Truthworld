@@ -10,6 +10,7 @@ import 'package:truthworld/features/channel/presentation/controllers/channel_con
 import 'package:truthworld/features/channel/presentation/views/channel/details/channel_details_state_widgets.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/details/channel_details_theme.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/widgets/channel_membership_join_sheet.dart';
+import 'package:truthworld/features/channel/presentation/views/channel/widgets/channel_notification_options_sheet.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Channel header widget showing avatar, title, handle, subscriber count, description, and subscription controls.
@@ -509,153 +510,11 @@ class ChannelHeaderWidget extends StatelessWidget {
 
 
   void _showNotificationsDialog(BuildContext context, Channel targetChannel) {
-    showModalBottomSheet(
+    ChannelNotificationOptionsSheet.show(
       context: context,
-      backgroundColor: ytSurface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-      ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: ytTextTertiary,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Options',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w500,
-                color: ytTextPrimary,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Obx(() {
-              final option = controller.notificationOption.value;
-              final isAll = option == 'all';
-              final isPersonalized = option == 'personalized';
-              final isNone =
-                  option == 'none' || !controller.notificationsEnabled.value;
-
-              return Column(
-                children: [
-                  ListTile(
-                    leading: const Icon(
-                      Icons.notifications_active_rounded,
-                      color: Colors.white,
-                    ),
-                    title: Text(
-                      'All',
-                      style: TextStyle(
-                        color: isAll ? AppColors.brand : ytTextPrimary,
-                        fontWeight: isAll ? FontWeight.bold : FontWeight.normal,
-                      ),
-                    ),
-                    subtitle: const Text(
-                      "You'll get all notifications",
-                      style: TextStyle(fontSize: 12, color: ytTextSecondary),
-                    ),
-                    trailing: isAll
-                        ? const Icon(Icons.check, color: Colors.white)
-                        : null,
-                    onTap: () {
-                      Navigator.pop(context);
-                      controller.updateNotificationPreference(
-                        targetChannel.channelId,
-                        'all',
-                      );
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(
-                      Icons.notifications_outlined,
-                      color: Colors.white,
-                    ),
-                    title: Text(
-                      'Personalized',
-                      style: TextStyle(
-                        color: isPersonalized ? AppColors.brand : ytTextPrimary,
-                        fontWeight: isPersonalized
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                      ),
-                    ),
-                    subtitle: const Text(
-                      "You'll get personalized notifications",
-                      style: TextStyle(fontSize: 12, color: ytTextSecondary),
-                    ),
-                    trailing: isPersonalized
-                        ? const Icon(Icons.check, color: Colors.white)
-                        : null,
-                    onTap: () {
-                      Navigator.pop(context);
-                      controller.updateNotificationPreference(
-                        targetChannel.channelId,
-                        'personalized',
-                      );
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(
-                      Icons.notifications_off_outlined,
-                      color: Colors.white,
-                    ),
-                    title: Text(
-                      'None',
-                      style: TextStyle(
-                        color: isNone ? AppColors.brand : ytTextPrimary,
-                        fontWeight: isNone
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                      ),
-                    ),
-                    subtitle: const Text(
-                      'Turn off all notifications',
-                      style: TextStyle(fontSize: 12, color: ytTextSecondary),
-                    ),
-                    trailing: isNone
-                        ? const Icon(Icons.check, color: Colors.white)
-                        : null,
-                    onTap: () {
-                      Navigator.pop(context);
-                      controller.updateNotificationPreference(
-                        targetChannel.channelId,
-                        'none',
-                      );
-                    },
-                  ),
-                  const Divider(color: ytBorder),
-                  ListTile(
-                    leading: const Icon(
-                      Icons.person_remove_outlined,
-                      color: Colors.white,
-                    ),
-                    title: const Text(
-                      'Unsubscribe',
-                      style: TextStyle(
-                        color: AppColors.brand,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _showUnsubscribeConfirmation(context, targetChannel);
-                    },
-                  ),
-                ],
-              );
-            }),
-          ],
-        ),
-      ),
+      channelId: targetChannel.channelId,
+      channelName: targetChannel.channelName,
+      subCtrl: controller.subController,
     );
   }
 

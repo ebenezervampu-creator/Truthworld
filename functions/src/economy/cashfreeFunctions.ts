@@ -1,12 +1,25 @@
 import * as admin from "firebase-admin";
 import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import { CashfreeService } from "../services/cashfreeService";
+import { applySecurityHeaders } from "../utils/securityHeaders";
 
 if (!admin.apps.length) {
   admin.initializeApp();
 }
 
 const REGION = "asia-south1";
+
+/**
+ * Escapes characters for safe interpolation into HTML contexts (XSS defense)
+ */
+function escapeHtml(str: string): string {
+  return String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
 /**
  * Fulfills an order idempotently based on its purpose and metadata
@@ -88,16 +101,6 @@ async function fulfillOrder(
       }
     }
 
-    let userWalletDoc: admin.firestore.DocumentSnapshot | null = null;
-    let userWalletRef: admin.firestore.DocumentReference | null = null;
-    if (purpose === "user_wallet_topup" || purpose === "user_topup") {
-      const targetUserId = metadata.userId || userId;
-      if (targetUserId) {
-        userWalletRef = firestore.collection("users").doc(targetUserId);
-        userWalletDoc = await transaction.get(userWalletRef);
-      }
-    }
-
     // -------------------------------------------------------------
     // 2. ALL WRITES COMMENCE AFTER ALL READS ARE COMPLETE
     // -------------------------------------------------------------
@@ -155,11 +158,31 @@ async function fulfillOrder(
         { merge: true }
       );
     } else if (purpose === "advertiser_wallet") {
+      const isExclusive = Boolean(metadata.isNet || metadata.gstInclusive === false);
+      let net: number;
+      let tax: number;
+
+      if (isExclusive) {
+        net = Number(amount.toFixed(2));
+        tax = Number((amount * 0.18).toFixed(2));
+      } else if (metadata.netAmount !== undefined && !isNaN(Number(metadata.netAmount)) && Number(metadata.netAmount) > 0) {
+        net = Number(Number(metadata.netAmount).toFixed(2));
+        tax = metadata.taxAmount !== undefined && !isNaN(Number(metadata.taxAmount))
+          ? Number(Number(metadata.taxAmount).toFixed(2))
+          : Number((amount - net).toFixed(2));
+      } else {
+        // GST is inclusive in gross amount paid (e.g. ₹1,180 gross = ₹1,000 ad credit + ₹180 GST)
+        net = Number((amount * (100 / 118)).toFixed(2));
+        tax = Number((amount - net).toFixed(2));
+      }
+
+      const spendableCredit = net;
+
       const advertiserRef = firestore.collection("advertiser_profiles").doc(userId);
       transaction.set(
         advertiserRef,
         {
-          walletBalance: admin.firestore.FieldValue.increment(amount),
+          walletBalance: admin.firestore.FieldValue.increment(spendableCredit),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         },
         { merge: true }
@@ -170,12 +193,13 @@ async function fulfillOrder(
         id: `INV-${Date.now().toString().slice(5)}`,
         orderId,
         date: new Date().toISOString(),
-        description: "Wallet Recharge (Cashfree)",
+        description: `Wallet Recharge (Cashfree) - Ad Credit: ₹${spendableCredit.toFixed(2)}, GST (18%): ₹${tax.toFixed(2)}`,
         amount,
+        spendableCredit,
+        tax,
+        net,
         status: "Paid",
         paymentMethod: "Cashfree PG",
-        tax: amount * 0.18,
-        net: amount * 0.82,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
     } else if (purpose === "advertiser_campaign") {
@@ -216,7 +240,7 @@ async function fulfillOrder(
       if (channelId) {
         const channelRef = firestore.collection("channels").doc(channelId);
         const packType = metadata.packType;
-        const amountUSD = metadata.amountUSD || (amount > 0 ? Number((amount / 83.0).toFixed(2)) : 0);
+        const amountUSD = metadata.amountUSD || (amount > 0 ? Number((amount / 84.0).toFixed(2)) : 0);
 
         if (packType === "storage") {
           const additionalBytes = (metadata.gigabytes || 0) * 1024 * 1024 * 1024;
@@ -263,42 +287,6 @@ async function fulfillOrder(
           description: metadata.description || `Wallet Deposit (+$${amountUSD.toFixed(2)}) via Cashfree`,
           timestamp: admin.firestore.FieldValue.serverTimestamp(),
           paymentGateway: "cashfree",
-          metadata: {
-            ...metadata,
-            inrAmount: amount,
-          },
-        });
-      }
-    } else if (purpose === "user_wallet_topup" || purpose === "user_topup") {
-      const targetUserId = metadata.userId || userId;
-      if (targetUserId && userWalletRef) {
-        const currentBal = (userWalletDoc && userWalletDoc.exists)
-          ? Number(userWalletDoc.data()?.walletBalance || 0)
-          : 0;
-        const newBal = currentBal + amount;
-
-        transaction.set(
-          userWalletRef,
-          {
-            walletBalance: newBal,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          },
-          { merge: true }
-        );
-
-        const userTxRef = userWalletRef.collection("wallet_transactions").doc(orderId);
-        transaction.set(userTxRef, {
-          id: orderId,
-          userId: targetUserId,
-          amount,
-          type: "credit",
-          category: metadata.category || "topup",
-          description: metadata.description || `Wallet Top-Up (+₹${amount.toFixed(2)}) via Cashfree`,
-          balanceBefore: currentBal,
-          balanceAfter: newBal,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
-          paymentGateway: "cashfree",
-          orderId,
           metadata: {
             ...metadata,
             inrAmount: amount,
@@ -562,6 +550,13 @@ export const createCashfreeOrder = onCall(
       throw new HttpsError("invalid-argument", "Payment purpose is required.");
     }
 
+    if (purpose === "user_wallet_topup" || purpose === "user_topup") {
+      throw new HttpsError(
+        "failed-precondition",
+        "User wallet services have been discontinued. Wallet services are exclusively available for creator channels."
+      );
+    }
+
     if (!CashfreeService.isConfigured()) {
       console.warn("[createCashfreeOrder] Cashfree credentials (CASHFREE_APP_ID / CASHFREE_SECRET_KEY) are not set in Secret Manager.");
       throw new HttpsError(
@@ -578,12 +573,143 @@ export const createCashfreeOrder = onCall(
 
     const cleanPurpose = String(purpose).replace(/[^a-zA-Z0-9_]/g, "");
     const orderId = `cf_${cleanPurpose}_${Date.now()}_${callerUid.substring(0, 5)}`;
+    const isAutoPay = Boolean(metadata?.autoPay === true || metadata?.autoPay === "true");
 
     const sanitizedTags = CashfreeService.sanitizeOrderTags({
       userId: callerUid,
       purpose: cleanPurpose,
+      autoPay: isAutoPay ? "true" : "false",
       ...metadata,
     });
+
+    // ─── Cashfree Subscriptions / Auto Pay Mandate Flow ────────────────────
+    if (isAutoPay) {
+      try {
+        let planId = "";
+        let planName = "";
+        let intervalType: "MONTH" | "YEAR" = "MONTH";
+
+        if (cleanPurpose === "premium_subscription") {
+          const rawPlan = String(metadata?.planId || "individual_monthly").toLowerCase().replace(/[^a-z0-9_]/g, "");
+          intervalType = rawPlan.includes("yearly") ? "YEAR" : "MONTH";
+          planId = `plan_tw_prem_${rawPlan}`;
+          planName = `TruthWorld Premium ${rawPlan.toUpperCase()}`;
+        } else if (cleanPurpose === "channel_membership") {
+          const chanKey = String(metadata?.channelId || "chan").substring(0, 10).replace(/[^a-zA-Z0-9_]/g, "");
+          const tierKey = String(metadata?.tierId || "tier").substring(0, 10).replace(/[^a-zA-Z0-9_]/g, "");
+          planId = `plan_tw_mbr_${chanKey}_${tierKey}`;
+          planName = `${metadata?.channelName || "Channel"} Membership (${metadata?.tierName || "Tier"})`;
+          intervalType = "MONTH";
+        } else if (cleanPurpose === "custom_channel_plan" || cleanPurpose === "channel_infra_plan") {
+          const tierKey = String(metadata?.planTier || "starter_15").replace(/[^a-zA-Z0-9_]/g, "");
+          planId = `plan_tw_infra_${tierKey}_${Math.round(amount)}`;
+          planName = `TruthWorld Studio Infrastructure (${metadata?.planName || tierKey})`;
+          intervalType = "MONTH";
+        } else {
+          planId = `plan_tw_${cleanPurpose}_${Math.round(amount)}`;
+          planName = `TruthWorld ${cleanPurpose}`;
+          intervalType = "MONTH";
+        }
+
+        // 1. Ensure recurring plan exists on Cashfree
+        await CashfreeService.createSubscriptionPlan({
+          planId,
+          planName,
+          planType: "PERIODIC",
+          planCurrency: currency,
+          planAmount: amount,
+          planMaxAmount: Math.max(15000, amount * 2),
+          planIntervalType: intervalType,
+          planIntervals: 1,
+          planMaxCycles: intervalType === "YEAR" ? 10 : 120,
+          planNote: orderNote || `TruthWorld ${purpose} recurring subscription plan`,
+        });
+
+        // 2. Create subscription mandate with customer details
+        const subId = `sub_${cleanPurpose}_${Date.now()}_${callerUid.substring(0, 5)}`;
+        const returnUrl = `https://www.truthworld.in/checkout?action=result&subscription_id=${encodeURIComponent(subId)}&order_id=${encodeURIComponent(orderId)}`;
+
+        const cfSub = await CashfreeService.createSubscription({
+          subscriptionId: subId,
+          planId,
+          customerDetails: {
+            customer_id: callerUid,
+            customer_name: customerName,
+            customer_email: customerEmail,
+            customer_phone: customerPhone || userData.phone || "9999999999",
+          },
+          returnUrl,
+          authorizationAmount: amount,
+          paymentMethods: ["upi", "card", "enach"],
+          subscriptionTags: sanitizedTags,
+          subscriptionNote: orderNote || `TruthWorld ${purpose} recurring subscription mandate`,
+        });
+
+        const authLink = cfSub.auth_link || "";
+        const paymentSessionId = cfSub.payment_session_id || "";
+
+        // Record in Firestore payment_subscriptions collection
+        await firestore.collection("payment_subscriptions").doc(subId).set({
+          subscriptionId: subId,
+          subReferenceId: cfSub.sub_reference_id || "",
+          planId,
+          userId: callerUid,
+          amount,
+          currency,
+          purpose,
+          status: cfSub.subscription_status || "INITIALIZED",
+          authLink,
+          paymentSessionId,
+          metadata: {
+            ...metadata,
+            autoPay: true,
+            orderId,
+          },
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        // Mirror in payment_orders for unified ledger and tracking
+        await firestore.collection("payment_orders").doc(orderId).set({
+          orderId,
+          userId: callerUid,
+          amount,
+          currency,
+          purpose,
+          status: "ACTIVE",
+          isSubscription: true,
+          subscriptionId: subId,
+          authLink,
+          paymentSessionId,
+          paymentLink: authLink,
+          metadata: {
+            ...metadata,
+            autoPay: true,
+            subscriptionId: subId,
+          },
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        return {
+          success: true,
+          orderId,
+          subscriptionId: subId,
+          subReferenceId: cfSub.sub_reference_id || "",
+          isSubscription: true,
+          authLink,
+          paymentSessionId,
+          orderAmount: amount,
+          orderCurrency: currency,
+          paymentLink: authLink,
+          environment: CashfreeService.PublicEnvironment,
+        };
+      } catch (subErr: any) {
+        console.warn(
+          "[createCashfreeOrder] Subscriptions API fallback to standard PG order:",
+          subErr?.response?.data || subErr?.message || subErr
+        );
+        // Fall back gracefully to standard PG order below with Auto Pay metadata tags
+      }
+    }
 
     try {
       const cfOrder = await CashfreeService.createOrder({
@@ -648,7 +774,7 @@ export const createCashfreeOrder = onCall(
 );
 
 /**
- * 2. Authoritative Verification of Cashfree Payment
+ * 2. Authoritative Verification of Cashfree Payment Order
  */
 export const verifyCashfreePayment = onCall(
   {
@@ -733,7 +859,201 @@ export const verifyCashfreePayment = onCall(
 );
 
 /**
- * 3. Cashfree Asynchronous Webhook Listener
+ * 3. Authoritative Verification of Cashfree Subscription Mandate (Auto Pay)
+ */
+export const verifyCashfreeSubscription = onCall(
+  {
+    region: REGION,
+    secrets: ["CASHFREE_APP_ID", "CASHFREE_SECRET_KEY"],
+  },
+  async (request) => {
+    const callerUid = request.auth?.uid;
+    if (!callerUid) {
+      throw new HttpsError("unauthenticated", "User must be authenticated.");
+    }
+
+    const { subscriptionId } = request.data || {};
+    if (!subscriptionId || typeof subscriptionId !== "string") {
+      throw new HttpsError("invalid-argument", "subscriptionId is required.");
+    }
+
+    const firestore = admin.firestore();
+    const subDoc = await firestore.collection("payment_subscriptions").doc(subscriptionId).get();
+
+    if (!subDoc.exists) {
+      throw new HttpsError("not-found", "Subscription record not found.");
+    }
+
+    const subData = subDoc.data() || {};
+    if (subData.userId !== callerUid) {
+      throw new HttpsError("permission-denied", "Unauthorized subscription access.");
+    }
+
+    if (subData.status === "ACTIVE" || subData.status === "FULFILLED") {
+      return {
+        success: true,
+        subscriptionStatus: "ACTIVE",
+        subscriptionId,
+      };
+    }
+
+    if (!CashfreeService.isConfigured()) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Payment gateway is not currently configured."
+      );
+    }
+
+    try {
+      const cfSub = await CashfreeService.getSubscription(subscriptionId);
+      const status = (cfSub.subscription_status || "").toUpperCase();
+
+      const isSuccess = status === "ACTIVE" || status === "BANK_APPROVAL_PENDING";
+      if (isSuccess) {
+        await firestore.collection("payment_subscriptions").doc(subscriptionId).update({
+          status: "ACTIVE",
+          cfStatus: status,
+          verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        // Fulfill associated order and activate benefits
+        const orderId = subData.metadata?.orderId || `cf_sub_${subscriptionId}`;
+        await fulfillOrder(
+          orderId,
+          subData.userId,
+          subData.purpose,
+          subData.amount,
+          {
+            ...subData.metadata,
+            subscriptionId,
+            autoPay: true,
+          }
+        );
+
+        return {
+          success: true,
+          subscriptionStatus: "ACTIVE",
+          subscriptionId,
+        };
+      } else {
+        return {
+          success: false,
+          subscriptionStatus: status || "PENDING",
+          subscriptionId,
+        };
+      }
+    } catch (err: any) {
+      console.error("[verifyCashfreeSubscription] Error:", err?.response?.data || err?.message || err);
+      throw new HttpsError("internal", "Unable to verify subscription mandate status with the gateway.");
+    }
+  }
+);
+
+/**
+ * 4. Cancel Cashfree Recurring Auto Pay Subscription
+ */
+export const cancelCashfreeSubscription = onCall(
+  {
+    region: REGION,
+    secrets: ["CASHFREE_APP_ID", "CASHFREE_SECRET_KEY"],
+  },
+  async (request) => {
+    const callerUid = request.auth?.uid;
+    if (!callerUid) {
+      throw new HttpsError("unauthenticated", "User must be authenticated.");
+    }
+
+    const { subscriptionId, reason } = request.data || {};
+    if (!subscriptionId || typeof subscriptionId !== "string") {
+      throw new HttpsError("invalid-argument", "subscriptionId is required.");
+    }
+
+    const firestore = admin.firestore();
+    const subDoc = await firestore.collection("payment_subscriptions").doc(subscriptionId).get();
+
+    if (!subDoc.exists) {
+      throw new HttpsError("not-found", "Subscription record not found.");
+    }
+
+    const subData = subDoc.data() || {};
+    if (subData.userId !== callerUid) {
+      throw new HttpsError("permission-denied", "Unauthorized subscription access.");
+    }
+
+    try {
+      if (CashfreeService.isConfigured()) {
+        try {
+          await CashfreeService.cancelSubscription(
+            subscriptionId,
+            reason || "Cancelled by user in TruthWorld"
+          );
+        } catch (cfErr: any) {
+          console.warn("[cancelCashfreeSubscription] Gateway cancel notice:", cfErr?.message || cfErr);
+        }
+      }
+
+      await firestore.collection("payment_subscriptions").doc(subscriptionId).update({
+        status: "CANCELLED",
+        cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+        cancellationReason: reason || "User request",
+      });
+
+      // Update user or channel autoPay state in database
+      if (subData.purpose === "premium_subscription") {
+        await firestore.collection("users").doc(callerUid).update({
+          isAutoPay: false,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        await firestore.collection("premium_subscriptions").doc(callerUid).update({
+          autoPay: false,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } else if (subData.purpose === "channel_membership") {
+        const channelId = subData.metadata?.channelId;
+        if (channelId) {
+          await firestore
+            .collection("channels")
+            .doc(channelId)
+            .collection("members")
+            .doc(callerUid)
+            .update({
+              autoPay: false,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+          await firestore
+            .collection("users")
+            .doc(callerUid)
+            .collection("channel_memberships")
+            .doc(channelId)
+            .update({
+              autoPay: false,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+        }
+      } else if (subData.purpose === "custom_channel_plan" || subData.purpose === "channel_infra_plan") {
+        const channelId = subData.metadata?.channelId;
+        if (channelId) {
+          await firestore.collection("channels").doc(channelId).update({
+            "infraConfig.autoPay": false,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        }
+      }
+
+      return {
+        success: true,
+        subscriptionId,
+        status: "CANCELLED",
+      };
+    } catch (err: any) {
+      console.error("[cancelCashfreeSubscription] Error:", err?.message || err);
+      throw new HttpsError("internal", "Unable to cancel auto pay subscription. Please try again.");
+    }
+  }
+);
+
+/**
+ * 5. Cashfree Asynchronous Webhook Listener (Orders & Recurring Subscriptions)
  */
 export const cashfreeWebhook = onRequest(
   {
@@ -742,6 +1062,7 @@ export const cashfreeWebhook = onRequest(
     secrets: ["CASHFREE_APP_ID", "CASHFREE_SECRET_KEY"],
   },
   async (req, res) => {
+    applySecurityHeaders(res);
     // 1. Support test pings, healthchecks, and CORS preflights (GET / HEAD / OPTIONS)
     if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") {
       res.status(200).json({ status: "ok", message: "TruthWorld Cashfree Webhook Active" });
@@ -753,8 +1074,88 @@ export const cashfreeWebhook = onRequest(
       return;
     }
 
+    // 2. Cryptographic Webhook HMAC-SHA256 Verification & Replay Protection
+    const signature = (req.headers["x-webhook-signature"] as string) || "";
+    const timestamp = (req.headers["x-webhook-timestamp"] as string) || "";
+
+    if (timestamp) {
+      const tsNum = parseInt(timestamp, 10);
+      const nowSec = Math.floor(Date.now() / 1000);
+      const effectiveTs = tsNum > 1000000000000 ? Math.floor(tsNum / 1000) : tsNum;
+      if (Math.abs(nowSec - effectiveTs) > 300) {
+        console.warn(`[cashfreeWebhook] Rejected webhook with expired timestamp: ${timestamp}`);
+        res.status(400).send("Expired webhook timestamp");
+        return;
+      }
+    }
+
+    if (signature && timestamp) {
+      const rawBody = (req as any).rawBody ? (req as any).rawBody.toString("utf8") : JSON.stringify(req.body);
+      const isValid = CashfreeService.verifyWebhookSignature(signature, rawBody, timestamp);
+      if (!isValid) {
+        console.warn("[cashfreeWebhook] Rejected webhook with invalid HMAC signature");
+        res.status(401).send("Invalid webhook signature");
+        return;
+      }
+    } else if (CashfreeService.isConfigured() && process.env.NODE_ENV === "production") {
+      console.warn("[cashfreeWebhook] Rejected webhook: missing x-webhook-signature / x-webhook-timestamp");
+      res.status(401).send("Missing webhook signature headers");
+      return;
+    }
+
     try {
-      // Support all Cashfree webhook versions (2022-09-01, 2023-08-01) and test pings
+      const firestore = admin.firestore();
+
+      // ─── A. Check for Subscription Events ───────────────────────────
+      const subscriptionId =
+        req.body?.data?.subscription?.subscription_id ||
+        req.body?.subscription?.subscription_id ||
+        req.body?.subscription_id ||
+        req.body?.data?.subscription_id;
+
+      if (subscriptionId) {
+        try {
+          const verifiedSub = await CashfreeService.getSubscription(subscriptionId);
+          const status = (verifiedSub.subscription_status || "").toUpperCase();
+
+          if (status === "ACTIVE") {
+            const subDoc = await firestore.collection("payment_subscriptions").doc(subscriptionId).get();
+            if (subDoc.exists) {
+              const subData = subDoc.data() || {};
+              await firestore.collection("payment_subscriptions").doc(subscriptionId).update({
+                status: "ACTIVE",
+                cfStatus: status,
+                verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+              });
+
+              const orderId = subData.metadata?.orderId || `cf_sub_${subscriptionId}`;
+              await fulfillOrder(
+                orderId,
+                subData.userId,
+                subData.purpose,
+                subData.amount,
+                {
+                  ...subData.metadata,
+                  subscriptionId,
+                  autoPay: true,
+                }
+              );
+            }
+          } else if (status === "CANCELLED") {
+            await firestore.collection("payment_subscriptions").doc(subscriptionId).update({
+              status: "CANCELLED",
+              cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+          }
+        } catch (subErr: any) {
+          console.error(`[cashfreeWebhook] Error processing subscription ${subscriptionId}:`, subErr?.message || subErr);
+        }
+
+        res.status(200).json({ status: "acknowledged", subscription_id: subscriptionId });
+        return;
+      }
+
+      // ─── B. Check for One-Time / Standard Order Events ──────────────
       const orderId =
         req.body?.data?.order?.order_id ||
         req.body?.order?.order_id ||
@@ -772,7 +1173,6 @@ export const cashfreeWebhook = onRequest(
       try {
         const verifiedOrder = await CashfreeService.getOrder(orderId);
         if (verifiedOrder.order_status === "PAID") {
-          const firestore = admin.firestore();
           const orderDoc = await firestore.collection("payment_orders").doc(orderId).get();
 
           if (orderDoc.exists) {
@@ -815,6 +1215,7 @@ export const cashfreeHostedCheckout = onRequest(
     secrets: ["CASHFREE_APP_ID", "CASHFREE_SECRET_KEY"],
   },
   async (req, res) => {
+    applySecurityHeaders(res);
     const action = ((req.query.action as string) || (req.body?.action as string) || "").toLowerCase();
     const rawOrderId = (
       (req.query.order_id as string) ||
@@ -833,7 +1234,8 @@ export const cashfreeHostedCheckout = onRequest(
       (req.body?.sessionId as string) ||
       ""
     ).trim();
-    const env = ((req.query.env as string) || (req.body?.env as string) || "production").toLowerCase();
+    const rawEnv = ((req.query.env as string) || (req.body?.env as string) || "production").toLowerCase().trim();
+    const env = rawEnv === "sandbox" ? "sandbox" : "production";
 
     // 1. Result confirmation view (Cashfree return_url target or direct /payment-result route)
     const isResultView =
@@ -1083,8 +1485,8 @@ export const cashfreeHostedCheckout = onRequest(
       console.log(`[cashfreeHostedCheckout] Launching session for order ${orderId}`);
     }
 
-    if (!sessionId) {
-      res.status(400).send("<h3>Missing session_id parameter.</h3>");
+    if (!sessionId || !/^[a-zA-Z0-9_\-]+$/.test(sessionId)) {
+      res.status(400).send("<h3>Missing or invalid session_id parameter.</h3>");
       return;
     }
 
@@ -1162,8 +1564,8 @@ export const cashfreeHostedCheckout = onRequest(
     <button id="proceedBtn" class="action-btn" onclick="submitDirectForm()">Proceed to Pay</button>
   </div>
 
-  <form id="cfDirectForm" method="POST" action="${checkoutGatewayUrl}" style="display:none;">
-    <input type="hidden" name="payment_session_id" value="${sessionId}">
+  <form id="cfDirectForm" method="POST" action="${escapeHtml(checkoutGatewayUrl)}" style="display:none;">
+    <input type="hidden" name="payment_session_id" value="${escapeHtml(sessionId)}">
     <input type="hidden" name="x_request_id" value="x_request_id_form_atom">
     <input type="hidden" name="form_id" value="form_id_atom">
     <input type="hidden" id="browserMetaInput" name="browser_meta" value="">
@@ -1172,6 +1574,8 @@ export const cashfreeHostedCheckout = onRequest(
 
   <script>
     let hasRedirected = false;
+    const clientEnv = ${JSON.stringify(env)};
+    const clientSessionId = ${JSON.stringify(sessionId)};
 
     function populateMeta() {
       try {
@@ -1197,11 +1601,11 @@ export const cashfreeHostedCheckout = onRequest(
       // 1. If Cashfree JS SDK v3 is available, use it
       if (typeof window.Cashfree === 'function') {
         try {
-          const cf = window.Cashfree({ mode: "${env}" });
+          const cf = window.Cashfree({ mode: clientEnv });
           if (cf && typeof cf.checkout === 'function') {
             hasRedirected = true;
             cf.checkout({
-              paymentSessionId: "${sessionId}",
+              paymentSessionId: clientSessionId,
               redirectTarget: "_self"
             }).catch(function(err) {
               console.warn("Cashfree SDK checkout call error, falling back to direct post:", err);

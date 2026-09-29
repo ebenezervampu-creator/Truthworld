@@ -47,4 +47,9 @@ class VideoDurationUtils {
     if (d.inHours > 0) return '${twoDigits(d.inHours)}:$minutes:$seconds';
     return '$minutes:$seconds';
   }
+
+  /// Formats duration given in seconds into standard 'mm:ss' or 'hh:mm:ss' format.
+  static String formatDurationSeconds(int seconds) {
+    return formatDuration(Duration(seconds: seconds));
+  }
 }

@@ -43,6 +43,20 @@ void main() {
       expect(parsed.id, equals('vScheme'));
     });
 
+    test('Parses custom scheme truthworld:/watch?v=videoId (single slash)', () {
+      final parsed = DeepLinkService.parseUrl('truthworld:/watch?v=vSchemeSingle');
+      expect(parsed.type, equals(TruthworldUrlType.video));
+      expect(parsed.id, equals('vSchemeSingle'));
+    });
+
+    test('Parses Android intent:// URL correctly', () {
+      final parsed = DeepLinkService.parseUrl(
+        'intent://www.truthworld.in/watch?v=vIntent#Intent;scheme=https;package=com.truthworld.app;end',
+      );
+      expect(parsed.type, equals(TruthworldUrlType.video));
+      expect(parsed.id, equals('vIntent'));
+    });
+
     test('Parses /channel/channelId URL', () {
       final parsed = DeepLinkService.parseUrl('https://www.truthworld.in/channel/chan_abc123');
       expect(parsed.type, equals(TruthworldUrlType.channel));
@@ -112,6 +126,17 @@ void main() {
     test('Parses /settings route', () {
       final settings = DeepLinkService.parseUrl('https://www.truthworld.in/settings');
       expect(settings.type, equals(TruthworldUrlType.settings));
+    });
+
+    test('Defensively rejects spoofed domains containing truthworld.in substring', () {
+      final spoof1 = DeepLinkService.parseUrl('https://truthworld.in.attacker.com/watch?v=123');
+      expect(spoof1.type, equals(TruthworldUrlType.external));
+
+      final spoof2 = DeepLinkService.parseUrl('https://evil-truthworld.in/watch?v=123');
+      expect(spoof2.type, equals(TruthworldUrlType.external));
+
+      final spoof3 = DeepLinkService.parseUrl('https://attacker.org/?redirect=truthworld.in');
+      expect(spoof3.type, equals(TruthworldUrlType.external));
     });
   });
 

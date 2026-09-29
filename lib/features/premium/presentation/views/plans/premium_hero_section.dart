@@ -6,7 +6,7 @@ import 'package:truthworld/features/premium/presentation/controllers/premium_con
 import 'package:truthworld/features/premium/presentation/views/plans/premium_constants.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-/// YouTube Premium style Hero Banner with trial CTA and membership badge.
+/// Premium Hero Banner with trial CTA and membership badge.
 class PremiumHeroSection extends StatelessWidget {
   final bool isPremium;
   final String? planId;

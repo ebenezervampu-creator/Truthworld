@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/features/video/data/models/fact_check_data_parser.dart';
+import 'package:truthworld/features/video/presentation/widgets/analysis/video_analysis_helpers.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 void main() {
@@ -156,6 +157,112 @@ void main() {
       expect(parsed.viewerNote, 'Fast triage: Core claims verified with OCR tickers.');
       expect(parsed.claims.length, 1);
       expect(parsed.verifiedCount, 1);
+    });
+
+    test('extracts claims from keyClaims and aggregates claim sources into parsedSources', () {
+      final data = {
+        'keyClaims': [
+          {
+            'text': 'India GDP grew 7.2% in 2023',
+            'verdict': 'verified_true',
+            'verdictBasis': ['Confirmed by Ministry of Statistics and World Bank records.'],
+            'effectiveSources': [
+              {
+                'title': 'World Bank Report',
+                'url': 'https://worldbank.org/india-gdp',
+                'trustLevel': 'High',
+              },
+            ],
+          },
+          {
+            'claim': 'Sun rises in the west',
+            'verdict': 'false_claim',
+            'whyWrong': 'Contradicted by basic astronomical facts.',
+            'sources': [
+              {
+                'title': 'NASA Astronomy Reference',
+                'url': 'https://nasa.gov/sun-orbit',
+                'trustLevel': 'High',
+              },
+            ],
+          },
+        ],
+      };
+
+      final parsed = FactCheckDataParser.parse(data);
+      expect(parsed.claims.length, 2);
+      expect(parsed.claimResults.length, 2);
+      expect(parsed.verifiedCount, 1);
+      expect(parsed.falseCount, 1);
+
+      // Verify AI reasoning was extracted
+      expect(parsed.claims[0]['response'], contains('Ministry of Statistics'));
+      expect(parsed.claims[1]['response'], contains('astronomical facts'));
+
+      // Verify sources were aggregated at top level from claims because data['sources'] was empty
+      expect(parsed.sources.length, 2);
+      expect(parsed.parsedSources.length, 2);
+      expect(parsed.parsedSources[0].title, 'World Bank Report');
+      expect(parsed.parsedSources[0].url, 'https://worldbank.org/india-gdp');
+      expect(parsed.parsedSources[1].title, 'NASA Astronomy Reference');
+      expect(parsed.parsedSources[1].url, 'https://nasa.gov/sun-orbit');
+    });
+
+    test('resolveRealClaimDetails properly resolves clean text, AI reasoning, and tapable sources', () {
+      final claim = {
+        'text': '??  Electric vehicle adoption doubled in 2023',
+        'verdict': 'verified_true',
+        'verdictBasis': [
+          'Verified through official vehicle registration portal and industry reports.',
+        ],
+        'effectiveSources': [
+          {
+            'title': 'Ministry of Road Transport',
+            'url': 'https://morth.nic.in/ev-stats',
+            'trustLevel': 'High',
+          },
+        ],
+      };
+
+      final resolved = VideoAnalysisHelpers.resolveRealClaimDetails(claim, 0, []);
+      expect(resolved.cleanText, 'Electric vehicle adoption doubled in 2023');
+      expect(resolved.response, contains('official vehicle registration'));
+      expect(resolved.sources.length, 1);
+      expect(resolved.sources[0]['title'], 'Ministry of Road Transport');
+      expect(resolved.sources[0]['url'], 'https://morth.nic.in/ev-stats');
+    });
+
+    test('parses factCheckTier and resolves helper getters correctly', () {
+      // Default standard
+      final defaultParsed = FactCheckDataParser.parse({});
+      expect(defaultParsed.factCheckTier, 'standard');
+      expect(defaultParsed.isStandardTier, isTrue);
+      expect(defaultParsed.isShortOverview, isFalse);
+      expect(defaultParsed.isFullGround, isFalse);
+      expect(defaultParsed.tierBadgeLabel, 'VERIFIED FACT-CHECK');
+
+      // Short tier
+      final shortParsed = FactCheckDataParser.parse({'factCheckTier': 'short'});
+      expect(shortParsed.factCheckTier, 'short');
+      expect(shortParsed.isShortOverview, isTrue);
+      expect(shortParsed.isStandardTier, isFalse);
+      expect(shortParsed.isFullGround, isFalse);
+      expect(shortParsed.tierBadgeLabel, 'SHORT FACT-CHECK • OVERVIEW');
+
+      // Full Ground tier
+      final fullGroundParsed = FactCheckDataParser.parse({'factCheckTier': 'full_ground'});
+      expect(fullGroundParsed.factCheckTier, 'full_ground');
+      expect(fullGroundParsed.isFullGround, isTrue);
+      expect(fullGroundParsed.isStandardTier, isFalse);
+      expect(fullGroundParsed.isShortOverview, isFalse);
+      expect(fullGroundParsed.tierBadgeLabel, 'FULL GROUND FACT-CHECK • ALL CLAIMS VERIFIED');
+
+      // Nested in aiFeatures
+      final nestedParsed = FactCheckDataParser.parse({
+        'aiFeatures': {'factCheckTier': 'short'},
+      });
+      expect(nestedParsed.factCheckTier, 'short');
+      expect(nestedParsed.isShortOverview, isTrue);
     });
   });
 }

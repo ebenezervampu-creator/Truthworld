@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/customization_screen.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -37,7 +38,7 @@ class CreateContentBlockedUploadCard extends StatelessWidget {
           channel.moderationReason != null &&
               channel.moderationReason!.isNotEmpty
           ? channel.moderationReason!
-          : 'Your channel details were rejected by our Verification System. Please update your name, description, or tags in customization to re-verify.';
+          : 'Your channel details did not pass verification. Please update your channel description to resubmit.';
       showButton = true;
     } else if (channel.status == ChannelStatus.verificationPending) {
       statusColor = context.colors.warning;
@@ -119,21 +120,22 @@ class CreateContentBlockedUploadCard extends StatelessWidget {
             const SizedBox(height: 28),
             ElevatedButton.icon(
               onPressed: () {
-                Get.toNamed(
-                  '/community-guidelines',
-                  arguments: {
-                    'fromRejectedChannelId': channel.id,
-                    'ownerId': channel.ownerId,
-                  },
+                Get.to<void>(
+                  () => ChannelCustomizationPage(
+                    channelId: channel.id,
+                    ownerId: channel.ownerId,
+                    // Basic Info tab (index 1) — description is the rejection cause
+                    initialTabIndex: 1,
+                  ),
                 );
               },
               icon: const Icon(
-                Icons.description_outlined,
+                Icons.edit_rounded,
                 size: 20,
                 color: AppColors.textPrimary,
               ),
               label: Text(
-                'Review Community Guidelines',
+                'Edit Channel Description',
                 style: context.themeTypography.button,
               ),
               style: ElevatedButton.styleFrom(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -28,39 +29,105 @@ class IconBtn extends StatelessWidget {
 
 class CenterBtn extends StatelessWidget {
   const CenterBtn({
-    required this.icon,
+    this.icon,
+    this.child,
     super.key,
     this.onTap,
-    this.size = 44,
+    this.size = 26,
+    this.buttonDiameter,
     this.isPrimary = false,
-  });
-  final IconData icon;
+    this.tooltip,
+  }) : assert(icon != null || child != null, 'Either icon or child must be provided');
+  final IconData? icon;
+  final Widget? child;
   final VoidCallback? onTap;
   final double size;
+  final double? buttonDiameter;
   final bool isPrimary;
+  final String? tooltip;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        splashColor: AppColors.textPrimary.withValues(alpha: 0.2),
-        child: Container(
-          padding: EdgeInsets.all(isPrimary ? 14 : 10),
-          decoration: BoxDecoration(
-            color: AppColors.bgPage.withValues(alpha: 0.35),
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: AppColors.textPrimary.withValues(alpha: 0.15),
-              width: 1.5,
+    final diameter = buttonDiameter ?? (isPrimary ? 72.0 : 52.0);
+    final isHovered = false.obs;
+
+    final Widget btn = MouseRegion(
+      onEnter: (_) => isHovered.value = true,
+      onExit: (_) => isHovered.value = false,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          splashColor: Colors.white.withValues(alpha: 0.18),
+          highlightColor: Colors.white.withValues(alpha: 0.10),
+          child: Obx(
+            () => AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: diameter,
+              height: diameter,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                // Permanent high-contrast frosted glass backing disc
+                // Guarantees maximum contrast even against pure white video scenes
+                color: isHovered.value
+                    ? (isPrimary
+                        ? const Color(0xD90A0A0E)
+                        : const Color(0xBF0A0A0E))
+                    : (isPrimary
+                        ? const Color(0x990A0A0E)
+                        : const Color(0x800A0A0E)),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isHovered.value
+                      ? Colors.white.withValues(alpha: isPrimary ? 0.45 : 0.32)
+                      : Colors.white.withValues(alpha: isPrimary ? 0.22 : 0.16),
+                  width: isPrimary ? 1.5 : 1.2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(
+                      alpha: isHovered.value ? 0.65 : 0.45,
+                    ),
+                    blurRadius: isHovered.value
+                        ? (isPrimary ? 22 : 16)
+                        : (isPrimary ? 16 : 10),
+                    spreadRadius: isHovered.value ? 2 : 1,
+                    offset: Offset(0, isHovered.value ? 3 : 2),
+                  ),
+                ],
+              ),
+              child: Center(
+                child: child ??
+                    Icon(
+                      icon,
+                      size: size,
+                      color: AppColors.textPrimary,
+                      shadows: const [
+                        Shadow(
+                          color: Color(0xCC000000),
+                          blurRadius: 6,
+                          offset: Offset(0, 1),
+                        ),
+                      ],
+                    ),
+              ),
             ),
           ),
-          child: Icon(icon, size: size, color: AppColors.textPrimary),
         ),
       ),
     );
+
+    final tip = tooltip;
+    if (tip != null && tip.isNotEmpty) {
+      return Tooltip(
+        message: tip,
+        waitDuration: const Duration(milliseconds: 400),
+        child: btn,
+      );
+    }
+
+    return btn;
   }
 }
 

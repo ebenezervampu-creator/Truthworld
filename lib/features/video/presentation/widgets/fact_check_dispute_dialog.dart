@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
+import 'package:truthworld/core/utils/source_url_sanitizer.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -17,10 +18,23 @@ class FactCheckDisputeController extends GetxController {
 
   void addSource() {
     final text = sourceController.text.trim();
-    if (text.isNotEmpty && !additionalSources.contains(text)) {
-      additionalSources.add(text);
-      sourceController.clear();
+    final validation = SourceUrlSanitizer.validateAuthoritativeSource(text);
+    if (!validation.isValid) {
+      AppSnackbar.warning(
+        validation.errorMessage ??
+            'Please enter a valid source URL (e.g. https://reuters.com).',
+      );
+      return;
     }
+
+    final cleanUrl = validation.normalizedUrl!;
+    if (additionalSources.contains(cleanUrl)) {
+      AppSnackbar.info('This source is already added.');
+      return;
+    }
+
+    additionalSources.add(cleanUrl);
+    sourceController.clear();
   }
 
   void removeSource(int index) {

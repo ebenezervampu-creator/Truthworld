@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
-import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
-import 'package:truthworld/features/video/presentation/views/player/controls/components/player_badges.dart';
 import 'package:truthworld/features/video/presentation/views/player/controls/components/player_controls_buttons.dart';
 import 'package:truthworld/features/video/presentation/views/player/controls/components/player_volume_and_time.dart';
 
+/// Minimal, restructured bottom controls row for TruthWorld player.
+/// Left: Play/Pause, Volume slider, Timestamp.
+/// Center: Clean open space.
+/// Right: Subtitles (CC), Settings, and Modern Minimal Fullscreen.
 class ControlRow extends StatelessWidget {
   const ControlRow({
     required this.ctrl,
@@ -14,214 +15,131 @@ class ControlRow extends StatelessWidget {
     required this.isMedium,
     super.key,
   });
+
   final TowerPlayerController ctrl;
   final bool isNarrow;
   final bool isMedium;
 
   @override
   Widget build(BuildContext context) {
-    final isMobileDevice =
-        Theme.of(context).platform == TargetPlatform.android ||
-        Theme.of(context).platform == TargetPlatform.iOS;
-
-    if (isMobileDevice) {
-      return Row(
-        children: [
-          Expanded(
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: TimeDisplay(ctrl: ctrl),
-            ),
-          ),
-          Obx(
-            () => Tooltip(
-              message: ctrl.subtitlesEnabled.value
-                  ? 'Subtitles (on)'
-                  : 'Subtitles (off)',
-              child: IconBtn(
-                icon: ctrl.subtitlesEnabled.value
-                    ? Icons.closed_caption_rounded
-                    : Icons.closed_caption_outlined,
-                onTap: () {
-                  if (ctrl.subtitleTracks.isEmpty) {
-                    ctrl.showToast('No captions available for this video');
-                    return;
-                  }
-                  if (ctrl.subtitlesEnabled.value) {
-                    ctrl.setSubtitles(enabled: false);
-                  } else {
-                    ctrl.setSubtitles(
-                      enabled: true,
-                      track: ctrl.subtitleTracks.first,
-                    );
-                  }
-                },
-              ),
-            ),
-          ),
-          Tooltip(
-            message: 'Settings',
-            child: IconBtn(
-              icon: Icons.settings_outlined,
-              onTap: () => ctrl.openSettings(context),
-            ),
-          ),
-          Obx(
-            () => Tooltip(
-              message: ctrl.isFullScreen.value
-                  ? 'Exit full screen (f)'
-                  : 'Full screen (f)',
-              child: IconBtn(
-                icon: ctrl.isFullScreen.value
-                    ? Icons.fullscreen_exit_rounded
-                    : Icons.fullscreen_rounded,
-                onTap: ctrl.toggleFullscreen,
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-
     return Row(
       children: [
-        // Left cluster — hide on narrow
-        if (!isNarrow && !isMedium) ...[
-          Obx(
-            () => IconBtn(
-              icon: ctrl.isPlaying.value
-                  ? Icons.pause_rounded
-                  : Icons.play_arrow_rounded,
-              onTap: ctrl.togglePlayPause,
-            ),
-          ),
-          Obx(
-            () {
-              ctrl.isAudioOnly.value;
-              return Opacity(
-                opacity: ctrl.hasPreviousVideo ? 1.0 : 0.3,
-                child: IconBtn(
-                  icon: Icons.skip_previous_rounded,
-                  onTap: ctrl.hasPreviousVideo ? ctrl.playPrevious : null,
-                ),
-              );
-            },
-          ),
-          Obx(
-            () {
-              ctrl.isAudioOnly.value;
-              return Opacity(
-                opacity: ctrl.hasNextVideo ? 1.0 : 0.3,
-                child: IconBtn(
-                  icon: Icons.skip_next_rounded,
-                  onTap: ctrl.hasNextVideo ? ctrl.playNext : null,
-                ),
-              );
-            },
-          ),
-          VolumeControl(ctrl: ctrl),
-        ] else if (isMedium) ...[
-          Obx(() => IconBtn(icon: ctrl.volumeIcon, onTap: ctrl.toggleMute)),
-        ],
-
-        // Time display & chapters
+        // ── Left Group: Play/Pause, Volume, Time ──────────────────────────────
         Expanded(
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: TimeDisplay(ctrl: ctrl),
+          child: Row(
+            children: [
+              Obx(
+                () => IconBtn(
+                  icon: ctrl.isPlaying.value
+                      ? Icons.pause_rounded
+                      : Icons.play_arrow_rounded,
+                  size: 22,
+                  onTap: ctrl.togglePlayPause,
+                ),
+              ),
+              if (!isNarrow) ...[
+                VolumeControl(ctrl: ctrl),
+                const SizedBox(width: 4),
+              ],
+              Flexible(
+                child: TimeDisplay(
+                  ctrl: ctrl,
+                  showChapters: !isNarrow,
+                ),
+              ),
+            ],
           ),
         ),
 
-        // Right cluster
-        if (!isNarrow) AbrBadge(ctrl: ctrl),
+        const SizedBox(width: 8),
 
-        // CC / Subtitles (always present alongside Settings)
-        Obx(
-          () => Tooltip(
-            message: ctrl.subtitlesEnabled.value
-                ? 'Subtitles (on)'
-                : 'Subtitles (off)',
-            child: IconBtn(
-              icon: ctrl.subtitlesEnabled.value
-                  ? Icons.closed_caption_rounded
-                  : Icons.closed_caption_outlined,
-              onTap: () {
-                if (ctrl.subtitleTracks.isEmpty) {
-                  ctrl.showToast('No captions available for this video');
-                  return;
-                }
-                if (ctrl.subtitlesEnabled.value) {
-                  ctrl.setSubtitles(enabled: false);
-                } else {
-                  ctrl.setSubtitles(
-                    enabled: true,
-                    track: ctrl.subtitleTracks.first,
-                  );
-                }
-              },
+        // ── Right Group: CC, Settings, Fullscreen ─────────────────────────────
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // CC / Subtitles
+            Obx(
+              () => Tooltip(
+                message: ctrl.subtitlesEnabled.value
+                    ? 'Subtitles (on)'
+                    : 'Subtitles (off)',
+                child: IconBtn(
+                  icon: ctrl.subtitlesEnabled.value
+                      ? Icons.closed_caption_rounded
+                      : Icons.closed_caption_outlined,
+                  size: 21,
+                  onTap: () {
+                    if (ctrl.subtitleTracks.isEmpty) {
+                      ctrl.showToast('No captions available for this video');
+                      return;
+                    }
+                    if (ctrl.subtitlesEnabled.value) {
+                      ctrl.setSubtitles(enabled: false);
+                    } else {
+                      ctrl.setSubtitles(
+                        enabled: true,
+                        track: ctrl.subtitleTracks.first,
+                      );
+                    }
+                  },
+                ),
+              ),
             ),
-          ),
-        ),
 
-        // Audio Only
-        Obx(
-          () => Tooltip(
-            message: ctrl.isAudioOnly.value ? 'Audio only (on)' : 'Audio only',
-            child: IconBtn(
-              icon: ctrl.isAudioOnly.value
-                  ? Icons.music_note_rounded
-                  : Icons.music_note_outlined,
-              onTap: () {
-                String? url;
-                String? title;
-                String? art;
-                try {
-                  if (ctrl.tag != null &&
-                      Get.isRegistered<VideoController>(tag: ctrl.tag)) {
-                    final vc = Get.find<VideoController>(tag: ctrl.tag);
-                    url = vc.currentResolution.value?.url;
-                    title = vc.video.title;
-                    art = vc.video.thumbnailUrl;
-                  }
-                } catch (e, stackTrace) {
-                  ErrorHandler.log(
-                    e,
-                    stackTrace: stackTrace,
-                    tag: 'PlayerControls.toggleAudioOnly.findVideo',
-                  );
-                }
-                ctrl.toggleAudioOnly(
-                  videoUrl: url,
-                  title: title,
-                  artworkUrl: art,
-                );
-              },
+            // Settings
+            Tooltip(
+              message: 'Settings',
+              child: IconBtn(
+                icon: Icons.settings_outlined,
+                size: 20,
+                onTap: () => ctrl.openSettings(context),
+              ),
             ),
-          ),
-        ),
 
-        // Settings
-        Tooltip(
-          message: 'Settings',
-          child: IconBtn(
-            icon: Icons.settings_outlined,
-            onTap: () => ctrl.openSettings(context),
-          ),
-        ),
+            // Picture-in-Picture (PiP)
+            if (!isNarrow)
+              Tooltip(
+                message: 'Picture in picture (p)',
+                child: IconBtn(
+                  icon: Icons.picture_in_picture_alt_rounded,
+                  size: 20,
+                  onTap: ctrl.togglePiP,
+                ),
+              ),
 
-        // Fullscreen
-        Obx(
-          () => Tooltip(
-            message: ctrl.isFullScreen.value
-                ? 'Exit full screen (f)'
-                : 'Full screen (f)',
-            child: IconBtn(
-              icon: ctrl.isFullScreen.value
-                  ? Icons.fullscreen_exit_rounded
-                  : Icons.fullscreen_rounded,
-              onTap: ctrl.toggleFullscreen,
+            // Theater Mode (Desktop)
+            if (!isNarrow && !isMedium)
+              Obx(
+                () => Tooltip(
+                  message: ctrl.isTheaterMode.value
+                      ? 'Default view (t)'
+                      : 'Theater mode (t)',
+                  child: IconBtn(
+                    icon: ctrl.isTheaterMode.value
+                        ? Icons.branding_watermark_rounded
+                        : Icons.rectangle_outlined,
+                    size: 20,
+                    onTap: ctrl.toggleTheaterMode,
+                  ),
+                ),
+              ),
+
+            // Fullscreen
+            Obx(
+              () => Tooltip(
+                message: ctrl.isFullScreen.value
+                    ? 'Exit full screen (f)'
+                    : 'Full screen (f)',
+                child: IconBtn(
+                  icon: ctrl.isFullScreen.value
+                      ? Icons.fullscreen_exit_rounded
+                      : Icons.fullscreen_rounded,
+                  size: 22,
+                  onTap: ctrl.toggleFullscreen,
+                ),
+              ),
             ),
-          ),
+          ],
         ),
       ],
     );

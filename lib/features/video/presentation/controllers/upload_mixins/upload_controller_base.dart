@@ -12,6 +12,7 @@ import 'package:truthworld/core/services/verification_cache_service.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/notifications/data/services/user_notification_service.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/domain/repositories/video_upload_repository.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_state.dart';
@@ -52,6 +53,26 @@ abstract class UploadControllerBase extends BaseController
   set channelsSubscription(
     StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? sub,
   );
+
+  /// Canonical ISO code of the channel's designated language (e.g. 'en', 'te', 'hi').
+  String get channelLanguageCode {
+    final lang = selectedChannel.value?.language.trim().toLowerCase();
+    return (lang != null && lang.isNotEmpty) ? lang : 'en';
+  }
+
+  /// User-facing display name of the channel's designated language (e.g. 'English', 'Telugu (తెలుగు)').
+  String get channelLanguageDisplayName {
+    final code = channelLanguageCode;
+    final match = supportedLanguages.firstWhereOrNull(
+      (l) => l.code.toLowerCase() == code || l.name.toLowerCase() == code,
+    );
+    if (match != null) {
+      return match.nativeName.isNotEmpty && match.nativeName != match.name
+          ? '${match.name} (${match.nativeName})'
+          : match.name;
+    }
+    return code.toUpperCase();
+  }
 
   // Quota
   RxInt get todayUploadedDurationSeconds;
@@ -138,6 +159,7 @@ abstract class UploadControllerBase extends BaseController
   RxBool get aiTTSEnabled;
   RxString get aiTTSVoiceType;
   RxBool get aiFactCheckEnabled;
+  RxString get aiFactCheckTier;
   Rx<PlatformFile?> get voiceSampleFile;
   RxList<String> get providedSources;
 

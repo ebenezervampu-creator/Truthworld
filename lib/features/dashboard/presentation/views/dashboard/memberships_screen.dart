@@ -99,8 +99,11 @@ class MembershipsScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 0% Platform Commission Guarantee Banner
-            CommissionNoticeBanner(isDarkMode: isDarkMode),
+            // Commission Notice Banner (reflects 0% Guarantee OR 30% Platform Cut when Member Ad-Free is enabled)
+            CommissionNoticeBanner(
+              controller: controller,
+              isDarkMode: isDarkMode,
+            ),
             const SizedBox(height: 20),
 
             // Top Key Performance Indicators (KPIs)

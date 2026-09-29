@@ -73,6 +73,15 @@ class RevenueAnalyticsController extends RevenueAnalyticsStateBase
       revenueChange.value = change;
     }
 
+    // Reset revenue state for new channel to ensure authentic data
+    membershipsRevenue.value = 0.0;
+    superchatRevenue.value = 0.0;
+    adsRevenue.value = 0.0;
+    watchTimeRevenue.value = 0.0;
+    premiumSubsRevenue.value = 0.0;
+    totalRevenue.value = 0.0;
+    totalRevenueUSD.value = 0.0;
+
     // Sync from DashboardController if already loaded
     if (Get.isRegistered<DashboardController>()) {
       final dash = Get.find<DashboardController>();
@@ -113,9 +122,12 @@ class RevenueAnalyticsController extends RevenueAnalyticsStateBase
     final total = membershipsRevenue.value +
         superchatRevenue.value +
         adsRevenue.value +
-        watchTimeRevenue.value;
+        watchTimeRevenue.value +
+        premiumSubsRevenue.value;
     totalRevenue.value = total;
     totalRevenueUSD.value = total / RevenueAnalyticsStateBase.usdToInrRate;
+    premiumSubsRevenueUSD.value =
+        premiumSubsRevenue.value / RevenueAnalyticsStateBase.usdToInrRate;
 
     if (total > 0) {
       if (isViewingINR) {
@@ -123,25 +135,18 @@ class RevenueAnalyticsController extends RevenueAnalyticsStateBase
       } else {
         revenueChange.value = '+\$${totalRevenueUSD.value.toStringAsFixed(2)}';
       }
+    } else {
+      revenueChange.value = isViewingINR ? '+₹0.00' : r'+$0.00';
     }
 
     // Bidirectionally sync with DashboardController if registered for same channel
     if (Get.isRegistered<DashboardController>()) {
       final dash = Get.find<DashboardController>();
       if (dash.channelId == channelId.value) {
-        if (membershipsRevenue.value > 0 &&
-            dash.rxMembershipsRevenue.value == 0) {
-          dash.rxMembershipsRevenue.value = membershipsRevenue.value;
-        }
-        if (superchatRevenue.value > 0 && dash.rxSuperchatRevenue.value == 0) {
-          dash.rxSuperchatRevenue.value = superchatRevenue.value;
-        }
-        if (adsRevenue.value > 0 && dash.rxAdsRevenue.value == 0) {
-          dash.rxAdsRevenue.value = adsRevenue.value;
-        }
-        if (watchTimeRevenue.value > 0 && dash.rxWatchTimeRevenue.value == 0) {
-          dash.rxWatchTimeRevenue.value = watchTimeRevenue.value;
-        }
+        dash.rxMembershipsRevenue.value = membershipsRevenue.value;
+        dash.rxSuperchatRevenue.value = superchatRevenue.value;
+        dash.rxAdsRevenue.value = adsRevenue.value;
+        dash.rxWatchTimeRevenue.value = watchTimeRevenue.value;
         dash.updateRevenueStats();
       }
     }

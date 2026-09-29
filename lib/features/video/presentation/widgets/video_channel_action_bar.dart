@@ -8,10 +8,9 @@ import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/data/models/channel_trust_score.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
-import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
+import 'package:truthworld/features/channel/presentation/views/channel/widgets/channel_notification_options_sheet.dart';
 import 'package:truthworld/features/channel/presentation/widgets/channel_trust_badge.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
-import 'package:truthworld/theme/app_theme.dart';
 
 /// Channel header and action bar for both Mobile and Desktop views, providing
 /// channel avatar, verification badge, follower counts, subscribe/bell toggle,
@@ -187,7 +186,7 @@ class VideoChannelActionBar {
                   final notificationsEnabled =
                       subCtrl.notificationsEnabled.value;
                   final notificationOption =
-                      subCtrl.notificationOption.value;
+                      subCtrl.getNotificationOption(channel.channelId).value;
 
                   IconData bellIcon;
                   if (!notificationsEnabled || notificationOption == 'none') {
@@ -204,9 +203,18 @@ class VideoChannelActionBar {
                       InkWell(
                         onTap: () {
                           if (!isUserSignedIn) return onSignInPrompt();
-                          subCtrl.toggleSubscription(
-                            channel.channelId,
-                          );
+                          if (isSubbed) {
+                            showNotificationsDialog(
+                              context: context,
+                              channelId: channel.channelId,
+                              channelName: channel.channelName,
+                              channelController: channelController,
+                            );
+                          } else {
+                            subCtrl.subscribeToChannel(
+                              channel.channelId,
+                            );
+                          }
                         },
                         borderRadius: BorderRadius.circular(18),
                         child: Container(
@@ -220,13 +228,26 @@ class VideoChannelActionBar {
                                 : Colors.white,
                             borderRadius: BorderRadius.circular(18),
                           ),
-                          child: Text(
-                            isSubbed ? 'Subscribed' : 'Subscribe',
-                            style: GoogleFonts.roboto(
-                              color: isSubbed ? Colors.white : Colors.black,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                isSubbed ? 'Subscribed' : 'Subscribe',
+                                style: GoogleFonts.roboto(
+                                  color: isSubbed ? Colors.white : Colors.black,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              if (isSubbed) ...[
+                                const SizedBox(width: 4),
+                                const Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                       ),
@@ -236,6 +257,7 @@ class VideoChannelActionBar {
                           onTap: () => showNotificationsDialog(
                             context: context,
                             channelId: channel.channelId,
+                            channelName: channel.channelName,
                             channelController: channelController,
                           ),
                           borderRadius: BorderRadius.circular(18),
@@ -434,7 +456,7 @@ class VideoChannelActionBar {
                   final notificationsEnabled =
                       subCtrl.notificationsEnabled.value;
                   final notificationOption =
-                      subCtrl.notificationOption.value;
+                      subCtrl.getNotificationOption(channel.channelId).value;
 
                   IconData bellIcon;
                   if (!notificationsEnabled || notificationOption == 'none') {
@@ -451,9 +473,18 @@ class VideoChannelActionBar {
                       ElevatedButton(
                         onPressed: () {
                           if (!isUserSignedIn) return onSignInPrompt();
-                          subCtrl.toggleSubscription(
-                            channel.channelId,
-                          );
+                          if (isSubscribed) {
+                            showNotificationsDialog(
+                              context: context,
+                              channelId: channel.channelId,
+                              channelName: channel.channelName,
+                              channelController: channelController,
+                            );
+                          } else {
+                            subCtrl.subscribeToChannel(
+                              channel.channelId,
+                            );
+                          }
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: isSubscribed
@@ -473,12 +504,26 @@ class VideoChannelActionBar {
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           elevation: 0,
                         ),
-                        child: Text(
-                          isSubscribed ? 'Subscribed' : 'Subscribe',
-                          style: GoogleFonts.roboto(
-                            fontWeight: FontWeight.w500,
-                            fontSize: 14,
-                          ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              isSubscribed ? 'Subscribed' : 'Subscribe',
+                              style: GoogleFonts.roboto(
+                                color: isSubscribed ? Colors.white : Colors.black,
+                                fontWeight: FontWeight.w500,
+                                fontSize: 14,
+                              ),
+                            ),
+                            if (isSubscribed) ...[
+                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.keyboard_arrow_down_rounded,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                       if (isSubscribed) ...[
@@ -487,6 +532,7 @@ class VideoChannelActionBar {
                           onPressed: () => showNotificationsDialog(
                             context: context,
                             channelId: channel.channelId,
+                            channelName: channel.channelName,
                             channelController: channelController,
                           ),
                           icon: Icon(
@@ -516,155 +562,17 @@ class VideoChannelActionBar {
     required BuildContext context,
     required String channelId,
     required ChannelController? channelController,
+    String? channelName,
   }) {
     final subCtrl = channelController?.subController ??
         (Get.isRegistered<ChannelController>(tag: channelId)
             ? Get.find<ChannelController>(tag: channelId).subController
             : ChannelSubscriptionController.to);
-    showModalBottomSheet(
+    ChannelNotificationOptionsSheet.show(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.bgSurface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-      ),
-      builder: (context) => SafeArea(
-        child: SingleChildScrollView(
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.textSecondary,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Notification settings',
-                  style: GoogleFonts.roboto(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Obx(() {
-                  final option = subCtrl.notificationOption.value;
-                  final notificationsEnabled = subCtrl.notificationsEnabled.value;
-                  final isAll = notificationsEnabled && option == 'all';
-                  final isPersonalized =
-                      notificationsEnabled && option == 'personalized';
-                  final isNone = !notificationsEnabled || option == 'none';
-
-                  return Column(
-                    children: [
-                      ListTile(
-                        leading: const Icon(
-                          Icons.notifications_active,
-                          color: AppColors.textPrimary,
-                        ),
-                        title: Text(
-                          'All',
-                          style: GoogleFonts.roboto(
-                            color: isAll ? AppColors.brand : AppColors.textPrimary,
-                            fontWeight: isAll ? FontWeight.bold : FontWeight.normal,
-                          ),
-                        ),
-                        subtitle: Text(
-                          "You'll get all notifications",
-                          style: GoogleFonts.roboto(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        trailing: isAll
-                            ? const Icon(Icons.check, color: AppColors.textPrimary)
-                            : null,
-                        onTap: () {
-                          Navigator.pop(context);
-                          subCtrl.updateNotificationPreference(
-                            channelId,
-                            'all',
-                          );
-                        },
-                      ),
-                      ListTile(
-                        leading: const Icon(
-                          Icons.notifications_outlined,
-                          color: AppColors.textPrimary,
-                        ),
-                        title: Text(
-                          'Personalized',
-                          style: GoogleFonts.roboto(
-                            color: isPersonalized ? AppColors.brand : AppColors.textPrimary,
-                            fontWeight: isPersonalized
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                          ),
-                        ),
-                        subtitle: Text(
-                          "You'll get personalized notifications",
-                          style: GoogleFonts.roboto(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        trailing: isPersonalized
-                            ? const Icon(Icons.check, color: AppColors.textPrimary)
-                            : null,
-                        onTap: () {
-                          Navigator.pop(context);
-                          subCtrl.updateNotificationPreference(
-                            channelId,
-                            'personalized',
-                          );
-                        },
-                      ),
-                      ListTile(
-                        leading: const Icon(
-                          Icons.notifications_off_outlined,
-                          color: AppColors.textPrimary,
-                        ),
-                        title: Text(
-                          'None',
-                          style: GoogleFonts.roboto(
-                            color: isNone ? AppColors.brand : AppColors.textPrimary,
-                            fontWeight: isNone
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                          ),
-                        ),
-                        subtitle: Text(
-                          'Turn off all notifications',
-                          style: GoogleFonts.roboto(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        trailing: isNone
-                            ? const Icon(Icons.check, color: AppColors.textPrimary)
-                            : null,
-                        onTap: () {
-                          Navigator.pop(context);
-                          subCtrl.updateNotificationPreference(
-                            channelId,
-                            'none',
-                          );
-                        },
-                      ),
-                    ],
-                  );
-                }),
-              ],
-            ),
-          ),
-        ),
-      ),
+      channelId: channelId,
+      channelName: channelName,
+      subCtrl: subCtrl,
     );
   }
 

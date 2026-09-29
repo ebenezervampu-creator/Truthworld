@@ -47,7 +47,7 @@ class LegalAboutSection extends StatelessWidget {
         style: TextStyle(fontSize: 16, color: AppColors.textPrimary),
       ),
       subtitle: Text(
-        '1.0.0 (Truthworld YouTube-Scale Release)',
+        '1.0.0 (Truthworld Production Release)',
         style: TextStyle(fontSize: 14, color: context.colors.textSecondary),
       ),
     );

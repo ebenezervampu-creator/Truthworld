@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:get/get.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/network/result.dart';
 
@@ -18,14 +19,17 @@ abstract class BaseRepository {
     Duration retryDelay = const Duration(seconds: 1),
     Duration timeout = const Duration(seconds: 15),
   }) async {
+    final effectiveTimeout =
+        Get.testMode ? const Duration(milliseconds: 100) : timeout;
     var attempts = 0;
     while (true) {
       attempts++;
       try {
         final data = await fetchTask().timeout(
-          timeout,
+          effectiveTimeout,
           onTimeout: () => throw AppTimeoutException(
-            message: 'Operation timed out after ${timeout.inSeconds} seconds',
+            message:
+                'Operation timed out after ${effectiveTimeout.inSeconds} seconds',
           ),
         );
         return Result.success(data);

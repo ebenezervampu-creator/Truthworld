@@ -91,6 +91,15 @@ class AudienceTabView extends StatelessWidget {
   Widget _buildStatsRow() {
     return Obx(() {
       final totalPresets = controller.audiencePresets.length;
+      final targetLocations = <String>{};
+      for (final p in controller.audiencePresets) {
+        final locs = (p['locations'] as List<dynamic>?)?.cast<String>() ?? [];
+        targetLocations.addAll(locs);
+      }
+      final topDensity = targetLocations.isEmpty
+          ? 'Global Network'
+          : targetLocations.take(2).join(' & ');
+
       return Row(
         children: [
           Expanded(
@@ -104,27 +113,20 @@ class AudienceTabView extends StatelessWidget {
           const SizedBox(width: 16),
           Expanded(
             child: _buildMetricCard(
-              title: 'Global Addressable Reach',
-              value: '12.5M Viewers',
-              subtitle: 'Active Truthworld watchers',
-              icon: Icons.public_rounded,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: _buildMetricCard(
-              title: 'Top Regional Density',
-              value: 'South Asia & US',
-              subtitle: '76% of high-intent traffic',
+              title: 'Targeted Zones',
+              value: topDensity,
+              subtitle: targetLocations.isEmpty
+                  ? 'Worldwide distribution'
+                  : '${targetLocations.length} active regions',
               icon: Icons.travel_explore_rounded,
             ),
           ),
           const SizedBox(width: 16),
           Expanded(
             child: _buildMetricCard(
-              title: 'Human Verified Index',
-              value: '99.8%',
-              subtitle: 'Bot-free ad delivery',
+              title: 'Audience Integrity',
+              value: '100% Verified',
+              subtitle: 'Fact-checked human network',
               icon: Icons.verified_user_rounded,
             ),
           ),
@@ -196,109 +198,135 @@ class AudienceTabView extends StatelessWidget {
   }
 
   Widget _buildGeoDistributionSimulator() {
-    final regions = [
-      {'name': 'India & South Asia', 'share': 0.54, 'pct': '54%'},
-      {'name': 'United States & Canada', 'share': 0.22, 'pct': '22%'},
-      {'name': 'Middle East & UAE', 'share': 0.14, 'pct': '14%'},
-      {'name': 'United Kingdom & Europe', 'share': 0.10, 'pct': '10%'},
-    ];
+    return Obx(() {
+      final locationCounts = <String, int>{};
+      for (final preset in controller.audiencePresets) {
+        final locs = (preset['locations'] as List<dynamic>?)?.cast<String>() ?? [];
+        for (final loc in locs) {
+          locationCounts[loc] = (locationCounts[loc] ?? 0) + 1;
+        }
+      }
 
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: const Color(0xFF161618),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF27272A)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Live Geo-Distribution Simulator',
-                style: TextStyle(
-                  fontFamily: TWTypography.brandFamily,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+      final total = locationCounts.values.fold<int>(0, (a, b) => a + b);
+      final regions = locationCounts.entries.map((e) {
+        final share = total > 0 ? e.value / total : 0.0;
+        final pct = '${(share * 100).toStringAsFixed(0)}%';
+        return {'name': e.key, 'share': share, 'pct': pct};
+      }).toList();
+
+      return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: const Color(0xFF161618),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFF27272A)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Live Geo-Distribution Analysis',
+                  style: TextStyle(
+                    fontFamily: TWTypography.brandFamily,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.brand.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.radar_rounded, color: Colors.white, size: 14),
-                    SizedBox(width: 6),
-                    Text(
-                      'AI Audience Clustering Active',
-                      style: TextStyle(
-                        fontFamily: TWTypography.uiFamily,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.brand,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Column(
-            children: regions.map((reg) {
-              final share = reg['share']! as double;
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          reg['name']! as String,
-                          style: const TextStyle(
-                            fontFamily: TWTypography.uiFamily,
-                            fontSize: 13,
-                            color: Colors.white,
-                            fontWeight: FontWeight.w500,
-                          ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.brand.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.radar_rounded, color: Colors.white, size: 14),
+                      SizedBox(width: 6),
+                      Text(
+                        'AI Audience Clustering Active',
+                        style: TextStyle(
+                          fontFamily: TWTypography.uiFamily,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.brand,
                         ),
-                        Text(
-                          reg['pct']! as String,
-                          style: const TextStyle(
-                            fontFamily: TWTypography.uiFamily,
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (regions.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: Text(
+                    'No regional personas configured yet. Create a preset below to analyze geographic audience distribution.',
+                    style: TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              )
+            else
+              Column(
+                children: regions.map((reg) {
+                  final share = (reg['share'] as num?)?.toDouble() ?? 0.0;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              reg['name']! as String,
+                              style: const TextStyle(
+                                fontFamily: TWTypography.uiFamily,
+                                fontSize: 13,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            Text(
+                              reg['pct']! as String,
+                              style: const TextStyle(
+                                fontFamily: TWTypography.uiFamily,
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: share,
+                            minHeight: 8,
+                            backgroundColor: const Color(0xFF27272A),
+                            valueColor: const AlwaysStoppedAnimation<Color>(AppColors.brand),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: share,
-                        minHeight: 8,
-                        backgroundColor: const Color(0xFF27272A),
-                        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.brand),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
+                  );
+                }).toList(),
+              ),
+          ],
+        ),
+      );
+    });
   }
 
   Widget _buildPresetsList(BuildContext context) {

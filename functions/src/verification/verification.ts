@@ -39,7 +39,8 @@ import { onSchedule }         from "firebase-functions/v2/scheduler";
 import * as admin             from "firebase-admin";
 import * as logger            from "firebase-functions/logger";
 import * as crypto              from "crypto";
-import { requireAdmin } from "../utils/auth";
+import { requireAdmin, requireRecentAdmin } from "../utils/auth";
+import { applySecurityHeaders } from "../utils/securityHeaders";
 import { notifyUser } from "../notifications/notifications";
 
 if (!admin.apps.length) {
@@ -1453,11 +1454,14 @@ export const scheduledRetryProcessor = onSchedule(
 );
 
 export const retryQueueProcessorManual = onRequest(
-  { region: REGION, timeoutSeconds: 60, memory: "256MiB", cors: ["https://*.towerb.app"] },
+  { region: REGION, timeoutSeconds: 60, memory: "256MiB", cors: true },
   async (req, res) => {
-    let processedCount = 0; let dlqCount = 0; let errorCount = 0;
-    const startTime = Date.now();
     try {
+      const authUser = await requireAdmin(req, res);
+      if (!authUser) return;
+
+      let processedCount = 0; let dlqCount = 0; let errorCount = 0;
+      const startTime = Date.now();
       const now = Date.now();
       const allMessages: Array<{ ref: FirebaseFirestore.DocumentReference; data: any }> = [];
 
@@ -1684,6 +1688,7 @@ export const deadLetterHandler = onMessagePublished(
 export const getImageVerificationStatus = onRequest(
   { region: REGION, timeoutSeconds: 30, memory: "256MiB", cors: ["https://*.towerb.app", "http://localhost:3000", "http://localhost:5173"] },
   async (req, res) => {
+    applySecurityHeaders(res);
     try {
       const { docId } = req.query;
       if (!docId || typeof docId !== "string" || !docId.trim()) {
@@ -1725,6 +1730,9 @@ export const cleanupVerificationRecord = onRequest(
   { region: REGION, timeoutSeconds: 30 },
   async (req, res) => {
     try {
+      const authUser = await requireRecentAdmin(req, res, 3600);
+      if (!authUser) return;
+
       const { docId } = req.query;
       if (!docId || typeof docId !== "string") { res.status(400).json({ error: "Valid docId required" }); return; }
       await db().collection(COL_VERIFICATION).doc(docId).delete();
@@ -1750,8 +1758,8 @@ export const moderateImageManual = onRequest(
   },
   async (req, res) => {
     try {
-      const authUser = await requireAdmin(req, res);
-      if (!authUser) return; // Response is already handled by requireAdmin
+      const authUser = await requireRecentAdmin(req, res, 3600);
+      if (!authUser) return; // Response is already handled by requireRecentAdmin
 
       const { verificationId, action, reason } = req.body;
 
@@ -1879,7 +1887,7 @@ export const setModerationModesManual = onRequest(
   },
   async (req, res) => {
     try {
-      const authUser = await requireAdmin(req, res);
+      const authUser = await requireRecentAdmin(req, res, 3600);
       if (!authUser) return;
 
       const { modeKey, value, modes } = req.body;

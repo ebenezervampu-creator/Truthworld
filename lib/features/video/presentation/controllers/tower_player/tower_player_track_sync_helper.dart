@@ -125,9 +125,9 @@ class TowerPlayerTrackSyncHelper {
           }
         }
 
-        if (bestAudio != null) {
+        if (bestAudio != null && activeAudioLang.value.isEmpty) {
           setAudioLanguage(bestAudio);
-        } else if (audioTracks.isNotEmpty) {
+        } else if (audioTracks.isNotEmpty && (activeAudioLang.value.isEmpty || !audioTracks.any((t) => t.label == activeAudioLang.value))) {
           activeAudioLang.value = audioTracks.first.label;
         }
       }

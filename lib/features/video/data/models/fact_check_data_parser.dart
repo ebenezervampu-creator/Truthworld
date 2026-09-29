@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/core/utils/source_url_sanitizer.dart';
 import 'package:truthworld/features/video/data/models/claim_verdict_helper.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/features/video/presentation/widgets/analysis/video_analysis_helpers.dart';
@@ -34,6 +35,7 @@ class ParsedFactCheckData {
     required this.urgencyColor,
     required this.scoreAvailable,
     this.isProvisional = false,
+    this.factCheckTier = 'standard',
   });
 
   /// An empty state instance when no fact check data is present.
@@ -87,6 +89,20 @@ class ParsedFactCheckData {
   final Color urgencyColor;
   final bool scoreAvailable;
   final bool isProvisional;
+  final String factCheckTier;
+
+  bool get isShortOverview => factCheckTier == 'short';
+  bool get isFullGround =>
+      factCheckTier == 'full_ground' ||
+      factCheckTier == 'fullground' ||
+      factCheckTier == 'ground';
+  bool get isStandardTier => !isShortOverview && !isFullGround;
+
+  String get tierBadgeLabel {
+    if (isShortOverview) return 'SHORT FACT-CHECK • OVERVIEW';
+    if (isFullGround) return 'FULL GROUND FACT-CHECK • ALL CLAIMS VERIFIED';
+    return 'VERIFIED FACT-CHECK';
+  }
 
   bool get isEmpty =>
       trustScore == null &&
@@ -196,13 +212,20 @@ class FactCheckDataParser {
             : (confidenceTier.toLowerCase() == 'medium' ? 0.6 : 0.4));
 
     // 5. Viewer Note / Narrative
+    final rawConclusion = data['conclusion'];
+    final conclusionText = rawConclusion is Map
+        ? (rawConclusion['text'] ?? rawConclusion['summary'] ?? '').toString()
+        : (rawConclusion is String ? rawConclusion : '');
+
     final viewerNote = (data['viewerNote'] ??
             data['narrative'] ??
             data['summary'] ??
             data['explanation'] ??
             data['provisionalViewerNote'] ??
             data['uiReport']?['narrative'] ??
+            (conclusionText.isNotEmpty ? conclusionText : null) ??
             fallbackReport?.narrative ??
+            fallbackReport?.riskNote ??
             '')
         .toString()
         .trim();
@@ -212,8 +235,15 @@ class FactCheckDataParser {
 
     // 7. Claims
     final rawClaims = (data['claims'] as List?) ??
+        (data['keyClaims'] as List?) ??
         (data['uiReport']?['keyClaims'] as List?) ??
+        (data['uiReport']?['claims'] as List?) ??
+        (data['evaluatedClaims'] as List?) ??
+        (data['extractedClaims'] as List?) ??
         (data['provisionalClaims'] as List?) ??
+        (data['analysis'] is Map ? (data['analysis']['claims'] as List?) : null) ??
+        (data['result'] is Map ? (data['result']['claims'] as List?) : null) ??
+        (fallbackReport?.keyClaims.isNotEmpty == true ? fallbackReport!.keyClaims : null) ??
         [];
 
     final claimsList = <Map<String, dynamic>>[];
@@ -223,28 +253,97 @@ class FactCheckDataParser {
     var cautionCount = 0;
     var falseCount = 0;
 
-    if (rawClaims.isNotEmpty) {
-      for (final c in rawClaims) {
-        if (c is Map) {
-          final claimMap = Map<String, dynamic>.from(c);
-          claimsList.add(claimMap);
-          claimResultsList.add(ClaimResult.fromMap(claimMap));
+    for (final c in rawClaims) {
+      Map<String, dynamic>? claimMap;
+      ClaimResult? claimResult;
 
-          final verdict = ClaimVerdictHelper.resolveVerdict(claimMap);
-          if (verdict.isVerified) {
-            verifiedCount++;
-          } else if (verdict.isFalse) {
-            falseCount++;
+      if (c is ClaimResult) {
+        claimResult = c;
+        claimMap = c.toMap();
+      } else if (c is Map) {
+        claimMap = Map<String, dynamic>.from(c);
+        claimResult = ClaimResult.fromMap(claimMap);
+      }
+
+      if (claimMap != null && claimResult != null) {
+        final text = claimResult.text.isNotEmpty
+            ? claimResult.text
+            : (claimMap['claim'] ?? claimMap['text'] ?? claimMap['statement'] ?? '').toString();
+        claimMap['claim'] = text;
+        claimMap['text'] = text;
+
+        final verdict = ClaimVerdictHelper.resolveVerdict(claimMap);
+        final rawVerdictStr = claimResult.verdict.isNotEmpty ? claimResult.verdict : verdict.label;
+        claimMap['verdict'] = rawVerdictStr;
+        claimMap['status'] = claimMap['status'] ?? rawVerdictStr;
+        claimMap['verificationStatus'] = claimMap['verificationStatus'] ?? rawVerdictStr;
+        claimMap['isVerified'] = verdict.isVerified;
+        claimMap['isFalse'] = verdict.isFalse;
+        claimMap['isCaution'] = verdict.isCaution;
+
+        var aiExplanation = '';
+        if (claimResult.verdictBasis != null && claimResult.verdictBasis!.isNotEmpty) {
+          aiExplanation = claimResult.verdictBasis!.join('\n\n');
+        } else {
+          final rawExpl = (claimMap['response'] ??
+                  claimMap['reasoning'] ??
+                  claimMap['whyWrong'] ??
+                  claimMap['explanation'] ??
+                  claimMap['correction'] ??
+                  claimMap['verificationSummary'] ??
+                  claimMap['details'] ??
+                  claimMap['analysis'] ??
+                  claimMap['context'] ??
+                  claimMap['note'] ??
+                  '')
+              .toString()
+              .trim();
+          if (rawExpl.isNotEmpty) {
+            aiExplanation = rawExpl;
           } else {
-            cautionCount++;
+            aiExplanation = verdict.summaryTakeaway;
           }
         }
-      }
-    } else if (fallbackReport != null && fallbackReport.keyClaims.isNotEmpty) {
-      for (final cr in fallbackReport.keyClaims) {
-        claimResultsList.add(cr);
-        claimsList.add(cr.toMap());
-        final verdict = ClaimVerdictHelper.resolveVerdict(cr);
+        claimMap['response'] = aiExplanation;
+        claimMap['reasoning'] = aiExplanation;
+        claimMap['explanation'] = aiExplanation;
+        claimMap['verdictBasis'] = [aiExplanation];
+
+        final effectiveSources = <Map<dynamic, dynamic>>[];
+        final rawEffSources = claimResult.effectiveSources.isNotEmpty
+            ? claimResult.effectiveSources.map((s) => s.toMap()).toList()
+            : (claimMap['sources'] ??
+                claimMap['effectiveSources'] ??
+                claimMap['richSources'] ??
+                claimMap['evidence'] ??
+                claimMap['citations'] ??
+                []);
+        if (rawEffSources is List) {
+          for (final s in rawEffSources) {
+            if (!SourceUrlSanitizer.isValidSource(s)) continue;
+            if (s is UISource) {
+              effectiveSources.add(SourceUrlSanitizer.sanitizeSourceMap(s.toMap()));
+            } else if (s is Map) {
+              effectiveSources.add(SourceUrlSanitizer.sanitizeSourceMap(Map<dynamic, dynamic>.from(s)));
+            } else if (s is String && s.trim().isNotEmpty) {
+              final clean = SourceUrlSanitizer.sanitizeUrl(s, title: s);
+              effectiveSources.add({
+                'title': s.trim(),
+                'url': clean ?? '',
+                'directUrl': clean ?? '',
+                'domain': SourceUrlSanitizer.resolveDisplayDomain(clean, title: s),
+                'trustLevel': 'Medium',
+                'type': 'Supporting',
+              });
+            }
+          }
+        }
+        claimMap['sources'] = effectiveSources;
+        claimMap['effectiveSources'] = effectiveSources;
+
+        claimsList.add(claimMap);
+        claimResultsList.add(claimResult);
+
         if (verdict.isVerified) {
           verifiedCount++;
         } else if (verdict.isFalse) {
@@ -258,7 +357,9 @@ class FactCheckDataParser {
     // 8. Sources
     final rawSources = (data['sources'] ??
             data['richSources'] ??
+            data['citations'] ??
             data['uiReport']?['sources'] ??
+            data['uiReport']?['richSources'] ??
             fallbackReport?.sources) as List? ??
         [];
 
@@ -266,18 +367,77 @@ class FactCheckDataParser {
     final parsedSourcesList = <UISource>[];
 
     for (final s in rawSources) {
-      sourcesList.add(s);
+      if (!SourceUrlSanitizer.isValidSource(s)) continue;
       if (s is UISource) {
-        parsedSourcesList.add(s);
+        final sanitizedMap = SourceUrlSanitizer.sanitizeSourceMap(s.toMap());
+        sourcesList.add(sanitizedMap);
+        parsedSourcesList.add(UISource.fromMap(Map<String, dynamic>.from(sanitizedMap)));
       } else if (s is Map) {
-        parsedSourcesList.add(UISource.fromMap(Map<String, dynamic>.from(s)));
-      } else if (s is String && s.isNotEmpty) {
-        parsedSourcesList.add(UISource(
-          title: s,
+        final sanitizedMap = SourceUrlSanitizer.sanitizeSourceMap(Map<dynamic, dynamic>.from(s));
+        final strMap = Map<String, dynamic>.from(sanitizedMap);
+        sourcesList.add(strMap);
+        parsedSourcesList.add(UISource.fromMap(strMap));
+      } else if (s is String && s.trim().isNotEmpty) {
+        final clean = SourceUrlSanitizer.sanitizeUrl(s, title: s);
+        final uiSrc = UISource(
+          title: s.trim(),
           trustLevel: 'Medium',
           type: 'Supporting',
-          url: s.startsWith('http') ? s : null,
-        ));
+          url: clean,
+          domain: SourceUrlSanitizer.resolveDisplayDomain(clean, title: s),
+        );
+        sourcesList.add(uiSrc.toMap());
+        parsedSourcesList.add(uiSrc);
+      }
+    }
+
+    // 8.1 Fallback aggregation: If top-level sources are empty, aggregate distinct sources from claims!
+    if (parsedSourcesList.isEmpty && claimsList.isNotEmpty) {
+      final seenKeys = <String>{};
+
+      for (final c in claimsList) {
+        final cSources = c['sources'] ??
+            c['effectiveSources'] ??
+            c['richSources'] ??
+            c['citations'] ??
+            c['evidence'] ??
+            c['references'];
+        if (cSources is List) {
+          for (final s in cSources) {
+            if (!SourceUrlSanitizer.isValidSource(s)) continue;
+            UISource? parsedSource;
+            Map<String, dynamic>? sourceMap;
+
+            if (s is UISource) {
+              sourceMap = Map<String, dynamic>.from(SourceUrlSanitizer.sanitizeSourceMap(s.toMap()));
+              parsedSource = UISource.fromMap(sourceMap);
+            } else if (s is Map) {
+              sourceMap = Map<String, dynamic>.from(SourceUrlSanitizer.sanitizeSourceMap(Map<dynamic, dynamic>.from(s)));
+              parsedSource = UISource.fromMap(sourceMap);
+            } else if (s is String && s.trim().isNotEmpty) {
+              final clean = SourceUrlSanitizer.sanitizeUrl(s, title: s);
+              parsedSource = UISource(
+                title: s.trim(),
+                trustLevel: 'Medium',
+                type: 'Supporting',
+                url: clean,
+                domain: SourceUrlSanitizer.resolveDisplayDomain(clean, title: s),
+              );
+              sourceMap = parsedSource.toMap();
+            }
+
+            if (parsedSource != null && sourceMap != null) {
+              final key = (parsedSource.url != null && parsedSource.url!.isNotEmpty)
+                  ? parsedSource.url!.toLowerCase()
+                  : parsedSource.title.toLowerCase();
+              if (key.isNotEmpty && !seenKeys.contains(key)) {
+                seenKeys.add(key);
+                parsedSourcesList.add(parsedSource);
+                sourcesList.add(sourceMap);
+              }
+            }
+          }
+        }
       }
     }
 
@@ -328,6 +488,13 @@ class FactCheckDataParser {
       urgencyColor: urgencyColor,
       scoreAvailable: scoreAvailable,
       isProvisional: isProvisional,
+      factCheckTier: (data['factCheckTier'] ??
+              (data['aiFeatures'] is Map ? data['aiFeatures']['factCheckTier'] : null) ??
+              (data['media'] is Map ? data['media']['factCheckTier'] : null) ??
+              data['tier'] ??
+              data['synthesisTier'] ??
+              'standard')
+          .toString(),
     );
   }
 }

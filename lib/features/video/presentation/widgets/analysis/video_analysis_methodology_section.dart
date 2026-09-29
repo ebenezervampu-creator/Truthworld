@@ -17,9 +17,9 @@ class VideoAnalysisMethodologySection extends StatelessWidget {
           children: [
             Text(
               'How We Score',
-              style: GoogleFonts.outfit(
+              style: GoogleFonts.roboto(
                 color: AppColors.textPrimary,
-                fontSize: 18,
+                fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -77,8 +77,8 @@ class VideoAnalysisMethodologySection extends StatelessWidget {
       padding: const EdgeInsets.all(12.0),
       decoration: BoxDecoration(
         color: AppColors.bgElevated,
-        borderRadius: BorderRadius.circular(8.0),
-        border: Border.all(color: AppColors.bgDivider),
+        borderRadius: BorderRadius.circular(10.0),
+        border: Border.all(color: AppColors.bgDivider.withValues(alpha: 0.7)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -88,10 +88,10 @@ class VideoAnalysisMethodologySection extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: GoogleFonts.outfit(
+                style: GoogleFonts.roboto(
                   color: AppColors.textPrimary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
               Container(

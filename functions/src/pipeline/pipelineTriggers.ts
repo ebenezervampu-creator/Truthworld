@@ -2,6 +2,7 @@ import * as admin from "firebase-admin";
 import { onRequest } from "firebase-functions/v2/https";
 import { onObjectFinalized } from "firebase-functions/v2/storage";
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
+import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { requireAuth } from "../utils/auth";
 import {
   ExecutionPlan,
@@ -10,6 +11,7 @@ import {
 } from "./types";
 import { logger } from "./utils/logger";
 import { PIPELINE_CONFIG } from "./config";
+import { normalizeLanguageCode } from "../shared/language-normalizer";
 
 /**
  * 🪄 Trigger On-Demand AI Features for a Video
@@ -78,7 +80,7 @@ export const triggerVideoAIFeatures = onRequest(
       const jobSnap = await jobDocRef.get();
       const jobData = jobSnap.exists ? jobSnap.data() : null;
 
-      const existingLanguages: string[] = jobData?.executionPlan?.languages || ["en"];
+      const existingLanguages: string[] = jobData?.executionPlan?.languages || [normalizeLanguageCode(videoData.language || "en")];
       const languagesSet = new Set([...existingLanguages, ...targetLanguages]);
       const combinedLanguages = Array.from(languagesSet);
 
@@ -87,16 +89,20 @@ export const triggerVideoAIFeatures = onRequest(
       const wantFactCheck = features.includes("factcheck");
       const wantSummary = features.includes("summary");
       const wantChapters = features.includes("chapters");
+      const wantDiarization = features.includes("diarization") || features.includes("speaker_diarization") || (jobData?.executionPlan?.enableDiarization ?? false);
 
       const executionPlan: ExecutionPlan = {
         jobId: videoId,
         languages: combinedLanguages,
-        primaryLanguage: videoData.language || "en",
+        primaryLanguage: normalizeLanguageCode(videoData.language || "en"),
         enablePath1: wantFactCheck || wantSummary || (jobData?.executionPlan?.enablePath1 ?? true),
         enablePath2: wantDubbing || wantSubtitles || (jobData?.executionPlan?.enablePath2 ?? true),
         enableTruthEngine: wantFactCheck || wantSummary || (jobData?.executionPlan?.enableTruthEngine ?? true),
         enableReachEngine: wantDubbing || wantSubtitles || (jobData?.executionPlan?.enableReachEngine ?? true),
         enableAuxiliary: true,
+        enableDiarization: wantDiarization,
+        diarization: wantDiarization,
+        dubbingLanguages: wantDubbing ? targetLanguages : (jobData?.executionPlan?.dubbingLanguages || []),
         dubbingMode: "standard",
         generateDubbing: wantDubbing,
         genLangSubs: wantSubtitles,
@@ -105,7 +111,9 @@ export const triggerVideoAIFeatures = onRequest(
         priorityMode: priorityMode,
         sensitiveTopics: sensitiveTopics,
         channelType: jobData?.executionPlan?.channelType || "standard",
-        maxClaims: 20,
+        maxClaims: wantFactCheck ? 200 : 0,
+        factCheckTier: "full_ground",
+        synthesisTier: wantFactCheck ? "deep" : "standard",
         priority: "normal",
         skipCache: false,
       };
@@ -149,7 +157,11 @@ export const triggerVideoAIFeatures = onRequest(
         });
       }
 
-      const transcriptSnap = await admin.firestore().collection("transcripts").doc(videoId).get();
+      const targetTranscriptId = videoData.jobId || videoId;
+      let transcriptSnap = await admin.firestore().collection("transcripts").doc(targetTranscriptId).get();
+      if (!transcriptSnap.exists && targetTranscriptId !== videoId) {
+        transcriptSnap = await admin.firestore().collection("transcripts").doc(videoId).get();
+      }
       const transcriptionCompleted = transcriptSnap.exists;
 
       const { DistributionLayer } = require("./layers/04-distribution");
@@ -508,3 +520,96 @@ export const handleCopyrightCheck = onMessagePublished(
     }
   }
 );
+
+/**
+ * 🎙️ Sync dubbing results (audio tracks & dubbed video) directly to linked videos and media/localization
+ */
+export const onDubbingResultWritten = onDocumentWritten(
+  {
+    document: "dubbing_results/{resultId}",
+    region: "asia-south1",
+    minInstances: 0,
+    maxInstances: 5,
+  },
+  async (event) => {
+    try {
+      const afterSnap = event.data?.after;
+      if (!afterSnap || !afterSnap.exists) return;
+
+      const data = afterSnap.data();
+      if (!data) return;
+
+      const jobId = data.jobId;
+      const language = data.language;
+      const audioUrl = data.audioUrl;
+      const videoUrl = data.videoUrl;
+
+      if (!jobId || !language || (!audioUrl && !videoUrl)) return;
+
+      const bucketName = admin.storage().bucket().name;
+      const directAudioUrl = audioUrl
+        ? (audioUrl.startsWith("gs://")
+            ? `https://storage.googleapis.com/${bucketName}/${audioUrl.replace(`gs://${bucketName}/`, "")}`
+            : audioUrl)
+        : "";
+      const directVideoUrl = videoUrl
+        ? (videoUrl.startsWith("gs://")
+            ? `https://storage.googleapis.com/${bucketName}/${videoUrl.replace(`gs://${bucketName}/`, "")}`
+            : videoUrl)
+        : "";
+
+      // Find linked video IDs
+      const jobSnap = await admin.firestore().collection("video_jobs").doc(jobId).get();
+      const jobData = jobSnap.data();
+      const linkedVideoIds: string[] = jobData?.linkedVideoIds ? [...jobData.linkedVideoIds] : [];
+      if (jobData?.videoId && !linkedVideoIds.includes(jobData.videoId)) {
+        linkedVideoIds.push(jobData.videoId);
+      }
+      // Also check if jobId itself is a video doc
+      const directVidSnap = await admin.firestore().collection("videos").doc(jobId).get();
+      if (directVidSnap.exists && !linkedVideoIds.includes(jobId)) {
+        linkedVideoIds.push(jobId);
+      }
+
+      if (linkedVideoIds.length === 0) return;
+
+      const audioUpdates: Record<string, string> = {};
+      if (directAudioUrl) {
+        audioUpdates[language] = directAudioUrl;
+      }
+      const dubbedUpdates: Record<string, string> = {};
+      if (directVideoUrl) {
+        dubbedUpdates[language] = directVideoUrl;
+      }
+
+      for (const vid of linkedVideoIds) {
+        const vDocUpdate: any = {
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+        if (directAudioUrl) {
+          vDocUpdate.audioTracks = audioUpdates;
+          vDocUpdate["media.audioTracks"] = audioUpdates;
+        }
+        if (directVideoUrl) {
+          vDocUpdate.dubbedVideos = dubbedUpdates;
+          vDocUpdate["media.dubbedVideos"] = dubbedUpdates;
+        }
+
+        await admin.firestore().collection("videos").doc(vid).set(vDocUpdate, { merge: true });
+
+        await admin.firestore().collection("videos").doc(vid).collection("media").doc("localization").set({
+          ...(directAudioUrl ? { audioTracks: audioUpdates } : {}),
+          ...(directVideoUrl ? { dubbedVideos: dubbedUpdates } : {}),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
+
+      logger.info("[onDubbingResultWritten] Successfully synced audio/video to videos", {
+        jobId, language, videoCount: linkedVideoIds.length
+      });
+    } catch (err) {
+      logger.error("[onDubbingResultWritten] Error syncing dubbing result to video", { err: String(err) });
+    }
+  }
+);
+

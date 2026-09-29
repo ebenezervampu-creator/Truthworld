@@ -9,18 +9,28 @@ import 'package:truthworld/theme/app_theme.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 
-/// YouTube feed-style large native ad card matching the visual scale
+/// Large native feed ad card matching the visual scale
 /// and layout of feed video cards.
 class HomepageAdCard extends StatelessWidget {
-  const HomepageAdCard({required this.ad, super.key});
+  const HomepageAdCard({
+    required this.ad,
+    this.contextChannelId = '',
+    super.key,
+  });
   final AdItem ad;
+
+  /// The channel whose feed this ad was shown in. Used for 70% revenue attribution.
+  final String contextChannelId;
 
   @override
   Widget build(BuildContext context) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (Get.isRegistered<AdService>()) {
         try {
-          AdService.to.recordImpression(ad.id);
+          AdService.to.recordImpression(
+            ad.id,
+            channelId: contextChannelId,
+          );
         } catch (e, stackTrace) {
           ErrorHandler.log(
             e,

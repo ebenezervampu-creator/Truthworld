@@ -1,11 +1,11 @@
 {
   "name": "Truthworld",
   "short_name": "Truthworld",
-  "description": "See the world clearly. Discover and share verified truth.",
+  "description": "Watch family-safe videos with AI dubbing in 70+ languages & 100+ subtitles. Automated fact-checking, creator studio tools, and 100% creator revenue.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0D0014",
-  "theme_color": "#9B30FF",
+  "background_color": "#0F0F0F",
+  "theme_color": "#0F0F0F",
   "orientation": "portrait-primary",
   "icons": [
     {

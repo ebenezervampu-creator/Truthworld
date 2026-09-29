@@ -2,12 +2,12 @@ import 'dart:convert';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 
-/// Comprehensive, YouTube-grade subtitle and transcript parser.
+/// Comprehensive subtitle and transcript parser.
 ///
 /// Features:
 /// - Supports JSON (AssemblyAI, Whisper, standard transcript JSON, Firestore maps),
 ///   SRT, WebVTT (with cue tags and settings), and plain text fallbacks.
-/// - YouTube-style dynamic phrase chunking: Groups word streams with exact acoustic
+/// - Dynamic phrase chunking: Groups word streams with exact acoustic
 ///   timestamps into natural, rhythmic 3–6 word phrase segments split on punctuation,
 ///   commas, and speech pauses.
 /// - Deterministic unit detection: Accurately distinguishes milliseconds from seconds
@@ -101,7 +101,7 @@ class SubtitleParser {
 
     if (decoded is Map) {
       // Priority 1: Word-level timestamps (AssemblyAI / Whisper words)
-      // Produces exact, frame-perfect YouTube caption flow
+      // Produces exact, frame-perfect caption flow
       if (decoded['words'] is List && (decoded['words'] as List).isNotEmpty) {
         final wordMaps = (decoded['words'] as List).whereType<Map>().toList();
         final wordSegs = _buildSegmentsFromWordList(wordMaps);
@@ -187,7 +187,7 @@ class SubtitleParser {
     return segs;
   }
 
-  /// Groups word-level timestamp objects into natural, rhythmic YouTube-style phrase captions.
+  /// Groups word-level timestamp objects into natural, rhythmic phrase captions.
   /// Start and end times are anchored to the physical acoustic word timestamps.
   static List<SubtitleSegment> _buildSegmentsFromWordList(List<Map> words) {
     if (words.isEmpty) return [];
@@ -610,7 +610,7 @@ class SubtitleParser {
     final startMs = _parseTimestampToMs(startVal, isSeconds: isSecondsOverride);
     var endMs = _parseTimestampToMs(endVal, isSeconds: isSecondsOverride);
 
-    // Support YouTube timedtext / dDurationMs
+    // Support timedtext / dDurationMs
     if (endVal == null && item.containsKey('dDurationMs')) {
       final dur = _parseTimestampToMs(item['dDurationMs'], isSeconds: false);
       endMs = startMs + dur;

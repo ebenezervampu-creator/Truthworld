@@ -56,8 +56,13 @@ class VolumeControl extends StatelessWidget {
 }
 
 class TimeDisplay extends StatelessWidget {
-  const TimeDisplay({required this.ctrl, super.key});
+  const TimeDisplay({
+    required this.ctrl,
+    this.showChapters = true,
+    super.key,
+  });
   final TowerPlayerController ctrl;
+  final bool showChapters;
 
   String _fmt(Duration d) {
     final h = d.inHours;
@@ -106,55 +111,66 @@ class TimeDisplay extends StatelessWidget {
       () {
         final currentChapter = ctrl.currentChapter.value;
         final hasChapters = ctrl.chapters.isNotEmpty;
-        final chapterTitle =
-            currentChapter?.title ?? (hasChapters ? 'Chapters' : null);
+        final chapterTitle = showChapters
+            ? (currentChapter?.title ?? (hasChapters ? 'Chapters' : null))
+            : null;
+
+        final timeWidget = InkWell(
+          onTap: hasChapters ? () => _openChapters(context) : null,
+          borderRadius: BorderRadius.circular(4),
+          child: Text(
+            '${_fmt(ctrl.vv.position)} / ${_fmt(ctrl.vv.duration)}',
+            style: TS.time,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        );
+
+        if (chapterTitle == null) {
+          return timeWidget;
+        }
 
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            timeWidget,
+            const SizedBox(width: 6),
             Text(
-              '${_fmt(ctrl.vv.position)} / ${_fmt(ctrl.vv.duration)}',
-              style: TS.time,
-            ),
-            if (chapterTitle != null) ...[
-              const SizedBox(width: 6),
-              Text(
-                '•',
-                style: TextStyle(
-                  color: AppColors.textPrimary.withValues(alpha: 0.5),
-                ),
+              '•',
+              style: TextStyle(
+                color: AppColors.textPrimary.withValues(alpha: 0.5),
               ),
-              const SizedBox(width: 6),
-              Flexible(
-                child: InkWell(
-                  onTap: () => _openChapters(context),
-                  borderRadius: BorderRadius.circular(4),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          chapterTitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
+            ),
+            const SizedBox(width: 6),
+            Flexible(
+              child: InkWell(
+                onTap: () => _openChapters(context),
+                borderRadius: BorderRadius.circular(4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        chapterTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                      const SizedBox(width: 2),
-                      const Icon(
-                        Icons.chevron_right_rounded,
-                        size: 14,
-                        color: AppColors.textPrimary,
-                      ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 2),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      size: 14,
+                      color: AppColors.textPrimary,
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ],
         );
       },

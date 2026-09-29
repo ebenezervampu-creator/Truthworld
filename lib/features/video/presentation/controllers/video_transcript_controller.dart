@@ -173,13 +173,15 @@ class VideoTranscriptController extends BaseController {
               return;
             }
           }
-        } catch (e, stackTrace) {
-          // Probe not found, log low-level diagnostic and continue to next probe
-          ErrorHandler.log(
-            e,
-            stackTrace: stackTrace,
-            tag: 'VideoTranscriptController.loadTranscript.probe',
-          );
+        } catch (e) {
+          final errStr = e.toString().toLowerCase();
+          // If storage access is unauthorized, stop speculative probing immediately
+          if (errStr.contains('unauthorized') ||
+              errStr.contains('permission-denied')) {
+            debugPrint('[VideoTranscriptController] Storage probes unauthorized, stopping.');
+            break;
+          }
+          // Normal probe miss: continue silently to next path
         }
       }
     } catch (e, stackTrace) {

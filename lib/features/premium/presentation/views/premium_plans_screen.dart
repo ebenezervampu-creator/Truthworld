@@ -198,7 +198,7 @@ class PremiumPlansScreen extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // 1. YouTube Premium Style Hero Banner
+              // 1. Premium Style Hero Banner
               PremiumHeroSection(
                 isPremium: isPremium,
                 planId: currentPlanId,

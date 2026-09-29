@@ -87,7 +87,7 @@ void main() {
       expect(find.byIcon(Icons.alternate_email_rounded), findsOneWidget);
     });
 
-    testWidgets('buildSection3Title, buildSection4Description, and buildSection5Tags render inputs and tag chips', (tester) async {
+    testWidgets('buildSection3Title, buildSection4Description, and buildSection7Tags render inputs and tag chips', (tester) async {
       await tester.pumpWidget(
         createHarness(
           Builder(
@@ -95,7 +95,7 @@ void main() {
               children: [
                 buildSection3Title(ctx, controller),
                 buildSection4Description(ctx, controller),
-                buildSection5Tags(ctx, controller),
+                buildSection7Tags(ctx, controller),
               ],
             ),
           ),
@@ -104,7 +104,7 @@ void main() {
 
       expect(find.text('3. Title'), findsOneWidget);
       expect(find.text('4. Description'), findsOneWidget);
-      expect(find.text('5. Tags'), findsOneWidget);
+      expect(find.text('7. Tags'), findsOneWidget);
 
       // Default tags
       expect(find.text('Space '), findsOneWidget);
@@ -119,22 +119,22 @@ void main() {
       expect(controller.tagsList.contains('Space'), isFalse);
     });
 
-    testWidgets('buildSection6Category and buildSection7TopicType render category and visibility options', (tester) async {
+    testWidgets('buildSection5Category and buildSection6TopicType render category and visibility options', (tester) async {
       await tester.pumpWidget(
         createHarness(
           Builder(
             builder: (ctx) => Column(
               children: [
-                buildSection6Category(ctx, controller, CreateTopicDialog.availableCategories),
-                buildSection7TopicType(ctx, controller),
+                buildSection5Category(ctx, controller, CreateTopicDialog.availableCategories),
+                buildSection6TopicType(ctx, controller),
               ],
             ),
           ),
         ),
       );
 
-      expect(find.text('6. Topic Category'), findsOneWidget);
-      expect(find.text('7. Topic Type'), findsOneWidget);
+      expect(find.text('5. Topic Category'), findsOneWidget);
+      expect(find.text('6. Topic Type'), findsOneWidget);
       expect(find.text('Public'), findsOneWidget);
       expect(find.text('Private'), findsOneWidget);
 
@@ -166,14 +166,14 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('8. Add Videos'), findsOneWidget);
-      expect(find.text('+ Select videos'), findsOneWidget);
+      expect(find.text('Select videos'), findsOneWidget);
       expect(find.text('No videos selected yet. (At least 1 video required)'), findsOneWidget);
 
       // Select video v1
       controller.selectedVideoIds.add('v1');
       await tester.pump();
 
-      expect(find.text('+ Select videos (1)'), findsOneWidget);
+      expect(find.text('Select videos (1)'), findsOneWidget);
       expect(find.text('Test Video 1'), findsOneWidget);
       expect(find.text('1 videos selected'), findsOneWidget);
     });
@@ -256,7 +256,50 @@ void main() {
 
       expect(find.byType(CreateTopicDialog), findsOneWidget);
       expect(find.text('Create Topic'), findsWidgets);
-      expect(find.text('TRUTHWORLD'), findsOneWidget);
+      expect(find.text('Build a topic to organize and curate videos around a theme.'), findsOneWidget);
+      expect(find.text('TRUTHWORLD'), findsNothing);
+    });
+
+    testWidgets('buildSection8AddVideos with isFromUpload: true renders optional label and staged video notice', (tester) async {
+      await tester.pumpWidget(
+        createHarness(
+          Builder(
+            builder: (ctx) => buildSection8AddVideos(
+              ctx,
+              controller,
+              Future.value([]),
+              isFromUpload: true,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('(Optional)'), findsOneWidget);
+      expect(find.text('Current uploading video will be added'), findsOneWidget);
+      expect(find.text('Your current video is already staged and will be linked to this topic once you publish.'), findsOneWidget);
+      expect(find.text('* (Required)'), findsNothing);
+      expect(find.text('No videos selected yet. (At least 1 video required)'), findsNothing);
+    });
+
+    test('CreateTopicController validation honors isFromUpload flag without demanding videos', () async {
+      controller.nameController.text = 'Valid Topic';
+      controller.titleController.text = 'Valid Topic';
+      controller.handleController.text = 'valid-topic';
+      controller.selectedVideoIds.clear();
+
+      // Outside upload: must fail without videos
+      controller.isFromUpload.value = false;
+      final normalValid = await controller.validateFormBeforeSubmit();
+      expect(normalValid, isFalse);
+      expect(controller.profanityError.value, contains('At least 1 video is required'));
+
+      // From upload screen: must pass without videos
+      controller.profanityError.value = '';
+      controller.isFromUpload.value = true;
+      final uploadValid = await controller.validateFormBeforeSubmit();
+      expect(uploadValid, isTrue);
+      expect(controller.profanityError.value, isEmpty);
     });
   });
 }

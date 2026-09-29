@@ -31,9 +31,12 @@ class GenerateAiSubtitlesModal {
           ),
           padding: const EdgeInsets.all(24),
           child: Obx(() {
+            final durationSecs = controller.selectedVideo.value?.durationSeconds ??
+                controller.videoDuration.value.inSeconds;
             final cost = ChannelWalletService.calculateAIFeatureCost(
               selectedFeatures: {'subtitles'},
               targetLanguages: selectedLangs.toList(),
+              durationSeconds: durationSecs > 0 ? durationSecs : 120,
             );
 
             return Column(

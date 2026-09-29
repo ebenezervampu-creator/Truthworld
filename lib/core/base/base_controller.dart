@@ -331,12 +331,12 @@ class BaseController extends GetxController {
     try {
       if (showLoading && isItemsEmpty) setViewState(ViewState.loading);
       await task();
-      if (isItemsEmpty &&
-          state != ViewState.error &&
-          state != ViewState.cancelled) {
-        setViewState(ViewState.empty);
-      } else if (state == ViewState.loading) {
-        setViewState(ViewState.success);
+      if (state == ViewState.loading || state == ViewState.refreshing) {
+        if (isItemsEmpty) {
+          setViewState(ViewState.empty);
+        } else {
+          setViewState(ViewState.success);
+        }
       }
     } on OperationCancelledException catch (e) {
       debugPrint('ℹ️ [Task Cancelled] $runtimeType: ${e.message}');

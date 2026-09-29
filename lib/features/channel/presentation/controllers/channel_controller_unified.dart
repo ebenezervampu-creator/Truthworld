@@ -21,6 +21,7 @@ export 'package:truthworld/features/channel/data/models/channel_availability_sta
 export 'package:truthworld/features/channel/data/models/channel_image_data.dart';
 export 'package:truthworld/features/channel/data/models/channel_transaction_result.dart';
 export 'package:truthworld/features/channel/presentation/controllers/channel_mixins/channel_mixins.dart';
+export 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
 
 class ChannelController extends ChannelControllerBase
     with
@@ -76,6 +77,8 @@ class ChannelController extends ChannelControllerBase
   final RxString selectedPlan = 'free'.obs;
   @override
   final RxString customPricingTier = 'basic'.obs;
+  @override
+  final RxBool customPlanAutoPay = true.obs;
   @override
   final RxBool planSelectionError = false.obs;
   @override

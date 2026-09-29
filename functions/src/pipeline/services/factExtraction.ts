@@ -186,7 +186,7 @@ export class FactExtractionService {
   ): Promise<ExtractedClaim[]> {
     const transcript = this.formatChunk(utterances);
 
-    const prompt = `You are a fact-checking expert and claim ontologist. Extract only atomic claims from the following transcript chunk.
+    const prompt = `You are a fact-checking expert and claim ontologist. Extract all distinct, atomic claims (statements of fact, statistics, events, historical dates, scientific facts, or notable opinions) from the following transcript chunk. Be thorough and comprehensive — extract all factual assertions made by the speaker(s); do not omit valid claims.
 
 ### CORE PRINCIPLE:
 A claim is FACTUAL if an external source (news archive, official record, scientific data) could confirm or refute it, even if presented dramatically, emotionally, sarcastically, or persuasively. Tone ≠ Falsity. 
@@ -262,9 +262,10 @@ Return ONLY valid JSON, no explanations.`;
       fallback: null,
       forcePrimary: true
     };
-    return withAiRetry(async (modelId: string) => {
+    return withAiRetry(async (modelId: string, recordUsage) => {
       const activeModel = this.genAI.getGenerativeModel({ model: modelId, safetySettings: FACT_CHECK_SAFETY_SETTINGS });
       const response = await activeModel.generateContent(prompt);
+      recordUsage?.(response);
       const text = response.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
       // Parse JSON response with robust cleanup
@@ -322,7 +323,7 @@ Return ONLY valid JSON, no explanations.`;
       });
 
       return calibratedClaims;
-    }, extractChain, { maxAttempts: 4, instanceId: jobId });
+    }, extractChain, { maxAttempts: 4, instanceId: jobId, jobId, stage: "extraction" });
   }
 
   /**
@@ -368,9 +369,10 @@ RULES:
       forcePrimary: true
     };
 
-    return withAiRetry(async (modelId: string) => {
+    return withAiRetry(async (modelId: string, recordUsage) => {
       const activeModel = this.genAI.getGenerativeModel({ model: modelId, safetySettings: FACT_CHECK_SAFETY_SETTINGS });
       const response = await activeModel.generateContent(prompt);
+      recordUsage?.(response);
       const text = response.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
       const jsonMatch = this.extractJSON(text);
       const res = jsonMatch ? JSON.parse(jsonMatch) : { domain: "General", stance: "Mixed", cautionLevel: "medium", isLaunchNews: false };

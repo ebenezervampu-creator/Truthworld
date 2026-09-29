@@ -7,7 +7,7 @@ import 'package:truthworld/features/channel/presentation/views/channel/details/c
 
 export 'package:truthworld/features/channel/presentation/views/channel/details/channel_details_widgets.dart';
 
-/// YouTube-style Channel Details Page.
+/// Channel Details Page.
 class ChannelDetailsPage extends GetView<ChannelController> {
   const ChannelDetailsPage({
     super.key,
@@ -141,7 +141,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
             SliverPersistentHeader(
               pinned: true,
               delegate: ChannelSliverTabBarDelegate(
-                _buildYouTubeTabBar(activeTabs),
+                _buildChannelTabBar(activeTabs),
                 maxHeight: 48,
               ),
             ),
@@ -189,7 +189,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     );
   }
 
-  Widget _buildYouTubeTabBar(List<String> activeTabs) {
+  Widget _buildChannelTabBar(List<String> activeTabs) {
     return Container(
       decoration: const BoxDecoration(
         color: ytBackground,

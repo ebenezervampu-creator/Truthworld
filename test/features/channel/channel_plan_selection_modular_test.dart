@@ -64,7 +64,7 @@ void main() {
       );
 
       expect(find.text('Standard Plan'), findsOneWidget);
-      expect(find.text('YouTube-style Model'), findsOneWidget);
+      expect(find.text('Standard Model'), findsOneWidget);
       expect(find.text('70% Creator Ad & Premium Revenue'), findsOneWidget);
       expect(find.text('How Standard Channel Works:'), findsOneWidget);
 

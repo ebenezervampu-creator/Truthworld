@@ -91,6 +91,7 @@ void main() {
 
     test('Indian viewer INR tiers require direct 1:1 amount for Cashfree checkout', () {
       currencyService.currencyOverride.value = 'INR';
+      currencyService.liveUsdToInrRate.value = 95.60;
       const tierInr = 100.0;
       const amountINR = tierInr;
       expect(amountINR, 100.0);
@@ -110,7 +111,7 @@ void main() {
       );
     }
 
-    testWidgets('Renders YouTube-style Super Thanks banner on INR donated comment', (tester) async {
+    testWidgets('Renders Super Thanks banner on INR donated comment', (tester) async {
       final mainCtrl = TestMainController();
       final donatedComment = Comment(
         id: 'donated_comm_01',
@@ -155,7 +156,7 @@ void main() {
       expect(find.text('Keep making incredible videos!'), findsOneWidget);
     });
 
-    testWidgets('Renders YouTube-style Super Thanks banner on USD donated comment', (tester) async {
+    testWidgets('Renders Super Thanks banner on USD donated comment', (tester) async {
       final mainCtrl = TestMainController();
       final donatedCommentUsd = Comment(
         id: 'donated_comm_02',

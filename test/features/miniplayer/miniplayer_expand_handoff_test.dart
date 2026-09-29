@@ -29,7 +29,7 @@ void main() {
 
       expect(VideoPlaybackHandoff.hasActivePosition(videoId), isTrue);
       expect(VideoPlaybackHandoff.peekPosition(videoId), equals(position));
-      expect(VideoPlaybackHandoff.isActive(videoId), isTrue);
+      expect(VideoPlaybackHandoff.isActive(videoId), isFalse);
 
       final retrieved = VideoPlaybackHandoff.retrievePosition(videoId);
       expect(retrieved, equals(position));

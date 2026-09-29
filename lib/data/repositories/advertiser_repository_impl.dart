@@ -26,8 +26,8 @@ class AdvertiserRepositoryImpl extends BaseRepository implements AdvertiserRepos
     return safeFetch(() async {
       if (page == 1) _lastCampaignDoc = null;
       
-      var query = _firestore.collection('campaigns')
-          .where('advertiserId', isEqualTo: advertiserId)
+      var query = _firestore.collection('ad_campaigns')
+          .where('userId', isEqualTo: advertiserId)
           .orderBy('createdAt', descending: true)
           .limit(limit);
 
@@ -52,7 +52,7 @@ class AdvertiserRepositoryImpl extends BaseRepository implements AdvertiserRepos
   Future<Result<String>> createCampaign(Map<String, dynamic> campaignData) async {
     return safeFetch(() async {
       campaignData['createdAt'] = FieldValue.serverTimestamp();
-      final docRef = await _firestore.collection('campaigns').add(campaignData);
+      final docRef = await _firestore.collection('ad_campaigns').add(campaignData);
       return docRef.id;
     });
   }
@@ -63,7 +63,7 @@ class AdvertiserRepositoryImpl extends BaseRepository implements AdvertiserRepos
     Map<String, dynamic> data,
   ) async {
     return safeUpdate(
-      _firestore.collection('campaigns').doc(campaignId),
+      _firestore.collection('ad_campaigns').doc(campaignId),
       {...data, 'updatedAt': FieldValue.serverTimestamp()},
     );
   }
@@ -71,7 +71,7 @@ class AdvertiserRepositoryImpl extends BaseRepository implements AdvertiserRepos
   @override
   Future<Result<void>> deleteCampaign(String campaignId) async {
     return safeDelete(
-      _firestore.collection('campaigns').doc(campaignId),
+      _firestore.collection('ad_campaigns').doc(campaignId),
     );
   }
 
@@ -82,7 +82,7 @@ class AdvertiserRepositoryImpl extends BaseRepository implements AdvertiserRepos
     required DateTime endDate,
   }) async {
     return safeFetch(() async {
-      final doc = await _firestore.collection('campaigns').doc(campaignId).collection('metrics').doc('summary').get();
+      final doc = await _firestore.collection('ad_campaigns').doc(campaignId).collection('metrics').doc('summary').get();
       if (!doc.exists) return {};
       return doc.data()!;
     });

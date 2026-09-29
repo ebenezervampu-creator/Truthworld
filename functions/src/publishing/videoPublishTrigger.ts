@@ -38,14 +38,37 @@ export const onVideoPublished = onDocumentUpdated(
     const aiFeatures = afterData.aiFeatures || {};
     const beforeAiFeatures = beforeData?.aiFeatures || {};
 
-    // ─── GATE 1: Detect if pipelineStage just became 'published' ────────────
+    // ─── GATE 1: Detect if video is requested to be published or ready for pipeline ───
+    const isPublishRequested =
+      aiFeatures.pipelineStage === "published" ||
+      afterData.status === "published" ||
+      afterData.targetStatus === "published" ||
+      afterData.published === true ||
+      (afterData.status === "processing" && !afterData.jobId);
+
+    const wasPublishRequested =
+      beforeAiFeatures.pipelineStage === "published" ||
+      beforeData?.status === "published" ||
+      beforeData?.targetStatus === "published" ||
+      beforeData?.published === true;
+
+    const videoUrlBecameReady = !beforeData?.videoUrl && !!afterData.videoUrl;
+    const titleBecameReady =
+      (beforeData?.title === "Uploading..." || !beforeData?.title) &&
+      (afterData.title && afterData.title !== "Uploading...");
+
     const becamePublished =
-      beforeAiFeatures.pipelineStage !== "published" &&
-      aiFeatures.pipelineStage === "published";
+      (!wasPublishRequested && isPublishRequested) ||
+      (!afterData.jobId && isPublishRequested && (videoUrlBecameReady || titleBecameReady || afterData.status === "processing"));
 
     // ─── GATE 2: Detect language changes on already-published video ──────────
-    const getTranslationLangs = (data: any) => data?.aiFeatures?.translationLanguages || data?.languages || [];
-    const isAlreadyPublished = aiFeatures.pipelineStage === "published";
+    const getTranslationLangs = (data: any): string[] => {
+      const transLangs = Array.isArray(data?.aiFeatures?.translationLanguages) ? data.aiFeatures.translationLanguages : [];
+      const dubLangs = Array.isArray(data?.aiFeatures?.dubbingLanguages) ? data.aiFeatures.dubbingLanguages : [];
+      const topLangs = Array.isArray(data?.languages) ? data.languages : [];
+      return Array.from(new Set([...transLangs, ...dubLangs, ...topLangs]));
+    };
+    const isAlreadyPublished = isPublishRequested;
     const languagesChanged =
       isAlreadyPublished &&
       JSON.stringify(getTranslationLangs(beforeData)) !== JSON.stringify(getTranslationLangs(afterData));
@@ -129,7 +152,7 @@ export const onVideoPublished = onDocumentUpdated(
         generateDubbing: false,
         genLangSubs: false,
         channelType: "standard",
-        maxClaims: 20,
+        maxClaims: 200,
         priority: "high",
         skipCache: true,
         synthesisTier: "deep",
@@ -255,15 +278,27 @@ export const onVideoPublished = onDocumentUpdated(
       const requestedLanguages: string[] = normalizeLanguageCodes(rawRequestedLanguages);
       const hasTargetLanguages = requestedLanguages.length > 0;
       const enableFactChecking = aiFeatures.factChecking ?? false;
+      // TruthWorld Unified Standard: All fact-checked content receives Complete Ground-Truth Verification
+      const factCheckTier: "short" | "standard" | "full_ground" = "full_ground";
+
       const enableGenLangSubs = aiFeatures.genLangSubs ?? (hasTargetLanguages || (aiFeatures.generateSubtitles ?? false));
       const enableDubbing = aiFeatures.generateDubbing ?? false;
       const enableSummary = aiFeatures.summary ?? false;
-      const enableDiarization = aiFeatures.diarization ?? false;
+      const enableDiarization = (aiFeatures.diarization ?? aiFeatures.enableDiarization) ?? false;
+      const enableAutoChapters = (aiFeatures.autoChapters ?? aiFeatures.chapters) ?? false;
       const enablePath2 = enableDubbing || enableGenLangSubs || hasTargetLanguages;
+
+      // Resolve the channel's designated source language (never falls back to "en" blindly)
+      const channelLang = normalizeLanguageCode(afterData.language || "en");
 
       const ttsConfig = aiFeatures.tts || {};
       const voiceType = ttsConfig.voiceType || "standard";
       const speakerCount = aiFeatures.speakerCount || "not_sure";
+
+      const maxClaims = !enableFactChecking ? 0 : 200;
+
+      const synthesisTier: "standard" | "deep" | "podcast" =
+        enableFactChecking ? "deep" : "standard";
 
       const executionPlan: ExecutionPlan = {
         jobId,
@@ -284,13 +319,19 @@ export const onVideoPublished = onDocumentUpdated(
         enableTruthEngine: enableFactChecking,
         enableReachEngine: enablePath2,
         enableAuxiliary: enableSummary,
-        languages: Array.from(new Set(["en", ...requestedLanguages])),
+        enableDiarization,
+        diarization: enableDiarization,
+        dubbingLanguages: Array.isArray(aiFeatures.dubbingLanguages) ? normalizeLanguageCodes(aiFeatures.dubbingLanguages) : [],
+        primaryLanguage: channelLang,
+        languages: Array.from(new Set([channelLang, ...requestedLanguages])),
         dubbingMode: voiceType === "voice_clone" ? "voice_clone" : (enableDubbing ? "standard" : "none"),
         generateDubbing: enableDubbing,
         genLangSubs: enableGenLangSubs,
         channelType: afterData.channelType || "standard",
-        autoChapters: aiFeatures.autoChapters ?? false,
-        maxClaims: enableFactChecking ? 100 : 0,
+        autoChapters: enableAutoChapters,
+        maxClaims,
+        synthesisTier,
+        factCheckTier,
         priority: "normal",
         skipCache: false,
         expectedSpeakerCount: speakerCount as '1' | '2-3' | '4+' | 'not_sure',
@@ -325,7 +366,7 @@ export const onVideoPublished = onDocumentUpdated(
       };
 
       if (enablePath2) {
-        const targetLangs = (requestedLanguages || []).filter(l => normalizeLanguageCode(l) !== "en");
+        const targetLangs = (requestedLanguages || []).filter(l => normalizeLanguageCode(l) !== channelLang);
         for (const lang of targetLangs) {
           const normLang = normalizeLanguageCode(lang);
           stages[`translating_${normLang}`] = { status: "pending", progress: 0 };
@@ -356,6 +397,7 @@ export const onVideoPublished = onDocumentUpdated(
           genLangSubs: enableGenLangSubs,
           generateDubbing: enableDubbing,
           enableFactCheck: enableFactChecking,
+          factCheckTier,
           priority: executionPlan.priority,
         },
         channelId: afterData.channelId || null,
@@ -372,6 +414,7 @@ export const onVideoPublished = onDocumentUpdated(
       batch.set(db.collection("video_jobs").doc(jobId), jobData);
       batch.update(db.collection("videos").doc(videoId), {
         jobId,
+        factCheckTier,
         status: "processing",
         updatedAt: now,
       });
@@ -455,9 +498,10 @@ export const onVideoPublished = onDocumentUpdated(
 
       const rawRelangs = getTranslationLangs(afterData);
       const normRelangs = normalizeLanguageCodes(rawRelangs);
+      const scenarioBChannelLang = normalizeLanguageCode(afterData.language || "en");
       const updatedPlan: ExecutionPlan = {
         ...jobData.executionPlan,
-        languages: Array.from(new Set(["en", ...normRelangs])),
+        languages: Array.from(new Set([scenarioBChannelLang, ...normRelangs])),
         generateDubbing: aiFeatures.generateDubbing ?? jobData.executionPlan.generateDubbing,
         genLangSubs: aiFeatures.genLangSubs ?? jobData.executionPlan.genLangSubs,
         enablePath2: true,
@@ -486,7 +530,7 @@ export const onVideoPublished = onDocumentUpdated(
         updatedAt: Date.now(),
       };
 
-      const targetLangs = (normRelangs || []).filter((l: string) => l !== "en");
+      const targetLangs = (normRelangs || []).filter((l: string) => normalizeLanguageCode(l) !== scenarioBChannelLang);
       for (const lang of targetLangs) {
         updatePayload[`stages.translating_${lang}`] = { status: "pending", progress: 0 };
         updatePayload[`stages.dubbing_${lang}`] = { status: "pending", progress: 0 };
@@ -519,6 +563,10 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
   const BATCH_SIZE = 400;
   let lastDoc: FirebaseFirestore.QueryDocumentSnapshot | undefined;
   let totalNotified = 0;
+  const notifiedUserIds = new Set<string>();
+  if (creatorId) {
+    notifiedUserIds.add(creatorId);
+  }
 
   while (true) {
     let query = db.collection("subscriptions")
@@ -533,7 +581,8 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
     const notifications: Promise<any>[] = [];
 
     snap.docs.forEach(doc => {
-      const { userId, notificationsEnabled } = doc.data();
+      const data = doc.data();
+      const { userId, notificationsEnabled } = data;
       if (!userId || userId === creatorId) return;
 
       batch.set(
@@ -555,7 +604,12 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
         { merge: true }
       );
 
-      if (notificationsEnabled !== false) {
+      // Determine effective notification option: 'all' | 'personalized' (default) | 'none'
+      const effectiveOption = (data.notificationOption || data.notificationPreference || (notificationsEnabled === false ? "none" : "personalized")).toLowerCase();
+
+      // Only notify if notifications are not disabled and option is not 'none'
+      if (notificationsEnabled !== false && effectiveOption !== "none") {
+        notifiedUserIds.add(userId);
         notifications.push(
           notifyUser({
             userId,
@@ -564,7 +618,13 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
             title: `New Video from ${channelNameStr}`,
             message: `${channelNameStr} just uploaded: ${title}`,
             actionUrl: `/video/${videoId}`,
-            metadata: { channelId, videoId, thumbnailUrl: video.thumbnailUrl, avatarUrl: video.channelImage || "" }
+            metadata: { 
+              channelId, 
+              videoId, 
+              thumbnailUrl: video.thumbnailUrl, 
+              avatarUrl: video.channelImage || "",
+              notificationOption: effectiveOption,
+            }
           })
         );
       }
@@ -580,32 +640,108 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
   logger.info(`[FanOut] Notified ${totalNotified} subscribers for video ${videoId}`);
 
   // Topic follower notifications
-  const topicId = video.topicId || (video.topics?.length > 0 ? video.topics[0] : null);
-  if (topicId) {
-    const topicSnap = await db.collection("topics").where("slug", "==", topicId).limit(1).get();
-    if (!topicSnap.empty) {
-      const topicDoc = topicSnap.docs[0];
-      const topicTitle = topicDoc.data().title || "Followed Topic";
-      const savedSnap = await db.collectionGroup("savedTopics").where("topicId", "==", topicDoc.id).limit(500).get();
-      const topicNotifs = savedSnap.docs
-        .filter(d => d.data()?.notificationSetting !== "none")
-        .map(d => d.ref.path.split("/")[1])
-        .filter(uid => uid && uid !== creatorId)
-        .map(uid => notifyUser({
-          userId: uid,
-          type: "new_video_topic",
-          severity: "info",
-          title: `New Video in Topic: ${topicTitle}`,
-          message: `A new video was added to ${topicTitle}: ${title}`,
-          actionUrl: `/video/${videoId}`,
-          metadata: { 
-            topicId: topicDoc.id, 
-            videoId, 
-            thumbnailUrl: video.thumbnailUrl,
-            avatarUrl: video.channelImage || ""
-          }
-        }));
-      await Promise.allSettled(topicNotifs);
+  const rawTopicKeys: string[] = [];
+  if (video.topicId && typeof video.topicId === "string" && video.topicId.trim().length > 0) {
+    rawTopicKeys.push(video.topicId.trim());
+  }
+  if (Array.isArray(video.topics)) {
+    for (const t of video.topics) {
+      if (typeof t === "string" && t.trim().length > 0) {
+        rawTopicKeys.push(t.trim());
+      }
+    }
+  }
+  const uniqueTopicKeys = Array.from(new Set(rawTopicKeys));
+
+  if (uniqueTopicKeys.length > 0) {
+    // Determine whether this video qualifies for "personalized" topic notifications:
+    // Notable highlights: verified fact checks, high truth/trust score (>=75), featured, or explicit highlight.
+    const isVerified = video.isFactChecked === true || video.factCheckStatus === "verified";
+    const isFeatured = video.featured === true || video.isFeatured === true;
+    const isHighTruth = typeof video.truthScore === "number" && video.truthScore >= 75;
+    const isHighTrust = typeof video.trustScore === "number" && video.trustScore >= 75;
+    const isHighlight = video.isHighlight === true;
+    const isPersonalizedEligible = isVerified || isFeatured || isHighTruth || isHighTrust || isHighlight;
+
+    for (const topicKey of uniqueTopicKeys) {
+      let topicDoc: FirebaseFirestore.DocumentSnapshot | null = null;
+      const directDoc = await db.collection("topics").doc(topicKey).get();
+      if (directDoc.exists) {
+        topicDoc = directDoc;
+      } else {
+        const slugSnap = await db.collection("topics").where("slug", "==", topicKey).limit(1).get();
+        if (!slugSnap.empty) {
+          topicDoc = slugSnap.docs[0];
+        }
+      }
+
+      if (!topicDoc || !topicDoc.exists) continue;
+
+      const topicData = topicDoc.data() || {};
+      const topicTitle = topicData.title || topicData.name || "Followed Topic";
+      const topicDocId = topicDoc.id;
+      const topicSlug = topicData.slug || topicDocId;
+
+      // Match followers saved under topic doc ID, slug, or raw topic key
+      const topicMatchIds = Array.from(new Set([topicDocId, topicSlug, topicKey].filter(Boolean)));
+
+      let savedDocs: FirebaseFirestore.QueryDocumentSnapshot[] = [];
+      if (topicMatchIds.length === 1) {
+        const snap = await db.collectionGroup("savedTopics")
+          .where("topicId", "==", topicMatchIds[0])
+          .limit(500)
+          .get();
+        savedDocs = snap.docs;
+      } else {
+        const snap = await db.collectionGroup("savedTopics")
+          .where("topicId", "in", topicMatchIds.slice(0, 10))
+          .limit(500)
+          .get();
+        savedDocs = snap.docs;
+      }
+
+      const topicNotifs: Promise<any>[] = [];
+
+      for (const d of savedDocs) {
+        const savedData = d.data() || {};
+        const uid = d.ref.parent?.parent?.id || d.ref.path.split("/")[1];
+        if (!uid || notifiedUserIds.has(uid)) continue;
+
+        const setting = (savedData.notificationSetting || "all").toLowerCase();
+
+        // 1. "none": user explicitly muted notifications for this topic
+        if (setting === "none") continue;
+
+        // 2. "personalized": user only wants notifications for verified/featured/high-truth highlights
+        if (setting === "personalized" && !isPersonalizedEligible) continue;
+
+        // 3. Mark user as notified to prevent duplicate notifications across overlapping topics
+        notifiedUserIds.add(uid);
+
+        topicNotifs.push(
+          notifyUser({
+            userId: uid,
+            type: "new_video_topic",
+            severity: "info",
+            title: `New Video in Topic: ${topicTitle}`,
+            message: `A new video was added to ${topicTitle}: ${title}`,
+            actionUrl: `/video/${videoId}`,
+            metadata: {
+              topicId: topicDocId,
+              topicTitle,
+              videoId,
+              thumbnailUrl: video.thumbnailUrl,
+              avatarUrl: video.channelImage || "",
+              notificationSetting: setting,
+            },
+          })
+        );
+      }
+
+      if (topicNotifs.length > 0) {
+        await Promise.allSettled(topicNotifs);
+        logger.info(`[FanOut] Notified ${topicNotifs.length} followers for topic ${topicTitle} (${topicDocId})`);
+      }
     }
   }
 

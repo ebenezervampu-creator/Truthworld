@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/core/utils/source_url_sanitizer.dart';
+import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/features/video/presentation/widgets/analysis/video_analysis_source_card.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-  class VideoAnalysisSourcesSection extends StatelessWidget {
+class VideoAnalysisSourcesSection extends StatelessWidget {
   final List<dynamic> sources;
 
   const VideoAnalysisSourcesSection({required this.sources, super.key});
 
   @override
   Widget build(BuildContext context) {
+    final validSources =
+        sources.where(SourceUrlSanitizer.isValidSource).toList();
+    if (validSources.isEmpty) return const SizedBox.shrink();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -21,7 +27,7 @@ import 'package:truthworld/theme/app_theme.dart';
             ),
             const SizedBox(width: 8),
             Text(
-              'VERIFIED SOURCES & CITATIONS (${sources.length})',
+              'VERIFIED SOURCES & CITATIONS (${validSources.length})',
               style: context.twTypography.overline.copyWith(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
@@ -35,16 +41,18 @@ import 'package:truthworld/theme/app_theme.dart';
         ListView.separated(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          itemCount: sources.length,
+          itemCount: validSources.length,
           separatorBuilder: (_, _) => const SizedBox(height: 10),
           itemBuilder: (context, index) {
-            final source = sources[index];
-            if (source is! Map) return const SizedBox.shrink();
-            return VideoAnalysisSourceCard(source: source);
+            final source = validSources[index];
+            final sourceMap = source is UISource
+                ? source.toMap()
+                : (source is Map ? source : null);
+            if (sourceMap == null) return const SizedBox.shrink();
+            return VideoAnalysisSourceCard(source: sourceMap);
           },
         ),
       ],
     );
   }
-
 }

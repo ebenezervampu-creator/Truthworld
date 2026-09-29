@@ -2,6 +2,7 @@ import * as admin from "firebase-admin";
 import { onRequest } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
 import { BADGE_TIERS, ChannelV2 } from "./types";
+import { applySecurityHeaders } from "../utils/securityHeaders";
 
 const db = () => admin.firestore();
 
@@ -13,6 +14,7 @@ const db = () => admin.firestore();
 export const getTrustBadge = onRequest(
   { region: "asia-south1", cors: true, memory: "256MiB" },
   async (req, res) => {
+    applySecurityHeaders(res);
     try {
       const slug = (req.query.slug as string)?.toLowerCase();
       if (!slug) {

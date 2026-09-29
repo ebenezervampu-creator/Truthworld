@@ -42,8 +42,8 @@ const db = () => admin.firestore();
 
 const DEFAULT_CONFIG: PerformanceConfig = {
   maxClaimsPerType: {
-    standard: 5,
-    custom: 100
+    standard: 200,
+    custom: 200
   },
   cacheEnabled: true,
   cacheTTL: {

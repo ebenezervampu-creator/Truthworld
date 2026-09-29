@@ -5,18 +5,19 @@ import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/create_topic_controller.dart';
 import 'package:truthworld/features/topics/presentation/widgets/create_topic/create_topic_theme_helpers.dart';
 
-/// Section 6: Topic Category Dropdown
-Widget buildSection6Category(
+/// Section 5: Topic Category Dropdown
+Widget buildSection5Category(
   BuildContext context,
   CreateTopicController controller,
-  List<String> availableCategories,
-) {
+  List<String> availableCategories, {
+  String title = '5. Topic Category',
+}) {
   return buildCreateTopicCardContainer(
     context: context,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        buildCreateTopicSectionTitle(context, '6. Topic Category'),
+        buildCreateTopicSectionTitle(context, title),
         const SizedBox(height: 4),
         Text(
           'Choose the category that best fits your topic.',
@@ -51,14 +52,26 @@ Widget buildSection6Category(
   );
 }
 
-/// Section 7: Topic Type (Public / Private with Passcode)
-Widget buildSection7TopicType(BuildContext context, CreateTopicController controller) {
+/// Backward compatibility alias for Section 5 Category
+Widget buildSection6Category(
+  BuildContext context,
+  CreateTopicController controller,
+  List<String> availableCategories, {
+  String title = '5. Topic Category',
+}) => buildSection5Category(context, controller, availableCategories, title: title);
+
+/// Section 6: Topic Type (Public / Private with Passcode)
+Widget buildSection6TopicType(
+  BuildContext context,
+  CreateTopicController controller, {
+  String title = '6. Topic Type',
+}) {
   return buildCreateTopicCardContainer(
     context: context,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        buildCreateTopicSectionTitle(context, '7. Topic Type'),
+        buildCreateTopicSectionTitle(context, title),
         const SizedBox(height: 4),
         Text(
           'Choose who can view this topic',
@@ -177,3 +190,10 @@ Widget buildSection7TopicType(BuildContext context, CreateTopicController contro
     ),
   );
 }
+
+/// Backward compatibility alias for Section 6 Topic Type
+Widget buildSection7TopicType(
+  BuildContext context,
+  CreateTopicController controller, {
+  String title = '6. Topic Type',
+}) => buildSection6TopicType(context, controller, title: title);

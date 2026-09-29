@@ -5,7 +5,7 @@ export 'package:truthworld/core/services/deep_link/deep_link_barrel.dart';
 /// Centralized deep-link service coordinator for TruthWorld.
 ///
 /// Single source of truth for:
-/// - Instant YouTube-style URL parsing and low-latency internal dispatch
+/// - Instant URL parsing and low-latency internal dispatch
 /// - Share URL generation (video, channel, playlist, topic)
 /// - Ultra-fast multi-tier in-memory entity cache (0ms navigation)
 /// - AppLinks / Universal Links background stream and cold-launch listener
@@ -52,4 +52,8 @@ class DeepLinkService
   /// Generates a shareable topic URL.
   static String topicUrl(String slugOrHandle) =>
       DeepLinkUrlBuilderAndShare.topicUrl(slugOrHandle);
+
+  /// Launches the native mobile TruthWorld app from mobile web browsers.
+  static Future<void> openNativeAppFromWeb({String? path}) =>
+      instance.launchNativeAppFromWeb(path: path);
 }

@@ -7,7 +7,7 @@ import 'package:truthworld/theme/app_colors.dart';
 
 export 'explore/explore_topics_widgets.dart';
 
-/// YouTube-style Explore Topics discovery screen coordinating category browsing,
+/// Explore Topics discovery screen coordinating category browsing,
 /// AI semantic intent querying, and interactive topic video strips.
 class ExploreTopicsPage extends StatelessWidget {
   const ExploreTopicsPage({super.key, this.isDashboard = false});

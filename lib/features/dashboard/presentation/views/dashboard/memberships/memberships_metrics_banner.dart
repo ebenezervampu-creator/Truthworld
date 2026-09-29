@@ -5,76 +5,94 @@ import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/memberships_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-/// 0% Platform Commission Guarantee Banner for Creators.
+/// 0% Platform Commission Guarantee Banner OR 30% Platform Cut Banner for Creators.
 class CommissionNoticeBanner extends StatelessWidget {
   const CommissionNoticeBanner({
     super.key,
+    this.controller,
     this.isDarkMode = true,
   });
 
+  final MembershipsController? controller;
   final bool isDarkMode;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF047857), Color(0xFF10B981)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    Widget buildBanner({
+      required bool isNoAdsActive,
+    }) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: isNoAdsActive
+                ? const [Color(0xFFB45309), Color(0xFFF59E0B)]
+                : const [Color(0xFF047857), Color(0xFF10B981)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: (isNoAdsActive ? const Color(0xFFF59E0B) : const Color(0xFF10B981))
+                  .withValues(alpha: 0.25),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF10B981).withValues(alpha: 0.25),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: const BoxDecoration(
-              color: Colors.white24,
-              shape: BoxShape.circle,
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: const BoxDecoration(
+                color: Colors.white24,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isNoAdsActive ? Icons.workspace_premium_rounded : Icons.stars_rounded,
+                color: Colors.white,
+                size: 32,
+              ),
             ),
-            child: const Icon(
-              Icons.stars_rounded,
-              color: Colors.white,
-              size: 32,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '0% Platform Commission Guarantee',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isNoAdsActive
+                        ? 'Channel Premium Active (30% Platform Cut • 70% Creator Take-Home)'
+                        : '0% Platform Commission Guarantee',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '100% of your channel memberships & recurring fan support revenues go directly to your creator account without any platform cuts or commission fees.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.white.withValues(alpha: 0.95),
-                    height: 1.4,
+                  const SizedBox(height: 4),
+                  Text(
+                    isNoAdsActive
+                        ? 'Your channel members enjoy 100% ad-free viewing and 4K Ultra HD streaming across all your videos. TruthWorld retains a 30% revenue share on memberships to fund high-bitrate streaming without ads, and 70% goes directly to you.'
+                        : '100% of your channel memberships & recurring fan support revenues go directly to your creator account without any platform cuts or commission fees.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.white.withValues(alpha: 0.95),
+                      height: 1.4,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
-    );
+          ],
+        ),
+      );
+    }
+
+    if (controller != null) {
+      return Obx(() => buildBanner(isNoAdsActive: controller!.noAdsForMembers.value));
+    }
+    return buildBanner(isNoAdsActive: false);
   }
 }
 
@@ -95,6 +113,10 @@ class MembershipsMetricsSummary extends StatelessWidget {
       final activeMembers = controller.totalActiveMembers;
       final mrr = controller.monthlyRecurringRevenue;
       final activeTiers = controller.activeTiersCount;
+      final isNoAds = controller.noAdsForMembers.value;
+      final creatorMrr = controller.creatorMonthlyRecurringRevenue;
+      final displayMrr = isNoAds ? creatorMrr : mrr;
+
       final currencySymbol = controller.primaryCurrencySymbol;
       final isUsd = currencySymbol == r'$';
       final currencyFormat = NumberFormat.currency(
@@ -104,9 +126,11 @@ class MembershipsMetricsSummary extends StatelessWidget {
       final rate = Get.isRegistered<CurrencyLocalizationService>()
           ? CurrencyLocalizationService.to.rate
           : CurrencyLocalizationService.defaultRate;
-      final incomeSubtitle = isUsd && mrr > 0
-          ? '≈ ₹${(mrr * rate).toStringAsFixed(2)} Payout'
-          : '100% Direct Payout';
+      final incomeSubtitle = isNoAds
+          ? '70% Net Take-Home (30% Platform Cut)'
+          : (isUsd && mrr > 0
+              ? '≈ ₹${(mrr * rate).toStringAsFixed(2)} Payout'
+              : '100% Direct Payout');
 
       return Row(
         children: [
@@ -123,7 +147,7 @@ class MembershipsMetricsSummary extends StatelessWidget {
           Expanded(
             child: MembershipMetricTile(
               title: 'Monthly Fan Income',
-              value: currencyFormat.format(mrr),
+              value: currencyFormat.format(displayMrr),
               subtitle: incomeSubtitle,
               icon: Icons.account_balance_wallet_rounded,
               isDarkMode: isDarkMode,

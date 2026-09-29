@@ -117,13 +117,19 @@ import 'package:truthworld/theme/app_theme.dart';
     final amount = controller.adsRevenue.value;
     final views = controller.totalViews.value;
     final creatorCut = amount * 0.70;
+    final formattedAmount = controller.formatCurrency(amount);
+    final formattedPlatformCut = controller.formatCurrency(amount * 0.30);
+    final formattedCreatorCut = controller.formatCurrency(creatorCut);
+
+    final rpm = (views > 0 && amount > 0) ? ((amount / views) * 1000) : 0.0;
+    final formattedRpm = controller.formatCurrency(rpm);
 
     return buildStreamContainer(
       icon: Icons.ondemand_video_rounded,
       accentColor: const Color(0xFF3B82F6),
       title: 'Video Ads & Monetization',
       subtitle: '$views View${views == 1 ? '' : 's'} • Day 1 Monetization Enabled',
-      amount: '₹${amount.toStringAsFixed(2)}',
+      amount: formattedAmount,
       badgeText: '70% Creator Split',
       badgeColor: const Color(0xFF3B82F6),
       child: Column(
@@ -132,19 +138,17 @@ import 'package:truthworld/theme/app_theme.dart';
           const SizedBox(height: 12),
           buildSplitRow(
             label: 'Estimated RPM (Per 1K Views)',
-            value: views > 0
-                ? '₹${((amount / views) * 1000).toStringAsFixed(2)}'
-                : '₹50.00',
+            value: formattedRpm,
           ),
           const SizedBox(height: 6),
           buildSplitRow(
             label: 'Platform Share (30%)',
-            value: '₹${(amount * 0.30).toStringAsFixed(2)}',
+            value: formattedPlatformCut,
           ),
           const SizedBox(height: 6),
           buildSplitRow(
             label: 'Creator Share (70%)',
-            value: '₹${creatorCut.toStringAsFixed(2)}',
+            value: formattedCreatorCut,
             isBold: true,
           ),
         ],
@@ -157,13 +161,16 @@ import 'package:truthworld/theme/app_theme.dart';
     final amount = controller.watchTimeRevenue.value;
     final mins = controller.totalWatchMinutes.value;
     final creatorCut = amount * 0.70;
+    final formattedAmount = controller.formatCurrency(amount);
+    final formattedPlatformCut = controller.formatCurrency(amount * 0.30);
+    final formattedCreatorCut = controller.formatCurrency(creatorCut);
 
     return buildStreamContainer(
       icon: Icons.timer_rounded,
       accentColor: const Color(0xFF8B5CF6),
       title: 'Watch Time & Premium Royalties',
       subtitle: '$mins Mins Watch Time • Subscriber Retention Royalty',
-      amount: '₹${amount.toStringAsFixed(2)}',
+      amount: formattedAmount,
       badgeText: '70% Creator Split',
       badgeColor: const Color(0xFF8B5CF6),
       child: Column(
@@ -177,12 +184,12 @@ import 'package:truthworld/theme/app_theme.dart';
           const SizedBox(height: 6),
           buildSplitRow(
             label: 'Platform Share (30%)',
-            value: '₹${(amount * 0.30).toStringAsFixed(2)}',
+            value: formattedPlatformCut,
           ),
           const SizedBox(height: 6),
           buildSplitRow(
             label: 'Creator Share (70%)',
-            value: '₹${creatorCut.toStringAsFixed(2)}',
+            value: formattedCreatorCut,
             isBold: true,
           ),
         ],

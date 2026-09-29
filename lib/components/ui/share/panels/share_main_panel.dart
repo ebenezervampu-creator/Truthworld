@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/components/ui/share/services/share_dispatcher.dart';
 import 'package:truthworld/components/ui/share/share_preview_cards.dart';
 import 'package:truthworld/components/ui/share/utils/share_utils.dart';
@@ -332,7 +331,8 @@ class ShareMainPanel extends StatelessWidget {
                             startAtChecked: startAtChecked.value,
                             currentPosition: currentPosition,
                           ),
-                          style: GoogleFonts.robotoMono(
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
                             fontSize: 14,
                             color: AppColors.textPrimary,
                           ),

@@ -446,7 +446,7 @@ class _WatchtimeRetentionCard extends StatelessWidget {
                     yValueMapper: (dynamic d, _) => d.value as num,
                     pointColorMapper: (dynamic d, _) => Color(d.color as int),
                     dataLabelMapper: (dynamic d, _) =>
-                        '${(d.percentage as double).toStringAsFixed(0)}%',
+                        '${((d.percentage as num?)?.toDouble() ?? 0.0).toStringAsFixed(0)}%',
                     dataLabelSettings: const DataLabelSettings(
                       isVisible: true,
                       textStyle: TextStyle(

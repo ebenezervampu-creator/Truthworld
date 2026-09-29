@@ -141,12 +141,20 @@ mixin UploadMediaPickerMixin on UploadControllerBase {
             return;
           }
         } else {
+          if (duration < 120) {
+            AppSnackbar.warning(
+              'Truthworld requires videos to be at least 2 minutes (120 seconds). Videos shorter than 2 minutes are not accepted.',
+            );
+            return;
+          }
           if (duration > maxDurationSeconds) {
             AppSnackbar.warning('Video exceeds 60 minute limit.');
             return;
           }
         }
 
+        videoDuration.value = Duration(seconds: duration);
+        videoDurationSeconds.value = duration;
         pickedVideo.value = pickedFile;
         AppSnackbar.success('Video selected successfully!');
 
@@ -185,9 +193,11 @@ mixin UploadMediaPickerMixin on UploadControllerBase {
     await videoPlayerController!.initialize();
     videoPlayerController!.setLooping(true);
 
-    // Auto-detect if video is a Short (duration <= 60 seconds and vertical aspect ratio)
     final size = videoPlayerController!.value.size;
     final duration = videoPlayerController!.value.duration;
+    videoDuration.value = duration;
+    videoDurationSeconds.value = duration.inSeconds;
+    // Auto-detect if video is a Short (duration <= 60 seconds and vertical aspect ratio)
     isShort.value = size.height > size.width && duration.inSeconds <= 60;
     debugPrint(
       '🎥 Auto-detected isShort: ${isShort.value} (size: $size, duration: ${duration.inSeconds}s)',

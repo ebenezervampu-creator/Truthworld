@@ -82,6 +82,18 @@ class SpendRevenueBottomSheet {
         (controller.recentVideos.isNotEmpty
             ? controller.recentVideos.first
             : null);
+    final dubbingDurationSec = effectiveVideo?.durationValue.inSeconds ?? 0;
+    final flatRatePerLang = ChannelWalletService.getFlatDubbingPricePerLanguage(
+      durationSeconds: dubbingDurationSec,
+      channelType: ch.channelType,
+    );
+    final dubbingTier =
+        ChannelWalletService.getDubbingDurationTier(dubbingDurationSec);
+    final totalDubbingCost = ChannelWalletService.calculateDubbingCost(
+      languageCount: 3,
+      durationSeconds: dubbingDurationSec,
+      channelType: ch.channelType,
+    );
 
     Get.bottomSheet<void>(
       Container(
@@ -127,7 +139,9 @@ class SpendRevenueBottomSheet {
               ),
               const SizedBox(height: 6),
               Text(
-                'Available Spendable: \$${spendable.totalSpendableBalance.toStringAsFixed(2)} (\$${spendable.fundedBalance.toStringAsFixed(2)} Wallet + \$${spendable.trialCreditRemaining.toStringAsFixed(2)} Free Credit + \$${spendable.totalRevenue.toStringAsFixed(2)} Revenue)',
+                spendable.trialCreditRemaining > 0
+                    ? 'Available Spendable: \$${spendable.totalSpendableBalance.toStringAsFixed(2)} (\$${spendable.fundedBalance.toStringAsFixed(2)} Wallet + \$${spendable.trialCreditRemaining.toStringAsFixed(2)} Promotional Credit + \$${spendable.totalRevenue.toStringAsFixed(2)} Revenue)'
+                    : 'Available Spendable: \$${spendable.totalSpendableBalance.toStringAsFixed(2)} (\$${spendable.fundedBalance.toStringAsFixed(2)} Wallet + \$${spendable.totalRevenue.toStringAsFixed(2)} Revenue)',
                 style: const TextStyle(
                   fontSize: 13,
                   color: AppColors.textSecondary,
@@ -271,15 +285,13 @@ class SpendRevenueBottomSheet {
 
               AiFeatureOptionTile(
                 icon: Icons.translate_rounded,
-                title: isCustom
-                    ? 'AI Multilingual Dubbing (50% Custom Discount)'
-                    : 'AI Multilingual Dubbing',
+                title:
+                    'AI Multilingual Dubbing (Flat \$${flatRatePerLang.toStringAsFixed(2)}/lang • ${dubbingTier.label})',
                 description: isCustom
-                    ? 'Dub video voiceover with Studio Vocal Identity & Voice Cloning included (30+ languages).'
-                    : 'Dub video voiceover into over 30 languages with voice match.',
-                costText: isCustom
-                    ? r'$0.75 ($0.25/lang • 50% Partner Discount)'
-                    : r'$1.50 ($0.50/lang • Standard)',
+                    ? 'Dubbing is NOT free: Flat rate for ${dubbingDurationSec > 0 ? VideoDurationUtils.formatDurationSeconds(dubbingDurationSec) : "detected duration"}. Includes Studio Vocal Identity & Voice Cloning.'
+                    : 'Dubbing is NOT free: Predictable flat pricing for ${dubbingDurationSec > 0 ? VideoDurationUtils.formatDurationSeconds(dubbingDurationSec) : "detected duration"} across 3 target languages.',
+                costText:
+                    '\$${totalDubbingCost.toStringAsFixed(2)} (3 langs • \$${flatRatePerLang.toStringAsFixed(2)}/lang)',
                 onSelect: () async {
                   if (effectiveVideo == null) {
                     AppSnackbar.info(
@@ -303,6 +315,7 @@ class SpendRevenueBottomSheet {
                     videoTitle: videoTitle,
                     features: {'dubbing'},
                     targetLanguages: ['te', 'hi', 'en'],
+                    durationSeconds: dubbingDurationSec,
                   );
 
                   AppSnackbar.success(

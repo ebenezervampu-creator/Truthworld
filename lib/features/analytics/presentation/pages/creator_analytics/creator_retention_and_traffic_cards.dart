@@ -37,11 +37,12 @@ class CreatorWatchtimeRetentionCard extends StatelessWidget {
                 series: <CircularSeries>[
                   DoughnutSeries<dynamic, String>(
                     dataSource: data,
+                    animationDuration: 0,
                     xValueMapper: (dynamic d, _) => d.title as String,
                     yValueMapper: (dynamic d, _) => d.value as num,
                     pointColorMapper: (dynamic d, _) => Color(d.color as int),
                     dataLabelMapper: (dynamic d, _) =>
-                        '${(d.percentage as double).toStringAsFixed(0)}%',
+                        '${((d.percentage as num?)?.toDouble() ?? 0.0).toStringAsFixed(0)}%',
                     dataLabelSettings: const DataLabelSettings(
                       isVisible: true,
                       textStyle: TextStyle(
@@ -110,13 +111,14 @@ class CreatorTrafficSourceCard extends StatelessWidget {
                 series: <CircularSeries>[
                   DoughnutSeries<dynamic, String>(
                     dataSource: data,
+                    animationDuration: 0,
                     xValueMapper: (dynamic d, _) => d.title as String,
                     yValueMapper: (dynamic d, _) => d.value as num,
                     pointColorMapper: (dynamic d, _) => Color(d.color as int),
-                    dataLabelMapper: (dynamic d, _) =>
-                        (d.percentage as double) >= 5
-                            ? '${(d.percentage as double).toStringAsFixed(0)}%'
-                            : '',
+                    dataLabelMapper: (dynamic d, _) {
+                      final pct = (d.percentage as num?)?.toDouble() ?? 0.0;
+                      return pct >= 5 ? '${pct.toStringAsFixed(0)}%' : '';
+                    },
                     dataLabelSettings: const DataLabelSettings(
                       isVisible: true,
                       textStyle: TextStyle(

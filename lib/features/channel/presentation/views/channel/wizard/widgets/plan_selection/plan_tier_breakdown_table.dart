@@ -27,23 +27,42 @@ class CustomTierBreakdownTable extends StatelessWidget {
         {
           'id': r'$15',
           'name': r'$15/mo (Starter)',
-          'storage': '100 GB Cloud Storage',
-          'cdn': '500 GB Global CDN',
-          'capacity': '~300 HD/4K videos (~1,500 hrs)',
+          'storage': '50 GB Cloud Storage',
+          'cdn': '250 GB Global CDN',
+          'capacity': '~150 HD/4K videos (~750 hrs)',
+          'factCheck': 'Firestore & Backend Ops Included • Free Fact-Checking',
         },
         {
           'id': r'$30',
           'name': r'$30/mo (Pro)',
-          'storage': '300 GB Cloud Storage',
-          'cdn': '1.5 TB (1,500 GB) Global CDN',
-          'capacity': '~1,000 HD/4K videos (~5,000 hrs)',
+          'storage': '100 GB Cloud Storage',
+          'cdn': '500 GB Global CDN',
+          'capacity': '~300 HD/4K videos (~1,500 hrs)',
+          'factCheck': 'Firestore & Backend Ops Included • Free Fact-Checking',
         },
         {
           'id': r'$45',
           'name': r'$45/mo (Enterprise)',
-          'storage': '1 TB (1,000 GB) Storage',
-          'cdn': '5 TB (5,000 GB) Global CDN',
+          'storage': '150 GB Storage',
+          'cdn': '750 GB Global CDN',
+          'capacity': '~500+ HD/4K videos (~2,500+ hrs)',
+          'factCheck': 'Firestore & Backend Ops Included • Free Fact-Checking',
+        },
+        {
+          'id': r'$100',
+          'name': r'$100/mo (Studio)',
+          'storage': '400 GB Storage',
+          'cdn': '1.6 TB (1,600 GB) Global CDN',
+          'capacity': '~1,500+ HD/4K videos (~8,000+ hrs)',
+          'factCheck': 'Firestore & Backend Ops Included • Free Fact-Checking',
+        },
+        {
+          'id': r'$200',
+          'name': r'$200/mo (Premier)',
+          'storage': '800 GB Storage',
+          'cdn': '3.2 TB (3,200 GB) Global CDN',
           'capacity': '~3,000+ HD/4K videos (~15,000+ hrs)',
+          'factCheck': 'Firestore & Backend Ops Included • Free Fact-Checking',
         },
         {
           'id': 'Custom',
@@ -51,6 +70,7 @@ class CustomTierBreakdownTable extends StatelessWidget {
           'storage': 'Flexible Storage Limit',
           'cdn': 'Custom Global CDN',
           'capacity': 'Enterprise Level (Custom SLA)',
+          'factCheck': 'Firestore & Backend Ops Included • Free Fact-Checking',
         },
       ];
 
@@ -162,7 +182,7 @@ class CustomTierBreakdownTable extends StatelessWidget {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              '${tier['storage']} • ${tier['cdn']}',
+                              '${tier['storage']} • ${tier['cdn']} • ${tier['factCheck']}',
                               style: const TextStyle(
                                 fontFamily: TWTypography.uiFamily,
                                 fontSize: 11,

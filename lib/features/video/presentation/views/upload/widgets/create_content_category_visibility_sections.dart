@@ -229,3 +229,103 @@ class CreateContentVisibilitySection extends StatelessWidget {
     });
   }
 }
+
+/// Channel Language Lock Section
+/// Displays the channel's designated source language as a locked, read-only badge
+/// so creators know every video published under this channel is bound to that language.
+class CreateContentLanguageLockSection extends StatelessWidget {
+  const CreateContentLanguageLockSection({
+    required this.uploadController,
+    super.key,
+  });
+
+  final UploadController uploadController;
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final displayName = uploadController.channelLanguageDisplayName;
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFF161618),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '5. Source Language',
+              style: context.themeTypography.title.copyWith(
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F0F11),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.language, color: Colors.white70, size: 18),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      displayName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white12,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.white24),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.lock_outline, size: 11, color: Colors.white54),
+                        SizedBox(width: 4),
+                        Text(
+                          'CHANNEL LOCKED',
+                          style: TextStyle(
+                            color: Colors.white54,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "Every video uploaded from this channel is registered and processed in the channel's official language. Dubbing into 70+ other languages is available in the AI Features section.",
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.45),
+                fontSize: 11,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+}

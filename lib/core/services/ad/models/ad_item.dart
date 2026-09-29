@@ -38,6 +38,7 @@ class AdItem {
     this.targetLocations,
     this.targetLanguages,
     this.targetTopics,
+    this.targetAudiences,
   });
 
   factory AdItem.fromMap(Map<String, dynamic> map) {
@@ -97,6 +98,9 @@ class AdItem {
       targetTopics: (map['targetTopics'] as List?)
           ?.map((e) => e.toString())
           .toList(),
+      targetAudiences: (map['targetAudiences'] as List?)
+          ?.map((e) => e.toString())
+          .toList(),
     );
   }
   final String id;
@@ -132,6 +136,7 @@ class AdItem {
   final List<String>? targetLocations;
   final List<String>? targetLanguages;
   final List<String>? targetTopics;
+  final List<String>? targetAudiences;
 
   String get sponsorBumperText =>
       'This video is brought to you by ${advertiser.isNotEmpty ? advertiser : "our sponsor"}';
@@ -305,6 +310,7 @@ class AdItem {
     List<String>? targetLocations,
     List<String>? targetLanguages,
     List<String>? targetTopics,
+    List<String>? targetAudiences,
   }) {
     return AdItem(
       id: id ?? this.id,
@@ -339,6 +345,7 @@ class AdItem {
       targetLocations: targetLocations ?? this.targetLocations,
       targetLanguages: targetLanguages ?? this.targetLanguages,
       targetTopics: targetTopics ?? this.targetTopics,
+      targetAudiences: targetAudiences ?? this.targetAudiences,
     );
   }
 
@@ -375,6 +382,7 @@ class AdItem {
       'targetLocations': targetLocations,
       'targetLanguages': targetLanguages,
       'targetTopics': targetTopics,
+      'targetAudiences': targetAudiences,
     };
   }
 }

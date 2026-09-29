@@ -14,29 +14,10 @@
 import * as admin from "firebase-admin";
 import { onRequest } from "firebase-functions/v2/https";
 import { logger } from "../pipeline/utils/logger";
+import { requireAdmin, requireRecentAdmin } from "../utils/auth";
 
 const db = admin.firestore();
 const Timestamp = admin.firestore.Timestamp;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// MIDDLEWARE: VERIFY ADMIN
-// ─────────────────────────────────────────────────────────────────────────────
-
-async function verifyAdmin(req: any): Promise<string> {
-  const authorization = req.headers.authorization;
-  if (!authorization || !authorization.startsWith("Bearer ")) {
-    throw new Error("Unauthenticated");
-  }
-
-  const idToken = authorization.split("Bearer ")[1];
-  const decodedToken = await admin.auth().verifyIdToken(idToken);
-  
-  if (!decodedToken.admin) {
-    throw new Error("Unauthorized: Admin access required");
-  }
-
-  return decodedToken.uid;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ENDPOINT 1: MANUAL TRIGGER
@@ -58,8 +39,9 @@ export const manualTriggerPublishing = onRequest(
   },
   async (req, res) => {
     try {
-      // Verify admin
-      const uid = await verifyAdmin(req);
+      const adminUser = await requireRecentAdmin(req, res, 3600);
+      if (!adminUser) return;
+      const uid = adminUser.uid;
 
       logger.info(
         "manualTriggerPublishing",
@@ -91,16 +73,9 @@ export const manualTriggerPublishing = onRequest(
       });
     } catch (error) {
       logger.error("manualTriggerPublishing", `Error: ${error}`);
-      const message = error instanceof Error ? error.message : String(error);
-      res.status(
-        message.includes("Unauthenticated")
-          ? 401
-          : message.includes("Unauthorized")
-            ? 403
-            : 500
-      ).json({
+      res.status(500).json({
         status: "error",
-        error: message,
+        error: "Unable to trigger scheduled publishing check. Please try again.",
       });
     }
   }
@@ -126,8 +101,9 @@ export const getScheduledVideos = onRequest(
   },
   async (req, res) => {
     try {
-      // Verify admin
-      const uid = await verifyAdmin(req);
+      const adminUser = await requireAdmin(req, res);
+      if (!adminUser) return;
+      const uid = adminUser.uid;
 
       logger.debug("getScheduledVideos", `Queried by admin ${uid}`);
 
@@ -166,16 +142,9 @@ export const getScheduledVideos = onRequest(
       });
     } catch (error) {
       logger.error("getScheduledVideos", `Error: ${error}`);
-      const message = error instanceof Error ? error.message : String(error);
-      res.status(
-        message.includes("Unauthenticated")
-          ? 401
-          : message.includes("Unauthorized")
-            ? 403
-            : 500
-      ).json({
+      res.status(500).json({
         status: "error",
-        error: message,
+        error: "Unable to retrieve scheduled videos. Please try again.",
       });
     }
   }
@@ -201,8 +170,9 @@ export const publishSingleVideo = onRequest(
   },
   async (req, res) => {
     try {
-      // Verify admin
-      const uid = await verifyAdmin(req);
+      const adminUser = await requireRecentAdmin(req, res, 3600);
+      if (!adminUser) return;
+      const uid = adminUser.uid;
 
       const videoId = req.path.split("/").pop();
       if (!videoId) {
@@ -262,16 +232,9 @@ export const publishSingleVideo = onRequest(
       });
     } catch (error) {
       logger.error("publishSingleVideo", `Error: ${error}`);
-      const message = error instanceof Error ? error.message : String(error);
-      res.status(
-        message.includes("Unauthenticated")
-          ? 401
-          : message.includes("Unauthorized")
-            ? 403
-            : 500
-      ).json({
+      res.status(500).json({
         status: "error",
-        error: message,
+        error: "Unable to publish video. Please try again.",
       });
     }
   }

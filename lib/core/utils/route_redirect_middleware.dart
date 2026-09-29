@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:truthworld/core/config/app_flavor.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
@@ -59,14 +60,17 @@ class ChannelDetailsRedirectMiddleware extends GetMiddleware {
   }
 }
 
-/// Middleware that redirects `/home` to `/` to avoid duplicate route definitions
-/// that cause controller disposal/recreation.
+/// Middleware that redirects `/home` to `/` (or `/studio` in Studio flavor)
+/// to avoid duplicate route definitions that cause controller disposal/recreation.
 class HomeRedirectMiddleware extends GetMiddleware {
   @override
   int? get priority => 1;
 
   @override
   RouteSettings? redirect(String? route) {
+    if (AppFlavor.isStudio) {
+      return RouteSettings(name: '/studio', arguments: Get.arguments);
+    }
     return RouteSettings(name: '/', arguments: Get.arguments);
   }
 }

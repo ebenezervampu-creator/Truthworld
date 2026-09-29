@@ -102,7 +102,7 @@ mixin ChannelMediaMixin on ChannelControllerBase {
         );
       }
 
-      // Crop image according to YouTube standard
+      // Crop image according to standard
       CroppedFile? croppedFile;
       if (file.path != null && file.path!.isNotEmpty) {
         croppedFile = isBanner

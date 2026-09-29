@@ -2,6 +2,8 @@ import * as admin from "firebase-admin";
 import { onRequest } from "firebase-functions/v2/https";
 import { logger } from "../pipeline/utils/logger";
 import { verifyAuth } from "../utils/auth";
+import { applySecurityHeaders } from "../utils/securityHeaders";
+import { sanitizePublicChannel, isPublicActive } from "../economy/leaderboards";
 
 const db = () => admin.firestore();
 
@@ -37,6 +39,7 @@ function calculateDiscoveryScore(params: {
   isNotInterested: boolean;
   watchCompletion?: number; // 0.0 - 1.0 average completion rate
   noveltyPenalty: number;   // 0.0 - 5.0 penalty for same sub-topic spam
+  twoTowerAffinity?: number; // 0.0 - 1.0 (Two-Tower neural semantic affinity)
 }): number {
   // ── Credibility Gate ─────────────────────────────────────────────────────
   // If video has low trust score AND is flagged → GATE IT OUT completely
@@ -60,13 +63,15 @@ function calculateDiscoveryScore(params: {
   const momentumScore = Math.min(10, params.momentum * 10);
   const topicScore = Math.min(10, params.topicAffinityScore);
   const completionScore = Math.min(10, (params.watchCompletion ?? 0.5) * 10);
+  const twoTowerScore = Math.min(10, (params.twoTowerAffinity ?? 0.5) * 10);
 
-  // ── Additive Weighting (Enhanced with Topic Affinity) ──────────────────
+  // ── Additive Weighting (Enhanced with Topic Affinity & Two-Tower Neural Affinity) ──
   let baseScore =
-    (engagementScore * 0.20) +
-    (recencyScore * 0.15) +
-    (followScore * 0.12) +
-    (topicScore * 0.20) +        // Topic Affinity: highest weight
+    (engagementScore * 0.18) +
+    (recencyScore * 0.13) +
+    (followScore * 0.10) +
+    (topicScore * 0.18) +        // Topic Affinity
+    (twoTowerScore * 0.15) +     // Two-Tower Neural Affinity
     (momentumScore * 0.10) +
     (credibilityBonus * 0.08) +
     (completionScore * 0.05);
@@ -116,6 +121,7 @@ function calculateDiscoveryScore(params: {
 export const getHomeFeed = onRequest(
   { region: "asia-south1", cors: true, memory: "512MiB" },
   async (req, res) => {
+    applySecurityHeaders(res);
     // L-39: Authenticate caller to resolve userId. Prevents probing other users' private watch history and saved topics.
     const authUser = await verifyAuth(req as any);
     const userId = authUser ? authUser.uid : null;
@@ -132,6 +138,7 @@ export const getHomeFeed = onRequest(
       let followedTopicSlugs: string[] = [];
       let watchedVideoIds: Set<string> = new Set();
       let notInterestedVideoIds: Set<string> = new Set();
+      let userEmbedding: number[] | null = null;
 
       if (userId) {
         try {
@@ -149,6 +156,7 @@ export const getHomeFeed = onRequest(
             following = userData?.following || [];
             userInterests = userData?.interests || {};
             notInterestedVideoIds = new Set(userData?.notInterestedVideoIds || []);
+            userEmbedding = userData?.userEmbedding || userData?.embedding || null;
           }
 
           followedTopicSlugs = savedTopicsSnap.docs.map(d => d.id);
@@ -160,7 +168,7 @@ export const getHomeFeed = onRequest(
       }
 
       // ══════════════════════════════════════════════════════════════════════
-      // 2. Multi-Pool Candidate Selection (7 Pools)
+      // 2. Multi-Pool Candidate Selection (8 Pools with Two-Tower Vector Search)
       // ══════════════════════════════════════════════════════════════════════
 
       const poolPromises: Promise<admin.firestore.QuerySnapshot>[] = [];
@@ -222,6 +230,23 @@ export const getHomeFeed = onRequest(
           .limit(10)
           .get()
       );
+
+      // Pool H: Neural Two-Tower Vector Retrieval Pool (Firestore Vector Search / Vertex AI)
+      if (userEmbedding && Array.isArray(userEmbedding) && userEmbedding.length > 0) {
+        try {
+          const colRef = db().collection("videos");
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const vectorQuery = (colRef as any).findNearest({
+            vectorField: "embedding",
+            queryVector: userEmbedding,
+            limit: 30,
+            distanceMeasure: "COSINE",
+          });
+          poolPromises.push(vectorQuery.get());
+        } catch (vectorErr) {
+          logger.warn("[getHomeFeed] Pool H (Two-Tower Vector Search) query failed:", vectorErr);
+        }
+      }
 
       // Pool G: Exploding Creators (via channel trend) — handled in scoring phase
 
@@ -332,6 +357,28 @@ export const getHomeFeed = onRequest(
         const likes = data.likeCount || 0;
         const engagementRate = likes / views;
 
+        // ── Two-Tower Neural Semantic Affinity ─────────────────────
+        let twoTowerAffinity = 0.5;
+        if (userEmbedding && Array.isArray(userEmbedding) && data.embedding) {
+          const itemVec = Array.isArray(data.embedding)
+            ? data.embedding
+            : (data.embedding?.values || []);
+          if (itemVec.length === userEmbedding.length && itemVec.length > 0) {
+            let dot = 0;
+            let normU = 0;
+            let normV = 0;
+            for (let i = 0; i < itemVec.length; i++) {
+              dot += userEmbedding[i] * itemVec[i];
+              normU += userEmbedding[i] * userEmbedding[i];
+              normV += itemVec[i] * itemVec[i];
+            }
+            if (normU > 0 && normV > 0) {
+              const cos = dot / (Math.sqrt(normU) * Math.sqrt(normV));
+              twoTowerAffinity = Math.max(0, Math.min(1, (cos + 1) / 2));
+            }
+          }
+        }
+
         // ── Calculate Discovery Score ───────────────────────────────
         const now = Date.now();
         const discoveryScore = calculateDiscoveryScore({
@@ -349,6 +396,7 @@ export const getHomeFeed = onRequest(
           isNotInterested,
           watchCompletion: data.avgWatchCompletion,
           noveltyPenalty,
+          twoTowerAffinity,
         });
 
         // Skip if gated out (score = 0)
@@ -375,6 +423,9 @@ export const getHomeFeed = onRequest(
         } else if (data.credibilityVerified) {
           recommendationReason = "Fact-Checked";
           recommendationExplanation = "Highly trusted source";
+        } else if (twoTowerAffinity >= 0.8) {
+          recommendationReason = "Deep Interest Match";
+          recommendationExplanation = "High neural semantic resonance with your profile";
         } else if ((channel.reputation?.trend30d || 0) > 0.5) {
           recommendationReason = "Rising Fast";
           recommendationExplanation = "Trending in your interests";
@@ -395,6 +446,7 @@ export const getHomeFeed = onRequest(
           recommendationReason,
           recommendationExplanation,
           topicAffinityScore,
+          twoTowerAffinity,
         });
       });
 
@@ -445,6 +497,8 @@ export const getHomeFeed = onRequest(
           recommendationExplanation: v.recommendationExplanation,
           discoveryScore: v.discoveryScore,
           topicAffinityScore: v.topicAffinityScore,
+          twoTowerAffinity: v.twoTowerAffinity,
+          embedding: v.embedding,
           createdAt: v.createdAt?.toMillis ? v.createdAt.toMillis() : v.createdAt,
           uploadedAt: v.uploadedAt?.toMillis ? v.uploadedAt.toMillis() : v.uploadedAt,
           tier: v.tier,
@@ -478,12 +532,17 @@ export const getHomeFeed = onRequest(
 export const getDiscoveryModules = onRequest(
   { region: "asia-south1", cors: true, memory: "256MiB" },
   async (req, res) => {
+    applySecurityHeaders(res);
     try {
       // 1. Elite Spotlight (Elite tier creators)
       const eliteSnap = await db().collection("channels")
         .where("tier", "==", "elite")
         .limit(10)
         .get();
+
+      const activeElite = eliteSnap.docs
+        .filter(isPublicActive)
+        .map((d, idx) => sanitizePublicChannel(d, idx + 1));
 
       // 2. Verified Today (Fact Checked videos within 24h)
       const trustedVideosSnap = await db().collection("videos")
@@ -505,6 +564,7 @@ export const getDiscoveryModules = onRequest(
         .get();
 
       const risingSnap = channelsSnap.docs
+        .filter(isPublicActive)
         .filter(d => {
           const trend = d.data().reputation?.trend30d || 0;
           return trend > 0;
@@ -514,7 +574,8 @@ export const getDiscoveryModules = onRequest(
           const trendB = b.data().reputation?.trend30d || 0;
           return trendB - trendA;
         })
-        .slice(0, 10);
+        .slice(0, 10)
+        .map((d, idx) => sanitizePublicChannel(d, idx + 1));
 
       // 4. Long-tail Gems (High engagement, low view videos) — NEW
       const longTailSnap = await db().collection("videos")
@@ -536,16 +597,16 @@ export const getDiscoveryModules = onRequest(
 
       res.status(200).json({
         modules: {
-          "Elite Spotlight": eliteSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+          "Elite Spotlight": activeElite,
           "Verified Today": trustedTodaySnap.map(d => ({ id: d.id, ...d.data() })),
-          "Rising Fast": risingSnap.map(d => ({ id: d.id, ...d.data() })),
+          "Rising Fast": risingSnap,
           "Long-tail Gems": longTailGems.map(d => ({ id: d.id, ...d.data() })),
         }
       });
     } catch (err) {
       logger.error("[getDiscoveryModules] Error:", err);
       res.status(500).json({
-        error: "Internal error: " + (err instanceof Error ? err.message : String(err)),
+        error: "Unable to retrieve discovery modules. Please try again later.",
       });
     }
   }

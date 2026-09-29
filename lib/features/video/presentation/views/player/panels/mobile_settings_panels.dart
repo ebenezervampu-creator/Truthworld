@@ -54,6 +54,11 @@ class MobileSettingsBottomSheet extends StatelessWidget {
                     height: 450,
                     child: SubtitlesPanel(ctrl: ctrl),
                   );
+                case 'subtitle_settings':
+                  content = SizedBox(
+                    height: 480,
+                    child: SubtitleSettingsPanel(ctrl: ctrl),
+                  );
                 case 'subtitle_style':
                   content = SizedBox(
                     height: 500,
@@ -63,6 +68,11 @@ class MobileSettingsBottomSheet extends StatelessWidget {
                   content = SizedBox(
                     height: 450,
                     child: LanguagePanel(ctrl: ctrl),
+                  );
+                case 'audio_settings':
+                  content = SizedBox(
+                    height: 480,
+                    child: AudioSettingsPanel(ctrl: ctrl),
                   );
                 case 'zoom':
                   content = ZoomPanel(ctrl: ctrl);

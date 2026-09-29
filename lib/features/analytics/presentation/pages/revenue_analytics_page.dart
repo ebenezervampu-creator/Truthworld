@@ -106,6 +106,8 @@ class RevenueAnalyticsPage extends StatelessWidget {
                 buildAdRevenueStreamCard(controller),
                 const SizedBox(height: 14),
                 buildWatchTimeStreamCard(controller),
+                const SizedBox(height: 14),
+                const PremiumSubsRevenueCard(),
                 const SizedBox(height: 24),
                 buildRevenueDistributionCard(controller),
                 const SizedBox(height: 24),

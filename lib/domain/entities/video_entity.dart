@@ -18,6 +18,8 @@ class VideoEntity {
     this.originalUrl = '',
     this.hlsUrl = '',
     this.dashUrl = '',
+    this.storyboardUrl = '',
+    this.storyboardVariants = const [],
     this.viewCount = 0,
     this.likeCount = 0,
     this.dislikeCount = 0,
@@ -51,6 +53,8 @@ class VideoEntity {
   final String originalUrl;
   final String hlsUrl;
   final String dashUrl;
+  final String storyboardUrl;
+  final List<String> storyboardVariants;
 
   // Engagement
   final int viewCount;

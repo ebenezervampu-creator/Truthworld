@@ -77,17 +77,23 @@ class FollowingTopicsController extends BaseController {
       final results = await Future.wait([
         _repository.fetchFollowedTopics(userId),
         _repository.fetchFavoriteTopics(userId),
+        _repository.fetchTopicNotificationSettings(userId),
       ]);
 
+      final followedList = results[0] as List<Topic>;
+      final favoriteList = results[1] as List<Topic>;
+      final notifSettings = results[2] as Map<String, String>;
+      topicNotificationSettings.addAll(notifSettings);
+
       final uniqueTopicsMap = <String, Topic>{};
-      for (final t in results[0]) {
+      for (final t in followedList) {
         uniqueTopicsMap[t.id] = t;
         followingStates[t.id] = true;
         if (t.slug.isNotEmpty) followingStates[t.slug] = true;
         followerCounts[t.id] = t.followerCount;
         if (t.slug.isNotEmpty) followerCounts[t.slug] = t.followerCount;
       }
-      for (final t in results[1]) {
+      for (final t in favoriteList) {
         uniqueTopicsMap[t.id] = t;
         followerCounts[t.id] = t.followerCount;
         if (t.slug.isNotEmpty) followerCounts[t.slug] = t.followerCount;
@@ -96,7 +102,7 @@ class FollowingTopicsController extends BaseController {
       followedTopics.value = uniqueTopicsMap.values
           .where((t) => t.isValidTopic && t.videoCount > 0)
           .toList();
-      favoriteTopics.value = results[1]
+      favoriteTopics.value = favoriteList
           .where((t) => t.isValidTopic && t.videoCount > 0)
           .toList();
 
@@ -323,10 +329,14 @@ class FollowingTopicsController extends BaseController {
 
       if (success) {
         if (wasFollowed) {
+          topicNotificationSettings.remove(topicId);
+          if (topicSlug.isNotEmpty) topicNotificationSettings.remove(topicSlug);
           SnackbarService.success(
             message: 'You unfollowed "${topic.title}" successfully.',
           );
         } else {
+          topicNotificationSettings[topicId] = 'all';
+          if (topicSlug.isNotEmpty) topicNotificationSettings[topicSlug] = 'all';
           SnackbarService.success(
             message: 'You followed "${topic.title}" successfully.',
           );
@@ -396,6 +406,13 @@ class FollowingTopicsController extends BaseController {
     return followedTopics.any(
       (t) => t.id == topicIdOrSlug || (t.slug.isNotEmpty && t.slug == topicIdOrSlug),
     );
+  }
+
+  /// Safely unfollow a topic
+  Future<void> unfollowTopic(Topic topic) async {
+    if (isTopicFollowed(topic.id) || (topic.slug.isNotEmpty && isTopicFollowed(topic.slug))) {
+      await toggleFollowTopic(topic);
+    }
   }
 
   /// Get reactive follower count for a topic

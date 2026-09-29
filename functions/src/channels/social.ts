@@ -7,7 +7,7 @@ const db = () => admin.firestore();
 
 /**
  * 🤝 FOLLOW CHANNEL (Callable)
- * Atomically links user to channel, updates counts.
+ * Atomically links user to channel, sets default notificationOption to 'personalized', and updates counts.
  */
 export const followChannel = onCall(
   { region: "asia-south1", memory: "256MiB" },
@@ -15,8 +15,15 @@ export const followChannel = onCall(
     const userId = request.auth?.uid;
     if (!userId) throw new HttpsError("unauthenticated", "Auth required.");
 
-    const { channelId } = request.data;
+    const { channelId, notificationOption: rawOption, notificationPreference } = request.data || {};
     if (!channelId) throw new HttpsError("invalid-argument", "Missing channelId.");
+
+    // Default to 'personalized' notification setting on subscribe first
+    const inputOption = (rawOption || notificationPreference || "personalized").toLowerCase();
+    const notificationOption = ["all", "personalized", "none"].includes(inputOption)
+      ? inputOption
+      : "personalized";
+    const notificationsEnabled = notificationOption !== "none";
 
     // L-31: Prevent self-follow to block subscriber count inflation
     const channelSnap = await db().collection("channels").doc(channelId).get();
@@ -26,33 +33,62 @@ export const followChannel = onCall(
     }
 
     const subscriberRef = db().collection("channel_subscribers").doc(`${channelId}_${userId}`);
+    const legacySubRef = db().collection("subscriptions").doc(`${channelId}_${userId}`);
+    const channelSubRef = db().collection("channels").doc(channelId).collection("channelSubscribers").doc(userId);
+    const userSubRef = db().collection("users").doc(userId).collection("userSubscriptions").doc(channelId);
     const channelRef = db().collection("channels").doc(channelId);
     const userRef = db().collection("users").doc(userId);
 
     try {
       return await db().runTransaction(async (tx) => {
         const followSnap = await tx.get(subscriberRef);
-        if (followSnap.exists) return { success: true, alreadyFollowing: true };
+        if (followSnap.exists) {
+          return {
+            success: true,
+            alreadyFollowing: true,
+            channelId,
+            notificationOption: followSnap.data()?.notificationOption || "personalized",
+          };
+        }
 
-        const channelSnap = await tx.get(channelRef);
-        if (!channelSnap.exists) throw new HttpsError("not-found", "Channel not found.");
+        const chSnap = await tx.get(channelRef);
+        if (!chSnap.exists) throw new HttpsError("not-found", "Channel not found.");
 
-        tx.set(subscriberRef, {
+        const now = Date.now();
+        const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
+
+        const subPayload = {
           channelId,
           userId,
-          createdAt: Date.now()
-        });
+          createdAt: now,
+          subscribedAt: serverTimestamp,
+          notificationsEnabled,
+          notificationOption,
+          notificationPreference: notificationOption,
+        };
+
+        tx.set(subscriberRef, subPayload);
+        tx.set(legacySubRef, subPayload);
+        tx.set(channelSubRef, subPayload);
+        tx.set(userSubRef, subPayload);
 
         tx.update(channelRef, {
-          "stats.subscribersCount": admin.firestore.FieldValue.increment(1)
+          "stats.subscribersCount": admin.firestore.FieldValue.increment(1),
+          subscriberCount: admin.firestore.FieldValue.increment(1),
         });
 
         tx.update(userRef, {
           following: admin.firestore.FieldValue.arrayUnion(channelId),
-          updatedAt: Date.now()
+          updatedAt: now,
         });
 
-        return { success: true };
+        return {
+          success: true,
+          channelId,
+          notificationOption,
+          notificationPreference: notificationOption,
+          notificationsEnabled,
+        };
       });
     } catch (err) {
       if (err instanceof HttpsError) throw err;
@@ -71,27 +107,37 @@ export const unfollowChannel = onCall(
     const userId = request.auth?.uid;
     if (!userId) throw new HttpsError("unauthenticated", "Auth required.");
 
-    const { channelId } = request.data;
+    const { channelId } = request.data || {};
     if (!channelId) throw new HttpsError("invalid-argument", "Missing channelId.");
 
     const subscriberRef = db().collection("channel_subscribers").doc(`${channelId}_${userId}`);
+    const legacySubRef = db().collection("subscriptions").doc(`${channelId}_${userId}`);
+    const channelSubRef = db().collection("channels").doc(channelId).collection("channelSubscribers").doc(userId);
+    const userSubRef = db().collection("users").doc(userId).collection("userSubscriptions").doc(channelId);
     const channelRef = db().collection("channels").doc(channelId);
     const userRef = db().collection("users").doc(userId);
 
     try {
       return await db().runTransaction(async (tx) => {
         const followSnap = await tx.get(subscriberRef);
-        if (!followSnap.exists) return { success: true, notFollowing: true };
+        const legacySnap = await tx.get(legacySubRef);
+        if (!followSnap.exists && !legacySnap.exists) {
+          return { success: true, notFollowing: true };
+        }
 
         tx.delete(subscriberRef);
+        tx.delete(legacySubRef);
+        tx.delete(channelSubRef);
+        tx.delete(userSubRef);
 
         tx.update(channelRef, {
-          "stats.subscribersCount": admin.firestore.FieldValue.increment(-1)
+          "stats.subscribersCount": admin.firestore.FieldValue.increment(-1),
+          subscriberCount: admin.firestore.FieldValue.increment(-1),
         });
 
         tx.update(userRef, {
           following: admin.firestore.FieldValue.arrayRemove(channelId),
-          updatedAt: Date.now()
+          updatedAt: Date.now(),
         });
 
         return { success: true };
@@ -100,6 +146,64 @@ export const unfollowChannel = onCall(
       if (err instanceof HttpsError) throw err;
       logger.error("[unfollowChannel] Error:", err);
       throw new HttpsError("internal", "Failed to unfollow channel.");
+    }
+  }
+);
+
+/**
+ * 🔔 UPDATE CHANNEL NOTIFICATION SETTINGS (Callable)
+ * Updates user's notification preference ('all' | 'personalized' | 'none') for a channel subscription.
+ */
+export const updateChannelNotificationSettings = onCall(
+  { region: "asia-south1", memory: "256MiB", maxInstances: 5 },
+  async (request) => {
+    const userId = request.auth?.uid;
+    if (!userId) throw new HttpsError("unauthenticated", "Auth required.");
+
+    const { channelId, notificationOption: rawOption, notificationPreference } = request.data || {};
+    const option = (rawOption || notificationPreference || "").toLowerCase();
+
+    if (!channelId || !["all", "personalized", "none"].includes(option)) {
+      throw new HttpsError("invalid-argument", "Valid channelId and notificationOption ('all' | 'personalized' | 'none') required.");
+    }
+
+    const notificationsEnabled = option !== "none";
+    const now = Date.now();
+    const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
+
+    const updates = {
+      notificationsEnabled,
+      notificationOption: option,
+      notificationPreference: option,
+      updatedAt: now,
+      lastNotificationOptionChangedAt: serverTimestamp,
+    };
+
+    const subscriberRef = db().collection("channel_subscribers").doc(`${channelId}_${userId}`);
+    const legacySubRef = db().collection("subscriptions").doc(`${channelId}_${userId}`);
+    const channelSubRef = db().collection("channels").doc(channelId).collection("channelSubscribers").doc(userId);
+    const userSubRef = db().collection("users").doc(userId).collection("userSubscriptions").doc(channelId);
+
+    try {
+      const batch = db().batch();
+      batch.set(subscriberRef, updates, { merge: true });
+      batch.set(legacySubRef, updates, { merge: true });
+      batch.set(channelSubRef, updates, { merge: true });
+      batch.set(userSubRef, updates, { merge: true });
+
+      await batch.commit();
+
+      return {
+        success: true,
+        channelId,
+        notificationOption: option,
+        notificationPreference: option,
+        notificationsEnabled,
+      };
+    } catch (err) {
+      if (err instanceof HttpsError) throw err;
+      logger.error("[updateChannelNotificationSettings] Error:", err);
+      throw new HttpsError("internal", "Failed to update channel notification settings.");
     }
   }
 );

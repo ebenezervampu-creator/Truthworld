@@ -1,6 +1,5 @@
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/features/video/data/models/video_chapter.dart';
 
 /// Pure parser converting raw Firestore/JSON maps into strongly-typed [Video] model instances.
 class VideoMapParser {
@@ -146,6 +145,45 @@ class VideoMapParser {
                 ? (data['moderation']['explanation'] as String)
                 : ''));
 
+    final aiFeatures =
+        data['aiFeatures'] is Map ? data['aiFeatures'] as Map : null;
+    final parsedAutoChaptersEnabled = (data['autoChaptersEnabled'] as bool?) ??
+        (data['allowAutoChapters'] as bool?) ??
+        (data['autoChapters'] is bool ? data['autoChapters'] as bool : null) ??
+        (aiFeatures != null && aiFeatures['autoChapters'] is bool
+            ? aiFeatures['autoChapters'] as bool
+            : null) ??
+        true;
+
+    final resolvedChapters = VideoChapterParser.resolveChapters(
+      explicitChapters: data['chapters'] as List?,
+      description: (data['description'] as String?) ?? '',
+      rawAutoChapters: data['autoChapters'],
+      autoChaptersEnabled: parsedAutoChaptersEnabled,
+    );
+
+    final parsedHlsUrl = _cleanHlsUrl(
+      data['hlsUrl'] ?? (data['media'] is Map ? data['media']['hlsUrl'] : null),
+    );
+    final parsedDashUrl = _cleanDashUrl(
+      data['dashUrl'] ?? (data['media'] is Map ? data['media']['dashUrl'] : null),
+    );
+
+    final parsedStoryboardUrl = (data['storyboardUrl'] as String?)?.trim() ??
+        (data['spriteUrl'] as String?)?.trim() ??
+        (data['media'] is Map
+            ? ((data['media']['storyboardUrl'] ?? data['media']['spriteUrl']) as String?)?.trim()
+            : null) ??
+        '';
+
+    final parsedStoryboardVariants = data['storyboardVariants'] is List
+        ? (data['storyboardVariants'] as List).map((e) => e.toString()).where((e) => e.trim().isNotEmpty).toList()
+        : (data['spriteVariants'] is List
+            ? (data['spriteVariants'] as List).map((e) => e.toString()).where((e) => e.trim().isNotEmpty).toList()
+            : (data['media'] is Map && data['media']['storyboardVariants'] is List
+                ? (data['media']['storyboardVariants'] as List).map((e) => e.toString()).where((e) => e.trim().isNotEmpty).toList()
+                : const <String>[]));
+
     return Video(
       id: finalId,
       title: parsedTitle,
@@ -154,8 +192,10 @@ class VideoMapParser {
       moderationSummary: parsedModerationSummary,
       originalUrl: data['originalUrl'] ?? rawVideoUrl,
       videoUrl: data['videoUrl'] ?? rawVideoUrl,
-      hlsUrl: data['hlsUrl'] ?? rawVideoUrl,
-      dashUrl: data['dashUrl'] ?? rawVideoUrl,
+      hlsUrl: parsedHlsUrl,
+      dashUrl: parsedDashUrl,
+      storyboardUrl: parsedStoryboardUrl,
+      storyboardVariants: parsedStoryboardVariants,
       adaptiveResolutions: resolutionsList,
       thumbnailUrl: resolvedThumbnailUrl,
       thumbnailVariants: thumbnailVariantsList,
@@ -260,13 +300,25 @@ class VideoMapParser {
               ? Map<String, String>.from(data['media']['dubbedVideos'] as Map)
               : (data['dubbedVideos'] != null
                   ? Map<String, String>.from(data['dubbedVideos'] as Map)
-                  : const {}),
+                  : (data['media'] != null && data['media']['dubbed'] != null
+                      ? Map<String, String>.from(data['media']['dubbed'] as Map)
+                      : (data['dubbed'] != null
+                          ? Map<String, String>.from(data['dubbed'] as Map)
+                          : const {}))),
       audioTracks:
           data['media'] != null && data['media']['audioTracks'] != null
               ? Map<String, String>.from(data['media']['audioTracks'] as Map)
               : (data['audioTracks'] != null
                   ? Map<String, String>.from(data['audioTracks'] as Map)
-                  : const {}),
+                  : (data['media'] != null && data['media']['audio'] != null
+                      ? Map<String, String>.from(data['media']['audio'] as Map)
+                      : (data['audio'] != null
+                          ? Map<String, String>.from(data['audio'] as Map)
+                          : const {}))),
+      jobId: ((data['jobId'] ?? data['pipelineJobId']) ??
+              (data['media'] is Map
+                  ? (data['media']['jobId'] ?? data['media']['pipelineJobId'])
+                  : null)) as String?,
       factCheckUrl: parsedFactCheckUrl,
       transcriptionUrl: parsedTranscriptUrl,
       allowRatings: data['allowRatings'] ?? false,
@@ -278,25 +330,20 @@ class VideoMapParser {
           data['showDislikesCount'] ??
           data['showDislikes'] ??
           true,
+      autoChaptersEnabled: parsedAutoChaptersEnabled,
       trustScore: (data['trustScore'] ?? 0).toDouble(),
       sourceLinks: List<String>.from(data['sourceLinks'] ?? []),
       isFactChecked:
           (data['isFactChecked'] as bool?) ?? parsedFactCheckUrl.isNotEmpty,
+      factCheckTier: (data['factCheckTier'] ??
+              (data['aiFeatures'] is Map
+                  ? data['aiFeatures']['factCheckTier']
+                  : null) ??
+              (data['media'] is Map ? data['media']['factCheckTier'] : null) ??
+              'standard')
+          .toString(),
       isVerified: data['isVerified'] ?? false,
-      chapters: () {
-        final fromChapters = (data['chapters'] as List? ?? [])
-            .map((e) => VideoChapter.fromMap(Map<String, dynamic>.from(e)))
-            .toList();
-        if (fromChapters.isNotEmpty) return fromChapters;
-        final rawAutoChapters = data['autoChapters'];
-        if (rawAutoChapters is List && rawAutoChapters.isNotEmpty) {
-          return rawAutoChapters
-              .whereType<Map>()
-              .map((e) => VideoChapter.fromMap(Map<String, dynamic>.from(e)))
-              .toList();
-        }
-        return <VideoChapter>[];
-      }(),
+      chapters: resolvedChapters,
       totalWatchTimeSeconds: (data['totalWatchTimeSeconds'] as num?)?.toInt() ??
           (data['metrics'] is Map
               ? (data['metrics']['totalWatchTimeSeconds'] as num?)?.toInt()
@@ -355,6 +402,41 @@ class VideoMapParser {
           : null,
       coinBattlePairVideoId: data['coinBattlePairVideoId'] as String?,
       coinBattleStance: data['coinBattleStance'] as String?,
+      embedding: () {
+        final raw = data['embedding'];
+        if (raw == null) return null;
+        if (raw is List) {
+          return raw.map((e) => (e as num).toDouble()).toList();
+        }
+        if (raw is Map && raw['values'] is List) {
+          return (raw['values'] as List)
+              .map((e) => (e as num).toDouble())
+              .toList();
+        }
+        return null;
+      }(),
     );
+  }
+
+  static String _cleanHlsUrl(dynamic raw) {
+    if (raw is! String) return '';
+    final url = raw.trim();
+    if (url.isEmpty) return '';
+    final lower = url.toLowerCase();
+    if (lower.contains('.m3u8') || lower.contains('/hls/') || lower.contains('/cmaf/')) {
+      return url;
+    }
+    return '';
+  }
+
+  static String _cleanDashUrl(dynamic raw) {
+    if (raw is! String) return '';
+    final url = raw.trim();
+    if (url.isEmpty) return '';
+    final lower = url.toLowerCase();
+    if (lower.contains('.mpd') || lower.contains('/dash/')) {
+      return url;
+    }
+    return '';
   }
 }

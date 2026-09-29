@@ -121,10 +121,51 @@ export class MediaService {
     return `${hours}:${minutes}:${seconds},${milliseconds}`;
   }
 
-  async mergeAudioChunks(jobId: string, audioUrls: string[]): Promise<string> {
-    const outputPath = `audiotracks/${jobId}/final-stitched.mp3`;
-    // Stored in audiotracks folder in Storage
-    return `gs://${storage().bucket().name}/${outputPath}`;
+  async mergeAudioChunks(jobId: string, audioUrls: string[], language: string = "default"): Promise<string> {
+    try {
+      const valid = audioUrls.filter((u) => !!u);
+      if (valid.length === 0) {
+        throw new Error("No valid TTS audio chunks provided to mergeAudioChunks");
+      }
+      const bucket = storage().bucket();
+      const outputPath = `audio/${jobId}/${language}/stitched.mp3`;
+
+      if (valid.length === 1) {
+        return valid[0];
+      }
+
+      // Download all chunks and concatenate their MPEG audio buffers
+      const buffers: Buffer[] = [];
+      for (const u of valid) {
+        try {
+          const filePath = u.startsWith("gs://")
+            ? u.replace(`gs://${bucket.name}/`, "")
+            : (u.includes(bucket.name) ? u.split(`${bucket.name}/`)[1] : u);
+          const [data] = await bucket.file(filePath).download();
+          buffers.push(data);
+        } catch (downloadErr) {
+          console.warn("[MediaService] Failed to download chunk for merge:", u, downloadErr);
+        }
+      }
+
+      if (buffers.length === 0) {
+        return valid[0];
+      }
+
+      const mergedBuffer = Buffer.concat(buffers);
+      const file = bucket.file(outputPath);
+      await file.save(mergedBuffer, {
+        metadata: {
+          contentType: "audio/mpeg",
+          metadata: { jobId, language, chunks: String(buffers.length) },
+        },
+      });
+
+      return `gs://${bucket.name}/${outputPath}`;
+    } catch (err) {
+      console.error("[MediaService] Error merging audio chunks:", err);
+      return audioUrls.find((u) => !!u) || `gs://${storage().bucket().name}/audio/${jobId}/${language}/stitched.mp3`;
+    }
   }
 }
 

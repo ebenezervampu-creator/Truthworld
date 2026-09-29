@@ -12,7 +12,10 @@ import 'package:truthworld/theme/app_colors.dart';
 /// Target threshold in watch hours required for unlocking per-video cash-outs.
 const double kCashOutWatchHoursThreshold = 10.0;
 
-/// Section showing per-video progress toward the 10-hour cash-out threshold.
+/// Target threshold in view count required for unlocking per-video cash-outs.
+const int kCashOutViewsThreshold = 1000;
+
+/// Section showing per-video progress toward the 1,000 views and 10-hour cash-out threshold.
 class PerVideoWithdrawalSection extends StatelessWidget {
   const PerVideoWithdrawalSection({
     required this.controller,
@@ -28,11 +31,11 @@ class PerVideoWithdrawalSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const MonetizationSectionTitle(
-            title: 'Video Cash-Out Eligibility (10 Hours Target)',
+            title: 'Video Cash-Out Eligibility (1,000 Views & 10 Hours)',
           ),
           const SizedBox(height: 8),
           const Text(
-            'Track watch hours per video. Money generated becomes withdrawable once that video reaches 10 hours of watch time.',
+            'Track views and watch hours per video. Money generated becomes withdrawable once that video reaches 1,000 views and 10 hours of watch time.',
             style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 16),
@@ -89,8 +92,11 @@ class VideoWithdrawalRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final watchHours = controller.getVideoWatchHours(video);
     final isEligibleForCashOut = controller.isVideoWithdrawalEligible(video);
-    final progress =
+    final hoursProgress =
         (watchHours / kCashOutWatchHoursThreshold).clamp(0.0, 1.0);
+    final viewsProgress =
+        (video.viewCount / kCashOutViewsThreshold).clamp(0.0, 1.0);
+    final progress = ((hoursProgress + viewsProgress) / 2.0).clamp(0.0, 1.0);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -141,7 +147,7 @@ class VideoWithdrawalRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '${NumberFormat.compact().format(video.viewCount)} views • ${watchHours.toStringAsFixed(1)} / 10.0 hrs watch time',
+                    '${NumberFormat.compact().format(video.viewCount)}/1K views • ${watchHours.toStringAsFixed(1)}/10.0 hrs watch time',
                     style: const TextStyle(
                       fontSize: 11,
                       color: AppColors.textSecondary,
@@ -167,7 +173,11 @@ class VideoWithdrawalRow extends StatelessWidget {
               child: Text(
                 isEligibleForCashOut
                     ? 'Cash-Out Ready'
-                    : 'Locked (${watchHours.toStringAsFixed(1)}h/10h)',
+                    : (watchHours < 10.0 && video.viewCount < 1000
+                        ? 'Locked (<1K views & <10h)'
+                        : (watchHours < 10.0
+                            ? 'Locked (${watchHours.toStringAsFixed(1)}h/10h)'
+                            : 'Locked (${video.viewCount}/1K views)')),
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.bold,

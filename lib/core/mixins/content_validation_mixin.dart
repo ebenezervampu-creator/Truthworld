@@ -438,7 +438,10 @@ class ContentValidator {
     return '${mins}m ${secs.toString().padLeft(2, '0')}s';
   }
 
+  static const int minVideoDurationSeconds = 120; // 2 minutes (120 seconds) platform minimum
+
   /// Validates video upload constraints for a channel:
+  /// - Minimum Duration: Videos must be at least 2 minutes (120 seconds). Truthworld rejects shorter videos.
   /// - Standard Channels: Max 10 minutes (600 seconds) total daily video upload duration limit.
   ///   If a channel uploaded 7 minutes today, they have 3 minutes remaining for that day.
   ///   Single video duration cannot exceed 10 minutes (600 seconds) or the remaining daily quota.
@@ -449,6 +452,7 @@ class ContentValidator {
     int dailyUploadedDurationSeconds = 0,
     int? currentTotalDurationSeconds,
     int? currentVideoCount,
+    bool enforceMinimumDuration = true,
   }) {
     final effectiveDailyUploaded = dailyUploadedDurationSeconds > 0
         ? dailyUploadedDurationSeconds
@@ -490,6 +494,17 @@ class ContentValidator {
       }
     }
 
+    // Platform Minimum Video Duration: 2 minutes (120 seconds) for all channels
+    if (enforceMinimumDuration &&
+        durationSeconds > 0 &&
+        durationSeconds < minVideoDurationSeconds) {
+      return const ContentValidationResult(
+        isValid: false,
+        message:
+            'Truthworld requires videos to be at least 2 minutes (120 seconds). Videos shorter than 2 minutes are not accepted.',
+      );
+    }
+
     return const ContentValidationResult(isValid: true, message: 'Valid');
   }
 }
@@ -517,6 +532,7 @@ mixin ContentValidationMixin {
       ContentValidator.formatDurationMinutesSeconds(seconds);
 
   /// Validates video upload constraints for a channel:
+  /// - Minimum Duration: Videos must be at least 2 minutes (120 seconds).
   /// - Standard Channels: Max 10 minutes (600 seconds) total daily video upload duration limit.
   /// - Custom Channels: Unlimited daily uploads (single video supported up to 24 hours).
   ContentValidationResult validateChannelVideoUpload(
@@ -525,6 +541,7 @@ mixin ContentValidationMixin {
     int dailyUploadedDurationSeconds = 0,
     int? currentTotalDurationSeconds,
     int? currentVideoCount,
+    bool enforceMinimumDuration = true,
   }) {
     return ContentValidator.validateChannelVideoUpload(
       channel,
@@ -532,6 +549,7 @@ mixin ContentValidationMixin {
       dailyUploadedDurationSeconds: dailyUploadedDurationSeconds,
       currentTotalDurationSeconds: currentTotalDurationSeconds,
       currentVideoCount: currentVideoCount,
+      enforceMinimumDuration: enforceMinimumDuration,
     );
   }
 

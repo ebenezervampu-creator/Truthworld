@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/utils/source_url_sanitizer.dart';
 import 'package:truthworld/theme/app_theme.dart';
-import 'package:url_launcher/url_launcher.dart';
 
   class FactCheckSourcesSection extends StatelessWidget {
   const FactCheckSourcesSection({required this.sources, super.key});
@@ -9,6 +8,10 @@ import 'package:url_launcher/url_launcher.dart';
 
   @override
   Widget build(BuildContext context) {
+    final validSources =
+        sources.where(SourceUrlSanitizer.isValidSource).toList();
+    if (validSources.isEmpty) return const SizedBox.shrink();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -21,7 +24,7 @@ import 'package:url_launcher/url_launcher.dart';
             ),
             const SizedBox(width: 6),
             Text(
-              'VERIFIED SOURCES & CITATIONS (${sources.length})',
+              'VERIFIED SOURCES & CITATIONS (${validSources.length})',
               style: const TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
@@ -32,7 +35,7 @@ import 'package:url_launcher/url_launcher.dart';
           ],
         ),
         const SizedBox(height: 8),
-        ...sources.map((s) => FactCheckSourceCard(source: s)),
+        ...validSources.map((s) => FactCheckSourceCard(source: s)),
       ],
     );
   }
@@ -44,19 +47,20 @@ class FactCheckSourceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sourceType = source['sourceType']?.toString() ?? 'default';
-    final author = source['author']?.toString();
-    final bookTitle = source['bookTitle']?.toString();
-    final chapter = source['chapter']?.toString();
-    final pageNumbers = source['pageNumbers']?.toString();
-    final journalName = source['journalName']?.toString();
-    final yearPublished = source['yearPublished'];
-    final title = source['title']?.toString();
-    final domain = source['domain']?.toString();
-    final trustLevel = source['trustLevel']?.toString();
-    final snippet = source['snippet']?.toString();
-    final directUrl = source['directUrl']?.toString();
-    final url = source['url']?.toString();
+    final cleanSource = SourceUrlSanitizer.sanitizeSourceMap(source);
+    final sourceType = cleanSource['sourceType']?.toString() ?? 'default';
+    final author = cleanSource['author']?.toString();
+    final bookTitle = cleanSource['bookTitle']?.toString();
+    final chapter = cleanSource['chapter']?.toString();
+    final pageNumbers = cleanSource['pageNumbers']?.toString();
+    final journalName = cleanSource['journalName']?.toString();
+    final yearPublished = cleanSource['yearPublished'];
+    final title = cleanSource['title']?.toString();
+    final domain = cleanSource['domain']?.toString();
+    final trustLevel = cleanSource['trustLevel']?.toString();
+    final snippet = cleanSource['snippet']?.toString();
+    final directUrl = cleanSource['directUrl']?.toString();
+    final url = cleanSource['url']?.toString();
 
     IconData icon;
     switch (sourceType) {
@@ -102,10 +106,7 @@ class FactCheckSourceCard extends StatelessWidget {
 
     final citationText = '$prefix${citationParts.join(', ')}';
 
-    var trustColor = AppColors.textTertiary;
-    if (trustLevel == 'High') trustColor = AppColors.success;
-    if (trustLevel == 'Medium') trustColor = AppColors.warning;
-    if (trustLevel == 'Low') trustColor = AppColors.error;
+    const trustColor = Colors.white70;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -119,20 +120,11 @@ class FactCheckSourceCard extends StatelessWidget {
       ),
       child: InkWell(
         onTap: () async {
-          final link = directUrl ?? url;
-          if (link != null && link.isNotEmpty) {
-            try {
-              final uri =
-                  Uri.parse(link.startsWith('http') ? link : 'https://$link');
-              await launchUrl(uri, mode: LaunchMode.externalApplication);
-            } catch (e, s) {
-              ErrorHandler.log(
-                e,
-                stackTrace: s,
-                tag: 'FactCheckSourcesSection.openSourceLink',
-              );
-            }
-          }
+          await SourceUrlSanitizer.launchSourceUrl(
+            url: directUrl ?? url,
+            title: author ?? title,
+            domain: domain,
+          );
         },
         borderRadius: BorderRadius.circular(10),
         child: Row(
@@ -182,7 +174,7 @@ class FactCheckSourceCard extends StatelessWidget {
                         Container(
                           width: 5,
                           height: 5,
-                          decoration: BoxDecoration(
+                          decoration: const BoxDecoration(
                             color: trustColor,
                             shape: BoxShape.circle,
                           ),
@@ -190,7 +182,7 @@ class FactCheckSourceCard extends StatelessWidget {
                         const SizedBox(width: 4),
                         Text(
                           trustLevel.toUpperCase(),
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 8,
                             color: trustColor,
                             fontWeight: FontWeight.bold,

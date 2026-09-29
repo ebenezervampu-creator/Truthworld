@@ -15,7 +15,9 @@ import 'package:truthworld/core/config/app_config.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
+import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:universal_html/html.dart' as html;
@@ -551,15 +553,54 @@ class VideoManagementController extends BaseController with ContentValidationMix
     required String videoId,
     required List<String> features,
     required List<String> targetLanguages,
+    int durationSeconds = 0,
+    Channel? channel,
     String priorityMode = 'accuracy',
     List<String> sensitiveTopics = const [],
     bool autoChapters = true,
+    String factCheckTier = 'standard',
   }) async {
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) {
         AppSnackbar.warning('Please sign in to generate AI features.');
         return;
+      }
+
+      // Validate and debit channel balance for dubbing (Dubbing is NOT free)
+      if (features.contains('dubbing') && channel != null) {
+        final walletService = ChannelWalletService();
+        final balance = await walletService.getSpendableBalanceForChannelId(channel.id);
+        final dubbingCost = ChannelWalletService.calculateDubbingCost(
+          languageCount: targetLanguages.length,
+          durationSeconds: durationSeconds,
+          channelType: channel.channelType,
+        );
+
+        if (!balance.canAfford(dubbingCost)) {
+          final rate = ChannelWalletService.getFlatDubbingPricePerLanguage(
+            durationSeconds: durationSeconds,
+            channelType: channel.channelType,
+          );
+          AppSnackbar.warning(
+            'Dubbing is not free. Your channel balance of \$${balance.totalSpendableBalance.toStringAsFixed(2)} is insufficient for the flat dubbing cost of \$${dubbingCost.toStringAsFixed(2)} (\$${rate.toStringAsFixed(2)}/lang × ${targetLanguages.length} languages for ${durationSeconds}s video). Please add funds to your wallet.',
+          );
+          return;
+        }
+
+        // Deduct from channel balance
+        await walletService.spendForVideoAIFeatures(
+          channel: channel,
+          userId: currentUser.uid,
+          videoId: videoId,
+          videoTitle: 'Video #$videoId',
+          features: features.toSet(),
+          targetLanguages: targetLanguages,
+          durationSeconds: durationSeconds,
+          priorityMode: priorityMode,
+          autoChapters: autoChapters,
+          factCheckTier: factCheckTier,
+        );
       }
 
       AppSnackbar.info(
@@ -581,9 +622,11 @@ class VideoManagementController extends BaseController with ContentValidationMix
           'videoId': videoId,
           'features': features,
           'targetLanguages': targetLanguages,
+          'durationSeconds': durationSeconds,
           'priorityMode': priorityMode,
           'sensitiveTopics': sensitiveTopics,
           'autoChapters': autoChapters,
+          'factCheckTier': factCheckTier,
         }),
       );
 
@@ -602,8 +645,9 @@ class VideoManagementController extends BaseController with ContentValidationMix
             'languages': targetLanguages,
             'generateSubtitles': features.contains('subtitles'),
             'generateDubbing': features.contains('dubbing'),
-            'enablePath1':
-                features.contains('factcheck') || features.contains('summary'),
+            'durationSeconds': durationSeconds,
+            'factCheckTier': factCheckTier,
+            'enablePath1': features.contains('factcheck'),
             'enablePath2':
                 features.contains('dubbing') || features.contains('subtitles'),
             'autoChapters': autoChapters,

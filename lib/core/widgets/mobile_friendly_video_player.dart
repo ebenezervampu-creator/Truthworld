@@ -64,6 +64,9 @@ class _MobileFriendlyVideoPlayerState extends State<MobileFriendlyVideoPlayer> {
     if (widget.showControls && _chewieController != null) {
       return Chewie(controller: _chewieController!);
     }
-    return VideoPlayer(widget.controller);
+    return VideoPlayer(
+      widget.controller,
+      key: ValueKey(widget.controller),
+    );
   }
 }

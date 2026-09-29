@@ -1,10 +1,8 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/avatar_options_sheet.dart';
 import 'package:truthworld/components/ui/google_onboarding_sheet.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
@@ -340,22 +338,25 @@ class GeneralAccountSection extends StatelessWidget {
   Widget _buildWalletTile(BuildContext context) {
     final auth = AuthService.to;
     return Obx(() {
-      final balance = auth.userWalletBalance.value;
+      final hasChannel = auth.hasChannel.value;
+      if (!hasChannel) {
+        return const SizedBox.shrink();
+      }
       return ListTile(
         leading: const Icon(
           Icons.account_balance_wallet_outlined,
           color: AppColors.textPrimary,
         ),
         title: const Text(
-          'TruthWorld Wallet',
+          'Channel Wallet',
           style: TextStyle(fontSize: 16, color: AppColors.textPrimary),
         ),
         subtitle: Text(
-          'Balance: ₹${balance.toStringAsFixed(2)} • Tap to add money or view history',
+          'Creator earnings, infrastructure & AI tools wallet in Studio',
           style: TextStyle(fontSize: 13, color: context.colors.textSecondary),
         ),
         trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
-        onTap: () => Get.toNamed('/user-wallet'),
+        onTap: () => Get.toNamed('/dashboard'),
       );
     });
   }
@@ -400,28 +401,9 @@ class GeneralAccountSection extends StatelessWidget {
                 'Temporarily hide channel & activity.',
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
               ),
-              onTap: () async {
+              onTap: () {
                 Get.back();
-                final uid = AuthService.to.uid;
-                if (uid.isNotEmpty) {
-                  try {
-                    await FirebaseFirestore.instance
-                        .collection(FirestoreCollections.users)
-                        .doc(uid)
-                        .update({
-                          'status': 'deactivated',
-                          'deactivatedAt': FieldValue.serverTimestamp(),
-                        });
-                    AppSnackbar.info(
-                      'Your channel and account activity are now hidden.',
-                    );
-                  } catch (e) {
-                    ErrorHandler.log(e);
-                    AppSnackbar.error(
-                      'Unable to deactivate account. Please try again.',
-                    );
-                  }
-                }
+                _showDeactivateAccountConfirmation(context);
               },
             ),
             ListTile(
@@ -448,6 +430,70 @@ class GeneralAccountSection extends StatelessWidget {
     );
   }
 
+  void _showDeactivateAccountConfirmation(BuildContext context) {
+    final colors = context.colors;
+    final isProcessing = false.obs;
+
+    Get.dialog(
+      AlertDialog(
+        backgroundColor: colors.surface,
+        title: Text(
+          'Deactivate Account',
+          style: TextStyle(color: colors.textPrimary),
+        ),
+        content: Text(
+          'Are you sure you want to deactivate your account? Your channel, public profile, and activity will be hidden until you sign back in. You can reactivate anytime simply by logging back in.',
+          style: TextStyle(color: colors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: Get.back,
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: colors.textSecondary),
+            ),
+          ),
+          Obx(
+            () => TextButton(
+              onPressed: isProcessing.value
+                  ? null
+                  : () async {
+                      try {
+                        isProcessing.value = true;
+                        await AuthService.to.deactivateAccount();
+                        Get.offAllNamed('/');
+                        AppSnackbar.info(
+                          'Your account has been deactivated. You can sign back in anytime to reactivate it.',
+                        );
+                      } catch (e) {
+                        isProcessing.value = false;
+                        Get.back();
+                        ErrorHandler.log(e);
+                        AppSnackbar.error(
+                          'Unable to deactivate account. Please try again.',
+                        );
+                      }
+                    },
+              child: isProcessing.value
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.warning,
+                      ),
+                    )
+                  : const Text(
+                      'Deactivate',
+                      style: TextStyle(color: AppColors.warning),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildLogoutTile(BuildContext context) {
     return ListTile(
       leading: Icon(Icons.logout, color: context.colors.error),
@@ -461,20 +507,62 @@ class GeneralAccountSection extends StatelessWidget {
 
   // ================= 2. DIGITAL WELLBEING TILES =================
 
-
-
   void _showDeleteAccountConfirmation(BuildContext context) {
     final colors = context.colors;
+    final isPasswordProvider = AuthService.to.primaryAuthProvider == 'password';
+    final passwordController = TextEditingController();
+    final isProcessing = false.obs;
+
     Get.dialog(
       AlertDialog(
         backgroundColor: colors.surface,
         title: Text(
-          'Delete Account',
+          'Delete Account Permanently',
           style: TextStyle(color: colors.textPrimary),
         ),
-        content: Text(
-          'Are you sure you want to delete your account? This action is permanent.',
-          style: TextStyle(color: colors.textSecondary),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to permanently delete your account? This action is irreversible and will permanently delete your channel, content, and profile data.',
+              style: TextStyle(color: colors.textSecondary),
+            ),
+            if (isPasswordProvider) ...[
+              const SizedBox(height: 16),
+              TextField(
+                controller: passwordController,
+                obscureText: true,
+                style: TextStyle(color: colors.textPrimary),
+                decoration: InputDecoration(
+                  labelText: 'Confirm Password',
+                  labelStyle: TextStyle(color: colors.textSecondary),
+                  hintText: 'Enter your password to verify',
+                  hintStyle: TextStyle(
+                    color: colors.textSecondary.withValues(alpha: 0.6),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: colors.textSecondary.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: colors.error),
+                  ),
+                ),
+              ),
+            ] else ...[
+              const SizedBox(height: 12),
+              Text(
+                'For your security, you may be prompted to verify your Google identity before deletion proceeds.',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                  color: colors.textSecondary.withValues(alpha: 0.8),
+                ),
+              ),
+            ],
+          ],
         ),
         actions: [
           TextButton(
@@ -484,19 +572,60 @@ class GeneralAccountSection extends StatelessWidget {
               style: TextStyle(color: colors.textSecondary),
             ),
           ),
-          TextButton(
-            onPressed: () async {
-              try {
-                await AuthService.to.deleteAccount();
-                Get.offAllNamed('/');
-                AppSnackbar.success('Your account has been deleted.');
-              } catch (e) {
-                Get.back();
-                ErrorHandler.log(e);
-                AppSnackbar.error('Unable to delete account. Please try again.');
-              }
-            },
-            child: Text('Delete', style: TextStyle(color: colors.error)),
+          Obx(
+            () => TextButton(
+              onPressed: isProcessing.value
+                  ? null
+                  : () async {
+                      if (isPasswordProvider &&
+                          passwordController.text.trim().isEmpty) {
+                        AppSnackbar.warning(
+                          'Please enter your password to confirm deletion.',
+                        );
+                        return;
+                      }
+
+                      try {
+                        isProcessing.value = true;
+                        await AuthService.to.deleteAccount(
+                          password: passwordController.text.trim(),
+                        );
+                        Get.offAllNamed('/');
+                        AppSnackbar.success(
+                          'Your account has been permanently deleted.',
+                        );
+                      } catch (e) {
+                        isProcessing.value = false;
+                        Get.back();
+                        final errStr = e.toString().toLowerCase();
+                        if (errStr.contains('cancelled') ||
+                            errStr.contains('canceled') ||
+                            errStr.contains('user-cancelled')) {
+                          AppSnackbar.info(
+                            'Account deletion was cancelled.',
+                          );
+                        } else {
+                          ErrorHandler.log(e);
+                          AppSnackbar.error(
+                            'Unable to delete account. Please try again.',
+                          );
+                        }
+                      }
+                    },
+              child: isProcessing.value
+                  ? SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: colors.error,
+                      ),
+                    )
+                  : Text(
+                      'Delete',
+                      style: TextStyle(color: colors.error),
+                    ),
+            ),
           ),
         ],
       ),

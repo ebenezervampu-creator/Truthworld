@@ -6,7 +6,7 @@ import 'package:truthworld/features/miniplayer/presentation/widgets/components/m
 
 export 'components/miniplayer_components.dart';
 
-/// Production-grade YouTube-style floating and expanded miniplayer widget.
+/// Production-grade floating and expanded miniplayer widget.
 class MiniplayerWidget extends StatelessWidget {
   const MiniplayerWidget({super.key});
 
@@ -15,7 +15,9 @@ class MiniplayerWidget extends StatelessWidget {
     return Obx(() {
       final controller = MiniplayerController.to;
       final mode = controller.mode.value;
-      if (mode == MiniplayerMode.dismissed) return const SizedBox.shrink();
+      if (mode == MiniplayerMode.dismissed || controller.isPiP.value) {
+        return const SizedBox.shrink();
+      }
 
       return LayoutBuilder(
         builder: (context, constraints) {

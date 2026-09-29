@@ -50,6 +50,7 @@ class CashfreePaymentService extends GetxService {
   final RxString activeOrderId = ''.obs;
 
   Completer<CashfreePaymentResult>? _activeCompleter;
+  String? _activePaymentLink;
 
   @override
   void onInit() {
@@ -114,20 +115,42 @@ class CashfreePaymentService extends GetxService {
 
   /// Triggered by Cashfree SDK when payment is cancelled or failed
   void _onPaymentError(CFErrorResponse errorResponse, String orderId) {
+    final rawMsg = errorResponse.getMessage() ?? '';
     debugPrint(
-      '[CashfreePaymentService] Payment error: ${errorResponse.getMessage()} for order: $orderId',
+      '[CashfreePaymentService] Payment error: $rawMsg for order: $orderId',
     );
+
+    // If native checkout fails due to Android debug/sideload integrity checks (installer_package_not_approved)
+    // or missing native component, gracefully fallback to TruthWorld's secure hosted checkout link.
+    final lowerMsg = rawMsg.toLowerCase();
+    final isInstallerOrIntegrityError = lowerMsg.contains('installer_package_not_approved') ||
+        lowerMsg.contains('installer') ||
+        lowerMsg.contains('package_not_approved') ||
+        lowerMsg.contains('not approved') ||
+        lowerMsg.contains('verification failed') ||
+        lowerMsg.contains('activity not found');
+
+    if (isInstallerOrIntegrityError && _activePaymentLink != null && _activePaymentLink!.isNotEmpty) {
+      debugPrint(
+        '[CashfreePaymentService] Native SDK rejected installer in debug/sideloaded build ($rawMsg). '
+        'Gracefully launching hosted checkout fallback.',
+      );
+      _launchExternalCheckout(_activePaymentLink!, orderId);
+      return;
+    }
+
     _resolveActivePayment(
       CashfreePaymentResult(
         success: false,
         orderId: orderId,
-        errorMessage: errorResponse.getMessage() ?? 'Payment could not be completed.',
+        errorMessage: rawMsg.isNotEmpty ? rawMsg : 'Payment could not be completed.',
       ),
     );
   }
 
   void _resolveActivePayment(CashfreePaymentResult result) {
     isProcessing.value = false;
+    _activePaymentLink = null;
     if (_activeCompleter != null && !_activeCompleter!.isCompleted) {
       _activeCompleter!.complete(result);
     }
@@ -187,66 +210,115 @@ class CashfreePaymentService extends GetxService {
       final orderId = data['orderId'] as String;
       final paymentSessionId = data['paymentSessionId'] as String?;
       final paymentLink = data['paymentLink'] as String?;
+      final isSubscription = data['isSubscription'] as bool? ?? false;
+      final subscriptionId = data['subscriptionId'] as String?;
+      final authLink = data['authLink'] as String?;
       final envString = (data['environment'] as String? ?? 'SANDBOX').toUpperCase();
 
       activeOrderId.value = orderId;
+      _activePaymentLink = paymentLink;
       _activeCompleter = Completer<CashfreePaymentResult>();
 
       final isMobile = !kIsWeb &&
           (defaultTargetPlatform == TargetPlatform.android ||
               defaultTargetPlatform == TargetPlatform.iOS);
 
-      if (isMobile && paymentSessionId != null && paymentSessionId.isNotEmpty) {
-        // Native Mobile Flow via Cashfree PG SDK
-        final cfEnv = envString == 'PRODUCTION'
-            ? CFEnvironment.PRODUCTION
-            : CFEnvironment.SANDBOX;
-
-        final session = CFSessionBuilder()
-            .setEnvironment(cfEnv)
-            .setOrderId(orderId)
-            .setPaymentSessionId(paymentSessionId)
-            .build();
-
-        final theme = CFThemeBuilder()
-            .setPrimaryTextColor('#FFFFFF')
-            .setBackgroundColor('#161618')
-            .setButtonBackgroundColor('#FFFFFF')
-            .setButtonTextColor('#000000')
-            .build();
-
-        final cfPayment = CFWebCheckoutPaymentBuilder()
-            .setSession(session)
-            .setTheme(theme)
-            .build();
-
-        _cfGateway.doPayment(cfPayment);
-      } else if (paymentLink != null && paymentLink.isNotEmpty) {
-        // Web / Desktop flow: launch hosted checkout URL
-        final uri = Uri.parse(paymentLink);
+      if (isSubscription && authLink != null && authLink.isNotEmpty) {
+        // Industry-Standard Cashfree Subscriptions Auto Pay Flow (UPI Autopay / e-Mandate)
+        final uri = Uri.parse(authLink);
         try {
           final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
           if (launched) {
-            _showDesktopVerificationPrompt(orderId);
+            _showSubscriptionVerificationPrompt(subscriptionId ?? orderId, orderId);
           } else {
             _resolveActivePayment(
               CashfreePaymentResult(
                 success: false,
                 orderId: orderId,
-                errorMessage: 'Unable to open checkout window. Please check your browser popup settings.',
+                errorMessage: 'Unable to open mandate authorization page. Please check your browser popup settings.',
               ),
             );
           }
-        } catch (launchErr, s) {
-          ErrorHandler.log(launchErr, stackTrace: s, tag: 'CashfreePaymentService.launchUrl');
+        } catch (authErr, s) {
+          ErrorHandler.log(authErr, stackTrace: s, tag: 'CashfreePaymentService.launchAuthLink');
           _resolveActivePayment(
             CashfreePaymentResult(
               success: false,
               orderId: orderId,
-              errorMessage: 'Unable to open checkout page. Please try again.',
+              errorMessage: 'Unable to launch Auto Pay authorization. Please try again.',
             ),
           );
         }
+      } else if (isMobile && paymentSessionId != null && paymentSessionId.isNotEmpty) {
+        // Native Mobile Flow via Cashfree PG SDK
+        final cfEnv = envString == 'PRODUCTION'
+            ? CFEnvironment.PRODUCTION
+            : CFEnvironment.SANDBOX;
+
+        // Cashfree native Android SDK enforces strict Google Play Store installer verification
+        // in PRODUCTION mode ('installer_package_not_approved'). During development/debug builds (kDebugMode),
+        // or when running on an emulator or sideloaded APK with PRODUCTION credentials,
+        // bypass the native installer restriction by launching the secure TruthWorld hosted checkout link.
+        final shouldBypassNativeInDebug = kDebugMode &&
+            defaultTargetPlatform == TargetPlatform.android &&
+            cfEnv == CFEnvironment.PRODUCTION &&
+            paymentLink != null &&
+            paymentLink.isNotEmpty;
+
+        if (shouldBypassNativeInDebug) {
+          debugPrint(
+            '[CashfreePaymentService] Android debug mode detected with PRODUCTION Cashfree environment. '
+            'Bypassing native Play Store installer check and launching secure hosted checkout.',
+          );
+          await _launchExternalCheckout(paymentLink, orderId);
+        } else {
+          try {
+            _initGatewayCallbacks();
+
+            final session = CFSessionBuilder()
+                .setEnvironment(cfEnv)
+                .setOrderId(orderId)
+                .setPaymentSessionId(paymentSessionId)
+                .build();
+
+            final theme = CFThemeBuilder()
+                .setPrimaryTextColor('#FFFFFF')
+                .setBackgroundColor('#161618')
+                .setButtonBackgroundColor('#FFFFFF')
+                .setButtonTextColor('#000000')
+                .build();
+
+            final cfPayment = CFWebCheckoutPaymentBuilder()
+                .setSession(session)
+                .setTheme(theme)
+                .build();
+
+            _cfGateway.doPayment(cfPayment);
+          } catch (nativeErr, stackTrace) {
+            ErrorHandler.log(
+              nativeErr,
+              stackTrace: stackTrace,
+              tag: 'CashfreePaymentService.nativePayment',
+            );
+            if (paymentLink != null && paymentLink.isNotEmpty) {
+              debugPrint(
+                '[CashfreePaymentService] Native payment invocation failed ($nativeErr). Falling back to hosted checkout.',
+              );
+              await _launchExternalCheckout(paymentLink, orderId);
+            } else {
+              _resolveActivePayment(
+                CashfreePaymentResult(
+                  success: false,
+                  orderId: orderId,
+                  errorMessage: 'Unable to start payment on this device. Please try again.',
+                ),
+              );
+            }
+          }
+        }
+      } else if (paymentLink != null && paymentLink.isNotEmpty) {
+        // Web / Desktop / Fallback flow: launch hosted checkout URL
+        await _launchExternalCheckout(paymentLink, orderId);
       } else if (kIsWeb && paymentSessionId != null && paymentSessionId.isNotEmpty) {
         // Web direct checkout fallback when SDK is present
         try {
@@ -337,8 +409,84 @@ class CashfreePaymentService extends GetxService {
     }
   }
 
+  /// Authoritatively queries the backend function to verify Cashfree subscription mandate status
+  Future<CashfreePaymentResult> verifySubscriptionOnServer(String subscriptionId) async {
+    try {
+      final verifyCallable = _functions.httpsCallable('verifyCashfreeSubscription');
+      final result = await verifyCallable.call({'subscriptionId': subscriptionId});
+      final data = Map<String, dynamic>.from(result.data as Map);
+
+      final isSuccess = data['success'] == true && data['subscriptionStatus'] == 'ACTIVE';
+      return CashfreePaymentResult(
+        success: isSuccess,
+        orderId: subscriptionId,
+        details: data,
+      );
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'CashfreePaymentService.verifySubscriptionOnServer');
+      return CashfreePaymentResult(
+        success: false,
+        orderId: subscriptionId,
+        errorMessage: 'Subscription mandate verification failed',
+      );
+    }
+  }
+
+  /// Cancels an active recurring auto pay subscription with Cashfree and updates Firestore
+  Future<bool> cancelSubscriptionOnServer(String subscriptionId, {String? reason}) async {
+    try {
+      final cancelCallable = _functions.httpsCallable('cancelCashfreeSubscription');
+      final result = await cancelCallable.call({
+        'subscriptionId': subscriptionId,
+        'reason': reason ?? 'Cancelled by user in TruthWorld',
+      });
+      final data = Map<String, dynamic>.from(result.data as Map);
+      return data['success'] == true;
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'CashfreePaymentService.cancelSubscriptionOnServer');
+      return false;
+    }
+  }
+
+  /// Launches hosted web checkout in external application (browser/custom tab)
+  Future<void> _launchExternalCheckout(String link, String orderId) async {
+    final uri = Uri.parse(link);
+    try {
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (launched) {
+        _showExternalVerificationPrompt(orderId);
+      } else {
+        _resolveActivePayment(
+          CashfreePaymentResult(
+            success: false,
+            orderId: orderId,
+            errorMessage: 'Unable to open checkout window. Please check your browser settings.',
+          ),
+        );
+      }
+    } catch (launchErr, s) {
+      ErrorHandler.log(
+        launchErr,
+        stackTrace: s,
+        tag: 'CashfreePaymentService.launchExternalCheckout',
+      );
+      _resolveActivePayment(
+        CashfreePaymentResult(
+          success: false,
+          orderId: orderId,
+          errorMessage: 'Unable to open checkout page. Please try again.',
+        ),
+      );
+    }
+  }
+
   /// For Desktop/Web link fallback: prompts user to confirm once done
   void _showDesktopVerificationPrompt(String orderId) {
+    _showExternalVerificationPrompt(orderId);
+  }
+
+  /// For external/hosted browser checkout fallback: prompts user to confirm once done
+  void _showExternalVerificationPrompt(String orderId) {
     Get.defaultDialog(
       title: 'Complete Payment',
       middleText: 'Please complete the payment in your browser window, then click Verify.',
@@ -374,6 +522,59 @@ class CashfreePaymentService extends GetxService {
             success: false,
             orderId: orderId,
             errorMessage: 'Payment was cancelled by user.',
+          ),
+        );
+      },
+    );
+  }
+
+  /// For Subscriptions / Auto Pay link authorization: prompts user to confirm mandate
+  void _showSubscriptionVerificationPrompt(String subscriptionId, String orderId) {
+    Get.defaultDialog(
+      title: 'Authorize Auto Pay',
+      middleText:
+          'Please authorize the recurring mandate in the secure Cashfree window using your preferred UPI app, debit card, or netbanking, then click Verify.',
+      textConfirm: 'I Have Authorized',
+      textCancel: 'Cancel',
+      confirmTextColor: Get.theme.colorScheme.onPrimary,
+      barrierDismissible: false,
+      onWillPop: () async {
+        _resolveActivePayment(
+          CashfreePaymentResult(
+            success: false,
+            orderId: orderId,
+            errorMessage: 'Auto Pay authorization was cancelled.',
+          ),
+        );
+        return true;
+      },
+      onConfirm: () async {
+        Get.back();
+        AppSnackbar.info('Verifying Auto Pay mandate with gateway...');
+        final res = await verifySubscriptionOnServer(subscriptionId);
+        if (res.success) {
+          AppSnackbar.success('Auto Pay mandate verified successfully!');
+          _resolveActivePayment(res);
+        } else {
+          // Fallback to order verification if mandate confirmation is in transit
+          final orderRes = await verifyOrderOnServer(orderId);
+          if (orderRes.success) {
+            AppSnackbar.success('Payment verified successfully!');
+            _resolveActivePayment(orderRes);
+          } else {
+            AppSnackbar.warning(
+              'Mandate authorization is pending bank confirmation. It will activate once confirmed.',
+            );
+            _resolveActivePayment(res);
+          }
+        }
+      },
+      onCancel: () {
+        _resolveActivePayment(
+          CashfreePaymentResult(
+            success: false,
+            orderId: orderId,
+            errorMessage: 'Auto Pay authorization was cancelled.',
           ),
         );
       },

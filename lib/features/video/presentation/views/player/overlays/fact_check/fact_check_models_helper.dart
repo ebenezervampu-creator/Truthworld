@@ -4,7 +4,6 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/features/video/data/models/claim_verdict_helper.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
 
   Map<String, dynamic> normalizeClaim(dynamic rawClaim) {
@@ -139,11 +138,7 @@ import 'package:url_launcher/url_launcher.dart';
   }
 
   Color getScoreColor(double score) {
-    if (score >= 90) return AppColors.success;
-    if (score >= 75) return const Color(0xFFA3E635);
-    if (score >= 60) return Colors.yellowAccent;
-    if (score >= 45) return AppColors.warning;
-    return AppColors.error;
+    return Colors.white;
   }
 
   String getRatingLabel(double score) {

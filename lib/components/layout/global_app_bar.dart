@@ -317,7 +317,7 @@ Widget _buildNotificationLogo(BuildContext context, {bool isMobile = false}) {
                     minHeight: 18,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFCC0000), // YouTube signature red
+                    color: const Color(0xFFCC0000), // Signature red
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: const Color(0xFF0F0F0F),

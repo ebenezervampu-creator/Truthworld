@@ -3,6 +3,7 @@
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
+import 'package:truthworld/core/config/app_flavor.dart';
 
 /// Default [FirebaseOptions] for use with your Firebase apps.
 ///
@@ -15,13 +16,25 @@ import 'package:flutter/foundation.dart'
 /// );
 /// ```
 class DefaultFirebaseOptions {
-  static FirebaseOptions get currentPlatform {
+  static FirebaseOptions get currentPlatform => forFlavor(AppFlavor.active);
+
+  static FirebaseOptions forFlavor([AppFlavor? flavor]) {
+    final activeFlavor = flavor ?? AppFlavor.active;
     if (kIsWeb) {
       return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
-        return android;
+        switch (activeFlavor) {
+          case AppFlavor.studio:
+            return androidStudio;
+          case AppFlavor.admin:
+            return androidAdmin;
+          case AppFlavor.advertiser:
+            return androidAdvertiser;
+          case AppFlavor.app:
+            return android;
+        }
       case TargetPlatform.iOS:
         return ios;
       case TargetPlatform.macOS:

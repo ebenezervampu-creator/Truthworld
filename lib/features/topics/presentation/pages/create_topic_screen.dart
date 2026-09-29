@@ -10,7 +10,15 @@ import 'package:truthworld/features/topics/presentation/widgets/create_topic_dia
 
 /// Full-page screen for creating a new Topic
 class CreateTopicScreen extends StatelessWidget {
-  const CreateTopicScreen({super.key});
+  const CreateTopicScreen({
+    super.key,
+    this.isFromUpload = false,
+  });
+
+  final bool isFromUpload;
+
+  bool get fromUpload =>
+      isFromUpload || (Get.arguments is Map && Get.arguments['fromUpload'] == true);
 
   Future<List<Map<String, dynamic>>> _fetchVideos(String channelId) async {
     try {
@@ -52,6 +60,7 @@ class CreateTopicScreen extends StatelessWidget {
 
     return CreateTopicDialog(
       isDarkMode: isDarkMode,
+      isFromUpload: fromUpload,
       channelVideosFuture: _fetchVideos(channelId),
       onCreateTopicSubmitted: (createCtrl) async {
         String? finalThumbnailUrl;

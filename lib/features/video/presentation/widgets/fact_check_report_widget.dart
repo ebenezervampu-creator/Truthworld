@@ -67,7 +67,7 @@ class FactCheckReportWidget extends StatelessWidget {
           filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
           child: Column(
             children: [
-              const FactCheckReportHeader(),
+              FactCheckReportHeader(tierBadgeLabel: parsed.tierBadgeLabel),
               Expanded(
                 child: ListView(
                   padding: const EdgeInsets.symmetric(

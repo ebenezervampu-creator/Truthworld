@@ -5,6 +5,7 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/core/widgets/truth_lottie_animation.dart';
 import 'package:truthworld/features/premium/presentation/controllers/premium_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
@@ -90,7 +91,7 @@ import 'package:truthworld/theme/app_theme.dart';
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   side: BorderSide(
-                    color: AppColors.error.withValues(alpha: 0.5),
+                    color: Colors.white.withValues(alpha: 0.25),
                   ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -156,7 +157,7 @@ class NoFactCheckFallback extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: AppColors.textPrimary.withValues(alpha: 0.05),
                 shape: BoxShape.circle,
@@ -164,11 +165,7 @@ class NoFactCheckFallback extends StatelessWidget {
                   color: AppColors.textPrimary.withValues(alpha: 0.1),
                 ),
               ),
-              child: const Icon(
-                Icons.verified_user_outlined,
-                color: Colors.white,
-                size: 40,
-              ),
+              child: TruthLottieAnimation.emptyClaims(size: 52),
             ),
             const SizedBox(height: 14),
             const Text(
@@ -359,7 +356,7 @@ class NoFactCheckFallback extends StatelessWidget {
                 onPressed: () {
                   final v = video;
                   if (v != null && v.factCheckUrl.isNotEmpty) {
-                    vc?.loadFactCheckData(v.factCheckUrl);
+                    vc?.loadFactCheckData(v.factCheckUrl, true);
                   }
                 },
                 icon: const Icon(

@@ -1,7 +1,6 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/services/pip_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 
 /// Global registry managing active TowerPlayerController instances and picture-in-picture coordination.
@@ -11,10 +10,6 @@ class TowerPlayerRegistry {
   /// Read-only snapshot of currently active players
   static List<TowerPlayerController> get activePlayers =>
       List.unmodifiable(_activePlayers);
-
-  static const MethodChannel _pipChannel = MethodChannel(
-    'com.example.truthworld/pip',
-  );
 
   static void Function(BuildContext context, TowerPlayerController ctrl)?
       showMobileSettingsCallback;
@@ -63,27 +58,13 @@ class TowerPlayerRegistry {
     }
   }
 
-  /// Initialize native PiP method channel listener
+  /// Initialize native PiP method channel listener via PipService
   static void initPipChannel() {
-    if (kIsWeb) return;
-    _pipChannel.setMethodCallHandler((call) async {
-      if (call.method == 'onPipModeChanged') {
-        final isInPip = call.arguments as bool;
-        for (final player in _activePlayers) {
-          player.isPiP.value = isInPip;
-          if (isInPip) {
-            player.controlsVisible.value = false;
-            player.settingsOpen.value = false;
-          }
-        }
-      }
-    });
+    PipService.to;
   }
 
   /// Tear down native PiP method channel handler
   static void disposePipChannel() {
-    if (!kIsWeb) {
-      _pipChannel.setMethodCallHandler(null);
-    }
+    // Preserve global PipService handler across handoffs
   }
 }

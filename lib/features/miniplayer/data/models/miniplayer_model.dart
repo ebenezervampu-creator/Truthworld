@@ -49,7 +49,7 @@ class MiniplayerVideoInfo {
 
 /// Enum representing the visual state of the miniplayer panel.
 enum MiniplayerMode {
-  /// Floating YouTube-style miniplayer (default).
+  /// Floating miniplayer (default).
   collapsed,
 
   /// Dragging between collapsed and expanded.
@@ -71,7 +71,7 @@ enum MiniplayerMode {
 
 /// Immutable configuration for the miniplayer.
 ///
-/// Sizing matches YouTube's web miniplayer: a 16:9 video frame approximately
+/// Sizing matches standard web miniplayer: a 16:9 video frame approximately
 /// 400px wide with a compact info row beneath. The whole panel is draggable
 /// around the viewport, dismissable, and expandable to fullscreen.
 @immutable
@@ -88,7 +88,7 @@ class MiniplayerConfig {
   final bool pauseOnClose;
   final bool enableDrag;
 
-  // ── YouTube-style sizing (logical pixels) ──
+  // ── Standard miniplayer sizing (logical pixels) ──
   /// Default width of the floating miniplayer card on desktop.
   static const double defaultWidth = 400;
 
@@ -113,7 +113,7 @@ class MiniplayerConfig {
   /// Bottom inset above the mobile bottom navigation bar (~56px bar + ~14px margin).
   static const double mobileDockBottomInset = 70;
 
-  /// Fraction of screen width on mobile devices (matching YouTube mobile PiP: exactly 50%).
+  /// Fraction of screen width on mobile devices (matching mobile PiP: exactly 50%).
   static const double mobileWidthFraction = 0.50;
 
   /// Minimum width on mobile devices.

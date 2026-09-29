@@ -9,10 +9,6 @@ import 'package:truthworld/theme/app_theme.dart';
   @override
   Widget build(BuildContext context) {
     final clamped = value.clamp(0.0, 1.0);
-    final color = clamped >= 0.75
-        ? AppColors.success
-        : (clamped >= 0.45 ? AppColors.warning : AppColors.error);
-
     return Column(
       children: [
         Row(
@@ -32,35 +28,40 @@ import 'package:truthworld/theme/app_theme.dart';
               style: context.twTypography.label.copyWith(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
-                color: color,
+                color: Colors.white,
               ),
             ),
           ],
         ),
         const SizedBox(height: 6),
-        Stack(
-          children: [
-            Container(
-              height: 6,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(3),
-              ),
-            ),
-            FractionallySizedBox(
-              widthFactor: clamped,
-              child: Container(
-                height: 6,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [color.withValues(alpha: 0.5), color],
+        TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.0, end: clamped),
+          duration: const Duration(milliseconds: 800),
+          curve: Curves.easeOutCubic,
+          builder: (context, animatedValue, _) {
+            return Stack(
+              children: [
+                Container(
+                  height: 6,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(3),
                   ),
-                  borderRadius: BorderRadius.circular(3),
                 ),
-              ),
-            ),
-          ],
+                FractionallySizedBox(
+                  widthFactor: animatedValue,
+                  child: Container(
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ],
     );

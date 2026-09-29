@@ -10,7 +10,7 @@ service firebase.storage {
     function isAdmin() {
       return isSignedIn() && (
         request.auth.token.admin == true ||
-        (request.auth.token.email != null && (
+        (request.auth.token.email != null && request.auth.token.email_verified == true && (
           request.auth.token.email.lower() == 'ebenezervampy@towervsp.com' ||
           request.auth.token.email.lower() == 'ebenezervampu@towervsp.com' ||
           request.auth.token.email.lower() == 'ebenezervampu4@gmail.com' ||
@@ -36,21 +36,20 @@ service firebase.storage {
       return isSignedIn() && (
         isAdmin() ||
         resource == null ||
-        resource.metadata == null ||
-        !('uploaderId' in resource.metadata) ||
-        resource.metadata['uploaderId'] == request.auth.uid
+        (resource.metadata != null &&
+         'uploaderId' in resource.metadata &&
+         resource.metadata['uploaderId'] == request.auth.uid)
       );
     }
 
-    // Ensure client cannot forge another user's uploaderId metadata
+    // Ensure client cannot forge another user's uploaderId metadata and enforces uploaderId presence
     function isUploaderClaimValid() {
       return isSignedIn() && (
         isAdmin() ||
-        request.resource == null ||
-        request.resource.metadata == null ||
-        !('uploaderId' in request.resource.metadata) ||
-        request.resource.metadata['uploaderId'] == null ||
-        request.resource.metadata['uploaderId'] == request.auth.uid
+        (request.resource != null &&
+         request.resource.metadata != null &&
+         'uploaderId' in request.resource.metadata &&
+         request.resource.metadata['uploaderId'] == request.auth.uid)
       );
     }
 
@@ -184,6 +183,18 @@ service firebase.storage {
     // SUBTITLES & DUBBING
     // ================================
     match /subtitles/{allPaths=**} {
+      allow read: if true;
+      allow write: if false; 
+      allow delete: if false;
+    }
+
+    match /audio/{allPaths=**} {
+      allow read: if true;
+      allow write: if false; 
+      allow delete: if false;
+    }
+
+    match /audiotracks/{allPaths=**} {
       allow read: if true;
       allow write: if false; 
       allow delete: if false;

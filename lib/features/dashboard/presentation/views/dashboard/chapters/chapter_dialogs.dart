@@ -10,7 +10,7 @@ import 'package:truthworld/theme/app_colors.dart';
 class ChapterDialogs {
   const ChapterDialogs._();
 
-  /// Shows dialog to import YouTube description timestamps.
+  /// Shows dialog to import description timestamps.
   static void showImportDialog(
     BuildContext context, {
     required ChaptersController controller,
@@ -31,7 +31,7 @@ class ChapterDialogs {
             const Icon(Icons.download_rounded, color: Colors.white),
             const SizedBox(width: 12),
             Text(
-              'Import YouTube Timestamps',
+              'Import Timestamps',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 color: textColor,
@@ -90,7 +90,7 @@ class ChapterDialogs {
           TextButton(onPressed: Get.back, child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () {
-              controller.importFromYouTubeFormat(textController.text);
+              controller.importFromTimestampFormat(textController.text);
               Get.back();
             },
             style: ElevatedButton.styleFrom(

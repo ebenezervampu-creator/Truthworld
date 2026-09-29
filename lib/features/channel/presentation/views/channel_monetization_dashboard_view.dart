@@ -59,6 +59,7 @@ class ChannelMonetizationDashboardView extends StatelessWidget {
             : currentChannel.id,
         videoRevenue: controller.singleVideoRevenue,
         videoWatchTimeMinutes: controller.singleVideoWatchTimeMinutes,
+        videoViews: controller.singleVideoViews,
       );
 
       return Scaffold(
@@ -85,9 +86,17 @@ class ChannelMonetizationDashboardView extends StatelessWidget {
                 const SizedBox(height: 16),
               ],
 
-              // $10 Free Trial Credit Welcome Banner
-              ChannelFreeTrialBanner(controller: controller),
-              const SizedBox(height: 16),
+              // Sudden Hype Surge & Capacity Advisory (when active on custom channel)
+              if (isCustom && controller.isHypeSurgeActive) ...[
+                ChannelHypeSurgeAdvisoryCard(controller: controller),
+                const SizedBox(height: 16),
+              ],
+
+              // Free Trial Credit Welcome Banner (Only if credit remaining)
+              if ((currentChannel.infraConfig?.trialCreditRemainingUSD ?? 0.0) > 0.0) ...[
+                ChannelFreeTrialBanner(controller: controller),
+                const SizedBox(height: 16),
+              ],
 
               // Channel Header Card (Shows Channel Type & Days Left To Switch)
               ChannelMonetizationHeaderCard(
@@ -114,6 +123,13 @@ class ChannelMonetizationDashboardView extends StatelessWidget {
               ),
               const SizedBox(height: 20),
 
+              // AI Fact-Checking Pricing & Verification for Channels
+              ChannelFactCheckPricingSection(
+                channelType: currentChannel.channelType,
+                isCustom: isCustom,
+              ),
+              const SizedBox(height: 20),
+
               // Revenue Breakdown Section
               ChannelRevenueBreakdownSection(
                 controller: controller,
@@ -130,6 +146,8 @@ class ChannelMonetizationDashboardView extends StatelessWidget {
                   onStorageTopup: () => showStorageTopupSheet(context, controller),
                   onBandwidthTopup: () => showBandwidthTopupSheet(context, controller),
                 ),
+                const SizedBox(height: 20),
+                ChannelZeroWasteRolloverCard(controller: controller),
                 const SizedBox(height: 20),
                 const ChannelZeroLossSafeguardCard(),
                 const SizedBox(height: 20),

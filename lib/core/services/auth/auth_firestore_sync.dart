@@ -251,7 +251,12 @@ class AuthFirestoreSync {
           updateData['photoURL'] = existingPhoto;
         }
 
-        await userDoc.update(updateData);
+        if (docData['status'] == 'deactivated') {
+          updateData['status'] = 'active';
+          updateData['reactivatedAt'] = FieldValue.serverTimestamp();
+        }
+
+        await userDoc.set(updateData, SetOptions(merge: true));
         debugPrint(
           'AuthFirestoreSync: EXISTING user record updated successfully (preserved custom profile)',
         );
@@ -289,27 +294,26 @@ class AuthFirestoreSync {
       }
     } finally {
       _isSyncingUser = false;
-      _lastSyncTime = DateTime.now();
     }
   }
 
-  /// Cleans up Firestore user document and marks associated channel as deleted upon account deletion.
+  /// Cleans up Firestore user document, all nested subcollections, and associated channel upon account deletion.
   Future<void> deleteAccountData(String uidToDelete) async {
     try {
-      final userDocRef = FirebaseFirestore.instance
+      final firestore = FirebaseFirestore.instance;
+      final userDocRef = firestore
           .collection(FirestoreCollections.users)
           .doc(uidToDelete);
       final userSnap = await userDocRef.get();
+
+      // 1. Delete associated channel if exists
       if (userSnap.exists) {
         final channelId = userSnap.data()?['channelId'] as String?;
         if (channelId != null && channelId.isNotEmpty) {
-          await FirebaseFirestore.instance
+          await firestore
               .collection(FirestoreCollections.channels)
               .doc(channelId)
-              .update({
-                'status': 'deleted',
-                'updatedAt': FieldValue.serverTimestamp(),
-              })
+              .delete()
               .catchError((e, s) {
                 ErrorHandler.log(
                   e,
@@ -318,13 +322,133 @@ class AuthFirestoreSync {
                 );
               });
         }
-        await userDocRef.delete();
       }
+
+      // 2. Thoroughly purge all known subcollections under users/{uidToDelete}
+      await _purgeUserSubcollections(userDocRef);
+
+      // 3. Purge user cache collection if present
+      await _deleteCollectionInBatches(
+        firestore.collection('userCache').doc(uidToDelete).collection('data'),
+      );
+      await firestore
+          .collection('userCache')
+          .doc(uidToDelete)
+          .delete()
+          .catchError((e, s) {
+            // Non-fatal cache cleanup
+          });
+
+      // 4. Mark status as deleted and permanently delete the parent user document
+      if (userSnap.exists) {
+        await userDocRef.set({
+          'status': 'deleted',
+          'deletedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true)).catchError((e, s) {});
+      }
+
+      await userDocRef.delete().catchError((e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s is StackTrace ? s : null,
+          tag: 'AuthFirestoreSync.deleteAccount.userDoc',
+        );
+      });
     } catch (e, s) {
       ErrorHandler.log(
         e,
         stackTrace: s,
         tag: 'AuthFirestoreSync.deleteAccount.firestore',
+      );
+    }
+  }
+
+  /// Recursively purges all documents across all user subcollections.
+  Future<void> _purgeUserSubcollections(DocumentReference userDocRef) async {
+    // 1. Handle playlists with nested 'items' subcollection
+    try {
+      final playlistsCol = userDocRef.collection('playlists');
+      var playlistSnapshots = await playlistsCol.limit(100).get();
+      while (playlistSnapshots.docs.isNotEmpty) {
+        for (final pDoc in playlistSnapshots.docs) {
+          await _deleteCollectionInBatches(pDoc.reference.collection('items'));
+          await pDoc.reference.delete().catchError((Object? _) {});
+        }
+        playlistSnapshots = await playlistsCol.limit(100).get();
+      }
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'AuthFirestoreSync.purge.playlists',
+      );
+    }
+
+    // 2. Standard user subcollections
+    const subcollectionNames = [
+      'watch_history',
+      'liked_videos',
+      'likedVideos',
+      'disliked_videos',
+      'dislikedVideos',
+      'watch_later',
+      'saved_playlists',
+      'clips',
+      'liked_clips',
+      'feed_inbox',
+      'savedTopics',
+      'likedTopics',
+      'liked_topic_comments',
+      'liked_topic_replies',
+      'comment_interactions',
+      'reply_interactions',
+      'savedCommunityPosts',
+      'savedComments',
+      'hiddenCommunityPosts',
+      'mutedCommunityChannels',
+      'reportedCommunityPosts',
+      'subscriptions',
+      'channelMemberships',
+      'channel_memberships',
+      'notifications_active',
+      'notifications_archive',
+      'saved_ads',
+    ];
+
+    for (final colName in subcollectionNames) {
+      try {
+        await _deleteCollectionInBatches(userDocRef.collection(colName));
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'AuthFirestoreSync.purge.$colName',
+        );
+      }
+    }
+  }
+
+  /// Deletes all documents in a collection reference in chunks of up to 500 documents.
+  Future<void> _deleteCollectionInBatches(
+    CollectionReference collectionRef, {
+    int batchSize = 500,
+  }) async {
+    try {
+      var snapshot = await collectionRef.limit(batchSize).get();
+      while (snapshot.docs.isNotEmpty) {
+        final batch = FirebaseFirestore.instance.batch();
+        for (final doc in snapshot.docs) {
+          batch.delete(doc.reference);
+        }
+        await batch.commit();
+        snapshot = await collectionRef.limit(batchSize).get();
+      }
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'AuthFirestoreSync.deleteCollectionInBatches',
       );
     }
   }

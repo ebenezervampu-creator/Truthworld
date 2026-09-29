@@ -151,7 +151,7 @@ mixin TopicLikeMixin on TopicInteractionStateBase {
           .doc(topicId);
 
       if (isLiked.value) {
-        // Nested subcollections only (YouTube-standard, no legacy writes)
+        // Nested subcollections only (no legacy writes)
         batch.set(topicLikeRef, {
           'userId': currentUserId,
           'timestamp': FieldValue.serverTimestamp(),

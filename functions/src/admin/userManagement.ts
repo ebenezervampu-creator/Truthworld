@@ -1,7 +1,8 @@
 import * as admin from "firebase-admin";
 import { onRequest } from "firebase-functions/v2/https";
-import { requireAdmin } from "../utils/auth";
+import { requireAdmin, requireRecentAdmin } from "../utils/auth";
 import { logger } from "firebase-functions/v2";
+import { purgeAllUserData } from "../users/userLifecycle";
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -49,7 +50,7 @@ export const searchUsers = onRequest(
       res.status(200).json({ users, nextCursor });
     } catch (error) {
       logger.error("[searchUsers] Error:", error);
-      res.status(500).json({ error: error instanceof Error ? error.message : "Internal error" });
+      res.status(500).json({ error: "Unable to search users. Please try again." });
     }
   }
 );
@@ -95,7 +96,7 @@ export const getUserSafetyProfile = onRequest(
       res.status(200).json(profile);
     } catch (error) {
       logger.error("[getUserSafetyProfile] Error:", error);
-      res.status(500).json({ error: error instanceof Error ? error.message : "Internal error" });
+      res.status(500).json({ error: "Unable to retrieve user safety profile." });
     }
   }
 );
@@ -119,6 +120,19 @@ export const moderateUser = onRequest(
       }
 
       const normalizedAction = (action || "").trim().toLowerCase();
+
+      // Require step-up re-authentication for high-impact destructive operations
+      if (
+        normalizedAction === "delete" ||
+        normalizedAction === "delete user" ||
+        normalizedAction === "delete account" ||
+        normalizedAction === "ban" ||
+        normalizedAction === "ban user"
+      ) {
+        const recentAdmin = await requireRecentAdmin(req, res, 1800);
+        if (!recentAdmin) return;
+      }
+
       const actionReason = reason || `Admin moderation action: ${action}`;
       const db = admin.firestore();
       const updates: Record<string, any> = {
@@ -180,6 +194,9 @@ export const moderateUser = onRequest(
         updates.isDeleted = true;
         updates.status = "deleted";
         updates.accountStatus = "DELETED";
+        await purgeAllUserData(userId).catch((err) => {
+          logger.warn(`[moderateUser] purgeAllUserData error for ${userId}:`, err);
+        });
       }
 
       await db.collection("users").doc(userId).set(updates, { merge: true });
@@ -197,7 +214,7 @@ export const moderateUser = onRequest(
       res.status(200).json({ success: true, action: normalizedAction, userId });
     } catch (error) {
       logger.error("[moderateUser] Error:", error);
-      res.status(500).json({ error: error instanceof Error ? error.message : "Internal error" });
+      res.status(500).json({ error: "Unable to process moderation action. Please try again." });
     }
   }
 );
@@ -211,7 +228,7 @@ export const consolidateUserAccounts = onRequest(
   },
   async (req, res) => {
     try {
-      const adminUser = await requireAdmin(req, res);
+      const adminUser = await requireRecentAdmin(req, res, 3600);
       if (!adminUser) return;
 
       const { email, primaryUid } = req.body;
@@ -294,7 +311,7 @@ export const consolidateUserAccounts = onRequest(
       });
     } catch (error) {
       logger.error("[consolidateUserAccounts] Error:", error);
-      res.status(500).json({ error: error instanceof Error ? error.message : "Internal error" });
+      res.status(500).json({ error: "Unable to consolidate accounts. Please try again." });
     }
   }
 );

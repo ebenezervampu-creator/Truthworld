@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:truthworld/core/widgets/truth_lottie_animation.dart';
 import 'package:truthworld/features/video/data/models/fact_check_data_parser.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/widgets/video_analysis_bottom_sheet.dart';
@@ -34,20 +35,30 @@ class VideoFactCheckCard extends StatelessWidget {
         return _buildLoadingSkeleton();
       }
 
-      // Hide entirely when no fact-check data
-      if (data.isEmpty && controller.video.factCheckUrl.isEmpty) {
-        return const SizedBox.shrink();
-      }
-
-      // If URL exists but data not loaded yet, trigger load and show skeleton
-      if (data.isEmpty && controller.video.factCheckUrl.isNotEmpty) {
+      // If URL exists and load hasn't been attempted yet, trigger once
+      if (data.isEmpty &&
+          controller.video.factCheckUrl.isNotEmpty &&
+          !controller.hasAttemptedFactCheck.value) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (controller.factCheckData.isEmpty &&
-              !controller.isLoadingFactCheck.value) {
+              !controller.isLoadingFactCheck.value &&
+              !controller.hasAttemptedFactCheck.value) {
             controller.loadFactCheckData(controller.video.factCheckUrl);
           }
         });
         return _buildLoadingSkeleton();
+      }
+
+      final parsed = FactCheckDataParser.parse(
+        data,
+        fallbackReport: controller.video.uiReport,
+        fallbackTrustScore: controller.video.trustScore > 0 ? controller.video.trustScore : null,
+        isVideoFactChecked: controller.video.isFactChecked,
+      );
+
+      // Hide entirely when no fact-check data and no fallback data available
+      if (data.isEmpty && parsed.isEmpty) {
+        return const SizedBox.shrink();
       }
 
       // Wrap entire card in entrance animation
@@ -64,18 +75,25 @@ class VideoFactCheckCard extends StatelessWidget {
             ),
           );
         },
-        child: _buildCard(context, data),
+        child: _buildCard(context, data, cachedParsed: parsed),
       );
     });
   }
 
-  Widget _buildCard(BuildContext context, Map<String, dynamic> data) {
-    final parsed = FactCheckDataParser.parse(
-      data,
-      fallbackReport: controller.video.uiReport,
-      fallbackTrustScore: controller.video.trustScore > 0 ? controller.video.trustScore : null,
-      isVideoFactChecked: controller.video.isFactChecked,
-    );
+  Widget _buildCard(
+    BuildContext context,
+    Map<String, dynamic> data, {
+    ParsedFactCheckData? cachedParsed,
+  }) {
+    final parsed = cachedParsed ??
+        FactCheckDataParser.parse(
+          data,
+          fallbackReport: controller.video.uiReport,
+          fallbackTrustScore: controller.video.trustScore > 0
+              ? controller.video.trustScore
+              : null,
+          isVideoFactChecked: controller.video.isFactChecked,
+        );
 
     return GestureDetector(
       onTap: () => _openFullAnalysis(context),
@@ -83,32 +101,13 @@ class VideoFactCheckCard extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          // Gradient background tint for disputed/low-trust content
-          gradient: parsed.needsUrgency
-              ? LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    parsed.urgencyColor.withValues(alpha: 0.08),
-                    AppColors.bgSurface,
-                  ],
-                )
-              : null,
-          color: parsed.needsUrgency ? null : AppColors.bgSurface,
-          borderRadius: BorderRadius.circular(16),
+          color: AppColors.bgSurface,
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: parsed.urgencyColor.withValues(alpha: parsed.needsUrgency ? 0.4 : 0.25),
-            width: parsed.needsUrgency ? 1.8 : 1.5,
+            color: parsed.needsUrgency
+                ? Colors.white.withValues(alpha: 0.25)
+                : AppColors.bgDivider.withValues(alpha: 0.6),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: parsed.urgencyColor.withValues(
-                alpha: parsed.needsUrgency ? 0.12 : 0.06,
-              ),
-              blurRadius: parsed.needsUrgency ? 20 : 12,
-              spreadRadius: parsed.needsUrgency ? 2 : 1,
-            ),
-          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -123,12 +122,22 @@ class VideoFactCheckCard extends StatelessWidget {
               parsed.confidenceTier,
               isDisputed: parsed.isDisputed,
               isCaution: parsed.isCaution,
+              totalClaims: parsed.claims.length,
+              isShortOverview: parsed.isShortOverview,
+              isFullGround: parsed.isFullGround,
             ),
 
             // ── Animated Trust Progress Bar ──
-            if (parsed.normalizedScore != null) ...[
+            if (parsed.normalizedScore != null || parsed.claims.isNotEmpty) ...[
               const SizedBox(height: 12),
-              _buildAnimatedTrustBar(parsed.normalizedScore!, parsed.scoreColor),
+              _buildAnimatedTrustBar(
+                parsed.normalizedScore ?? 100.0,
+                parsed.scoreColor,
+                totalClaims: parsed.claims.length,
+                verifiedCount: parsed.verifiedCount,
+                cautionCount: parsed.cautionCount,
+                falseCount: parsed.falseCount,
+              ),
             ],
 
             // ── Viewer Advisory ──
@@ -171,6 +180,8 @@ class VideoFactCheckCard extends StatelessWidget {
               totalClaims: parsed.claims.length,
               sourceCount: parsed.sources.length,
               isDisputed: parsed.isDisputed,
+              isShortOverview: parsed.isShortOverview,
+              isFullGround: parsed.isFullGround,
             ),
           ],
         ),
@@ -188,37 +199,56 @@ class VideoFactCheckCard extends StatelessWidget {
     String confidenceTier, {
     bool isDisputed = false,
     bool isCaution = false,
+    int totalClaims = 0,
+    bool isShortOverview = false,
+    bool isFullGround = false,
   }) {
     // Contextual header label
     final headerLabel = isDisputed
-        ? '⚠ DISPUTED CONTENT'
-        : (isCaution ? '⚠ REVIEW ADVISED' : 'AI CREDIBILITY CHECK');
-    final headerColor = isDisputed
-        ? AppColors.error
-        : (isCaution ? AppColors.warning : AppColors.textTertiary);
+        ? 'DISPUTED CONTENT'
+        : (isCaution
+            ? 'REVIEW ADVISED'
+            : (isShortOverview
+                ? 'SHORT FACT-CHECK • OVERVIEW'
+                : (isFullGround
+                    ? 'FULL GROUND FACT-CHECK • VERIFIED'
+                    : 'AI CREDIBILITY CHECK')));
+    const headerColor = Colors.white70;
+
+    final isNotScored = trustScore == null || trustScore <= 0 || trustLabel.toLowerCase().contains('not scored');
+    final headlineTitle = isNotScored
+        ? (isShortOverview
+            ? 'Epistemic Overview'
+            : (totalClaims > 0 ? '$totalClaims Claims Evaluated' : 'Credibility Analysis'))
+        : (isFullGround ? '$trustLabel (Ground Truth)' : trustLabel);
 
     return Row(
       children: [
-        // Shield icon with urgency-aware styling
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: scoreColor.withValues(alpha: 0.12),
-            shape: BoxShape.circle,
-            boxShadow: isDisputed
-                ? [
-                    BoxShadow(
-                      color: AppColors.error.withValues(alpha: 0.2),
-                      blurRadius: 8,
-                      spreadRadius: 1,
-                    ),
-                  ]
-                : null,
+        // Shield icon with clean styling & entrance scale animation
+        TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.85, end: 1.0),
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutBack,
+          builder: (context, scale, child) => Transform.scale(
+            scale: scale,
+            child: child,
           ),
-          child: Icon(
-            isDisputed ? Icons.gpp_bad_outlined : Icons.shield_outlined,
-            size: 18,
-            color: scoreColor,
+          child: Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white.withValues(alpha: 0.20)),
+            ),
+            child: isDisputed
+                ? const Icon(
+                    Icons.gpp_bad_outlined,
+                    size: 20,
+                    color: Colors.white,
+                  )
+                : TruthLottieAnimation.verifiedShield(
+                    size: 22,
+                  ),
           ),
         ),
         const SizedBox(width: 10),
@@ -229,11 +259,11 @@ class VideoFactCheckCard extends StatelessWidget {
             children: [
               Text(
                 headerLabel,
-                style: GoogleFonts.outfit(
+                style: GoogleFonts.roboto(
                   fontSize: 10,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.bold,
                   color: headerColor,
-                  letterSpacing: 1.2,
+                  letterSpacing: 1.0,
                 ),
               ),
               const SizedBox(height: 2),
@@ -241,11 +271,11 @@ class VideoFactCheckCard extends StatelessWidget {
                 children: [
                   Flexible(
                     child: Text(
-                      trustLabel,
+                      headlineTitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.roboto(
-                        fontSize: 14,
+                        fontSize: 15,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textPrimary,
                       ),
@@ -266,43 +296,33 @@ class VideoFactCheckCard extends StatelessWidget {
             ],
           ),
         ),
-        // Trust score badge with glow for emphasis
+        // Trust score badge
         if (trustScore != null && trustScore > 0)
           TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0.0, end: 1.0),
-            duration: const Duration(milliseconds: 700),
-            curve: Curves.elasticOut,
-            builder: (context, scale, child) {
-              return Transform.scale(
-                scale: 0.5 + (0.5 * scale),
-                child: Opacity(opacity: scale.clamp(0.0, 1.0), child: child),
-              );
-            },
+            tween: Tween(begin: 0.85, end: 1.0),
+            duration: const Duration(milliseconds: 350),
+            curve: Curves.easeOutBack,
+            builder: (context, scale, child) => Transform.scale(
+              scale: scale,
+              child: child,
+            ),
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: scoreColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
+                color: Colors.white.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: scoreColor.withValues(alpha: 0.3),
+                  color: Colors.white.withValues(alpha: 0.25),
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: scoreColor.withValues(alpha: 0.15),
-                    blurRadius: 10,
-                    spreadRadius: 1,
-                  ),
-                ],
               ),
               child: Text(
                 trustScore <= 5.0
                     ? '${trustScore.toStringAsFixed(1)}/5'
                     : '${trustScore.toInt()}%',
                 style: GoogleFonts.roboto(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w900,
-                  color: scoreColor,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
                 ),
               ),
             ),
@@ -312,7 +332,58 @@ class VideoFactCheckCard extends StatelessWidget {
   }
 
   // ── Animated Trust Progress Bar ──
-  Widget _buildAnimatedTrustBar(double score, Color color) {
+  Widget _buildAnimatedTrustBar(
+    double score,
+    Color color, {
+    int totalClaims = 0,
+    int verifiedCount = 0,
+    int cautionCount = 0,
+    int falseCount = 0,
+  }) {
+    if (totalClaims > 0) {
+      final verifiedFactor = verifiedCount / totalClaims;
+      final cautionFactor = cautionCount / totalClaims;
+      final falseFactor = falseCount / totalClaims;
+      return TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0.0, end: 1.0),
+        duration: const Duration(milliseconds: 900),
+        curve: Curves.easeOutCubic,
+        builder: (context, animFactor, _) {
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: Container(
+              height: 5,
+              width: double.infinity,
+              color: Colors.white.withValues(alpha: 0.08),
+              child: Row(
+                children: [
+                  if (verifiedFactor > 0)
+                    Expanded(
+                      flex: (verifiedFactor * 1000 * animFactor).toInt().clamp(1, 1000),
+                      child: Container(color: Colors.white),
+                    ),
+                  if (cautionFactor > 0)
+                    Expanded(
+                      flex: (cautionFactor * 1000 * animFactor).toInt().clamp(1, 1000),
+                      child: Container(color: Colors.white.withValues(alpha: 0.55)),
+                    ),
+                  if (falseFactor > 0)
+                    Expanded(
+                      flex: (falseFactor * 1000 * animFactor).toInt().clamp(1, 1000),
+                      child: Container(color: Colors.white.withValues(alpha: 0.20)),
+                    ),
+                  if (animFactor < 1.0)
+                    Expanded(
+                      flex: ((1.0 - animFactor) * 1000).toInt().clamp(1, 1000),
+                      child: const SizedBox.shrink(),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    }
     final targetValue = (score / 100.0).clamp(0.0, 1.0);
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.0, end: targetValue),
@@ -326,7 +397,7 @@ class VideoFactCheckCard extends StatelessWidget {
             child: LinearProgressIndicator(
               value: value,
               backgroundColor: Colors.white.withValues(alpha: 0.08),
-              valueColor: AlwaysStoppedAnimation<Color>(color),
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
             ),
           ),
         );
@@ -341,21 +412,21 @@ class VideoFactCheckCard extends StatelessWidget {
       pills.add(_ClaimPillData(
         icon: Icons.check_circle_rounded,
         label: '$verified Verified',
-        color: AppColors.success,
+        color: Colors.white,
       ));
     }
     if (caution > 0) {
       pills.add(_ClaimPillData(
         icon: Icons.warning_amber_rounded,
         label: '$caution Unconfirmed',
-        color: AppColors.warning,
+        color: Colors.white70,
       ));
     }
     if (falseCount > 0) {
       pills.add(_ClaimPillData(
-        icon: Icons.cancel_rounded,
+        icon: Icons.cancel_outlined,
         label: '$falseCount False',
-        color: AppColors.error,
+        color: Colors.white54,
       ));
     }
 
@@ -508,66 +579,81 @@ class VideoFactCheckCard extends StatelessWidget {
     required int totalClaims,
     required int sourceCount,
     required bool isDisputed,
+    bool isShortOverview = false,
+    bool isFullGround = false,
   }) {
     // Build contextual, curiosity-driving CTA text
     String ctaText;
     IconData ctaIcon;
-    Color? ctaAccent;
-
     if (isDisputed && falseCount > 0) {
-      ctaText = '$falseCount claim${falseCount > 1 ? 's' : ''} disputed — see why';
+      ctaText = isFullGround
+          ? '$falseCount ground-truth disputed claim${falseCount > 1 ? 's' : ''} — see report'
+          : '$falseCount claim${falseCount > 1 ? 's' : ''} disputed — see why';
       ctaIcon = Icons.gpp_bad_outlined;
-      ctaAccent = AppColors.error;
     } else if (falseCount > 0) {
-      ctaText = '$falseCount false claim${falseCount > 1 ? 's' : ''} found — see details';
+      ctaText = isFullGround
+          ? '$falseCount empirical claim${falseCount > 1 ? 's' : ''} debunked — see evidence'
+          : '$falseCount false claim${falseCount > 1 ? 's' : ''} found — see details';
       ctaIcon = Icons.warning_amber_rounded;
-      ctaAccent = AppColors.error;
     } else if (cautionCount > 0 && verifiedCount > 0) {
       ctaText = '$verifiedCount verified, $cautionCount need review';
       ctaIcon = Icons.fact_check_outlined;
-      ctaAccent = AppColors.warning;
     } else if (verifiedCount > 0) {
-      ctaText = 'See $verifiedCount verified claim${verifiedCount > 1 ? 's' : ''} & $sourceCount source${sourceCount > 1 ? 's' : ''}';
+      ctaText = isFullGround
+          ? 'See $verifiedCount ground-truth verified claim${verifiedCount > 1 ? 's' : ''} & $sourceCount source${sourceCount > 1 ? 's' : ''}'
+          : 'See $verifiedCount verified claim${verifiedCount > 1 ? 's' : ''} & $sourceCount source${sourceCount > 1 ? 's' : ''}';
       ctaIcon = Icons.verified_outlined;
-      ctaAccent = AppColors.success;
     } else if (totalClaims > 0) {
-      ctaText = 'See $totalClaims analyzed claim${totalClaims > 1 ? 's' : ''}';
+      ctaText = isShortOverview
+          ? 'View Epistemic Overview & $totalClaims Claims'
+          : 'See $totalClaims analyzed claim${totalClaims > 1 ? 's' : ''}';
       ctaIcon = Icons.fact_check_outlined;
     } else {
-      ctaText = 'View Full Analysis';
+      ctaText = isShortOverview
+          ? 'View Complete Epistemic Overview'
+          : (isFullGround ? 'View Ground-Truth Report' : 'View Full Analysis');
       ctaIcon = Icons.verified_user_outlined;
     }
 
-    ctaAccent ??= AppColors.textSecondary;
+    const ctaAccent = Colors.white;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 10),
       decoration: BoxDecoration(
-        color: ctaAccent.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(10),
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: ctaAccent.withValues(alpha: 0.15),
+          color: Colors.white.withValues(alpha: 0.12),
         ),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(ctaIcon, size: 16, color: ctaAccent),
-          const SizedBox(width: 6),
+          const SizedBox(width: 8),
           Text(
             ctaText,
             style: GoogleFonts.roboto(
               fontSize: 13,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.bold,
               color: AppColors.textPrimary,
             ),
           ),
-          const SizedBox(width: 4),
-          const Icon(
-            Icons.arrow_forward_ios_rounded,
-            size: 12,
-            color: AppColors.textTertiary,
+          const SizedBox(width: 6),
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.0, end: 2.5),
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.easeInOut,
+            builder: (context, dx, child) => Transform.translate(
+              offset: Offset(dx, 0),
+              child: child,
+            ),
+            child: const Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 12,
+              color: Colors.white54,
+            ),
           ),
         ],
       ),
@@ -588,14 +674,7 @@ class VideoFactCheckCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const SizedBox(
-            width: 16,
-            height: 16,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: AppColors.textTertiary,
-            ),
-          ),
+          TruthLottieAnimation.aiScanning(size: 22),
           const SizedBox(width: 10),
           Text(
             'Loading credibility analysis…',

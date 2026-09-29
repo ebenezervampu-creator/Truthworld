@@ -157,7 +157,7 @@ void main() {
         PieChartDataModel(title: '0-25%', percentage: 60.0, value: 60, color: 0xFF00FF00),
         PieChartDataModel(title: '25-50%', percentage: 40.0, value: 40, color: 0xFF0000FF),
       ]);
-      await tester.pump(const Duration(milliseconds: 250));
+      await tester.pumpAndSettle();
 
       expect(find.text('0-25%: 60 (60.0%)'), findsOneWidget);
       expect(find.text('25-50%: 40 (40.0%)'), findsOneWidget);
@@ -187,7 +187,7 @@ void main() {
         TrafficSourceStat(source: 'Search', count: 120, percentage: 75.0, sourceKey: 'search'),
         TrafficSourceStat(source: 'Suggested', count: 40, percentage: 25.0, sourceKey: 'suggested'),
       ]);
-      await tester.pump(const Duration(milliseconds: 250));
+      await tester.pumpAndSettle();
 
       expect(find.text('Search'), findsOneWidget);
       expect(find.text('120'), findsOneWidget);
@@ -229,6 +229,7 @@ void main() {
       await tester.pumpWidget(
         createHarness(CreatorTopCitiesCard(controller: ctrl)),
       );
+      await tester.pumpAndSettle();
 
       expect(find.text('Los Angeles'), findsOneWidget);
       expect(find.text('500'), findsOneWidget);

@@ -121,6 +121,20 @@ void main() {
         await tester.pump();
         expect(controller.customPricingTier.value, equals(r'$30'));
       }
+
+      // Tap $100/mo tier chip
+      final tier100 = find.text(r'$100/mo');
+      expect(tier100, findsOneWidget);
+      await tester.tap(tier100.first);
+      await tester.pump();
+      expect(controller.customPricingTier.value, equals(r'$100'));
+
+      // Tap $200/mo tier chip
+      final tier200 = find.text(r'$200/mo');
+      expect(tier200, findsOneWidget);
+      await tester.tap(tier200.first);
+      await tester.pump();
+      expect(controller.customPricingTier.value, equals(r'$200'));
     });
 
     testWidgets('CustomTierBreakdownTable displays breakdown for custom plan', (tester) async {
@@ -152,7 +166,10 @@ void main() {
       await tester.pump();
 
       expect(find.text('Custom Tiers Breakdown & Storage Comparison'), findsOneWidget);
+      expect(find.textContaining('50 GB Cloud Storage'), findsOneWidget);
       expect(find.textContaining('100 GB Cloud Storage'), findsOneWidget);
+      expect(find.textContaining('400 GB Storage'), findsOneWidget);
+      expect(find.textContaining('800 GB Storage'), findsOneWidget);
     });
 
     testWidgets('WhyChoosePlanCard renders advantages and bullet points', (tester) async {

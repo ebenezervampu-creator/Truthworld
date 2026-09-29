@@ -234,6 +234,31 @@ class MiniplayerMobileControls extends StatelessWidget {
           ),
         ),
 
+        // Bottom-left: Picture-in-Picture circular button
+        Positioned(
+          bottom: 8,
+          left: 8,
+          child: Tooltip(
+            message: 'Picture in Picture',
+            child: Material(
+              color: AppColors.bgPage.withValues(alpha: 0.65),
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: controller.enterPip,
+                child: const Padding(
+                  padding: EdgeInsets.all(6),
+                  child: Icon(
+                    Icons.picture_in_picture_alt_rounded,
+                    size: 16,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+
         // Bottom-right: Expand circular button
         Positioned(
           bottom: 8,
@@ -319,6 +344,12 @@ class MiniplayerDesktopControls extends StatelessWidget {
                   onTap: controller.toggleSubtitles,
                 );
               }),
+              const SizedBox(width: 6),
+              MiniplayerOverlayIconButton(
+                icon: Icons.picture_in_picture_alt_rounded,
+                tooltip: 'Picture in Picture (P)',
+                onTap: controller.enterPip,
+              ),
               const SizedBox(width: 6),
               MiniplayerOverlayIconButton(
                 icon: Icons.close_rounded,

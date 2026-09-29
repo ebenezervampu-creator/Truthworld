@@ -44,10 +44,12 @@ class AdvertiserPortalController extends BaseController
     if (Get.testMode) return;
     fetchChannelVideos();
     listenToBillingData();
+    initCampaignManagement();
     // Fetch videos and billing data when user gets authenticated
     addWorker(ever(AuthService.to.isAuthenticated, (_) {
       fetchChannelVideos();
       listenToBillingData();
+      initCampaignManagement();
     }));
     // Sync active campaign selections with real-time AdService campaigns list
     if (Get.isRegistered<AdService>()) {
@@ -60,6 +62,7 @@ class AdvertiserPortalController extends BaseController
     disposeSubtitles();
     disposeAudioDubs();
     disposeBilling();
+    disposeCampaignManagement();
     super.onClose();
   }
 

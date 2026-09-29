@@ -2,6 +2,8 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:truthworld/core/widgets/truth_lottie_animation.dart';
 import 'package:truthworld/features/video/data/models/fact_check_data_parser.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
@@ -32,7 +34,8 @@ class VideoAnalysisBottomSheet extends StatelessWidget {
       analysisCtrl = Get.put(VideoAnalysisController(), tag: tag);
     }
 
-    if (video.factCheckUrl.isNotEmpty && videoCtrl.factCheckData.isEmpty) {
+    if (videoCtrl.factCheckData.isEmpty &&
+        !videoCtrl.hasAttemptedFactCheck.value) {
       videoCtrl.loadFactCheckData(video.factCheckUrl);
     }
   }
@@ -103,11 +106,7 @@ class VideoAnalysisBottomSheet extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Icon(
-                      Icons.verified_user_outlined,
-                      size: 14,
-                      color: Colors.white,
-                    ),
+                    TruthLottieAnimation.verifiedShield(size: 16),
                     const SizedBox(width: 6),
                     Text(
                       'AI CREDIBILITY & ANALYSIS',
@@ -151,19 +150,41 @@ class VideoAnalysisBottomSheet extends StatelessWidget {
   }
 
   Widget _buildFactCheckContent() {
-    if (video.factCheckUrl.isEmpty) {
-      return VideoAnalysisEmptyFallback(video: video);
-    }
-
     return Obx(() {
       final reportData = videoCtrl.factCheckData;
       if (videoCtrl.isLoadingFactCheck.value) {
-        return const Center(
-          child: CircularProgressIndicator(color: AppColors.brand),
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 48),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TruthLottieAnimation.aiScanning(size: 56),
+                const SizedBox(height: 16),
+                Text(
+                  'SCANNING VIDEO FOR EMPIRICAL CLAIMS',
+                  style: GoogleFonts.roboto(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                    color: Colors.white70,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Cross-referencing verified knowledge bases…',
+                  style: GoogleFonts.roboto(
+                    fontSize: 13,
+                    color: AppColors.textTertiary,
+                  ),
+                ),
+              ],
+            ),
+          ),
         );
       }
 
-      if (reportData.isEmpty) {
+      if (reportData.isEmpty && video.factCheckUrl.isEmpty && video.uiReport == null) {
         return VideoAnalysisEmptyFallback(video: video);
       }
 
@@ -195,6 +216,7 @@ class VideoAnalysisBottomSheet extends StatelessWidget {
           verifiedCount: parsed.verifiedCount,
           cautionCount: parsed.cautionCount,
           falseCount: parsed.falseCount,
+          tierBadgeLabel: parsed.tierBadgeLabel,
         ),
         const SizedBox(height: 16),
 

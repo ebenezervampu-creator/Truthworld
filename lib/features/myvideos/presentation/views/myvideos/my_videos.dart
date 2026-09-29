@@ -14,7 +14,7 @@ import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 // ==========================================================================
-// YOUTUBE-STYLE THEME COLORS (Standardized)
+// THEME COLORS (Standardized)
 // ==========================================================================
 
 const Color bgColor = AppColors.bgPage;

@@ -20,6 +20,7 @@ class EditVideoController extends BaseController with ContentValidationMixin {
   late final RxBool isKidFriendly;
   late final RxBool showLikeCount;
   late final RxBool showDislikeCount;
+  late final RxBool autoChaptersEnabled;
 
   final GlobalKey<FormState> formKey = GlobalKey<FormState>();
 
@@ -43,6 +44,7 @@ class EditVideoController extends BaseController with ContentValidationMixin {
     isKidFriendly = video.isKidFriendly.obs;
     showLikeCount = video.showLikeCount.obs;
     showDislikeCount = video.showDislikeCount.obs;
+    autoChaptersEnabled = video.autoChaptersEnabled.obs;
   }
 
   void save() {
@@ -90,6 +92,8 @@ class EditVideoController extends BaseController with ContentValidationMixin {
       'isKidFriendly': isKidFriendly.value,
       'showLikeCount': showLikeCount.value,
       'showDislikeCount': showDislikeCount.value,
+      'autoChaptersEnabled': autoChaptersEnabled.value,
+      'aiFeatures': {'autoChapters': autoChaptersEnabled.value},
     };
 
     videoManagementController.updateVideo(video.id, updatedData);

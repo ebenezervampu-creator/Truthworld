@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/services/channel_wallet_service.dart';
+import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -56,12 +59,24 @@ void showGenerateAIFeaturesQuickModal(
   Video video,
   VideoManagementController controller,
 ) {
+  final currentChannel = Get.isRegistered<DashboardController>()
+      ? Get.find<DashboardController>().currentChannel.value
+      : null;
+  final effectiveChannelType =
+      currentChannel?.channelType ?? ChannelType.standard;
+  final videoDurationSec = video.durationValue.inSeconds;
+  final flatDubbingRate = ChannelWalletService.getFlatDubbingPricePerLanguage(
+    durationSeconds: videoDurationSec,
+    channelType: effectiveChannelType,
+  );
+  final dubbingTier =
+      ChannelWalletService.getDubbingDurationTier(videoDurationSec);
+
   final selectedLangs = <String>{'te', 'hi'}.obs;
   final selectedFeatures = <String>{
     'subtitles',
     'dubbing',
     'factcheck',
-    'summary',
     'chapters',
   }.obs;
   final isAccuracyMode = true.obs;
@@ -197,13 +212,14 @@ void showGenerateAIFeaturesQuickModal(
                     dense: true,
                     contentPadding: EdgeInsets.zero,
                     title: Text(
-                      'Audio Dubbing Tracks',
+                      'Audio Dubbing (Flat \$${flatDubbingRate.toStringAsFixed(2)}/lang • ${dubbingTier.label})',
                       style: AppTextStyles.bodyMedium.copyWith(
                         color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     subtitle: Text(
-                      'Generate voice audio in Telugu, Hindi, etc.',
+                      'Dubbing is NOT free: Flat rate for ${videoDurationSec > 0 ? VideoDurationUtils.formatDurationSeconds(videoDurationSec) : "detected duration"}. Charged per target language.',
                       style: AppTextStyles.caption.copyWith(
                         color: AppColors.textSecondary,
                       ),
@@ -234,27 +250,6 @@ void showGenerateAIFeaturesQuickModal(
                         : selectedFeatures.remove('factcheck'),
                   ),
                   CheckboxListTile(
-                    value: selectedFeatures.contains('summary'),
-                    activeColor: AppColors.brand,
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(
-                      'AI Video Summary',
-                      style: AppTextStyles.bodyMedium.copyWith(
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    subtitle: Text(
-                      'Generate smart video summary',
-                      style: AppTextStyles.caption.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    onChanged: (val) => (val ?? false)
-                        ? selectedFeatures.add('summary')
-                        : selectedFeatures.remove('summary'),
-                  ),
-                  CheckboxListTile(
                     value: selectedFeatures.contains('chapters'),
                     activeColor: AppColors.brand,
                     dense: true,
@@ -275,7 +270,41 @@ void showGenerateAIFeaturesQuickModal(
                         ? selectedFeatures.add('chapters')
                         : selectedFeatures.remove('chapters'),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.bgSurfaceHover,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.bgDivider),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Estimated Total Cost:',
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                        Text(
+                          '\$${ChannelWalletService.calculateAIFeatureCost(
+                            selectedFeatures: selectedFeatures.toSet(),
+                            targetLanguages: selectedLangs.toList(),
+                            durationSeconds: videoDurationSec,
+                            channelType: effectiveChannelType,
+                          ).toStringAsFixed(2)}',
+                          style: AppTextStyles.titleMedium.copyWith(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
@@ -314,6 +343,8 @@ void showGenerateAIFeaturesQuickModal(
                                   videoId: video.id,
                                   features: selectedFeatures.toList(),
                                   targetLanguages: selectedLangs.toList(),
+                                  durationSeconds: videoDurationSec,
+                                  channel: currentChannel,
                                   priorityMode: isAccuracyMode.value
                                       ? 'accuracy'
                                       : 'speed',

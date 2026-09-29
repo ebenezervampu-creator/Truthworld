@@ -46,6 +46,10 @@ abstract class RevenueAnalyticsStateBase extends BaseController {
   final RxDouble superchatRevenue = 0.0.obs;
   final RxDouble adsRevenue = 0.0.obs;
   final RxDouble watchTimeRevenue = 0.0.obs;
+  // Premium subscription revenue share earned from the monthly distribution
+  final RxDouble premiumSubsRevenue = 0.0.obs;
+  final RxDouble premiumSubsRevenueUSD = 0.0.obs;
+  final RxBool isPremiumInfoExpanded = false.obs;
 
   bool get isViewingINR => displayCurrency.value == 'INR';
   String get activeDisplayCurrencySymbol => isViewingINR ? '₹' : r'$';
@@ -73,8 +77,11 @@ abstract class RevenueAnalyticsStateBase extends BaseController {
 
   // Withdrawal States
   final RxBool isSubmittingWithdrawal = false.obs;
+  final RxBool isWithdrawalHeld = false.obs;
+  final RxString withdrawalHoldReason = ''.obs;
 
-  bool get canWithdraw => totalRevenue.value >= minimumWithdrawalAmount;
+  bool get canWithdraw =>
+      totalRevenue.value >= minimumWithdrawalAmount && !isWithdrawalHeld.value;
   double get remainingToWithdraw =>
       (minimumWithdrawalAmount - totalRevenue.value)
           .clamp(0.0, minimumWithdrawalAmount);

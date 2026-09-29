@@ -3,8 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/data/models/user_model.dart';
 import '../../test_helpers/mock_firebase.dart';
 
 Channel _createTestChannel({
@@ -176,13 +178,18 @@ void main() {
         equals('Channel Name'),
       );
 
-      // 3. User display name takes priority
+      // 3. Channel takes priority over userDisplayName when hasChannel is true
       profileManager.userDisplayName.value = 'Custom Display Name';
       expect(
         profileManager.getActiveDisplayName(
           userChannel: channel,
           hasChannel: true,
         ),
+        equals('Channel Name'),
+      );
+      // When no channel, userDisplayName is used
+      expect(
+        profileManager.getActiveDisplayName(),
         equals('Custom Display Name'),
       );
     });
@@ -270,6 +277,30 @@ void main() {
       expect(authService.isAuthenticated.value, isFalse);
       expect(authService.isUserSignedIn, isFalse);
       expect(authService.uid, isEmpty);
+    });
+
+    test('primaryAuthProvider returns none when unauthenticated', () {
+      expect(authService.primaryAuthProvider, equals('none'));
+    });
+
+    test('reauthenticate throws AuthException when unauthenticated', () async {
+      expect(
+        () => authService.reauthenticate(),
+        throwsA(isA<AuthException>().having((e) => e.code, 'code', equals('AUTH_UNAUTHENTICATED'))),
+      );
+    });
+
+    test('AccountStatus correctly supports and parses deactivated status', () {
+      expect(AccountStatus.deactivated.value, equals('deactivated'));
+      expect(AccountStatus.fromString('deactivated'), equals(AccountStatus.deactivated));
+      expect(AccountStatus.fromString('unknown'), equals(AccountStatus.active));
+    });
+
+    test('deleteAccountData purges subcollections and completes cleanly', () async {
+      await expectLater(
+        authService.firestoreSync.deleteAccountData('usr_test_delete'),
+        completes,
+      );
     });
   });
 }

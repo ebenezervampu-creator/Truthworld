@@ -26,6 +26,8 @@ class Video {
     String? videoUrl,
     this.hlsUrl = '',
     this.dashUrl = '',
+    this.storyboardUrl = '',
+    this.storyboardVariants = const [],
     this.adaptiveResolutions = const [],
     this.thumbnailVariants = const [],
     this.animatedPreviewUrl = '',
@@ -56,9 +58,11 @@ class Video {
     this.allowRatings = false,
     this.showLikeCount = true,
     this.showDislikeCount = true,
+    this.autoChaptersEnabled = true,
     this.trustScore = 0.0,
     this.sourceLinks = const [],
     this.isFactChecked = false,
+    this.factCheckTier = 'standard',
     this.isVerified = false,
     List<String>? likedBy,
     Map<String, String>? mediaSubtitles,
@@ -91,6 +95,8 @@ class Video {
     this.geminiApproved,
     this.isApproved,
     this.moderationSummary = '',
+    this.embedding,
+    this.jobId,
   })  : titleLowercase = (vTitleLowercase == null || vTitleLowercase.isEmpty)
             ? title.toLowerCase()
             : vTitleLowercase,
@@ -122,7 +128,9 @@ class Video {
         likedBy = likedBy ?? [],
         _directFactCheckUrl = factCheckUrl ?? '',
         _directTranscriptionUrl = transcriptionUrl ?? '',
-        _directMediaSubtitles = mediaSubtitles ?? const {} {
+        _directMediaSubtitles = mediaSubtitles ?? const {},
+        _directDubbedVideos = dubbedVideos ?? const {},
+        _directAudioTracks = audioTracks ?? const {} {
     // Populate the VideoMediaService static caches for instant synchronous retrieval
     VideoMediaCacheManager.populateCaches(
       id: id,
@@ -208,6 +216,8 @@ class Video {
   // Thumbnails & Previews
   final String thumbnailUrl;
   final List<String> thumbnailVariants;
+  final String storyboardUrl;
+  final List<String> storyboardVariants;
   final String animatedPreviewUrl;
 
   // Ownership & Context
@@ -248,9 +258,11 @@ class Video {
   final bool allowRatings;
   final bool showLikeCount;
   final bool showDislikeCount;
+  final bool autoChaptersEnabled;
   final double trustScore;
   final List<String>? sourceLinks;
   final bool isFactChecked;
+  final String factCheckTier; // "short" | "standard" | "full_ground"
   final bool isVerified;
   bool isSeen = false;
   final String? channelStatus;
@@ -260,14 +272,18 @@ class Video {
   final bool? geminiApproved;
   final bool? isApproved;
   final String moderationSummary;
+  final List<double>? embedding;
 
   // v8.0 Credibility Fields (lightweight)
   final String? trustLabel;
+  final String? jobId;
 
   // Direct fields (immediate availability without cache delay)
   final String _directFactCheckUrl;
   final String _directTranscriptionUrl;
   final Map<String, String> _directMediaSubtitles;
+  final Map<String, String> _directDubbedVideos;
+  final Map<String, String> _directAudioTracks;
 
   // Summary getter with priority: moderation.summary -> credibility.summary -> description
   String get summary => moderationSummary.isNotEmpty
@@ -280,10 +296,12 @@ class Video {
   Map<String, String> get mediaSubtitles => _directMediaSubtitles.isNotEmpty
       ? _directMediaSubtitles
       : (VideoMediaService.localizationCache[id]?.subtitles ?? const {});
-  Map<String, String> get dubbedVideos =>
-      VideoMediaService.localizationCache[id]?.dubbedVideos ?? const {};
-  Map<String, String> get audioTracks =>
-      VideoMediaService.localizationCache[id]?.audioTracks ?? const {};
+  Map<String, String> get dubbedVideos => _directDubbedVideos.isNotEmpty
+      ? _directDubbedVideos
+      : (VideoMediaService.localizationCache[id]?.dubbedVideos ?? const {});
+  Map<String, String> get audioTracks => _directAudioTracks.isNotEmpty
+      ? _directAudioTracks
+      : (VideoMediaService.localizationCache[id]?.audioTracks ?? const {});
   List<VideoChapter> get chapters =>
       VideoMediaService.streamingCache[id]?.chapters ?? const [];
 
@@ -388,6 +406,8 @@ class Video {
     String? videoUrl,
     String? hlsUrl,
     String? dashUrl,
+    String? storyboardUrl,
+    List<String>? storyboardVariants,
     List<VideoResolutionV2>? adaptiveResolutions,
     List<String>? thumbnailVariants,
     String? animatedPreviewUrl,
@@ -413,9 +433,11 @@ class Video {
     bool? allowRatings,
     bool? showLikeCount,
     bool? showDislikeCount,
+    bool? autoChaptersEnabled,
     double? trustScore,
     List<String>? sourceLinks,
     bool? isFactChecked,
+    String? factCheckTier,
     bool? isVerified,
     List<String>? likedBy,
     bool? isSeen,
@@ -426,6 +448,11 @@ class Video {
     String? coinBattleStance,
     String? moderationSummary,
     DateTime? scheduledPublishAt,
+    List<double>? embedding,
+    String? jobId,
+    Map<String, String>? audioTracks,
+    Map<String, String>? dubbedVideos,
+    Map<String, String>? mediaSubtitles,
   }) {
     return Video(
       id: id ?? this.id,
@@ -443,6 +470,8 @@ class Video {
       videoUrl: videoUrl,
       hlsUrl: hlsUrl ?? this.hlsUrl,
       dashUrl: dashUrl ?? this.dashUrl,
+      storyboardUrl: storyboardUrl ?? this.storyboardUrl,
+      storyboardVariants: storyboardVariants ?? this.storyboardVariants,
       adaptiveResolutions: adaptiveResolutions ?? this.adaptiveResolutions,
       thumbnailVariants: thumbnailVariants ?? this.thumbnailVariants,
       animatedPreviewUrl: animatedPreviewUrl ?? this.animatedPreviewUrl,
@@ -468,9 +497,11 @@ class Video {
       allowRatings: allowRatings ?? this.allowRatings,
       showLikeCount: showLikeCount ?? this.showLikeCount,
       showDislikeCount: showDislikeCount ?? this.showDislikeCount,
+      autoChaptersEnabled: autoChaptersEnabled ?? this.autoChaptersEnabled,
       trustScore: trustScore ?? this.trustScore,
       sourceLinks: sourceLinks ?? this.sourceLinks,
       isFactChecked: isFactChecked ?? this.isFactChecked,
+      factCheckTier: factCheckTier ?? this.factCheckTier,
       isVerified: isVerified ?? this.isVerified,
       likedBy: likedBy ?? this.likedBy,
       isSeen: isSeen ?? this.isSeen,
@@ -482,6 +513,11 @@ class Video {
       coinBattlePairVideoId:
           coinBattlePairVideoId ?? this.coinBattlePairVideoId,
       coinBattleStance: coinBattleStance ?? this.coinBattleStance,
+      embedding: embedding ?? this.embedding,
+      jobId: jobId ?? this.jobId,
+      audioTracks: audioTracks ?? this.audioTracks,
+      dubbedVideos: dubbedVideos ?? this.dubbedVideos,
+      mediaSubtitles: mediaSubtitles ?? this.mediaSubtitles,
     );
   }
 
@@ -501,6 +537,8 @@ class Video {
       originalUrl: originalUrl,
       hlsUrl: hlsUrl,
       dashUrl: dashUrl,
+      storyboardUrl: storyboardUrl,
+      storyboardVariants: storyboardVariants,
       viewCount: viewCount,
       likeCount: likeCount,
       dislikeCount: dislikeCount,
@@ -537,6 +575,8 @@ class Video {
       originalUrl: entity.originalUrl,
       hlsUrl: entity.hlsUrl,
       dashUrl: entity.dashUrl,
+      storyboardUrl: entity.storyboardUrl,
+      storyboardVariants: entity.storyboardVariants,
       viewCount: entity.viewCount,
       likeCount: entity.likeCount,
       dislikeCount: entity.dislikeCount,

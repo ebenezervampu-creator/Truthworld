@@ -30,8 +30,7 @@ import { aggregationLayer }        from "./09-aggregation";
 import { PerformanceLayer }        from "./10-performance";
 import { logger }                  from "../utils/logger";
 import { alerting }                from "../utils/alerting";
-import { PIPELINE_CONFIG, DEEP_RESEARCH_CONFIG, isDeepResearchEnabled }         from "../config";
-// v12.0: reputationService no longer used directly in credibility layer (scoring removed)
+import { PIPELINE_CONFIG, DEEP_RESEARCH_CONFIG, isDeepResearchEnabled } from "../config";
 // import { reputationService }       from "../services/reputationService";
 import { contentIntentDetector }    from "../services/contentIntentDetector";
 import { speakerTrustEngine }       from "../services/speakerTrustEngine";
@@ -40,6 +39,8 @@ import { SpeakerReputationService }  from "../services/speakerReputationService"
 import { registryService } from "../registry/RegistryService";
 import { sourceTrustService } from "../services/sourceTrustService";
 import { getAnalysisRepository, AnalysisRepository } from "../services/analysisRepository.js";
+import { costEngine } from "../services/cost-engine";
+import { JobTokenTracker } from "../utils/ai-utils";
 
 const db = () => admin.firestore();
 
@@ -164,24 +165,35 @@ export class CredibilityEngine {
 
       // 1.5 NEW: Domain & Stance Detection + Claim Extraction + Speaker Identities (v11.1 PARALLEL)
       logger.info("[Credibility] Stage 2: Parallelized Analysis & Extraction", { jobId, traceId });
-      
-      const deepResearchActive = isDeepResearchEnabled(executionPlan.synthesisTier || 'standard');
-      const maxExtractionTarget = deepResearchActive 
-        ? DEEP_RESEARCH_CONFIG.MAX_CLAIMS_INSTITUTIONAL 
-        : DEEP_RESEARCH_CONFIG.MAX_CLAIMS_STANDARD;
+      // All claims fact-checked with complete full ground truth verification
+      const deepResearchActive = isDeepResearchEnabled(executionPlan.synthesisTier || 'standard') || executionPlan.factCheckTier === 'full_ground' || Boolean(executionPlan.factCheckEnabled) || (executionPlan.factCheckTier as string) !== 'none';
 
-      // v19.0: Scale extraction timeout with video duration.
-      // The Cloud Function has 540s — give extraction generous time so claims are NEVER lost.
-      // Priority: extract ALL claims. A slow extraction is infinitely better than 0 claims.
+      // v20.0: Derive video duration accurately from transcript or utterances first
       const rawDuration = transcript.duration;
       const fallbackDurationSec = (transcript.utterances?.length > 0)
         ? Math.max(...transcript.utterances.map((u: any) => u.end || 0)) / 1000
         : 120;
       const videoDurationSec = rawDuration > 0 ? rawDuration : fallbackDurationSec;
-      const extractionBudgetMs = deepResearchActive ? 150_000       // Deep research: 2.5 min
-        : videoDurationSec >= 600 ? 120_000   // 10+ minutes: 2 min
-        : videoDurationSec >= 180 ? 90_000    // 3-10 minutes: 1.5 min
-        : 60_000;                              // < 3 minutes: 1 min
+
+      // TruthWorld Core Epistemic Policy: "No Claim Left Unchecked"
+      // In TruthWorld, no empirical claim is left unverified or filtered out.
+      // Every verifiable claim extracted from the video is verified.
+      // configuredMax (default 200) acts as a high system ceiling against memory exhaustion.
+      const configuredMax = typeof executionPlan.maxClaims === 'number' && executionPlan.maxClaims > 0
+        ? executionPlan.maxClaims
+        : 200;
+      const effectiveMaxClaims = Math.max(configuredMax, 200);
+
+      // Extraction concurrency (safe parallel Gemini calls for transcript chunks)
+      const extractionConcurrency = 5;
+
+      // v19.0 & v20.0: Scale extraction timeout with video duration.
+      // Cloud Function has 540s — give extraction generous time so claims are NEVER lost.
+      const extractionBudgetMs = deepResearchActive ? 180_000       // Deep research: 3 min
+        : videoDurationSec >= 1200 ? 210_000  // 20+ minutes: 3.5 min
+        : videoDurationSec >= 600 ? 150_000   // 10-20 minutes: 2.5 min
+        : videoDurationSec >= 180 ? 100_000   // 3-10 minutes: 1.6 min
+        : 60_000;                             // < 3 minutes: 1 min
 
       let extractionPartial = false;
       const [domainInfo, rawClaimsResult, speakerIdentities] = await Promise.all([
@@ -190,9 +202,9 @@ export class CredibilityEngine {
           logger.error("[Credibility] Domain detection failed, using safe defaults", { jobId, error: err?.message });
           return { domain: "General", stance: "Mixed", cautionLevel: "medium" as const, isLaunchNews: false, primaryIntent: "educational", isSensitive: false };
         }),
-        // v19.0: Extraction with duration-scaled budget (was hardcoded 30s — caused 0-claim failures on medium videos)
+        // v20.0: Extraction with duration-scaled budget and 45s chunks
         Promise.race([
-          this.extractionService.extractClaims(jobId, transcript, 60_000, maxExtractionTarget)
+          this.extractionService.extractClaims(jobId, transcript, 45_000, extractionConcurrency)
             .then(claims => ({ claims, partial: false }))
             .catch((err: any) => {
               logger.error("[Credibility] Primary extraction failed", { jobId, error: err?.message });
@@ -238,20 +250,18 @@ export class CredibilityEngine {
       const filteringReasons: string[] = [];
       const ranked = this.classifyAndRank(rawClaims);
 
-      // 4. Hard claim cap (v10.5: Scale based on Deep Research status)
-      const maxClaims = deepResearchActive 
-        ? DEEP_RESEARCH_CONFIG.MAX_CLAIMS_INSTITUTIONAL 
-        : DEEP_RESEARCH_CONFIG.MAX_CLAIMS_STANDARD;
+      // 4. Complete Fact-Checking: 100% of claims verified (Zero claims left unchecked)
+      const maxClaims = effectiveMaxClaims;
 
       const topClaims     = ranked.slice(0, maxClaims);
       const filteredCount = ranked.length - topClaims.length;
 
       if (filteredCount > 0) {
-        filteringReasons.push(`${filteredCount} claims filtered due to institutional importance ranking (Max: ${maxClaims})`);
+        filteringReasons.push(`${filteredCount} claims exceeded system safety ceiling (Max: ${maxClaims})`);
       }
 
-      logger.info("[Credibility] Claims filtered", {
-        jobId, total: ranked.length, kept: topClaims.length, filtered: filteredCount,
+      logger.info("[Credibility] Claims processed for complete verification", {
+        jobId, total: ranked.length, kept: topClaims.length, filtered: filteredCount, maxClaims, videoDurationSec
       });
 
       await EdgeLayer.updateStage(jobId, "credibility", { progress: 40 });
@@ -353,13 +363,13 @@ export class CredibilityEngine {
             effectiveGroundingMode = "always";
           }
 
-           // v10.6: Dynamic Batching — accounts for model, grounding, and deep research
+           // v20.0: Cost-Optimized Dynamic Batching — groups more claims per Gemini call to halve grounding fees
            const batchSize = (() => {
-             if (executionPlan.priorityMode === 'accuracy') return 2;
-             if (deepResearchActive) return 3;  // Pro + grounding: 3 claims per batch
-             if (effectiveGroundingMode === 'always' || domainInfo.domain === 'News' || domainInfo.domain === 'Technology') return 3;
-             if (effectiveGroundingMode === 'auto') return PIPELINE_CONFIG.BATCH_SIZE_GROUNDING;
-             return 5;  // standard Flash
+             if (executionPlan.priorityMode === 'accuracy') return 3;
+             if (deepResearchActive) return 4;  // Pro + grounding: 4 claims per batch
+             if (effectiveGroundingMode === 'always' || domainInfo.domain === 'News' || domainInfo.domain === 'Technology') return 6;
+             if (effectiveGroundingMode === 'auto') return PIPELINE_CONFIG.BATCH_SIZE_GROUNDING || 6;
+             return 6;  // standard Flash
            })();
 
           const jobData = jobDoc.data() || {};
@@ -566,8 +576,8 @@ export class CredibilityEngine {
       const durationSeconds = transcript.duration ?? 0;
       let synthesisTier: "standard" | "deep" | "podcast" = "standard";
 
-      if (durationSeconds > 1800 || pipelineMode === "debate" || executionPlan.contentFormat === "debate") {
-        synthesisTier = "deep"; // > 30m or Debate
+      if (executionPlan.factCheckTier === "full_ground" || executionPlan.synthesisTier === "deep" || durationSeconds > 1800 || pipelineMode === "debate" || executionPlan.contentFormat === "debate") {
+        synthesisTier = "deep"; // Full Ground fact-check, > 30m, or Debate
       } else if (pipelineMode === "multi" || executionPlan.contentFormat === "podcast") {
         synthesisTier = "podcast"; // Interviews/Podcasts
       }
@@ -713,6 +723,7 @@ export class CredibilityEngine {
         reviewTriggered:  false,
         reviewReason:     undefined,
         synthesisTier,
+        factCheckTier: executionPlan.factCheckTier || 'standard',
         isLongform:       durationSeconds > 600,
         isFinal:        true, 
         
@@ -788,7 +799,54 @@ export class CredibilityEngine {
       // 14. Store result
       await this.storeResult(jobId, userId, result);
 
-      // 15. Emit fact-complete
+      // 15. Cost Attribution — Track Gemini AI, Grounding, and Compute costs
+      //     (Previously untracked: the largest variable cost components)
+      const elapsedSec = (Date.now() - t0) / 1000;
+      const claimCount = rawClaims.length;
+      const verifiedCount = result.factCheckStats?.evaluatedClaims ?? 0;
+      const modelTier: "flash" | "pro" = deepResearchActive ? "pro" : "flash";
+
+      // Refined Cost Tracking: Read actual Vertex AI token usage captured during execution
+      const actualTokens = JobTokenTracker.getAndClear(jobId);
+
+      if (actualTokens && (actualTokens.extractionInputTokens > 0 || actualTokens.verificationInputTokens > 0)) {
+        logger.info(`[Credibility] Recording actual Vertex AI token costs for ${jobId}`, { actualTokens });
+        if (actualTokens.extractionInputTokens > 0 || actualTokens.extractionOutputTokens > 0) {
+          costEngine.recordGeminiCost(jobId, userId, "extraction", "flash", actualTokens.extractionInputTokens, actualTokens.extractionOutputTokens).catch(() => {});
+        }
+        if (actualTokens.verificationInputTokens > 0 || actualTokens.verificationOutputTokens > 0) {
+          costEngine.recordGeminiCost(jobId, userId, "verification", modelTier, actualTokens.verificationInputTokens, actualTokens.verificationOutputTokens).catch(() => {});
+        }
+        if (actualTokens.synthesisInputTokens > 0 || actualTokens.synthesisOutputTokens > 0) {
+          costEngine.recordGeminiCost(jobId, userId, "synthesis", "flash", actualTokens.synthesisInputTokens, actualTokens.synthesisOutputTokens).catch(() => {});
+        }
+      } else {
+        // Fallback: chunk-based estimates if usageMetadata was not surfaced
+        const extractionChunks = Math.max(1, Math.ceil(claimCount / 5));
+        const extractInputTokens = extractionChunks * 2000;
+        const extractOutputTokens = extractionChunks * 500;
+        costEngine.recordGeminiCost(jobId, userId, "extraction", "flash", extractInputTokens, extractOutputTokens).catch(() => {});
+
+        const verificationBatches = Math.max(1, Math.ceil(verifiedCount / 6));
+        const verifyInputTokens = verificationBatches * 3000;
+        const verifyOutputTokens = verificationBatches * 1000;
+        costEngine.recordGeminiCost(jobId, userId, "verification", modelTier, verifyInputTokens, verifyOutputTokens).catch(() => {});
+
+        costEngine.recordGeminiCost(jobId, userId, "synthesis", "flash", 15000, 5000).catch(() => {});
+      }
+
+      // Search Grounding: 1 query per verified claim that used grounding
+      const groundedClaims = allVerified.filter(c =>
+        c.richSources?.some((s: any) => s.retrievalMethod === "google_grounding")
+      ).length;
+      if (groundedClaims > 0) {
+        costEngine.recordGroundingCost(jobId, userId, groundedClaims).catch(() => {});
+      }
+
+      // Cloud Functions compute: credibility pipeline elapsed seconds × 1 vCPU
+      costEngine.recordComputeCost(jobId, userId, elapsedSec).catch(() => {});
+
+      // 16. Emit fact-complete
       const eventData: FactCompleteData = {
         honestRating:     null, // v12.0: Scoring removed
         claimsEvaluated:  result.factCheckStats.evaluatedClaims,

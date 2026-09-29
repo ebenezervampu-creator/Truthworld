@@ -100,6 +100,62 @@ async function runTests() {
   );
   console.log("✔ Test 5 passed: Malformed signature safely rejected");
 
+  // Test 6: Customer data sanitization
+  assert(
+    CashfreeService.cleanPhoneNumber("+91 98765 43210") === "9876543210",
+    "Should extract last 10 digits from formatted phone"
+  );
+  assert(
+    CashfreeService.cleanPhoneNumber(undefined) === "9999999999",
+    "Should provide fallback for undefined phone"
+  );
+  assert(
+    CashfreeService.cleanEmail("  CREATOR@TruthWorld.in  ") === "creator@truthworld.in",
+    "Should trim and lowercase valid emails"
+  );
+  assert(
+    CashfreeService.cleanCustomerId("user-uid_123$#@") === "user-uid_123",
+    "Should sanitize customer ID characters"
+  );
+  console.log("✔ Test 6 passed: Customer data sanitizers clean phone, email, and customer ID");
+
+  // Test 7: Subscription order tags sanitization
+  const tags = CashfreeService.sanitizeOrderTags({
+    purpose: "premium_subscription",
+    planId: "4k_factchecked_monthly",
+    autoPay: "true",
+    price: 249,
+  });
+  assert(tags.purpose === "premium_subscription", "Tag purpose preserved");
+  assert(tags.autoPay === "true", "Tag autoPay preserved");
+  assert(tags.price === "249", "Numeric tag serialized to string");
+  console.log("✔ Test 7 passed: Order and subscription tags sanitized properly");
+
+  // Test 8: Subscription webhook HMAC signature verification
+  const subWebhookPayload = JSON.stringify({
+    data: {
+      subscription: {
+        subscription_id: "sub_prem_12345_user",
+        sub_reference_id: "cf_sub_ref_67890",
+        subscription_status: "ACTIVE",
+      },
+    },
+    event: "SUBSCRIPTION_ACTIVATED",
+  });
+  const subTimestamp = String(Date.now());
+  const subSignature = crypto
+    .createHmac("sha256", testSecret)
+    .update(subTimestamp + subWebhookPayload)
+    .digest("base64");
+
+  const isSubVerified = CashfreeService.verifyWebhookSignature(
+    subSignature,
+    subWebhookPayload,
+    subTimestamp
+  );
+  assert(isSubVerified === true, "Subscription webhook payload must be verified with HMAC signature");
+  console.log("✔ Test 8 passed: Subscription webhook HMAC signature verified");
+
   console.log("\nAll Cashfree backend unit tests completed successfully!");
 }
 

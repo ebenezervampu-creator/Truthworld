@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/services/auth_service.dart';
@@ -78,7 +77,7 @@ class CommunityCommentItemWidget extends StatelessWidget {
                           children: [
                             Text(
                               userName,
-                              style: GoogleFonts.roboto(
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w600,
                                 fontSize: 13,
@@ -88,7 +87,7 @@ class CommunityCommentItemWidget extends StatelessWidget {
                               const SizedBox(width: 8),
                               Text(
                                 timeStr,
-                                style: GoogleFonts.roboto(
+                                style: const TextStyle(
                                   color: Colors.white54,
                                   fontSize: 11,
                                 ),
@@ -99,7 +98,7 @@ class CommunityCommentItemWidget extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text(
                           text,
-                          style: GoogleFonts.roboto(
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 13,
                             height: 1.3,
@@ -197,14 +196,14 @@ class CommunityCommentItemWidget extends StatelessWidget {
                                     !controller.isReplying.value;
                               },
                               borderRadius: BorderRadius.circular(12),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
+                              child: const Padding(
+                                padding: EdgeInsets.symmetric(
                                   horizontal: 4,
                                   vertical: 2,
                                 ),
                                 child: Text(
                                   'Reply',
-                                  style: GoogleFonts.roboto(
+                                  style: TextStyle(
                                     color: Colors.white70,
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,

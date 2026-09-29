@@ -19,50 +19,87 @@ class SubtitlesPanel extends StatelessWidget {
           title: 'Subtitles / CC',
           onBack: () => ctrl.activePanel.value = '',
           onClose: null,
-          actionIcon: Icons.tune_rounded,
-          onAction: () => ctrl.activePanel.value = 'subtitle_style',
+          actionIcon: Icons.settings_outlined,
+          onAction: () => ctrl.activePanel.value = 'subtitle_settings',
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            child: Obx(() {
+              if (ctrl.subtitleTracks.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 48,
+                    horizontal: 24,
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.closed_caption_disabled_rounded,
+                          size: 36,
+                          color: AppColors.textTertiary.withValues(alpha: 0.6),
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'No subtitles available',
+                          style: TS.bodySm,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+              return Column(
+                children: [
+                  const SizedBox(height: 6),
+                  ...ctrl.subtitleTracks.map((t) {
+                    final isSelected = ctrl.subtitlesEnabled.value &&
+                        ctrl.activeSubLang.value == t.label;
+                    return SelectTile(
+                      label: t.label,
+                      badge: t.langCode.toUpperCase(),
+                      selected: isSelected,
+                      onTap: () {
+                        if (isSelected) {
+                          ctrl.setSubtitles(enabled: false);
+                        } else {
+                          ctrl.setSubtitles(
+                            enabled: true,
+                            track: t,
+                          );
+                        }
+                      },
+                    );
+                  }),
+                  const SizedBox(height: 12),
+                ],
+              );
+            }),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class SubtitleSettingsPanel extends StatelessWidget {
+  const SubtitleSettingsPanel({required this.ctrl, super.key});
+  final TowerPlayerController ctrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        PanelHeader(
+          title: 'Subtitle Settings',
+          onBack: () => ctrl.activePanel.value = 'subtitles',
+          onClose: null,
         ),
         Expanded(
           child: SingleChildScrollView(
             child: Column(
               children: [
-                Obx(
-                  () => Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 6,
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.closed_caption_rounded,
-                          color: AppColors.textPrimary,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 16),
-                        Text(
-                          'Subtitles',
-                          style: TS.body.copyWith(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const Spacer(),
-                        Switch(
-                          value: ctrl.subtitlesEnabled.value,
-                          onChanged: (v) => ctrl.setSubtitles(enabled: v),
-                          activeThumbColor: PT.primary,
-                          activeTrackColor: PT.primary.withValues(alpha: 0.4),
-                          inactiveThumbColor: AppColors.textTertiary,
-                          inactiveTrackColor: AppColors.bgDivider,
-                          materialTapTargetSize:
-                              MaterialTapTargetSize.shrinkWrap,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const PlayerDivider(),
                 SettingsTile(
                   icon: Icons.tune_rounded,
                   title: 'Subtitle Appearance & Style',
@@ -70,39 +107,71 @@ class SubtitlesPanel extends StatelessWidget {
                   onTap: () => ctrl.activePanel.value = 'subtitle_style',
                 ),
                 const PlayerDivider(),
-                Obx(() {
-                  if (ctrl.subtitleTracks.isEmpty) {
-                    return const Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Center(
-                        child: Text(
-                          'No subtitles available',
-                          style: TS.bodySm,
+                Obx(
+                  () => Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 8,
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.sync_rounded,
+                          color: AppColors.textPrimary,
+                          size: 20,
                         ),
-                      ),
-                    );
-                  }
-                  return Column(
-                    children: ctrl.subtitleTracks
-                        .map(
-                          (t) => SelectTile(
-                            label: t.label,
-                            badge: t.langCode.toUpperCase(),
-                            selected:
-                                ctrl.subtitlesEnabled.value &&
-                                ctrl.activeSubLang.value == t.label,
-                            dimmed: !ctrl.subtitlesEnabled.value,
-                            onTap: ctrl.subtitlesEnabled.value
-                                ? () => ctrl.setSubtitles(
-                                      enabled: true,
-                                      track: t,
-                                    )
-                                : null,
-                          ),
-                        )
-                        .toList(),
-                  );
-                }),
+                        const SizedBox(width: 16),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Sync Timing Offset',
+                              style: TS.body.copyWith(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            Text(
+                              ctrl.subtitleOffsetMs.value == 0
+                                  ? 'Exact (0ms)'
+                                  : '${ctrl.subtitleOffsetMs.value > 0 ? "+" : ""}${ctrl.subtitleOffsetMs.value}ms',
+                              style: TS.bodySm.copyWith(
+                                color: ctrl.subtitleOffsetMs.value != 0
+                                    ? AppColors.textPrimary
+                                    : AppColors.textSecondary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          icon: const Icon(Icons.remove_circle_outline_rounded),
+                          iconSize: 20,
+                          color: AppColors.textPrimary,
+                          tooltip: 'Delay -100ms',
+                          onPressed: () => ctrl.adjustSubtitleOffset(-100),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.refresh_rounded),
+                          iconSize: 18,
+                          color: AppColors.textSecondary,
+                          tooltip: 'Reset offset',
+                          onPressed: ctrl.subtitleOffsetMs.value != 0
+                              ? ctrl.resetSubtitleOffset
+                              : null,
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.add_circle_outline_rounded),
+                          iconSize: 20,
+                          color: AppColors.textPrimary,
+                          tooltip: 'Advance +100ms',
+                          onPressed: () => ctrl.adjustSubtitleOffset(100),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
                 const PlayerDivider(),
                 ConfigureLanguagesButton(
                   onTap: () => showDialog(

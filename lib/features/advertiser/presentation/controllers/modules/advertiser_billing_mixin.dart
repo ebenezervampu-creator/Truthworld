@@ -88,7 +88,7 @@ mixin AdvertiserBillingMixin {
     });
   }
 
-  Future<void> topUpWallet(double amount) async {
+  Future<void> topUpWallet(double amount, {double? netAmount, double? taxAmount}) async {
     if (amount.isNaN || amount.isInfinite || amount < 1.0) {
       AppSnackbar.warning('Minimum wallet recharge amount is ₹1.00.');
       return;
@@ -96,31 +96,36 @@ mixin AdvertiserBillingMixin {
 
     try {
       final sanitizedAmount = double.parse(amount.toStringAsFixed(2));
+      final spendable = netAmount ?? double.parse((sanitizedAmount * (100 / 118)).toStringAsFixed(2));
+      final calculatedTax = taxAmount ?? double.parse((sanitizedAmount - spendable).toStringAsFixed(2));
+
       final paymentResult = await CashfreePaymentService.to.startPayment(
         amount: sanitizedAmount,
         purpose: 'advertiser_wallet',
         orderNote: 'Advertiser Wallet Top-Up',
         metadata: {
           'purpose': 'advertiser_wallet',
+          'netAmount': spendable,
+          'taxAmount': calculatedTax,
         },
       );
 
       if (paymentResult.success) {
-        walletBalance.value += amount;
+        walletBalance.value += spendable;
         transactions.insert(0, {
           'id':
               'INV-${DateTime.now().year}-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
           'date': 'Today',
           'description': 'Wallet Top-Up (Cashfree)',
-          'amount': amount,
+          'amount': sanitizedAmount,
           'status': 'Paid',
           'paymentMethod': 'Cashfree PG',
-          'tax': amount * 0.18,
-          'net': amount * 0.82,
+          'tax': calculatedTax,
+          'net': spendable,
         });
 
         AppSnackbar.success(
-          '₹${amount.toStringAsFixed(0)} added to your advertiser wallet balance successfully.',
+          '₹${spendable.toStringAsFixed(2)} added to your advertiser wallet balance successfully.',
           title: 'Wallet Recharged',
         );
       } else if (paymentResult.errorMessage != null &&

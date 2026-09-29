@@ -12,7 +12,7 @@ import 'package:truthworld/features/watchlater/presentation/controllers/watchlat
 import 'package:truthworld/theme/app_theme.dart';
 
 // ==========================================================================
-// YOUTUBE-STYLE THEME COLORS (Standardized)
+// THEME COLORS (Standardized)
 // ==========================================================================
 
 const Color bgColor = AppColors.bgPage;

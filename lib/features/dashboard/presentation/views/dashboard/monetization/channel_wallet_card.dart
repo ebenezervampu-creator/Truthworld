@@ -85,7 +85,7 @@ class ChannelWalletCard extends StatelessWidget {
                   ),
                 ),
                 child: Text(
-                  isCustom ? 'CUSTOM WHOLESALE' : 'STANDARD WALLET',
+                  isCustom ? 'CUSTOM WALLET' : 'STANDARD WALLET',
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
@@ -157,15 +157,28 @@ class ChannelWalletCard extends StatelessWidget {
                         color: Colors.white,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _buildBreakdownItem(
-                        label: isCustom ? 'Monthly Credits' : 'Trial Credit',
-                        amount: '\$${spendable.trialCreditRemaining.toStringAsFixed(2)}',
-                        icon: Icons.card_giftcard_rounded,
-                        color: Colors.green,
+                    if (spendable.trialCreditRemaining > 0) ...[
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildBreakdownItem(
+                          label: isCustom ? 'Monthly Credits' : 'Trial Credit',
+                          amount: '\$${spendable.trialCreditRemaining.toStringAsFixed(2)}',
+                          icon: Icons.card_giftcard_rounded,
+                          color: Colors.green,
+                        ),
                       ),
-                    ),
+                    ],
+                    if (isCustom && spendable.rolloverCredit > 0) ...[
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildBreakdownItem(
+                          label: 'Rollover Safe',
+                          amount: '\$${spendable.rolloverCredit.toStringAsFixed(2)}',
+                          icon: Icons.savings_rounded,
+                          color: const Color(0xFF38BDF8),
+                        ),
+                      ),
+                    ],
                     const SizedBox(width: 8),
                     Expanded(
                       child: _buildBreakdownItem(

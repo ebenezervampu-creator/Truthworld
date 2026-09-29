@@ -3,23 +3,33 @@
     "apps": [],
     "details": [
       {
-        "appID": "TEAMID.com.example.truthworld",
-        "paths": [
-          "/watch/*",
-          "/channel/*",
-          "/@*",
-          "/c/*",
-          "/user/*",
-          "/playlist/*",
-          "/topic/*",
-          "/topics/*",
-          "/T/*",
-          "/t/*",
-          "/studio/*",
-          "/advertiser/*",
-          "/ads/*"
+        "appIDs": [
+          "*.com.truthworld.app",
+          "TEAMID.com.truthworld.app"
+        ],
+        "components": [
+          { "/": "/watch/*" },
+          { "/": "/channel/*" },
+          { "/": "/@*" },
+          { "/": "/c/*" },
+          { "/": "/user/*" },
+          { "/": "/playlist/*" },
+          { "/": "/topic/*" },
+          { "/": "/topics/*" },
+          { "/": "/T/*" },
+          { "/": "/t/*" },
+          { "/": "/studio/*" },
+          { "/": "/advertiser/*" },
+          { "/": "/ads/*" },
+          { "/": "/post/*" },
+          { "/": "/community/*" }
         ]
       }
+    ]
+  },
+  "webcredentials": {
+    "apps": [
+      "TEAMID.com.truthworld.app"
     ]
   }
 }

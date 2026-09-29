@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/theme/app_theme.dart';
+import 'package:truthworld/core/utils/source_url_sanitizer.dart';
+import 'package:truthworld/features/video/data/models/claim_verdict_helper.dart';
+import 'package:truthworld/features/video/data/models/credibility_report.dart';
 
 class VideoAnalysisHelpers {
   static int normalizeTimestampToMs(dynamic raw) {
@@ -45,11 +47,7 @@ class VideoAnalysisHelpers {
 
 
   static Color getScoreColor(double score) {
-    if (score >= 90) return AppColors.success;
-    if (score >= 75) return const Color(0xFFA3E635);
-    if (score >= 60) return Colors.yellowAccent;
-    if (score >= 45) return AppColors.warning;
-    return AppColors.error;
+    return Colors.white;
   }
 
 
@@ -76,13 +74,18 @@ class VideoAnalysisHelpers {
         .toString()
         .trim();
     // Strip leading question marks, emojis, or clinical labels
-    rawText = rawText
-        .replaceFirst(
-          RegExp(r'^[?❔✅❌🟢⏳🔍📎💭👤⚖️❤️🗣️🕊📜💡⚠️\s]+'),
-          '',
-        )
-        .trim();
-    if (rawText.isEmpty) rawText = 'Claim #${index + 1}';
+    rawText = ClaimVerdictHelper.cleanClaimText(rawText, index);
+
+    var basisStr = '';
+    final rawBasis = claim['verdictBasis'] ?? claim['basis'];
+    if (rawBasis is List && rawBasis.isNotEmpty) {
+      basisStr = rawBasis
+          .map((b) => b.toString().trim())
+          .where((s) => s.isNotEmpty)
+          .join('\n\n');
+    } else if (rawBasis is String && rawBasis.isNotEmpty) {
+      basisStr = rawBasis;
+    }
 
     var rawResponse = (claim['response'] ??
             claim['reasoning'] ??
@@ -90,57 +93,50 @@ class VideoAnalysisHelpers {
             claim['explanation'] ??
             claim['correction'] ??
             claim['verificationSummary'] ??
+            (basisStr.isNotEmpty ? basisStr : null) ??
             claim['details'] ??
             claim['analysis'] ??
             claim['context'] ??
             claim['note'] ??
+            claim['aiNote'] ??
+            claim['aiResponse'] ??
+            claim['verdictReason'] ??
             '')
         .toString()
         .trim();
 
-    // If no AI reasoning is available, show honest fallback instead of fabricated text
+    rawResponse = ClaimVerdictHelper.cleanResponseText(rawResponse);
+
+    // If no AI reasoning is available, provide polite and informative takeaway from verdict
     if (rawResponse.isEmpty ||
         rawResponse.startsWith('This statement relies on contextual') ||
         rawResponse.startsWith('Summary unavailable')) {
-      rawResponse =
-          'Verification details are not yet available for this claim. '
-          'The analysis pipeline may still be processing or insufficient '
-          'evidence was found to provide detailed reasoning.';
+      final verdictInfo = ClaimVerdictHelper.resolveVerdict(claim);
+      rawResponse = verdictInfo.summaryTakeaway;
     }
 
     final realSources = <Map<dynamic, dynamic>>[];
     final rawSources = claim['sources'] ??
+        claim['effectiveSources'] ??
         claim['richSources'] ??
         claim['evidence'] ??
         claim['citations'] ??
         claim['references'];
     if (rawSources is List) {
       for (final s in rawSources) {
-        if (s is Map) {
-          final url = (s['url'] ?? s['directUrl'] ?? s['link'])?.toString();
-          if (url != null && url.isNotEmpty) {
-            realSources.add(s);
-          } else {
-            final title =
-                (s['title'] ?? s['author'] ?? s['domain'] ?? rawText)
-                    .toString();
-            realSources.add({
-              'title': title,
-              'url':
-                  'https://www.google.com/search?q=${Uri.encodeComponent(title)}',
-              'domain': 'google.com',
-              'snippet': s['snippet'] ?? 'Verified citation reference',
-            });
-          }
-        } else if (s is String && s.isNotEmpty) {
+        if (!SourceUrlSanitizer.isValidSource(s)) continue;
+        if (s is UISource) {
+          realSources.add(SourceUrlSanitizer.sanitizeSourceMap(s.toMap()));
+        } else if (s is Map) {
+          final sanitized = SourceUrlSanitizer.sanitizeSourceMap(Map<dynamic, dynamic>.from(s));
+          realSources.add(sanitized);
+        } else if (s is String && s.trim().isNotEmpty) {
+          final clean = SourceUrlSanitizer.sanitizeUrl(s, title: s);
           realSources.add({
-            'title': s,
-            'url': s.startsWith('http')
-                ? s
-                : 'https://www.google.com/search?q=${Uri.encodeComponent(s)}',
-            'domain': s.startsWith('http')
-                ? (Uri.tryParse(s)?.host ?? '')
-                : 'google.com',
+            'title': s.trim(),
+            'url': clean ?? '',
+            'directUrl': clean ?? '',
+            'domain': SourceUrlSanitizer.resolveDisplayDomain(clean, title: s),
             'snippet': 'Historical citation reference',
           });
         }
@@ -149,22 +145,23 @@ class VideoAnalysisHelpers {
 
     // Match global sources from report (legitimate cross-referencing)
     for (final s in allSources) {
-      if (s is Map) {
-        final sTitle = (s['title'] ?? s['author'] ?? s['domain'] ?? '')
+      if (!SourceUrlSanitizer.isValidSource(s)) continue;
+      final sMap = s is UISource
+          ? SourceUrlSanitizer.sanitizeSourceMap(s.toMap())
+          : (s is Map ? SourceUrlSanitizer.sanitizeSourceMap(Map<dynamic, dynamic>.from(s)) : null);
+      if (sMap != null) {
+        final sTitle = (sMap['title'] ?? sMap['author'] ?? sMap['domain'] ?? '')
             .toString()
             .toLowerCase();
         final keywords =
             rawText.toLowerCase().split(' ').where((w) => w.length > 3);
         if (keywords.any(sTitle.contains)) {
-          if (!realSources.any((existing) => existing['title'] == s['title'])) {
-            realSources.add(s);
+          if (!realSources.any((existing) => existing['title'] == sMap['title'])) {
+            realSources.add(sMap);
           }
         }
       }
     }
-
-    // No fabricated sources — if the pipeline returned none, show empty honestly.
-    // The UI layer handles the "no sources available" state gracefully.
 
     return (
       cleanText: rawText,

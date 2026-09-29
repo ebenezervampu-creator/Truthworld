@@ -9,7 +9,7 @@ import {
   ExecutionPlan,
   ChannelType,
 } from "../types";
-import { normalizeLanguageCodes } from "../../shared/language-normalizer";
+import { normalizeLanguageCodes, normalizeLanguageCode } from "../../shared/language-normalizer";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -120,7 +120,7 @@ export class InputLayer {
       generateDubbing: config.generateDubbing,
       genLangSubs: config.genLangSubs,
       channelType: config.channelType,
-      maxClaims: 100,
+      maxClaims: 200,
       priority: config.priority ?? "normal",
       skipCache: false,
     };
@@ -141,7 +141,8 @@ export class InputLayer {
       const chars = words * COST_RATES.avgCharsPerWord;
       const langCount = plan.languages.length;
 
-      const foreignLangs = plan.languages.filter((l) => l !== "en").length;
+      const sourceLang = normalizeLanguageCode(plan.primaryLanguage || "en");
+      const foreignLangs = plan.languages.filter((l) => normalizeLanguageCode(l) !== sourceLang).length;
       cost += chars * COST_RATES.translationPerCharacter * foreignLangs;
 
       if (plan.generateDubbing) {

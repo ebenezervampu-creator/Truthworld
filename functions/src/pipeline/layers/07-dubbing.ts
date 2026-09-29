@@ -33,7 +33,7 @@ import {
 import { translationService } from "../services/translation";
 import { ttsService }         from "../services/tts";
 import { mediaService }       from "../services/media";
-import { costEngine }         from "../services/cost-engine";
+import { costEngine, getFlatDubbingPricePerLanguage } from "../services/cost-engine";
 import { speakerProfilingService } from "../services/speaker-profiling";
 import { audioIdentityService } from "../services/audio-identity";
 import { DistributionLayer }  from "./04-distribution";
@@ -556,7 +556,7 @@ export class DubbingEngine {
           );
 
           const syncInstructions = this.buildSyncInstructions(normalised, ttsUrls);
-          audioUrl = await this.stitchAudio(jobId, ttsUrls, syncInstructions);
+          audioUrl = await this.stitchAudio(jobId, ttsUrls, syncInstructions, targetLang);
 
           // Studio Mastering: Apply Acoustic Identity via DSP Rules Engine
           let dspFilters = undefined;
@@ -606,11 +606,108 @@ export class DubbingEngine {
           },
           pricing: {
             channelType: executionPlan.channelType || "standard",
-            ratePerLanguageUSD: executionPlan.channelType === "custom" ? 0.25 : 0.50,
-            voiceCloneIncluded: executionPlan.channelType === "custom",
-            tier: executionPlan.channelType === "custom" ? "partner_discount" : "standard_retail",
+            ratePerLanguageUSD: getFlatDubbingPricePerLanguage(
+              executionPlan.duration || 0,
+              executionPlan.channelType || "standard"
+            ),
+            voiceCloneIncluded: executionPlan.dubbingMode === "voice_clone",
+            tier: "raw_at_cost",
           },
         });
+
+        // 🚀 Real-time Audio & Dubbed Video Propagation to Video Collection
+        try {
+          const jobSnap = await db().collection("video_jobs").doc(jobId).get();
+          const jobData = jobSnap.data() as JobData;
+          const linkedVideoIds = jobData?.linkedVideoIds || [];
+          if (jobData?.videoId && !linkedVideoIds.includes(jobData.videoId)) {
+            linkedVideoIds.push(jobData.videoId);
+          }
+
+          const directAudioUrl = audioUrl
+            ? (audioUrl.startsWith("gs://")
+                ? `https://storage.googleapis.com/${bucket.name}/${audioUrl.replace(`gs://${bucket.name}/`, "")}`
+                : audioUrl)
+            : "";
+          const directVideoUrl = videoResult
+            ? (videoResult.startsWith("gs://")
+                ? `https://storage.googleapis.com/${bucket.name}/${videoResult.replace(`gs://${bucket.name}/`, "")}`
+                : videoResult)
+            : "";
+
+          const audioUpdates: Record<string, string> = {};
+          if (directAudioUrl) {
+            audioUpdates[targetLang] = directAudioUrl;
+            if (rawTargetLang && rawTargetLang !== targetLang) {
+              audioUpdates[rawTargetLang] = directAudioUrl;
+            }
+          }
+
+          const dubbedUpdates: Record<string, string> = {};
+          if (directVideoUrl) {
+            dubbedUpdates[targetLang] = directVideoUrl;
+            if (rawTargetLang && rawTargetLang !== targetLang) {
+              dubbedUpdates[rawTargetLang] = directVideoUrl;
+            }
+          }
+
+          if (Object.keys(audioUpdates).length > 0 || Object.keys(dubbedUpdates).length > 0) {
+            for (const vid of linkedVideoIds) {
+              const videoDocUpdate: any = {
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              };
+              if (Object.keys(audioUpdates).length > 0) {
+                videoDocUpdate.audioTracks = audioUpdates;
+                videoDocUpdate["media.audioTracks"] = audioUpdates;
+              }
+              if (Object.keys(dubbedUpdates).length > 0) {
+                videoDocUpdate.dubbedVideos = dubbedUpdates;
+                videoDocUpdate["media.dubbedVideos"] = dubbedUpdates;
+              }
+
+              await db().collection("videos").doc(vid).set(videoDocUpdate, { merge: true });
+
+              await db().collection("videos").doc(vid).collection("media").doc("localization").set({
+                ...(Object.keys(audioUpdates).length > 0 ? { audioTracks: audioUpdates } : {}),
+                ...(Object.keys(dubbedUpdates).length > 0 ? { dubbedVideos: dubbedUpdates } : {}),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              }, { merge: true });
+            }
+
+            // Also update the job_outputs document's audioTracks and dubbed maps
+            const jobOutputAudio: any = {
+              updatedAt: Date.now(),
+            };
+            if (Object.keys(audioUpdates).length > 0) {
+              jobOutputAudio.audioTracks = audioUpdates;
+            }
+            if (directVideoUrl || directAudioUrl) {
+              jobOutputAudio.dubbed = {
+                [targetLang]: {
+                  audioUrl: directAudioUrl,
+                  path: directVideoUrl || directAudioUrl,
+                  videoUrl: directVideoUrl,
+                  language: targetLang,
+                  updatedAt: Date.now(),
+                },
+                ...(rawTargetLang && rawTargetLang !== targetLang ? {
+                  [rawTargetLang]: {
+                    audioUrl: directAudioUrl,
+                    path: directVideoUrl || directAudioUrl,
+                    videoUrl: directVideoUrl,
+                    language: rawTargetLang,
+                    updatedAt: Date.now(),
+                  },
+                } : {}),
+              };
+            }
+
+            await db().collection("job_outputs").doc(jobId).set(jobOutputAudio, { merge: true });
+            logger.info("[Dubbing] Propagated audio tracks to video collection", { jobId, targetLang, rawTargetLang, videoCount: linkedVideoIds.length });
+          }
+        } catch (propErr) {
+          logger.error("[Dubbing] Failed to propagate audio tracks to videos", { jobId, err: String(propErr) });
+        }
       }
 
       // ✅ Cost tracking: record media processing cost (estimated from processing time)
@@ -856,11 +953,12 @@ export class DubbingEngine {
   private async stitchAudio(
     jobId:            string,
     audioUrls:        string[],
-    _syncInstructions: SyncInstruction[]
+    _syncInstructions: SyncInstruction[],
+    targetLang:       string
   ): Promise<string> {
     const valid = audioUrls.filter((u) => u !== "");
     if (valid.length === 0) throw new Error("No valid TTS audio segments to stitch");
-    return mediaService.mergeAudioChunks(jobId, valid);
+    return mediaService.mergeAudioChunks(jobId, valid, targetLang);
   }
 
   // ─── Phase 3: Premium Stitching Logic ────────────────────────────────────────

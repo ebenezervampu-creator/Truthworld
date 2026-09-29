@@ -9,6 +9,7 @@
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
     "test": "ts-node src/notifications/__tests__/notifications_features.test.ts",
+    "test:ai": "ts-node src/pipeline/__tests__/ai_features_backend.test.ts",
     "benchmark": "npx ts-node src/benchmark/index.ts",
     "benchmark:scalability": "npx ts-node src/benchmark/backend_scalability.test.ts"
   },

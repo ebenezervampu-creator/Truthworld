@@ -49,7 +49,7 @@ void main() {
         userAvatarUrl: '',
         tierId: 'tier_bronze',
         tierName: 'Bronze Supporter',
-        price: 1.99,
+        price: 2.0,
         joinedAt: DateTime(2026, 1, 15),
       );
       final m2 = ChannelMember(
@@ -58,7 +58,7 @@ void main() {
         userAvatarUrl: '',
         tierId: 'tier_silver',
         tierName: 'Silver VIP',
-        price: 4.99,
+        price: 5.0,
         joinedAt: DateTime(2026, 2, 15),
       );
 
@@ -94,7 +94,7 @@ void main() {
       final tier = ChannelMembershipTier(
         id: 'tier_supporter',
         name: 'Supporter',
-        price: 0.10,
+        price: 1.0,
         perks: const ['Perk 1'],
         memberCount: 1, // Tier aggregate counter has 1
       );
@@ -104,7 +104,7 @@ void main() {
         userAvatarUrl: '',
         tierId: 'tier_supporter',
         tierName: 'Supporter',
-        price: 0.10,
+        price: 1.0,
         joinedAt: DateTime(2026, 3),
       );
 
@@ -113,7 +113,7 @@ void main() {
 
       // Critical assertion: 1 member + 1 tier memberCount MUST NOT equal 2! It must equal 1!
       expect(controller.totalActiveMembers, equals(1));
-      expect(controller.monthlyRecurringRevenue, equals(0.10));
+      expect(controller.monthlyRecurringRevenue, equals(1.0));
     });
 
     test('totalActiveMembers deduplicates multiple records for the same user', () {
@@ -190,6 +190,65 @@ void main() {
       );
       controller.members.assignAll([inrMember]);
       expect(controller.primaryCurrencySymbol, equals('₹'));
+    });
+
+    test('noAdsForMembers applies 70/30 MRR split when enabled and 100/0 when disabled', () {
+      final tier = ChannelMembershipTier(
+        id: 'tier_1',
+        name: 'Tier 1',
+        price: 100.0,
+        perks: const [],
+        memberCount: 1,
+      );
+      controller.members.clear();
+      controller.tiers.assignAll([tier]);
+
+      // When false (default)
+      controller.noAdsForMembers.value = false;
+      expect(controller.monthlyRecurringRevenue, equals(100.0));
+      expect(controller.creatorMonthlyRecurringRevenue, equals(100.0));
+      expect(controller.platformMonthlyRecurringRevenue, equals(0.0));
+
+      // When true (Member Ad-Free active -> 70% creator / 30% platform)
+      controller.noAdsForMembers.value = true;
+      expect(controller.monthlyRecurringRevenue, equals(100.0));
+      expect(controller.creatorMonthlyRecurringRevenue, equals(70.0));
+      expect(controller.platformMonthlyRecurringRevenue, equals(30.0));
+    });
+
+    test('popularPerkSuggestions and starter bundles include ad-free and 4K Ultra HD perks', () {
+      expect(
+        MembershipsController.popularPerkSuggestions,
+        contains('No ads while watching this channel'),
+      );
+      expect(
+        MembershipsController.popularPerkSuggestions,
+        contains('4K Ultra HD (2160p) video streaming'),
+      );
+      expect(
+        MembershipsController.popularPerkSuggestions,
+        contains('Channel Premium: Ad-free & 4K streaming'),
+      );
+      final allStarterTiers =
+          MembershipsController.starterBundles.expand((b) => b.tiers).toList();
+      final silverTier = allStarterTiers.firstWhere(
+        (t) => t.id == 'tier_silver',
+      );
+      expect(
+        silverTier.perks,
+        contains('No ads while watching this channel'),
+      );
+      expect(
+        silverTier.perks,
+        contains('4K Ultra HD (2160p) video streaming'),
+      );
+      final fanClubTier = allStarterTiers.firstWhere(
+        (t) => t.id == 'tier_fan_club',
+      );
+      expect(
+        fanClubTier.perks,
+        contains('Channel Premium: Ad-free & 4K Ultra HD streaming'),
+      );
     });
   });
 

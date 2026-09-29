@@ -110,6 +110,8 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
             (weights['knowledgeQuality'] ?? 0.0) * 1.5;
         weights['watchCompletion'] =
             (weights['watchCompletion'] ?? 0.0) * 1.3;
+        weights['twoTowerAffinity'] =
+            (weights['twoTowerAffinity'] ?? 0.0) * 1.25;
         weights['trending'] = (weights['trending'] ?? 0.0) * 0.7;
       case CognitiveArchetype.curiousExplorer:
         weights['freshness'] = (weights['freshness'] ?? 0.0) * 1.4;
@@ -118,6 +120,8 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
       case CognitiveArchetype.focusedSpecialist:
         weights['topicAffinity'] = (weights['topicAffinity'] ?? 0.0) * 1.4;
         weights['channelAffinity'] = (weights['channelAffinity'] ?? 0.0) * 1.3;
+        weights['twoTowerAffinity'] =
+            (weights['twoTowerAffinity'] ?? 0.0) * 1.30;
         weights['freshness'] = (weights['freshness'] ?? 0.0) * 0.8;
       case CognitiveArchetype.actionOrientedConsumer:
         weights['engagement'] = (weights['engagement'] ?? 0.0) * 1.35;

@@ -141,7 +141,7 @@ class AudiencePage extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 24),
-                    // YouTube-style Realtime Live Subscribers of channel Banner
+                    // Realtime Live Subscribers of channel Banner
                     buildAudienceLiveSubscriberBanner(
                       context: context,
                       channelId: channelId,
@@ -162,7 +162,7 @@ class AudiencePage extends StatelessWidget {
                       subtitleColor: subtitleColor,
                     ),
                     const SizedBox(height: 24),
-                    // YouTube-style Demographics Breakdown Sections
+                    // Demographics Breakdown Sections
                     buildAudienceDemographicsMatrix(
                       controller: controller,
                       isDarkMode: isDarkMode,

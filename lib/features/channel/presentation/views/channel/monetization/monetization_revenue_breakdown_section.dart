@@ -165,9 +165,21 @@ class ChannelRevenueBreakdownSection extends StatelessWidget {
             platformShare: 0.0,
           ),
           ChannelRevenueRow(
-            label: 'Memberships (100% Creator)',
-            creatorShare: controller.membershipsRevenue,
-            platformShare: 0.0,
+            label: isCustom
+                ? 'Memberships (100% Creator)'
+                : (breakdown.isMemberAdFreeEnabled
+                    ? 'Memberships (70% Creator / 30% Platform - Ad-Free)'
+                    : 'Memberships (100% Creator)'),
+            creatorShare: isCustom
+                ? controller.membershipsRevenue
+                : (breakdown.isMemberAdFreeEnabled
+                    ? controller.membershipsRevenue * 0.70
+                    : controller.membershipsRevenue),
+            platformShare: isCustom
+                ? 0.0
+                : (breakdown.isMemberAdFreeEnabled
+                    ? controller.membershipsRevenue * 0.30
+                    : 0.0),
           ),
 
         ],

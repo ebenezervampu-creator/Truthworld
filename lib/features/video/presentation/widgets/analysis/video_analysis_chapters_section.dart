@@ -70,13 +70,13 @@ import 'package:truthworld/theme/app_theme.dart';
                   Get.back();
                 }
               },
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(12),
               child: Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: AppColors.bgSurface,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.bgDivider),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.bgDivider.withValues(alpha: 0.7)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -127,6 +127,7 @@ import 'package:truthworld/theme/app_theme.dart';
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textPrimary,
+                        fontFamily: TWTypography.uiFamily,
                       ),
                     ),
                     if (topics.isNotEmpty) ...[
@@ -141,10 +142,10 @@ import 'package:truthworld/theme/app_theme.dart';
                               vertical: 3,
                             ),
                             decoration: BoxDecoration(
-                              color: AppColors.brand.withValues(alpha: 0.12),
+                              color: Colors.white.withValues(alpha: 0.08),
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
-                                color: AppColors.brand.withValues(alpha: 0.25),
+                                color: Colors.white.withValues(alpha: 0.12),
                               ),
                             ),
                             child: Text(
@@ -152,7 +153,8 @@ import 'package:truthworld/theme/app_theme.dart';
                               style: context.twTypography.caption.copyWith(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w500,
-                                color: AppColors.textPrimary,
+                                color: AppColors.textSecondary,
+                                fontFamily: TWTypography.uiFamily,
                               ),
                             ),
                           );
@@ -170,46 +172,48 @@ import 'package:truthworld/theme/app_theme.dart';
   }
 
   Widget _buildChapterTrustBadge(BuildContext context, num trustIndex) {
-    final double score100;
     final String label;
     if (trustIndex <= 10.0) {
-      score100 = trustIndex * 10.0;
       label = trustIndex.toStringAsFixed(1);
     } else {
-      score100 = trustIndex.toDouble();
       label = '${trustIndex.toInt()}%';
     }
-    final color = VideoAnalysisHelpers.getScoreColor(score100);
 
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 8,
-        vertical: 2,
-      ),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: 0.35)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(
-            Icons.star_rounded,
-            size: 12,
-            color: Colors.white,
-          ),
-          const SizedBox(width: 3),
-          Text(
-            label,
-            style: context.twTypography.caption.copyWith(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.85, end: 1.0),
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOutBack,
+      builder: (context, scale, child) => Transform.scale(scale: scale, child: child),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 8,
+          vertical: 2,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.star_rounded,
+              size: 12,
               color: Colors.white,
-              fontFamily: TWTypography.uiFamily,
             ),
-          ),
-        ],
+            const SizedBox(width: 3),
+            Text(
+              label,
+              style: context.twTypography.caption.copyWith(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                fontFamily: TWTypography.uiFamily,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

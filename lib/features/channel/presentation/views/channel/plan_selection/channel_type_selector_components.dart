@@ -225,7 +225,7 @@ class ChannelTypeBenefitsBox extends StatelessWidget {
             ),
             const ChannelTypeBulletPoint(
               text:
-                  r'Flexible Plans: Choose an infrastructure plan ($15, $30, $45/mo etc.) tailored to your needs',
+                  r'Flexible Plans: Choose an infrastructure plan ($15, $30, $45, $100, $200/mo etc.) tailored to your needs',
             ),
             const ChannelTypeBulletPoint(
               text:
@@ -237,7 +237,7 @@ class ChannelTypeBenefitsBox extends StatelessWidget {
             ),
             const ChannelTypeBulletPoint(
               text:
-                  'Cash-Out Rule: Direct & instant cash withdrawals on all earnings',
+                  'Cash-Out Rule: Per-video cash withdrawal unlocks after 1,000 views and 10 hours watch time (100% creator retention)',
             ),
             const SizedBox(height: 12),
             const Divider(height: 1, color: AppColors.bgDivider),
@@ -254,7 +254,7 @@ class ChannelTypeBenefitsBox extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              r'Custom channels give you maximum economic leverage. Truthworld takes 0% revenue share from ads, premium subscriptions, superchats, and memberships (100% creator retention). Custom channels simply select an infrastructure plan tier ($15, $30, $45/mo etc.).',
+              r'Custom channels give you maximum economic leverage. Truthworld takes 0% revenue share from ads, premium subscriptions, superchats, and memberships (100% creator retention). Custom channels simply select an infrastructure plan tier ($15, $30, $45, $100, $200/mo etc.).',
               style: TextStyle(
                 fontSize: 12,
                 color: isDark

@@ -1,7 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/bindings/app_bindings.dart';
+import 'package:truthworld/core/config/app_flavor.dart';
 import 'package:truthworld/core/utils/route_guards.dart';
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/widgets/deferred_widget.dart';
@@ -85,11 +87,11 @@ import 'package:truthworld/features/video/presentation/views/downloadpage/downlo
     deferred as downloads;
 import 'package:truthworld/features/video/presentation/views/upload/create_content_screen.dart';
 import 'package:truthworld/features/video/presentation/views/upload/models/upload_type.dart';
+import 'package:truthworld/features/video/presentation/views/upload/pages/upload_dubbing_page.dart';
+import 'package:truthworld/features/video/presentation/views/upload/pages/upload_subtitles_page.dart';
 import 'package:truthworld/features/video/presentation/views/upload/upload_selection_screen.dart';
 import 'package:truthworld/features/video/presentation/views/video_screen.dart'
     deferred as video_screen;
-import 'package:truthworld/features/wallet/presentation/bindings/user_wallet_binding.dart';
-import 'package:truthworld/features/wallet/presentation/views/user_wallet_screen.dart';
 import 'package:truthworld/features/watchhistory/presentation/bindings/watch_history_binding.dart';
 import 'package:truthworld/features/watchhistory/presentation/views/watchhistory/watchhistory.dart'
     deferred as history;
@@ -102,6 +104,39 @@ class AppPages {
     GetPage(
       name: '/',
       page: () {
+        if (AppFlavor.isStudio) {
+          return DeferredWidget(
+            loader: dashboard.loadLibrary,
+            builder: () => dashboard.DashboardScreen(),
+          );
+        }
+        if (AppFlavor.isAdmin) {
+          final user = FirebaseAuth.instance.currentUser;
+          final email = user?.email?.toLowerCase();
+          final isOwner = email != null && (
+            email == 'ebenezervampy@towervsp.com' ||
+            email == 'ebenezervampu@towervsp.com' ||
+            email == 'ebenezervampu4@gmail.com' ||
+            email == 'admin@truthworld.com'
+          );
+          final hasAdminClaim = isOwner || (Get.isRegistered<AdminController>() && Get.find<AdminController>().isAdmin.value);
+          if (hasAdminClaim) {
+            return DeferredWidget(
+              loader: admin_dashboard.loadLibrary,
+              builder: () => admin_dashboard.AdminDashboardScreen(),
+            );
+          }
+          return DeferredWidget(
+            loader: admin_login.loadLibrary,
+            builder: () => admin_login.AdminLoginScreen(),
+          );
+        }
+        if (AppFlavor.isAdvertiser) {
+          return DeferredWidget(
+            loader: advertiser_portal.loadLibrary,
+            builder: () => advertiser_portal.AdvertiserPortalScreen(),
+          );
+        }
         if (kIsWeb) {
           final host = Uri.base.host.toLowerCase();
           if (host.startsWith('admin') || host.contains('admin.truthworld.in')) {
@@ -136,6 +171,18 @@ class AppPages {
         return const Home();
       },
       binding: BindingsBuilder(() {
+        if (AppFlavor.isStudio) {
+          DashboardBinding().dependencies();
+          return;
+        }
+        if (AppFlavor.isAdmin) {
+          AdminBinding().dependencies();
+          return;
+        }
+        if (AppFlavor.isAdvertiser) {
+          AdvertiserBinding().dependencies();
+          return;
+        }
         if (kIsWeb) {
           final host = Uri.base.host.toLowerCase();
           if (host.startsWith('admin') || host.contains('admin.truthworld.in')) {
@@ -189,8 +236,23 @@ class AppPages {
     ),
     GetPage(
       name: '/home',
-      page: Home.new,
-      binding: HomeBinding(),
+      page: () {
+        if (AppFlavor.isStudio) {
+          return DeferredWidget(
+            loader: dashboard.loadLibrary,
+            builder: () => dashboard.DashboardScreen(),
+          );
+        }
+        return const Home();
+      },
+      middlewares: [HomeRedirectMiddleware()],
+      binding: BindingsBuilder(() {
+        if (AppFlavor.isStudio) {
+          DashboardBinding().dependencies();
+          return;
+        }
+        HomeBinding().dependencies();
+      }),
     ),
     GetPage(
       name: '/channelscreen',
@@ -213,6 +275,7 @@ class AppPages {
         loader: history.loadLibrary,
         builder: () => history.WatchHistory(),
       ),
+      middlewares: [ConsumerRouteGuard()],
       binding: WatchHistoryBinding(),
     ),
     GetPage(
@@ -221,13 +284,14 @@ class AppPages {
         loader: liked_video.loadLibrary,
         builder: () => liked_video.LikedVideoScreen(),
       ),
+      middlewares: [ConsumerRouteGuard()],
       binding: LikedVideosBinding(),
     ),
     GetPage(
       name: '/watchlater',
       page: () => const WatchLaterScreen(),
       binding: WatchLaterBinding(),
-      middlewares: [AuthGuard()],
+      middlewares: [ConsumerRouteGuard(), AuthGuard()],
     ),
     GetPage(
       name: '/playlistscreen',
@@ -235,6 +299,7 @@ class AppPages {
         loader: playlist_screen.loadLibrary,
         builder: () => playlist_screen.PlaylistScreen(),
       ),
+      middlewares: [ConsumerRouteGuard()],
       binding: PlaylistBinding(),
     ),
     GetPage(
@@ -243,7 +308,7 @@ class AppPages {
         loader: following_topics.loadLibrary,
         builder: () => following_topics.FollowingTopicsPage(),
       ),
-      middlewares: [AuthGuard()],
+      middlewares: [ConsumerRouteGuard(), AuthGuard()],
       binding: TopicsBinding(),
     ),
     GetPage(
@@ -252,6 +317,7 @@ class AppPages {
         loader: explore_topics.loadLibrary,
         builder: () => explore_topics.ExploreTopicsPage(),
       ),
+      middlewares: [ConsumerRouteGuard()],
       binding: TopicsBinding(),
     ),
     GetPage(
@@ -260,7 +326,7 @@ class AppPages {
         loader: my_videos.loadLibrary,
         builder: () => my_videos.MyVideos(),
       ),
-      middlewares: [AuthGuard()],
+      middlewares: [ConsumerRouteGuard(), AuthGuard()],
       binding: MyVideosBinding(),
     ),
     GetPage(
@@ -269,7 +335,7 @@ class AppPages {
         loader: channel_details.loadLibrary,
         builder: () => channel_details.ChannelDetailsPage(),
       ),
-      middlewares: [ChannelDetailsRedirectMiddleware()],
+      middlewares: [ConsumerRouteGuard(), ChannelDetailsRedirectMiddleware()],
       binding: ChannelBinding(),
     ),
     GetPage(
@@ -287,7 +353,7 @@ class AppPages {
         );
       },
       preventDuplicates: false,
-      middlewares: [VideoScreenRedirectMiddleware()],
+      middlewares: [ConsumerRouteGuard(), VideoScreenRedirectMiddleware()],
       binding: VideoBinding(),
     ),
     GetPage(
@@ -305,6 +371,7 @@ class AppPages {
         );
       },
       preventDuplicates: false,
+      middlewares: [ConsumerRouteGuard()],
       binding: VideoBinding(),
     ),
     GetPage(
@@ -322,23 +389,7 @@ class AppPages {
         );
       },
       preventDuplicates: false,
-      binding: VideoBinding(),
-    ),
-    GetPage(
-      name: '/video/:videoId',
-      page: () {
-        final video = Get.arguments?['video'];
-        final videoId = video?.id ??
-            Get.parameters['videoId'] ??
-            Get.parameters['v'] ??
-            Get.parameters['id'];
-        return DeferredWidget(
-          loader: video_screen.loadLibrary,
-          builder: () =>
-              video_screen.VideoScreen(videoTag: videoId as String?),
-        );
-      },
-      preventDuplicates: false,
+      middlewares: [ConsumerRouteGuard()],
       binding: VideoBinding(),
     ),
     GetPage(
@@ -356,6 +407,7 @@ class AppPages {
         );
       },
       preventDuplicates: false,
+      middlewares: [ConsumerRouteGuard()],
       binding: VideoBinding(),
     ),
     GetPage(
@@ -373,6 +425,61 @@ class AppPages {
         );
       },
       preventDuplicates: false,
+      middlewares: [ConsumerRouteGuard()],
+      binding: VideoBinding(),
+    ),
+    GetPage(
+      name: '/video/:videoId',
+      page: () {
+        final video = Get.arguments?['video'];
+        final videoId = video?.id ??
+            Get.parameters['videoId'] ??
+            Get.parameters['v'] ??
+            Get.parameters['id'];
+        return DeferredWidget(
+          loader: video_screen.loadLibrary,
+          builder: () =>
+              video_screen.VideoScreen(videoTag: videoId as String?),
+        );
+      },
+      preventDuplicates: false,
+      middlewares: [ConsumerRouteGuard()],
+      binding: VideoBinding(),
+    ),
+    GetPage(
+      name: '/v/:videoId',
+      page: () {
+        final video = Get.arguments?['video'];
+        final videoId = video?.id ??
+            Get.parameters['videoId'] ??
+            Get.parameters['v'] ??
+            Get.parameters['id'];
+        return DeferredWidget(
+          loader: video_screen.loadLibrary,
+          builder: () =>
+              video_screen.VideoScreen(videoTag: videoId as String?),
+        );
+      },
+      preventDuplicates: false,
+      middlewares: [ConsumerRouteGuard()],
+      binding: VideoBinding(),
+    ),
+    GetPage(
+      name: '/shorts/:videoId',
+      page: () {
+        final video = Get.arguments?['video'];
+        final videoId = video?.id ??
+            Get.parameters['videoId'] ??
+            Get.parameters['v'] ??
+            Get.parameters['id'];
+        return DeferredWidget(
+          loader: video_screen.loadLibrary,
+          builder: () =>
+              video_screen.VideoScreen(videoTag: videoId as String?),
+        );
+      },
+      preventDuplicates: false,
+      middlewares: [ConsumerRouteGuard()],
       binding: VideoBinding(),
     ),
     // New upload routes with deep link support
@@ -387,6 +494,18 @@ class AppPages {
       page: () => const CreateContentScreen(
         uploadType: UploadType.video,
       ),
+      binding: VideoFeatureBinding(),
+      middlewares: [AuthGuard()],
+    ),
+    GetPage(
+      name: '/upload/subtitles',
+      page: () => const UploadSubtitlesPage(),
+      binding: VideoFeatureBinding(),
+      middlewares: [AuthGuard()],
+    ),
+    GetPage(
+      name: '/upload/dubbing',
+      page: () => const UploadDubbingPage(),
       binding: VideoFeatureBinding(),
       middlewares: [AuthGuard()],
     ),
@@ -492,12 +611,32 @@ class AppPages {
       binding: ChannelBinding(),
     ),
     GetPage(
+      name: '/@:handle',
+      page: () {
+        final channel = Get.arguments?['channel'];
+        return DeferredWidget(
+          loader: channel_details.loadLibrary,
+          builder: () => channel_details.ChannelDetailsPage(
+            channel: channel as Channel?,
+          ),
+        );
+      },
+      binding: ChannelBinding(),
+    ),
+    GetPage(
       name: '/category',
       page: CategoryPage.new,
+      middlewares: [ConsumerRouteGuard()],
       binding: CategoryBinding(),
     ),
     GetPage(
       name: '/topic/:slug',
+      page: () => const TopicPage(),
+      middlewares: [TopicRedirectMiddleware()],
+      binding: TopicsBinding(),
+    ),
+    GetPage(
+      name: '/topics/:slug',
       page: () => const TopicPage(),
       middlewares: [TopicRedirectMiddleware()],
       binding: TopicsBinding(),
@@ -531,15 +670,13 @@ class AppPages {
     ),
     GetPage(
       name: '/user-wallet',
-      page: () => const UserWalletScreen(),
-      middlewares: [AuthGuard()],
-      binding: UserWalletBinding(),
+      page: () => const SizedBox.shrink(),
+      middlewares: [AuthGuard(), WalletRedirectMiddleware()],
     ),
     GetPage(
       name: '/wallet',
-      page: () => const UserWalletScreen(),
-      middlewares: [AuthGuard()],
-      binding: UserWalletBinding(),
+      page: () => const SizedBox.shrink(),
+      middlewares: [AuthGuard(), WalletRedirectMiddleware()],
     ),
     GetPage(
       name: '/feedback',
@@ -559,6 +696,7 @@ class AppPages {
         loader: downloads.loadLibrary,
         builder: () => downloads.DownloadsPage(),
       ),
+      middlewares: [ConsumerRouteGuard()],
     ),
     GetPage(
       name: '/privacy',
@@ -588,7 +726,7 @@ class AppPages {
         loader: subscriptions.loadLibrary,
         builder: () => subscriptions.SubscriptionsPage(),
       ),
-      middlewares: [AuthGuard()],
+      middlewares: [ConsumerRouteGuard(), AuthGuard()],
       binding: SubscriptionsBinding(),
     ),
     GetPage(
@@ -597,6 +735,7 @@ class AppPages {
         loader: discover.loadLibrary,
         builder: () => discover.DiscoverChannelsPage(),
       ),
+      middlewares: [ConsumerRouteGuard()],
     ),
     GetPage(
       name: '/explore-topics',
@@ -604,6 +743,7 @@ class AppPages {
         loader: explore_topics.loadLibrary,
         builder: () => explore_topics.ExploreTopicsPage(),
       ),
+      middlewares: [ConsumerRouteGuard()],
     ),
     GetPage(
       name: '/about',
@@ -612,6 +752,7 @@ class AppPages {
     GetPage(
       name: '/search',
       page: () => const SearchPage(),
+      middlewares: [ConsumerRouteGuard()],
       binding: BindingsBuilder(() {
         Get.lazyPut(app.SearchController.new);
       }),
@@ -658,16 +799,19 @@ class AppPages {
     GetPage(
       name: '/trending',
       page: TrendingVideosPage.new,
+      middlewares: [ConsumerRouteGuard()],
       binding: TrendingBinding(),
     ),
     GetPage(
       name: '/browse',
       page: CategoryPage.new,
+      middlewares: [ConsumerRouteGuard()],
       binding: CategoryBinding(),
     ),
     GetPage(
       name: '/clips',
       page: () => const ClipsPage(),
+      middlewares: [ConsumerRouteGuard()],
       binding: BindingsBuilder(() {
         Get.lazyPut<UserClipsController>(UserClipsController.new);
       }),

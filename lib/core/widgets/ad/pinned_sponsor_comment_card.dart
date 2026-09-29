@@ -13,6 +13,7 @@ class PinnedSponsorCommentCard extends StatelessWidget {
   const PinnedSponsorCommentCard({
     required this.ad,
     this.videoId,
+    this.contextChannelId = '',
     this.onOpenDiscussion,
     this.isInModal = false,
     super.key,
@@ -20,6 +21,9 @@ class PinnedSponsorCommentCard extends StatelessWidget {
 
   final AdItem ad;
   final String? videoId;
+
+  /// The channel this comment is pinned on. Used for 70% ad revenue attribution.
+  final String contextChannelId;
   final VoidCallback? onOpenDiscussion;
   final bool isInModal;
 
@@ -28,7 +32,11 @@ class PinnedSponsorCommentCard extends StatelessWidget {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (Get.isRegistered<AdService>()) {
         try {
-          AdService.to.recordImpression(ad.id);
+          AdService.to.recordImpression(
+            ad.id,
+            adType: 'comment',
+            channelId: contextChannelId,
+          );
         } catch (e, stackTrace) {
           ErrorHandler.log(
             e,

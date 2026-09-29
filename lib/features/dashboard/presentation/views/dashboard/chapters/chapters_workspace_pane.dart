@@ -175,7 +175,7 @@ class ChaptersWorkspacePane extends StatelessWidget {
                         Icons.download_rounded,
                         color: Colors.white,
                       ),
-                      tooltip: 'Import from YouTube description',
+                      tooltip: 'Import from description',
                       onPressed: () => ChapterDialogs.showImportDialog(
                         context,
                         controller: controller,
@@ -187,7 +187,7 @@ class ChaptersWorkspacePane extends StatelessWidget {
                         Icons.upload_rounded,
                         color: Colors.white,
                       ),
-                      tooltip: 'Export YouTube timestamps',
+                      tooltip: 'Export timestamps',
                       onPressed: controller.exportToClipboard,
                     ),
                     IconButton(
@@ -270,6 +270,9 @@ class ChaptersWorkspacePane extends StatelessWidget {
                   ],
                 ),
               ),
+
+            // YouTube-style Automatic Chapters Toggle Bar
+            _buildAutoChaptersBar(context),
 
             // Chapters List & Timeline Editor
             Expanded(
@@ -365,6 +368,107 @@ class ChaptersWorkspacePane extends StatelessWidget {
           );
         }),
       ],
+    );
+  }
+
+  Widget _buildAutoChaptersBar(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: isDarkMode
+            ? AppColors.bgSurface.withValues(alpha: 0.6)
+            : const Color(0xFFF1F5F9),
+        border: Border(bottom: BorderSide(color: borderColor)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.auto_awesome,
+            size: 18,
+            color: isDarkMode ? Colors.white70 : Colors.black87,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Automatic Chapters',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Obx(() {
+                      final hasManual = controller.currentChapters.isNotEmpty;
+                      final isAutoOn = controller.autoChaptersEnabled.value;
+
+                      String badgeText;
+                      Color badgeColor;
+                      Color badgeTextColor;
+
+                      if (hasManual) {
+                        badgeText = 'Manual Override Active';
+                        badgeColor =
+                            const Color(0xFF10B981).withValues(alpha: 0.15);
+                        badgeTextColor = const Color(0xFF10B981);
+                      } else if (!isAutoOn) {
+                        badgeText = 'Auto-Chapters Off';
+                        badgeColor =
+                            const Color(0xFFEF4444).withValues(alpha: 0.15);
+                        badgeTextColor = const Color(0xFFEF4444);
+                      } else {
+                        badgeText = 'AI Auto Fallback';
+                        badgeColor =
+                            const Color(0xFF3B82F6).withValues(alpha: 0.15);
+                        badgeTextColor = const Color(0xFF3B82F6);
+                      }
+
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: badgeColor,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          badgeText,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: badgeTextColor,
+                          ),
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+                Text(
+                  'Manual description timestamps (0:00, 0:10, 0:20) always override auto-chapters. Turning off hides auto-chapters.',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: textSecondaryColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Obx(
+            () => Switch(
+              value: controller.autoChaptersEnabled.value,
+              onChanged: controller.toggleAutoChapters,
+              activeColor: AppColors.brand,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

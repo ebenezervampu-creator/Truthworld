@@ -246,6 +246,101 @@ void main() {
       expect(find.byType(PlaylistVideosSection), findsOneWidget);
       expect(find.byType(PlaylistThumbnailSection), findsOneWidget);
       expect(find.byType(PlaylistDesktopFooterActions), findsOneWidget);
+
+      // Verify layout ordering:
+      // Left column: 1 (Name) then 2 (Description)
+      // Right column: 3 (Type / Visibility) then 4 (Videos)
+      // Bottom: 5 (Thumbnail)
+      final nameOffset = tester.getTopLeft(find.byType(PlaylistNameSection));
+      final descOffset =
+          tester.getTopLeft(find.byType(PlaylistDescriptionSection));
+      final visibilityOffset =
+          tester.getTopLeft(find.byType(PlaylistVisibilitySection));
+      final videosOffset =
+          tester.getTopLeft(find.byType(PlaylistVideosSection));
+      final thumbnailOffset =
+          tester.getTopLeft(find.byType(PlaylistThumbnailSection));
+
+      // 1 before 2 in left column
+      expect(nameOffset.dy, lessThan(descOffset.dy));
+      expect(nameOffset.dx, equals(descOffset.dx));
+
+      // 3 on top of 4 in right column
+      expect(visibilityOffset.dy, lessThan(videosOffset.dy));
+      expect(visibilityOffset.dx, equals(videosOffset.dx));
+
+      // Column 2 is to the right of Column 1
+      expect(visibilityOffset.dx, greaterThan(nameOffset.dx));
+
+      // 5 is at the last (below both columns)
+      expect(thumbnailOffset.dy, greaterThan(descOffset.dy));
+      expect(thumbnailOffset.dy, greaterThan(videosOffset.dy));
+    });
+
+    testWidgets('8. CreatePlaylistScreen renders selected videos without intrinsic layout crash',
+        (tester) async {
+      await pumpPageInHarness(
+        tester,
+        const CreatePlaylistScreen(),
+        onBeforePump: () {
+          final controller = Get.put(CreatePlaylistController());
+          controller.selectedVideos.add(sampleVideo);
+        },
+      );
+
+      expect(find.byType(CreatePlaylistScreen), findsOneWidget);
+      expect(find.text('Test Playlist Video'), findsOneWidget);
+      expect(find.byType(ReorderableListView), findsOneWidget);
+    });
+
+    testWidgets('4b. PlaylistVideosSection with fromUpload: true renders staged upload info and optional header',
+        (tester) async {
+      final controller = Get.put(CreatePlaylistController());
+
+      await pumpPageInHarness(
+        tester,
+        Scaffold(
+          body: SingleChildScrollView(
+            child: PlaylistVideosSection(
+              controller: controller,
+              onAddVideos: () {},
+              isDesktop: true,
+              fromUpload: true,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('4. Add Videos (Optional)'), findsOneWidget);
+      expect(
+        find.text(
+            'The video currently being uploaded will be automatically added to this playlist upon publishing.'),
+        findsOneWidget,
+      );
+      expect(find.text('Current video will be added automatically'), findsOneWidget);
+      expect(
+        find.text(
+            'Your uploading video is already staged and will be added to this playlist when you publish.'),
+        findsOneWidget,
+      );
+      expect(find.text('Add more videos (Optional)'), findsOneWidget);
+      expect(find.text('No videos selected yet'), findsNothing);
+    });
+
+    test('CreatePlaylistController resetForm resets state cleanly', () {
+      final controller = Get.put(CreatePlaylistController());
+      controller.nameController.text = 'My Playlist';
+      controller.descController.text = 'My Description';
+      controller.selectedVideos.add(sampleVideo);
+      controller.isCreating.value = true;
+
+      controller.resetForm();
+
+      expect(controller.nameController.text, isEmpty);
+      expect(controller.descController.text, isEmpty);
+      expect(controller.selectedVideos, isEmpty);
+      expect(controller.isCreating.value, isFalse);
+      expect(controller.lastCreatedPlaylist, isNull);
     });
   });
 }

@@ -46,8 +46,8 @@ void main() {
   group('CurrencyLocalizationService Tests', () {
     test('Defaults to Indian user when no country or non-US locale is set', () {
       currencyService.currencyOverride.value = null;
-      expect(CurrencyLocalizationService.usdToInrRate, 95.60);
-      expect(currencyService.rate, 95.60);
+      expect(CurrencyLocalizationService.usdToInrRate, 84.0);
+      expect(currencyService.rate, 84.0);
     });
 
     test('Non-Indian user detection when country is US', () {

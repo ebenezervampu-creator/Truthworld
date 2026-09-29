@@ -91,11 +91,11 @@ mixin VideoEngagementActionsMixin on GetxController {
         isPlayingRx.value = value.isPlaying;
       }
     }
-    if (value.isPlaying && showThumbnail.value) {
+    if ((value.isInitialized || value.isPlaying) && showThumbnail.value) {
       if (WidgetsBinding.instance.schedulerPhase ==
           SchedulerPhase.persistentCallbacks) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!isClosed && value.isPlaying && showThumbnail.value) {
+          if (!isClosed && (value.isInitialized || value.isPlaying) && showThumbnail.value) {
             showThumbnail.value = false;
           }
         });
@@ -105,14 +105,14 @@ mixin VideoEngagementActionsMixin on GetxController {
     }
 
     // Manage stopwatch and analytics presence based on playback state
-    if (value.isPlaying && !value.isBuffering) {
+    if (value.isPlaying) {
       if (!watchStopwatch.isRunning) {
         watchStopwatch.start();
         analyticsController.startTimer(
           videoId: video.id,
           position: value.position.inMilliseconds / 1000.0,
         );
-      } else {
+      } else if (!value.isBuffering) {
         analyticsController.trackPlaybackPosition(
           video.id,
           value.position.inMilliseconds / 1000.0,
@@ -148,11 +148,10 @@ mixin VideoEngagementActionsMixin on GetxController {
         mainController.incrementViews(
           videoId: video.id,
           channelId: video.channelId,
-          userId: viewerHash.isNotEmpty
-              ? viewerHash
-              : (AuthService.to.uid.isNotEmpty
-                    ? AuthService.to.uid
-                    : 'anonymous'),
+          userId: (AuthService.to.isAuthenticated.value &&
+                  AuthService.to.uid.isNotEmpty)
+              ? AuthService.to.uid
+              : (viewerHash.isNotEmpty ? viewerHash : 'anonymous'),
           isQualified: true,
         );
 

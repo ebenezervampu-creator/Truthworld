@@ -74,12 +74,14 @@ class AppTokens {
 class AppTextStyles {
   static TextStyle get labelSmall => const TextStyle(
     fontFamily: TWTypography.uiFamily,
+    fontFamilyFallback: TWTypography.fallbackFamilies,
     fontSize: 10,
     fontWeight: FontWeight.w400,
     color: AppColors.textSecondary,
   );
   static TextStyle get videoTitleSmall => const TextStyle(
     fontFamily: TWTypography.uiFamily,
+    fontFamilyFallback: TWTypography.fallbackFamilies,
     fontSize: 14,
     fontWeight: FontWeight.w500,
     color: AppColors.textPrimary,
@@ -87,144 +89,168 @@ class AppTextStyles {
   static TextStyle get videoTitle => videoTitleMedium;
   static TextStyle get videoTitleMedium => const TextStyle(
     fontFamily: TWTypography.uiFamily,
+    fontFamilyFallback: TWTypography.fallbackFamilies,
     fontSize: 16,
     fontWeight: FontWeight.w500,
     color: AppColors.textPrimary,
   );
   static TextStyle get videoTitleLarge => const TextStyle(
     fontFamily: TWTypography.brandFamily,
+    fontFamilyFallback: TWTypography.fallbackFamilies,
     fontSize: 18,
     fontWeight: FontWeight.bold,
     color: AppColors.textPrimary,
   );
   static TextStyle get titleMedium => const TextStyle(
     fontFamily: TWTypography.uiFamily,
+    fontFamilyFallback: TWTypography.fallbackFamilies,
     fontSize: 16,
     fontWeight: FontWeight.w500,
     color: AppColors.textPrimary,
   );
   static TextStyle get channelNameSmall => const TextStyle(
     fontFamily: TWTypography.uiFamily,
+    fontFamilyFallback: TWTypography.fallbackFamilies,
     fontSize: 12,
     fontWeight: FontWeight.w400,
     color: AppColors.textSecondary,
   );
   static TextStyle get channelName => const TextStyle(
     fontFamily: TWTypography.uiFamily,
+    fontFamilyFallback: TWTypography.fallbackFamilies,
     fontSize: 14,
     fontWeight: FontWeight.w400,
     color: AppColors.textSecondary,
   );
   static TextStyle get channelNameLarge => const TextStyle(
     fontFamily: TWTypography.uiFamily,
+    fontFamilyFallback: TWTypography.fallbackFamilies,
     fontSize: 16,
     fontWeight: FontWeight.w500,
     color: AppColors.textSecondary,
   );
   static TextStyle get videoMetadataSmall => const TextStyle(
     fontFamily: TWTypography.uiFamily,
+    fontFamilyFallback: TWTypography.fallbackFamilies,
     fontSize: 12,
     fontWeight: FontWeight.w400,
     color: AppColors.textTertiary,
   );
   static TextStyle get videoMetadata => const TextStyle(
     fontFamily: TWTypography.uiFamily,
+    fontFamilyFallback: TWTypography.fallbackFamilies,
     fontSize: 14,
     fontWeight: FontWeight.w400,
     color: AppColors.textTertiary,
   );
   static TextStyle get headlineSmall => const TextStyle(
     fontFamily: TWTypography.brandFamily,
+    fontFamilyFallback: TWTypography.fallbackFamilies,
     fontSize: 20,
     fontWeight: FontWeight.bold,
     color: AppColors.textPrimary,
   );
   static TextStyle get bodyMedium => const TextStyle(
     fontFamily: TWTypography.uiFamily,
+    fontFamilyFallback: TWTypography.fallbackFamilies,
     fontSize: 14,
     fontWeight: FontWeight.w400,
     color: AppColors.textPrimary,
   );
   static TextStyle get bodyLarge => const TextStyle(
     fontFamily: TWTypography.uiFamily,
+    fontFamilyFallback: TWTypography.fallbackFamilies,
     fontSize: 16,
     fontWeight: FontWeight.w400,
     color: AppColors.textPrimary,
   );
   static TextStyle get bodySmall => const TextStyle(
     fontFamily: TWTypography.uiFamily,
+    fontFamilyFallback: TWTypography.fallbackFamilies,
     fontSize: 12,
     fontWeight: FontWeight.w400,
     color: AppColors.textSecondary,
   );
   static TextStyle get titleLarge => const TextStyle(
     fontFamily: TWTypography.brandFamily,
+    fontFamilyFallback: TWTypography.fallbackFamilies,
     fontSize: 18,
     fontWeight: FontWeight.bold,
     color: AppColors.textPrimary,
   );
   static TextStyle get displaySmall => const TextStyle(
     fontFamily: TWTypography.brandFamily,
+    fontFamilyFallback: TWTypography.fallbackFamilies,
     fontSize: 36,
     fontWeight: FontWeight.w400,
     color: AppColors.textPrimary,
   );
   static TextStyle get inputText => const TextStyle(
     fontFamily: TWTypography.uiFamily,
+    fontFamilyFallback: TWTypography.fallbackFamilies,
     fontSize: 16,
     fontWeight: FontWeight.w400,
     color: AppColors.textPrimary,
   );
   static TextStyle get inputHint => const TextStyle(
     fontFamily: TWTypography.uiFamily,
+    fontFamilyFallback: TWTypography.fallbackFamilies,
     fontSize: 16,
     fontWeight: FontWeight.w400,
     color: AppColors.textTertiary,
   );
   static TextStyle get buttonText => const TextStyle(
     fontFamily: TWTypography.uiFamily,
+    fontFamilyFallback: TWTypography.fallbackFamilies,
     fontSize: 14,
     fontWeight: FontWeight.w500,
     color: AppColors.textPrimary,
   );
   static TextStyle get labelLarge => const TextStyle(
     fontFamily: TWTypography.uiFamily,
+    fontFamilyFallback: TWTypography.fallbackFamilies,
     fontSize: 14,
     fontWeight: FontWeight.w500,
     color: AppColors.textPrimary,
   );
   static TextStyle get labelMedium => const TextStyle(
     fontFamily: TWTypography.uiFamily,
+    fontFamilyFallback: TWTypography.fallbackFamilies,
     fontSize: 12,
     fontWeight: FontWeight.w500,
     color: AppColors.textSecondary,
   );
   static TextStyle get badge => const TextStyle(
     fontFamily: TWTypography.uiFamily,
+    fontFamilyFallback: TWTypography.fallbackFamilies,
     fontSize: 10,
     fontWeight: FontWeight.bold,
     color: AppColors.textPrimary,
   );
   static TextStyle get pageTitle => const TextStyle(
     fontFamily: TWTypography.brandFamily,
+    fontFamilyFallback: TWTypography.fallbackFamilies,
     fontSize: 24,
     fontWeight: FontWeight.bold,
     color: AppColors.textPrimary,
   );
   static TextStyle get sectionHeader => const TextStyle(
     fontFamily: TWTypography.brandFamily,
+    fontFamilyFallback: TWTypography.fallbackFamilies,
     fontSize: 18,
     fontWeight: FontWeight.bold,
     color: AppColors.textPrimary,
   );
   static TextStyle get caption => const TextStyle(
     fontFamily: TWTypography.uiFamily,
+    fontFamilyFallback: TWTypography.fallbackFamilies,
     fontSize: 12,
     fontWeight: FontWeight.w400,
     color: AppColors.textTertiary,
   );
   static TextStyle get captionBold => const TextStyle(
     fontFamily: TWTypography.uiFamily,
+    fontFamilyFallback: TWTypography.fallbackFamilies,
     fontSize: 12,
     fontWeight: FontWeight.bold,
     color: AppColors.textTertiary,

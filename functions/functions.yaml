@@ -655,6 +655,78 @@
       },
       "entryPoint": "onChannelCreatedSyncUser"
     },
+    "followChannel": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "followChannel"
+    },
+    "unfollowChannel": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "unfollowChannel"
+    },
+    "updateChannelNotificationSettings": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 5,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "updateChannelNotificationSettings"
+    },
+    "getFollowingFeed": {
+      "availableMemoryMb": 512,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "httpsTrigger": {},
+      "entryPoint": "getFollowingFeed"
+    },
     "onChannelWritten": {
       "availableMemoryMb": null,
       "timeoutSeconds": null,
@@ -803,6 +875,42 @@
       "httpsTrigger": {},
       "entryPoint": "getHomeFeed"
     },
+    "getAlgorithmRemoteConfig": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 5,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "httpsTrigger": {},
+      "entryPoint": "getAlgorithmRemoteConfig"
+    },
+    "updateAlgorithmRemoteConfig": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "updateAlgorithmRemoteConfig"
+    },
     "getNotifications": {
       "availableMemoryMb": 256,
       "timeoutSeconds": null,
@@ -838,6 +946,78 @@
       "labels": {},
       "callableTrigger": {},
       "entryPoint": "markNotificationRead"
+    },
+    "updateTopicNotificationSettings": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 2,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "updateTopicNotificationSettings"
+    },
+    "followTopic": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 2,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "followTopic"
+    },
+    "unfollowTopic": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 2,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "unfollowTopic"
+    },
+    "getTopicNotificationSetting": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 2,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "getTopicNotificationSetting"
     },
     "onCommentCreated": {
       "availableMemoryMb": 256,
@@ -996,6 +1176,43 @@
       "labels": {},
       "callableTrigger": {},
       "entryPoint": "trackActivity"
+    },
+    "onUserDeleted": {
+      "platform": "gcfv1",
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": null,
+      "ingressSettings": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "eventTrigger": {
+        "eventType": "providers/firebase.auth/eventTypes/user.delete",
+        "eventFilters": {
+          "resource": "projects/truthworld-1"
+        },
+        "retry": false
+      },
+      "labels": {},
+      "entryPoint": "onUserDeleted"
+    },
+    "purgeUserAccount": {
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": 0,
+      "maxInstances": 5,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "httpsTrigger": {},
+      "entryPoint": "purgeUserAccount"
     },
     "addCommentNested": {
       "availableMemoryMb": 256,
@@ -1420,6 +1637,60 @@
       "httpsTrigger": {},
       "entryPoint": "generateAllVideoAdsAIFeatures"
     },
+    "recordAdImpression": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "recordAdImpression"
+    },
+    "getAdRevenueBreakdown": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "getAdRevenueBreakdown"
+    },
+    "getAdImpressionAudit": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "getAdImpressionAudit"
+    },
     "onPublicPlaylistWritten": {
       "availableMemoryMb": null,
       "timeoutSeconds": null,
@@ -1522,6 +1793,42 @@
       "httpsTrigger": {},
       "entryPoint": "consolidateUserAccounts"
     },
+    "getUnitEconomicsDashboard": {
+      "availableMemoryMb": 512,
+      "timeoutSeconds": 60,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "getUnitEconomicsDashboard"
+    },
+    "getUnitEconomicsReport": {
+      "availableMemoryMb": 512,
+      "timeoutSeconds": 60,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "httpsTrigger": {},
+      "entryPoint": "getUnitEconomicsReport"
+    },
     "aiSearchAssistant": {
       "availableMemoryMb": 256,
       "timeoutSeconds": 30,
@@ -1550,7 +1857,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
-      "cpu": "gcf_gen1",
+      "cpu": 1,
       "region": [
         "asia-south1"
       ],
@@ -1609,6 +1916,58 @@
       "labels": {},
       "callableTrigger": {},
       "entryPoint": "verifyCashfreePayment"
+    },
+    "verifyCashfreeSubscription": {
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "secretEnvironmentVariables": [
+        {
+          "key": "CASHFREE_APP_ID"
+        },
+        {
+          "key": "CASHFREE_SECRET_KEY"
+        }
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "verifyCashfreeSubscription"
+    },
+    "cancelCashfreeSubscription": {
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "secretEnvironmentVariables": [
+        {
+          "key": "CASHFREE_APP_ID"
+        },
+        {
+          "key": "CASHFREE_SECRET_KEY"
+        }
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "cancelCashfreeSubscription"
     },
     "cashfreeWebhook": {
       "availableMemoryMb": null,
@@ -1690,6 +2049,45 @@
       },
       "entryPoint": "onPayoutRequestCreated"
     },
+    "detectRevenueAnomalies": {
+      "availableMemoryMb": 512,
+      "timeoutSeconds": 540,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "scheduleTrigger": {
+        "schedule": "every 60 minutes",
+        "retryConfig": {}
+      },
+      "entryPoint": "detectRevenueAnomalies"
+    },
+    "reviewFraudFlag": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "reviewFraudFlag"
+    },
     "onKycDocumentCreatedOrUpdated": {
       "availableMemoryMb": null,
       "timeoutSeconds": null,
@@ -1718,6 +2116,64 @@
       },
       "entryPoint": "onKycDocumentCreatedOrUpdated"
     },
+    "distributePremiumRevenue": {
+      "availableMemoryMb": 2048,
+      "timeoutSeconds": 540,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "scheduleTrigger": {
+        "schedule": "0 1 1 * *",
+        "retryConfig": {},
+        "timeZone": "Asia/Kolkata"
+      },
+      "entryPoint": "distributePremiumRevenue"
+    },
+    "getPremiumRevenueBreakdown": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "getPremiumRevenueBreakdown"
+    },
+    "triggerPremiumDistributionManual": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "triggerPremiumDistributionManual"
+    },
     "publicFeedServer": {
       "availableMemoryMb": 256,
       "timeoutSeconds": 15,
@@ -1728,7 +2184,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
-      "cpu": "gcf_gen1",
+      "cpu": 1,
       "region": [
         "asia-south1"
       ],
@@ -1952,6 +2408,34 @@
         "retry": true
       },
       "entryPoint": "handleCopyrightCheck"
+    },
+    "onDubbingResultWritten": {
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": 0,
+      "maxInstances": 5,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "eventTrigger": {
+        "eventType": "google.cloud.firestore.document.v1.written",
+        "eventFilters": {
+          "database": "(default)",
+          "namespace": "(default)"
+        },
+        "eventFilterPathPatterns": {
+          "document": "dubbing_results/{resultId}"
+        },
+        "retry": false
+      },
+      "entryPoint": "onDubbingResultWritten"
     },
     "onVideoPublished": {
       "availableMemoryMb": 256,

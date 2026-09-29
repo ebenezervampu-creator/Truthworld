@@ -4,6 +4,31 @@ import { logger } from "firebase-functions/v2";
 
 const db = () => admin.firestore();
 
+export function sanitizePublicChannel(d: admin.firestore.QueryDocumentSnapshot, rank: number) {
+  const data = d.data();
+  return {
+    id: d.id,
+    rank,
+    displayName: data.displayName || data.name || "",
+    handle: data.handle || data.slug || "",
+    photoUrl: data.profile?.photoUrl || data.photoUrl || data.avatarUrl || "",
+    tier: data.tier || "standard",
+    category: data.profile?.category || data.category || "General",
+    avgTrustIndex: data.stats?.avgTrustIndex || data.reputation?.avgTrustIndex || 0,
+    subscriberCount: data.stats?.subscriberCount || data.subscriberCount || 0,
+    trend30d: data.reputation?.trend30d || 0,
+    videosCount: data.stats?.videosCount || data.videoCount || 0,
+    isVerified: data.isVerified === true || data.verification === "verified" || data.verification === "elite",
+  };
+}
+
+export function isPublicActive(d: admin.firestore.QueryDocumentSnapshot): boolean {
+  const status = d.data()?.status;
+  return status !== "suspended" && status !== "banned" && status !== "deleted";
+}
+
+import { applySecurityHeaders } from "../utils/securityHeaders";
+
 /**
  * 🏆 GET LEADERBOARDS (HTTPS)
  * Specialized rankings for prestige and aspiration.
@@ -11,8 +36,8 @@ const db = () => admin.firestore();
 export const getLeaderboards = onRequest(
   { region: "asia-south1", cors: true, memory: "256MiB" },
   async (req, res) => {
+    applySecurityHeaders(res);
     const category = req.query.category as string; // Optional category filter
-    // const timeframe = (req.query.timeframe as string) || "allTime"; // allTime, monthly
 
     try {
       // 1. GLOBAL TOP 100 (By Trust Index)
@@ -47,10 +72,22 @@ export const getLeaderboards = onRequest(
         .limit(20)
         .get();
 
+      const global = globalSnap.docs
+        .filter(isPublicActive)
+        .map((d, index) => sanitizePublicChannel(d, index + 1));
+
+      const rising = risingSnap.docs
+        .filter(isPublicActive)
+        .map((d, index) => sanitizePublicChannel(d, index + 1));
+
+      const consistent = consistentSnap.docs
+        .filter(isPublicActive)
+        .map((d, index) => sanitizePublicChannel(d, index + 1));
+
       res.status(200).json({
-        global: globalSnap.docs.map((d, index) => ({ id: d.id, rank: index + 1, ...d.data() })),
-        rising: risingSnap.docs.map((d, index) => ({ id: d.id, rank: index + 1, ...d.data() })),
-        consistent: consistentSnap.docs.map((d, index) => ({ id: d.id, rank: index + 1, ...d.data() }))
+        global,
+        rising,
+        consistent,
       });
     } catch (err) {
       logger.error("[getLeaderboards] Error:", err);

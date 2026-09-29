@@ -12,12 +12,14 @@ class CreateTopicDialog extends StatelessWidget {
     required this.isDarkMode,
     required this.channelVideosFuture,
     required this.onCreateTopicSubmitted,
+    this.isFromUpload = false,
     super.key,
   });
 
   final bool isDarkMode;
   final Future<List<Map<String, dynamic>>> channelVideosFuture;
   final Future<void> Function(CreateTopicController controller) onCreateTopicSubmitted;
+  final bool isFromUpload;
 
   /// Helper launcher method for opening Topic Creation as a full-screen page route.
   static Future<void> show({
@@ -25,11 +27,13 @@ class CreateTopicDialog extends StatelessWidget {
     required bool isDarkMode,
     required Future<List<Map<String, dynamic>>> channelVideosFuture,
     required Future<void> Function(CreateTopicController controller) onCreateTopicSubmitted,
+    bool isFromUpload = false,
   }) async {
     final controller = Get.isRegistered<CreateTopicController>()
         ? Get.find<CreateTopicController>()
         : Get.put(CreateTopicController());
     controller.resetForm();
+    controller.isFromUpload.value = isFromUpload;
 
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
@@ -38,6 +42,7 @@ class CreateTopicDialog extends StatelessWidget {
           body: SafeArea(
             child: CreateTopicDialog(
               isDarkMode: isDarkMode,
+              isFromUpload: isFromUpload,
               channelVideosFuture: channelVideosFuture,
               onCreateTopicSubmitted: onCreateTopicSubmitted,
             ),
@@ -82,7 +87,6 @@ class CreateTopicDialog extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            if (isDesktop) buildCreateTopicDesktopTopHeader(context),
             Expanded(
               child: SingleChildScrollView(
                 padding: EdgeInsets.symmetric(
@@ -101,11 +105,11 @@ class CreateTopicDialog extends StatelessWidget {
                           const SizedBox(height: 24),
                           buildCreateTopicProfanityAlert(controller),
                           if (isDesktop)
-                            _buildDesktopTwoColumnLayout(context, controller)
+                            _buildDesktopTwoColumnLayout(context, controller, isFromUpload)
                           else
-                            _buildMobileSingleColumnLayout(context, controller),
+                            _buildMobileSingleColumnLayout(context, controller, isFromUpload),
                           const SizedBox(height: 24),
-                          buildSection9TopicImage(context, controller, channelVideosFuture),
+                          buildSection9TopicImage(context, controller, channelVideosFuture, isFromUpload: isFromUpload),
                           const SizedBox(height: 32),
                           if (isDesktop)
                             buildCreateTopicDesktopFooterActions(
@@ -133,11 +137,15 @@ class CreateTopicDialog extends StatelessWidget {
   }
 
   // ================= Desktop 2-Column Layout =================
-  Widget _buildDesktopTwoColumnLayout(BuildContext context, CreateTopicController controller) {
+  Widget _buildDesktopTwoColumnLayout(
+    BuildContext context,
+    CreateTopicController controller,
+    bool isFromUpload,
+  ) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Left Column (Sections 1 to 5)
+        // Left Column (Sections 1 to 4)
         Expanded(
           flex: 5,
           child: Column(
@@ -149,25 +157,25 @@ class CreateTopicDialog extends StatelessWidget {
               const SizedBox(height: 24),
               buildSection3Title(context, controller),
               const SizedBox(height: 24),
-              buildSection4Description(context, controller),
-              const SizedBox(height: 24),
-              buildSection5Tags(context, controller),
+              buildSection4Description(context, controller, isDesktop: true),
             ],
           ),
         ),
         const SizedBox(width: 32),
 
-        // Right Column (Sections 6 to 8)
+        // Right Column (Sections 5 to 8)
         Expanded(
           flex: 6,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              buildSection6Category(context, controller, availableCategories),
+              buildSection5Category(context, controller, availableCategories),
               const SizedBox(height: 24),
-              buildSection7TopicType(context, controller),
+              buildSection6TopicType(context, controller),
               const SizedBox(height: 24),
-              buildSection8AddVideos(context, controller, channelVideosFuture),
+              buildSection7Tags(context, controller),
+              const SizedBox(height: 24),
+              buildSection8AddVideos(context, controller, channelVideosFuture, isFromUpload: isFromUpload),
             ],
           ),
         ),
@@ -176,7 +184,11 @@ class CreateTopicDialog extends StatelessWidget {
   }
 
   // ================= Mobile Single Column Layout =================
-  Widget _buildMobileSingleColumnLayout(BuildContext context, CreateTopicController controller) {
+  Widget _buildMobileSingleColumnLayout(
+    BuildContext context,
+    CreateTopicController controller,
+    bool isFromUpload,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -188,13 +200,13 @@ class CreateTopicDialog extends StatelessWidget {
         const SizedBox(height: 20),
         buildSection4Description(context, controller),
         const SizedBox(height: 20),
-        buildSection5Tags(context, controller),
+        buildSection5Category(context, controller, availableCategories),
         const SizedBox(height: 20),
-        buildSection6Category(context, controller, availableCategories),
+        buildSection6TopicType(context, controller),
         const SizedBox(height: 20),
-        buildSection7TopicType(context, controller),
+        buildSection7Tags(context, controller),
         const SizedBox(height: 20),
-        buildSection8AddVideos(context, controller, channelVideosFuture),
+        buildSection8AddVideos(context, controller, channelVideosFuture, isFromUpload: isFromUpload),
       ],
     );
   }

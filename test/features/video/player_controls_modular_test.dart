@@ -122,6 +122,30 @@ void main() {
       expect(find.byIcon(Icons.pause), findsOneWidget);
       await tester.tap(find.byType(CenterBtn));
       expect(tapped, isTrue);
+
+      // Verify that idle decoration is NOT transparent (high-contrast frosted backing disc)
+      final container = tester.widget<AnimatedContainer>(find.byType(AnimatedContainer));
+      final decoration = container.decoration! as BoxDecoration;
+      expect(decoration.color, isNot(Colors.transparent));
+      expect(decoration.shape, equals(BoxShape.circle));
+      expect(decoration.border, isNotNull);
+      expect(decoration.boxShadow, isNotEmpty);
+    });
+
+    testWidgets('CenterBtn includes icon text shadows for white background contrast', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: CenterBtn(
+              icon: Icons.forward_10_rounded,
+            ),
+          ),
+        ),
+      );
+
+      final iconWidget = tester.widget<Icon>(find.byIcon(Icons.forward_10_rounded));
+      expect(iconWidget.shadows, isNotNull);
+      expect(iconWidget.shadows, isNotEmpty);
     });
 
     testWidgets('PremiumButton displays label and icon and responds to tap', (tester) async {
@@ -173,27 +197,6 @@ void main() {
   });
 
   group('Player Badges Widgets', () {
-    testWidgets('NetworkBadge displays formatted bandwidth and quality indicator', (tester) async {
-      ctrl.abr.measuredBandwidthKbps.value = 5200;
-      ctrl.abr.networkQuality.value = NetworkQuality.excellent;
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: NetworkBadge(ctrl: ctrl),
-          ),
-        ),
-      );
-
-      expect(find.text('5.2 Mbps'), findsOneWidget);
-      expect(find.byIcon(Icons.network_check_rounded), findsOneWidget);
-
-      // Low bandwidth
-      ctrl.abr.measuredBandwidthKbps.value = 450;
-      await tester.pump();
-      expect(find.text('450 kbps'), findsOneWidget);
-    });
-
     testWidgets('AbrBadge displays AUTO and tier height label', (tester) async {
       ctrl.abr.resolutionLadder = [
         const ResolutionTier(
@@ -272,13 +275,54 @@ void main() {
       );
 
       expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.skip_previous_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.skip_next_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.replay_10_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.forward_10_rounded), findsOneWidget);
 
       // Reactively changes icon when isPlaying becomes true
       ctrl.isPlaying.value = true;
-      await tester.pump();
+      await tester.pumpAndSettle();
       expect(find.byIcon(Icons.pause_rounded), findsOneWidget);
+
+      await tester.pump(const Duration(seconds: 4));
+    });
+
+    testWidgets('CenterRow adapts button sizes responsively for desktop and mobile', (tester) async {
+      // Desktop (>= 600)
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CenterRow(ctrl: ctrl, maxControlsWidth: 1024),
+          ),
+        ),
+      );
+
+      final desktopButtons = tester.widgetList<CenterBtn>(find.byType(CenterBtn)).toList();
+      expect(desktopButtons.length, equals(3));
+      // Replay (skip), Play/Pause, Forward (skip)
+      expect(desktopButtons[0].buttonDiameter, equals(52.0));
+      expect(desktopButtons[0].size, equals(28.0));
+      expect(desktopButtons[1].buttonDiameter, equals(72.0));
+      expect(desktopButtons[1].size, equals(36.0));
+      expect(desktopButtons[2].buttonDiameter, equals(52.0));
+      expect(desktopButtons[2].size, equals(28.0));
+
+      // Mobile (< 600)
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CenterRow(ctrl: ctrl, maxControlsWidth: 400),
+          ),
+        ),
+      );
+
+      final mobileButtons = tester.widgetList<CenterBtn>(find.byType(CenterBtn)).toList();
+      expect(mobileButtons.length, equals(3));
+      expect(mobileButtons[0].buttonDiameter, equals(48.0));
+      expect(mobileButtons[0].size, equals(24.0));
+      expect(mobileButtons[1].buttonDiameter, equals(64.0));
+      expect(mobileButtons[1].size, equals(32.0));
+      expect(mobileButtons[2].buttonDiameter, equals(48.0));
+      expect(mobileButtons[2].size, equals(24.0));
 
       await tester.pump(const Duration(seconds: 4));
     });
@@ -302,6 +346,52 @@ void main() {
       expect(find.byType(MainControls), findsOneWidget);
       expect(find.byType(CenterRow), findsOneWidget);
       expect(find.byType(PlayerBottomBar), findsOneWidget);
+    });
+
+    testWidgets('ControlRow and MainControls do not overflow on narrow mobile screens (352px)', (tester) async {
+      ctrl.isFullScreen.value = false;
+      ctrl.isPlaying.value = true;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData.dark(),
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 352,
+                height: 200,
+                child: MainControls(ctrl: ctrl, playerWidth: 352),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(ControlRow), findsOneWidget);
+    });
+
+    testWidgets('ControlRow does not overflow even on ultra-compact 320px screen', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData.dark(),
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 320,
+                child: ControlRow(
+                  ctrl: ctrl,
+                  isNarrow: true,
+                  isMedium: false,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(ControlRow), findsOneWidget);
     });
   });
 }

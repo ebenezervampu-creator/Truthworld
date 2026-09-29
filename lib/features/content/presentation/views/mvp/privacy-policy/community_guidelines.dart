@@ -183,7 +183,6 @@ class CommunityGuidelinesPage extends StatelessWidget {
               color: Theme.of(
                 context,
               ).colorScheme.primary.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
                 side: BorderSide(

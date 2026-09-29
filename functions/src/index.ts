@@ -96,14 +96,28 @@ export {
   pruneLiveChatBacklogs,
 } from "./livechat/liveChat";
 export { onChannelCreatedSyncUser } from "./channels/channels";
+export {
+  followChannel,
+  unfollowChannel,
+  updateChannelNotificationSettings,
+  getFollowingFeed,
+} from "./channels/social";
 export { onChannelWritten, onImageVerificationWritten, moderateChannelManual } from "./channels/moderation";
 export { onTopicWritten, moderateTopicManual } from "./topics/moderation";
 export { getHomeFeed } from "./channels/recommendations";
+export {
+  getAlgorithmRemoteConfig,
+  updateAlgorithmRemoteConfig,
+} from "./algorithm/remoteConfig";
 
 // ─── Notifications & User Signals ─────────────────────────────────────────────
 export {
   getNotifications,
   markNotificationRead,
+  updateTopicNotificationSettings,
+  followTopic,
+  unfollowTopic,
+  getTopicNotificationSetting,
 } from "./notifications/notifications";
 export {
   onCommentCreated,
@@ -113,6 +127,7 @@ export {
   onUserNotificationCreated,
 } from "./notifications/triggers";
 export { trackActivity } from "./users/signals";
+export { onUserDeleted, purgeUserAccount } from "./users/userLifecycle";
 
 // ─── Comments & Community ─────────────────────────────────────────────────────
 export {
@@ -141,11 +156,17 @@ export {
 
 // ─── Monetization & Ads ───────────────────────────────────────────────────────
 export { onAdCampaignWritten, triggerAdAIFeatures, generateAllVideoAdsAIFeatures } from "./ads/ads";
+export {
+  recordAdImpression,
+  getAdRevenueBreakdown,
+  getAdImpressionAudit,
+} from "./ads/adRevenueDistribution";
 export { onPublicPlaylistWritten, onPrivatePlaylistWritten } from "./moderation/playlistModeration";
 
 // ─── Admin Portal APIs ───────────────────────────────────────────────────────
 export * from "./admin/adminBulkModerate";
 export { moderateUser, consolidateUserAccounts } from "./admin/userManagement";
+export { getUnitEconomicsDashboard, getUnitEconomicsReport } from "./admin/unitEconomics";
 
 // ─── Search Assistant & In-House Vector Search ───────────────────────────────
 export { aiSearchAssistant } from "./search/aiSearch";
@@ -155,11 +176,19 @@ export { searchTruthWorld } from "./search/searchBackend";
 export {
   createCashfreeOrder,
   verifyCashfreePayment,
+  verifyCashfreeSubscription,
+  cancelCashfreeSubscription,
   cashfreeWebhook,
   cashfreeHostedCheckout,
 } from "./economy/cashfreeFunctions";
 export { onPayoutRequestCreated } from "./economy/payouts";
+export { detectRevenueAnomalies, reviewFraudFlag } from "./economy/fraudDetection";
 export { onKycDocumentCreatedOrUpdated } from "./economy/kyc";
+export {
+  distributePremiumRevenue,
+  getPremiumRevenueBreakdown,
+  triggerPremiumDistributionManual,
+} from "./economy/premiumRevenueDistribution";
 
 // ─── Edge Feed CDN Server ───────────────────────────────────────────────────
 export { publicFeedServer } from "./feed/publicFeedServer";

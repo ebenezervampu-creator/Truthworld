@@ -62,7 +62,7 @@ abstract class MiniplayerStateBase extends BaseController
   final Rxn<Offset> dragOffset = Rxn<Offset>();
 
   /// Whether the pointer is currently hovering the miniplayer (web/desktop).
-  /// Used to fade controls in/out like YouTube.
+  /// Used to fade controls in/out smoothly.
   final RxBool isHovering = false.obs;
 
   /// Whether mobile touch controls are currently visible on top of the video frame.
@@ -70,6 +70,18 @@ abstract class MiniplayerStateBase extends BaseController
 
   /// Whether miniplayer audio is currently muted.
   final RxBool isMuted = false.obs;
+
+  /// Whether the video is currently rendered in system Picture-in-Picture mode.
+  final RxBool isPiP = false.obs;
+
+  /// Live aspect ratio of the loaded video.
+  double get currentAspectRatio {
+    final vpc = internalVpc;
+    if (vpc != null && vpc.value.aspectRatio > 0) {
+      return vpc.value.aspectRatio;
+    }
+    return MiniplayerConfig.videoAspectRatio;
+  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // INTERNAL NON-REACTIVE STATE

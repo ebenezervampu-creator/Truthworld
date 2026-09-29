@@ -11,6 +11,7 @@ import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/explore_topics_controller.dart';
 import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
 import 'package:truthworld/features/topics/presentation/pages/explore/explore_topics_constants.dart';
+import 'package:truthworld/features/topics/presentation/widgets/topic_notification_options_sheet.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_colors.dart';
 
@@ -114,8 +115,21 @@ class ExploreTopicVideoSection extends StatelessWidget {
                         'topic': topic,
                       },
                     );
+                  } else if (value == 'notifications') {
+                    TopicNotificationOptionsSheet.show(
+                      context,
+                      topic: topic,
+                    );
                   } else if (value == 'toggle_follow') {
-                    followingController.toggleFollowTopic(topic);
+                    if (followingController.isTopicFollowed(topic.id)) {
+                      TopicNotificationOptionsSheet.showUnfollowConfirmation(
+                        context,
+                        topic: topic,
+                        controller: followingController,
+                      );
+                    } else {
+                      followingController.toggleFollowTopic(topic);
+                    }
                   }
                 },
                 itemBuilder: (context) {
@@ -144,13 +158,35 @@ class ExploreTopicVideoSection extends StatelessWidget {
                         ],
                       ),
                     ),
+                    if (isFollowed)
+                      const PopupMenuItem(
+                        value: 'notifications',
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.notifications_outlined,
+                              color: AppColors.textPrimary,
+                              size: 20,
+                            ),
+                            SizedBox(width: 12),
+                            Text(
+                              'Notification Options',
+                              style: TextStyle(
+                                color: primaryText,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     PopupMenuItem(
                       value: 'toggle_follow',
                       child: Row(
                         children: [
                           Icon(
                             isFollowed
-                                ? Icons.bookmark_remove_outlined
+                                ? Icons.person_remove_outlined
                                 : Icons.bookmark_add_outlined,
                             color: AppColors.textPrimary,
                             size: 20,

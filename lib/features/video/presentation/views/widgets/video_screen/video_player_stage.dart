@@ -10,7 +10,7 @@ import 'package:truthworld/features/video/presentation/controllers/video_playbac
 import 'package:truthworld/features/video/presentation/views/player/tower_custom_player.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-/// Video player stage with YouTube-style ambient glow, responsive constraints, and Chewie/Tower player mounting.
+/// Video player stage with ambient glow, responsive constraints, and Chewie/Tower player mounting.
 class VideoPlayerStage extends StatelessWidget {
   const VideoPlayerStage({
     required this.controller,
@@ -55,7 +55,7 @@ class VideoPlayerStage extends StatelessWidget {
               clipBehavior: Clip.none,
               alignment: Alignment.center,
               children: [
-                // YouTube Ambient Mode Glow
+                // Ambient Mode Glow
                 if (controller.video.thumbnailUrl.isNotEmpty)
                   Positioned(
                     width: finalWidth * 1.3,
@@ -163,10 +163,9 @@ class VideoPlayerView extends StatelessWidget {
         final isHandoff = VideoPlaybackHandoff.isActive(controller.video.id) ||
             (Get.arguments is Map && Get.arguments['isFromMiniplayer'] == true);
 
-        if (vpc == null ||
-            (isLoading &&
-                !controller.isSwitchingResolution.value &&
-                !isHandoff)) {
+        final isVideoReady = vpc != null && vpc.value.isInitialized;
+
+        if (vpc == null || (!isVideoReady && isLoading && !isHandoff)) {
           return thumbnailWidget;
         }
 
@@ -181,9 +180,8 @@ class VideoPlayerView extends StatelessWidget {
             // Granular Thumbnail / Loading Overlay
             Obx(() {
               final activeVpc = controller.videoPlayerController;
-              final isVideoReady =
+              final isReady =
                   activeVpc != null && activeVpc.value.isInitialized;
-              final isPlaying = activeVpc != null && activeVpc.value.isPlaying;
               final isAutoSwitching = controller.isAutoSwitching.value;
               final isAdShowing = Get.isRegistered<TowerPlayerController>(
                       tag: controller.video.id) &&
@@ -194,16 +192,12 @@ class VideoPlayerView extends StatelessWidget {
                   VideoPlaybackHandoff.isActive(controller.video.id) ||
                       (Get.arguments is Map &&
                           Get.arguments['isFromMiniplayer'] == true);
-              final loading = controller.isLoading &&
-                  !controller.isSwitchingResolution.value;
 
               final showThumbnailOverlay = !isHandoffActive &&
                   !isAutoSwitching &&
                   !controller.isAudioOnly.value &&
                   !isAdShowing &&
-                  (loading ||
-                      !isVideoReady ||
-                      (!isPlaying && controller.showThumbnail.value));
+                  !isReady;
 
               if (!showThumbnailOverlay) return const SizedBox.shrink();
               return Positioned.fill(child: thumbnailWidget);
@@ -402,7 +396,7 @@ class VideoPlayerErrorView extends StatelessWidget {
                       textAlign: TextAlign.center,
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.roboto(
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,

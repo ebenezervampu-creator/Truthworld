@@ -36,6 +36,62 @@ export interface CashfreeOrderResponse {
   order_tags?: Record<string, string>;
 }
 
+export interface CreatePlanParams {
+  planId: string;
+  planName: string;
+  planType?: "PERIODIC" | "ON_DEMAND";
+  planCurrency?: string;
+  planAmount: number;
+  planMaxAmount?: number;
+  planIntervalType?: "DAY" | "WEEK" | "MONTH" | "YEAR";
+  planIntervals?: number;
+  planMaxCycles?: number;
+  planNote?: string;
+}
+
+export interface CashfreePlanResponse {
+  plan_id: string;
+  plan_name: string;
+  plan_type: string;
+  plan_currency: string;
+  plan_amount: number;
+  plan_max_amount?: number;
+  plan_interval_type: string;
+  plan_intervals: number;
+  plan_max_cycles: number;
+  plan_status?: string;
+}
+
+export interface CreateSubscriptionParams {
+  subscriptionId: string;
+  planId: string;
+  customerDetails: CashfreeCustomerDetails;
+  subscriptionExpiry?: string;
+  firstChargeTime?: string;
+  returnUrl?: string;
+  notifyUrl?: string;
+  authorizationAmount?: number;
+  paymentMethods?: string[];
+  subscriptionTags?: Record<string, string>;
+  subscriptionNote?: string;
+}
+
+export interface CashfreeSubscriptionResponse {
+  subscription_id: string;
+  sub_reference_id?: string;
+  cf_subscription_id?: string;
+  plan_id: string;
+  customer_name?: string;
+  customer_email?: string;
+  customer_phone?: string;
+  subscription_status: "INITIALIZED" | "BANK_APPROVAL_PENDING" | "ACTIVE" | "ON_HOLD" | "CANCELLED" | "COMPLETED" | string;
+  auth_link?: string;
+  payment_session_id?: string;
+  current_cycle?: number;
+  next_charge_date?: string;
+  subscription_tags?: Record<string, string>;
+}
+
 export class CashfreeService {
   private static getEnvironment(): "SANDBOX" | "PRODUCTION" {
     if (process.env.CASHFREE_ENV) {
@@ -245,6 +301,154 @@ export class CashfreeService {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Creates a Cashfree recurring subscription plan (or retrieves existing on 409)
+   */
+  public static async createSubscriptionPlan(params: CreatePlanParams): Promise<CashfreePlanResponse> {
+    const payload = {
+      plan_id: params.planId,
+      plan_name: params.planName,
+      plan_type: params.planType || "PERIODIC",
+      plan_currency: params.planCurrency || "INR",
+      plan_amount: Math.round(params.planAmount * 100) / 100,
+      plan_max_amount: params.planMaxAmount || Math.max(15000, params.planAmount * 2),
+      plan_interval_type: params.planIntervalType || "MONTH",
+      plan_intervals: params.planIntervals || 1,
+      plan_max_cycles: params.planMaxCycles || 120,
+      plan_note: params.planNote || "TruthWorld Subscription Plan",
+    };
+
+    try {
+      const response = await axios.post<CashfreePlanResponse>(
+        `${this.getBaseUrl()}/plans`,
+        payload,
+        { headers: this.getHeaders(), timeout: 15000 }
+      );
+      return response.data;
+    } catch (err: any) {
+      if (err?.response?.status === 409 || err?.response?.data?.type === "plan_already_exists") {
+        return this.getSubscriptionPlan(params.planId);
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Retrieves a Cashfree subscription plan
+   */
+  public static async getSubscriptionPlan(planId: string): Promise<CashfreePlanResponse> {
+    const response = await axios.get<CashfreePlanResponse>(
+      `${this.getBaseUrl()}/plans/${encodeURIComponent(planId)}`,
+      { headers: this.getHeaders(), timeout: 15000 }
+    );
+    return response.data;
+  }
+
+  /**
+   * Creates a Cashfree subscription mandate (Auto Pay) and returns auth_link
+   */
+  public static async createSubscription(params: CreateSubscriptionParams): Promise<CashfreeSubscriptionResponse> {
+    const payload = {
+      subscription_id: params.subscriptionId,
+      customer_details: {
+        customer_id: this.cleanCustomerId(params.customerDetails.customer_id),
+        customer_name: params.customerDetails.customer_name || "TruthWorld User",
+        customer_email: this.cleanEmail(params.customerDetails.customer_email),
+        customer_phone: this.cleanPhoneNumber(params.customerDetails.customer_phone),
+      },
+      plan_details: {
+        plan_id: params.planId,
+      },
+      subscription_meta: {
+        return_url: params.returnUrl || "https://www.truthworld.in/checkout?action=result&subscription_id={subscription_id}",
+        notify_url: params.notifyUrl,
+      },
+      authorization_details: {
+        authorization_amount: params.authorizationAmount != null ? Math.round(params.authorizationAmount * 100) / 100 : undefined,
+        payment_methods: params.paymentMethods || ["upi", "card", "enach"],
+      },
+      subscription_tags: params.subscriptionTags,
+      subscription_note: params.subscriptionNote || "TruthWorld Recurring Auto Pay",
+    };
+
+    const response = await axios.post<CashfreeSubscriptionResponse>(
+      `${this.getBaseUrl()}/subscriptions`,
+      payload,
+      { headers: this.getHeaders(), timeout: 15000 }
+    );
+    return response.data;
+  }
+
+  /**
+   * Authoritatively fetches subscription status directly from Cashfree Subscriptions
+   */
+  public static async getSubscription(subscriptionId: string): Promise<CashfreeSubscriptionResponse> {
+    const response = await axios.get<CashfreeSubscriptionResponse>(
+      `${this.getBaseUrl()}/subscriptions/${encodeURIComponent(subscriptionId)}`,
+      { headers: this.getHeaders(), timeout: 15000 }
+    );
+    return response.data;
+  }
+
+  /**
+   * Cancels a Cashfree subscription mandate
+   */
+  public static async cancelSubscription(
+    subscriptionId: string,
+    reason?: string
+  ): Promise<{ subscription_id: string; subscription_status: string }> {
+    const response = await axios.post(
+      `${this.getBaseUrl()}/subscriptions/${encodeURIComponent(subscriptionId)}/cancel`,
+      { cancellation_reason: reason || "Cancelled by user via TruthWorld" },
+      { headers: this.getHeaders(), timeout: 15000 }
+    );
+    return response.data;
+  }
+
+  /**
+   * Charges a subscription mandate
+   */
+  public static async chargeSubscription(
+    subscriptionId: string,
+    chargeAmount: number,
+    chargeId?: string,
+    note?: string
+  ): Promise<any> {
+    const payload = {
+      charge_amount: Math.round(chargeAmount * 100) / 100,
+      charge_id: chargeId || `ch_${Date.now()}`,
+      charge_note: note || "TruthWorld Subscription Charge",
+    };
+    const response = await axios.post(
+      `${this.getBaseUrl()}/subscriptions/${encodeURIComponent(subscriptionId)}/charges`,
+      payload,
+      { headers: this.getHeaders(), timeout: 15000 }
+    );
+    return response.data;
+  }
+
+  /**
+   * Initiates an order refund via Cashfree PG
+   */
+  public static async createRefund(params: {
+    orderId: string;
+    refundId: string;
+    refundAmount: number;
+    refundNote?: string;
+  }): Promise<any> {
+    const payload = {
+      refund_amount: Math.round(params.refundAmount * 100) / 100,
+      refund_id: params.refundId,
+      refund_note: params.refundNote || "TruthWorld Wallet Refund",
+    };
+    const response = await axios.post(
+      `${this.getBaseUrl()}/orders/${encodeURIComponent(params.orderId)}/refunds`,
+      payload,
+      { headers: this.getHeaders(), timeout: 15000 }
+    );
+    return response.data;
   }
 
   public static get PublicEnvironment(): "SANDBOX" | "PRODUCTION" {

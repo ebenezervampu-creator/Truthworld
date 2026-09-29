@@ -86,5 +86,40 @@ void main() {
       expect(find.text('Hindi'), findsOneWidget);
       expect(find.text('Spanish'), findsOneWidget);
     });
+
+    testWidgets('Channel language picker search bar filters languages and allows clear', (tester) async {
+      final controller = Get.put(ChannelController());
+
+      await tester.pumpWidget(
+        GetMaterialApp(
+          home: Scaffold(
+            body: ChannelLanguageContent(
+              controller: controller,
+              isDarkMode: true,
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byIcon(Icons.keyboard_arrow_down));
+      await tester.pumpAndSettle();
+
+      final searchField = find.byType(TextField);
+      expect(searchField, findsOneWidget);
+
+      await tester.enterText(searchField, 'Hindi');
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(ListTile, 'Hindi'), findsOneWidget);
+      expect(find.widgetWithText(ListTile, 'Spanish'), findsNothing);
+
+      final clearIcon = find.byIcon(Icons.cancel);
+      expect(clearIcon, findsOneWidget);
+
+      await tester.tap(clearIcon);
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(ListTile, 'Spanish'), findsOneWidget);
+    });
   });
 }

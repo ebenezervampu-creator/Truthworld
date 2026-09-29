@@ -10,7 +10,7 @@ import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:truthworld/theme/app_theme.dart';
 
-/// Distinct lifecycle states for YouTube-style voice search
+/// Distinct lifecycle states for voice search
 enum VoiceSearchState {
   initializing,
   listening,
@@ -44,7 +44,7 @@ class VoiceSearchController extends GetxController
   bool _isDisposed = false;
   String? _selectedLocaleId;
 
-  // Sample prompt suggestions shown when waiting/retrying (matching YouTube UX)
+  // Sample prompt suggestions shown when waiting/retrying
   final List<String> suggestions = const [
     'Flutter tutorials',
     'Latest news',
@@ -219,7 +219,7 @@ class VoiceSearchController extends GetxController
       recognizedText.value = words;
       voiceState.value = VoiceSearchState.recognized;
 
-      // Reset YouTube-style silence debounce timer on every spoken phrase
+      // Reset silence debounce timer on every spoken phrase
       _silenceTimer?.cancel();
       _silenceTimer = Timer(const Duration(milliseconds: 950), () {
         if (_isDisposed || _isSubmitting) return;
@@ -331,7 +331,7 @@ class VoiceSearchController extends GetxController
       speech.stop();
     } catch (_) {}
 
-    // Short tactile pause matching YouTube before dismissing
+    // Short tactile pause before dismissing
     Future.delayed(const Duration(milliseconds: 300), () {
       if (_isDisposed) return;
       onSearch(cleanQuery);
@@ -358,7 +358,7 @@ class VoiceSearchController extends GetxController
   }
 }
 
-/// YouTube-Exact Voice Search Dialog Widget
+/// Voice Search Dialog Widget
 class VoiceSearchDialog extends StatelessWidget {
   const VoiceSearchDialog({required this.onSearch, super.key});
   final Function(String) onSearch;
@@ -375,7 +375,7 @@ class VoiceSearchDialog extends StatelessWidget {
         }
       },
       builder: (controller) {
-        // YouTube dark background color
+        // Dark background color
         const darkBackground = Color(0xFF0F0F0F);
 
         return Scaffold(
@@ -391,7 +391,7 @@ class VoiceSearchDialog extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // YouTube Voice Search Title
+                      // Voice Search Title
                       Obx(() {
                         final currentState = controller.voiceState.value;
                         var headerText = 'Search with your voice';
@@ -445,7 +445,7 @@ class VoiceSearchDialog extends StatelessWidget {
                         ),
                       ),
 
-                      // Bottom Section: YouTube Red Animated Mic Button & Locale Indicator
+                      // Bottom Section: Red Animated Mic Button & Locale Indicator
                       _buildBottomSection(),
                       const SizedBox(height: 36),
                     ],
@@ -547,7 +547,7 @@ class VoiceSearchDialog extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 28),
-            // YouTube-style sample suggestion chips
+            // Sample suggestion chips
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -684,12 +684,12 @@ class VoiceSearchDialog extends StatelessWidget {
     }
   }
 
-  /// Builds YouTube-Style Animated Red Sound Wave Mic Button & Locale Badge
+  /// Builds Animated Red Sound Wave Mic Button & Locale Badge
   Widget _buildBottomSection() {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // YouTube Red Pulsating Mic Button
+        // Red Pulsating Mic Button
         Obx(() {
           final currentState = controller.voiceState.value;
           final isListening = currentState == VoiceSearchState.listening ||
@@ -767,7 +767,7 @@ class VoiceSearchDialog extends StatelessWidget {
                       ),
                     ),
 
-                  // Center YouTube Red Microphone Action Button
+                  // Center Red Microphone Action Button
                   Container(
                     width: 72,
                     height: 72,

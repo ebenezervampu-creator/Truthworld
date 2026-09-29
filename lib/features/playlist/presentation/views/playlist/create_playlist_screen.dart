@@ -9,9 +9,14 @@ class CreatePlaylistScreen extends StatelessWidget {
   const CreatePlaylistScreen({
     super.key,
     this.initialVideoId,
+    this.fromUpload = false,
   });
 
   final String? initialVideoId;
+  final bool fromUpload;
+
+  bool get isFromUpload =>
+      fromUpload || (Get.arguments is Map && Get.arguments['fromUpload'] == true);
 
   CreatePlaylistController get _c {
     final c = Get.isRegistered<CreatePlaylistController>()
@@ -45,10 +50,11 @@ class CreatePlaylistScreen extends StatelessWidget {
   Future<void> _handleCreatePlaylist(BuildContext context) async {
     final success = await _c.submitCreatePlaylist();
     if (success && context.mounted) {
+      final created = _c.lastCreatedPlaylist;
       if (Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
+        Navigator.of(context).pop(created);
       } else {
-        Get.back();
+        Get.back(result: created);
       }
     }
   }
@@ -85,6 +91,7 @@ class CreatePlaylistScreen extends StatelessWidget {
                         PlaylistThumbnailSection(
                           controller: _c,
                           isDesktop: isDesktop,
+                          fromUpload: isFromUpload,
                         ),
                         const SizedBox(height: 32),
                         if (isDesktop)
@@ -113,29 +120,36 @@ class CreatePlaylistScreen extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Left Column (Step 1, 2, 3)
+        // Left Column (Step 1, 2)
         Expanded(
-          flex: 5,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               PlaylistNameSection(controller: _c),
               const SizedBox(height: 24),
-              PlaylistDescriptionSection(controller: _c),
-              const SizedBox(height: 24),
-              PlaylistVisibilitySection(controller: _c),
+              PlaylistDescriptionSection(
+                controller: _c,
+                isDesktop: true,
+              ),
             ],
           ),
         ),
         const SizedBox(width: 32),
 
-        // Right Column (Step 4)
+        // Right Column (Step 3, 4)
         Expanded(
-          flex: 6,
-          child: PlaylistVideosSection(
-            controller: _c,
-            onAddVideos: () => _openVideoSelectorModal(context),
-            isDesktop: true,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              PlaylistVisibilitySection(controller: _c),
+              const SizedBox(height: 24),
+              PlaylistVideosSection(
+                controller: _c,
+                onAddVideos: () => _openVideoSelectorModal(context),
+                isDesktop: true,
+                fromUpload: isFromUpload,
+              ),
+            ],
           ),
         ),
       ],
@@ -156,6 +170,7 @@ class CreatePlaylistScreen extends StatelessWidget {
           controller: _c,
           onAddVideos: () => _openVideoSelectorModal(context),
           isDesktop: false,
+          fromUpload: isFromUpload,
         ),
       ],
     );

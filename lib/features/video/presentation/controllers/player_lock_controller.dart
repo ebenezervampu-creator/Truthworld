@@ -37,7 +37,7 @@ class PlayerLockController extends BaseController {
     }
   }
 
-  /// Show YouTube-style floating unlock pill for 3 seconds
+  /// Show floating unlock pill for 3 seconds
   void showUnlockHint() {
     if (!isLocked.value) return;
     pillState.value = UnlockPillState.visible;

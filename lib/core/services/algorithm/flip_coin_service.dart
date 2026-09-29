@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
+import 'package:truthworld/core/services/algorithm/vector_math_util.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
@@ -465,6 +466,20 @@ class FlipCoinService extends GetxService {
       contrastScore += 0.2;
     }
 
+    // 7. High-Dimensional Vector Embedding Contrast (The 10/10 Modernization)
+    if (candidateVideo.embedding != null && candidateVideo.embedding!.isNotEmpty) {
+      final userVector = profile.computeUserTowerVector();
+      if (userVector != null && userVector.isNotEmpty) {
+        final vectorDistance = VectorMathUtil.cosineDistance(
+          userVector,
+          candidateVideo.embedding!,
+        );
+        if (vectorDistance >= 0.70) {
+          contrastScore += (vectorDistance * 0.4).clamp(0.0, 0.6);
+        }
+      }
+    }
+
     // Minimum contrast threshold to qualify as opposite-side video
     return contrastScore >= 0.3 ? contrastScore : 0.0;
   }
@@ -579,6 +594,22 @@ class FlipCoinService extends GetxService {
     contrastScore += matchedConcepts.length * 0.5;
     contrastScore += matchedClaims.length * 0.4;
 
+    // High-Dimensional Vector Embedding Semantic Contrast (The 10/10 Modernization)
+    var semanticVectorDistance = 0.0;
+    if (currentVideo.embedding != null &&
+        candidateVideo.embedding != null &&
+        currentVideo.embedding!.isNotEmpty &&
+        candidateVideo.embedding!.isNotEmpty) {
+      semanticVectorDistance = VectorMathUtil.cosineDistance(
+        currentVideo.embedding!,
+        candidateVideo.embedding!,
+      );
+      // Cosine distance >= 0.75 indicates distinct/opposing semantic angles in embedding space
+      if (semanticVectorDistance >= 0.75) {
+        contrastScore += (semanticVectorDistance * 0.6).clamp(0.0, 1.0);
+      }
+    }
+
     if (currentVideo.category == candidateVideo.category && !isSameChannel && contrastScore > 0) {
       contrastScore += 0.2;
     }
@@ -611,6 +642,9 @@ class FlipCoinService extends GetxService {
     } else if (matchedConcepts.isNotEmpty) {
       category = PerspectiveCategory.conceptualContrast;
       explanation = 'Conceptual Contrast: ${matchedConcepts.take(2).join(", ")}';
+    } else if (semanticVectorDistance >= 0.75) {
+      category = PerspectiveCategory.conceptualContrast;
+      explanation = 'Semantic Counter-Perspective (Vector Embedding Contrast)';
     } else {
       category = PerspectiveCategory.conceptualContrast;
       explanation = 'Opposing Perspective';

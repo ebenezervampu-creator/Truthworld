@@ -37,6 +37,7 @@ class AIFeatures {
     this.translationLanguages = const [],
     this.tts = const TTSConfig(),
     this.factChecking = false,
+    this.factCheckTier = 'standard',
     this.diarization = false,
     this.summary = false,
     this.autoChapters = false,
@@ -53,6 +54,7 @@ class AIFeatures {
         ? TTSConfig.fromMap(Map<String, dynamic>.from(data['tts'] as Map))
         : const TTSConfig(),
     factChecking: data['factChecking'] ?? false,
+    factCheckTier: (data['factCheckTier'] as String?) ?? 'standard',
     diarization: data['diarization'] ?? false,
     summary: data['summary'] ?? false,
     autoChapters: data['autoChapters'] ?? false,
@@ -65,6 +67,7 @@ class AIFeatures {
   final List<String> translationLanguages; // ISO 639-1 codes
   final TTSConfig tts;
   final bool factChecking; // Gemini
+  final String factCheckTier; // "short" | "standard" | "full_ground"
   final bool diarization;
   final bool summary;
   final bool autoChapters; // AssemblyAI
@@ -78,6 +81,7 @@ class AIFeatures {
     'translationLanguages': translationLanguages,
     'tts': tts.toMap(),
     'factChecking': factChecking,
+    'factCheckTier': factCheckTier,
     'diarization': diarization,
     'summary': summary,
     'autoChapters': autoChapters,

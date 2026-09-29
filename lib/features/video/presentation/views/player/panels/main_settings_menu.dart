@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/panels/settings_tiles.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class MainSettingsMenu extends StatelessWidget {
   const MainSettingsMenu({required this.ctrl, super.key});
@@ -12,22 +13,16 @@ class MainSettingsMenu extends StatelessWidget {
     return SingleChildScrollView(
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           PanelHeader(
             title: 'Settings',
             onBack: null,
             onClose: ctrl.closeSettings,
           ),
-          Obx(
-            () => SettingsTile(
-              icon: Icons.slow_motion_video_rounded,
-              title: 'Playback Speed',
-              value: ctrl.playbackSpeed.value == 1.0
-                  ? 'Normal'
-                  : '${ctrl.playbackSpeed.value}×',
-              onTap: () => ctrl.activePanel.value = 'speed',
-            ),
-          ),
+
+          // ── Category: Playback ───────────────────────────────────────────────
+          const _CategoryHeader('Playback'),
           Obx(
             () => SettingsTile(
               icon: Icons.tune_rounded,
@@ -39,20 +34,70 @@ class MainSettingsMenu extends StatelessWidget {
           ),
           Obx(
             () => SettingsTile(
+              icon: Icons.slow_motion_video_rounded,
+              title: 'Playback Speed',
+              value: ctrl.playbackSpeed.value == 1.0
+                  ? 'Normal'
+                  : '${ctrl.playbackSpeed.value}×',
+              onTap: () => ctrl.activePanel.value = 'speed',
+            ),
+          ),
+          SettingsTile(
+            icon: Icons.picture_in_picture_alt_rounded,
+            title: 'Picture-in-Picture',
+            value: 'Pop out player',
+            onTap: () {
+              ctrl.closeSettings();
+              ctrl.togglePiP();
+            },
+          ),
+
+          const PlayerDivider(),
+
+          // ── Category: Audio & Localization ────────────────────────────────────
+          const _CategoryHeader('Audio & Localization'),
+          Obx(
+            () => SettingsTile(
+              icon: Icons.translate_rounded,
+              title: 'Audio',
+              value: ctrl.activeAudioLang.value,
+              onTap: () => ctrl.activePanel.value = 'language',
+            ),
+          ),
+          Obx(
+            () => ToggleTile(
+              icon: Icons.music_note_rounded,
+              title: 'Audio-only Mode',
+              value: ctrl.isAudioOnly.value,
+              onChanged: (_) => ctrl.toggleAudioOnly(),
+            ),
+          ),
+
+          const PlayerDivider(),
+
+          // ── Category: Subtitles ──────────────────────────────────────────────
+          const _CategoryHeader('Subtitles'),
+          Obx(
+            () => SettingsTile(
               icon: Icons.closed_caption_rounded,
-              title: 'Subtitles / CC',
+              title: 'Subtitles',
               value: ctrl.subtitlesEnabled.value
                   ? ctrl.activeSubLang.value
                   : 'Off',
               onTap: () => ctrl.activePanel.value = 'subtitles',
             ),
           ),
+
+          const PlayerDivider(),
+
+          // ── Category: Playback Statistics & Advanced ──────────────────────────
+          const _CategoryHeader('Playback Statistics & Advanced'),
           Obx(
-            () => SettingsTile(
-              icon: Icons.translate_rounded,
-              title: 'Audio Language',
-              value: ctrl.activeAudioLang.value,
-              onTap: () => ctrl.activePanel.value = 'language',
+            () => ToggleTile(
+              icon: Icons.analytics_outlined,
+              title: 'Playback Statistics',
+              value: ctrl.showStatsForNerds.value,
+              onChanged: (_) => ctrl.showStatsForNerds.toggle(),
             ),
           ),
           Obx(
@@ -65,17 +110,10 @@ class MainSettingsMenu extends StatelessWidget {
                   )
                 : const SizedBox.shrink(),
           ),
-          SettingsTile(
-            icon: Icons.info_outline_rounded,
-            title: 'Content Details',
-            value: ctrl.contentMeta.rating,
-            onTap: () => ctrl.activePanel.value = 'rating',
-          ),
-          const PlayerDivider(),
           Obx(
             () => ToggleTile(
               icon: Icons.repeat_rounded,
-              title: 'Loop',
+              title: 'Loop Video',
               value: ctrl.isLooping.value,
               onChanged: (_) => ctrl.toggleLoop(),
             ),
@@ -88,40 +126,29 @@ class MainSettingsMenu extends StatelessWidget {
               onChanged: (_) => ctrl.toggleAutoplay(),
             ),
           ),
-          Obx(
-            () => ToggleTile(
-              icon: Icons.music_note_rounded,
-              title: 'Audio Only Mode',
-              value: ctrl.isAudioOnly.value,
-              onChanged: (_) => ctrl.toggleAudioOnly(),
-            ),
-          ),
-          Obx(
-            () => ToggleTile(
-              icon: Icons.analytics_outlined,
-              title: 'Stats for Nerds',
-              value: ctrl.showStatsForNerds.value,
-              onChanged: (_) => ctrl.showStatsForNerds.toggle(),
-            ),
-          ),
-          Obx(
-            () => ToggleTile(
-              icon: Icons.view_sidebar_rounded,
-              title: 'Fullscreen Action Bar',
-              value: ctrl.showFullscreenActionsDock.value,
-              onChanged: (_) => ctrl.showFullscreenActionsDock.toggle(),
-            ),
-          ),
-          Obx(
-            () => SettingsTile(
-              icon: Icons.zoom_in_rounded,
-              title: 'Zoom',
-              value: ctrl.zoomLabel,
-              onTap: () => ctrl.activePanel.value = 'zoom',
-            ),
-          ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
         ],
+      ),
+    );
+  }
+}
+
+class _CategoryHeader extends StatelessWidget {
+  const _CategoryHeader(this.title);
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
+      child: Text(
+        title.toUpperCase(),
+        style: const TextStyle(
+          color: AppColors.textSecondary,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.8,
+        ),
       ),
     );
   }

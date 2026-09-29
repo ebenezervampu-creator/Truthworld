@@ -8,6 +8,7 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_colors.dart';
@@ -26,6 +27,22 @@ class CreatePlaylistController extends BaseController {
   final Rx<String?> customImageName = Rx<String?>(null);
   final RxBool useCustomThumbnail = false.obs;
   final RxBool isCreating = false.obs;
+  PlaylistModel? lastCreatedPlaylist;
+
+  void resetForm() {
+    nameController.clear();
+    descController.clear();
+    nameLength.value = 0;
+    descLength.value = 0;
+    isPublic.value = true;
+    selectedVideos.clear();
+    selectedThumbnailIndex.value = 0;
+    customImageBytes.value = null;
+    customImageName.value = null;
+    useCustomThumbnail.value = false;
+    isCreating.value = false;
+    lastCreatedPlaylist = null;
+  }
 
   @override
   void onInit() {
@@ -186,6 +203,7 @@ class CreatePlaylistController extends BaseController {
       );
 
       if (created != null) {
+        lastCreatedPlaylist = created;
         return true;
       }
     } catch (e) {

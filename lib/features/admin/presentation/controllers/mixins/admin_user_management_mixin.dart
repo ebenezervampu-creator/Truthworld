@@ -315,10 +315,10 @@ mixin AdminUserManagementMixin on GetxController {
 
       final trustScore = (trustData['score'] is num)
           ? (trustData['score'] as num).toInt()
-          : (userData['trustScore'] as int? ?? 100);
+          : ((userData['trustScore'] as num?)?.toInt() ?? 100);
       final strikes = (trustData['strikes'] is num)
           ? (trustData['strikes'] as num).toInt()
-          : (userData['strikes'] as int? ?? 0);
+          : ((userData['strikes'] as num?)?.toInt() ?? 0);
       final approvalRate = totalUploads > 0 ? ((approvedCount / totalUploads) * 100).round() : 100;
       final rejectionRate = totalUploads > 0 ? ((rejectedCount / totalUploads) * 100).round() : 0;
 
@@ -504,7 +504,7 @@ mixin AdminUserManagementMixin on GetxController {
           updatedUser['status'] = 'suspended';
           updatedUser['accountStatus'] = 'SUSPENDED';
         } else if (normalizedAction.contains('warn')) {
-          updatedUser['strikes'] = (updatedUser['strikes'] as int? ?? 0) + 1;
+          updatedUser['strikes'] = ((updatedUser['strikes'] as num?)?.toInt() ?? 0) + 1;
         } else if (normalizedAction.contains('reset')) {
           updatedUser['trustScore'] = 100;
           updatedUser['strikes'] = 0;

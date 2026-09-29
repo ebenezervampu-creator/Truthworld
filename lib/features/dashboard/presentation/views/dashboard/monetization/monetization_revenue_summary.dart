@@ -42,7 +42,7 @@ class RevenueWithdrawalSummaryCard extends StatelessWidget {
                     padding: EdgeInsets.all(12),
                     child: Text(
                       '1. Channels start earning revenue immediately from day one.\n\n'
-                      '2. Cash withdrawal for earnings from a video unlocks when that video reaches 10 hours of watch time.\n\n'
+                      '2. Cash withdrawal for earnings from a video unlocks when that video reaches 1,000 views and 10 hours of watch time.\n\n'
                       '3. Unwithdrawn or locked money can be spent anytime for AI subtitles, dubbing, and other platform features.',
                       style: TextStyle(
                         color: AppColors.textSecondary,
@@ -101,7 +101,7 @@ class RevenueWithdrawalSummaryCard extends StatelessWidget {
                 : (eligibleCount > 0 ? 1.0 : 0.0);
 
             final withdrawableAdWatch = isCustom
-                ? adAndWatchRev
+                ? (adAndWatchRev * watchRatio)
                 : (adAndWatchRev * 0.70 * watchRatio);
             final withdrawableTotal = directWithdrawable + withdrawableAdWatch;
             final lockedTotal =
@@ -120,19 +120,23 @@ class RevenueWithdrawalSummaryCard extends StatelessWidget {
                   period: 'Available for Cash Withdrawal',
                   amount: '₹${withdrawableTotal.toStringAsFixed(2)}',
                   subtitle: isCustom
-                      ? '100% Gross Revenue directly withdrawable'
+                      ? (eligibleCount > 0
+                          ? '$eligibleCount video(s) crossed 1k views & 10h watch time (100% retained)'
+                          : (directWithdrawable > 0
+                              ? 'Fan Memberships & Superchats directly withdrawable'
+                              : 'Awaiting 1k views & 10h watch time on videos'))
                       : (directWithdrawable > 0 && eligibleCount == 0
                           ? 'Fan Memberships & Superchats directly withdrawable'
-                          : '$eligibleCount video(s) crossed 10h watch time'),
+                          : '$eligibleCount video(s) crossed 1k views & 10h watch time'),
                   badgeColor: Colors.green,
                 ),
                 RevenueMetricRow(
-                  period: 'Locked for Cash Out (Awaiting 10h)',
+                  period: 'Locked for Cash Out (Awaiting 1k Views & 10h)',
                   amount: '₹${lockedTotal.toStringAsFixed(2)}',
                   subtitle: pendingCount > 0
-                      ? '$pendingCount video(s) under 10h watch time'
+                      ? '$pendingCount video(s) under 1k views or 10h watch time'
                       : (lockedTotal > 0
-                          ? 'Awaiting video watch threshold'
+                          ? 'Awaiting video threshold'
                           : 'No locked funds'),
                   badgeColor: Colors.orange,
                 ),

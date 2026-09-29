@@ -63,4 +63,9 @@ Treat authentication, authorization, payments, user data, copyright, moderation,
   - Always enforce strong visual contrast (WCAG AA compliant).
   - Never pair white/brand backgrounds (`AppColors.brand`, `Colors.white`) with white foregrounds, white icons, white text, or white loading indicators. On white surfaces, all text, icons, and indicators MUST be black (`Colors.black`).
   - Always run `flutter test test/core/ui_contrast_guard_test.dart` to verify zero contrast violations.
+- **Zero Charm-Pricing & Zero Marketing Gimmick Policy**:
+  - TruthWorld stands for absolute truth, transparency, and epistemic honesty.
+  - Absolutely NEVER use charm pricing, deceptive marketing endings, or psychological pricing gimmicks (e.g. $9, $9.99, $14.99, $29.99, $99, 9999, .99) anywhere in TruthWorld.
+  - All prices, quotas, credit allocations, and subscription tiers must use clean, honest, transparent round numbers (e.g., $10, $15, $20, $25, $30, $50, $100).
+  - Welcome trial credits must always show and be awarded as honest round numbers ($10.00, never $9.00). Any legacy or accidental 9.0 trial credit must automatically normalize to the honest $10.00 standard.
 - Do not claim something works unless it has been verified.

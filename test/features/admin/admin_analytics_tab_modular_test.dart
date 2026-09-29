@@ -12,7 +12,10 @@ void main() {
     await setupMockFirebase();
   });
 
-  setUp(Get.reset);
+  setUp(() {
+    Get.testMode = true;
+    Get.reset();
+  });
   tearDown(Get.reset);
 
   group('Admin Analytics Tab Modular Components Tests', () {
@@ -21,7 +24,7 @@ void main() {
       final controller = Get.put(AdminController());
 
       await tester.pumpWidget(
-        MaterialApp(
+        GetMaterialApp(
           home: Scaffold(
             body: AdminAnalyticsHeader(controller: controller),
           ),
@@ -213,7 +216,7 @@ void main() {
       });
 
       await tester.pumpWidget(
-        MaterialApp(
+        GetMaterialApp(
           home: Scaffold(
             body: AnalyticsTab(controller: controller),
           ),

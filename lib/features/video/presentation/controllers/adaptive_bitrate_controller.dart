@@ -66,7 +66,7 @@ class ResolutionTier {
   final int bitrate; // Target bitrate in kbps
   final int minBandwidth;
 
-  /// Standard OTT resolution ladder (matches Netflix/YouTube encoding specs)
+  /// Standard OTT resolution ladder (matches standard OTT encoding specs)
   static List<ResolutionTier> get defaultLadder => [
     const ResolutionTier(
       label: '144p',
@@ -199,18 +199,20 @@ class AdaptiveBitrateController extends BaseController {
   VideoPlayerController? _vpc;
   int? maxHeightCap;
 
-  // ABR tuning constants (Netflix/YouTube values)
+  // ABR tuning constants (optimized for smooth progressive MP4 and HLS playback)
   static const double _bandwidthSafetyFactor = 0.80; // Use 80% of measured BW
   static const double _upgradeHysteresisFactor =
-      1.15; // Need 15% more than tier BW to upgrade
+      1.25; // Need 25% more than tier BW to upgrade (prevents premature jumping)
   static const double _downgradeHysteresisFactor =
-      0.85; // Must drop 15% below tier to downgrade
+      0.70; // Must drop 30% below tier to downgrade (prevents oscillation on minor network dips)
   static const double _minBufferToUpgrade =
-      8; // Seconds of buffer before allowing upgrade
+      15.0; // Seconds of buffer before allowing automatic upgrade (smooth playback buffer cushion)
   static const double _panicBufferLevel =
-      2; // Drop to lowest tier if buffer < 2s
+      1.0; // Drop to lowest tier only if buffer < 1s and outside startup grace
   static const int _measurementWindowCount =
       5; // Rolling average over 5 measurements
+  static const Duration _startupGracePeriod = Duration(seconds: 15);
+  static const Duration _minDwellDuration = Duration(seconds: 45);
 
   // ── Internal state ─────────────────────────────────────────
   final List<double> _bandwidthHistory = [];
@@ -221,6 +223,8 @@ class AdaptiveBitrateController extends BaseController {
   int _lastDownloadBytes = 0;
   Duration _lastKnownPosition = Duration.zero;
   DateTime _lastPositionUpdate = DateTime.now();
+  DateTime _playbackStartTime = DateTime.now();
+  DateTime _lastTierSwitchTime = DateTime.now();
   final List<AbrDecision> _decisionHistory = [];
   bool _isFirstDecision = true;
 
@@ -231,6 +235,8 @@ class AdaptiveBitrateController extends BaseController {
     required VideoPlayerController vpc,
     int? maxHeightCap,
   }) {
+    _playbackStartTime = DateTime.now();
+    _lastTierSwitchTime = DateTime.now();
     this.maxHeightCap = maxHeightCap;
     resolutionLadder = ladder;
     _vpc = vpc;
@@ -344,7 +350,7 @@ class AdaptiveBitrateController extends BaseController {
 
   void _startAbrLoop() {
     _abrTimer?.cancel();
-    _abrTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+    _abrTimer = Timer.periodic(const Duration(seconds: 8), (_) {
       if (isAutoMode.value) _runAbrDecision();
     });
     trackTimer(_abrTimer!);
@@ -354,12 +360,20 @@ class AdaptiveBitrateController extends BaseController {
     if (_vpc == null || resolutionLadder.isEmpty) return;
     if (playbackState.value == PlaybackState.error) return;
 
+    final now = DateTime.now();
+    final isWithinStartupGrace =
+        now.difference(_playbackStartTime) < _startupGracePeriod;
+
     final buffer = bufferHealthSeconds.value;
     final bw = _getSmoothedBandwidth();
     final effectiveBw = bw * _bandwidthSafetyFactor;
 
-    // ── PANIC MODE: Buffer critically low → drop to floor immediately ──
-    if (buffer < _panicBufferLevel && buffer > 0 && bw > 0 && !forceHighest) {
+    // ── PANIC MODE: Critically low buffer (< 1s) outside startup grace period ──
+    if (!isWithinStartupGrace &&
+        buffer < _panicBufferLevel &&
+        buffer > 0 &&
+        bw > 0 &&
+        !forceHighest) {
       _switchToTier(0, reason: 'Panic: buffer=${buffer.toStringAsFixed(1)}s');
       return;
     }
@@ -382,8 +396,7 @@ class AdaptiveBitrateController extends BaseController {
       }
     }
 
-    // INDUSTRY STANDARD: On first decision, jump immediately to best tier
-    // instead of waiting for hysteresis/buffer gates.
+    // INDUSTRY STANDARD: On first decision or manual force, select optimal tier immediately
     if (_isFirstDecision || forceHighest) {
       _isFirstDecision = false;
       _switchToTier(
@@ -393,10 +406,22 @@ class AdaptiveBitrateController extends BaseController {
       return;
     }
 
+    // During startup grace period, let stream establish buffer without auto-switch jitter
+    if (isWithinStartupGrace) {
+      _updateNetworkQuality(bw);
+      return;
+    }
+
     final current = currentTierIndex.value;
 
-    // ── Upgrade logic with hysteresis + buffer gate ──
+    // ── Upgrade logic with hysteresis, buffer gate, and minimum dwell duration ──
     if (bestTier > current) {
+      final dwellElapsed = now.difference(_lastTierSwitchTime);
+      if (dwellElapsed < _minDwellDuration) {
+        _updateNetworkQuality(bw);
+        return;
+      }
+
       final requiredBw =
           resolutionLadder[bestTier].minBandwidth * _upgradeHysteresisFactor;
       if (effectiveBw >= requiredBw && buffer >= _minBufferToUpgrade) {
@@ -435,6 +460,8 @@ class AdaptiveBitrateController extends BaseController {
     final clamped = index.clamp(0, resolutionLadder.length - 1);
     if (clamped == currentTierIndex.value) return;
 
+    _lastTierSwitchTime = DateTime.now();
+
     _decisionHistory.add(
       AbrDecision(
         timestamp: DateTime.now(),
@@ -459,7 +486,7 @@ class AdaptiveBitrateController extends BaseController {
 
   void _startBandwidthProbing() {
     _bandwidthProbeTimer?.cancel();
-    _bandwidthProbeTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+    _bandwidthProbeTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       _measureBandwidth();
     });
     trackTimer(_bandwidthProbeTimer!);
@@ -558,25 +585,28 @@ class AdaptiveBitrateController extends BaseController {
     final now = DateTime.now();
     final currentPos = value.position;
 
-    // If position hasn't moved in 2+ seconds while playing → stall
+    // Update buffer health first so stall check has fresh buffer metrics
+    if (value.buffered.isNotEmpty) {
+      final bufferEnd = value.buffered.last.end;
+      final bufferAhead = bufferEnd - currentPos;
+      bufferHealthSeconds.value = max(0, bufferAhead.inMilliseconds / 1000.0);
+    }
+
+    final buffer = bufferHealthSeconds.value;
+
+    // Genuine stall condition: position hasn't moved in 3.5+ seconds while playing AND buffer is depleted (< 0.5s)
     if (currentPos == _lastKnownPosition &&
-        now.difference(_lastPositionUpdate).inSeconds >= 2) {
+        now.difference(_lastPositionUpdate).inMilliseconds >= 3500 &&
+        buffer < 0.5) {
       if (playbackState.value != PlaybackState.stalled) {
         _onStallDetected();
       }
-    } else {
+    } else if (currentPos != _lastKnownPosition) {
       if (playbackState.value == PlaybackState.stalled) {
         _onStallRecovered();
       }
       _lastKnownPosition = currentPos;
       _lastPositionUpdate = now;
-    }
-
-    // Update buffer health
-    if (value.buffered.isNotEmpty) {
-      final bufferEnd = value.buffered.last.end;
-      final bufferAhead = bufferEnd - currentPos;
-      bufferHealthSeconds.value = max(0, bufferAhead.inMilliseconds / 1000.0);
     }
   }
 
@@ -593,8 +623,13 @@ class AdaptiveBitrateController extends BaseController {
       );
     }
 
-    // Add penalty bandwidth sample
-    _addBandwidthSample(50);
+    // Gracefully reduce bandwidth estimate by 30% without poisoning history with 50kbps
+    if (_bandwidthHistory.isNotEmpty) {
+      final currentSmooth = _getSmoothedBandwidth();
+      _bandwidthHistory.clear();
+      _bandwidthHistory.add(max(200.0, currentSmooth * 0.70));
+      measuredBandwidthKbps.value = _getSmoothedBandwidth();
+    }
   }
 
   void _onStallRecovered() {

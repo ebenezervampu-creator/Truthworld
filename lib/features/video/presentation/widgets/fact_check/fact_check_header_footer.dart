@@ -6,7 +6,9 @@ import 'package:truthworld/theme/app_theme.dart';
 
 /// Top header for the AI Full Disclosure sheet with title, verification badge, and close button.
 class FactCheckReportHeader extends StatelessWidget {
-  const FactCheckReportHeader({super.key});
+  const FactCheckReportHeader({this.tierBadgeLabel, super.key});
+
+  final String? tierBadgeLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -31,13 +33,43 @@ class FactCheckReportHeader extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'AI FULL DISCLOSURE',
-                    style: AppTextStyles.titleMedium.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.brand,
-                      letterSpacing: 2,
-                    ),
+                  Row(
+                    children: [
+                      Text(
+                        'AI FULL DISCLOSURE',
+                        style: AppTextStyles.titleMedium.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.brand,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                      if (tierBadgeLabel != null && tierBadgeLabel!.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.25),
+                              width: 0.8,
+                            ),
+                          ),
+                          child: Text(
+                            tierBadgeLabel!.toUpperCase(),
+                            style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   Row(
                     children: [

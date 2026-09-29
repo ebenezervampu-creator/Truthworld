@@ -18,10 +18,10 @@ void showCreateOrEditTierDialog({
   final nameController = TextEditingController(text: tier?.name ?? '');
   final priceController = TextEditingController(
     text: tier != null
-        ? (tier.currency == 'INR' && tier.price == tier.price.truncateToDouble()
+        ? (tier.price == tier.price.truncateToDouble()
             ? tier.price.toInt().toString()
             : tier.price.toStringAsFixed(2))
-        : '4.99',
+        : '5',
   );
   final descController = TextEditingController(text: tier?.description ?? '');
   final customPerkController = TextEditingController();
@@ -38,7 +38,7 @@ void showCreateOrEditTierDialog({
 
   final selectedColorHex = (tier?.badgeColorHex ?? '0xFFF59E0B').obs;
   final nameRx = (tier?.name ?? 'Silver VIP').obs;
-  final priceRx = (tier?.price ?? 4.99).obs;
+  final priceRx = (tier?.price ?? 5.0).obs;
   final isSubmitting = false.obs;
 
   nameController.addListener(() {
@@ -176,12 +176,12 @@ void showCreateOrEditTierDialog({
                                         selectedCurrency.value = 'USD';
                                         final curPrice =
                                             double.tryParse(priceController.text.trim()) ?? 0.0;
-                                        if (curPrice >= 10.0 && curPrice != 0.10) {
-                                          priceController.text = '4.99';
-                                          priceRx.value = 4.99;
-                                        } else if (curPrice < 0.10) {
-                                          priceController.text = '0.10';
-                                          priceRx.value = 0.10;
+                                        if (curPrice >= 10.0 && curPrice != 1.0) {
+                                          priceController.text = '5';
+                                          priceRx.value = 5.0;
+                                        } else if (curPrice < 1.0) {
+                                          priceController.text = '1';
+                                          priceRx.value = 1.0;
                                         }
                                       }
                                     },
@@ -236,8 +236,8 @@ void showCreateOrEditTierDialog({
                             fontWeight: FontWeight.bold,
                           ),
                           hintText: selectedCurrency.value == 'INR'
-                              ? 'e.g. 10 or 59'
-                              : 'e.g. 0.10 or 4.99',
+                              ? 'e.g. 25 or 50'
+                              : 'e.g. 2 or 5',
                           hintStyle: TextStyle(
                             color: isDarkMode
                                 ? AppColors.textSecondary
@@ -286,19 +286,20 @@ void showCreateOrEditTierDialog({
                       Obx(() {
                         final curr = selectedCurrency.value;
                         final presets = curr == 'INR'
-                            ? [10.0, 29.0, 59.0, 89.0, 159.0, 199.0, 299.0]
-                            : [0.10, 0.99, 1.99, 4.99, 9.99, 19.99, 24.99];
+                            ? [10.0, 25.0, 50.0, 100.0, 150.0, 200.0, 300.0]
+                            : [1.0, 2.0, 5.0, 10.0, 15.0, 20.0, 25.0];
 
                         return Wrap(
                           spacing: 8,
                           runSpacing: 6,
                           children: presets.map((p) {
+                            final isWhole = p == p.truncateToDouble();
                             final label = curr == 'INR'
-                                ? '₹${p == p.truncateToDouble() ? p.toInt() : p.toStringAsFixed(2)}'
-                                : '\$${p.toStringAsFixed(2)}';
+                                ? '₹${isWhole ? p.toInt() : p.toStringAsFixed(2)}'
+                                : '\$${isWhole ? p.toInt() : p.toStringAsFixed(2)}';
                             return GestureDetector(
                               onTap: () {
-                                priceController.text = curr == 'INR' && p == p.truncateToDouble()
+                                priceController.text = isWhole
                                     ? p.toInt().toString()
                                     : p.toStringAsFixed(2);
                                 priceRx.value = p;

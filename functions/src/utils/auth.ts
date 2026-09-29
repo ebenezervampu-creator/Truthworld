@@ -8,11 +8,14 @@
 import * as admin from "firebase-admin";
 import { logger } from "firebase-functions/v2";
 import { Request, Response } from "express";
+import { applySecurityHeaders, isSessionRecent } from "./securityHeaders";
 
 export interface AuthenticatedUser {
   uid: string;
   email?: string;
   isAdmin: boolean;
+  authTime?: number;
+  emailVerified?: boolean;
 }
 
 /**
@@ -47,6 +50,7 @@ export async function verifyAuth(req: Request): Promise<AuthenticatedUser | null
   try {
     const decoded = await admin.auth().verifyIdToken(token);
     const email = (decoded.email || "").toLowerCase();
+    const isEmailVerified = decoded.email_verified === true;
     const ADMIN_EMAILS = [
       "ebenezervampy@towervsp.com",
       "ebenezervampu@towervsp.com",
@@ -55,14 +59,14 @@ export async function verifyAuth(req: Request): Promise<AuthenticatedUser | null
       "support@truthworld.com",
     ];
 
-    const isBootstrapAdminEmail = ADMIN_EMAILS.includes(email);
+    const isBootstrapAdminEmail = isEmailVerified && ADMIN_EMAILS.includes(email);
     let isAdminUser =
       decoded.admin === true ||
       decoded.role === "admin" ||
       isBootstrapAdminEmail;
 
-    // Check admin_members collection in Firestore if not already identified
-    if (!isAdminUser && email) {
+    // Check admin_members collection in Firestore if not already identified (strictly require email verification)
+    if (!isAdminUser && email && isEmailVerified) {
       try {
         const memberDoc = await admin.firestore().collection("admin_members").doc(email).get();
         if (memberDoc.exists && memberDoc.data()?.status !== "suspended") {
@@ -99,6 +103,8 @@ export async function verifyAuth(req: Request): Promise<AuthenticatedUser | null
       uid: decoded.uid,
       email: decoded.email,
       isAdmin: isAdminUser,
+      authTime: decoded.auth_time,
+      emailVerified: isEmailVerified,
     };
   } catch (err) {
     logger.warn("[Auth] Invalid token:", err);
@@ -107,9 +113,10 @@ export async function verifyAuth(req: Request): Promise<AuthenticatedUser | null
 }
 
 /**
- * Sets standard CORS headers on HTTP response.
+ * Sets standard CORS headers and enterprise security headers on HTTP response.
  */
 export function setCorsHeaders(req: Request, res: Response): void {
+  applySecurityHeaders(res);
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
   res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
@@ -158,12 +165,36 @@ export async function requireAdmin(req: Request, res: Response): Promise<Authent
 }
 
 /**
+ * Requires Firebase Auth + admin custom claim + recent authentication (step-up auth).
+ * Returns 401 if unauthenticated, 403 if not admin, 403 if session is older than maxAgeSeconds.
+ */
+export async function requireRecentAdmin(
+  req: Request,
+  res: Response,
+  maxAgeSeconds: number = 3600
+): Promise<AuthenticatedUser | null> {
+  const user = await requireAdmin(req, res);
+  if (!user) return null;
+
+  if (user.authTime && !isSessionRecent(user.authTime, maxAgeSeconds)) {
+    res.status(403).json({
+      error: "Step-up authentication required. Please re-authenticate to perform this administrative action.",
+      code: "AUTH_STEP_UP_REQUIRED",
+    });
+    return null;
+  }
+
+  return user;
+}
+
+/**
  * Checks if a Callable function context/auth payload has verified admin privileges.
  */
 export function isCallableAdmin(auth: any): boolean {
   if (!auth) return false;
   const token = auth.token || {};
   const email = (token.email || "").toLowerCase();
+  const isEmailVerified = token.email_verified === true;
   const ADMIN_EMAILS = [
     "ebenezervampy@towervsp.com",
     "ebenezervampu@towervsp.com",
@@ -174,7 +205,17 @@ export function isCallableAdmin(auth: any): boolean {
   return (
     token.admin === true ||
     token.role === "admin" ||
-    ADMIN_EMAILS.includes(email)
+    (isEmailVerified && ADMIN_EMAILS.includes(email))
   );
+}
+
+/**
+ * Checks if a Callable function context has verified admin privileges and recent authentication.
+ */
+export function isCallableRecentAdmin(auth: any, maxAgeSeconds: number = 3600): boolean {
+  if (!isCallableAdmin(auth)) return false;
+  const authTime = auth?.token?.auth_time;
+  if (!authTime) return true; // fallback if auth_time not available in test context
+  return isSessionRecent(authTime, maxAgeSeconds);
 }
 

@@ -1,3 +1,4 @@
+export 'video_chapter_parser.dart';
 export 'video_duration_utils.dart';
 export 'video_map_parser.dart';
 export 'video_media_cache_manager.dart';

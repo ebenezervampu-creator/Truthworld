@@ -141,9 +141,16 @@
   <link rel="apple-touch-icon" href="icons/Icon-192.png" />
   <link rel="manifest" href="manifest.json" />
 
-  <!-- ── Image Cropper (Web - Local First-Party) ────────── -->
-  <link rel="stylesheet" href="assets/cropper/cropper.min.css" />
-  <script src="assets/cropper/cropper.min.js" defer></script>
+  <!-- ── Image Cropper (Web - Local First-Party with Resilient CDN Fallback) ── -->
+  <link rel="stylesheet" href="assets/cropper/cropper.min.css" onerror="this.onerror=null;this.href='https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css';" />
+  <script src="assets/cropper/cropper.min.js"></script>
+  <script>
+    if (typeof Cropper === 'undefined') {
+      var cdnCropper = document.createElement('script');
+      cdnCropper.src = 'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js';
+      document.head.appendChild(cdnCropper);
+    }
+  </script>
 
   <!-- ── Fonts (Asynchronous & Non-Render-Blocking) ───── -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -159,6 +166,8 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons|Material+Icons+Rounded|Material+Icons+Outlined&display=swap" />
   </noscript>
 
+  <meta name="apple-itunes-app" content="app-id=com.truthworld.app" />
+
   <!-- ── Basic CSS -->
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -169,13 +178,114 @@
       overflow: hidden;
       font-family: 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
     }
+
+    /* Mobile Smart App Banner */
+    .tw-mobile-app-banner {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 16px;
+      background: #141416;
+      border-bottom: 1px solid #27272a;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 999999;
+      font-family: 'Roboto', -apple-system, sans-serif;
+    }
+    .tw-mobile-app-banner-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+      flex: 1;
+    }
+    .tw-mobile-app-banner-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      object-fit: cover;
+      flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    }
+    .tw-mobile-app-banner-text {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .tw-mobile-app-banner-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #ffffff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .tw-mobile-app-banner-desc {
+      font-size: 12px;
+      color: #a1a1aa;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .tw-mobile-app-banner-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .tw-mobile-app-banner-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 18px;
+      background: #ffffff;
+      color: #000000;
+      font-size: 13px;
+      font-weight: 700;
+      border-radius: 20px;
+      text-decoration: none;
+      cursor: pointer;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+      transition: opacity 0.2s ease;
+    }
+    .tw-mobile-app-banner-close {
+      background: transparent;
+      border: none;
+      color: #71717a;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 4px 6px;
+      line-height: 1;
+    }
   </style>
 </head>
 <body>
+  <!-- Mobile Smart App Banner -->
+  <div id="tw-app-banner" class="tw-mobile-app-banner">
+    <div class="tw-mobile-app-banner-info">
+      <img src="icons/Icon-192.png" alt="Truthworld App" class="tw-mobile-app-banner-icon" />
+      <div class="tw-mobile-app-banner-text">
+        <span class="tw-mobile-app-banner-title">Truthworld App</span>
+        <span class="tw-mobile-app-banner-desc">Open in the Truthworld mobile app</span>
+      </div>
+    </div>
+    <div class="tw-mobile-app-banner-actions">
+      <a id="tw-open-app-btn" href="#" class="tw-mobile-app-banner-btn">OPEN APP</a>
+      <button id="tw-close-app-btn" class="tw-mobile-app-banner-close" aria-label="Close banner">&times;</button>
+    </div>
+  </div>
   <script>
-    // Only enable App Check debug token on localhost for local testing (never in production)
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      self.FIREBASE_APPCHECK_DEBUG_TOKEN = 'aeb2d92a-1f8d-4014-819d-b24f3ffefec3';
+    // Only enable App Check debug token on local development hosts (never in production)
+    var isLocalDevHost = window.location.hostname === 'localhost' ||
+                         window.location.hostname === '127.0.0.1' ||
+                         window.location.hostname === '0.0.0.0' ||
+                         window.location.hostname === '[::1]' ||
+                         window.location.hostname.endsWith('.local');
+    if (isLocalDevHost) {
+      self.FIREBASE_APPCHECK_DEBUG_TOKEN = self.FIREBASE_APPCHECK_DEBUG_TOKEN || 'aeb2d92a-1f8d-4014-819d-b24f3ffefec3';
     }
 
     // Clean URL query parameters used for cache busting
@@ -305,6 +415,62 @@
       // Periodically check in background every 2 minutes
       setInterval(checkAppUpdate, 120000);
       checkAppUpdate();
+    })();
+  </script>
+
+  <!-- Mobile Deep Link & Smart App Banner Controller -->
+  <script>
+    (function() {
+      var isAndroid = /Android/i.test(navigator.userAgent);
+      var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+      if (!isAndroid && !isIOS) return;
+
+      var banner = document.getElementById('tw-app-banner');
+      var openBtn = document.getElementById('tw-open-app-btn');
+      var closeBtn = document.getElementById('tw-close-app-btn');
+
+      if (banner && sessionStorage.getItem('tw_banner_dismissed') !== 'true') {
+        banner.style.display = 'flex';
+      }
+
+      if (closeBtn) {
+        closeBtn.addEventListener('click', function() {
+          if (banner) banner.style.display = 'none';
+          sessionStorage.setItem('tw_banner_dismissed', 'true');
+        });
+      }
+
+      var pathWithQuery = window.location.pathname + window.location.search + window.location.hash;
+      var cleanPath = pathWithQuery.replace(/^\/+/, '');
+      var deepLinkIntentUrl = isAndroid
+        ? 'intent://www.truthworld.in/' + cleanPath + '#Intent;scheme=https;package=com.truthworld.app;S.browser_fallback_url=' + encodeURIComponent(window.location.href) + ';end'
+        : 'truthworld://' + cleanPath;
+
+      if (openBtn) {
+        openBtn.setAttribute('href', deepLinkIntentUrl);
+        openBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          var freshPath = (window.location.pathname + window.location.search + window.location.hash).replace(/^\/+/, '');
+          var targetUrl = isAndroid
+            ? 'intent://www.truthworld.in/' + freshPath + '#Intent;scheme=https;package=com.truthworld.app;S.browser_fallback_url=' + encodeURIComponent(window.location.href) + ';end'
+            : 'truthworld://' + freshPath;
+          window.location.href = targetUrl;
+        });
+      }
+
+      // Auto-dispatch when opened inside mobile social messaging apps (WhatsApp, Telegram, Twitter, FB, IG)
+      var isInAppBrowser = /FBAN|FBAV|Instagram|Twitter|Line|WhatsApp|Telegram|MicroMessenger/i.test(navigator.userAgent);
+      var isReferrerExternal = document.referrer && !document.referrer.includes('truthworld.in');
+      var hasAutoLaunched = sessionStorage.getItem('tw_app_launch_attempted');
+
+      if ((isInAppBrowser || isReferrerExternal) && !hasAutoLaunched) {
+        sessionStorage.setItem('tw_app_launch_attempted', 'true');
+        setTimeout(function() {
+          try {
+            window.location.href = deepLinkIntentUrl;
+          } catch (_) {}
+        }, 300);
+      }
     })();
   </script>
 

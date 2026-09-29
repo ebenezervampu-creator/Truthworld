@@ -1,6 +1,6 @@
 import * as admin from "firebase-admin";
 import { onRequest } from "firebase-functions/v2/https";
-import { requireAdmin } from "../utils/auth";
+import { requireRecentAdmin } from "../utils/auth";
 import { logger } from "firebase-functions/v2";
 
 if (!admin.apps.length) {
@@ -16,7 +16,7 @@ export const adminBulkModerate = onRequest(
   },
   async (req, res) => {
     try {
-      const adminUser = await requireAdmin(req, res);
+      const adminUser = await requireRecentAdmin(req, res, 3600);
       if (!adminUser) return;
 
       const { contentType, action, itemIds, reason } = req.body;
@@ -67,7 +67,7 @@ export const adminBulkModerate = onRequest(
       res.status(200).json({ results: mappedResults });
     } catch (error) {
       logger.error("[adminBulkModerate] Error:", error);
-      res.status(500).json({ error: error instanceof Error ? error.message : "Internal error" });
+      res.status(500).json({ error: "Unable to process bulk moderation request. Please try again." });
     }
   }
 );

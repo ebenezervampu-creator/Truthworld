@@ -94,6 +94,7 @@ abstract class ChannelControllerBase extends BaseController
   // Plans & Channels
   RxString get selectedPlan;
   RxString get customPricingTier;
+  RxBool get customPlanAutoPay;
   RxBool get planSelectionError;
   RxString get country;
   RxString get channelTypeCategory;

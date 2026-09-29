@@ -104,7 +104,7 @@ class MiniplayerExpandedDetails extends StatelessWidget {
                         playing
                             ? Icons.pause_rounded
                             : Icons.play_arrow_rounded,
-                        color: AppColors.textPrimary,
+                        color: Colors.black,
                         size: 32,
                       ),
                     ),

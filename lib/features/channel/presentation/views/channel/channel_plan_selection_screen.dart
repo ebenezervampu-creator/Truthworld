@@ -69,7 +69,7 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Select the monetization plan that aligns with your goals.\nYou can choose standard YouTube-like sharing or our unique Custom plan.',
+                  'Select the monetization plan that aligns with your goals.\nYou can choose standard revenue sharing or our unique Custom plan.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 16,

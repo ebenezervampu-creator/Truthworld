@@ -7,7 +7,7 @@ import 'package:truthworld/features/miniplayer/presentation/controllers/miniplay
 
 void main() {
   group('Miniplayer Sizing & Layout Tests', () {
-    test('MiniplayerConfig constants correctly reflect YouTube mobile layout', () {
+    test('MiniplayerConfig constants correctly reflect mobile layout', () {
       expect(MiniplayerConfig.mobileWidthFraction, equals(0.50));
       expect(MiniplayerConfig.videoAspectRatio, equals(16.0 / 9.0));
       expect(MiniplayerConfig.mobileDockInset, equals(12.0));

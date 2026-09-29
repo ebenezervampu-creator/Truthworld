@@ -4,7 +4,7 @@ import 'package:truthworld/features/search/presentation/widgets/voice_search_dia
 
 void main() {
   group('VoiceSearchState and UX Tests', () {
-    test('VoiceSearchState contains all expected YouTube-style states', () {
+    test('VoiceSearchState contains all expected voice search states', () {
       expect(VoiceSearchState.values, contains(VoiceSearchState.initializing));
       expect(VoiceSearchState.values, contains(VoiceSearchState.listening));
       expect(VoiceSearchState.values, contains(VoiceSearchState.recognized));

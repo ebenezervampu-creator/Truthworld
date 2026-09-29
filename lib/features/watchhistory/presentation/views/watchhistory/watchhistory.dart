@@ -11,7 +11,7 @@ import 'package:truthworld/features/watchhistory/presentation/controllers/watch_
 import 'package:truthworld/theme/app_theme.dart';
 
 // ==========================================================================
-// YOUTUBE-STYLE THEME COLORS (Standardized)
+// THEME COLORS (Standardized)
 // ==========================================================================
 
 const Color bgColor = AppColors.bgPage;

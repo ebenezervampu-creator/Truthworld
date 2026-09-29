@@ -5,8 +5,9 @@ import { logger } from "firebase-functions/v2";
 import { getVertexAI } from "../pipeline/utils/ai-client";
 import { COMMUNITY_GUIDELINES_TEXT, MODERATION_RESPONSE_SCHEMA } from "../moderation/communityGuidelinesPrompt";
 import { isAdsBypassed } from "../moderation/moderationModes";
-import { requireAuth, requireAdmin } from "../utils/auth";
+import { requireAuth, requireRecentAdmin } from "../utils/auth";
 import { AdPipelineService } from "./adPipeline";
+import { costEngine } from "../pipeline/services/cost-engine";
 
 const db = () => admin.firestore();
 
@@ -142,6 +143,23 @@ export const onAdCampaignWritten = onDocumentWritten(
         const result = await model.generateContent(prompt);
         const responseText = result.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
+        // ── Cost Attribution: Track Gemini AI tokens used for ad moderation ──
+        const usage = (result.response as any)?.usageMetadata;
+        const promptTokens = usage?.promptTokenCount ?? Math.max(1, Math.ceil(prompt.length / 4));
+        const candidateTokens = usage?.candidatesTokenCount ?? Math.max(1, Math.ceil(responseText.length / 4));
+        const advertiserUserId = afterData.userId || "advertiser";
+
+        costEngine.recordGeminiCost(
+          campaignId,
+          advertiserUserId,
+          "ad_moderation",
+          "flash",
+          promptTokens,
+          candidateTokens
+        ).catch((costErr) => {
+          logger.warn(`[onAdCampaignWritten] Failed to record Gemini moderation cost for ${campaignId}:`, costErr);
+        });
+
         // ZERO-TOLERANCE: Safe JSON parse — default to rejected on malformed response
         let responseObj: { approved?: boolean; reason?: string };
         try {
@@ -166,6 +184,11 @@ export const onAdCampaignWritten = onDocumentWritten(
           moderationReason: reason,
           moderationRetryCount: attempt,
           status: finalStatus,
+          moderationTokens: {
+            promptTokens,
+            candidateTokens,
+            totalTokens: promptTokens + candidateTokens,
+          },
           updatedAt: Date.now(),
         });
 
@@ -267,13 +290,9 @@ export const triggerAdAIFeatures = onRequest(
       const adData = adSnap.data() || {};
 
       // Verify authorization: owner or admin
-      if (adData.userId && adData.userId !== userId) {
-        const userDoc = await admin.firestore().collection("users").doc(userId).get();
-        const isAdmin = userDoc.exists && userDoc.data()?.role === "admin";
-        if (!isAdmin) {
-          res.status(403).json({ error: "Unauthorized: You do not own this ad campaign" });
-          return;
-        }
+      if (adData.userId && adData.userId !== userId && !authUser.isAdmin) {
+        res.status(403).json({ error: "Unauthorized: You do not own this ad campaign" });
+        return;
       }
 
       // Process AI features to completion before responding
@@ -323,7 +342,7 @@ export const generateAllVideoAdsAIFeatures = onRequest(
   },
   async (req, res) => {
     try {
-      const adminUser = await requireAdmin(req, res);
+      const adminUser = await requireRecentAdmin(req, res, 3600);
       if (!adminUser) return;
 
       const {

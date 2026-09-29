@@ -218,8 +218,8 @@ class TowerPlayerLifecycleHelper {
   }) {
     subtitlesEnabled.value = TowerPlayerPreferences.globalSubtitlesEnabled;
     activeSubLang.value = TowerPlayerPreferences.globalActiveSubLang;
-    final shouldAudioOnly = TowerPlayerPreferences.globalAudioOnly ||
-        (arguments is Map && arguments['isAudioOnly'] == true);
+    final shouldAudioOnly =
+        arguments is Map && arguments['isAudioOnly'] == true;
     isAudioOnly.value = shouldAudioOnly;
     playbackSpeed.value = TowerPlayerPreferences.globalPlaybackSpeed;
 

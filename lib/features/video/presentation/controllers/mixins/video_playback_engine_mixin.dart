@@ -96,10 +96,12 @@ mixin VideoPlaybackEngineMixin on GetxController {
 
   Future<void> initializeVideoPlayer({String? overrideUrl}) async {
     final isAuto = isAutoSwitching.value;
-
+    final isSwitching = isSwitchingResolution.value;
     final isHandoffAvailable = VideoPlaybackHandoff.isActive(video.id);
+    final hasActivePlayer = videoPlayerController != null &&
+        videoPlayerController!.value.isInitialized;
 
-    if (!isAuto && !isHandoffAvailable) {
+    if (!isAuto && !isSwitching && !isHandoffAvailable && !hasActivePlayer) {
       rxIsLoading.value = true;
       // Do NOT call disposePlayer() here. Keeping old controller alive until
       // newVpc is initialized and synced ensures a seamless warm swap with zero
@@ -107,7 +109,7 @@ mixin VideoPlaybackEngineMixin on GetxController {
     }
 
     videoError.value = false;
-    if (!isHandoffAvailable) {
+    if (!isHandoffAvailable && !isSwitching && !hasActivePlayer) {
       showThumbnail.value = true;
     } else {
       showThumbnail.value = false;
@@ -160,6 +162,18 @@ mixin VideoPlaybackEngineMixin on GetxController {
           ),
         );
       } else {
+        final isHlsOrCmaf = targetUrl.contains('.m3u8') || targetUrl.contains('/cmaf/');
+        final networkHeaders = isHlsOrCmaf
+            ? const {
+                'Connection': 'keep-alive',
+                'Accept': 'application/vnd.apple.mpegurl, application/x-mpegURL, video/mp4;q=0.9, */*;q=0.8',
+                'Cache-Control': 'no-cache',
+              }
+            : const {
+                'Connection': 'keep-alive',
+                'Accept': '*/*',
+              };
+
         newVpc = (rxIsOffline.value && targetUrl.startsWith('blob:'))
             ? VideoPlayerController.networkUrl(
                 Uri.parse(targetUrl),
@@ -170,10 +184,7 @@ mixin VideoPlaybackEngineMixin on GetxController {
               )
             : VideoPlayerController.networkUrl(
                 Uri.parse(targetUrl),
-                httpHeaders: const {
-                  'Connection': 'keep-alive',
-                  'Accept': '*/*',
-                },
+                httpHeaders: networkHeaders,
                 videoPlayerOptions: VideoPlayerOptions(
                   mixWithOthers: true,
                   allowBackgroundPlayback: true,
@@ -192,6 +203,11 @@ mixin VideoPlaybackEngineMixin on GetxController {
         );
       }
 
+      // Immediately wire new initialized controller to reactive state & clear loading/thumbnail
+      videoPlayerController = newVpc;
+      showThumbnail.value = false;
+      rxIsLoading.value = false;
+
       // Ensure volume is set to full unmuted playback on watch screen
       try {
         await newVpc.setVolume(1.0);
@@ -202,6 +218,17 @@ mixin VideoPlaybackEngineMixin on GetxController {
       // Add listeners AFTER initialization succeeds to prevent race conditions during setup
       newVpc.addListener(videoErrorListener);
       newVpc.addListener(videoListener);
+
+      // Sync active TowerPlayerController immediately so the video surface mounts
+      try {
+        if (Get.isRegistered<TowerPlayerController>(tag: video.id)) {
+          Get.find<TowerPlayerController>(tag: video.id).sync(newVpc);
+        } else if (Get.isRegistered<TowerPlayerController>()) {
+          Get.find<TowerPlayerController>().sync(newVpc);
+        }
+      } catch (e) {
+        debugPrint('[VideoController] TowerPlayer sync error: $e');
+      }
 
       // --- CLIP MODE & RESUME LOGIC (Seek BEFORE play to prevent 0:00 audio/video flash) ---
       if (wasHandoff) {
@@ -282,19 +309,6 @@ mixin VideoPlaybackEngineMixin on GetxController {
         );
       }
 
-      videoPlayerController = newVpc;
-
-      // Sync active TowerPlayerController immediately before disposing old controller
-      try {
-        if (Get.isRegistered<TowerPlayerController>(tag: video.id)) {
-          Get.find<TowerPlayerController>(tag: video.id).sync(newVpc);
-        } else if (Get.isRegistered<TowerPlayerController>()) {
-          Get.find<TowerPlayerController>().sync(newVpc);
-        }
-      } catch (e) {
-        debugPrint('[VideoController] TowerPlayer sync error: $e');
-      }
-
       final isPremium = Get.isRegistered<AuthService>() &&
           AuthService.to.isPremiumUser.value;
       final hasPreRollAd = !isPremium &&
@@ -339,11 +353,15 @@ mixin VideoPlaybackEngineMixin on GetxController {
                   style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  errorMessage,
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    'Unable to play this video. Please check your connection and try again.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),

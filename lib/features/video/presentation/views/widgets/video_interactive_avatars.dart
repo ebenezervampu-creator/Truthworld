@@ -651,7 +651,7 @@ class TopicVideosBottomSheet extends StatelessWidget {
                     children: [
                       Text(
                         topic.title,
-                        style: GoogleFonts.outfit(
+                        style: GoogleFonts.roboto(
                           color: Colors.white,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,

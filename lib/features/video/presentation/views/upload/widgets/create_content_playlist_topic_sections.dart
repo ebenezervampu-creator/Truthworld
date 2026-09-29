@@ -2,11 +2,13 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
+import 'package:truthworld/features/playlist/presentation/controllers/create_playlist_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
+import 'package:truthworld/features/playlist/presentation/views/playlist/create_playlist_screen.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_controller.dart';
-import 'package:truthworld/features/video/presentation/views/upload/widgets/create_playlist_modal.dart';
 import 'package:truthworld/features/video/presentation/views/upload/widgets/topic_selection_bottom_sheet.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -62,12 +64,27 @@ class CreateContentPlaylistSection extends StatelessWidget {
                   ),
                 ),
                 TextButton.icon(
-                  onPressed: () => showCreatePlaylistBottomSheet(
-                    context,
-                    true,
-                    uploadController: uploadController,
-                    playlistController: playlistController,
-                  ),
+                  onPressed: () async {
+                    final createCtrl = Get.isRegistered<CreatePlaylistController>()
+                        ? Get.find<CreatePlaylistController>()
+                        : Get.put(CreatePlaylistController());
+                    createCtrl.resetForm();
+
+                    final dynamic created = await Navigator.of(context).push<dynamic>(
+                      MaterialPageRoute(
+                        builder: (ctx) => const CreatePlaylistScreen(fromUpload: true),
+                      ),
+                    );
+
+                    if (created is PlaylistModel) {
+                      playlistController.refreshPlaylistsTick();
+                      await playlistController.refreshPlaylists();
+                      uploadController.selectedPlaylist.value = created.id;
+                      AppSnackbar.success(
+                        'Playlist created! Video will be added upon publishing.',
+                      );
+                    }
+                  },
                   icon: const Icon(Icons.add, color: Colors.white, size: 16),
                   label: const Text(
                     'Create Playlist',

@@ -6,3 +6,4 @@ export 'miniplayer_intents.dart';
 export 'miniplayer_overlay_controls.dart';
 export 'miniplayer_video_frame.dart';
 export 'miniplayer_video_progress_bar.dart';
+export 'pip_dedicated_view.dart';

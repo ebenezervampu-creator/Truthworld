@@ -127,6 +127,32 @@ void main() {
       expect(find.text('70% Creator Split'), findsNWidgets(2));
     });
 
+    testWidgets('never displays mock ad revenue or mock RPM when channel has no active ad revenue', (tester) async {
+      final ctrl = Get.put(RevenueAnalyticsController());
+      ctrl.adsRevenue.value = 0.0;
+      ctrl.watchTimeRevenue.value = 0.0;
+      ctrl.totalViews.value = 2; // e.g. 2 views like in bug report
+      ctrl.totalWatchMinutes.value = 4; // e.g. 4 mins watch time
+
+      await tester.pumpWidget(
+        createHarness(
+          Column(
+            children: [
+              Obx(() => buildAdRevenueStreamCard(ctrl)),
+              Obx(() => buildWatchTimeStreamCard(ctrl)),
+            ],
+          ),
+        ),
+      );
+
+      // Verify amounts are strictly ₹0.00 (NOT ₹0.01 or any mock calculation)
+      expect(find.text('₹0.00'), findsWidgets);
+      // Verify Estimated RPM is strictly ₹0.00 (NOT ₹5.00 or ₹50.00)
+      expect(find.text('₹5.00'), findsNothing);
+      expect(find.text('₹50.00'), findsNothing);
+      expect(find.text('₹0.01'), findsNothing);
+    });
+
 
     testWidgets('buildRevenueDistributionCard renders stream distribution percentages', (tester) async {
       final ctrl = Get.put(RevenueAnalyticsController());

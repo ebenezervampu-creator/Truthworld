@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import '../../test_helpers/mock_firebase.dart';
 
@@ -10,6 +11,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUpAll(() async {
+    GoogleFonts.config.allowRuntimeFetching = false;
     await setupMockFirebase();
   });
 

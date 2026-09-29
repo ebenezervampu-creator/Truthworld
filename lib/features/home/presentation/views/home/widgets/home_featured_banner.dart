@@ -13,6 +13,7 @@ import 'package:truthworld/features/home/presentation/controllers/home_controlle
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
 import 'package:truthworld/features/topics/presentation/controllers/topic_controller.dart';
+import 'package:truthworld/features/topics/presentation/widgets/topic_notification_options_sheet.dart';
 import 'package:truthworld/theme/app_colors.dart';
 import 'package:truthworld/theme/dark_professional_theme.dart';
 import 'package:visibility_detector/visibility_detector.dart';
@@ -584,7 +585,14 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
                       );
                       return ElevatedButton.icon(
                         onPressed: () {
-                          followingController.toggleFollowTopic(topic);
+                          if (isFollowed) {
+                            TopicNotificationOptionsSheet.show(
+                              context,
+                              topic: topic,
+                            );
+                          } else {
+                            followingController.toggleFollowTopic(topic);
+                          }
                         },
                         icon: Icon(
                           isFollowed

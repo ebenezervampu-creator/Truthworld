@@ -78,7 +78,18 @@ class ChannelSubscriptionController extends BaseController {
   StreamSubscription? _countListener;
 
   final RxBool notificationsEnabled = true.obs;
-  final RxString notificationOption = 'all'.obs;
+  final RxString notificationOption = 'personalized'.obs;
+  final RxMap<String, RxString> _notificationOptionMap =
+      <String, RxString>{}.obs;
+
+  /// Returns reactive notification option for [channelId], defaulting to 'personalized'
+  RxString getNotificationOption(String channelId) {
+    if (channelId.isEmpty) return notificationOption;
+    return _notificationOptionMap.putIfAbsent(
+      channelId,
+      () => 'personalized'.obs,
+    );
+  }
 
 
   void _showSuccessSnackbar(String message) {
@@ -132,6 +143,8 @@ class ChannelSubscriptionController extends BaseController {
           'channelId': channelId,
           'subscribedAt': FieldValue.serverTimestamp(),
           'notificationsEnabled': true,
+          'notificationOption': 'personalized',
+          'notificationPreference': 'personalized',
         }).catchError((_) {});
       } else {
         await _firestore.runTransaction((tx) async {
@@ -145,17 +158,23 @@ class ChannelSubscriptionController extends BaseController {
             'userId': uid,
             'timestamp': now,
             'notificationsEnabled': true,
+            'notificationOption': 'personalized',
+            'notificationPreference': 'personalized',
           });
           tx.set(userSubRef, {
             'channelId': channelId,
             'timestamp': now,
-            'notificationPreference': 'all',
+            'notificationPreference': 'personalized',
+            'notificationOption': 'personalized',
+            'notificationsEnabled': true,
           });
           tx.set(legacySubRef, {
             'userId': uid,
             'channelId': channelId,
             'subscribedAt': now,
             'notificationsEnabled': true,
+            'notificationOption': 'personalized',
+            'notificationPreference': 'personalized',
           });
 
           tx.update(channelRef, {
@@ -166,6 +185,13 @@ class ChannelSubscriptionController extends BaseController {
       }
 
       isSubscribed.value = true;
+      notificationsEnabled.value = true;
+      notificationOption.value = 'personalized';
+      if (_notificationOptionMap.containsKey(channelId)) {
+        _notificationOptionMap[channelId]!.value = 'personalized';
+      } else {
+        _notificationOptionMap[channelId] = 'personalized'.obs;
+      }
       final current = channelSubscriberCounts[channelId] ?? subscriberCount.value;
       setSubscriberCount(channelId, current + 1);
       if (_subscribedMap.containsKey(channelId)) {
@@ -177,7 +203,7 @@ class ChannelSubscriptionController extends BaseController {
       if (Get.isRegistered<UserSignalTracker>()) {
         Get.find<UserSignalTracker>().trackSubscribe(channelId: channelId);
       }
-      _showSuccessSnackbar('Subscribed successfully');
+      _showSuccessSnackbar('Subscribed (Personalized notifications)');
       return true;
     } catch (e) {
       if (e.toString().contains('already_subscribed')) {
@@ -336,11 +362,17 @@ class ChannelSubscriptionController extends BaseController {
             _subscribedMap[channelId]!.value = true;
           }
           final data = snapshot.data();
-          notificationsEnabled.value =
-              data?['notificationsEnabled'] ?? true;
-          notificationOption.value =
-              data?['notificationOption'] as String? ??
-              (notificationsEnabled.value ? 'all' : 'none');
+          final notifsEnabled = data?['notificationsEnabled'] ?? true;
+          notificationsEnabled.value = notifsEnabled;
+          final pref = data?['notificationOption'] as String? ??
+              data?['notificationPreference'] as String? ??
+              (notifsEnabled ? 'personalized' : 'none');
+          notificationOption.value = pref;
+          if (_notificationOptionMap.containsKey(channelId)) {
+            _notificationOptionMap[channelId]!.value = pref;
+          } else {
+            _notificationOptionMap[channelId] = pref.obs;
+          }
           isLoadingSubscription.value = false;
         } else {
           userSubRef.get().then((userSnap) {
@@ -350,11 +382,17 @@ class ChannelSubscriptionController extends BaseController {
                 _subscribedMap[channelId]!.value = true;
               }
               final data = userSnap.data();
-              notificationsEnabled.value =
-                  data?['notificationsEnabled'] ?? true;
-              notificationOption.value =
+              final notifsEnabled = data?['notificationsEnabled'] ?? true;
+              notificationsEnabled.value = notifsEnabled;
+              final pref = data?['notificationOption'] as String? ??
                   data?['notificationPreference'] as String? ??
-                  (notificationsEnabled.value ? 'all' : 'none');
+                  (notifsEnabled ? 'personalized' : 'none');
+              notificationOption.value = pref;
+              if (_notificationOptionMap.containsKey(channelId)) {
+                _notificationOptionMap[channelId]!.value = pref;
+              } else {
+                _notificationOptionMap[channelId] = pref.obs;
+              }
               isLoadingSubscription.value = false;
             } else {
               legacySubRef.get().then((legSnap) {
@@ -365,11 +403,17 @@ class ChannelSubscriptionController extends BaseController {
                 }
                 if (exists) {
                   final data = legSnap.data();
-                  notificationsEnabled.value =
-                      data?['notificationsEnabled'] ?? true;
-                  notificationOption.value =
-                      data?['notificationOption'] as String? ??
-                      (notificationsEnabled.value ? 'all' : 'none');
+                  final notifsEnabled = data?['notificationsEnabled'] ?? true;
+                  notificationsEnabled.value = notifsEnabled;
+                  final pref = data?['notificationOption'] as String? ??
+                      data?['notificationPreference'] as String? ??
+                      (notifsEnabled ? 'personalized' : 'none');
+                  notificationOption.value = pref;
+                  if (_notificationOptionMap.containsKey(channelId)) {
+                    _notificationOptionMap[channelId]!.value = pref;
+                  } else {
+                    _notificationOptionMap[channelId] = pref.obs;
+                  }
                 }
                 isLoadingSubscription.value = false;
               }).catchError((_) {
@@ -467,17 +511,50 @@ class ChannelSubscriptionController extends BaseController {
     final user = _auth.currentUser;
     if (user == null) return;
 
+    final isNone = option == 'none';
+    final notifsEnabled = !isNone;
     final subDocId = '${channelId}_${user.uid}';
+
+    // Optimistically update reactive state
+    notificationsEnabled.value = notifsEnabled;
+    notificationOption.value = option;
+    if (_notificationOptionMap.containsKey(channelId)) {
+      _notificationOptionMap[channelId]!.value = option;
+    } else {
+      _notificationOptionMap[channelId] = option.obs;
+    }
+
     try {
-      final isAll = option == 'all';
-      await _firestore.collection(_subsCol).doc(subDocId).update({
-        'notificationsEnabled': isAll,
+      final now = FieldValue.serverTimestamp();
+      final updates = {
+        'notificationsEnabled': notifsEnabled,
         'notificationOption': option,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-      notificationsEnabled.value = isAll;
-      notificationOption.value = option;
-      _showSuccessSnackbar('Notification preferences updated');
+        'notificationPreference': option,
+        'updatedAt': now,
+      };
+
+      await Future.wait([
+        _firestore
+            .collection(_subsCol)
+            .doc(subDocId)
+            .set(updates, SetOptions(merge: true)),
+        _firestore
+            .collection(FirestoreCollections.userSubscriptions(user.uid))
+            .doc(channelId)
+            .set(updates, SetOptions(merge: true)),
+        _firestore
+            .collection(FirestoreCollections.channelSubscribers(channelId))
+            .doc(user.uid)
+            .set(updates, SetOptions(merge: true)),
+      ]);
+
+      if (option == 'all') {
+        _showSuccessSnackbar("You'll get all notifications");
+      } else if (option == 'personalized') {
+        _showSuccessSnackbar("You'll get personalized notifications");
+      } else {
+        _showSuccessSnackbar('Turned off all notifications');
+      }
     } catch (e, s) {
       ErrorHandler.log(e, stackTrace: s, tag: 'ChannelSubscriptionController.updateNotificationPreference');
       _showErrorSnackbar('Unable to update notifications. Please try again.');
@@ -566,14 +643,44 @@ class ChannelSubscriptionController extends BaseController {
     trackSubscription(channelSubRef.snapshots().listen((snap) {
       if (snap.exists) {
         rx.value = true;
+        final data = snap.data();
+        final notifsEnabled = data?['notificationsEnabled'] ?? true;
+        final pref = data?['notificationOption'] as String? ??
+            data?['notificationPreference'] as String? ??
+            (notifsEnabled ? 'personalized' : 'none');
+        if (_notificationOptionMap.containsKey(channelId)) {
+          _notificationOptionMap[channelId]!.value = pref;
+        } else {
+          _notificationOptionMap[channelId] = pref.obs;
+        }
       } else {
         userSubRef.get().then((uSnap) {
           if (uSnap.exists) {
             rx.value = true;
+            final data = uSnap.data();
+            final notifsEnabled = data?['notificationsEnabled'] ?? true;
+            final pref = data?['notificationOption'] as String? ??
+                data?['notificationPreference'] as String? ??
+                (notifsEnabled ? 'personalized' : 'none');
+            if (_notificationOptionMap.containsKey(channelId)) {
+              _notificationOptionMap[channelId]!.value = pref;
+            } else {
+              _notificationOptionMap[channelId] = pref.obs;
+            }
           } else {
             legacySubRef.get().then((lSnap) {
               if (lSnap.exists) {
                 rx.value = true;
+                final data = lSnap.data();
+                final notifsEnabled = data?['notificationsEnabled'] ?? true;
+                final pref = data?['notificationOption'] as String? ??
+                    data?['notificationPreference'] as String? ??
+                    (notifsEnabled ? 'personalized' : 'none');
+                if (_notificationOptionMap.containsKey(channelId)) {
+                  _notificationOptionMap[channelId]!.value = pref;
+                } else {
+                  _notificationOptionMap[channelId] = pref.obs;
+                }
               } else {
                 legacySubRef2.get().then((lSnap2) {
                   rx.value = lSnap2.exists;

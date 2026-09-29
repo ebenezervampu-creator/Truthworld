@@ -19,7 +19,7 @@ class StatsForNerdsController extends BaseController {
   @override
   void onInit() {
     super.onInit();
-    // Generate a unique YouTube-style sCPN (12 alphanumeric chars)
+    // Generate a unique sCPN (12 alphanumeric chars)
     const chars =
         'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     scpn = List.generate(

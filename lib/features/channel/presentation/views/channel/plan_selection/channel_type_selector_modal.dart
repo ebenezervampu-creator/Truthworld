@@ -167,7 +167,7 @@ class ChannelTypeSelectorModal extends StatelessWidget {
                     ChannelTypeOptionCard(
                       title: 'Custom Channel',
                       subtitle:
-                          r'100% Gross Revenue Share • Plans $15, $30, $45/mo • Unlimited Uploads',
+                          r'100% Gross Revenue Share • Plans $15, $30, $45, $100, $200/mo • Unlimited Uploads',
                       icon: Icons.rocket_launch,
                       primaryColor: const Color(0xFF8B5CF6),
                       gradientStart: const Color(0xFFA78BFA),

@@ -6,6 +6,7 @@ import 'package:truthworld/core/services/algorithm/scored_video.dart';
 import 'package:truthworld/core/services/algorithm/session_interest_tracker.dart';
 import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile.dart';
+import 'package:truthworld/core/services/algorithm/vector_math_util.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
 /// Task payload for background isolate ranking execution.
@@ -46,6 +47,8 @@ List<ScoredVideo> rankVideosWorker(AlgorithmRankingTask task) {
           (weights['knowledgeQuality'] ?? 0.0) * 1.5;
       weights['watchCompletion'] =
           (weights['watchCompletion'] ?? 0.0) * 1.3;
+      weights['twoTowerAffinity'] =
+          (weights['twoTowerAffinity'] ?? 0.0) * 1.25;
       weights['trending'] = (weights['trending'] ?? 0.0) * 0.7;
     case CognitiveArchetype.curiousExplorer:
       weights['freshness'] = (weights['freshness'] ?? 0.0) * 1.4;
@@ -54,6 +57,8 @@ List<ScoredVideo> rankVideosWorker(AlgorithmRankingTask task) {
     case CognitiveArchetype.focusedSpecialist:
       weights['topicAffinity'] = (weights['topicAffinity'] ?? 0.0) * 1.4;
       weights['channelAffinity'] = (weights['channelAffinity'] ?? 0.0) * 1.3;
+      weights['twoTowerAffinity'] =
+          (weights['twoTowerAffinity'] ?? 0.0) * 1.30;
       weights['freshness'] = (weights['freshness'] ?? 0.0) * 0.8;
     case CognitiveArchetype.actionOrientedConsumer:
       weights['engagement'] = (weights['engagement'] ?? 0.0) * 1.35;
@@ -124,6 +129,7 @@ class AlgorithmEngine {
     final knowledgeQuality = computeKnowledgeQuality(video);
     final loveAffinity = computeLoveAffinity(video, profile);
     final loveBoost = loveAffinity * 2.5;
+    final twoTowerAffinity = computeTwoTowerAffinity(video, profile);
     final creatorFairness = diversityConfig != null
         ? computeCreatorFairness(video, diversityConfig, sessionCreatorExposure)
         : 0.0;
@@ -136,6 +142,7 @@ class AlgorithmEngine {
         (trendingMomentum * (weights['trending'] ?? 0.0)) +
         (watchCompletion * (weights['watchCompletion'] ?? 0.0)) +
         (knowledgeQuality * (weights['knowledgeQuality'] ?? 0.0)) +
+        (twoTowerAffinity * (weights['twoTowerAffinity'] ?? 0.0)) +
         loveBoost +
         creatorFairness;
 
@@ -158,6 +165,8 @@ class AlgorithmEngine {
       'watchCompletion': watchCompletion * (weights['watchCompletion'] ?? 0.0),
       'knowledgeQuality':
           knowledgeQuality * (weights['knowledgeQuality'] ?? 0.0),
+      'twoTowerAffinity':
+          twoTowerAffinity * (weights['twoTowerAffinity'] ?? 0.0),
       'loveAffinity': loveBoost,
       'sessionBoost': sessionBoost * (weights['sessionBoost'] ?? 0.0),
       'penalty': penalty * (weights['penalty'] ?? 0.0),
@@ -175,6 +184,24 @@ class AlgorithmEngine {
         signalBreakdown: breakdown,
       ),
     );
+  }
+
+  /// Two-Tower Neural Affinity: Deep semantic alignment between User Tower
+  /// and Item (Video) Tower embeddings using cosine similarity.
+  static double computeTwoTowerAffinity(
+    Video video,
+    UserInterestProfile? profile,
+  ) {
+    if (profile == null) return 0.0;
+    final itemEmbedding = video.embedding;
+    if (itemEmbedding == null || itemEmbedding.isEmpty) return 0.0;
+
+    final userEmbedding = profile.computeUserTowerVector();
+    if (userEmbedding == null || userEmbedding.isEmpty) return 0.0;
+
+    final sim = VectorMathUtil.cosineSimilarity(userEmbedding, itemEmbedding);
+    // Normalize cosine range [-1.0, 1.0] to affinity range [0.0, 1.0]
+    return ((sim + 1.0) / 2.0).clamp(0.0, 1.0);
   }
 
   /// Credibility Gate: Returns 0.0 if video fails credibility check

@@ -124,6 +124,7 @@ void main() {
 
       await tester.tap(find.text('Jazz'));
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1100));
 
       expect(controller.selectedGenre.value, equals('Jazz'));
     });
@@ -181,6 +182,7 @@ void main() {
           Get.put<CategoryController>(CategoryController());
         },
       );
+      await tester.pump(const Duration(seconds: 1));
 
       expect(tester.takeException(), isNull);
       expect(find.byType(CategoryPage), findsOneWidget);

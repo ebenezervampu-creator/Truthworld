@@ -132,7 +132,7 @@ class ChannelPlanCard extends StatelessWidget {
                           ),
                           Text(
                             isStandard
-                                ? 'YouTube-style Model'
+                                ? 'Standard Model'
                                 : 'Maximum Revenue',
                             style: TextStyle(
                               fontSize: 14,
@@ -221,6 +221,11 @@ class ChannelPlanCard extends StatelessWidget {
                         '100% Direct Fan Revenue: 0% commission on Memberships & Superchats!',
                     isDark: isDark,
                   ),
+                  ChannelPlanFeatureRow(
+                    text:
+                        '100% Free AI Fact-Checking with Truth Score badges & algorithmic discovery boost',
+                    isDark: isDark,
+                  ),
                   const SizedBox(height: 16),
                   ChannelPlanHowItWorksBox(
                     title: 'How Standard Channel Works:',
@@ -234,7 +239,7 @@ class ChannelPlanCard extends StatelessWidget {
                 ] else ...[
                   ChannelPlanFeatureRow(
                     text:
-                        r'🎁 $10 Free Infrastructure Grant included for every new Custom Channel!',
+                        '100% Creator revenue retention on all monetization streams (0% platform cut)',
                     isDark: isDark,
                   ),
                   ChannelPlanFeatureRow(
@@ -249,7 +254,7 @@ class ChannelPlanCard extends StatelessWidget {
                   ),
                   ChannelPlanFeatureRow(
                     text:
-                        r'Flexible Infrastructure Tiers ($15, $30, $45/mo, etc.) with allocated storage & bandwidth',
+                        r'Flexible Infrastructure Tiers ($15, $30, $45, $100, $200/mo, etc.) with allocated storage & bandwidth',
                     isDark: isDark,
                   ),
                   ChannelPlanFeatureRow(
@@ -257,13 +262,17 @@ class ChannelPlanCard extends StatelessWidget {
                         '100% Direct Fan Revenue: 0% commission on Memberships & Superchats!',
                     isDark: isDark,
                   ),
+                  ChannelPlanFeatureRow(
+                    text:
+                        '100% Free AI Fact-Checking with Truth Score badges & algorithmic discovery boost',
+                    isDark: isDark,
+                  ),
                   const SizedBox(height: 16),
                   ChannelPlanHowItWorksBox(
                     title: 'How Custom Channel Works:',
                     description:
                         'Custom channels provide maximum earning power with 100% ad & content revenue retention. '
-                        r'Every new custom channel receives a $10 free infrastructure grant automatically credited to your balance. '
-                        r'Choose an infrastructure plan ($15, $30, $45/mo) tailored to your storage & bandwidth needs, '
+                        r'Choose an infrastructure plan ($15, $30, $45, $100, $200/mo) tailored to your storage & bandwidth needs, '
                         'and stream in up to 4K Ultra HD with 0% commission on direct fan contributions.',
                     color: primaryColor,
                     isDark: isDark,

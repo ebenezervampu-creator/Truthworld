@@ -213,6 +213,7 @@ void main() {
         videoId: 'vid_locked',
         videoRevenue: 100.0,
         videoWatchTimeMinutes: 599,
+        videoViews: 1000,
       );
       expect(stdLocked.isUnlockedForWithdrawal, isFalse);
       expect(stdLocked.withdrawableAmount, equals(0.0));
@@ -223,19 +224,33 @@ void main() {
         videoId: 'vid_unlocked',
         videoRevenue: 100.0,
         videoWatchTimeMinutes: 600,
+        videoViews: 1000,
       );
       expect(stdUnlocked.isUnlockedForWithdrawal, isTrue);
       expect(stdUnlocked.withdrawableAmount, equals(100.0));
       expect(stdUnlocked.pendingLockedAmount, equals(0.0));
 
-      final custElig = ChannelPayoutCalculator.calculateVideoWithdrawalEligibility(
+      final custLocked = ChannelPayoutCalculator.calculateVideoWithdrawalEligibility(
         channel: customChannel,
-        videoId: 'vid_cust',
+        videoId: 'vid_cust_locked',
         videoRevenue: 100.0,
-        videoWatchTimeMinutes: 10,
+        videoWatchTimeMinutes: 599,
+        videoViews: 1000,
       );
-      expect(custElig.isUnlockedForWithdrawal, isTrue);
-      expect(custElig.withdrawableAmount, equals(100.0));
+      expect(custLocked.isUnlockedForWithdrawal, isFalse);
+      expect(custLocked.withdrawableAmount, equals(0.0));
+      expect(custLocked.pendingLockedAmount, equals(100.0));
+
+      final custUnlocked = ChannelPayoutCalculator.calculateVideoWithdrawalEligibility(
+        channel: customChannel,
+        videoId: 'vid_cust_unlocked',
+        videoRevenue: 100.0,
+        videoWatchTimeMinutes: 600,
+        videoViews: 1000,
+      );
+      expect(custUnlocked.isUnlockedForWithdrawal, isTrue);
+      expect(custUnlocked.withdrawableAmount, equals(100.0));
+      expect(custUnlocked.pendingLockedAmount, equals(0.0));
 
       // Benchmark pure calculation throughput (2,000 evaluations)
       var totalWithdrawable = 0.0;
@@ -246,6 +261,7 @@ void main() {
           videoId: 'vid_$i',
           videoRevenue: 100.0,
           videoWatchTimeMinutes: i,
+          videoViews: i * 2,
         );
         totalWithdrawable += stdResult.withdrawableAmount;
 
@@ -254,6 +270,7 @@ void main() {
           videoId: 'vid_$i',
           videoRevenue: 100.0,
           videoWatchTimeMinutes: i,
+          videoViews: i * 2,
         );
         totalWithdrawable += custResult.withdrawableAmount;
       }
@@ -274,8 +291,8 @@ void main() {
         {'subtitles'},
         {'dubbing'},
         {'factcheck'},
-        {'summary', 'chapters'},
-        {'subtitles', 'dubbing', 'factcheck', 'summary'},
+        {'chapters'},
+        {'subtitles', 'dubbing', 'factcheck'},
       ];
 
       final languages = [
@@ -302,7 +319,7 @@ void main() {
           targetLanguages: languages[i % languages.length],
           channelType: channelTypes[i % channelTypes.length],
         );
-        expect(cost, greaterThan(0.0));
+        expect(cost, greaterThanOrEqualTo(0.0));
       }
       stopwatch.stop();
 

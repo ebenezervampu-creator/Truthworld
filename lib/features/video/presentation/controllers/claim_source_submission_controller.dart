@@ -5,6 +5,7 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/utils/source_url_sanitizer.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
@@ -58,7 +59,7 @@ class ClaimSourceSubmissionController extends BaseController
 
   bool validateForm() {
     final url = urlController.text.trim();
-    if (url.isEmpty || !url.startsWith('http')) {
+    if (!SourceUrlSanitizer.isValidSourceUrl(url)) {
       return false;
     }
     final title = titleController.text.trim();
@@ -91,10 +92,15 @@ class ClaimSourceSubmissionController extends BaseController
 
   Future<void> submitSource(BuildContext context) async {
     final url = urlController.text.trim();
-    if (url.isEmpty || !url.startsWith('http')) {
-      AppSnackbar.warning('Please enter a valid HTTP/HTTPS source link.');
+    final urlValidation = SourceUrlSanitizer.validateAuthoritativeSource(url);
+    if (!urlValidation.isValid) {
+      AppSnackbar.warning(
+        urlValidation.errorMessage ??
+            'Please enter a valid HTTP/HTTPS source link.',
+      );
       return;
     }
+    final normalizedUrl = urlValidation.normalizedUrl!;
 
     final title = titleController.text.trim();
     if (title.isNotEmpty) {
@@ -131,7 +137,7 @@ class ClaimSourceSubmissionController extends BaseController
       final sourceData = <String, dynamic>{
         'videoId': video.id,
         'target': selectedTarget.value,
-        'url': url,
+        'url': normalizedUrl,
         'title': titleController.text.trim(),
         'note': noteController.text.trim(),
         'submittedBy': user?.uid,

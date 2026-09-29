@@ -10,11 +10,9 @@ import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/cashfree_service.dart';
 import 'package:truthworld/core/services/currency_localization_service.dart';
-import 'package:truthworld/core/services/user_wallet_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/services/comment_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
-import 'package:truthworld/features/wallet/data/models/user_wallet_transaction.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class PremiumCommentInputController extends BaseController {
@@ -43,7 +41,7 @@ class PremiumCommentInputController extends BaseController {
   }
 }
 
-/// Premium comment input with enhanced YouTube-style UI and onSubmit callback
+/// Premium comment input with enhanced UI and onSubmit callback
 class PremiumCommentInput extends StatelessWidget {
   const PremiumCommentInput({
     required this.videoId,
@@ -401,7 +399,6 @@ class PremiumCommentInput extends StatelessWidget {
     final selectedTierIndex = 1.obs; // Default 2nd tier
     final messageController = TextEditingController();
     final isSubmitting = false.obs;
-    final paymentMethod = 'cashfree'.obs;
 
     showModalBottomSheet<void>(
       context: context,
@@ -429,12 +426,6 @@ class PremiumCommentInput extends StatelessWidget {
                 final amountINR = isIndian
                     ? amountVal
                     : double.parse((amountVal * rate).toStringAsFixed(2));
-
-                final walletService = Get.isRegistered<UserWalletService>()
-                    ? UserWalletService.to
-                    : null;
-                final userBal = walletService?.balance ?? 0.0;
-                final canPayWithWallet = userBal >= amountINR && amountINR > 0;
 
                 final isLightColor = tierColor.computeLuminance() > 0.45;
                 final buttonTextColor =
@@ -561,7 +552,7 @@ class PremiumCommentInput extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
 
-                    // YouTube-Style Donated Comment Preview Box
+                    // Donated Comment Preview Box
                     Container(
                       decoration: BoxDecoration(
                         color: AppColors.bgInput,
@@ -657,64 +648,6 @@ class PremiumCommentInput extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
 
-                    // Payment Method Options (if user has wallet balance)
-                    if (canPayWithWallet) ...[
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ChoiceChip(
-                              label: const Center(
-                                child: Text(
-                                  'Cashfree PG',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                              selected: paymentMethod.value == 'cashfree',
-                              selectedColor: AppColors.info,
-                              backgroundColor: AppColors.bgInput,
-                              labelStyle: TextStyle(
-                                color: paymentMethod.value == 'cashfree'
-                                    ? Colors.white
-                                    : AppColors.textPrimary,
-                              ),
-                              onSelected: (val) {
-                                if (val) paymentMethod.value = 'cashfree';
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: ChoiceChip(
-                              label: Center(
-                                child: Text(
-                                  'Wallet (₹${userBal.toStringAsFixed(0)})',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                              selected: paymentMethod.value == 'wallet',
-                              selectedColor: const Color(0xFF00C853),
-                              backgroundColor: AppColors.bgInput,
-                              labelStyle: TextStyle(
-                                color: paymentMethod.value == 'wallet'
-                                    ? Colors.white
-                                    : AppColors.textPrimary,
-                              ),
-                              onSelected: (val) {
-                                if (val) paymentMethod.value = 'wallet';
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-
                     // Submit Button
                     SizedBox(
                       width: double.infinity,
@@ -782,76 +715,45 @@ class PremiumCommentInput extends StatelessWidget {
                                   var paymentSucceeded = false;
                                   var transactionOrderId = '';
 
-                                  if (paymentMethod.value == 'wallet' &&
-                                      Get.isRegistered<UserWalletService>() &&
-                                      UserWalletService.to
-                                          .canAfford(amountINR)) {
-                                    final tx = await UserWalletService.to
-                                        .spendWallet(
-                                      amountINR: amountINR,
-                                      category: UserWalletTransactionCategory
-                                          .superchat,
-                                      description:
-                                          'Super Thanks on $effectiveVideoTitle ($amountStr)',
-                                      metadata: {
-                                        'videoId': videoId,
-                                        'channelId': effectiveChannelId,
-                                        'type': 'super_thanks',
-                                        'originalAmount': amountVal,
-                                        'originalCurrency':
-                                            isIndian ? 'INR' : 'USD',
-                                      },
-                                    );
-                                    if (tx != null) {
-                                      paymentSucceeded = true;
-                                      transactionOrderId = tx.id;
-                                    } else {
-                                      AppSnackbar.error(
-                                        'Wallet payment could not be completed.',
-                                      );
-                                      return;
-                                    }
+                                  final orderNote = isIndian
+                                      ? 'Super Thanks on $effectiveVideoTitle ($amountStr)'
+                                      : 'Super Thanks on $effectiveVideoTitle ($amountStr ~ ₹${amountINR.toStringAsFixed(2)} INR)';
+
+                                  final paymentResult =
+                                      await CashfreePaymentService.to
+                                          .startPayment(
+                                    amount: amountINR,
+                                    purpose: 'super_thanks',
+                                    orderNote: orderNote,
+                                    metadata: {
+                                      'channelId': effectiveChannelId,
+                                      'videoId': videoId,
+                                      'text': cleanText,
+                                      'userName':
+                                          AuthService.to.activeDisplayName,
+                                      'userProfilePicUrl':
+                                          AuthService.to.activePhotoUrl,
+                                      'tierColor':
+                                          currentTier['color']! as String,
+                                      'originalAmount': amountVal,
+                                      'originalCurrency':
+                                          isIndian ? 'INR' : 'USD',
+                                    },
+                                  );
+
+                                  if (paymentResult.success) {
+                                    paymentSucceeded = true;
+                                    transactionOrderId =
+                                        paymentResult.orderId;
                                   } else {
-                                    final orderNote = isIndian
-                                        ? 'Super Thanks on $effectiveVideoTitle ($amountStr)'
-                                        : 'Super Thanks on $effectiveVideoTitle ($amountStr ~ ₹${amountINR.toStringAsFixed(2)} INR)';
-
-                                    final paymentResult =
-                                        await CashfreePaymentService.to
-                                            .startPayment(
-                                      amount: amountINR,
-                                      purpose: 'super_thanks',
-                                      orderNote: orderNote,
-                                      metadata: {
-                                        'channelId': effectiveChannelId,
-                                        'videoId': videoId,
-                                        'text': cleanText,
-                                        'userName':
-                                            AuthService.to.activeDisplayName,
-                                        'userProfilePicUrl':
-                                            AuthService.to.activePhotoUrl,
-                                        'tierColor':
-                                            currentTier['color']! as String,
-                                        'originalAmount': amountVal,
-                                        'originalCurrency':
-                                            isIndian ? 'INR' : 'USD',
-                                      },
-                                    );
-
-                                    if (paymentResult.success) {
-                                      paymentSucceeded = true;
-                                      transactionOrderId =
-                                          paymentResult.orderId;
-                                    } else {
-                                      if (paymentResult.errorMessage != null &&
-                                          !paymentResult.errorMessage!
-                                              .toLowerCase()
-                                              .contains('cancel')) {
-                                        AppSnackbar.error(
-                                            paymentResult.errorMessage!);
-                                      }
-                                      return;
+                                    if (paymentResult.errorMessage != null &&
+                                        !paymentResult.errorMessage!
+                                            .toLowerCase()
+                                            .contains('cancel')) {
+                                      AppSnackbar.error(
+                                          paymentResult.errorMessage!);
                                     }
+                                    return;
                                   }
 
                                   if (paymentSucceeded) {
@@ -962,9 +864,7 @@ class PremiumCommentInput extends StatelessWidget {
                           color: buttonTextColor,
                         ),
                         label: Text(
-                          paymentMethod.value == 'wallet'
-                              ? 'Send Super Thanks ($amountStr)'
-                              : 'Buy & Send Super Thanks ($amountStr)',
+                          'Buy & Send Super Thanks ($amountStr)',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 15,

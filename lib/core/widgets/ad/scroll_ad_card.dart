@@ -11,15 +11,22 @@ import 'package:visibility_detector/visibility_detector.dart';
 /// Compact horizontal layout native ad card designed for vertical scroll feeds,
 /// search results, and sidebar video recommendations.
 class ScrollAdCard extends StatelessWidget {
-  const ScrollAdCard({required this.ad, super.key});
+  const ScrollAdCard({required this.ad, this.contextChannelId = '', super.key});
   final AdItem ad;
+
+  /// The channel whose feed this ad was shown in. Used for 70% revenue attribution.
+  final String contextChannelId;
 
   @override
   Widget build(BuildContext context) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (Get.isRegistered<AdService>()) {
         try {
-          AdService.to.recordImpression(ad.id);
+          AdService.to.recordImpression(
+            ad.id,
+            adType: 'scroll',
+            channelId: contextChannelId,
+          );
         } catch (e, stackTrace) {
           ErrorHandler.log(
             e,

@@ -25,3 +25,7 @@ class MiniplayerSeekBackwardIntent extends Intent {
 class MiniplayerSeekForwardIntent extends Intent {
   const MiniplayerSeekForwardIntent();
 }
+
+class MiniplayerPipIntent extends Intent {
+  const MiniplayerPipIntent();
+}

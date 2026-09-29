@@ -14,6 +14,16 @@ mixin RevenueAnalyticsPayoutMixin on RevenueAnalyticsStateBase {
     required String paymentMethod,
     required String accountDetails,
   }) async {
+    if (isWithdrawalHeld.value) {
+      AppSnackbar.warning(
+        withdrawalHoldReason.value.isNotEmpty
+            ? withdrawalHoldReason.value
+            : 'TruthWorld has covered 100% of your viral infrastructure surge costs. Please upgrade your custom channel plan to release revenue withdrawals.',
+        title: 'Withdrawal On Hold',
+      );
+      return false;
+    }
+
     if (amount < RevenueAnalyticsStateBase.minimumWithdrawalAmount) {
       AppSnackbar.warning(
         'Minimum withdrawal amount is ₹${RevenueAnalyticsStateBase.minimumWithdrawalAmount.toInt()} (100 Rupees).',
@@ -124,6 +134,17 @@ mixin RevenueAnalyticsPayoutMixin on RevenueAnalyticsStateBase {
     required CreatorBankAccount bankAccount,
     bool saveAsDefault = true,
   }) async {
+    // 0. Custom Channel Viral Surge Withdrawal Hold Gate
+    if (isWithdrawalHeld.value) {
+      AppSnackbar.warning(
+        withdrawalHoldReason.value.isNotEmpty
+            ? withdrawalHoldReason.value
+            : 'TruthWorld has covered 100% of your viral infrastructure surge costs. Please upgrade your custom channel plan to release revenue withdrawals.',
+        title: 'Withdrawal On Hold',
+      );
+      return false;
+    }
+
     // 1. Mandatory KYC Verification Gate
     if (!isKycVerified) {
       AppSnackbar.warning(

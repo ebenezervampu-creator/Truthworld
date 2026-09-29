@@ -1,6 +1,9 @@
 const path = require('path');
 const fs = require('fs');
 
+process.env.GCLOUD_PROJECT = process.env.GCLOUD_PROJECT || 'truthworld-1';
+process.env.PROJECT_ID = process.env.PROJECT_ID || 'truthworld-1';
+
 async function main() {
   try {
     const loader = require('./node_modules/firebase-functions/lib/runtime/loader.js');

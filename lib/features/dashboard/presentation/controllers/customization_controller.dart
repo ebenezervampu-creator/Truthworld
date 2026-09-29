@@ -18,11 +18,20 @@ import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashb
 
 class CustomizationController extends BaseController
     with ContentValidationMixin, GetSingleTickerProviderStateMixin {
-  CustomizationController({required this.channelId, required this.ownerId});
+  CustomizationController({
+    required this.channelId,
+    required this.ownerId,
+    this.initialTabIndex = 0,
+  });
   final String channelId;
   final String ownerId;
+  final int initialTabIndex;
 
-  late final TabController tabController = TabController(length: 4, vsync: this);
+  late final TabController tabController = TabController(
+    length: 4,
+    vsync: this,
+    initialIndex: initialTabIndex.clamp(0, 3),
+  );
   final GlobalKey<FormState> formKey = GlobalKey<FormState>();
 
   @override

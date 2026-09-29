@@ -1,5 +1,7 @@
+import 'package:collection/collection.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/utils/source_url_sanitizer.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_mixins/upload_controller_base.dart';
@@ -43,9 +45,12 @@ mixin UploadAiFeaturesMixin on UploadControllerBase {
 
   /// Add a source URL provided by the channel
   void addProvidedSource(String url) {
-    final cleanUrl = url.trim();
-    if (cleanUrl.isNotEmpty && !providedSources.contains(cleanUrl)) {
-      providedSources.add(cleanUrl);
+    final validation = SourceUrlSanitizer.validateAuthoritativeSource(url);
+    if (validation.isValid && validation.normalizedUrl != null) {
+      final cleanUrl = validation.normalizedUrl!;
+      if (!providedSources.contains(cleanUrl)) {
+        providedSources.add(cleanUrl);
+      }
     }
   }
 
@@ -72,6 +77,19 @@ mixin UploadAiFeaturesMixin on UploadControllerBase {
   /// Toggle dubbing language selection.
   /// When selected in Dubbing, AUTOMATICALLY select it for Subtitles as well.
   void toggleDubbingLanguage(String lang) {
+    final chanCode = channelLanguageCode.toLowerCase();
+    final match = supportedLanguages.firstWhereOrNull(
+      (l) =>
+          l.name.toLowerCase() == lang.toLowerCase() ||
+          l.code.toLowerCase() == lang.toLowerCase(),
+    );
+    if (match != null && match.code.toLowerCase() == chanCode) {
+      AppSnackbar.info(
+        'This video is already in ${match.name} (Channel Language). Dubbing is available for other languages.',
+      );
+      return;
+    }
+
     if (aiDubbingLanguages.contains(lang)) {
       aiDubbingLanguages.remove(lang);
     } else {
@@ -96,8 +114,9 @@ mixin UploadAiFeaturesMixin on UploadControllerBase {
             : 'standard',
       ),
       factChecking: aiFactCheckEnabled.value,
+      factCheckTier: aiFactCheckTier.value,
       diarization: aiDiarizationEnabled.value,
-      summary: aiSummaryEnabled.value,
+      summary: true,
       autoChapters: aiChaptersEnabled.value,
       pipelineStage: pipelineStage,
     ).toMap();

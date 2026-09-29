@@ -134,7 +134,8 @@ export class AggregationLayer {
       reachEngineDone = isDone(stages.dubbing);
       
       // Also verify all individual language stages if they exist
-      const targetLangs = (plan.languages || []).filter(l => normalizeLanguageCode(l) !== "en");
+      const sourceLang = normalizeLanguageCode(plan.primaryLanguage || "en");
+      const targetLangs = (plan.languages || []).filter(l => normalizeLanguageCode(l) !== sourceLang);
       for (const lang of targetLangs) {
         const normLang = normalizeLanguageCode(lang);
         const transStage = stages[`translating_${normLang}`] || stages[`translating_${lang}`];
@@ -487,15 +488,35 @@ export class AggregationLayer {
           const vRef = db().collection("videos").doc(vid);
           const vData = linkedVideoDataMap.get(vid);
 
-          // If video is scheduled for the future, keep it in 'scheduled' status
-          // so the Scheduled Publishing function can flip it to 'published' later.
-          let finalStatus = "ready";
-          if (vData?.visibility === "Scheduled" || vData?.status === "scheduled") {
+          // Preserve proper lifecycle status
+          let finalStatus = "published";
+          if (vData?.visibility === "Scheduled" || vData?.status === "scheduled" || vData?.targetStatus === "scheduled") {
             finalStatus = "scheduled";
+          } else if (vData?.status === "draft" || vData?.targetStatus === "draft") {
+            finalStatus = "draft";
+          } else if (vData?.status === "rejected" || vData?.moderation?.status === "rejected") {
+            finalStatus = "rejected";
+          } else if (vData?.status === "published" || vData?.targetStatus === "published" || vData?.isPublished === true || vData?.aiFeatures?.pipelineStage === "published") {
+            finalStatus = "published";
+          } else {
+            finalStatus = vData?.status && vData.status !== "processing" && vData.status !== "uploading" ? vData.status : "published";
           }
+
+          const existingSummary = vData?.summary || vData?.moderationSummary || (jobData as any)?.gatewayDecision?.summary || jobOutputs.summary || (jobData as any)?.summary || "";
+          const resolvedChapters = (vData?.autoChapters && vData.autoChapters.length > 0)
+            ? vData.autoChapters
+            : ((vData?.chapters && vData.chapters.length > 0)
+                ? vData.chapters
+                : (((jobData as any)?.gatewayDecision?.autoChapters && (jobData as any).gatewayDecision.autoChapters.length > 0)
+                    ? (jobData as any).gatewayDecision.autoChapters
+                    : (trans?.chapters || [])));
 
           transaction.update(vRef, {
             status: finalStatus,
+            summary: existingSummary,
+            moderationSummary: existingSummary,
+            autoChapters: resolvedChapters,
+            chapters: resolvedChapters,
             trustIndex: null, // v12.0: Scoring removed
             contentIntent: jobOutputs.contentIntent?.primaryIntent || null,
             factCheckUrl: directFactCheckUrl,
@@ -699,24 +720,38 @@ export class AggregationLayer {
           updateData["media.subtitles"] = flatSubtitles;
         }
 
-        if (jobOutputs.dubbed) {
+        if (jobOutputs.dubbed || jobOutputs.audioTracks) {
           const audioTracks: Record<string, string> = {};
-          const dubbedMap: Record<string, any> = {};
-          for (const [lang, data] of Object.entries(jobOutputs.dubbed) as [string, any][]) {
-            if (data.audioUrl) {
-              const directAudioUrl = getDownloadUrl(data.audioUrl);
-              const directVideoUrl = data.videoUrl ? getDownloadUrl(data.videoUrl) : (data.path ? getDownloadUrl(data.path) : "");
-              audioTracks[lang] = directAudioUrl;
-              dubbedMap[lang] = {
-                ...data,
-                audioUrl: directAudioUrl,
-                path: directVideoUrl || data.path || data.videoUrl,
-              };
+          if (jobOutputs.audioTracks) {
+            for (const [lang, url] of Object.entries(jobOutputs.audioTracks) as [string, any][]) {
+              if (url) {
+                audioTracks[lang] = getDownloadUrl(String(url));
+              }
             }
           }
-          updateData.dubbedVideos = dubbedMap;
-          updateData.audioTracks = audioTracks;
-          updateData["media.audioTracks"] = audioTracks;
+          const dubbedMap: Record<string, any> = {};
+          if (jobOutputs.dubbed) {
+            for (const [lang, data] of Object.entries(jobOutputs.dubbed) as [string, any][]) {
+              if (data.audioUrl) {
+                const directAudioUrl = getDownloadUrl(data.audioUrl);
+                const directVideoUrl = data.videoUrl ? getDownloadUrl(data.videoUrl) : (data.path ? getDownloadUrl(data.path) : "");
+                audioTracks[lang] = directAudioUrl;
+                dubbedMap[lang] = {
+                  ...data,
+                  audioUrl: directAudioUrl,
+                  path: directVideoUrl || data.path || data.videoUrl,
+                };
+              }
+            }
+          }
+          if (Object.keys(dubbedMap).length > 0) {
+            updateData.dubbedVideos = dubbedMap;
+            updateData["media.dubbedVideos"] = dubbedMap;
+          }
+          if (Object.keys(audioTracks).length > 0) {
+            updateData.audioTracks = audioTracks;
+            updateData["media.audioTracks"] = audioTracks;
+          }
         }
         
         logger.info("[Aggregation] Early propagation: Localization artifacts", { jobId, stageName });

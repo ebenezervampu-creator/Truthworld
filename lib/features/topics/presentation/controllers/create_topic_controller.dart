@@ -51,6 +51,7 @@ class CreateTopicController extends BaseController with ContentValidationMixin {
   final RxString profanityError = ''.obs;
   final RxBool isSubmitting = false.obs;
   final RxBool autoHandleTouched = false.obs;
+  final RxBool isFromUpload = false.obs;
 
   @override
   void onInit() {
@@ -278,8 +279,8 @@ class CreateTopicController extends BaseController with ContentValidationMixin {
       }
     }
 
-    // Mandatory: Topic must contain at least 1 video
-    if (selectedVideoIds.isEmpty) {
+    // Mandatory: Topic must contain at least 1 video, unless creating from upload workflow where current video is being published
+    if (!isFromUpload.value && selectedVideoIds.isEmpty) {
       profanityError.value = 'At least 1 video is required to create a topic. Please select a video.';
       AppSnackbar.show(
         'Video Required',
@@ -346,5 +347,6 @@ class CreateTopicController extends BaseController with ContentValidationMixin {
     profanityError.value = '';
     isSubmitting.value = false;
     autoHandleTouched.value = false;
+    isFromUpload.value = false;
   }
 }

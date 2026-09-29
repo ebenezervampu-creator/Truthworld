@@ -126,6 +126,22 @@ class MainActivity : FlutterActivity() {
                     updateAutoPipSettings(enabled, ratio)
                     result.success(null)
                 }
+                "isPipSupported" -> {
+                    val supported = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)
+                    } else {
+                        false
+                    }
+                    result.success(supported)
+                }
+                "isInPip" -> {
+                    val inPip = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        isInPictureInPictureMode
+                    } else {
+                        false
+                    }
+                    result.success(inPip)
+                }
                 else -> result.notImplemented()
             }
         }
@@ -133,26 +149,36 @@ class MainActivity : FlutterActivity() {
 
     private fun enterPipMode(ratio: Double) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val rational = Rational((ratio * 10000).toInt(), 10000)
+            val clampedRatio = ratio.coerceIn(0.418, 2.39)
+            val rational = Rational((clampedRatio * 10000).toInt(), 10000)
             val params = PictureInPictureParams.Builder()
                 .setAspectRatio(rational)
                 .build()
-            enterPictureInPictureMode(params)
+            try {
+                enterPictureInPictureMode(params)
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "enterPictureInPictureMode failed: ${e.message}")
+            }
         }
     }
 
     private fun updateAutoPipSettings(enabled: Boolean, ratio: Double) {
         isAutoEnterPipEnabled = enabled
-        pipAspectRatioWidth = (ratio * 10000).toInt()
+        val clampedRatio = ratio.coerceIn(0.418, 2.39)
+        pipAspectRatioWidth = (clampedRatio * 10000).toInt()
         pipAspectRatioHeight = 10000
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val rational = Rational(pipAspectRatioWidth, pipAspectRatioHeight)
-            val params = PictureInPictureParams.Builder()
-                .setAspectRatio(rational)
-                .setAutoEnterEnabled(enabled)
-                .build()
-            setPictureInPictureParams(params)
+            try {
+                val rational = Rational(pipAspectRatioWidth, pipAspectRatioHeight)
+                val params = PictureInPictureParams.Builder()
+                    .setAspectRatio(rational)
+                    .setAutoEnterEnabled(enabled)
+                    .build()
+                setPictureInPictureParams(params)
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "setPictureInPictureParams failed: ${e.message}")
+            }
         }
     }
 
@@ -160,11 +186,15 @@ class MainActivity : FlutterActivity() {
         super.onUserLeaveHint()
         if (isAutoEnterPipEnabled) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val rational = Rational(pipAspectRatioWidth, pipAspectRatioHeight)
-                val params = PictureInPictureParams.Builder()
-                    .setAspectRatio(rational)
-                    .build()
-                enterPictureInPictureMode(params)
+                try {
+                    val rational = Rational(pipAspectRatioWidth, pipAspectRatioHeight)
+                    val params = PictureInPictureParams.Builder()
+                        .setAspectRatio(rational)
+                        .build()
+                    enterPictureInPictureMode(params)
+                } catch (e: Exception) {
+                    android.util.Log.e("MainActivity", "onUserLeaveHint enterPictureInPictureMode failed: ${e.message}")
+                }
             }
         }
     }

@@ -233,34 +233,279 @@ export const markNotificationRead = onCall(
 
 /**
  * 🔔 UPDATE TOPIC NOTIFICATION SETTINGS (Callable)
- * Updates user's notification preference ('all' | 'personalized' | 'none') for a topic.
+ * Updates user's notification preference ('all' | 'personalized' | 'none' | 'unfollow') for a topic.
+ * When setting is 'unfollow', the topic is removed from savedTopics and topic followerCount is decremented.
  */
 export const updateTopicNotificationSettings = onCall(
   { region: "asia-south1", memory: "256MiB", maxInstances: 2 },
   async (request) => {
     const userId = request.auth?.uid;
-    const { topicId, notificationSetting } = request.data;
-    if (!userId || !topicId || !notificationSetting) {
-      throw new HttpsError("invalid-argument", "Missing topicId or notificationSetting.");
+    if (!userId) {
+      throw new HttpsError("unauthenticated", "Authentication required.");
     }
 
-    if (!["all", "personalized", "none"].includes(notificationSetting)) {
-      throw new HttpsError("invalid-argument", "Invalid notificationSetting value.");
+    const { topicId, notificationSetting } = request.data || {};
+    if (!topicId || typeof topicId !== "string" || !topicId.trim()) {
+      throw new HttpsError("invalid-argument", "Missing or invalid topicId.");
+    }
+    if (!notificationSetting || typeof notificationSetting !== "string") {
+      throw new HttpsError("invalid-argument", "Missing or invalid notificationSetting.");
+    }
+
+    const cleanTopicId = topicId.trim();
+    const cleanSetting = notificationSetting.trim().toLowerCase();
+
+    if (!["all", "personalized", "none", "unfollow"].includes(cleanSetting)) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Invalid notificationSetting value. Must be 'all', 'personalized', 'none', or 'unfollow'."
+      );
     }
 
     try {
-      const topicSavedRef = db.collection("users").doc(userId).collection("savedTopics").doc(topicId);
+      const topicSavedRef = db.collection("users").doc(userId).collection("savedTopics").doc(cleanTopicId);
+      const topicRef = db.collection("topics").doc(cleanTopicId);
+
+      if (cleanSetting === "unfollow") {
+        const [savedSnap, topicSnap] = await Promise.all([
+          topicSavedRef.get(),
+          topicRef.get(),
+        ]);
+
+        const batch = db.batch();
+        batch.delete(topicSavedRef);
+
+        if (savedSnap.exists && topicSnap.exists) {
+          const currentCount = topicSnap.data()?.followerCount ?? 0;
+          batch.set(
+            topicRef,
+            { followerCount: Math.max(0, currentCount - 1) },
+            { merge: true }
+          );
+        }
+
+        await batch.commit();
+
+        return {
+          success: true,
+          topicId: cleanTopicId,
+          unfollowed: true,
+          notificationSetting: "none",
+        };
+      }
+
+      // 'all' | 'personalized' | 'none'
       await topicSavedRef.set({
-        topicId,
-        notificationSetting,
-        updatedAt: Date.now(),
+        topicId: cleanTopicId,
+        notificationSetting: cleanSetting,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
 
-      return { success: true, topicId, notificationSetting };
+      return {
+        success: true,
+        topicId: cleanTopicId,
+        unfollowed: false,
+        notificationSetting: cleanSetting,
+      };
     } catch (err) {
+      if (err instanceof HttpsError) throw err;
       logger.error("[updateTopicNotificationSettings] Error:", err);
       throw new HttpsError("internal", "Failed to update notification settings.");
     }
   }
 );
+
+/**
+ * ➕ FOLLOW TOPIC (Callable)
+ * Follows a topic for the user with an initial notification preference ('all' | 'personalized' | 'none', default 'all').
+ * Atomically increments topic followerCount.
+ */
+export const followTopic = onCall(
+  { region: "asia-south1", memory: "256MiB", maxInstances: 2 },
+  async (request) => {
+    const userId = request.auth?.uid;
+    if (!userId) {
+      throw new HttpsError("unauthenticated", "Authentication required.");
+    }
+
+    const { topicId, notificationSetting } = request.data || {};
+    if (!topicId || typeof topicId !== "string" || !topicId.trim()) {
+      throw new HttpsError("invalid-argument", "Missing or invalid topicId.");
+    }
+
+    const cleanTopicId = topicId.trim();
+    const cleanSetting = (notificationSetting && typeof notificationSetting === "string")
+      ? notificationSetting.trim().toLowerCase()
+      : "all";
+
+    if (!["all", "personalized", "none"].includes(cleanSetting)) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Invalid notificationSetting value. Must be 'all', 'personalized', or 'none'."
+      );
+    }
+
+    try {
+      const topicRef = db.collection("topics").doc(cleanTopicId);
+      const [topicSnap, existingSaved] = await Promise.all([
+        topicRef.get(),
+        db.collection("users").doc(userId).collection("savedTopics").doc(cleanTopicId).get(),
+      ]);
+
+      if (!topicSnap.exists) {
+        throw new HttpsError("not-found", "Topic does not exist.");
+      }
+
+      const topicSavedRef = db.collection("users").doc(userId).collection("savedTopics").doc(cleanTopicId);
+      const batch = db.batch();
+
+      batch.set(
+        topicSavedRef,
+        {
+          topicId: cleanTopicId,
+          savedAt: existingSaved.exists
+            ? (existingSaved.data()?.savedAt || admin.firestore.FieldValue.serverTimestamp())
+            : admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          notificationSetting: cleanSetting,
+        },
+        { merge: true }
+      );
+
+      if (!existingSaved.exists) {
+        const currentCount = topicSnap.data()?.followerCount ?? 0;
+        batch.set(
+          topicRef,
+          { followerCount: currentCount + 1 },
+          { merge: true }
+        );
+      }
+
+      await batch.commit();
+
+      return {
+        success: true,
+        topicId: cleanTopicId,
+        isFollowing: true,
+        notificationSetting: cleanSetting,
+      };
+    } catch (err) {
+      if (err instanceof HttpsError) throw err;
+      logger.error("[followTopic] Error:", err);
+      throw new HttpsError("internal", "Failed to follow topic.");
+    }
+  }
+);
+
+/**
+ * ➖ UNFOLLOW TOPIC (Callable)
+ * Unfollows a topic, removes savedTopics doc, and decrements topic followerCount.
+ */
+export const unfollowTopic = onCall(
+  { region: "asia-south1", memory: "256MiB", maxInstances: 2 },
+  async (request) => {
+    const userId = request.auth?.uid;
+    if (!userId) {
+      throw new HttpsError("unauthenticated", "Authentication required.");
+    }
+
+    const { topicId } = request.data || {};
+    if (!topicId || typeof topicId !== "string" || !topicId.trim()) {
+      throw new HttpsError("invalid-argument", "Missing or invalid topicId.");
+    }
+
+    const cleanTopicId = topicId.trim();
+
+    try {
+      const topicSavedRef = db.collection("users").doc(userId).collection("savedTopics").doc(cleanTopicId);
+      const topicRef = db.collection("topics").doc(cleanTopicId);
+
+      const [existingSaved, topicSnap] = await Promise.all([
+        topicSavedRef.get(),
+        topicRef.get(),
+      ]);
+
+      if (!existingSaved.exists) {
+        return {
+          success: true,
+          topicId: cleanTopicId,
+          unfollowed: true,
+          message: "Topic was not followed.",
+        };
+      }
+
+      const batch = db.batch();
+      batch.delete(topicSavedRef);
+
+      if (topicSnap.exists) {
+        const currentCount = topicSnap.data()?.followerCount ?? 0;
+        batch.set(
+          topicRef,
+          { followerCount: Math.max(0, currentCount - 1) },
+          { merge: true }
+        );
+      }
+
+      await batch.commit();
+
+      return {
+        success: true,
+        topicId: cleanTopicId,
+        unfollowed: true,
+      };
+    } catch (err) {
+      if (err instanceof HttpsError) throw err;
+      logger.error("[unfollowTopic] Error:", err);
+      throw new HttpsError("internal", "Failed to unfollow topic.");
+    }
+  }
+);
+
+/**
+ * 🔍 GET TOPIC NOTIFICATION SETTING (Callable)
+ * Retrieves user's notification preference ('all' | 'personalized' | 'none') for a specific topic.
+ */
+export const getTopicNotificationSetting = onCall(
+  { region: "asia-south1", memory: "256MiB", maxInstances: 2 },
+  async (request) => {
+    const userId = request.auth?.uid;
+    if (!userId) {
+      throw new HttpsError("unauthenticated", "Authentication required.");
+    }
+
+    const { topicId } = request.data || {};
+    if (!topicId || typeof topicId !== "string" || !topicId.trim()) {
+      throw new HttpsError("invalid-argument", "Missing or invalid topicId.");
+    }
+
+    const cleanTopicId = topicId.trim();
+
+    try {
+      const doc = await db.collection("users").doc(userId).collection("savedTopics").doc(cleanTopicId).get();
+      if (!doc.exists) {
+        return {
+          success: true,
+          topicId: cleanTopicId,
+          isFollowing: false,
+          notificationSetting: "none",
+        };
+      }
+
+      const setting = doc.data()?.notificationSetting || "all";
+      return {
+        success: true,
+        topicId: cleanTopicId,
+        isFollowing: true,
+        notificationSetting: setting,
+      };
+    } catch (err) {
+      if (err instanceof HttpsError) throw err;
+      logger.error("[getTopicNotificationSetting] Error:", err);
+      throw new HttpsError("internal", "Failed to get topic notification setting.");
+    }
+  }
+);
+
+
+export { updateChannelNotificationSettings } from "../channels/social";
 

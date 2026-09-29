@@ -358,6 +358,8 @@ mixin ChannelCreationMixin on ChannelControllerBase {
         'monetizationTier': 'free',
         'superchatRevenueTotal': 0,
         'customPricingTier': customPricingTier.value,
+        'customPlanAutoPay': customPlanAutoPay.value,
+        'autoPay': customPlanAutoPay.value,
         'isPublic': isPublic.value,
         'isVerified': false,
         'subscriberCount': 0,

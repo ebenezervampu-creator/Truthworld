@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/controls/components/player_control_row.dart';
-import 'package:truthworld/features/video/presentation/views/player/controls/progress_bar.dart';
-import 'package:truthworld/theme/app_theme.dart';
+import 'package:truthworld/features/video/presentation/views/player/controls/truthworld_player_timeline.dart';
 
 class PlayerBottomBar extends StatelessWidget {
   const PlayerBottomBar({
@@ -22,24 +21,23 @@ class PlayerBottomBar extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.bottomCenter,
           end: Alignment.topCenter,
-          stops: const [0, 0.08, 0.6, 1],
+          stops: const [0.0, 0.35, 0.75, 1.0],
           colors: [
-            AppColors.bgPage,
-            AppColors.bgPage.withValues(alpha: 0.96),
-            AppColors.bgPage.withValues(alpha: 0.55),
+            Colors.black.withValues(alpha: 0.95),
+            Colors.black.withValues(alpha: 0.7),
+            Colors.black.withValues(alpha: 0.25),
             Colors.transparent,
           ],
         ),
-        borderRadius: BorderRadius.zero,
       ),
-      padding: const EdgeInsets.fromLTRB(14, 4, 14, 2),
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          TruthWorldPlayerTimeline(ctrl: ctrl),
+          const SizedBox(height: 2),
           ControlRow(ctrl: ctrl, isNarrow: isNarrow, isMedium: isMedium),
-          const SizedBox(height: 6),
-          ProgressBar(ctrl: ctrl),
         ],
       ),
     );

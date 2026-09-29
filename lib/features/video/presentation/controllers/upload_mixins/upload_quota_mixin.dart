@@ -143,8 +143,22 @@ mixin UploadQuotaMixin on UploadControllerBase {
   }
 
   Future<void> fetchChannelsWithRetry() async {
-    isChannelsLoading.value = true;
     channelsError.value = '';
+
+    // Users can only reach Studio/upload screens if they have a channel.
+    // Seed immediately from AuthService so the screen opens with zero delay.
+    // Firestore runs in the background and overwrites with fresh data on arrival.
+    final authCh = AuthService.to.userChannel;
+    if (authCh != null && authCh.status != ChannelStatus.deleted) {
+      if (channels.isEmpty) {
+        channels.value = [authCh];
+        selectedChannel.value = authCh;
+      }
+      isChannelsLoading.value = false;
+    } else {
+      isChannelsLoading.value = true;
+    }
+
     fetchChannels();
   }
 

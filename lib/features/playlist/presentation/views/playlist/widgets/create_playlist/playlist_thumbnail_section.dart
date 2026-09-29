@@ -9,11 +9,13 @@ class PlaylistThumbnailSection extends StatelessWidget {
   const PlaylistThumbnailSection({
     required this.controller,
     required this.isDesktop,
+    this.fromUpload = false,
     super.key,
   });
 
   final CreatePlaylistController controller;
   final bool isDesktop;
+  final bool fromUpload;
 
   @override
   Widget build(BuildContext context) {
@@ -130,7 +132,9 @@ class PlaylistThumbnailSection extends StatelessWidget {
                           // List of video thumbnails
                           if (videos.isEmpty)
                             Text(
-                              'Select videos first',
+                              fromUpload
+                                  ? 'Will use the thumbnail from your uploading video (or choose a custom image)'
+                                  : 'Select videos first',
                               style: TextStyle(
                                 color: Colors.white.withValues(alpha: 0.35),
                                 fontSize: 12,

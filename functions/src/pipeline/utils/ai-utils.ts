@@ -1,5 +1,6 @@
 import * as admin from "firebase-admin";
 import { logger } from "./logger";
+import { costEngine } from "../services/cost-engine";
 
 /**
  * Request flow:
@@ -225,12 +226,85 @@ export interface ModelFallbackChain {
   forcePrimary: boolean;     // if true, never fall back — wait and retry on primary
 }
 
+export interface AiUsageRecord {
+  promptTokens: number;
+  candidateTokens: number;
+  totalTokens: number;
+  model: string;
+  timestamp: number;
+}
+
+export interface AiRetryOptions {
+  maxAttempts: number;
+  instanceId: string;
+  signal?: AbortSignal;
+  jobId?: string;
+  userId?: string;
+  stage?: "extraction" | "verification" | "synthesis" | "moderation" | string;
+  onUsage?: (usage: AiUsageRecord) => void;
+  costContext?: {
+    jobId: string;
+    userId: string;
+    stage: string;
+  };
+}
+
+/**
+ * Global accumulator of actual token usage per video job.
+ * Allows stages to report tokens as they happen and credibility layer to read the totals.
+ */
+export class JobTokenTracker {
+  private static tokensByJob = new Map<string, {
+    extractionInputTokens: number;
+    extractionOutputTokens: number;
+    verificationInputTokens: number;
+    verificationOutputTokens: number;
+    synthesisInputTokens: number;
+    synthesisOutputTokens: number;
+    groundingQueries: number;
+    recordedAt: number;
+  }>();
+
+  static record(jobId: string, stage: string, inputTokens: number, outputTokens: number) {
+    if (!jobId || (inputTokens <= 0 && outputTokens <= 0)) return;
+    const current = this.tokensByJob.get(jobId) || {
+      extractionInputTokens: 0,
+      extractionOutputTokens: 0,
+      verificationInputTokens: 0,
+      verificationOutputTokens: 0,
+      synthesisInputTokens: 0,
+      synthesisOutputTokens: 0,
+      groundingQueries: 0,
+      recordedAt: Date.now(),
+    };
+    if (stage === "extraction") {
+      current.extractionInputTokens += inputTokens;
+      current.extractionOutputTokens += outputTokens;
+    } else if (stage === "verification") {
+      current.verificationInputTokens += inputTokens;
+      current.verificationOutputTokens += outputTokens;
+    } else {
+      current.synthesisInputTokens += inputTokens;
+      current.synthesisOutputTokens += outputTokens;
+    }
+    this.tokensByJob.set(jobId, current);
+  }
+
+  static getAndClear(jobId: string) {
+    const data = this.tokensByJob.get(jobId);
+    if (data) {
+      this.tokensByJob.delete(jobId);
+    }
+    return data;
+  }
+}
+
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 export async function withAiRetry<T>(
-  fn: (model: string) => Promise<T>,
+  fn: (model: string, recordUsage?: (response: any) => void) => Promise<T>,
   chain: ModelFallbackChain,
-  options: { maxAttempts: number; instanceId: string; signal?: AbortSignal }
+  options: AiRetryOptions
 ): Promise<T> {
   const pacer = AiPacer.getInstance();
   const semaphore = GlobalSemaphore.getInstance();
@@ -258,10 +332,46 @@ export async function withAiRetry<T>(
     try {
       await pacer.pace();
 
+      const recordUsage = (responseOrUsage: any) => {
+        try {
+          const usage = responseOrUsage?.response?.usageMetadata || responseOrUsage?.usageMetadata || responseOrUsage;
+          const promptTokens = Number(usage?.promptTokenCount || 0);
+          const candidateTokens = Number(usage?.candidatesTokenCount || 0);
+          if (promptTokens > 0 || candidateTokens > 0) {
+            const record: AiUsageRecord = {
+              promptTokens,
+              candidateTokens,
+              totalTokens: promptTokens + candidateTokens,
+              model: currentModel,
+              timestamp: Date.now(),
+            };
+            if (options.onUsage) {
+              options.onUsage(record);
+            }
+            const activeJobId = options.jobId || options.costContext?.jobId;
+            const activeStage = options.stage || options.costContext?.stage;
+            if (activeJobId && activeStage) {
+              JobTokenTracker.record(activeJobId, activeStage, promptTokens, candidateTokens);
+            }
+            if (options.costContext) {
+              const modelTier = currentModel.includes("pro") ? "pro" : "flash";
+              costEngine.recordGeminiCost(
+                options.costContext.jobId,
+                options.costContext.userId,
+                options.costContext.stage,
+                modelTier,
+                promptTokens,
+                candidateTokens
+              ).catch(() => {});
+            }
+          }
+        } catch (_) { /* non-blocking */ }
+      };
+
       const timeoutMs = 180_000; // v18.0: 180s for grounding + multi-source verification batches
       let timeoutId: any;
       const result = await Promise.race([
-        fn(currentModel),
+        fn(currentModel, recordUsage),
         new Promise<T>((_, reject) => {
           timeoutId = setTimeout(() => {
             logger.warn(`[withAiRetry] Internal ${timeoutMs}ms timeout reached for model ${currentModel}`);
@@ -283,6 +393,9 @@ export async function withAiRetry<T>(
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
+
+      // Automatically inspect result if fn directly returned a Vertex response
+      recordUsage(result);
       
       // Successful call — close circuit if it was half-open
       if (circuitStatus === 'half-open') {

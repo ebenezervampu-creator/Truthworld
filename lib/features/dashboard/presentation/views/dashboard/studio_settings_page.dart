@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/config/app_flavor.dart';
 import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/studio_settings_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -169,12 +170,23 @@ class StudioSettingsPage extends StatelessWidget {
   Widget _buildMonetizationSettings(StudioSettingsController controller) {
     final isMonetizationEnabled =
         controller.userData['monetizationEnabled'] ?? false;
+    final noAdsForMembers =
+        (controller.userData['noAdsForMembers'] as bool?) ?? false;
+
     return Column(
       children: [
         _buildToggleListTile(
           'Enable monetization',
           isMonetizationEnabled,
           (value) => controller.updateField('monetizationEnabled', value),
+        ),
+        _buildToggleListTile(
+          'Channel Premium for members (30% platform cut)',
+          noAdsForMembers,
+          (value) => controller.toggleNoAdsForMembers(value),
+          subtitle: noAdsForMembers
+              ? 'Active: Members watch your videos ad-free in 4K Ultra HD. Platform fee: 30% on memberships.'
+              : 'Inactive: Standard ads and resolution ceilings apply. 0% platform commission on memberships.',
         ),
         if (isMonetizationEnabled) ...[
           const SizedBox(height: 8),
@@ -431,7 +443,11 @@ class StudioSettingsPage extends StatelessWidget {
                       Navigator.of(dialogContext).pop();
                       final success = await controller.deleteChannel();
                       if (success && context.mounted) {
-                        Get.offAllNamed('/');
+                        if (AppFlavor.isStudio) {
+                          Get.offAllNamed('/studio');
+                        } else {
+                          Get.offAllNamed('/');
+                        }
                       }
                     }
                   : null,
@@ -485,10 +501,20 @@ class StudioSettingsPage extends StatelessWidget {
   Widget _buildToggleListTile(
     String title,
     bool value,
-    Function(bool) onChanged,
-  ) {
+    Function(bool) onChanged, {
+    String? subtitle,
+  }) {
     return SwitchListTile.adaptive(
       title: Text(title, style: const TextStyle(color: AppColors.textPrimary)),
+      subtitle: subtitle != null
+          ? Text(
+              subtitle,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+              ),
+            )
+          : null,
       value: value,
       onChanged: onChanged,
       activeThumbColor: AppTheme.colors.primary,

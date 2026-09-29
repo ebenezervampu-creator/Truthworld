@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/features/video/data/models/claim_verdict_helper.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/widgets/analysis/video_analysis_claim_card.dart';
@@ -89,7 +90,6 @@ import 'package:truthworld/theme/app_theme.dart';
                       'Verified',
                       'Verified ($verifiedCount)',
                       current == 'Verified',
-                      color: AppColors.success,
                     ),
                     const SizedBox(width: 8),
                   ],
@@ -98,7 +98,6 @@ import 'package:truthworld/theme/app_theme.dart';
                       'Caution',
                       'Caution ($cautionCount)',
                       current == 'Caution',
-                      color: AppColors.warning,
                     ),
                     const SizedBox(width: 8),
                   ],
@@ -107,7 +106,6 @@ import 'package:truthworld/theme/app_theme.dart';
                       'False',
                       'False ($falseCount)',
                       current == 'False',
-                      color: AppColors.error,
                     ),
                   ],
                 ],
@@ -122,18 +120,10 @@ import 'package:truthworld/theme/app_theme.dart';
           final filteredClaims = claims.where((claim) {
             if (claim is! Map) return false;
             if (filter == 'All') return true;
-            final status = (claim['status'] ?? claim['verificationStatus'] ?? '')
-                .toString()
-                .toLowerCase();
-            final isVerified = status == 'correct' ||
-                status == 'mostly_correct' ||
-                status == 'verified' ||
-                status == 'true' ||
-                claim['isVerified'] == true;
-            final isFalse = status == 'false' || status == 'incorrect';
-            if (filter == 'Verified') return isVerified;
-            if (filter == 'False') return isFalse;
-            if (filter == 'Caution') return !isVerified && !isFalse;
+            final verdict = ClaimVerdictHelper.resolveVerdict(claim);
+            if (filter == 'Verified') return verdict.isVerified;
+            if (filter == 'False') return verdict.isFalse;
+            if (filter == 'Caution') return verdict.isCaution;
             return true;
           }).toList();
 
@@ -183,32 +173,32 @@ import 'package:truthworld/theme/app_theme.dart';
   Widget _buildClaimFilterChip(
     String filterKey,
     String label,
-    bool isSelected, {
-    Color? color,
-  }) {
-    final activeColor = color ?? AppColors.brand;
+    bool isSelected,
+  ) {
     return InkWell(
       onTap: () => analysisCtrl.selectedClaimFilter.value = filterKey,
       borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected
-              ? activeColor.withValues(alpha: 0.2)
-              : Colors.white.withValues(alpha: 0.05),
+          color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected
-                ? activeColor.withValues(alpha: 0.6)
-                : Colors.white.withValues(alpha: 0.1),
-          ),
+          border: isSelected
+              ? null
+              : Border.all(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  width: 0.5,
+                ),
         ),
         child: Text(
           label,
           style: context.twTypography.caption.copyWith(
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-            color: isSelected ? Colors.white : AppColors.textSecondary,
+            color: isSelected ? Colors.black : AppColors.textSecondary,
+            fontFamily: TWTypography.uiFamily,
           ),
         ),
       ),

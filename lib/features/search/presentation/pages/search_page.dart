@@ -6,7 +6,7 @@ import 'package:truthworld/features/search/presentation/controllers/search_contr
 import 'package:truthworld/features/search/presentation/widgets/search_widgets.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-/// SearchPage: Main search UI (Optimized for 9 Problems & YouTube Exact Look)
+/// SearchPage: Main search UI (Optimized for 9 Problems & Clean Design)
 class SearchPage extends StatelessWidget {
   const SearchPage({super.key});
 

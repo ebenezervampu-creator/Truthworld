@@ -4,6 +4,8 @@
 /// Used for the "Credibility Nutrition Label" UI.
 library;
 
+import 'package:truthworld/core/utils/source_url_sanitizer.dart';
+
 class ScoringFactors {
   ScoringFactors({
     required this.accuracy,
@@ -321,10 +323,23 @@ class UISource {
             map['journalName'] ??
             'Source Citation')
         .toString();
-    final url = (map['url'] ?? map['directUrl'] ?? map['link'])?.toString();
-    final domain = (map['domain'] ??
-            (url != null ? Uri.tryParse(url)?.host : null))
-        ?.toString();
+    final rawUrl =
+        (map['url'] ?? map['directUrl'] ?? map['link'])?.toString();
+    final rawDomain = map['domain']?.toString();
+    final publisher = (map['publisher'] ?? map['author'])?.toString();
+
+    final url = SourceUrlSanitizer.sanitizeUrl(
+      rawUrl,
+      title: title,
+      publisher: publisher,
+      domain: rawDomain,
+    );
+    final domain = SourceUrlSanitizer.resolveDisplayDomain(
+      rawUrl,
+      title: title,
+      explicitDomain: rawDomain,
+      publisher: publisher,
+    );
     final trustLevel =
         (map['trustLevel'] ?? map['trust'] ?? 'Medium').toString();
     final type =
@@ -466,17 +481,20 @@ class ClaimResult {
     final sourcesList = <UISource>[];
     if (rawSources is List) {
       for (final s in rawSources) {
+        if (!SourceUrlSanitizer.isValidSource(s)) continue;
         if (s is Map) {
           sourcesList.add(
             UISource.fromMap(Map<String, dynamic>.from(s)),
           );
-        } else if (s is String && s.isNotEmpty) {
+        } else if (s is String && s.trim().isNotEmpty) {
+          final clean = SourceUrlSanitizer.sanitizeUrl(s, title: s);
           sourcesList.add(
             UISource(
-              title: s,
+              title: s.trim(),
               trustLevel: 'Medium',
               type: 'Supporting',
-              url: s.startsWith('http') ? s : null,
+              url: clean,
+              domain: SourceUrlSanitizer.resolveDisplayDomain(clean, title: s),
             ),
           );
         }

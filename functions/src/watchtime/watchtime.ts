@@ -3,6 +3,8 @@ import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { logger } from "firebase-functions/v2";
 import axios from "axios";
+import { applySecurityHeaders } from "../utils/securityHeaders";
+import { costEngine, CostEngine, CDN_RATE_CARDS } from "../pipeline/services/cost-engine";
 
 // â”€â”€â”€ Init â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const db = admin.firestore();
@@ -147,6 +149,7 @@ export const trackWatchEvent = onRequest(
     memory: "256MiB",
   },
   async (req, res) => {
+    applySecurityHeaders(res);
     // ── CORS: Set headers on EVERY response (not just OPTIONS) ──
     // Without these on error responses, the browser blocks them as opaque
     // "Failed to fetch" errors, hiding the actual error from the client.
@@ -255,15 +258,35 @@ export const trackWatchEvent = onRequest(
       const isAuth = userId && userId !== "anonymous";
       const docId = isAuth ? `${userId}_${videoId}` : sessionId!;
 
+      // Check premium subscriber status for revenue distribution (server-side, cannot be spoofed)
+      let isPremiumSubscriber = false;
+      if (body.userId && body.userId !== "anonymous") {
+        try {
+          const userSnap = await db.collection("users").doc(body.userId).get();
+          isPremiumSubscriber = userSnap.exists && userSnap.data()?.isPremium === true;
+        } catch (_) { /* non-blocking */ }
+      }
+
+      // ── LAYER 2: Heartbeat Delta Validation & Clamping (Anti-bot Watch Time Inflation) ─
+      // Standard heartbeat interval is 15 seconds with 15s tolerance = max 30s legitimate delta.
+      // Clamping prevents spoofed payloads from injecting millions of fake watch seconds.
+      const MAX_LEGITIMATE_DELTA_SECONDS = 30;
+      const rawDelta = body.watchTimeSecondsDelta ? Number(body.watchTimeSecondsDelta) : 0;
+      const secondsDelta = Math.max(0, Math.round(rawDelta));
+      const clampedDelta = Math.min(secondsDelta, MAX_LEGITIMATE_DELTA_SECONDS);
+      const isSuspiciousHeartbeat = secondsDelta > MAX_LEGITIMATE_DELTA_SECONDS;
+
       await db.collection("watch_sessions").doc(docId).set({
         videoId,
         userId,
         sessionId,
-        watchTimeSeconds: admin.firestore.FieldValue.increment(body.watchTimeSecondsDelta ? Number(body.watchTimeSecondsDelta) : 0),
+        channelId: body.channelId || null,
+        watchTimeSeconds: admin.firestore.FieldValue.increment(clampedDelta),
         videoDurationSeconds: duration,
         watchPercentage: Math.min(1.0, position / duration),
         issubscriber: body.issubscriber === true || body.issubscriber === "true",
         isNotsubscriber: body.isNotsubscriber === true || body.isNotsubscriber === "true",
+        isPremiumSubscriber,
         state,
         playbackQuality: body.playbackQuality ?? "auto",
         playbackRate: body.playbackRate ?? 1.0,
@@ -271,11 +294,33 @@ export const trackWatchEvent = onRequest(
         playerState: body.playerState ?? "normal",
         deviceModel: body.deviceModel ?? "unknown",
         platform: body.platform ?? "unknown",
+        estimatedCDNEgressGB: admin.firestore.FieldValue.increment(CostEngine.estimateEgressGB(clampedDelta, body.playbackQuality ?? "auto")),
         lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
 
-      // Transactional Idempotency & Real-Time Channel Watch Time Increment
-      const secondsDelta = body.watchTimeSecondsDelta ? Math.max(0, Math.round(Number(body.watchTimeSecondsDelta))) : 0;
+      if (isSuspiciousHeartbeat) {
+        logger.warn(`[WatchTime] Suspicious heartbeat delta: ${secondsDelta}s > ${MAX_LEGITIMATE_DELTA_SECONDS}s limit. userId=${body.userId} videoId=${body.videoId}`);
+
+        // Increment suspicious counter on session doc (non-blocking)
+        try {
+          const sessionRef = db.collection("watch_sessions").doc(docId);
+          await sessionRef.set(
+            { suspiciousHeartbeatCount: admin.firestore.FieldValue.increment(1) },
+            { merge: true }
+          );
+
+          // Flag session if > 3 suspicious pulses in a row
+          const sessionSnap = await sessionRef.get();
+          const suspiciousCount = Number(sessionSnap.data()?.suspiciousHeartbeatCount || 0);
+          if (suspiciousCount >= 3) {
+            await sessionRef.set({ flagged: true, flagReason: "excessive_heartbeat_delta" }, { merge: true });
+            logger.warn(`[WatchTime] Session ${docId} flagged for excessive suspicious heartbeats (${suspiciousCount}).`);
+          }
+        } catch (flagErr) {
+          logger.warn("[WatchTime] Failed to update suspicious heartbeat count:", flagErr);
+        }
+      }
+
       let targetChannelId = body.channelId;
 
       if (!targetChannelId && body.videoId) {
@@ -289,7 +334,9 @@ export const trackWatchEvent = onRequest(
       const eventRef = db.collection("processedWatchEvents").doc(eventId);
       let isDuplicate = false;
 
-      if (secondsDelta > 0 && targetChannelId) {
+      // Skip channel watch time credit for suspicious heartbeats (capped at max legitimate delta)
+      const creditedDelta = isSuspiciousHeartbeat ? 0 : secondsDelta;
+      if (creditedDelta > 0 && targetChannelId) {
         const channelRef = db.collection("channels").doc(targetChannelId);
         const videoRef = body.videoId ? db.collection("videos").doc(body.videoId) : null;
 
@@ -305,14 +352,14 @@ export const trackWatchEvent = onRequest(
             sessionId: body.sessionId,
             videoId: body.videoId,
             channelId: targetChannelId,
-            secondsDelta,
+            secondsDelta: creditedDelta,
           });
 
           if (videoRef) {
             transaction.set(
               videoRef,
               {
-                totalWatchTimeSeconds: admin.firestore.FieldValue.increment(secondsDelta),
+                totalWatchTimeSeconds: admin.firestore.FieldValue.increment(creditedDelta),
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
               },
               { merge: true }
@@ -322,8 +369,8 @@ export const trackWatchEvent = onRequest(
           transaction.set(
             channelRef,
             {
-              totalWatchTimeSeconds: admin.firestore.FieldValue.increment(secondsDelta),
-              "metrics.totalWatchTimeMinutes": admin.firestore.FieldValue.increment(secondsDelta / 60),
+              totalWatchTimeSeconds: admin.firestore.FieldValue.increment(creditedDelta),
+              "metrics.totalWatchTimeMinutes": admin.firestore.FieldValue.increment(creditedDelta / 60),
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             },
             { merge: true }
@@ -629,6 +676,22 @@ export const aggregateWatchStats = onSchedule(
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       };
 
+      // ── Google Cloud CDN Egress Cost Attribution ──────────────────────────
+      // Calculate data transfer egress for watch time served in this hourly cycle.
+      let topCountry = "IN";
+      let topCount = 0;
+      acc.countryTraffic.forEach((count, cCode) => {
+        if (count > topCount) {
+          topCount = count;
+          topCountry = cCode;
+        }
+      });
+
+      const egressGB = CostEngine.estimateEgressGB(acc.watchSeconds, "auto");
+      const cdnRegion = CostEngine.mapCountryToCDNRegion(topCountry);
+      const cdnRate = CDN_RATE_CARDS[cdnRegion] ?? CDN_RATE_CARDS.default;
+      const cdnCostUSD = Math.round(egressGB * cdnRate * 1000000) / 1000000;
+
       await addOp(db.collection("video_stats").doc(vid), {
         ...statsDoc,
         stateTraffic: stateTrafficObj,
@@ -636,6 +699,20 @@ export const aggregateWatchStats = onSchedule(
         countryTraffic: countryTrafficObj,
         urbanViewers: acc.urbanViewers,
         ruralViewers: acc.ruralViewers,
+        cdnMetrics: {
+          periodWatchSeconds: Math.round(acc.watchSeconds),
+          periodEgressGB: Math.round(egressGB * 10000) / 10000,
+          periodCostUSD: cdnCostUSD,
+          predominantRegion: cdnRegion,
+          lastCalculatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        cumulativeCDNEgressGB: admin.firestore.FieldValue.increment(egressGB),
+        cumulativeCDNCostUSD: admin.firestore.FieldValue.increment(cdnCostUSD),
+      });
+
+      // Record in CostEngine for creator and platform unit economics accounting
+      costEngine.recordCDNCost(vid, "system", egressGB, cdnRegion).catch((cdnErr) => {
+        logger.warn(`[WatchTime] Non-blocking CDN cost attribution failed for ${vid}:`, cdnErr);
       });
     }
 
@@ -734,6 +811,7 @@ export const getCreatorStats = onRequest(
     memory: "256MiB",
   },
   async (req, res) => {
+    applySecurityHeaders(res);
     // ── CORS headers on every response ──
     res.set("Access-Control-Allow-Origin", "*");
     res.set("Access-Control-Allow-Methods", "GET, OPTIONS");

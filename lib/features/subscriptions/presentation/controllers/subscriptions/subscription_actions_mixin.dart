@@ -180,7 +180,7 @@ mixin SubscriptionActionsMixin on SubscriptionStateBase {
         return;
       }
 
-      // YouTube-standard: deterministic doc ID for dedup + atomic count
+      // Deterministic doc ID for dedup + atomic count
       final subDocId = '${channelId}_$currentUserId';
       final subRef = firestore
           .collection(FirestoreCollections.subscriptions)

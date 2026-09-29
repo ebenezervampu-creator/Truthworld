@@ -18,13 +18,14 @@
         android:label="@string/app_name"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
         android:enableOnBackInvokedCallback="true"
-        android:usesCleartextTraffic="true">
+        android:usesCleartextTraffic="false"
+        android:networkSecurityConfig="@xml/network_security_config">
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleTop"
-            android:taskAffinity=""
+            android:launchMode="singleTask"
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
@@ -42,20 +43,20 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- Android App Links for Automatic Native App Opening -->
+
+            <!-- Primary Verified Android App Links for https://www.truthworld.in -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
 
-                <!-- Domain Hosts -->
+                <!-- Domain Host (Strict HTTPS only for autoVerify) -->
                 <data android:scheme="https" android:host="www.truthworld.in" />
-                <data android:scheme="https" android:host="truthworld.in" />
-                <data android:scheme="http" android:host="www.truthworld.in" />
-                <data android:scheme="http" android:host="truthworld.in" />
 
                 <!-- Entity Path Prefixes -->
                 <data android:pathPrefix="/watch" />
+                <data android:pathPrefix="/v" />
+                <data android:pathPrefix="/shorts" />
                 <data android:pathPrefix="/channel" />
                 <data android:pathPrefix="/@" />
                 <data android:pathPrefix="/c" />
@@ -72,7 +73,67 @@
                 <data android:pathPrefix="/post" />
                 <data android:pathPrefix="/community" />
             </intent-filter>
-            <!-- Custom Schemes for Native App Launch -->
+
+            <!-- Apex Domain Android App Links for https://truthworld.in -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <!-- Domain Host (Strict HTTPS only for autoVerify) -->
+                <data android:scheme="https" android:host="truthworld.in" />
+
+                <!-- Entity Path Prefixes -->
+                <data android:pathPrefix="/watch" />
+                <data android:pathPrefix="/v" />
+                <data android:pathPrefix="/shorts" />
+                <data android:pathPrefix="/channel" />
+                <data android:pathPrefix="/@" />
+                <data android:pathPrefix="/c" />
+                <data android:pathPrefix="/user" />
+                <data android:pathPrefix="/playlist" />
+                <data android:pathPrefix="/topic" />
+                <data android:pathPrefix="/topics" />
+                <data android:pathPrefix="/T" />
+                <data android:pathPrefix="/t" />
+                <data android:pathPrefix="/studio" />
+                <data android:pathPrefix="/advertisements" />
+                <data android:pathPrefix="/advertiser" />
+                <data android:pathPrefix="/ads" />
+                <data android:pathPrefix="/post" />
+                <data android:pathPrefix="/community" />
+            </intent-filter>
+
+            <!-- HTTP Fallback Intent Filter (Separate non-autoVerify filter to preserve App Link validation) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="http" android:host="www.truthworld.in" />
+                <data android:scheme="http" android:host="truthworld.in" />
+
+                <data android:pathPrefix="/watch" />
+                <data android:pathPrefix="/v" />
+                <data android:pathPrefix="/shorts" />
+                <data android:pathPrefix="/channel" />
+                <data android:pathPrefix="/@" />
+                <data android:pathPrefix="/c" />
+                <data android:pathPrefix="/user" />
+                <data android:pathPrefix="/playlist" />
+                <data android:pathPrefix="/topic" />
+                <data android:pathPrefix="/topics" />
+                <data android:pathPrefix="/T" />
+                <data android:pathPrefix="/t" />
+                <data android:pathPrefix="/studio" />
+                <data android:pathPrefix="/advertisements" />
+                <data android:pathPrefix="/advertiser" />
+                <data android:pathPrefix="/ads" />
+                <data android:pathPrefix="/post" />
+                <data android:pathPrefix="/community" />
+            </intent-filter>
+
+            <!-- Custom Schemes for Direct Native App Launch -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -91,6 +152,10 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="truthworld_notifications" />
+        <!-- Cashfree Payment Gateway recurring subscription mandate support -->
+        <meta-data
+            android:name="cashfree_subscription_flow_enable"
+            android:value="true" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
@@ -103,6 +168,15 @@
 
          In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
     <queries>
+        <!-- Major UPI Applications for Payment Gateway Intent flows (Android 11+) -->
+        <package android:name="com.google.android.apps.nbu.paisa.user" />
+        <package android:name="com.phonepe.app" />
+        <package android:name="net.one97.paytm" />
+        <package android:name="in.org.npci.upiapp" />
+        <package android:name="in.amazon.mShop.android.shopping" />
+        <package android:name="cred.app" />
+        <package android:name="com.mobikwik_new" />
+
         <package android:name="com.truthworld.studio" />
         <package android:name="com.truthworld.admin" />
         <package android:name="com.truthworld.advertiser" />

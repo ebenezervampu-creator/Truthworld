@@ -171,6 +171,7 @@ function runVectorQuery(
 export const searchTruthWorld = onCall(
   {
     region: "asia-south1",
+    cpu: 1,
     memory: "512MiB",
     concurrency: 40,
     maxInstances: 50,

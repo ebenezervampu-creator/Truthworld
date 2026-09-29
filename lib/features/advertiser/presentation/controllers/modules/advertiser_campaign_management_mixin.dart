@@ -1,49 +1,255 @@
+import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 mixin AdvertiserCampaignManagementMixin {
-  // 1. Audience Presets
-  final RxList<Map<String, dynamic>> audiencePresets = <Map<String, dynamic>>[
-    {
-      'id': 'aud_1',
-      'name': 'Tech & Innovation Enthusiasts',
-      'ageMin': 18,
-      'ageMax': 35,
-      'genders': ['All'],
-      'locations': ['India', 'United States', 'UAE'],
-      'interests': [
-        'Technology',
-        'AI & Machine Learning',
-        'Startups',
-        'Coding',
-      ],
-      'estimatedReach': '4.2M Viewers',
-    },
-    {
-      'id': 'aud_2',
-      'name': 'Digital Creators & Video Editors',
-      'ageMin': 20,
-      'ageMax': 45,
-      'genders': ['All'],
-      'locations': ['India', 'United Kingdom', 'Canada'],
-      'interests': ['Video Production', 'Content Creation', 'Audio Editing'],
-      'estimatedReach': '1.8M Viewers',
-    },
-    {
-      'id': 'aud_3',
-      'name': 'Gaming & Livestream Fans',
-      'ageMin': 16,
-      'ageMax': 28,
-      'genders': ['All'],
-      'locations': ['India', 'Southeast Asia', 'Brazil'],
-      'interests': ['Esports', 'Live Streaming', 'Gaming Reviews'],
-      'estimatedReach': '6.5M Viewers',
-    },
-  ].obs;
+  StreamSubscription<QuerySnapshot>? _presetsSub;
+  StreamSubscription<QuerySnapshot>? _proposalsSub;
+  StreamSubscription<QuerySnapshot>? _assetsSub;
+  StreamSubscription<QuerySnapshot>? _experimentsSub;
 
-  void createAudiencePreset(Map<String, dynamic> preset) {
-    audiencePresets.insert(0, preset);
+  // 1. Audience Presets
+  final RxList<Map<String, dynamic>> audiencePresets = <Map<String, dynamic>>[].obs;
+
+  // 2. Creator Sponsorships
+  final RxString selectedSponsorshipCategory = 'All'.obs;
+  final RxList<Map<String, dynamic>> creatorsList = <Map<String, dynamic>>[].obs;
+  final RxList<Map<String, dynamic>> sponsorshipProposals = <Map<String, dynamic>>[].obs;
+
+  // 3. Creative Assets
+  final RxString selectedAssetCategory = 'All'.obs;
+  final RxList<Map<String, dynamic>> creativeAssetsList = <Map<String, dynamic>>[].obs;
+
+  // 4. A/B Testing & Optimization
+  final RxList<Map<String, dynamic>> abExperimentsList = <Map<String, dynamic>>[].obs;
+
+  // 5. Brand Profile & Settings
+  final RxString brandName = 'Truthworld'.obs;
+  final RxString brandTagline = 'Truthworld Change the World'.obs;
+  final RxString brandWebsite = 'https://truthworld.in'.obs;
+  final RxString brandEmail = ''.obs;
+  final RxString brandCategory = 'Technology & Media'.obs;
+  final RxBool isBrandVerified = true.obs;
+
+  final RxBool lowBudgetAlert = true.obs;
+  final RxBool dailyPerformanceDigest = true.obs;
+  final RxBool campaignStatusNotifications = true.obs;
+  final RxBool sponsorshipAlerts = true.obs;
+
+  final RxString conversionApiKey = ''.obs;
+
+  final RxList<Map<String, dynamic>> teamMembers = <Map<String, dynamic>>[].obs;
+
+  void disposeCampaignManagement() {
+    _presetsSub?.cancel();
+    _proposalsSub?.cancel();
+    _assetsSub?.cancel();
+    _experimentsSub?.cancel();
+  }
+
+  void initCampaignManagement() {
+    disposeCampaignManagement();
+    fetchSponsorshipCreators();
+    final uid = AuthService.to.uid;
+    if (uid.isEmpty) {
+      audiencePresets.clear();
+      sponsorshipProposals.clear();
+      creativeAssetsList.clear();
+      abExperimentsList.clear();
+      teamMembers.clear();
+      return;
+    }
+
+    _loadBrandProfile(uid);
+    _listenToPresets(uid);
+    _listenToProposals(uid);
+    _listenToAssets(uid);
+    _listenToExperiments(uid);
+  }
+
+  Future<void> _loadBrandProfile(String uid) async {
+    try {
+      final doc = await FirebaseFirestore.instance.collection('advertiser_profiles').doc(uid).get();
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
+        if (data['brandName'] != null) brandName.value = data['brandName'] as String;
+        if (data['brandTagline'] != null) brandTagline.value = data['brandTagline'] as String;
+        if (data['brandWebsite'] != null) brandWebsite.value = data['brandWebsite'] as String;
+        if (data['brandEmail'] != null) {
+          brandEmail.value = data['brandEmail'] as String;
+        } else {
+          brandEmail.value = AuthService.to.user?.email ?? '';
+        }
+        if (data['brandCategory'] != null) brandCategory.value = data['brandCategory'] as String;
+        if (data['isBrandVerified'] != null) isBrandVerified.value = data['isBrandVerified'] == true;
+        if (data['conversionApiKey'] != null) {
+          conversionApiKey.value = data['conversionApiKey'] as String;
+        } else {
+          conversionApiKey.value = 'tw_live_ak_${DateTime.now().millisecondsSinceEpoch.toRadixString(16)}';
+        }
+
+        if (data['teamMembers'] is List) {
+          teamMembers.value = (data['teamMembers'] as List)
+              .map((m) => Map<String, dynamic>.from(m as Map))
+              .toList();
+        } else {
+          _setDefaultTeamMember();
+        }
+      } else {
+        brandEmail.value = AuthService.to.user?.email ?? '';
+        conversionApiKey.value = 'tw_live_ak_${DateTime.now().millisecondsSinceEpoch.toRadixString(16)}';
+        _setDefaultTeamMember();
+      }
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'AdvertiserCampaignManagementMixin._loadBrandProfile');
+      _setDefaultTeamMember();
+    }
+  }
+
+  void _setDefaultTeamMember() {
+    final user = AuthService.to.user;
+    teamMembers.value = [
+      {
+        'name': user?.displayName ?? 'Account Owner',
+        'email': user?.email ?? 'advertiser@truthworld.in',
+        'role': 'Owner (Full Access)',
+        'status': 'Active',
+      }
+    ];
+  }
+
+  void _listenToPresets(String uid) {
+    _presetsSub = FirebaseFirestore.instance
+        .collection('advertiser_profiles')
+        .doc(uid)
+        .collection('audience_presets')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .listen((snap) {
+      audiencePresets.value = snap.docs.map((d) {
+        final data = d.data();
+        data['id'] = d.id;
+        return data;
+      }).toList();
+    }, onError: (Object e) {
+      ErrorHandler.log(e);
+    });
+  }
+
+  void _listenToProposals(String uid) {
+    _proposalsSub = FirebaseFirestore.instance
+        .collection('advertiser_profiles')
+        .doc(uid)
+        .collection('sponsorship_proposals')
+        .orderBy('date', descending: true)
+        .snapshots()
+        .listen((snap) {
+      sponsorshipProposals.value = snap.docs.map((d) {
+        final data = d.data();
+        data['id'] = d.id;
+        return data;
+      }).toList();
+    }, onError: (Object e) {
+      ErrorHandler.log(e);
+    });
+  }
+
+  void _listenToAssets(String uid) {
+    _assetsSub = FirebaseFirestore.instance
+        .collection('advertiser_profiles')
+        .doc(uid)
+        .collection('creative_assets')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .listen((snap) {
+      creativeAssetsList.value = snap.docs.map((d) {
+        final data = d.data();
+        data['id'] = d.id;
+        return data;
+      }).toList();
+    }, onError: (Object e) {
+      ErrorHandler.log(e);
+    });
+  }
+
+  void _listenToExperiments(String uid) {
+    _experimentsSub = FirebaseFirestore.instance
+        .collection('advertiser_profiles')
+        .doc(uid)
+        .collection('ab_experiments')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .listen((snap) {
+      abExperimentsList.value = snap.docs.map((d) {
+        final data = d.data();
+        data['id'] = d.id;
+        return data;
+      }).toList();
+    }, onError: (Object e) {
+      ErrorHandler.log(e);
+    });
+  }
+
+  Future<void> fetchSponsorshipCreators() async {
+    try {
+      final snap = await FirebaseFirestore.instance.collection('channels').limit(20).get();
+      creatorsList.value = snap.docs.map((doc) {
+        final data = doc.data();
+        final subCount = (data['subscriberCount'] as num?)?.toInt() ?? 0;
+        final viewsCount = (data['totalViews'] as num?)?.toInt() ?? 0;
+        return {
+          'id': doc.id,
+          'name': data['channelName'] ?? data['name'] ?? 'Creator',
+          'handle': data['channelHandle'] ?? data['handle'] ?? '@channel',
+          'category': data['category'] ?? 'General',
+          'subscribers': subCount >= 1000000
+              ? '${(subCount / 1000000).toStringAsFixed(1)}M'
+              : (subCount >= 1000 ? '${(subCount / 1000).toStringAsFixed(0)}K' : '$subCount'),
+          'subscribersCount': subCount,
+          'avgViews': viewsCount >= 1000 ? '${(viewsCount / 1000).toStringAsFixed(0)}K' : '$viewsCount',
+          'engagement': '${(data['engagementRate'] as num?)?.toStringAsFixed(1) ?? "8.5"}%',
+          'avatarColor': 0xFF3B82F6,
+          'bio': data['description'] ?? data['bio'] ?? 'Truthworld content partner.',
+          'packages': [
+            {'type': '15s Mid-roll Sponsor', 'price': 3000.0},
+            {'type': 'Pinned Comment Link', 'price': 1000.0},
+          ],
+        };
+      }).toList();
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'AdvertiserCampaignManagementMixin.fetchSponsorshipCreators');
+    }
+  }
+
+  Future<void> createAudiencePreset(Map<String, dynamic> preset) async {
+    final uid = AuthService.to.uid;
+    preset['createdAt'] = FieldValue.serverTimestamp();
+    preset['estimatedReach'] = preset['estimatedReach'] ?? 'Dynamic Network Reach';
+
+    if (uid.isNotEmpty) {
+      try {
+        final docRef = await FirebaseFirestore.instance
+            .collection('advertiser_profiles')
+            .doc(uid)
+            .collection('audience_presets')
+            .add(preset);
+        preset['id'] = docRef.id;
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'AdvertiserCampaignManagementMixin.createAudiencePreset');
+      }
+    } else {
+      preset['id'] = preset['id'] ?? 'aud_${DateTime.now().millisecondsSinceEpoch}';
+    }
+
+    if (!audiencePresets.any((p) => p['id'] == preset['id'])) {
+      audiencePresets.insert(0, preset);
+    }
+
     AppSnackbar.show(
       'Audience Preset Created',
       'Targeting preset "${preset['name']}" is ready to apply to ad campaigns.',
@@ -52,7 +258,20 @@ mixin AdvertiserCampaignManagementMixin {
     );
   }
 
-  void deleteAudiencePreset(String id) {
+  Future<void> deleteAudiencePreset(String id) async {
+    final uid = AuthService.to.uid;
+    if (uid.isNotEmpty) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('advertiser_profiles')
+            .doc(uid)
+            .collection('audience_presets')
+            .doc(id)
+            .delete();
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'AdvertiserCampaignManagementMixin.deleteAudiencePreset');
+      }
+    }
     audiencePresets.removeWhere((p) => p['id'] == id);
     AppSnackbar.show(
       'Preset Removed',
@@ -62,123 +281,29 @@ mixin AdvertiserCampaignManagementMixin {
     );
   }
 
-  // 2. Creator Sponsorships
-  final RxString selectedSponsorshipCategory = 'All'.obs;
-  final RxList<Map<String, dynamic>> creatorsList = <Map<String, dynamic>>[
-    {
-      'id': 'cr_1',
-      'name': 'TechVerse Daily',
-      'handle': '@techversedaily',
-      'category': 'Technology',
-      'subscribers': '1.2M',
-      'subscribersCount': 1200000,
-      'avgViews': '280K',
-      'engagement': '8.4%',
-      'avatarColor': 0xFF3B82F6,
-      'bio': 'Deep dives into futuristic AI, gadgets, and software tools.',
-      'packages': [
-        {'type': '15s Mid-roll Sponsor', 'price': 5000.0},
-        {'type': 'Pinned Comment Link', 'price': 1500.0},
-        {'type': 'Full Video Collaboration', 'price': 25000.0},
-      ],
-    },
-    {
-      'id': 'cr_2',
-      'name': 'PixelCoders',
-      'handle': '@pixelcoders',
-      'category': 'Education',
-      'subscribers': '680K',
-      'subscribersCount': 680000,
-      'avgViews': '95K',
-      'engagement': '9.1%',
-      'avatarColor': 0xFF10B981,
-      'bio':
-          'Software development tutorials, Flutter, Python and web engineering.',
-      'packages': [
-        {'type': '15s Mid-roll Sponsor', 'price': 3000.0},
-        {'type': 'Pinned Comment Link', 'price': 1000.0},
-      ],
-    },
-    {
-      'id': 'cr_3',
-      'name': 'Apex Gaming Realm',
-      'handle': '@apexgaming',
-      'category': 'Gaming',
-      'subscribers': '2.4M',
-      'subscribersCount': 2400000,
-      'avgViews': '520K',
-      'engagement': '12.3%',
-      'avatarColor': 0xFFEF4444,
-      'bio': 'Daily competitive gaming streams, tournaments, and reviews.',
-      'packages': [
-        {'type': 'Live Stream Shoutout', 'price': 4000.0},
-        {'type': 'Banner Placement', 'price': 2500.0},
-      ],
-    },
-    {
-      'id': 'cr_4',
-      'name': 'Global Chronicle',
-      'handle': '@globalchronicle',
-      'category': 'News & Media',
-      'subscribers': '950K',
-      'subscribersCount': 950000,
-      'avgViews': '180K',
-      'engagement': '7.2%',
-      'avatarColor': 0xFFF59E0B,
-      'bio': 'Unbiased geopolitical analysis and tech policy breakdowns.',
-      'packages': [
-        {'type': '15s Mid-roll Sponsor', 'price': 3500.0},
-        {'type': 'Pinned Comment Link', 'price': 1200.0},
-      ],
-    },
-    {
-      'id': 'cr_5',
-      'name': 'Creative Frame',
-      'handle': '@creativeframe',
-      'category': 'Lifestyle',
-      'subscribers': '420K',
-      'subscribersCount': 420000,
-      'avgViews': '65K',
-      'engagement': '8.8%',
-      'avatarColor': 0xFF8B5CF6,
-      'bio':
-          'Filmmaking tips, camera gear, color grading, and creative storytelling.',
-      'packages': [
-        {'type': '15s Mid-roll Sponsor', 'price': 2000.0},
-        {'type': 'Pinned Comment Link', 'price': 800.0},
-      ],
-    },
-  ].obs;
+  Future<void> sendSponsorshipProposal(Map<String, dynamic> proposal) async {
+    final uid = AuthService.to.uid;
+    proposal['createdAt'] = FieldValue.serverTimestamp();
 
-  final RxList<Map<String, dynamic>> sponsorshipProposals =
-      <Map<String, dynamic>>[
-        {
-          'id': 'prop_1',
-          'creatorId': 'cr_1',
-          'creatorName': 'TechVerse Daily',
-          'campaignTitle': 'Truthworld Next Generation',
-          'format': '15s Mid-roll Sponsor',
-          'offeredAmount': 5000.0,
-          'date': '05 Sep 2026',
-          'status': 'Accepted',
-          'deliverableUrl':
-              'https://truthworld.org/watch?v=techverse_ai_future',
-        },
-        {
-          'id': 'prop_2',
-          'creatorId': 'cr_2',
-          'creatorName': 'PixelCoders',
-          'campaignTitle': 'Truthworld Creator Program',
-          'format': 'Pinned Comment Link',
-          'offeredAmount': 1000.0,
-          'date': 'Yesterday',
-          'status': 'Under Review',
-          'deliverableUrl': '',
-        },
-      ].obs;
+    if (uid.isNotEmpty) {
+      try {
+        final docRef = await FirebaseFirestore.instance
+            .collection('advertiser_profiles')
+            .doc(uid)
+            .collection('sponsorship_proposals')
+            .add(proposal);
+        proposal['id'] = docRef.id;
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'AdvertiserCampaignManagementMixin.sendSponsorshipProposal');
+      }
+    } else {
+      proposal['id'] = proposal['id'] ?? 'prop_${DateTime.now().millisecondsSinceEpoch}';
+    }
 
-  void sendSponsorshipProposal(Map<String, dynamic> proposal) {
-    sponsorshipProposals.insert(0, proposal);
+    if (!sponsorshipProposals.any((p) => p['id'] == proposal['id'])) {
+      sponsorshipProposals.insert(0, proposal);
+    }
+
     AppSnackbar.show(
       'Proposal Sent',
       'Sponsorship proposal dispatched to ${proposal['creatorName']}.',
@@ -187,73 +312,52 @@ mixin AdvertiserCampaignManagementMixin {
     );
   }
 
-  void cancelProposal(String id) {
+  Future<void> cancelProposal(String id) async {
+    final uid = AuthService.to.uid;
+    if (uid.isNotEmpty) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('advertiser_profiles')
+            .doc(uid)
+            .collection('sponsorship_proposals')
+            .doc(id)
+            .delete();
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'AdvertiserCampaignManagementMixin.cancelProposal');
+      }
+    }
     sponsorshipProposals.removeWhere((p) => p['id'] == id);
     AppSnackbar.show(
-      'Proposal Cancelled',
-      'Sponsorship proposal was retracted.',
+      'Proposal Retracted',
+      'Sponsorship proposal was cancelled.',
       backgroundColor: AppColors.info,
       colorText: AppColors.textPrimary,
     );
   }
 
-  // 3. Creative Assets
-  final RxString selectedAssetCategory = 'All'.obs;
-  final RxList<Map<String, dynamic>> creativeAssetsList =
-      <Map<String, dynamic>>[
-        {
-          'id': 'asset_1',
-          'title': 'Truthworld Next Gen 15s Bumper',
-          'type': 'Video',
-          'resolution': '1920x1080',
-          'duration': '00:15',
-          'format': 'MP4',
-          'size': '14.8 MB',
-          'url':
-              'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-          'date': '01 Sep 2026',
-          'campaignUsage': 2,
-        },
-        {
-          'id': 'asset_2',
-          'title': 'High-Conversion Feed Banner',
-          'type': 'Banner',
-          'resolution': '1200x628',
-          'duration': 'Static',
-          'format': 'PNG',
-          'size': '1.2 MB',
-          'url': 'https://picsum.photos/1200/628',
-          'date': '28 Aug 2026',
-          'campaignUsage': 3,
-        },
-        {
-          'id': 'asset_3',
-          'title': 'Truthworld Official Brandmark Vector',
-          'type': 'Logo',
-          'resolution': '512x512',
-          'duration': 'Static',
-          'format': 'SVG',
-          'size': '140 KB',
-          'url': 'https://picsum.photos/512/512',
-          'date': '15 Aug 2026',
-          'campaignUsage': 5,
-        },
-        {
-          'id': 'asset_4',
-          'title': 'Mobile Feed Square Promo',
-          'type': 'Banner',
-          'resolution': '1080x1080',
-          'duration': 'Static',
-          'format': 'WEBP',
-          'size': '680 KB',
-          'url': 'https://picsum.photos/1080/1080',
-          'date': '10 Aug 2026',
-          'campaignUsage': 1,
-        },
-      ].obs;
+  Future<void> addCreativeAsset(Map<String, dynamic> asset) async {
+    final uid = AuthService.to.uid;
+    asset['createdAt'] = FieldValue.serverTimestamp();
 
-  void addCreativeAsset(Map<String, dynamic> asset) {
-    creativeAssetsList.insert(0, asset);
+    if (uid.isNotEmpty) {
+      try {
+        final docRef = await FirebaseFirestore.instance
+            .collection('advertiser_profiles')
+            .doc(uid)
+            .collection('creative_assets')
+            .add(asset);
+        asset['id'] = docRef.id;
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'AdvertiserCampaignManagementMixin.addCreativeAsset');
+      }
+    } else {
+      asset['id'] = asset['id'] ?? 'asset_${DateTime.now().millisecondsSinceEpoch}';
+    }
+
+    if (!creativeAssetsList.any((a) => a['id'] == asset['id'])) {
+      creativeAssetsList.insert(0, asset);
+    }
+
     AppSnackbar.show(
       'Asset Uploaded',
       'Creative asset "${asset['title']}" saved to library.',
@@ -262,7 +366,20 @@ mixin AdvertiserCampaignManagementMixin {
     );
   }
 
-  void deleteCreativeAsset(String id) {
+  Future<void> deleteCreativeAsset(String id) async {
+    final uid = AuthService.to.uid;
+    if (uid.isNotEmpty) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('advertiser_profiles')
+            .doc(uid)
+            .collection('creative_assets')
+            .doc(id)
+            .delete();
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'AdvertiserCampaignManagementMixin.deleteCreativeAsset');
+      }
+    }
     creativeAssetsList.removeWhere((a) => a['id'] == id);
     AppSnackbar.show(
       'Asset Deleted',
@@ -272,66 +389,30 @@ mixin AdvertiserCampaignManagementMixin {
     );
   }
 
-  // 4. A/B Testing & Optimization
-  final RxList<Map<String, dynamic>> abExperimentsList = <Map<String, dynamic>>[
-    {
-      'id': 'exp_1',
-      'title': 'Call-To-Action Copy Test',
-      'campaign': 'Truthworld Next Generation',
-      'variable': 'CTA Button',
-      'status': 'Running',
-      'trafficSplit': '50% / 50%',
-      'startDate': '01 Sep 2026',
-      'variantA': {
-        'label': 'Variant A (Control)',
-        'value': 'Learn More',
-        'impressions': 12400,
-        'clicks': 480,
-        'ctr': 3.87,
-        'conversions': 86,
-      },
-      'variantB': {
-        'label': 'Variant B (Challenger)',
-        'value': 'Get Started Free',
-        'impressions': 12350,
-        'clicks': 675,
-        'ctr': 5.46,
-        'conversions': 134,
-      },
-      'winner': 'Variant B (+41% higher CTR)',
-      'confidence': '97.2% Statistical Confidence',
-    },
-    {
-      'id': 'exp_2',
-      'title': 'Headline Benefit vs Curiosity',
-      'campaign': 'Truthworld Video Platform',
-      'variable': 'Headline',
-      'status': 'Concluded',
-      'trafficSplit': '50% / 50%',
-      'startDate': '20 Aug 2026',
-      'variantA': {
-        'label': 'Variant A (Benefit)',
-        'value': 'Experience Uncensored Truth & Knowledge',
-        'impressions': 25000,
-        'clicks': 1120,
-        'ctr': 4.48,
-        'conversions': 240,
-      },
-      'variantB': {
-        'label': 'Variant B (Curiosity)',
-        'value': 'The Video Platform Big Tech Didnt Want Built',
-        'impressions': 25000,
-        'clicks': 1480,
-        'ctr': 5.92,
-        'conversions': 355,
-      },
-      'winner': 'Variant B (+32% higher CTR)',
-      'confidence': '99.1% Statistical Confidence',
-    },
-  ].obs;
+  Future<void> createAbExperiment(Map<String, dynamic> experiment) async {
+    final exp = Map<String, dynamic>.of(experiment);
+    final uid = AuthService.to.uid;
+    exp['createdAt'] = FieldValue.serverTimestamp();
 
-  void createAbExperiment(Map<String, dynamic> experiment) {
-    abExperimentsList.insert(0, experiment);
+    if (uid.isNotEmpty) {
+      try {
+        final docRef = await FirebaseFirestore.instance
+            .collection('advertiser_profiles')
+            .doc(uid)
+            .collection('ab_experiments')
+            .add(exp);
+        exp['id'] = docRef.id;
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'AdvertiserCampaignManagementMixin.createAbExperiment');
+      }
+    } else {
+      exp['id'] = exp['id'] ?? 'exp_${DateTime.now().millisecondsSinceEpoch}';
+    }
+
+    if (!abExperimentsList.any((e) => e['id'] == exp['id'])) {
+      abExperimentsList.insert(0, exp);
+    }
+
     AppSnackbar.show(
       'A/B Test Launched',
       'Experiment "${experiment['title']}" is now splitting campaign traffic.',
@@ -340,11 +421,26 @@ mixin AdvertiserCampaignManagementMixin {
     );
   }
 
-  void declareExperimentWinner(String experimentId, String winningVariant) {
+  Future<void> declareExperimentWinner(String experimentId, String winningVariant) async {
     final idx = abExperimentsList.indexWhere((e) => e['id'] == experimentId);
     if (idx != -1) {
       abExperimentsList[idx]['status'] = 'Concluded';
       abExperimentsList.refresh();
+
+      final uid = AuthService.to.uid;
+      if (uid.isNotEmpty) {
+        try {
+          await FirebaseFirestore.instance
+              .collection('advertiser_profiles')
+              .doc(uid)
+              .collection('ab_experiments')
+              .doc(experimentId)
+              .update({'status': 'Concluded', 'winner': winningVariant});
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'AdvertiserCampaignManagementMixin.declareExperimentWinner');
+        }
+      }
+
       AppSnackbar.show(
         'Winner Applied',
         '$winningVariant has been declared the winner and set as default.',
@@ -354,54 +450,35 @@ mixin AdvertiserCampaignManagementMixin {
     }
   }
 
-  // 5. Brand Profile & Settings
-  final RxString brandName = 'Truthworld'.obs;
-  final RxString brandTagline = 'Truthworld Change the World'.obs;
-  final RxString brandWebsite = 'https://truthworld.org'.obs;
-  final RxString brandEmail = 'support@truthworld.org'.obs;
-  final RxString brandCategory = 'Technology & Media'.obs;
-  final RxBool isBrandVerified = true.obs;
-
-  final RxBool lowBudgetAlert = true.obs;
-  final RxBool dailyPerformanceDigest = true.obs;
-  final RxBool campaignStatusNotifications = true.obs;
-  final RxBool sponsorshipAlerts = true.obs;
-
-  final RxString conversionApiKey = 'tw_live_ak_98a7b6c5d4e3f210a'.obs;
-
-  final RxList<Map<String, dynamic>> teamMembers = <Map<String, dynamic>>[
-    {
-      'name': 'Ebenezer Vampu',
-      'email': 'ebenezer@truthworld.org',
-      'role': 'Owner (Full Access)',
-      'status': 'Active',
-    },
-    {
-      'name': 'Sarah Jenkins',
-      'email': 'sarah.growth@truthworld.org',
-      'role': 'Campaign Manager',
-      'status': 'Active',
-    },
-    {
-      'name': 'Alex Rivera',
-      'email': 'finance@truthworld.org',
-      'role': 'Billing Analyst',
-      'status': 'Active',
-    },
-  ].obs;
-
-  void saveBrandSettings({
+  Future<void> saveBrandSettings({
     required String name,
     required String tagline,
     required String website,
     required String email,
     required String category,
-  }) {
+  }) async {
     brandName.value = name;
     brandTagline.value = tagline;
     brandWebsite.value = website;
     brandEmail.value = email;
     brandCategory.value = category;
+
+    final uid = AuthService.to.uid;
+    if (uid.isNotEmpty) {
+      try {
+        await FirebaseFirestore.instance.collection('advertiser_profiles').doc(uid).set({
+          'brandName': name,
+          'brandTagline': tagline,
+          'brandWebsite': website,
+          'brandEmail': email,
+          'brandCategory': category,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'AdvertiserCampaignManagementMixin.saveBrandSettings');
+      }
+    }
+
     AppSnackbar.show(
       'Profile Saved',
       'Advertiser brand profile updated successfully.',
@@ -410,13 +487,27 @@ mixin AdvertiserCampaignManagementMixin {
     );
   }
 
-  void inviteTeamMember(String name, String email, String role) {
-    teamMembers.add({
+  Future<void> inviteTeamMember(String name, String email, String role) async {
+    final member = {
       'name': name,
       'email': email,
       'role': role,
       'status': 'Invited',
-    });
+    };
+    teamMembers.add(member);
+
+    final uid = AuthService.to.uid;
+    if (uid.isNotEmpty) {
+      try {
+        await FirebaseFirestore.instance.collection('advertiser_profiles').doc(uid).set({
+          'teamMembers': teamMembers.toList(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'AdvertiserCampaignManagementMixin.inviteTeamMember');
+      }
+    }
+
     AppSnackbar.show(
       'Invitation Sent',
       'An invitation to join Advertiser Studio was sent to $email.',
@@ -425,8 +516,21 @@ mixin AdvertiserCampaignManagementMixin {
     );
   }
 
-  void removeTeamMember(String email) {
+  Future<void> removeTeamMember(String email) async {
     teamMembers.removeWhere((m) => m['email'] == email);
+
+    final uid = AuthService.to.uid;
+    if (uid.isNotEmpty) {
+      try {
+        await FirebaseFirestore.instance.collection('advertiser_profiles').doc(uid).set({
+          'teamMembers': teamMembers.toList(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'AdvertiserCampaignManagementMixin.removeTeamMember');
+      }
+    }
+
     AppSnackbar.show(
       'Member Removed',
       'User $email was removed from team access.',
@@ -435,9 +539,22 @@ mixin AdvertiserCampaignManagementMixin {
     );
   }
 
-  void regenerateApiKey() {
-    conversionApiKey.value =
-        'tw_live_ak_${DateTime.now().millisecondsSinceEpoch.toRadixString(16)}';
+  Future<void> regenerateApiKey() async {
+    final newKey = 'tw_live_ak_${DateTime.now().millisecondsSinceEpoch.toRadixString(16)}';
+    conversionApiKey.value = newKey;
+
+    final uid = AuthService.to.uid;
+    if (uid.isNotEmpty) {
+      try {
+        await FirebaseFirestore.instance.collection('advertiser_profiles').doc(uid).set({
+          'conversionApiKey': newKey,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'AdvertiserCampaignManagementMixin.regenerateApiKey');
+      }
+    }
+
     AppSnackbar.show(
       'API Key Regenerated',
       'New conversion tracking key generated.',

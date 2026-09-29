@@ -29,13 +29,26 @@ class CustomChannelInfraConfig {
     this.bandwidthQuotaBytesThisMonth = 214748364800, // 200 GB
     this.currentMonthInfraCost = 0.0,
     this.flatPlatformFee = 15.0,
-    this.trialCreditUSD = 10.0,
-    this.trialCreditRemainingUSD = 10.0,
+    this.trialCreditUSD = 0.0,
+    this.trialCreditRemainingUSD = 0.0,
+    this.rolloverCreditUSD = 0.0,
     this.planTier = 'starter_15',
     this.lossPreventionMode = LossPreventionMode.active,
+    this.autoPay = true,
+    this.isWithdrawalHeld = false,
+    this.withdrawalHoldReason = '',
   });
 
   factory CustomChannelInfraConfig.fromMap(Map<String, dynamic> map) {
+    final rawTrialUSD = (map['trialCreditUSD'] as num?)?.toDouble() ?? 0.0;
+    final rawTrialRem =
+        (map['trialCreditRemainingUSD'] as num?)?.toDouble() ?? 0.0;
+    // Strict Anti-Marketing Policy: Normalize any legacy charm 9.0 to clean $10.00
+    final sanitizedTrialUSD =
+        (rawTrialUSD - 9.0).abs() < 0.01 ? 10.0 : rawTrialUSD;
+    final sanitizedTrialRem =
+        (rawTrialRem - 9.0).abs() < 0.01 ? 10.0 : rawTrialRem;
+
     return CustomChannelInfraConfig(
       stripeConnectAccountId: map['stripeConnectAccountId'] as String? ?? '',
       subscriptionId: map['subscriptionId'] as String? ?? '',
@@ -50,14 +63,18 @@ class CustomChannelInfraConfig {
       currentMonthInfraCost:
           (map['currentMonthInfraCost'] as num?)?.toDouble() ?? 0.0,
       flatPlatformFee: (map['flatPlatformFee'] as num?)?.toDouble() ?? 15.0,
-      trialCreditUSD: (map['trialCreditUSD'] as num?)?.toDouble() ?? 10.0,
-      trialCreditRemainingUSD:
-          (map['trialCreditRemainingUSD'] as num?)?.toDouble() ?? 10.0,
+      trialCreditUSD: sanitizedTrialUSD,
+      trialCreditRemainingUSD: sanitizedTrialRem,
+      rolloverCreditUSD:
+          (map['rolloverCreditUSD'] as num?)?.toDouble() ?? 0.0,
       planTier: map['planTier'] as String? ?? 'starter_15',
       lossPreventionMode: LossPreventionMode.values.firstWhere(
         (e) => e.name == (map['lossPreventionMode'] ?? 'active'),
         orElse: () => LossPreventionMode.active,
       ),
+      autoPay: (map['autoPay'] as bool?) ?? (map['isAutoPay'] as bool?) ?? true,
+      isWithdrawalHeld: (map['isWithdrawalHeld'] as bool?) ?? false,
+      withdrawalHoldReason: (map['withdrawalHoldReason'] as String?) ?? '',
     );
   }
 
@@ -71,8 +88,19 @@ class CustomChannelInfraConfig {
   final double flatPlatformFee;
   final double trialCreditUSD;
   final double trialCreditRemainingUSD;
+  final double rolloverCreditUSD;
   final String planTier;
   final LossPreventionMode lossPreventionMode;
+  final bool autoPay;
+  final bool isWithdrawalHeld;
+  final String withdrawalHoldReason;
+
+  /// Unspent plan amount from the current cycle guaranteed never to be lost
+  double get unspentCurrentMonthPlanBalance =>
+      (flatPlatformFee - currentMonthInfraCost).clamp(0.0, flatPlatformFee);
+
+  /// Total protected balance that will roll over or remain usable down to the exact cent
+  double get totalProtectedBalance => rolloverCreditUSD + unspentCurrentMonthPlanBalance;
 
   Map<String, dynamic> toMap() => {
     'stripeConnectAccountId': stripeConnectAccountId,
@@ -85,8 +113,12 @@ class CustomChannelInfraConfig {
     'flatPlatformFee': flatPlatformFee,
     'trialCreditUSD': trialCreditUSD,
     'trialCreditRemainingUSD': trialCreditRemainingUSD,
+    'rolloverCreditUSD': rolloverCreditUSD,
     'planTier': planTier,
     'lossPreventionMode': lossPreventionMode.name,
+    'autoPay': autoPay,
+    'isWithdrawalHeld': isWithdrawalHeld,
+    'withdrawalHoldReason': withdrawalHoldReason,
   };
 }
 
@@ -171,6 +203,12 @@ class Channel {
     this.pendingTypeEffectiveDate,
     this.nextBillingCycleDate,
     this.walletBalanceUSD = 0.0,
+    this.adsRevenueTotal = 0.0,
+    this.premiumSubsRevenueTotal = 0.0,
+    this.membershipRevenueTotal = 0.0,
+    this.superchatRevenueTotal = 0.0,
+    this.withdrawnRevenueTotal = 0.0,
+    this.noAdsForMembers = false,
   }) : metrics = metrics ?? ChannelMetricsV2();
 
   factory Channel.fromMap(Map<String, dynamic> data, String docId) {
@@ -290,6 +328,23 @@ class Channel {
       walletBalanceUSD: (data['walletBalanceUSD'] as num?)?.toDouble() ??
           (data['walletBalance'] as num?)?.toDouble() ??
           0.0,
+      adsRevenueTotal: (data['adsRevenueTotal'] as num?)?.toDouble() ?? 0.0,
+      premiumSubsRevenueTotal:
+          (data['premiumSubsRevenueTotal'] as num?)?.toDouble() ?? 0.0,
+      membershipRevenueTotal: ((data['membershipRevenueTotal'] ??
+              data['membershipsRevenueTotal']) as num?)
+          ?.toDouble() ??
+          0.0,
+      superchatRevenueTotal:
+          (data['superchatRevenueTotal'] as num?)?.toDouble() ?? 0.0,
+      withdrawnRevenueTotal:
+          (data['withdrawnRevenueTotal'] as num?)?.toDouble() ?? 0.0,
+      noAdsForMembers: (data['noAdsForMembers'] as bool?) ??
+          (data['monetizationSettings'] is Map
+              ? ((data['monetizationSettings']['noAdsForMembers'] as bool?) ??
+                  (data['monetizationSettings']['memberAdFreeEnabled'] as bool?))
+              : null) ??
+          false,
     );
   }
 
@@ -349,6 +404,12 @@ class Channel {
     Timestamp? pendingTypeEffectiveDate,
     Timestamp? nextBillingCycleDate,
     double? walletBalanceUSD,
+    double? adsRevenueTotal,
+    double? premiumSubsRevenueTotal,
+    double? membershipRevenueTotal,
+    double? superchatRevenueTotal,
+    double? withdrawnRevenueTotal,
+    bool? noAdsForMembers,
     String? ownerId,
     Timestamp? createdAt,
     Timestamp? updatedAt,
@@ -392,6 +453,16 @@ class Channel {
       pendingTypeEffectiveDate: pendingTypeEffectiveDate ?? this.pendingTypeEffectiveDate,
       nextBillingCycleDate: nextBillingCycleDate ?? this.nextBillingCycleDate,
       walletBalanceUSD: walletBalanceUSD ?? this.walletBalanceUSD,
+      adsRevenueTotal: adsRevenueTotal ?? this.adsRevenueTotal,
+      premiumSubsRevenueTotal:
+          premiumSubsRevenueTotal ?? this.premiumSubsRevenueTotal,
+      membershipRevenueTotal:
+          membershipRevenueTotal ?? this.membershipRevenueTotal,
+      superchatRevenueTotal:
+          superchatRevenueTotal ?? this.superchatRevenueTotal,
+      withdrawnRevenueTotal:
+          withdrawnRevenueTotal ?? this.withdrawnRevenueTotal,
+      noAdsForMembers: noAdsForMembers ?? this.noAdsForMembers,
       ownerId: ownerId ?? this.ownerId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -442,6 +513,12 @@ class Channel {
   final ChannelType channelType;
   final CustomChannelInfraConfig? infraConfig;
   final double walletBalanceUSD;
+  final double adsRevenueTotal;
+  final double premiumSubsRevenueTotal;
+  final double membershipRevenueTotal;
+  final double superchatRevenueTotal;
+  final double withdrawnRevenueTotal;
+  final bool noAdsForMembers;
 
   // Billing Cycle Lock & Scheduled Tier Switch
   final ChannelType? pendingChannelType;
@@ -469,8 +546,8 @@ class Channel {
   String get websiteUrl => socialLinks?['website'] ?? '';
 
   // Standard Channel Constraints (10 min daily upload limit, up to 10 min duration per day)
-  int get maxAllowedVideos => 999999;
-  int get minVideoDurationSeconds => 0;
+  int get maxAllowedVideos => 100000;
+  int get minVideoDurationSeconds => 120; // 2 minutes (120s) minimum video duration on Truthworld
   int get maxDailyVideoDurationSeconds =>
       channelType == ChannelType.standard ? 600 : 86400; // 10 minutes (600s) per day
   int get maxVideoDurationSeconds =>
@@ -523,6 +600,12 @@ class Channel {
       'infraConfig': infraConfig?.toMap(),
       'walletBalanceUSD': walletBalanceUSD,
       'walletBalance': walletBalanceUSD,
+      'adsRevenueTotal': adsRevenueTotal,
+      'premiumSubsRevenueTotal': premiumSubsRevenueTotal,
+      'membershipRevenueTotal': membershipRevenueTotal,
+      'superchatRevenueTotal': superchatRevenueTotal,
+      'withdrawnRevenueTotal': withdrawnRevenueTotal,
+      'noAdsForMembers': noAdsForMembers,
       'pendingChannelType': pendingChannelType?.name,
       'pendingTypeEffectiveDate': pendingTypeEffectiveDate,
       'nextBillingCycleDate': nextBillingCycleDate,

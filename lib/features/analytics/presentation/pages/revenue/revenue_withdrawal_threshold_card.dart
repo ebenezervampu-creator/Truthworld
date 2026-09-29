@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/analytics/presentation/controllers/revenue_analytics_controller.dart';
 import 'package:truthworld/features/analytics/presentation/widgets/revenue_withdrawal_dialog.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -9,6 +10,7 @@ import 'package:truthworld/theme/app_theme.dart';
     RevenueAnalyticsController controller,
   ) {
     final available = controller.totalRevenue.value;
+    final isHeld = controller.isWithdrawalHeld.value;
     final canWithdraw = controller.canWithdraw;
     final remaining = controller.remainingToWithdraw;
     final progress = controller.withdrawalProgress;
@@ -19,8 +21,10 @@ import 'package:truthworld/theme/app_theme.dart';
         color: const Color(0xFF121218),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: canWithdraw ? const Color(0xFF10B981) : const Color(0xFF27272A),
-          width: canWithdraw ? 1.5 : 1,
+          color: isHeld
+              ? const Color(0xFFF59E0B)
+              : (canWithdraw ? const Color(0xFF10B981) : const Color(0xFF27272A)),
+          width: isHeld || canWithdraw ? 1.5 : 1,
         ),
       ),
       child: Column(
@@ -32,12 +36,14 @@ import 'package:truthworld/theme/app_theme.dart';
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: (canWithdraw ? const Color(0xFF10B981) : const Color(0xFFF59E0B))
+                  color: (isHeld
+                          ? const Color(0xFFF59E0B)
+                          : (canWithdraw ? const Color(0xFF10B981) : const Color(0xFFF59E0B)))
                       .withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
-                  Icons.payments_rounded,
+                child: Icon(
+                  isHeld ? Icons.lock_clock_rounded : Icons.payments_rounded,
                   color: Colors.white,
                   size: 22,
                 ),
@@ -57,9 +63,11 @@ import 'package:truthworld/theme/app_theme.dart';
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      canWithdraw
-                          ? 'Available for cash withdrawal to your bank or UPI'
-                          : 'Minimum cash withdrawal threshold is ₹100 (100 Rupees)',
+                      isHeld
+                          ? 'TruthWorld is fronting 100% of viral surge costs. Upgrade plan to release withdrawals.'
+                          : (canWithdraw
+                              ? 'Available for cash withdrawal to your bank or UPI'
+                              : 'Minimum cash withdrawal threshold is ₹100 (100 Rupees)'),
                       style: const TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 12,
@@ -71,18 +79,24 @@ import 'package:truthworld/theme/app_theme.dart';
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: (canWithdraw ? const Color(0xFF10B981) : const Color(0xFFF59E0B))
+                  color: (isHeld
+                          ? const Color(0xFFF59E0B)
+                          : (canWithdraw ? const Color(0xFF10B981) : const Color(0xFFF59E0B)))
                       .withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: (canWithdraw ? const Color(0xFF10B981) : const Color(0xFFF59E0B))
+                    color: (isHeld
+                            ? const Color(0xFFF59E0B)
+                            : (canWithdraw ? const Color(0xFF10B981) : const Color(0xFFF59E0B)))
                         .withValues(alpha: 0.4),
                   ),
                 ),
                 child: Text(
-                  canWithdraw ? 'Unlocked' : 'Min ₹100',
+                  isHeld ? 'Hold (Surge)' : (canWithdraw ? 'Unlocked' : 'Min ₹100'),
                   style: TextStyle(
-                    color: canWithdraw ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                    color: isHeld
+                        ? const Color(0xFFF59E0B)
+                        : (canWithdraw ? const Color(0xFF10B981) : const Color(0xFFF59E0B)),
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                   ),
@@ -178,32 +192,47 @@ import 'package:truthworld/theme/app_theme.dart';
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: () {
-                if (canWithdraw) {
+                if (isHeld) {
+                  AppSnackbar.warning(
+                    controller.withdrawalHoldReason.value.isNotEmpty
+                        ? controller.withdrawalHoldReason.value
+                        : 'TruthWorld has covered 100% of your viral infrastructure surge costs! Please upgrade your custom channel plan to release revenue withdrawals.',
+                    title: 'Withdrawal On Hold',
+                  );
+                } else if (canWithdraw) {
                   RevenueWithdrawalDialog.show(context);
                 } else {
                   _showThresholdNoticeDialog(context, controller);
                 }
               },
               icon: Icon(
-                canWithdraw ? Icons.payments_rounded : Icons.lock_outline_rounded,
+                isHeld
+                    ? Icons.lock_clock_rounded
+                    : (canWithdraw ? Icons.payments_rounded : Icons.lock_outline_rounded),
                 color: Colors.white,
                 size: 18,
               ),
               label: Text(
-                canWithdraw ? 'Withdraw Funds' : 'Withdraw Earnings (Minimum ₹100)',
+                isHeld
+                    ? 'Withdrawal on Hold (Upgrade Plan)'
+                    : (canWithdraw ? 'Withdraw Funds' : 'Withdraw Earnings (Minimum ₹100)'),
                 style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: canWithdraw ? const Color(0xFF10B981) : const Color(0xFF27272A),
+                backgroundColor: isHeld
+                    ? const Color(0xFFD97706)
+                    : (canWithdraw ? const Color(0xFF10B981) : const Color(0xFF27272A)),
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 13),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                   side: BorderSide(
-                    color: canWithdraw ? const Color(0xFF10B981) : const Color(0xFF3F3F46),
+                    color: isHeld
+                        ? const Color(0xFFF59E0B)
+                        : (canWithdraw ? const Color(0xFF10B981) : const Color(0xFF3F3F46)),
                   ),
                 ),
               ),

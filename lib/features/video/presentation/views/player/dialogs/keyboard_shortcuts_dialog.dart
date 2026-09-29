@@ -44,16 +44,28 @@ class KeyboardShortcutsDialog extends StatelessWidget {
       'action': 'Toggle fullscreen',
     },
     {
+      'keys': ['T'],
+      'action': 'Toggle theater mode',
+    },
+    {
+      'keys': ['C'],
+      'action': 'Toggle subtitles / captions',
+    },
+    {
       'keys': ['I'],
       'action': 'Toggle Picture-in-Picture',
     },
     {
       'keys': [','],
-      'action': 'Rewind 1 second',
+      'action': 'Step 1 frame backward (paused) / 1s seek',
     },
     {
       'keys': ['.'],
-      'action': 'Advance 1 second',
+      'action': 'Step 1 frame forward (paused) / 1s seek',
+    },
+    {
+      'keys': ['0..9'],
+      'action': 'Seek to 0% .. 90%',
     },
     {
       'keys': ['?'],

@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/video/presentation/views/player/dialogs/keyboard_shortcuts_dialog.dart';
+import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:video_player/video_player.dart';
 
@@ -26,6 +27,10 @@ mixin TowerPlayerKeyboardMixin on GetxController {
   void setSpeed(double speed);
   VideoPlayerValue get vv;
   Future<void> seekTo(Duration pos);
+  RxBool get subtitlesEnabled;
+  List<SubtitleTrack> get subtitleTracks;
+  void setSubtitles({required bool enabled, SubtitleTrack? track});
+  void toggleTheaterMode();
 
   void handleKeyJ() => executeDoubleTapSeek(isLeft: true);
   void handleKeyL() => executeDoubleTapSeek(isLeft: false);
@@ -95,6 +100,16 @@ mixin TowerPlayerKeyboardMixin on GetxController {
       toggleFullscreen();
     } else if (key == LogicalKeyboardKey.keyM) {
       toggleMute();
+    } else if (key == LogicalKeyboardKey.keyC) {
+      if (subtitleTracks.isEmpty) {
+        showToast('No captions available for this video');
+      } else if (subtitlesEnabled.value) {
+        setSubtitles(enabled: false);
+        showToast('Subtitles off');
+      } else {
+        setSubtitles(enabled: true, track: subtitleTracks.first);
+        showToast('Subtitles on');
+      }
     } else if (key == LogicalKeyboardKey.keyN) {
       playNext();
     } else if (key == LogicalKeyboardKey.keyP) {
@@ -105,17 +120,34 @@ mixin TowerPlayerKeyboardMixin on GetxController {
       if (isFullScreenValue) toggleFullscreen();
     } else if (key == LogicalKeyboardKey.slash) {
       if (HardwareKeyboard.instance.isShiftPressed) showShortcutsDialog();
+    } else if (key == LogicalKeyboardKey.keyT) {
+      toggleTheaterMode();
     } else if (key == LogicalKeyboardKey.comma) {
       if (HardwareKeyboard.instance.isShiftPressed) {
         adjustSpeedRelative(-0.25);
       } else {
-        seekRelative(-1);
+        // When paused, step backward by 1 frame (~33ms at 30fps). When playing, seek -1s.
+        if (!vv.isPlaying) {
+          final target = vv.position - const Duration(milliseconds: 33);
+          seekTo(target < Duration.zero ? Duration.zero : target);
+          showToast('Frame -1');
+        } else {
+          seekRelative(-1);
+        }
       }
     } else if (key == LogicalKeyboardKey.period) {
       if (HardwareKeyboard.instance.isShiftPressed) {
         adjustSpeedRelative(0.25);
       } else {
-        seekRelative(1);
+        // When paused, step forward by 1 frame (~33ms at 30fps). When playing, seek +1s.
+        if (!vv.isPlaying) {
+          final target = vv.position + const Duration(milliseconds: 33);
+          final dur = vv.duration;
+          seekTo(target > dur ? dur : target);
+          showToast('Frame +1');
+        } else {
+          seekRelative(1);
+        }
       }
     } else {
       final digitMap = {

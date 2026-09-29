@@ -32,6 +32,7 @@ void showCampaignCheckoutDialog(
   List<String>? targetLocations,
   List<String>? targetLanguages,
   List<String>? targetTopics,
+  List<String>? targetAudiences,
   AdItem? existingCampaign,
 }) {
   final progressStep = 0.obs;
@@ -57,6 +58,11 @@ void showCampaignCheckoutDialog(
     audienceParts.add(targetLocations.join(', '));
   } else {
     audienceParts.add('Worldwide');
+  }
+  if (targetAudiences != null && targetAudiences.isNotEmpty) {
+    audienceParts.add('Audience: ${targetAudiences.join(', ')}');
+  } else {
+    audienceParts.add('All People / All Audiences');
   }
   final audienceSummaryText = audienceParts.join(' • ');
 
@@ -331,6 +337,7 @@ void showCampaignCheckoutDialog(
                                 targetLocations: targetLocations,
                                 targetLanguages: targetLanguages,
                                 targetTopics: targetTopics,
+                                targetAudiences: targetAudiences,
                               );
 
                               final success =
@@ -407,6 +414,7 @@ void showCampaignCheckoutDialog(
                               targetLocations: targetLocations,
                               targetLanguages: targetLanguages,
                               targetTopics: targetTopics,
+                              targetAudiences: targetAudiences,
                             );
 
                             final success = await AdService.to.createCampaign(
@@ -483,6 +491,7 @@ void showCheckoutDialog(
   List<String>? targetLocations,
   List<String>? targetLanguages,
   List<String>? targetTopics,
+  List<String>? targetAudiences,
   AdItem? existingCampaign,
 }) => showCampaignCheckoutDialog(
   context,
@@ -506,6 +515,7 @@ void showCheckoutDialog(
   targetLocations: targetLocations,
   targetLanguages: targetLanguages,
   targetTopics: targetTopics,
+  targetAudiences: targetAudiences,
   existingCampaign: existingCampaign,
 );
 

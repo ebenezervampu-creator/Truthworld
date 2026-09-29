@@ -313,29 +313,29 @@ void main() {
       );
     });
 
-    test('L-19: SuperChat direct wallet deduction prevents double-spending', () {
-      Map<String, dynamic> processDirectWalletSuperchat({
-        required num userWalletBalance,
+    test('L-19: SuperChat requires direct payment gateway checkout without viewer wallet prefunding', () {
+      Map<String, dynamic> processGatewaySuperchat({
+        required String paymentGateway,
         required num superchatAmount,
       }) {
-        if (userWalletBalance < superchatAmount) {
-          return {'success': false, 'error': 'INSUFFICIENT_FUNDS'};
+        if (paymentGateway != 'cashfree') {
+          return {'success': false, 'error': 'INVALID_GATEWAY'};
         }
         return {
           'success': true,
-          'remainingBalance': userWalletBalance - superchatAmount,
+          'amountProcessed': superchatAmount,
         };
       }
 
-      // Sufficient balance
-      final successResult = processDirectWalletSuperchat(userWalletBalance: 500, superchatAmount: 200);
+      // Valid gateway checkout
+      final successResult = processGatewaySuperchat(paymentGateway: 'cashfree', superchatAmount: 200);
       expect(successResult['success'], isTrue);
-      expect(successResult['remainingBalance'], 300);
+      expect(successResult['amountProcessed'], 200);
 
-      // Insufficient balance (free superchat exploit attempt)
-      final failResult = processDirectWalletSuperchat(userWalletBalance: 50, superchatAmount: 200);
+      // Discontinued wallet payment method attempt
+      final failResult = processGatewaySuperchat(paymentGateway: 'wallet', superchatAmount: 200);
       expect(failResult['success'], isFalse);
-      expect(failResult['error'], 'INSUFFICIENT_FUNDS');
+      expect(failResult['error'], 'INVALID_GATEWAY');
     });
 
     test('L-20: Channel moderation update preserves suspended or banned status', () {
@@ -685,6 +685,299 @@ void main() {
       // Unauthenticated guest attempting to submit
       expect(canSubmitCopyrightComplaint(callerUid: null, declaredUserId: 'anonymous'), isFalse);
       expect(canSubmitCopyrightComplaint(callerUid: null, declaredUserId: 'user_1'), isFalse);
+    });
+
+    test('L-44: Admin step-up authentication recency validation', () {
+      bool isSessionRecent(int? authTime, int maxAgeSeconds, int currentSeconds) {
+        if (authTime == null) return false;
+        return currentSeconds - authTime <= maxAgeSeconds;
+      }
+
+      const now = 1700000000;
+      // Active session (10 minutes old, max age 60 minutes)
+      expect(isSessionRecent(now - 600, 3600, now), isTrue);
+      // Boundary session (exactly 60 minutes old)
+      expect(isSessionRecent(now - 3600, 3600, now), isTrue);
+      // Stale session (61 minutes old -> requires step-up re-auth)
+      expect(isSessionRecent(now - 3660, 3600, now), isFalse);
+      // Expired / missing auth time
+      expect(isSessionRecent(null, 3600, now), isFalse);
+      // Clock skew / futuristic auth time (> now)
+      expect(isSessionRecent(now + 10, 3600, now), isTrue);
+    });
+
+    test('L-45: User profile update blocks self-unbanning and strike clearing', () {
+      const prohibitedKeys = [
+        'role', 'isAdmin', 'isSuperadmin', 'permissions', 'isPremium', 'monetizationTier',
+        'premiumExpiresAt', 'premiumPlanId', 'walletBalance', 'walletBalanceUSD',
+        'hasChannel', 'channelId', 'channelsCount',
+        'isBanned', 'bannedAt', 'banReason', 'accountStatus', 'status', 'strikes', 'trustScore'
+      ];
+
+      bool canUserUpdateProfile(List<String> affectedKeys, bool isAdmin) {
+        if (isAdmin) return true;
+        for (final key in affectedKeys) {
+          if (prohibitedKeys.contains(key)) return false;
+        }
+        return true;
+      }
+
+      // Valid profile updates
+      expect(canUserUpdateProfile(['displayName', 'bio', 'photoUrl'], false), isTrue);
+      expect(canUserUpdateProfile(['themePreference', 'updatedAt'], false), isTrue);
+
+      // Malicious attempts to unban or clear strikes
+      expect(canUserUpdateProfile(['isBanned'], false), isFalse);
+      expect(canUserUpdateProfile(['status'], false), isFalse);
+      expect(canUserUpdateProfile(['accountStatus'], false), isFalse);
+      expect(canUserUpdateProfile(['strikes'], false), isFalse);
+      expect(canUserUpdateProfile(['trustScore'], false), isFalse);
+      expect(canUserUpdateProfile(['banReason'], false), isFalse);
+      expect(canUserUpdateProfile(['role'], false), isFalse);
+      expect(canUserUpdateProfile(['isAdmin'], false), isFalse);
+
+      // Admin can perform moderation updates
+      expect(canUserUpdateProfile(['isBanned', 'banReason', 'accountStatus'], true), isTrue);
+    });
+
+    test('L-46: Channel creation and updates block self-clearing of strikes and ban status', () {
+      const prohibitedChannelKeys = [
+        'isVerified', 'geminiApproved', 'status', 'monetizationTier', 'superchatRevenueTotal',
+        'adsRevenueTotal', 'membershipRevenueTotal', 'membershipsRevenueTotal', 'premiumSubsRevenueTotal',
+        'walletBalanceUSD', 'walletBalance', 'withdrawnRevenueTotal',
+        'subscriberCount', 'videoCount', 'ownerId', 'userId', 'createdAt', 'penaltyStatus',
+        'trustScore', 'reputationScore', 'moderationReason', 'metrics',
+        'strikes', 'strikeCount', 'isBanned', 'suspendedAt', 'bannedAt'
+      ];
+
+      bool canUpdateChannel(List<String> affectedKeys, bool isAdmin) {
+        if (isAdmin) return true;
+        for (final key in affectedKeys) {
+          if (prohibitedChannelKeys.contains(key)) return false;
+        }
+        return true;
+      }
+
+      // Normal channel metadata update
+      expect(canUpdateChannel(['name', 'description', 'socialLinks'], false), isTrue);
+
+      // Malicious attempt to clear strikes or un-suspend channel
+      expect(canUpdateChannel(['strikes'], false), isFalse);
+      expect(canUpdateChannel(['strikeCount'], false), isFalse);
+      expect(canUpdateChannel(['isBanned'], false), isFalse);
+      expect(canUpdateChannel(['suspendedAt'], false), isFalse);
+      expect(canUpdateChannel(['status'], false), isFalse);
+      expect(canUpdateChannel(['penaltyStatus'], false), isFalse);
+
+      // Admin override
+      expect(canUpdateChannel(['strikes', 'status'], true), isTrue);
+    });
+
+    test('L-47: Topic creation strictly blocks pre-approved status and AI moderation bypass', () {
+      bool canCreateTopic(Map<String, dynamic> data, bool isAdmin) {
+        if (isAdmin) return true;
+        final hasVideos = (data['videoCount'] is int && data['videoCount'] > 0) ||
+            (data['featuredVideoIds'] is List && (data['featuredVideoIds'] as List).isNotEmpty);
+        if (!hasVideos) return false;
+
+        if (data.containsKey('geminiApproved') && data['geminiApproved'] != false) {
+          return false;
+        }
+        final status = data['status'] as String?;
+        if (status != null && status != 'pending' && status != 'underReview') {
+          return false;
+        }
+        return true;
+      }
+
+      // Legitimate topic submission
+      expect(
+        canCreateTopic({
+          'title': 'Quantum Physics',
+          'videoCount': 5,
+          'geminiApproved': false,
+          'status': 'pending',
+        }, false),
+        isTrue,
+      );
+
+      // Attacker trying to inject pre-approved topic
+      expect(
+        canCreateTopic({
+          'title': 'Hacked Topic',
+          'videoCount': 1,
+          'geminiApproved': true,
+        }, false),
+        isFalse,
+      );
+
+      // Attacker trying to set status = 'approved'
+      expect(
+        canCreateTopic({
+          'title': 'Spam Topic',
+          'videoCount': 1,
+          'status': 'approved',
+        }, false),
+        isFalse,
+      );
+
+      // Admin can create pre-approved topics
+      expect(
+        canCreateTopic({
+          'title': 'Official TruthWorld News',
+          'geminiApproved': true,
+          'status': 'approved',
+        }, true),
+        isTrue,
+      );
+    });
+
+    test('L-48: Network Security and ATS enforcement policies', () {
+      bool isNetworkSecure({
+        required bool allowsCleartextTraffic,
+        required bool allowsArbitraryLoadsIos,
+        required bool allowsBackupAndroid,
+      }) {
+        // Must reject all cleartext/arbitrary HTTP and block ADB backup
+        if (allowsCleartextTraffic) return false;
+        if (allowsArbitraryLoadsIos) return false;
+        if (allowsBackupAndroid) return false;
+        return true;
+      }
+
+      // Production TruthWorld hardened configuration
+      expect(
+        isNetworkSecure(
+          allowsCleartextTraffic: false,
+          allowsArbitraryLoadsIos: false,
+          allowsBackupAndroid: false,
+        ),
+        isTrue,
+      );
+
+      // Insecure configurations
+      expect(
+        isNetworkSecure(
+          allowsCleartextTraffic: true,
+          allowsArbitraryLoadsIos: false,
+          allowsBackupAndroid: false,
+        ),
+        isFalse,
+      );
+      expect(
+        isNetworkSecure(
+          allowsCleartextTraffic: false,
+          allowsArbitraryLoadsIos: true,
+          allowsBackupAndroid: false,
+        ),
+        isFalse,
+      );
+      expect(
+        isNetworkSecure(
+          allowsCleartextTraffic: false,
+          allowsArbitraryLoadsIos: false,
+          allowsBackupAndroid: true,
+        ),
+        isFalse,
+      );
+    });
+
+    test('L-49: Remote config and system collections authorization policies', () {
+      bool canReadRemoteConfig() => true;
+      bool canWriteRemoteConfig(bool isAdmin) => isAdmin;
+
+      bool canAccessUserDraft(String currentUid, String docOwnerId) => currentUid == docOwnerId;
+      bool canAccessUserSavedVideos(String currentUid, String profileUid) => currentUid == profileUid;
+
+      // Remote config is publicly readable by all clients
+      expect(canReadRemoteConfig(), isTrue);
+      // Remote config write requires verified admin
+      expect(canWriteRemoteConfig(false), isFalse);
+      expect(canWriteRemoteConfig(true), isTrue);
+
+      // User drafts and saved videos strictly enforce owner isolation
+      expect(canAccessUserDraft('user_A', 'user_A'), isTrue);
+      expect(canAccessUserDraft('user_B', 'user_A'), isFalse);
+      expect(canAccessUserSavedVideos('user_A', 'user_A'), isTrue);
+      expect(canAccessUserSavedVideos('user_B', 'user_A'), isFalse);
+    });
+
+    test('L-50: Watch sessions write lockdown prevents client watch time fabrication', () {
+      bool canClientWriteWatchSession({required bool isClient}) {
+        // Direct client writes are forbidden (allow write: if false)
+        return !isClient;
+      }
+
+      expect(canClientWriteWatchSession(isClient: true), isFalse,
+          reason: 'Client-side write to watch_sessions must be rejected');
+      expect(canClientWriteWatchSession(isClient: false), isTrue,
+          reason: 'Admin SDK / Cloud Functions writes are permitted');
+    });
+
+    test('L-51: Storage uploaderId metadata requirement prevents asset tampering', () {
+      bool isUploaderClaimValid({
+        required bool isSignedIn,
+        required bool isAdmin,
+        required Map<String, String>? metadata,
+        required String? authUid,
+      }) {
+        if (!isSignedIn) return false;
+        if (isAdmin) return true;
+        if (metadata == null) return false;
+        if (!metadata.containsKey('uploaderId')) return false;
+        return metadata['uploaderId'] == authUid;
+      }
+
+      bool isOwnerOrNew({
+        required bool isSignedIn,
+        required bool isAdmin,
+        required bool isNewResource,
+        required Map<String, String>? existingMetadata,
+        required String? authUid,
+      }) {
+        if (!isSignedIn) return false;
+        if (isAdmin) return true;
+        if (isNewResource) return true;
+        if (existingMetadata == null) return false;
+        if (!existingMetadata.containsKey('uploaderId')) return false;
+        return existingMetadata['uploaderId'] == authUid;
+      }
+
+      // Valid upload with matching uploaderId
+      expect(
+        isUploaderClaimValid(isSignedIn: true, isAdmin: false, metadata: {'uploaderId': 'user_1'}, authUid: 'user_1'),
+        isTrue,
+      );
+
+      // Missing uploaderId metadata must be rejected
+      expect(
+        isUploaderClaimValid(isSignedIn: true, isAdmin: false, metadata: null, authUid: 'user_1'),
+        isFalse,
+      );
+      expect(
+        isUploaderClaimValid(isSignedIn: true, isAdmin: false, metadata: {}, authUid: 'user_1'),
+        isFalse,
+      );
+
+      // Spoofed uploaderId must be rejected
+      expect(
+        isUploaderClaimValid(isSignedIn: true, isAdmin: false, metadata: {'uploaderId': 'user_2'}, authUid: 'user_1'),
+        isFalse,
+      );
+
+      // Overwriting existing file: matching owner permitted, unowned or mismatched blocked
+      expect(
+        isOwnerOrNew(isSignedIn: true, isAdmin: false, isNewResource: false, existingMetadata: {'uploaderId': 'user_1'}, authUid: 'user_1'),
+        isTrue,
+      );
+      expect(
+        isOwnerOrNew(isSignedIn: true, isAdmin: false, isNewResource: false, existingMetadata: {'uploaderId': 'user_2'}, authUid: 'user_1'),
+        isFalse,
+      );
+      expect(
+        isOwnerOrNew(isSignedIn: true, isAdmin: false, isNewResource: false, existingMetadata: null, authUid: 'user_1'),
+        isFalse,
+      );
     });
   });
 }

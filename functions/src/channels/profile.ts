@@ -7,6 +7,8 @@ import {
   defaultProfile, 
   defaultReputation 
 } from "./types";
+import { applySecurityHeaders } from "../utils/securityHeaders";
+import { isCallableRecentAdmin } from "../utils/auth";
 
 const db = () => admin.firestore();
 
@@ -72,6 +74,7 @@ export const updateChannelProfile = onCall(
 export const getPublicChannelProfile = onRequest(
   { region: "asia-south1", cors: true, memory: "256MiB" },
   async (req, res) => {
+    applySecurityHeaders(res);
     try {
       const slug = (req.query.slug as string)?.toLowerCase();
       if (!slug) {
@@ -138,9 +141,9 @@ export const migrateChannelsToV2 = onCall(
   { region: "asia-south1", memory: "512MiB" },
   async (request) => {
     const callerUid = request.auth?.uid;
-    const isAdmin = request.auth?.token?.admin === true;
+    const isAdmin = isCallableRecentAdmin(request.auth, 3600);
     if (!callerUid || !isAdmin) {
-      throw new HttpsError("permission-denied", "Only platform administrators can perform batch migrations.");
+      throw new HttpsError("permission-denied", "Only platform administrators with recent authentication can perform batch migrations.");
     }
     const isDryRun = request.data?.dryRun !== false;
 

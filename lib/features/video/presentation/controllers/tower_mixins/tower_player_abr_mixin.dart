@@ -8,6 +8,7 @@ import 'package:truthworld/features/settings/presentation/controllers/user_setti
 import 'package:truthworld/features/video/presentation/controllers/adaptive_bitrate_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:video_player/video_player.dart';
 
@@ -48,8 +49,31 @@ mixin TowerPlayerAbrMixin on GetxController {
       );
     }
 
-    final isPremium =
-        Get.isRegistered<AuthService>() && AuthService.to.hasFullPremium;
+    final isPremium = hasPremiumPlaybackAccess;
+
+    // Pre-align current tier index with the active resolution before initialize to prevent immediate spurious auto-switch
+    try {
+      if (Get.isRegistered<VideoController>(tag: tag)) {
+        final vc = Get.find<VideoController>(tag: tag);
+        final activeHeight = vc.currentResolution.value?.height;
+        if (activeHeight != null && ladder.isNotEmpty) {
+          final matchIdx = ladder.indexWhere((t) => t.height == activeHeight);
+          if (matchIdx != -1) {
+            abr.currentTierIndex.value = matchIdx;
+          }
+        }
+
+        // Dynamically update resolution ceiling whenever member status or channel settings hydrate
+        ever(vc.channelController.subController.isChannelMember, (_) {
+          final hasPrem = hasPremiumPlaybackAccess;
+          abr.updateMaxHeightCap(hasPrem ? null : 1040);
+        });
+        ever(vc.channelController.selectedChannel, (_) {
+          final hasPrem = hasPremiumPlaybackAccess;
+          abr.updateMaxHeightCap(hasPrem ? null : 1040);
+        });
+      }
+    } catch (_) {}
 
     abr.initialize(
       ladder: ladder,
@@ -69,11 +93,24 @@ mixin TowerPlayerAbrMixin on GetxController {
             final match = vc.availableResolutions.firstWhereOrNull(
               (r) => r.height == tier.height,
             );
-            if (match != null &&
-                (vc.currentResolution.value?.url != match.url ||
-                    vc.currentResolution.value?.label != match.label)) {
-              vc.setResolution(match, isManual: isManual);
+            if (match == null) return;
+
+            // If already on this exact URL or height, do not re-initialize player
+            if (vc.currentResolution.value?.url == match.url ||
+                (vc.currentResolution.value?.height == match.height &&
+                    !isManual)) {
+              if (vc.currentResolution.value != match) {
+                vc.currentResolution.value = match;
+              }
+              return;
             }
+
+            // Protect active handoff controller from auto ABR teardown
+            if (!isManual && VideoPlaybackHandoff.isActive(vc.video.id)) {
+              return;
+            }
+
+            vc.setResolution(match, isManual: isManual);
           }
         } catch (e, s) {
           ErrorHandler.log(
@@ -146,10 +183,40 @@ mixin TowerPlayerAbrMixin on GetxController {
       ? 'Auto · ${abr.currentTier.label}'
       : abr.currentTier.label;
 
+  /// Evaluates whether the current viewer has premium playback privileges (unlocked 4K / 1080p).
+  /// This is true if the user has global TruthWorld Full Premium OR if the user is an active
+  /// member of this channel and the creator has enabled Channel Premium (noAdsForMembers).
+  bool get hasPremiumPlaybackAccess {
+    try {
+      if (Get.isRegistered<AuthService>() && AuthService.to.hasFullPremium) {
+        return true;
+      }
+      final vCtrl = videoController;
+      if (vCtrl != null) {
+        final isMember =
+            vCtrl.channelController.subController.isChannelMember.value;
+        final channel = vCtrl.channelController.selectedChannel.value;
+        final channelNoAds = channel?.noAdsForMembers ?? false;
+        if (isMember && channelNoAds) {
+          return true;
+        }
+      }
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'TowerPlayerAbrMixin.hasPremiumPlaybackAccess',
+      );
+    }
+    return false;
+  }
+
   void selectQuality(int tierIndex) {
     if (tierIndex < 0 || tierIndex >= abr.resolutionLadder.length) return;
-    final isPremium =
-        Get.isRegistered<AuthService>() && AuthService.to.hasFullPremium;
+    final isPremium = hasPremiumPlaybackAccess;
+    if (isPremium && abr.maxHeightCap != null) {
+      abr.updateMaxHeightCap(null);
+    }
     if (!isPremium && abr.resolutionLadder[tierIndex].height > 1040) {
       return;
     }

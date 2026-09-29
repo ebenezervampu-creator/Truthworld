@@ -8,7 +8,7 @@ import 'package:truthworld/features/miniplayer/presentation/widgets/components/m
 import 'package:truthworld/features/miniplayer/presentation/widgets/components/miniplayer_video_frame.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-/// Floating YouTube-style draggable card in the viewport.
+/// Floating draggable card in the viewport.
 class MiniplayerFloatingCard extends StatelessWidget {
   final MiniplayerController controller;
   final Size screenSize;
@@ -35,6 +35,8 @@ class MiniplayerFloatingCard extends StatelessWidget {
         shortcuts: <ShortcutActivator, Intent>{
           LogicalKeySet(LogicalKeyboardKey.keyI):
               const MiniplayerExpandIntent(),
+          LogicalKeySet(LogicalKeyboardKey.keyP):
+              const MiniplayerPipIntent(),
           LogicalKeySet(LogicalKeyboardKey.escape):
               const MiniplayerDismissIntent(),
         },
@@ -42,6 +44,12 @@ class MiniplayerFloatingCard extends StatelessWidget {
           MiniplayerExpandIntent: CallbackAction<MiniplayerExpandIntent>(
             onInvoke: (_) {
               controller.openFullScreen();
+              return null;
+            },
+          ),
+          MiniplayerPipIntent: CallbackAction<MiniplayerPipIntent>(
+            onInvoke: (_) {
+              controller.enterPip();
               return null;
             },
           ),

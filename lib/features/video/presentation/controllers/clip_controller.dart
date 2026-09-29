@@ -24,7 +24,7 @@ class ClipController extends BaseController {
   final RxString titleError = ''.obs;
   final RxBool isSaving = false.obs;
 
-  // Industry standard duration bounds (YouTube / Twitch / TikTok standard)
+  // Industry standard duration bounds
   double get minDuration => 5.0; // Minimum 5 seconds to prevent micro-spam & glitches
   double get maxDuration => 30.0; // Maximum 30 seconds to prevent piracy
 

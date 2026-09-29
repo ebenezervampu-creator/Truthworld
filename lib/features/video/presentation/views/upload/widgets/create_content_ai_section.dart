@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/data/models/channel.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization/channel_wallet_topup_sheet.dart';
-import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_controller.dart';
+import 'package:truthworld/features/video/presentation/views/upload/pages/upload_dubbing_page.dart';
+import 'package:truthworld/features/video/presentation/views/upload/pages/upload_subtitles_page.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Section 10: AI-powered features configuration (Subtitles, Dubbing, Fact Checking, Chapters, Summary)
+/// Clean, modular, and optimized with dedicated configuration & pricing pages for Subtitles, Dubbing, and Fact-Checking.
 class CreateContentAISection extends StatelessWidget {
   final UploadController controller;
 
@@ -18,45 +19,38 @@ class CreateContentAISection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final subtitleSearchQuery = ''.obs;
-    final dubbingSearchQuery = ''.obs;
-
-    final allSubtitleLangs = supportedLanguages.map((l) => l.name).toList();
-
-    final allDubbingLangs = [
-      'English', 'Spanish', 'French', 'German', 'Hindi', 'Japanese', 'Chinese (Mandarin)',
-      'Portuguese', 'Italian', 'Arabic', 'Russian', 'Korean', 'Turkish', 'Dutch', 'Swedish', 'Polish',
-      'Bengali', 'Telugu', 'Tamil', 'Marathi', 'Gujarati', 'Kannada', 'Malayalam', 'Punjabi', 'Urdu',
-      'Indonesian', 'Thai', 'Vietnamese', 'Czech', 'Greek', 'Hebrew', 'Hungarian', 'Danish', 'Finnish',
-      'Norwegian', 'Slovak', 'Bulgarian', 'Catalan', 'Croatian', 'Lithuanian', 'Slovenian', 'Afrikaans',
-      'Tagalog', 'Malay', 'Persian', 'Romanian', 'Ukrainian', 'Estonian', 'Latvian', 'Serbian', 'Albanian',
-      'Azerbaijani', 'Basque', 'Belarusian', 'Bosnian', 'Galician', 'Georgian', 'Icelandic', 'Irish',
-      'Macedonian', 'Maltese', 'Nepali', 'Somali', 'Swahili', 'Welsh', 'Yiddish', 'Zulu', 'Kazakh', 'Uzbek'
-    ];
-
     return Obx(() {
-      final isFactCheck = controller.aiFactCheckEnabled.value;
       final isSubtitles = controller.aiGenerateSubtitles.value;
       final isDubbing = controller.aiGenerateDubbing.value;
+      final isFactCheck = controller.aiFactCheckEnabled.value;
       final isDiarization = controller.aiDiarizationEnabled.value;
       final isChapters = controller.aiChaptersEnabled.value;
-      final isSummary = controller.aiSummaryEnabled.value;
 
       final selectedSubLangs = controller.aiTranslationLanguages;
       final selectedDubLangs = controller.aiDubbingLanguages;
 
-      final filteredSubLangs = subtitleSearchQuery.value.isEmpty
-          ? allSubtitleLangs
-          : allSubtitleLangs.where((l) => l.toLowerCase().contains(subtitleSearchQuery.value.toLowerCase())).toList();
-
-      final filteredDubLangs = dubbingSearchQuery.value.isEmpty
-          ? allDubbingLangs
-          : allDubbingLangs.where((l) => l.toLowerCase().contains(dubbingSearchQuery.value.toLowerCase())).toList();
-
       final isCustom = controller.selectedChannel.value?.channelType == ChannelType.custom;
       final channelType = isCustom ? ChannelType.custom : ChannelType.standard;
+      final durationSec = controller.videoDurationSeconds.value;
+
+      // Pricing computations
       final dubbingCost = ChannelWalletService.calculateDubbingCost(
         languageCount: selectedDubLangs.length,
+        durationSeconds: durationSec,
+        channelType: channelType,
+      );
+
+      final subLangsToBill = (isDubbing
+              ? selectedSubLangs
+                  .where((l) => !selectedDubLangs.contains(l))
+                  .toList()
+              : selectedSubLangs.toList())
+          .where((l) => l.trim().isNotEmpty)
+          .toList();
+
+      final subtitleCost = ChannelWalletService.calculateSubtitleCost(
+        languageCount: subLangsToBill.length,
+        durationSeconds: durationSec,
         channelType: channelType,
       );
 
@@ -72,353 +66,147 @@ class CreateContentAISection extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '10. AI Features',
-                style: context.themeTypography.title.copyWith(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '10. AI Features & Intelligence',
+                    style: context.themeTypography.title.copyWith(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: Colors.white,
+                    ),
+                  ),
+                  if (isCustom)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF7C3AED).withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFF7C3AED).withValues(alpha: 0.6)),
+                      ),
+                      child: const Text(
+                        'CUSTOM CHANNEL',
+                        style: TextStyle(
+                          color: Color(0xFFC4B5FD),
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // 1. Subtitles Card with Dedicated Page Navigation
+              _buildFeatureCard(
+                context: context,
+                icon: Icons.subtitles,
+                iconColor: const Color(0xFF60A5FA),
+                iconBgColor: const Color(0xFF2563EB).withValues(alpha: 0.15),
+                title: 'AI Subtitles & Translation (130+ Languages)',
+                subtitle: 'Google Cloud Translation supported caption languages',
+                isEnabled: isSubtitles,
+                onToggle: (val) {
+                  controller.aiGenerateSubtitles.value = val;
+                  if (val && selectedSubLangs.isEmpty) {
+                    Get.to(() => const UploadSubtitlesPage());
+                  }
+                },
+                statusText: isSubtitles
+                    ? (selectedSubLangs.isNotEmpty
+                        ? '${selectedSubLangs.length} ${selectedSubLangs.length == 1 ? "language" : "languages"} • \$${subtitleCost.toStringAsFixed(2)}'
+                        : 'Enabled • Tap to select languages')
+                    : 'Disabled • Tap to configure languages & pricing',
+                buttonLabel: 'Configure Languages & Pricing →',
+                onOpenPage: () => Get.to(() => const UploadSubtitlesPage()),
+                selectedLanguages: selectedSubLangs.toList(),
               ),
               const SizedBox(height: 12),
 
-              // Auto-Generate Subtitles (100+ Languages)
-              SwitchListTile(
-                value: isSubtitles,
-                onChanged: (val) => controller.aiGenerateSubtitles.value = val,
-                title: const Text('Auto-Generate Subtitles (100+ Languages)', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-                subtitle: Text('Google Cloud Translation supported caption languages', style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11)),
-                activeColor: Colors.white,
-                secondary: const Icon(Icons.subtitles, color: Colors.white, size: 20),
-                contentPadding: EdgeInsets.zero,
+              // 2. Dubbing Card with Dedicated Page Navigation
+              _buildFeatureCard(
+                context: context,
+                icon: Icons.translate,
+                iconColor: const Color(0xFFA78BFA),
+                iconBgColor: const Color(0xFF7C3AED).withValues(alpha: 0.15),
+                badgeLabel: 'DUBBING IS NOT FREE',
+                badgeColor: const Color(0xFFF59E0B),
+                title: 'AI Audio Translation & Dubbing (70+ Languages)',
+                subtitle: 'Natural AI voice dubbing & studio vocal identity',
+                isEnabled: isDubbing,
+                onToggle: (val) {
+                  controller.aiGenerateDubbing.value = val;
+                  if (val && selectedDubLangs.isEmpty) {
+                    Get.to(() => const UploadDubbingPage());
+                  }
+                },
+                statusText: isDubbing
+                    ? (selectedDubLangs.isNotEmpty
+                        ? '${selectedDubLangs.length} ${selectedDubLangs.length == 1 ? "language" : "languages"} • ${controller.aiTTSVoiceType.value == "cloned" ? "Voice Clone" : "Standard Voice"} • \$${dubbingCost.toStringAsFixed(2)}'
+                        : 'Enabled • Tap to select languages & voices')
+                    : 'Disabled • Tap to configure 70+ languages & voices',
+                buttonLabel: 'Configure Dubbing, Voices & Pricing →',
+                onOpenPage: () => Get.to(() => const UploadDubbingPage()),
+                selectedLanguages: selectedDubLangs.toList(),
               ),
-              if (isSubtitles) ...[
-                Padding(
-                  padding: const EdgeInsets.only(left: 12, top: 4, bottom: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      TextField(
-                        onChanged: (v) => subtitleSearchQuery.value = v,
-                        style: const TextStyle(color: Colors.white, fontSize: 12),
-                        decoration: InputDecoration(
-                          hintText: 'Search 100+ subtitle languages...',
-                          hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.35), fontSize: 12),
-                          prefixIcon: const Icon(Icons.search, color: Colors.white, size: 16),
-                          fillColor: const Color(0xFF0F0F11),
-                          filled: true,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: Colors.white),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxHeight: 180),
-                        child: SingleChildScrollView(
-                          child: Wrap(
-                            spacing: 6,
-                            runSpacing: 6,
-                            children: filteredSubLangs.map((lang) {
-                              final isSelected = selectedSubLangs.contains(lang);
-                              return FilterChip(
-                                selected: isSelected,
-                                label: Text(lang, style: TextStyle(color: isSelected ? Colors.black : Colors.white, fontSize: 11)),
-                                selectedColor: Colors.white,
-                                backgroundColor: const Color(0xFF0F0F11),
-                                onSelected: (_) {
-                                  controller.toggleSubtitleLanguage(lang);
-                                },
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-              const Divider(color: Colors.white10),
+              const SizedBox(height: 12),
 
-              // AI Audio Translation & Dubbing (70+ Languages)
-              SwitchListTile(
-                value: isDubbing,
-                onChanged: (val) => controller.aiGenerateDubbing.value = val,
-                title: const Text('AI Audio Translation & Dubbing (70+ Languages)', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-                subtitle: Text('Natural AI voice dubbing (Selecting dubbing auto-enables subtitles)', style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11)),
-                activeColor: Colors.white,
-                secondary: const Icon(Icons.translate, color: Colors.white, size: 20),
-                contentPadding: EdgeInsets.zero,
+              // 3. TruthWorld Verification (Direct On / Off Toggle - 100% Free)
+              _buildDirectToggleCard(
+                context: context,
+                icon: Icons.verified,
+                iconColor: const Color(0xFF34D399),
+                iconBgColor: const Color(0xFF10B981).withValues(alpha: 0.15),
+                badgeLabel: '100% FREE',
+                badgeColor: const Color(0xFF10B981),
+                title: 'Truth Verification (Full Ground Truth)',
+                subtitle: 'Epistemic multi-source AI verification & Truth Score',
+                isEnabled: isFactCheck,
+                onToggle: (val) {
+                  controller.aiFactCheckEnabled.value = val;
+                  if (val) {
+                    controller.aiFactCheckTier.value = 'full_ground';
+                  }
+                },
               ),
-              if (isDubbing) ...[
-                Padding(
-                  padding: const EdgeInsets.only(left: 12, top: 4, bottom: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Dubbing Pricing Card for Standard vs Custom Channels
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: isCustom
-                              ? const Color(0xFF1F1235)
-                              : const Color(0xFF141418),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: isCustom
-                                ? const Color(0xFF7C3AED).withValues(alpha: 0.5)
-                                : const Color(0xFF27272A),
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 3,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: isCustom
-                                        ? const Color(0xFF7C3AED)
-                                        : const Color(0xFF27272A),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    isCustom ? 'CUSTOM CHANNEL' : 'STANDARD CHANNEL',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    isCustom
-                                        ? r'$0.25 / language (50% Partner Discount)'
-                                        : r'$0.50 / language (Min $1.50)',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              isCustom
-                                  ? '✓ Studio Vocal Identity & Voice Cloning included at no extra charge • Deducted from monthly bonus credit & channel revenue.'
-                                  : 'Standard AI voice synthesis • Funded from channel balance & trial credit. (Tip: Custom channels get 50% discount & Voice Cloning).',
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.7),
-                                fontSize: 11,
-                                height: 1.3,
-                              ),
-                            ),
-                            if (selectedDubLangs.isNotEmpty) ...[
-                              const SizedBox(height: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.black26,
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      '${selectedDubLangs.length} ${selectedDubLangs.length == 1 ? "language" : "languages"} selected',
-                                      style: const TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                    Text(
-                                      'Estimated Cost: \$${dubbingCost.toStringAsFixed(2)}',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                            const SizedBox(height: 8),
-                            // Channel Wallet Balance & Quick Add Money
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.black12,
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: Colors.white10),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.account_balance_wallet_outlined,
-                                        color: Colors.white70,
-                                        size: 14,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        'Wallet: \$${(controller.selectedChannel.value?.walletBalanceUSD ?? 0.0).toStringAsFixed(2)}',
-                                        style: const TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  if (controller.selectedChannel.value != null)
-                                    GestureDetector(
-                                      onTap: () {
-                                        ChannelWalletTopupSheet.show(
-                                          context,
-                                          channel: controller.selectedChannel.value!,
-                                        );
-                                      },
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 3,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.brand,
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                        child: const Text(
-                                          '+ Add Money',
-                                          style: TextStyle(
-                                            color: Colors.black,
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      TextField(
-                        onChanged: (v) => dubbingSearchQuery.value = v,
-                        style: const TextStyle(color: Colors.white, fontSize: 12),
-                        decoration: InputDecoration(
-                          hintText: 'Search 70+ dubbing languages...',
-                          hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.35), fontSize: 12),
-                          prefixIcon: const Icon(Icons.search, color: Colors.white, size: 16),
-                          fillColor: const Color(0xFF0F0F11),
-                          filled: true,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: Colors.white),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxHeight: 180),
-                        child: SingleChildScrollView(
-                          child: Wrap(
-                            spacing: 6,
-                            runSpacing: 6,
-                            children: filteredDubLangs.map((lang) {
-                              final isSelected = selectedDubLangs.contains(lang);
-                              return FilterChip(
-                                selected: isSelected,
-                                label: Text(lang, style: TextStyle(color: isSelected ? Colors.black : Colors.white, fontSize: 11)),
-                                selectedColor: Colors.white,
-                                backgroundColor: const Color(0xFF0F0F11),
-                                onSelected: (_) {
-                                  controller.toggleDubbingLanguage(lang);
-                                },
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+              const SizedBox(height: 16),
               const Divider(color: Colors.white10),
+              const SizedBox(height: 8),
 
-              // Speaker Diarization
+              // Speaker Diarization Switch
               SwitchListTile(
                 value: isDiarization,
                 onChanged: (val) => controller.aiDiarizationEnabled.value = val,
-                title: const Text('Speaker Diarization', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-                subtitle: Text('Identify and label multiple speakers', style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11)),
+                title: const Text(
+                  'Speaker Diarization',
+                  style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                ),
+                subtitle: Text(
+                  'Identify and label multiple speakers',
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11),
+                ),
                 activeColor: Colors.white,
                 secondary: const Icon(Icons.record_voice_over, color: Colors.white, size: 20),
                 contentPadding: EdgeInsets.zero,
               ),
               const Divider(color: Colors.white10),
 
-              // Auto Chapters
+              // Auto Chapters Switch
               SwitchListTile(
                 value: isChapters,
                 onChanged: (val) => controller.aiChaptersEnabled.value = val,
-                title: const Text('Auto Chapters', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-                subtitle: Text('Generate smart video timestamp chapters', style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11)),
+                title: const Text(
+                  'Auto Chapters',
+                  style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                ),
+                subtitle: Text(
+                  'Generate smart video timestamp chapters',
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11),
+                ),
                 activeColor: Colors.white,
                 secondary: const Icon(Icons.video_label, color: Colors.white, size: 20),
-                contentPadding: EdgeInsets.zero,
-              ),
-              const Divider(color: Colors.white10),
-
-              // AI Summary
-              SwitchListTile(
-                value: isSummary,
-                onChanged: (val) => controller.aiSummaryEnabled.value = val,
-                title: const Text('AI Video Summary', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-                subtitle: Text('Generate smart key takeaways overview', style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11)),
-                activeColor: Colors.white,
-                secondary: const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
-                contentPadding: EdgeInsets.zero,
-              ),
-              const Divider(color: Colors.white10),
-
-              // Truth Verification
-              SwitchListTile(
-                value: isFactCheck,
-                onChanged: (val) => controller.aiFactCheckEnabled.value = val,
-                title: const Text('Truth Verification Analysis', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-                subtitle: Text('Enable automated fact-checking & claim verification', style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11)),
-                activeColor: Colors.white,
-                secondary: const Icon(Icons.verified, color: Colors.white, size: 20),
                 contentPadding: EdgeInsets.zero,
               ),
             ],
@@ -426,5 +214,311 @@ class CreateContentAISection extends StatelessWidget {
         ),
       );
     });
+  }
+
+  Widget _buildDirectToggleCard({
+    required BuildContext context,
+    required IconData icon,
+    required Color iconColor,
+    required Color iconBgColor,
+    required String title,
+    required String subtitle,
+    required bool isEnabled,
+    required ValueChanged<bool> onToggle,
+    String? badgeLabel,
+    Color? badgeColor,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF131316),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isEnabled
+              ? const Color(0xFF34D399).withValues(alpha: 0.35)
+              : Colors.white.withValues(alpha: 0.06),
+          width: isEnabled ? 1.2 : 1.0,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: iconBgColor,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: iconColor, size: 18),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (badgeLabel != null) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                          decoration: BoxDecoration(
+                            color: (badgeColor ?? Colors.white).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: (badgeColor ?? Colors.white).withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: Text(
+                            badgeLabel,
+                            style: TextStyle(
+                              color: badgeColor ?? Colors.white,
+                              fontSize: 8,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.5),
+                      fontSize: 11,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            Switch(
+              value: isEnabled,
+              activeColor: Colors.white,
+              onChanged: onToggle,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeatureCard({
+    required BuildContext context,
+    required IconData icon,
+    required Color iconColor,
+    required Color iconBgColor,
+    required String title,
+    required String subtitle,
+    required bool isEnabled,
+    required ValueChanged<bool> onToggle,
+    required String statusText,
+    required String buttonLabel,
+    required VoidCallback onOpenPage,
+    String? badgeLabel,
+    Color? badgeColor,
+    List<String>? selectedLanguages,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF131316),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isEnabled ? Colors.white24 : Colors.white.withValues(alpha: 0.06),
+          width: isEnabled ? 1.2 : 1.0,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Row with Switch
+          Padding(
+            padding: const EdgeInsets.only(left: 14, right: 8, top: 12, bottom: 8),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: iconBgColor,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: iconColor, size: 18),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              title,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (badgeLabel != null) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: (badgeColor ?? Colors.white).withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: (badgeColor ?? Colors.white).withValues(alpha: 0.3),
+                                ),
+                              ),
+                              child: Text(
+                                badgeLabel,
+                                style: TextStyle(
+                                  color: badgeColor ?? Colors.white,
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.4,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.5),
+                          fontSize: 11,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: isEnabled,
+                  activeColor: Colors.white,
+                  onChanged: onToggle,
+                ),
+              ],
+            ),
+          ),
+
+          // Selected languages pill preview
+          if (isEnabled && selectedLanguages != null && selectedLanguages.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.only(left: 14, right: 14, bottom: 10),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: [
+                  ...selectedLanguages.take(6).map((lang) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white24),
+                      ),
+                      child: Text(
+                        lang,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    );
+                  }),
+                  if (selectedLanguages.length > 6)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white12),
+                      ),
+                      child: Text(
+                        '+${selectedLanguages.length - 6} more',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+
+          // Divider
+          const Divider(color: Colors.white10, height: 1),
+
+          // Footer Action & Status Row
+          InkWell(
+            onTap: onOpenPage,
+            borderRadius: const BorderRadius.only(
+              bottomLeft: Radius.circular(12),
+              bottomRight: Radius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      statusText,
+                      style: TextStyle(
+                        color: isEnabled ? Colors.white : Colors.white60,
+                        fontSize: 11.5,
+                        fontWeight: isEnabled ? FontWeight.w600 : FontWeight.normal,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        buttonLabel,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

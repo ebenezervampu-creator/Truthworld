@@ -14,12 +14,17 @@ class PremiumController extends BaseController {
   final RxString selectedPlanId = 'individual_monthly'.obs;
   final RxBool rxIsLoading = false.obs;
   RxBool get isSimulating => rxIsLoading;
+  final RxBool isAutoPay = true.obs;
+
+  void toggleAutoPay([bool? value]) {
+    isAutoPay.value = value ?? !isAutoPay.value;
+  }
 
   static const Map<String, double> planPricesINR = {
     'audio_monthly': 40.0,
     'individual_monthly': 169.0,
     '4k_factchecked_monthly': 249.0,
-    'family_monthly': 399.0,
+    'family_monthly': 400.0,
     'individual_yearly': 1490.0,
   };
 
@@ -27,8 +32,8 @@ class PremiumController extends BaseController {
     'audio_monthly': 0.50,
     'individual_monthly': 2.0,
     '4k_factchecked_monthly': 3.0,
-    'family_monthly': 4.99,
-    'individual_yearly': 17.99,
+    'family_monthly': 5.0,
+    'individual_yearly': 18.0,
   };
 
   static const Map<String, String> planTitles = {
@@ -199,13 +204,14 @@ class PremiumController extends BaseController {
       final creditUSD = getCreditAppliedUSD(planId);
       final title = planTitles[planId] ?? 'TruthWorld Premium';
 
+      final autoPaySuffix = isAutoPay.value ? ' (Auto Pay)' : ' (One-Time)';
       final orderNote = isIndian
           ? (isUpgrading
-              ? 'Upgrade to $title (₹${creditINR.toInt()} credit applied)'
-              : '$title Subscription')
+              ? 'Upgrade to $title$autoPaySuffix (₹${creditINR.toInt()} credit applied)'
+              : '$title$autoPaySuffix Subscription')
           : (isUpgrading
-              ? 'Upgrade to $title (\$${creditUSD.toStringAsFixed(creditUSD == 0.5 ? 2 : 0)} USD credit applied)'
-              : '$title Subscription');
+              ? 'Upgrade to $title$autoPaySuffix (\$${creditUSD.toStringAsFixed(creditUSD == 0.5 ? 2 : 0)} USD credit applied)'
+              : '$title$autoPaySuffix Subscription');
 
       final paymentResult = await CashfreePaymentService.to.startPayment(
         amount: amountINR,
@@ -218,6 +224,8 @@ class PremiumController extends BaseController {
           'previousPlanId': auth.premiumPlanId.value,
           'creditApplied': creditINR,
           'currency': isIndian ? 'INR' : 'USD',
+          'autoPay': isAutoPay.value,
+          'billingType': isAutoPay.value ? 'recurring' : 'one_time',
           if (!isIndian) 'amountUSD': amountUSD,
           if (!isIndian) 'creditUSD': creditUSD,
         },
@@ -237,38 +245,55 @@ class PremiumController extends BaseController {
         auth.premiumStartedAt.value = startedAtMs;
         auth.premiumExpiresAt.value = expiresAtMs;
 
+        final subId = paymentResult.details?['subscriptionId'] as String? ??
+            (paymentResult.orderId.startsWith('sub_') ? paymentResult.orderId : null);
+
         final box = GetStorage();
         box.write('isPremiumUser', true);
         box.write('premiumPlanId', planId);
         box.write('premiumStartedAt', startedAtMs);
         box.write('premiumExpiresAt', expiresAtMs);
+        box.write('isAutoPay', isAutoPay.value);
+        if (subId != null) {
+          box.write('cashfreeSubscriptionId', subId);
+        }
 
         // Authoritatively persist to Firestore users collection
         final u = auth.user;
         if (u != null) {
           try {
+            final updateData = <String, dynamic>{
+              'isPremium': true,
+              'premiumPlanId': planId,
+              'premiumStartedAt': startedAtMs,
+              'premiumExpiresAt': expiresAtMs,
+              'isAutoPay': isAutoPay.value,
+              'autoPay': isAutoPay.value,
+              'updatedAt': FieldValue.serverTimestamp(),
+            };
+            if (subId != null) {
+              updateData['cashfreeSubscriptionId'] = subId;
+            }
             await FirebaseFirestore.instance
                 .collection(FirestoreCollections.users)
                 .doc(u.uid)
-                .update({
-                  'isPremium': true,
-                  'premiumPlanId': planId,
-                  'premiumStartedAt': startedAtMs,
-                  'premiumExpiresAt': expiresAtMs,
-                  'updatedAt': FieldValue.serverTimestamp(),
-                });
+                .update(updateData);
           } catch (fireErr, s) {
             ErrorHandler.log(fireErr, stackTrace: s, tag: 'PremiumController.updateUserDoc');
           }
         }
 
+        final autoPayNote = isAutoPay.value
+            ? ' Auto Pay is active and will renew automatically.'
+            : ' One-time payment valid for this billing cycle.';
+
         final successMessage = isIndian
             ? (isUpgrading
-                ? 'Your plan has been upgraded to $title. ₹${creditINR.toInt()} credit was applied!'
-                : 'Your $title is now active. Enjoy ad-free 4K streaming and AI fact-checking!')
+                ? 'Your plan has been upgraded to $title. ₹${creditINR.toInt()} credit was applied!$autoPayNote'
+                : 'Your $title is now active. Enjoy ad-free 4K streaming and AI fact-checking!$autoPayNote')
             : (isUpgrading
-                ? 'Your plan has been upgraded to $title. \$${creditUSD.toStringAsFixed(creditUSD == 0.5 ? 2 : 0)} USD credit was applied!'
-                : 'Your $title is now active. Enjoy ad-free 4K streaming and AI fact-checking!');
+                ? 'Your plan has been upgraded to $title. \$${creditUSD.toStringAsFixed(creditUSD == 0.5 ? 2 : 0)} USD credit was applied!$autoPayNote'
+                : 'Your $title is now active. Enjoy ad-free 4K streaming and AI fact-checking!$autoPayNote');
 
         AppSnackbar.success(
           successMessage,
@@ -307,6 +332,66 @@ class PremiumController extends BaseController {
     } catch (e, stackTrace) {
       ErrorHandler.log(e, stackTrace: stackTrace, tag: 'PremiumController.cancelSimulated');
       AppSnackbar.error('Unable to cancel subscription. Please try again.');
+    } finally {
+      rxIsLoading.value = false;
+    }
+  }
+
+  /// Cancels active Cashfree Auto Pay mandate anytime while preserving service until cycle ends
+  Future<bool> cancelAutoPay() async {
+    final auth = AuthService.to;
+    if (!auth.isAuthenticated.value) return false;
+    final uid = auth.user?.uid;
+    if (uid == null) return false;
+
+    rxIsLoading.value = true;
+    try {
+      final box = GetStorage();
+      var subId = box.read<String>('cashfreeSubscriptionId');
+
+      if (subId == null || subId.isEmpty) {
+        final subDoc = await FirebaseFirestore.instance
+            .collection('payment_subscriptions')
+            .where('userId', isEqualTo: uid)
+            .where('purpose', isEqualTo: 'premium_subscription')
+            .where('status', isEqualTo: 'ACTIVE')
+            .limit(1)
+            .get();
+        if (subDoc.docs.isNotEmpty) {
+          subId = subDoc.docs.first.id;
+        }
+      }
+
+      if (subId != null && subId.isNotEmpty) {
+        final cancelled = await CashfreePaymentService.to.cancelSubscriptionOnServer(subId);
+        if (!cancelled) {
+          AppSnackbar.warning('Unable to cancel Auto Pay mandate with the gateway. Please try again.');
+          return false;
+        }
+      }
+
+      await FirebaseFirestore.instance
+          .collection(FirestoreCollections.users)
+          .doc(uid)
+          .update({
+        'isAutoPay': false,
+        'autoPay': false,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      box.write('isAutoPay', false);
+      box.remove('cashfreeSubscriptionId');
+      isAutoPay.value = false;
+
+      AppSnackbar.success(
+        'Auto Pay has been turned off. Your subscription benefits remain active until the end of this billing cycle.',
+        title: 'Auto Pay Cancelled',
+      );
+      return true;
+    } catch (e, stackTrace) {
+      ErrorHandler.log(e, stackTrace: stackTrace, tag: 'PremiumController.cancelAutoPay');
+      AppSnackbar.error('Could not cancel Auto Pay. Please check your connection and try again.');
+      return false;
     } finally {
       rxIsLoading.value = false;
     }

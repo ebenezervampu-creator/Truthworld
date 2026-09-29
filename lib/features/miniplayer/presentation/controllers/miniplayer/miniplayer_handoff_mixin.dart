@@ -1,14 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:get/get.dart';
 import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/pip_service.dart';
 import 'package:truthworld/features/miniplayer/data/models/miniplayer_model.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer/miniplayer_gestures_mixin.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer/miniplayer_playback_mixin.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer/miniplayer_state_base.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer/miniplayer_subtitles_mixin.dart';
+import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
@@ -63,6 +64,10 @@ mixin MiniplayerHandoffMixin on
           );
         }
       }
+      PipService.to.updateAutoPip(
+        enabled: isPlaying.value,
+        aspectRatio: currentAspectRatio,
+      );
       return;
     }
 
@@ -144,7 +149,10 @@ mixin MiniplayerHandoffMixin on
         debugPrint('[MiniplayerController] Initializing player for: $targetUrl');
         vpc = VideoPlayerController.networkUrl(
           Uri.parse(targetUrl),
-          videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+          videoPlayerOptions: VideoPlayerOptions(
+            mixWithOthers: true,
+            allowBackgroundPlayback: true,
+          ),
         );
         await vpc.initialize();
       }
@@ -196,6 +204,10 @@ mixin MiniplayerHandoffMixin on
       }
 
       startPositionTimer();
+      PipService.to.updateAutoPip(
+        enabled: isPlaying.value,
+        aspectRatio: currentAspectRatio,
+      );
     } catch (e, s) {
       if (isControllerClosed) return;
       final errorMsg = e.toString();
@@ -227,6 +239,7 @@ mixin MiniplayerHandoffMixin on
   @override
   void dismiss() {
     if (isControllerClosed) return;
+    PipService.to.updateAutoPip(enabled: false);
     recoveryDebounceTimer?.cancel();
     recoveryAttempts = 0;
     disposeVideoControllers();
@@ -279,6 +292,11 @@ mixin MiniplayerHandoffMixin on
     } else {
       // On web or when controller is null, ensure exact resume position is registered
       VideoPlaybackHandoff.registerResumePosition(video.id, pos);
+      if (kIsWeb && internalVpc != null) {
+        try {
+          internalVpc!.pause();
+        } catch (_) {}
+      }
     }
 
     final args = <String, dynamic>{
@@ -290,17 +308,11 @@ mixin MiniplayerHandoffMixin on
         'overrideUrl': currentPlayingUrl,
     };
 
-    final currentRoute = Get.currentRoute.toLowerCase();
-    final isCurrentlyOnWatch =
-        currentRoute.contains('/watch') && currentRoute.contains(video.id);
-
-    if (!isCurrentlyOnWatch) {
-      Get.toNamed(
-        '/watch?v=${video.id}',
-        arguments: args,
-        preventDuplicates: false,
-      );
-    }
+    MiniplayerNavigationHelper.navigateToVideoScreen(
+      video: video,
+      routeArguments: args,
+      resumePosition: pos,
+    );
 
     // Give navigation transition 600ms to complete smoothly before cleaning up transitioning state.
     // VideoScreen's postFrameCallback will also call dismiss() once mounted.

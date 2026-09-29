@@ -6,6 +6,7 @@ import 'package:truthworld/features/settings/presentation/controllers/user_setti
 import 'package:truthworld/features/video/presentation/controllers/playback_source.dart';
 import 'package:truthworld/features/video/presentation/controllers/player_lock_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player/tower_player_ad_policy_evaluator.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/services/sleep_timer_service.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:video_player/video_player.dart';
@@ -16,6 +17,7 @@ mixin TowerPlayerStateMixin on GetxController {
   String? get tag;
   RxBool get isAudioOnly;
   RxBool get isShowingAd;
+  VideoController? get videoController;
 
   // ── Reactive Video State ──────────────────────────────────
   late Rx<VideoPlayerValue> rxValue;
@@ -67,9 +69,18 @@ mixin TowerPlayerStateMixin on GetxController {
 
   // ── Ad State Bridge ───────────────────────────────────────
   bool get isPremiumUser => TowerPlayerAdPolicyEvaluator.isPremiumUser();
-  bool get shouldSuppressAds => TowerPlayerAdPolicyEvaluator.shouldSuppressAds(
-        isAudioOnly: isAudioOnly.value,
-      );
+  bool get shouldSuppressAds {
+    final vCtrl = videoController;
+    final isMember = vCtrl?.channelController.subController.isChannelMember.value ?? false;
+    final channel = vCtrl?.channelController.selectedChannel.value;
+    final channelNoAds = channel?.noAdsForMembers ?? false;
+
+    return TowerPlayerAdPolicyEvaluator.shouldSuppressAds(
+      isAudioOnly: isAudioOnly.value,
+      isChannelMember: isMember,
+      channelNoAdsForMembers: channelNoAds,
+    );
+  }
 
   // ── Bridge Hooks ──────────────────────────────────────────
   bool get isShowingAdValue => isShowingAd.value;

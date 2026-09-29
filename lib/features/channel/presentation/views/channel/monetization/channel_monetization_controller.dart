@@ -7,6 +7,8 @@ import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/core/services/infrastructure_metering_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/analytics/presentation/controllers/revenue_analytics_controller.dart';
+import 'package:truthworld/features/analytics/presentation/widgets/revenue_withdrawal_dialog.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
 
@@ -23,7 +25,12 @@ class ChannelMonetizationController extends GetxController {
   bool get isUpdating => isUpdatingRx.value;
 
   final RxString selectedPlanId = 'starter_15'.obs;
+  final RxBool autoPayEnabled = true.obs;
   final ChannelWalletService walletService = ChannelWalletService();
+
+  void toggleAutoPay([bool? value]) {
+    autoPayEnabled.value = value ?? !autoPayEnabled.value;
+  }
 
   @override
   void onInit() {
@@ -36,41 +43,42 @@ class ChannelMonetizationController extends GetxController {
 
   SpendableBalance get spendableBalance {
     final isCustom = channel.channelType == ChannelType.custom;
-    final totalRev =
+    final totalCreatorRevenue =
         adRevenue + premiumSubRevenue + tipsRevenue + membershipsRevenue;
-    final withdrawable = isCustom
-        ? totalRev
-        : ((adRevenue + premiumSubRevenue) * 0.70 +
-            tipsRevenue +
-            membershipsRevenue);
-    final platformCut =
-        isCustom ? 0.0 : ((adRevenue + premiumSubRevenue) * 0.30);
+    final membershipPlatformCut = (!isCustom && channel.noAdsForMembers)
+        ? ((membershipsRevenue > 0 ? membershipsRevenue / 0.70 : 0.0) * 0.30)
+        : 0.0;
+    final platformCut = isCustom
+        ? 0.0
+        : (((adRevenue > 0 ? adRevenue / 0.70 : 0.0) * 0.30) +
+            ((premiumSubRevenue > 0 ? premiumSubRevenue / 0.70 : 0.0) * 0.30) +
+            membershipPlatformCut);
+    final grossTotal = totalCreatorRevenue + platformCut;
     return walletService.getSpendableBalance(
       channel: channel,
-      rawTotalRevenue: totalRev,
-      withdrawableRevenue: withdrawable,
+      rawTotalRevenue: grossTotal,
+      withdrawableRevenue: totalCreatorRevenue,
       lockedRevenue: platformCut,
     );
   }
 
-
-  // Real channel revenue metrics derived from channel activity
-  double get adRevenue =>
-      channel.metrics.totalViews > 0 ? (channel.metrics.totalViews * 0.005) : 0.0;
-  double get premiumSubRevenue => channel.metrics.totalWatchTimeMinutes > 0
-      ? (channel.metrics.totalWatchTimeMinutes * 0.002)
-      : 0.0;
-  double get tipsRevenue =>
-      Get.isRegistered<DashboardController>()
+  // Authentic Firestore channel revenue totals with zero mock amounts
+  double get adRevenue => channel.adsRevenueTotal;
+  double get premiumSubRevenue => channel.premiumSubsRevenueTotal;
+  double get tipsRevenue => channel.superchatRevenueTotal > 0
+      ? channel.superchatRevenueTotal
+      : (Get.isRegistered<DashboardController>()
           ? Get.find<DashboardController>().rxSuperchatRevenue.value
-          : 0.0;
-  double get membershipsRevenue =>
-      Get.isRegistered<DashboardController>()
+          : 0.0);
+  double get membershipsRevenue => channel.membershipRevenueTotal > 0
+      ? channel.membershipRevenueTotal
+      : (Get.isRegistered<DashboardController>()
           ? Get.find<DashboardController>().rxMembershipsRevenue.value
-          : 0.0;
+          : 0.0);
 
-  // Real channel video metrics for 10-hour withdrawal rule
+  // Real channel video metrics for 1,000 views & 10-hour withdrawal rule
   int get singleVideoWatchTimeMinutes => channel.metrics.totalWatchTimeMinutes;
+  int get singleVideoViews => channel.metrics.totalViews;
   double get singleVideoRevenue => adRevenue + premiumSubRevenue;
 
   // Authentic custom channel infra consumption from infraConfig
@@ -211,12 +219,13 @@ class ChannelMonetizationController extends GetxController {
       userId: userId,
       planTier: plan.id,
       priceUSD: plan.priceUSD,
+      autoPay: autoPayEnabled.value,
     );
 
     if (success) {
       final existingInfra = channel.infraConfig;
       final newTrialRemaining = existingInfra != null
-          ? (existingInfra.trialCreditRemainingUSD - plan.priceUSD).clamp(0.0, 999999.0)
+          ? (existingInfra.trialCreditRemainingUSD - plan.priceUSD).clamp(0.0, 1000000.0)
           : 0.0;
 
       final updatedInfra = CustomChannelInfraConfig(
@@ -228,6 +237,170 @@ class ChannelMonetizationController extends GetxController {
         bandwidthQuotaBytesThisMonth: plan.bandwidthGB * 1024 * 1024 * 1024,
         trialCreditRemainingUSD: newTrialRemaining,
         planTier: plan.id,
+        autoPay: autoPayEnabled.value,
+      );
+
+      channelRx.value = Channel(
+        id: channel.id,
+        name: channel.name,
+        nameLowercase: channel.nameLowercase,
+        handle: channel.handle,
+        handleLowercase: channel.handleLowercase,
+        description: channel.description,
+        avatarUrl: channel.avatarUrl,
+        bannerUrl: channel.bannerUrl,
+        ownerId: channel.ownerId,
+        createdAt: channel.createdAt,
+        updatedAt: Timestamp.now(),
+        subscriberCount: channel.subscriberCount,
+        videoCount: channel.videoCount,
+        metrics: channel.metrics,
+        status: channel.status,
+        isVerified: channel.isVerified,
+        category: channel.category,
+        categories: channel.categories,
+        language: channel.language,
+        monetizationTier: channel.monetizationTier,
+        channelType: ChannelType.custom,
+        infraConfig: updatedInfra,
+      );
+      selectedPlanId.value = plan.id;
+
+      final autoPayNote = autoPayEnabled.value ? ' Auto Pay is active.' : '';
+      AppSnackbar.success(
+        'Successfully subscribed to ${plan.title} plan (\$${plan.priceUSD.toStringAsFixed(0)}/mo) using account balance.$autoPayNote',
+        title: 'Plan Activated!',
+      );
+    }
+    isUpdatingRx.value = false;
+  }
+
+  /// Subscribes to Custom Channel Plan using Spendable Balance if available, or Cashfree PG directly
+  Future<void> subscribePlan(
+    BuildContext context,
+    CustomChannelPlanTier plan,
+  ) async {
+    final spendable = spendableBalance;
+    if (spendable.canAfford(plan.priceUSD)) {
+      await subscribePlanWithBalance(context, plan);
+      return;
+    }
+
+    // Direct Cashfree payment with Auto Pay option
+    isUpdatingRx.value = true;
+    final success = await walletService.buyCustomPlanWithCashfree(
+      channel: channel,
+      plan: plan,
+      autoPay: autoPayEnabled.value,
+    );
+
+    if (success) {
+      final existingInfra = channel.infraConfig;
+      final updatedInfra = CustomChannelInfraConfig(
+        stripeConnectAccountId: existingInfra?.stripeConnectAccountId ?? '',
+        subscriptionId: existingInfra?.subscriptionId ?? 'sub_${channel.id}',
+        storageUsedBytes: existingInfra?.storageUsedBytes ?? 0,
+        storageQuotaBytes: plan.storageGB * 1024 * 1024 * 1024,
+        bandwidthUsedBytesThisMonth: existingInfra?.bandwidthUsedBytesThisMonth ?? 0,
+        bandwidthQuotaBytesThisMonth: plan.bandwidthGB * 1024 * 1024 * 1024,
+        trialCreditRemainingUSD: existingInfra?.trialCreditRemainingUSD ?? 0.0,
+        planTier: plan.id,
+        autoPay: autoPayEnabled.value,
+      );
+
+      channelRx.value = Channel(
+        id: channel.id,
+        name: channel.name,
+        nameLowercase: channel.nameLowercase,
+        handle: channel.handle,
+        handleLowercase: channel.handleLowercase,
+        description: channel.description,
+        avatarUrl: channel.avatarUrl,
+        bannerUrl: channel.bannerUrl,
+        ownerId: channel.ownerId,
+        createdAt: channel.createdAt,
+        updatedAt: Timestamp.now(),
+        subscriberCount: channel.subscriberCount,
+        videoCount: channel.videoCount,
+        metrics: channel.metrics,
+        status: channel.status,
+        isVerified: channel.isVerified,
+        category: channel.category,
+        categories: channel.categories,
+        language: channel.language,
+        monetizationTier: channel.monetizationTier,
+        channelType: ChannelType.custom,
+        infraConfig: updatedInfra,
+      );
+      selectedPlanId.value = plan.id;
+
+      final autoPayNote = autoPayEnabled.value
+          ? ' Auto Pay is active for monthly renewals.'
+          : ' Valid for 1 month.';
+      AppSnackbar.success(
+        'Successfully subscribed to ${plan.title} plan (\$${plan.priceUSD.toStringAsFixed(0)}/mo)!$autoPayNote',
+        title: 'Plan Activated!',
+      );
+    }
+    isUpdatingRx.value = false;
+  }
+
+  /// Evaluates and compiles real-time hype surge metrics across all 4 revenue streams
+  HypeSurgeSummary get hypeSurgeSummary {
+    return InfrastructureMeteringService.computeHypeSurgeSummary(
+      channel: channel,
+      adRevenue: adRevenue,
+      premiumSubRevenue: premiumSubRevenue,
+      membershipsRevenue: membershipsRevenue,
+      tipsRevenue: tipsRevenue,
+    );
+  }
+
+  /// Whether the custom channel is currently undergoing a traffic hype spike or bandwidth strain
+  bool get isHypeSurgeActive => hypeSurgeSummary.isHypeSurgeActive;
+
+  /// 1-Click action to upgrade the custom channel plan using collected hype revenue,
+  /// settling surge infrastructure costs and restoring unconstrained 4K/1080p playback.
+  Future<bool> upgradePlanToCoverSurge([CustomChannelPlanTier? targetPlan]) async {
+    final summary = hypeSurgeSummary;
+    final plan = targetPlan ?? summary.recommendedUpgradePlan;
+    final auth = AuthService.to;
+    final userId = auth.uid.isNotEmpty ? auth.uid : channel.ownerId;
+    final spendable = spendableBalance;
+
+    if (!spendable.canAfford(plan.priceUSD)) {
+      AppSnackbar.warning(
+        'Your spendable revenue balance (\$${spendable.totalSpendableBalance.toStringAsFixed(2)}) is insufficient for \$${plan.priceUSD.toStringAsFixed(2)}.',
+        title: 'Insufficient Balance',
+      );
+      return false;
+    }
+
+    isUpdatingRx.value = true;
+    final success = await walletService.spendForCustomPlan(
+      channel: channel,
+      userId: userId,
+      planTier: plan.id,
+      priceUSD: plan.priceUSD,
+    );
+
+    if (success) {
+      final existingInfra = channel.infraConfig;
+      final newTrialRemaining = existingInfra != null
+          ? (existingInfra.trialCreditRemainingUSD - plan.priceUSD).clamp(0.0, 1000000.0)
+          : 0.0;
+
+      final updatedInfra = CustomChannelInfraConfig(
+        stripeConnectAccountId: existingInfra?.stripeConnectAccountId ?? '',
+        subscriptionId: existingInfra?.subscriptionId ?? 'sub_${channel.id}',
+        storageUsedBytes: existingInfra?.storageUsedBytes ?? 0,
+        storageQuotaBytes: plan.storageGB * 1024 * 1024 * 1024,
+        bandwidthUsedBytesThisMonth: existingInfra?.bandwidthUsedBytesThisMonth ?? 0,
+        bandwidthQuotaBytesThisMonth: plan.bandwidthGB * 1024 * 1024 * 1024,
+        flatPlatformFee: plan.priceUSD,
+        trialCreditRemainingUSD: newTrialRemaining,
+        planTier: plan.id,
+        autoPay: autoPayEnabled.value,
       );
 
       channelRx.value = Channel(
@@ -257,10 +430,21 @@ class ChannelMonetizationController extends GetxController {
       selectedPlanId.value = plan.id;
 
       AppSnackbar.success(
-        'Successfully subscribed to ${plan.title} plan (\$${plan.priceUSD.toStringAsFixed(0)}/mo) using account balance.',
-        title: 'Plan Activated!',
+        'Upgraded to ${plan.title} (\$${plan.priceUSD.toStringAsFixed(0)}/mo). Surge capacity expanded to ${plan.bandwidthGB} GB CDN and revenue withdrawals are unlocked!',
+        title: 'Withdrawals Unlocked!',
       );
+      isUpdatingRx.value = false;
+      return true;
     }
     isUpdatingRx.value = false;
+    return false;
+  }
+
+  /// Opens the bank withdrawal dialog to cash out 100% of accumulated revenue
+  void openRevenueWithdrawalDialog(BuildContext context) {
+    if (!Get.isRegistered<RevenueAnalyticsController>()) {
+      Get.put(RevenueAnalyticsController());
+    }
+    RevenueWithdrawalDialog.show(context);
   }
 }

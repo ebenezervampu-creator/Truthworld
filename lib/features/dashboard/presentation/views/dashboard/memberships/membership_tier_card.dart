@@ -365,7 +365,7 @@ class EmptyTiersView extends StatelessWidget {
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 540),
             child: Text(
-              r'Set up membership levels (e.g. Bronze $1.99/mo, Silver VIP $4.99/mo, Gold Patron $9.99/mo) so fans can support your channel directly with 0% platform commission.',
+              r'Set up membership levels (e.g. Bronze $2/mo, Silver VIP $5/mo, Gold Patron $10/mo) so fans can support your channel directly with 0% platform commission.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 13,

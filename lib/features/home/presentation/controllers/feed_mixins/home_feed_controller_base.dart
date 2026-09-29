@@ -54,6 +54,9 @@ abstract class HomeFeedControllerBase extends BaseController {
   /// Current authenticated user ID if available.
   String? get currentUserId => authService.user?.uid;
 
+  @override
+  bool get isItemsEmpty => homeFeedItems.isEmpty && videos.isEmpty;
+
   // --- Abstract Cross-Mixin Coordination Hooks ---
   bool matchesCategory(Video v, String cat);
   Set<String> getWatchedVideoIds();

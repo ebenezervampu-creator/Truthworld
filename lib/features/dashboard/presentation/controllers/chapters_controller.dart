@@ -35,6 +35,7 @@ class ChaptersController extends BaseController with ContentValidationMixin {
   // Selected video and chapters editing state
   final selectedVideo = Rxn<Video>();
   final RxList<VideoChapter> currentChapters = <VideoChapter>[].obs;
+  final RxBool autoChaptersEnabled = true.obs;
   final RxBool isSaving = false.obs;
   final RxBool isAnalyzing = false.obs;
   final RxBool hasUnsavedChanges = false.obs;
@@ -236,6 +237,7 @@ class ChaptersController extends BaseController with ContentValidationMixin {
       return;
     }
 
+    autoChaptersEnabled.value = video.autoChaptersEnabled;
     logger.info('Selected video for chapters: ${video.title}', tag: _tag);
 
     // Lazy-load streaming from subcollection first (contains chapters)
@@ -245,6 +247,63 @@ class ChaptersController extends BaseController with ContentValidationMixin {
     // Sort chapters by startTime just in case they aren't ordered in database
     currentChapters.sort((a, b) => a.startTime.compareTo(b.startTime));
     selectedVideo.refresh();
+  }
+
+  /// Toggles automatic chapters on/off following YouTube Studio rules:
+  /// - When OFF: AI auto-chapters are suppressed (unless manual description/custom chapters exist).
+  /// - When ON: AI auto-chapters are used as fallback if no manual chapters exist.
+  Future<void> toggleAutoChapters(bool enabled) async {
+    final video = selectedVideo.value;
+    if (video == null) return;
+
+    autoChaptersEnabled.value = enabled;
+    try {
+      await _firestore
+          .collection(FirestoreCollections.videos)
+          .doc(video.id)
+          .set({
+        'autoChaptersEnabled': enabled,
+        'aiFeatures': {'autoChapters': enabled},
+      }, SetOptions(merge: true));
+
+      final updatedVideo = video.copyWith(autoChaptersEnabled: enabled);
+      selectedVideo.value = updatedVideo;
+
+      final idx = videos.indexWhere((v) => v.id == video.id);
+      if (idx != -1) {
+        videos[idx] = updatedVideo;
+        _applyFilters();
+      }
+
+      // If auto-chapters is disabled and no manual description timestamps or explicit chapters exist:
+      final descChapters =
+          VideoChapterParser.extractDescriptionChapters(video.description);
+      final streaming = await VideoMediaService().getStreaming(video.id);
+
+      if (!enabled && descChapters.isEmpty && streaming.chapters.isEmpty) {
+        currentChapters.clear();
+        VideoMediaService.streamingCache[video.id] = VideoMediaStreaming(
+          originalUrl: video.originalUrl,
+          hlsUrl: video.hlsUrl,
+          dashUrl: video.dashUrl,
+          adaptiveResolutions: video.adaptiveResolutions,
+          thumbnailVariants: video.thumbnailVariants,
+          animatedPreviewUrl: video.animatedPreviewUrl,
+        );
+      } else if (enabled && currentChapters.isEmpty) {
+        currentChapters.value = List<VideoChapter>.from(updatedVideo.chapters);
+      }
+
+      selectedVideo.refresh();
+      showSuccess(
+        enabled
+            ? 'Automatic chapters enabled (when available).'
+            : 'Automatic chapters turned off. Auto-chapters are hidden unless you provide description timestamps.',
+      );
+    } catch (e, stack) {
+      logger.error('Failed to toggle auto chapters', error: e, stackTrace: stack, tag: _tag);
+      showError('Failed to update automatic chapters setting');
+    }
   }
 
   void addChapter(String title, Duration startTime) {
@@ -357,7 +416,7 @@ class ChaptersController extends BaseController with ContentValidationMixin {
     }
   }
 
-  void importFromYouTubeFormat(String text) {
+  void importFromTimestampFormat(String text) {
     final lines = text.split('\n');
     final parsedChapters = <VideoChapter>[];
     // Regular expression matching HH:MM:SS or MM:SS
@@ -422,7 +481,7 @@ class ChaptersController extends BaseController with ContentValidationMixin {
       buffer.writeln('${chapter.formattedStartTime} ${chapter.title}');
     }
     Clipboard.setData(ClipboardData(text: buffer.toString()));
-    showSuccess('YouTube-formatted timestamps copied to Clipboard!');
+    showSuccess('Formatted timestamps copied to Clipboard!');
   }
 
   Future<void> autoDetectChapters() async {
@@ -432,38 +491,10 @@ class ChaptersController extends BaseController with ContentValidationMixin {
     isAnalyzing.value = true;
     try {
       final description = video.description;
-      final lines = description.split('\n');
-      final parsedChapters = <VideoChapter>[];
-      final regex = RegExp(r'(?:(\d{1,2}):)?(\d{1,2}):(\d{2})');
-
-      for (final line in lines) {
-        if (line.trim().isEmpty) continue;
-        final match = regex.firstMatch(line);
-        if (match != null) {
-          var hours = 0;
-          final minutes = int.parse(match.group(2)!);
-          final seconds = int.parse(match.group(3)!);
-          if (match.group(1) != null) {
-            hours = int.parse(match.group(1)!);
-          }
-          final duration = Duration(
-            hours: hours,
-            minutes: minutes,
-            seconds: seconds,
-          );
-
-          var title = line.replaceFirst(match.group(0)!, '').trim();
-          title = title.replaceAll(RegExp(r'^[\s\-–—:;\[\]\(\)]+'), '').trim();
-          if (title.isEmpty) {
-            title = 'Chapter ${parsedChapters.length + 1}';
-          }
-          parsedChapters.add(VideoChapter(title: title, startTime: duration));
-        }
-      }
+      final parsedChapters =
+          VideoChapterParser.extractDescriptionChapters(description);
 
       if (parsedChapters.isNotEmpty) {
-        parsedChapters.sort((a, b) => a.startTime.compareTo(b.startTime));
-
         final existingMap = {for (final c in currentChapters) c.startTime: c};
         for (final pc in parsedChapters) {
           existingMap[pc.startTime] = pc;
@@ -473,12 +504,31 @@ class ChaptersController extends BaseController with ContentValidationMixin {
         currentChapters.sort((a, b) => a.startTime.compareTo(b.startTime));
         hasUnsavedChanges.value = true;
         showSuccess(
-          'Successfully detected and imported ${parsedChapters.length} chapters from video description!',
+          'Successfully imported ${parsedChapters.length} chapters matching YouTube standards from description!',
         );
       } else {
-        showError(
-          'No timestamped chapters found in the video description. You can paste timestamps manually using the Import tool.',
+        // Detailed feedback on YouTube description chapter requirements
+        final lines = description.split('\n');
+        final rawMatches = lines.where(
+          (l) => RegExp(r'(?:(\d{1,2}):)?(\d{1,2}):(\d{2})').hasMatch(l),
         );
+        if (rawMatches.isEmpty) {
+          showError(
+            'No timestamped chapters found in description. Format: 00:00 Intro, 01:30 Topic.',
+          );
+        } else if (!description.contains(RegExp(r'(?:^|\n)\s*0?0:00'))) {
+          showWarning(
+            'Timestamps found, but first chapter must start at 0:00 (YouTube standard).',
+          );
+        } else if (rawMatches.length < 3) {
+          showWarning(
+            'Found ${rawMatches.length} timestamp(s). At least 3 chapters are required (YouTube standard).',
+          );
+        } else {
+          showWarning(
+            'Each chapter must be at least 10 seconds apart (YouTube standard).',
+          );
+        }
       }
     } catch (e, s) {
       logger.error('Failed to auto-detect chapters', error: e, stackTrace: s, tag: _tag);

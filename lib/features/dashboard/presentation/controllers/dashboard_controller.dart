@@ -75,9 +75,13 @@ class DashboardController extends BaseController {
     return video.totalWatchTimeSeconds / 3600.0;
   }
 
-  /// Checks if a specific video has reached 10 hours watch time for cash withdrawal
+  /// Target view count threshold required for cash withdrawal
+  static const int videoWithdrawalViewsThreshold = 1000;
+
+  /// Checks if a specific video has reached 10 hours watch time and 1,000 views for cash withdrawal
   bool isVideoWithdrawalEligible(Video video) {
-    return getVideoWatchHours(video) >= 10.0;
+    return getVideoWatchHours(video) >= 10.0 &&
+        video.viewCount >= videoWithdrawalViewsThreshold;
   }
 
   StreamSubscription? _statsSubscription;
@@ -241,13 +245,11 @@ class DashboardController extends BaseController {
 
               final superchat =
                   (data['superchatRevenueTotal'] as num?)?.toDouble() ?? 0.0;
-              if (superchat > 0) {
-                rxSuperchatRevenue.value = superchat;
-              }
+              rxSuperchatRevenue.value = superchat;
+
               final ads = (data['adsRevenueTotal'] as num?)?.toDouble() ?? 0.0;
-              if (ads > 0) {
-                rxAdsRevenue.value = ads;
-              }
+              rxAdsRevenue.value = ads;
+
               final membershipTotal = ((data['membershipRevenueTotal'] ??
                       data['membershipsRevenueTotal']) as num?)
                   ?.toDouble() ??
@@ -255,21 +257,11 @@ class DashboardController extends BaseController {
               if (membershipTotal > 0 && rxMembershipsRevenue.value == 0) {
                 rxMembershipsRevenue.value = membershipTotal;
               }
-
-              final views = (data['viewCount'] as num?)?.toInt() ??
-                  (data['totalViews'] as num?)?.toInt() ??
-                  0;
-              final watchMins = (data['totalWatchTimeMinutes'] as num?)?.toInt() ??
-                  ((data['totalWatchTimeSeconds'] as num?) != null
-                      ? (((data['totalWatchTimeSeconds'] as num).toDouble()) / 60.0)
-                          .round()
-                      : 0);
-              if (rxAdsRevenue.value == 0.0 && views > 0) {
-                rxAdsRevenue.value = views * 0.005;
-              }
-              if (rxWatchTimeRevenue.value == 0.0 && watchMins > 0) {
-                rxWatchTimeRevenue.value = watchMins * 0.002;
-              }
+              final premiumSubs =
+                  (data['premiumSubsRevenueTotal'] as num?)?.toDouble() ?? 0.0;
+              final watchTimeRev =
+                  (data['watchTimeRevenueTotal'] as num?)?.toDouble() ?? 0.0;
+              rxWatchTimeRevenue.value = premiumSubs > 0 ? premiumSubs : watchTimeRev;
               _updateRevenueStats();
             }
 
@@ -486,22 +478,26 @@ class DashboardController extends BaseController {
     );
 
     // 3. Revenue statements stream
-    final statementsRef = _firestore
+    final uid = Get.isRegistered<AuthService>() ? AuthService.to.uid : '';
+    var statementsRef = _firestore
         .collection('revenue_statements')
-        .where('channelId', isEqualTo: channelId)
-        .limit(1);
+        .where('channelId', isEqualTo: channelId);
+    if (uid.isNotEmpty) {
+      statementsRef = statementsRef.where('userId', isEqualTo: uid);
+    }
     trackSubscription(
-      _revenueStatementsSubscription = statementsRef.snapshots().listen(
+      _revenueStatementsSubscription = statementsRef.limit(1).snapshots().listen(
         (snapshot) {
           if (snapshot.docs.isNotEmpty) {
             final data = snapshot.docs.first.data();
             final ads = (data['grossAdsRevenue'] as num?)?.toDouble() ?? 0.0;
-            if (ads > 0) {
+            if (ads > 0 && rxAdsRevenue.value == 0.0) {
               rxAdsRevenue.value = ads;
             }
-            final subs = (data['grossSubsRevenue'] as num?)?.toDouble() ?? 0.0;
-            if (subs > 0 && rxSuperchatRevenue.value == 0) {
-              rxSuperchatRevenue.value = subs;
+            final premiumSubs =
+                (data['grossPremiumSubsRevenue'] as num?)?.toDouble() ?? 0.0;
+            if (premiumSubs > 0 && rxWatchTimeRevenue.value == 0.0) {
+              rxWatchTimeRevenue.value = premiumSubs;
             }
             final creatorShare =
                 (data['creatorShare'] as num?)?.toDouble() ?? 0.0;

@@ -215,7 +215,7 @@ class VideoPlaylistDrawer extends StatelessWidget {
                                   color: Colors.white,
                                   fontSize: 14,
                                   fontWeight: isActive
-                                      ? FontWeight.w500
+                                      ? FontWeight.bold
                                       : FontWeight.normal,
                                 ),
                               ),

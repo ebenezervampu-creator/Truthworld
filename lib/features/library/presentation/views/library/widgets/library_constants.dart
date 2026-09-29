@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 // ==========================================================================
-// YOUTUBE-STYLE THEME COLORS
+// THEME COLORS
 // ==========================================================================
 
 const Color bgColor = AppColors.bgPage;

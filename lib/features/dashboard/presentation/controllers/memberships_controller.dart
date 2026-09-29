@@ -31,7 +31,7 @@ class ChannelMembershipTier {
   });
 
   factory ChannelMembershipTier.fromMap(Map<String, dynamic> map, String id) {
-    final rawPrice = (map['price'] as num?)?.toDouble() ?? 4.99;
+    final rawPrice = (map['price'] as num?)?.toDouble() ?? 5.0;
     final rawCurrency = (map['currency'] as String?)?.toUpperCase();
     final inferredCurrency = rawCurrency ?? (rawPrice >= 50 ? 'INR' : 'USD');
 
@@ -56,13 +56,13 @@ class ChannelMembershipTier {
   }
 
   static const double minPriceINR = 10.0;
-  static const double minPriceUSD = 0.10;
+  static const double minPriceUSD = 1.0;
 
   static double minPriceFor(String currency) =>
       currency.toUpperCase() == 'INR' ? minPriceINR : minPriceUSD;
 
   static String minPriceLabel(String currency) =>
-      currency.toUpperCase() == 'INR' ? '₹10 (10 rupees)' : r'$0.10 (0.1 dollars)';
+      currency.toUpperCase() == 'INR' ? '₹10 (10 rupees)' : r'$1 (1 dollar)';
 
   final String id;
   final String name;
@@ -81,11 +81,11 @@ class ChannelMembershipTier {
   String get currencySymbol => currency.toUpperCase() == 'INR' ? '₹' : r'$';
 
   String get formattedPrice {
+    final isWhole = price == price.truncateToDouble();
     if (currency.toUpperCase() == 'INR') {
-      final isWhole = price == price.truncateToDouble();
       return '₹${isWhole ? price.toInt() : price.toStringAsFixed(2)}';
     }
-    return '\$${price.toStringAsFixed(2)}';
+    return '\$${isWhole ? price.toInt() : price.toStringAsFixed(2)}';
   }
 
   String formattedPriceForUser([bool? isIndianViewer]) {
@@ -101,8 +101,7 @@ class ChannelMembershipTier {
     if (!isIndian) {
       if (currency.toUpperCase() == 'INR') {
         final usd = price / rate;
-        final roundedUsd = usd >= 0.10 ? usd.toStringAsFixed(2) : '0.10';
-        return '\$$roundedUsd';
+        return '\$${usd.toStringAsFixed(2)}';
       }
       return '\$${price.toStringAsFixed(2)}';
     }
@@ -185,6 +184,7 @@ class ChannelMember {
     required this.price,
     this.currency = 'USD',
     this.status = 'active',
+    this.autoPay = true,
     this.joinedAt,
   });
 
@@ -204,6 +204,7 @@ class ChannelMember {
       price: rawPrice,
       currency: inferredCurrency,
       status: map['status'] ?? 'active',
+      autoPay: (map['autoPay'] as bool?) ?? (map['isAutoPay'] as bool?) ?? true,
       joinedAt: rawJoined is Timestamp ? rawJoined.toDate() : (rawJoined is DateTime ? rawJoined : null),
     );
   }
@@ -216,16 +217,17 @@ class ChannelMember {
   final double price;
   final String currency;
   final String status;
+  final bool autoPay;
   final DateTime? joinedAt;
 
   String get currencySymbol => currency.toUpperCase() == 'INR' ? '₹' : r'$';
 
   String get formattedPrice {
+    final isWhole = price == price.truncateToDouble();
     if (currency.toUpperCase() == 'INR') {
-      final isWhole = price == price.truncateToDouble();
       return '₹${isWhole ? price.toInt() : price.toStringAsFixed(2)}';
     }
-    return '\$${price.toStringAsFixed(2)}';
+    return '\$${isWhole ? price.toInt() : price.toStringAsFixed(2)}';
   }
 
   String formattedPriceForUser([bool? isIndianViewer]) {
@@ -241,8 +243,7 @@ class ChannelMember {
     if (!isIndian) {
       if (currency.toUpperCase() == 'INR') {
         final usd = price / rate;
-        final roundedUsd = usd >= 0.10 ? usd.toStringAsFixed(2) : '0.10';
-        return '\$$roundedUsd';
+        return '\$${usd.toStringAsFixed(2)}';
       }
       return '\$${price.toStringAsFixed(2)}';
     }
@@ -266,11 +267,13 @@ class ChannelMember {
     'price': price,
     'currency': currency.toUpperCase(),
     'status': status,
+    'autoPay': autoPay,
+    'isAutoPay': autoPay,
     'joinedAt': joinedAt != null ? Timestamp.fromDate(joinedAt!) : FieldValue.serverTimestamp(),
   };
 }
 
-/// Predefined starter tier templates according to YouTube Studio & Patreon standards.
+/// Predefined starter tier templates according to creator standards.
 enum StarterTierBundleType {
   standard3Tier,
   fanClub1Tier,
@@ -326,10 +329,13 @@ class MembershipsController extends BaseController with ContentValidationMixin {
   final RxInt selectedTab = 0.obs; // 0: Tiers & Perks, 1: Members, 2: Analytics
   final RxString memberSearchQuery = ''.obs;
   final RxString selectedTierFilter = 'all'.obs;
+  final RxBool noAdsForMembers = false.obs;
+  final RxBool isUpdatingSettings = false.obs;
 
   // Stream Subscriptions
   StreamSubscription? _tiersSub;
   StreamSubscription? _membersSub;
+  StreamSubscription? _channelSub;
   Worker? _channelIdWorker;
 
   @override
@@ -363,6 +369,7 @@ class MembershipsController extends BaseController with ContentValidationMixin {
   void onClose() {
     _tiersSub?.cancel();
     _membersSub?.cancel();
+    _channelSub?.cancel();
     _channelIdWorker?.dispose();
     super.onClose();
   }
@@ -454,6 +461,30 @@ class MembershipsController extends BaseController with ContentValidationMixin {
         debugPrint('[MembershipsController] Error listening to members: $err');
       },
     );
+
+    // 3. Channel Settings Stream (noAdsForMembers)
+    _channelSub?.cancel();
+    _channelSub = _firestore
+        .collection(FirestoreCollections.channels)
+        .doc(activeId)
+        .snapshots()
+        .listen(
+      (snapshot) {
+        if (snapshot.exists && snapshot.data() != null) {
+          final data = snapshot.data()!;
+          final noAds = (data['noAdsForMembers'] as bool?) ??
+              (data['monetizationSettings'] is Map
+                  ? ((data['monetizationSettings']['noAdsForMembers'] as bool?) ??
+                      (data['monetizationSettings']['memberAdFreeEnabled'] as bool?))
+                  : null) ??
+              false;
+          noAdsForMembers.value = noAds;
+        }
+      },
+      onError: (err) {
+        debugPrint('[MembershipsController] Error listening to channel settings: $err');
+      },
+    );
   }
 
   // --- Computed Metrics ---
@@ -515,6 +546,24 @@ class MembershipsController extends BaseController with ContentValidationMixin {
     return total;
   }
 
+  /// Net monthly recurring revenue for creator (accounts for 30% platform cut when member ad-free playback is active).
+  double get creatorMonthlyRecurringRevenue {
+    final gross = monthlyRecurringRevenue;
+    if (noAdsForMembers.value) {
+      return gross * 0.70;
+    }
+    return gross;
+  }
+
+  /// Monthly recurring revenue retained by platform when member ad-free playback is active (30%).
+  double get platformMonthlyRecurringRevenue {
+    final gross = monthlyRecurringRevenue;
+    if (noAdsForMembers.value) {
+      return gross * 0.30;
+    }
+    return 0.0;
+  }
+
   int get activeTiersCount => tiers.where((t) => t.isEnabled).length;
 
   List<ChannelMember> get filteredMembers {
@@ -529,6 +578,46 @@ class MembershipsController extends BaseController with ContentValidationMixin {
           m.tierName.toLowerCase().contains(q)).toList();
     }
     return list;
+  }
+
+  // --- Channel Member Ad-Free Feature Toggle ---
+
+  Future<bool> toggleNoAdsForMembers(bool enabled) async {
+    _resolveChannelId();
+    final activeId = _channelId.value;
+    if (activeId.isEmpty) {
+      AppSnackbar.warning('Unable to resolve channel ID. Please refresh.');
+      return false;
+    }
+
+    isUpdatingSettings.value = true;
+    try {
+      await _firestore
+          .collection(FirestoreCollections.channels)
+          .doc(activeId)
+          .set({
+        'noAdsForMembers': enabled,
+        'monetizationSettings': {
+          'noAdsForMembers': enabled,
+          'memberAdFreeEnabled': enabled,
+        },
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      noAdsForMembers.value = enabled;
+      AppSnackbar.success(
+        enabled
+            ? 'Channel Premium enabled! Members get zero ads and 4K Ultra HD streaming on your channel (30% platform cut).'
+            : 'Channel Premium disabled. Standard ad policy restored with 0% platform commission.',
+      );
+      return true;
+    } catch (e) {
+      ErrorHandler.log(e, tag: 'MembershipsController.toggleNoAdsForMembers');
+      AppSnackbar.error('Unable to update member ad-free playback setting. Please try again.');
+      return false;
+    } finally {
+      isUpdatingSettings.value = false;
+    }
   }
 
   // --- Tier CRUD Operations ---
@@ -765,7 +854,7 @@ class MembershipsController extends BaseController with ContentValidationMixin {
         ChannelMembershipTier(
           id: 'tier_bronze',
           name: 'Bronze Supporter',
-          price: 1.99,
+          price: 2.0,
           badgeColorHex: '0xFFCD7F32',
           badgeIcon: 'shield',
           description: 'Join the channel family and stand out in the comments.',
@@ -778,10 +867,12 @@ class MembershipsController extends BaseController with ContentValidationMixin {
         ChannelMembershipTier(
           id: 'tier_silver',
           name: 'Silver VIP',
-          price: 4.99,
+          price: 5.0,
           badgeColorHex: '0xFF94A3B8',
           description: 'Get early access to videos and direct priority replies.',
           perks: [
+            'No ads while watching this channel',
+            '4K Ultra HD (2160p) video streaming',
             'All Bronze Supporter perks included',
             'Early access to newly uploaded videos (24-48 hrs)',
             'Priority reply to your comments on all videos',
@@ -792,7 +883,7 @@ class MembershipsController extends BaseController with ContentValidationMixin {
         ChannelMembershipTier(
           id: 'tier_gold',
           name: 'Gold Patron',
-          price: 9.99,
+          price: 10.0,
           badgeIcon: 'crown',
           description: 'Ultimate fan tier with live stream Q&A and video shoutouts.',
           perks: [
@@ -813,11 +904,12 @@ class MembershipsController extends BaseController with ContentValidationMixin {
         ChannelMembershipTier(
           id: 'tier_fan_club',
           name: 'Channel Fan Club',
-          price: 2.99,
+          price: 3.0,
           badgeColorHex: '0xFF10B981',
           badgeIcon: 'heart',
           description: 'Directly support the channel and get exclusive member perks.',
           perks: [
+            'Channel Premium: Ad-free & 4K Ultra HD streaming',
             'Exclusive loyalty badge beside channel comments',
             'Custom emojis in live chat',
             'Early access to all new videos',
@@ -834,7 +926,7 @@ class MembershipsController extends BaseController with ContentValidationMixin {
         ChannelMembershipTier(
           id: 'tier_supporter',
           name: 'Supporter',
-          price: 1.99,
+          price: 2.0,
           badgeColorHex: '0xFF64748B',
           badgeIcon: 'shield',
           description: 'Show your channel support with exclusive loyalty badges.',
@@ -846,7 +938,7 @@ class MembershipsController extends BaseController with ContentValidationMixin {
         ChannelMembershipTier(
           id: 'tier_insider',
           name: 'Insider',
-          price: 4.99,
+          price: 5.0,
           badgeColorHex: '0xFF3B82F6',
           description: 'Early access and member-only updates.',
           perks: [
@@ -859,7 +951,7 @@ class MembershipsController extends BaseController with ContentValidationMixin {
         ChannelMembershipTier(
           id: 'tier_vip_elite',
           name: 'VIP Elite',
-          price: 9.99,
+          price: 10.0,
           badgeColorHex: '0xFF8B5CF6',
           badgeIcon: 'diamond',
           description: 'Behind the scenes and live Q&A access.',
@@ -874,7 +966,7 @@ class MembershipsController extends BaseController with ContentValidationMixin {
         ChannelMembershipTier(
           id: 'tier_producer',
           name: 'Executive Producer',
-          price: 24.99,
+          price: 25.0,
           badgeColorHex: '0xFFEC4899',
           badgeIcon: 'crown',
           description: 'Highest tier of channel backing with credit shoutouts.',
@@ -924,6 +1016,9 @@ class MembershipsController extends BaseController with ContentValidationMixin {
 
   // Pre-configured popular perks list for 1-click addition in tier builder
   static const List<String> popularPerkSuggestions = [
+    'No ads while watching this channel',
+    '4K Ultra HD (2160p) video streaming',
+    'Channel Premium: Ad-free & 4K streaming',
     'Loyalty badge beside channel comments',
     'Custom emojis in live chat & comments',
     'Early access to new videos (24-48 hrs)',

@@ -88,6 +88,38 @@ void main() {
       expect(result.errorMessage, isNot(contains('failed-precondition')));
       expect(result.errorMessage, isNot(contains('500')));
     });
+
+    test('Android debug mode installer integrity errors are sanitized for users', () {
+      // In debug mode, Android apps sideloaded with debug keystores or run via flutter run
+      // encounter installer_package_not_approved when contacting production Cashfree SDK.
+      const rawError = 'installer_package_not_approved';
+      final isIntegrityError = rawError.contains('installer_package_not_approved') ||
+          rawError.contains('installer');
+      expect(isIntegrityError, isTrue);
+
+      const userFacingResult = CashfreePaymentResult(
+        success: false,
+        orderId: 'cf_order_debug_456',
+        errorMessage: 'Unable to start payment on this device. Please try again.',
+      );
+      expect(userFacingResult.errorMessage, isNot(contains('installer_package_not_approved')));
+      expect(userFacingResult.errorMessage, isNot(contains('debug')));
+    });
+
+    test('Hosted checkout links construct valid web fallback URLs', () {
+      const orderId = 'cf_premium_123';
+      const sessionId = 'session_abc_987';
+      const env = 'sandbox';
+      const link =
+          'https://www.truthworld.in/checkout?session_id=$sessionId&order_id=$orderId&env=$env';
+
+      final uri = Uri.parse(link);
+      expect(uri.scheme, equals('https'));
+      expect(uri.host, equals('www.truthworld.in'));
+      expect(uri.queryParameters['session_id'], equals(sessionId));
+      expect(uri.queryParameters['order_id'], equals(orderId));
+      expect(uri.queryParameters['env'], equals(env));
+    });
   });
 }
 

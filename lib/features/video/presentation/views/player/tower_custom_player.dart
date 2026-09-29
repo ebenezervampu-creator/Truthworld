@@ -3,7 +3,6 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
-import 'package:truthworld/features/video/presentation/views/player/controls/fullscreen_actions_bar.dart';
 import 'package:truthworld/features/video/presentation/views/player/controls/player_controls.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:truthworld/features/video/presentation/views/player/overlays/ad_overlay.dart';
@@ -102,6 +101,7 @@ class TowerCustomPlayer extends StatelessWidget {
                                           width: ar * 1000,
                                           height: 1000,
                                           child: MobileFriendlyVideoPlayer(
+                                            key: ValueKey(c.videoPlayerController),
                                             controller: c.videoPlayerController,
                                           ),
                                         ),
@@ -110,6 +110,7 @@ class TowerCustomPlayer extends StatelessWidget {
                                         child: AspectRatio(
                                           aspectRatio: ar,
                                           child: MobileFriendlyVideoPlayer(
+                                            key: ValueKey(c.videoPlayerController),
                                             controller: c.videoPlayerController,
                                           ),
                                         ),
@@ -143,6 +144,7 @@ class TowerCustomPlayer extends StatelessWidget {
                                                 ? apc.value.aspectRatio
                                                 : 16 / 9,
                                             child: MobileFriendlyVideoPlayer(
+                                              key: ValueKey(apc),
                                               controller: apc,
                                             ),
                                           )
@@ -172,7 +174,17 @@ class TowerCustomPlayer extends StatelessWidget {
 
                             // ── Layer 0.1: Video Viewport Gestures (Background tap/seek/drag) ──
                             Positioned.fill(
-                              child: GestureDetector(
+                              child: MouseRegion(
+                                onHover: (_) {
+                                  if (!c.isShowingAd.value) {
+                                    c.onInteraction();
+                                    if (!c.controlsVisible.value) {
+                                      c.controlsVisible.value = true;
+                                    }
+                                    c.startHideTimer();
+                                  }
+                                },
+                                child: GestureDetector(
                                 behavior: HitTestBehavior.opaque,
                                 onTapDown: (d) => c.isShowingAd.value
                                     ? null
@@ -257,6 +269,7 @@ class TowerCustomPlayer extends StatelessWidget {
                                 },
                               ),
                             ),
+                          ),
 
                             // ── Layer 0.5: Audio-only UI with 250ms Crossfade ───────────────
                             Obx(
@@ -587,56 +600,7 @@ class TowerCustomPlayer extends StatelessWidget {
                                             }),
                                           ),
 
-                                          // Floating Vertical Actions Dock
-                                          Obx(() {
-                                            final isAnyOverlayOpen =
-                                                c.showCommentsPopup.value ||
-                                                c.showTranscriptPopup.value ||
-                                                c.showFactCheckPopup.value ||
-                                                c.showLiveChat.value;
-                                            final isDockEnabled = c
-                                                .showFullscreenActionsDock
-                                                .value;
-                                            if (isAnyOverlayOpen ||
-                                                !isDockEnabled) {
-                                              return const SizedBox.shrink();
-                                            }
-
-                                            return Positioned(
-                                              right:
-                                                  (c.isInitialized.value &&
-                                                      c.aspectRatio.value < 1.0)
-                                                  ? (((playerWidth -
-                                                                    (playerHeight *
-                                                                            c.aspectRatio.value)
-                                                                        .clamp(
-                                                                          0.0,
-                                                                          playerWidth,
-                                                                        )) /
-                                                                2) +
-                                                            20.0)
-                                                        .clamp(
-                                                          20.0,
-                                                          playerWidth - 60.0,
-                                                        )
-                                                  : 20.0,
-                                              top: 48,
-                                              bottom: 64,
-                                              child: Align(
-                                                alignment:
-                                                    Alignment.centerRight,
-                                                child: GestureDetector(
-                                                  behavior:
-                                                      HitTestBehavior.opaque,
-                                                  onTap: () {}, // Absorb taps
-                                                  child:
-                                                      FullscreenVerticalActionsBar(
-                                                        ctrl: c,
-                                                      ),
-                                                ),
-                                              ),
-                                            );
-                                          }),
+                                          // Floating action dock is now cleanly elevated into PlayerTopBar
                                         ],
                                       ],
                                     ),

@@ -10,10 +10,13 @@ class ChannelCustomizationPage extends StatelessWidget {
   const ChannelCustomizationPage({
     required this.channelId,
     required this.ownerId,
+    this.initialTabIndex = 0,
     super.key,
   });
   final String channelId;
   final String ownerId;
+  /// Which tab to open initially: 0=Branding, 1=Basic Info, 2=Advanced, 3=Settings
+  final int initialTabIndex;
 
   @override
   Widget build(BuildContext context) {
@@ -21,6 +24,7 @@ class ChannelCustomizationPage extends StatelessWidget {
       init: CustomizationController(
         channelId: channelId,
         ownerId: ownerId,
+        initialTabIndex: initialTabIndex,
       ),
       tag: channelId,
       builder: (controller) => _CustomizationView(controller: controller),

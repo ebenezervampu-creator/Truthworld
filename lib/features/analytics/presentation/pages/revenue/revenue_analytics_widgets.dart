@@ -1,3 +1,4 @@
+export 'premium_subs_revenue_card.dart';
 export 'revenue_bank_account_card.dart';
 export 'revenue_creator_kyc_card.dart';
 export 'revenue_distribution_and_payout_cards.dart';

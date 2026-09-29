@@ -5,7 +5,7 @@ import { logger } from "firebase-functions/v2";
 import { getVertexAI } from "../pipeline/utils/ai-client";
 import { COMMUNITY_GUIDELINES_TEXT, MODERATION_RESPONSE_SCHEMA } from "../moderation/communityGuidelinesPrompt";
 import { isChannelsBypassed } from "../moderation/moderationModes";
-import { requireAdmin } from "../utils/auth";
+import { requireRecentAdmin } from "../utils/auth";
 
 const db = () => admin.firestore();
 
@@ -257,7 +257,7 @@ export const moderateChannelManual = onRequest(
   },
   async (req, res) => {
     try {
-      const authUser = await requireAdmin(req, res);
+      const authUser = await requireRecentAdmin(req, res, 3600);
       if (!authUser) return;
 
       const { channelId, action, reason } = req.body;

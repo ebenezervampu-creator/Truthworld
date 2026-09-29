@@ -2,6 +2,8 @@ import * as admin from "firebase-admin";
 import { onRequest } from "firebase-functions/v2/https";
 import { Request, Response } from "express";
 
+import { applySecurityHeaders } from "../utils/securityHeaders";
+
 if (!admin.apps.length) {
   admin.initializeApp();
 }
@@ -20,12 +22,16 @@ if (!admin.apps.length) {
 export const publicFeedServer = onRequest(
   {
     region: "asia-south1",
+    cpu: 1,
     memory: "256MiB",
     timeoutSeconds: 15,
     maxInstances: 5,
     concurrency: 50,
   },
   async (req: Request, res: Response): Promise<void> => {
+    // Enterprise Security Headers
+    applySecurityHeaders(res);
+
     // CORS headers
     res.set("Access-Control-Allow-Origin", "*");
     res.set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");

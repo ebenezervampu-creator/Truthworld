@@ -163,6 +163,32 @@ mixin AdTargetingMixin on AdMetricsMixin {
       }
     }
 
+    // 4. Targeted Audience / Profession targeting
+    if (ad.targetAudiences != null && ad.targetAudiences!.isNotEmpty) {
+      final hasAllAudiences = ad.targetAudiences!.any((aud) {
+        final a = aud.toLowerCase();
+        return a == 'all' ||
+            a == 'all audiences' ||
+            a == 'all people' ||
+            a.contains('all people') ||
+            a.contains('broad reach');
+      });
+
+      if (!hasAllAudiences) {
+        final userProf = auth.userProfession.value?.trim().toLowerCase();
+        if (userProf != null && userProf.isNotEmpty) {
+          final matchesAudience = ad.targetAudiences!.any((aud) {
+            final a = aud.toLowerCase();
+            return userProf.contains(a) || a.contains(userProf);
+          });
+          if (!matchesAudience) return false;
+        } else {
+          // Demographics unknown; does not qualify for specific profession/audience targeting
+          return false;
+        }
+      }
+    }
+
     return true;
   }
 

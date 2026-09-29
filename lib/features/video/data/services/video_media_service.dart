@@ -212,10 +212,10 @@ class VideoMediaService {
         }
       }
       final dubbedVideos = _extractStringMap(
-        media['dubbedVideos'] ?? data['dubbedVideos'],
+        media['dubbedVideos'] ?? data['dubbedVideos'] ?? media['dubbed'] ?? data['dubbed'],
       );
       final audioTracks = _extractStringMap(
-        media['audioTracks'] ?? data['audioTracks'],
+        media['audioTracks'] ?? data['audioTracks'] ?? media['audio'] ?? data['audio'],
       );
 
       final result = VideoMediaLocalization(

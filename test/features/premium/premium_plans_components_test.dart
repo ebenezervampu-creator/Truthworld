@@ -116,8 +116,9 @@ void main() {
   });
 
   group('PremiumCheckoutButton Tests', () {
-    testWidgets('renders dynamic price label for selected plan', (tester) async {
+    testWidgets('renders dynamic price label for selected plan with Auto Pay', (tester) async {
       controller.selectedPlanId.value = '4k_factchecked_monthly';
+      controller.isAutoPay.value = true;
 
       await tester.pumpWidget(
         MaterialApp(
@@ -127,7 +128,16 @@ void main() {
         ),
       );
 
-      expect(find.text(r'Pay ₹249 with Cashfree ($3 Fact-Checked)'), findsOneWidget);
+      expect(find.text('Auto Pay'), findsOneWidget);
+      expect(find.text('RECOMMENDED'), findsOneWidget);
+      expect(find.text('Pay ₹249 with Auto Pay'), findsOneWidget);
+
+      // Toggle auto pay off
+      controller.toggleAutoPay(false);
+      await tester.pumpAndSettle();
+
+      expect(find.text('ONE-TIME'), findsOneWidget);
+      expect(find.text('Pay ₹249 (One-Time)'), findsOneWidget);
     });
   });
 

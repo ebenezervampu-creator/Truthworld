@@ -10,12 +10,14 @@ class PlaylistVideosSection extends StatelessWidget {
     required this.controller,
     required this.onAddVideos,
     required this.isDesktop,
+    this.fromUpload = false,
     super.key,
   });
 
   final CreatePlaylistController controller;
   final VoidCallback onAddVideos;
   final bool isDesktop;
+  final bool fromUpload;
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +40,7 @@ class PlaylistVideosSection extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '4. Add Videos',
+                      fromUpload ? '4. Add Videos (Optional)' : '4. Add Videos',
                       style: context.themeTypography.title.copyWith(
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
@@ -46,7 +48,9 @@ class PlaylistVideosSection extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Select videos to add to your playlist',
+                      fromUpload
+                          ? 'The video currently being uploaded will be automatically added to this playlist upon publishing.'
+                          : 'Select videos to add to your playlist',
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.45),
                         fontSize: 12,
@@ -72,14 +76,19 @@ class PlaylistVideosSection extends StatelessWidget {
                   ),
                 ),
                 icon: const Icon(Icons.add, color: Colors.white, size: 16),
-                label: const Text(
-                  'Select videos',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
-                ),
+                label: Obx(() {
+                  final count = controller.selectedVideos.length;
+                  return Text(
+                    fromUpload
+                        ? (count > 0 ? 'Select videos ($count)' : 'Add more videos (Optional)')
+                        : (count > 0 ? 'Select videos ($count)' : 'Select videos'),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  );
+                }),
               ),
             ],
           ),
@@ -92,7 +101,9 @@ class PlaylistVideosSection extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '${videos.length} videos selected',
+                  fromUpload && videos.isEmpty
+                      ? '1 staged upload video queued'
+                      : '${videos.length} videos selected',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.7),
                     fontSize: 13,
@@ -124,6 +135,58 @@ class PlaylistVideosSection extends StatelessWidget {
           Obx(() {
             final videos = controller.selectedVideos;
             if (videos.isEmpty) {
+              if (fromUpload) {
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F0F11),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.08),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.cloud_upload_outlined,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Current video will be added automatically',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Your uploading video is already staged and will be added to this playlist when you publish.',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
               return Container(
                 height: 140,
                 width: double.infinity,

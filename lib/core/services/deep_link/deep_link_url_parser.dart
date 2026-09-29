@@ -1,6 +1,6 @@
 import 'package:truthworld/core/services/deep_link/parsed_truthworld_url.dart';
 
-/// URL parsing engine supporting YouTube-standard URLs and TruthWorld routes.
+/// URL parsing engine supporting standard web URLs and TruthWorld routes.
 class DeepLinkUrlParser {
   const DeepLinkUrlParser._();
 
@@ -57,17 +57,21 @@ class DeepLinkUrlParser {
 
     if (clean.startsWith('/') ||
         clean.startsWith('@') ||
-        clean.startsWith('truthworld://') ||
-        clean.startsWith('truthworldstudio://') ||
-        clean.startsWith('truthworldads://')) {
+        clean.startsWith('intent://') ||
+        clean.startsWith('truthworld:') ||
+        clean.startsWith('truthworldstudio:') ||
+        clean.startsWith('truthworldads:')) {
       return true;
     }
 
-    final lower = clean.toLowerCase();
-    return lower.contains('truthworld.in') ||
-        lower.contains('www.truthworld.in') ||
-        lower.contains('studio.truthworld.in') ||
-        lower.contains('admin.truthworld.in');
+    final uri = Uri.tryParse(clean.startsWith('http://') || clean.startsWith('https://') ? clean : 'https://$clean');
+    if (uri != null && uri.host.isNotEmpty) {
+      final host = uri.host.toLowerCase();
+      return host == 'truthworld.in' ||
+          host.endsWith('.truthworld.in') ||
+          host == 'localhost';
+    }
+    return false;
   }
 
   /// Parses any URL string into a structured [ParsedTruthworldUrl].
@@ -80,13 +84,17 @@ class DeepLinkUrlParser {
       );
     }
 
-    // Convert custom schemes and relative paths to standard URI for parsing
+    // Convert custom schemes, Android intent URLs, and relative paths to standard URI for parsing
     var uriStr = clean;
-    if (uriStr.startsWith('truthworld://') ||
-        uriStr.startsWith('truthworldstudio://') ||
-        uriStr.startsWith('truthworldads://')) {
+    if (uriStr.startsWith('intent://')) {
+      // Extract target host/path from intent://host/path#Intent;...
+      final match = RegExp(r'^intent:\/\/([^#]+)').firstMatch(uriStr);
+      if (match != null) {
+        uriStr = 'https://${match.group(1)}';
+      }
+    } else if (RegExp(r'^truthworld[a-z]*:\/{1,3}').hasMatch(uriStr)) {
       uriStr = uriStr.replaceFirst(
-        RegExp(r'truthworld[a-z]*:\/\/'),
+        RegExp(r'^truthworld[a-z]*:\/{1,3}'),
         'https://www.truthworld.in/',
       );
     } else if (uriStr.startsWith('//')) {
@@ -96,7 +104,9 @@ class DeepLinkUrlParser {
     } else if (uriStr.startsWith('@')) {
       uriStr = 'https://www.truthworld.in/$uriStr';
     } else if (!uriStr.startsWith('http://') && !uriStr.startsWith('https://')) {
-      final isTw = uriStr.toLowerCase().contains('truthworld.in');
+      final candidateHost = uriStr.split('/').first.split('?').first.toLowerCase();
+      final isTw = candidateHost == 'truthworld.in' ||
+          candidateHost.endsWith('.truthworld.in');
       if (isTw) {
         uriStr = 'https://$uriStr';
       }
@@ -111,7 +121,8 @@ class DeepLinkUrlParser {
     }
 
     final host = uri.host.toLowerCase();
-    final isTWDomain = host.contains('truthworld.in') ||
+    final isTWDomain = host == 'truthworld.in' ||
+        host.endsWith('.truthworld.in') ||
         host.isEmpty ||
         host == 'localhost';
 

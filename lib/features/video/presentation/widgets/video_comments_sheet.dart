@@ -177,7 +177,11 @@ class VideoCommentsSheet {
           }
           final sponsorAd = AdService.to.getSponsorAdForVideo(controller.video.id);
           if (sponsorAd == null) return const SizedBox.shrink();
-          return PinnedSponsorCommentCard(ad: sponsorAd, videoId: controller.video.id);
+          return PinnedSponsorCommentCard(
+              ad: sponsorAd,
+              videoId: controller.video.id,
+              contextChannelId: controller.video.channelId,
+            );
         }),
       ),
 
@@ -376,7 +380,11 @@ class VideoCommentsSheet {
                         return ListView(
                           controller: scrollController,
                           children: [
-                            if (sponsorAd != null) PinnedSponsorCommentCard(ad: sponsorAd, videoId: controller.video.id),
+                            if (sponsorAd != null) PinnedSponsorCommentCard(
+                              ad: sponsorAd,
+                              videoId: controller.video.id,
+                              contextChannelId: controller.video.channelId,
+                            ),
                             const SizedBox(height: 40),
                             Center(
                               child: Column(
@@ -406,7 +414,11 @@ class VideoCommentsSheet {
                         itemCount: commentsController.comments.length + (sponsorAd != null ? 1 : 0),
                         itemBuilder: (context, index) {
                           if (sponsorAd != null && index == 0) {
-                            return PinnedSponsorCommentCard(ad: sponsorAd, videoId: controller.video.id);
+                            return PinnedSponsorCommentCard(
+                              ad: sponsorAd,
+                              videoId: controller.video.id,
+                              contextChannelId: controller.video.channelId,
+                            );
                           }
                           final commentIndex = sponsorAd != null ? index - 1 : index;
                           final comment = commentsController.comments[commentIndex];

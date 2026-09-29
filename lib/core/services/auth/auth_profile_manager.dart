@@ -26,24 +26,25 @@ class AuthProfileManager {
   final RxnString userCity = RxnString();
   final RxnString userState = RxnString();
   final RxnString userCountry = RxnString();
-  final RxDouble userWalletBalance = 0.0.obs;
+  final RxnString userProfession = RxnString();
   final RxBool needsOnboarding = false.obs;
 
   StreamSubscription? _userDocSubscription;
   bool _isOnboardingPromptShowing = false;
 
-  /// Resolves display name prioritizing user doc -> user channel -> Firebase user -> fallback.
+  /// Resolves display name prioritizing channel → user doc → Firebase user → fallback.
   String getActiveDisplayName({
     Channel? userChannel,
     bool hasChannel = false,
     User? user,
   }) {
+    // When user has a channel, channel name takes precedence
+    if (hasChannel && userChannel != null && userChannel.name.isNotEmpty) {
+      return userChannel.name;
+    }
     if (userDisplayName.value != null &&
         userDisplayName.value!.trim().isNotEmpty) {
       return userDisplayName.value!.trim();
-    }
-    if (hasChannel && userChannel != null && userChannel.name.isNotEmpty) {
-      return userChannel.name;
     }
     if (user != null &&
         !user.isAnonymous &&
@@ -53,17 +54,18 @@ class AuthProfileManager {
     return 'User';
   }
 
-  /// Resolves avatar photo prioritizing user doc -> user channel -> Firebase user -> empty.
+  /// Resolves avatar photo prioritizing channel → user doc → Firebase user → empty.
   String getActivePhotoUrl({
     Channel? userChannel,
     bool hasChannel = false,
     User? user,
   }) {
-    if (userPhotoUrl.value != null && userPhotoUrl.value!.isNotEmpty) {
-      return userPhotoUrl.value!;
-    }
+    // When user has a channel, channel avatar takes precedence
     if (hasChannel && userChannel != null && userChannel.avatarUrl.isNotEmpty) {
       return userChannel.avatarUrl;
+    }
+    if (userPhotoUrl.value != null && userPhotoUrl.value!.isNotEmpty) {
+      return userPhotoUrl.value!;
     }
     if (user != null &&
         !user.isAnonymous &&
@@ -73,18 +75,19 @@ class AuthProfileManager {
     return '';
   }
 
-  /// Resolves handle prioritizing user doc -> user channel -> user email prefix -> '@user'.
+  /// Resolves handle prioritizing channel → user doc → user email prefix → '@user'.
   String getActiveHandle({
     Channel? userChannel,
     bool hasChannel = false,
     User? user,
   }) {
-    if (userHandle.value != null && userHandle.value!.trim().isNotEmpty) {
-      final handle = userHandle.value!.trim();
-      return handle.startsWith('@') ? handle : '@$handle';
-    }
+    // When user has a channel, channel handle takes precedence
     if (hasChannel && userChannel != null && userChannel.handle.isNotEmpty) {
       final handle = userChannel.handle;
+      return handle.startsWith('@') ? handle : '@$handle';
+    }
+    if (userHandle.value != null && userHandle.value!.trim().isNotEmpty) {
+      final handle = userHandle.value!.trim();
       return handle.startsWith('@') ? handle : '@$handle';
     }
     final email = user?.email ?? '';
@@ -156,8 +159,8 @@ class AuthProfileManager {
               userCity.value = data['city'] as String?;
               userState.value = data['state'] as String?;
               userCountry.value = data['country'] as String?;
-              userWalletBalance.value =
-                  (data['walletBalance'] as num?)?.toDouble() ?? 0.0;
+              userProfession.value = (data['profession'] as String?) ??
+                  (data['occupation'] as String?);
 
               final hasCompletedOnboarding =
                   data['hasCompletedOnboarding'] as bool? ??
@@ -196,7 +199,7 @@ class AuthProfileManager {
     userCity.value = null;
     userState.value = null;
     userCountry.value = null;
-    userWalletBalance.value = 0.0;
+    userProfession.value = null;
     needsOnboarding.value = false;
   }
 

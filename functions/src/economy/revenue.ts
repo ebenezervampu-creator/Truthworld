@@ -61,23 +61,27 @@ export const getCreatorRevenue = onCall(
         const chViews = Number(chData.stats?.views || chData.views || 0);
         const chSuperchats = Number(chData.superchatRevenueTotal || 0);
         const chAds = Number(chData.adsRevenueTotal || 0);
-        let chMembers = 0;
+        const chPremiumSubs = Number(chData.premiumSubsRevenueTotal || 0);
+        let chMembers = Number(chData.membershipRevenueTotal || chData.membershipsRevenueTotal || 0);
 
         currentMonthViews += chViews;
-        try {
-          const membersSnap = await chDoc.ref.collection("members").where("status", "==", "active").get();
-          for (const mDoc of membersSnap.docs) {
-            chMembers += Number(mDoc.data().price || 0);
-          }
-        } catch (_) {}
+        if (chMembers === 0) {
+          try {
+            const membersSnap = await chDoc.ref.collection("members").where("status", "==", "active").get();
+            for (const mDoc of membersSnap.docs) {
+              chMembers += Number(mDoc.data().price || 0);
+            }
+          } catch (_) {}
+        }
 
-        const chGross = chSuperchats + chAds + chMembers;
+        const chGross = chSuperchats + chAds + chMembers + chPremiumSubs;
         currentMonthGross += chGross;
 
         if (isCustom) {
           currentMonthEstimatedCreatorShare += chGross;
         } else {
-          currentMonthEstimatedCreatorShare += (chAds * 0.70) + chSuperchats + chMembers;
+          // chAds and chPremiumSubs are already net creator shares credited by settlement functions
+          currentMonthEstimatedCreatorShare += chAds + chSuperchats + chMembers + chPremiumSubs;
         }
       }
 
@@ -125,23 +129,26 @@ export async function syncChannelStatements(channel: any, userId: string): Promi
   const views = Number(channel.stats?.views || channel.views || 0);
   const superchatRevenue = Number(channel.superchatRevenueTotal || 0);
   const adsRevenue = Number(channel.adsRevenueTotal || 0);
+  const premiumSubsRevenue = Number(channel.premiumSubsRevenueTotal || 0);
 
   // Calculate authentic channel memberships revenue (100% direct creator share)
-  let membershipsRevenue = 0;
-  try {
-    const membersSnap = await db().collection("channels").doc(channelId).collection("members")
-      .where("status", "==", "active").get();
-    for (const mDoc of membersSnap.docs) {
-      membershipsRevenue += Number(mDoc.data().price || 0);
+  let membershipsRevenue = Number(channel.membershipRevenueTotal || channel.membershipsRevenueTotal || 0);
+  if (membershipsRevenue === 0) {
+    try {
+      const membersSnap = await db().collection("channels").doc(channelId).collection("members")
+        .where("status", "==", "active").get();
+      for (const mDoc of membersSnap.docs) {
+        membershipsRevenue += Number(mDoc.data().price || 0);
+      }
+    } catch (mErr) {
+      logger.warn(`[Economy] Could not fetch members for ${channelId}:`, mErr);
     }
-  } catch (mErr) {
-    logger.warn(`[Economy] Could not fetch members for ${channelId}:`, mErr);
   }
 
   const channelType: "standard" | "custom" =
     (channel.type === "custom" || channel.channelType === "custom") ? "custom" : "standard";
 
-  const grossRevenue = superchatRevenue + adsRevenue + membershipsRevenue;
+  const grossRevenue = superchatRevenue + adsRevenue + membershipsRevenue + premiumSubsRevenue;
   // Unified Revenue Share Rule:
   // - Standard: 70% Creator / 30% Platform on Ads & Premium Subs, 100% Creator / 0% Platform on Superchats & Memberships.
   // - Custom: 100% Creator / 0% Platform on all sources (Custom channels take plans $15, $30, $45/mo etc.).
@@ -152,8 +159,11 @@ export async function syncChannelStatements(channel: any, userId: string): Promi
     creatorShare = Math.round(grossRevenue * 100) / 100;
     platformFee = 0;
   } else {
-    creatorShare = Math.round(((adsRevenue * 0.70) + superchatRevenue + membershipsRevenue) * 100) / 100;
-    platformFee = Math.round((adsRevenue * 0.30) * 100) / 100;
+    // adsRevenue and premiumSubsRevenue are already net creator shares credited by settlement functions
+    creatorShare = Math.round((adsRevenue + superchatRevenue + membershipsRevenue + premiumSubsRevenue) * 100) / 100;
+    const grossAds = adsRevenue > 0 ? adsRevenue / 0.70 : 0;
+    const grossPremium = premiumSubsRevenue > 0 ? premiumSubsRevenue / 0.70 : 0;
+    platformFee = Math.round(((grossAds + grossPremium) * 0.30) * 100) / 100;
   }
 
 
@@ -164,7 +174,8 @@ export async function syncChannelStatements(channel: any, userId: string): Promi
       channelId,
       month: currentMonth,
       grossAdsRevenue: adsRevenue,
-      grossSubsRevenue: superchatRevenue + membershipsRevenue,
+      grossSubsRevenue: superchatRevenue + membershipsRevenue + premiumSubsRevenue,
+      grossPremiumSubsRevenue: premiumSubsRevenue,
       platformFee,
       infrastructureCosts: 0,
       creatorShare,
@@ -182,7 +193,8 @@ export async function syncChannelStatements(channel: any, userId: string): Promi
   } else {
     await statementRef.update({
       grossAdsRevenue: adsRevenue,
-      grossSubsRevenue: superchatRevenue + membershipsRevenue,
+      grossSubsRevenue: superchatRevenue + membershipsRevenue + premiumSubsRevenue,
+      grossPremiumSubsRevenue: premiumSubsRevenue,
       creatorShare,
       withdrawableShare: creatorShare,
       updatedAt: Date.now(),

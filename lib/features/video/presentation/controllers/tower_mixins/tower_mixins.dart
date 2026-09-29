@@ -7,4 +7,6 @@ export 'tower_player_keyboard_mixin.dart';
 export 'tower_player_modes_mixin.dart';
 export 'tower_player_navigation_mixin.dart';
 export 'tower_player_sleep_timer_mixin.dart';
+export 'tower_player_timeline_mixin.dart';
 export 'tower_player_tracks_mixin.dart';
+export 'tower_player_ui_state_mixin.dart';

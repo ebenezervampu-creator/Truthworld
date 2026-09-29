@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/core/utils/mentions_helper.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
@@ -60,6 +61,11 @@ mixin UploadSubmissionMixin on
   }) async {
     debugPrint('Starting final video metadata update (isDraft: $isDraft)...');
 
+    final channelLang = channelLanguageCode;
+    final effectiveSelectedLangs = selectedLanguages.contains(channelLang)
+        ? selectedLanguages
+        : [channelLang, ...selectedLanguages];
+
     // Store metadata for multi-stage flow
     videoMetadata = {
       'title': title,
@@ -68,7 +74,8 @@ mixin UploadSubmissionMixin on
       'channelId': channelId,
       'channelImage': channelImage,
       'tags': tags,
-      'languages': selectedLanguages,
+      'language': channelLang,
+      'languages': effectiveSelectedLangs,
     };
 
     if (pickedVideo.value == null && resumedVideoDraft.value == null) {
@@ -175,6 +182,133 @@ mixin UploadSubmissionMixin on
         }
       }
 
+      // Validate and deduct AI Features Payment (Dubbing & Subtitles are NOT free)
+      final effectiveDurationSec = durationMs > 0
+          ? (durationMs ~/ 1000)
+          : videoDurationSeconds.value;
+      var dubbingCost = 0.0;
+      WalletTransaction? dubbingTx;
+      if (aiGenerateDubbing.value &&
+          aiDubbingLanguages.isNotEmpty &&
+          currentChan != null &&
+          !isDraft) {
+        dubbingCost = ChannelWalletService.calculateDubbingCost(
+          languageCount: aiDubbingLanguages.length,
+          durationSeconds: effectiveDurationSec,
+          channelType: currentChan.channelType,
+        );
+      }
+
+      var subtitleCost = 0.0;
+      WalletTransaction? subtitleTx;
+      final subLangsToBill = (aiGenerateDubbing.value
+              ? aiTranslationLanguages
+                  .where((l) => !aiDubbingLanguages.contains(l))
+                  .toList()
+              : aiTranslationLanguages.toList())
+          .where((l) => l.trim().isNotEmpty)
+          .toList();
+
+      if (aiGenerateSubtitles.value &&
+          subLangsToBill.isNotEmpty &&
+          currentChan != null &&
+          !isDraft) {
+        subtitleCost = ChannelWalletService.calculateSubtitleCost(
+          languageCount: subLangsToBill.length,
+          durationSeconds: effectiveDurationSec,
+          channelType: currentChan.channelType,
+        );
+      }
+
+      final totalAiComputeCost = dubbingCost + subtitleCost;
+      if (totalAiComputeCost > 0 && currentChan != null && !isDraft) {
+        final walletService = ChannelWalletService();
+        final balance = await walletService.getSpendableBalanceForChannelId(currentChan.id);
+
+        if (!balance.canAfford(totalAiComputeCost)) {
+          final balanceStr = '\$${balance.totalSpendableBalance.toStringAsFixed(2)}';
+          final totalStr = '\$${totalAiComputeCost.toStringAsFixed(2)}';
+          String detailMsg;
+          if (dubbingCost > 0 && subtitleCost > 0) {
+            detailMsg =
+                'AI Features are not free. Your channel balance of $balanceStr is insufficient for combined Dubbing (\$${dubbingCost.toStringAsFixed(2)}) and Subtitles (\$${subtitleCost.toStringAsFixed(2)}), totaling $totalStr.';
+          } else if (dubbingCost > 0) {
+            final rate = ChannelWalletService.getFlatDubbingPricePerLanguage(
+              durationSeconds: effectiveDurationSec,
+              channelType: currentChan.channelType,
+            );
+            detailMsg =
+                'Dubbing is not free. Your channel balance of $balanceStr is insufficient for the flat dubbing cost of $totalStr (\$${rate.toStringAsFixed(2)}/lang × ${aiDubbingLanguages.length} languages for ${effectiveDurationSec}s video).';
+          } else {
+            final rate = ChannelWalletService.getFlatSubtitlePricePerLanguage(
+              durationSeconds: effectiveDurationSec,
+              channelType: currentChan.channelType,
+            );
+            detailMsg =
+                'Subtitles are not free. Your channel balance of $balanceStr is insufficient for the subtitle cost of $totalStr (\$${rate.toStringAsFixed(2)}/lang × ${subLangsToBill.length} languages for ${effectiveDurationSec}s video).';
+          }
+          final msg = '$detailMsg Please add funds to your wallet or reduce selected languages.';
+          AppSnackbar.warning(msg);
+          throw Exception(msg);
+        }
+
+        // Deduct dubbing payment if selected
+        if (dubbingCost > 0) {
+          dubbingTx = await walletService.spendBalance(
+            channel: currentChan,
+            userId: userId,
+            amount: dubbingCost,
+            category: WalletTransactionCategory.aiDubbing,
+            description: 'AI Dubbing (${aiDubbingLanguages.length} langs, ${effectiveDurationSec}s)',
+            metadata: {
+              'channelType': currentChan.channelType.name,
+              'durationSeconds': effectiveDurationSec,
+              'languageCount': aiDubbingLanguages.length,
+              'dubbingLanguages': aiDubbingLanguages.toList(),
+              'flatRatePerLanguage': ChannelWalletService.getFlatDubbingPricePerLanguage(
+                durationSeconds: effectiveDurationSec,
+                channelType: currentChan.channelType,
+              ),
+              'costUSD': dubbingCost,
+            },
+          );
+
+          if (dubbingTx == null) {
+            const msg = 'Unable to complete dubbing deduction from channel balance. Please check your wallet and try again.';
+            AppSnackbar.error(msg);
+            throw Exception(msg);
+          }
+        }
+
+        // Deduct subtitles payment if selected
+        if (subtitleCost > 0) {
+          subtitleTx = await walletService.spendBalance(
+            channel: currentChan,
+            userId: userId,
+            amount: subtitleCost,
+            category: WalletTransactionCategory.aiSubtitles,
+            description: 'AI Subtitles (${subLangsToBill.length} langs, ${effectiveDurationSec}s)',
+            metadata: {
+              'channelType': currentChan.channelType.name,
+              'durationSeconds': effectiveDurationSec,
+              'languageCount': subLangsToBill.length,
+              'subtitleLanguages': subLangsToBill,
+              'flatRatePerLanguage': ChannelWalletService.getFlatSubtitlePricePerLanguage(
+                durationSeconds: effectiveDurationSec,
+                channelType: currentChan.channelType,
+              ),
+              'costUSD': subtitleCost,
+            },
+          );
+
+          if (subtitleTx == null) {
+            const msg = 'Unable to complete subtitle deduction from channel balance. Please check your wallet and try again.';
+            AppSnackbar.error(msg);
+            throw Exception(msg);
+          }
+        }
+      }
+
       // Upload thumbnail if needed
       if (thumbnailUrl.value.isEmpty && pickedImage.value != null) {
         await startImageUpload(pickedImage.value!, forCommunity: false);
@@ -216,7 +350,10 @@ mixin UploadSubmissionMixin on
             ? 'Uncategorized'
             : selectedCategory.value,
         'tags': validTags,
-        'languages': validLanguages,
+        'language': channelLanguageCode,
+        'languages': validLanguages.contains(channelLanguageCode)
+            ? validLanguages
+            : [channelLanguageCode, ...validLanguages],
         'visibility': isDraft ? 'private' : selectedVisibility.value,
         'targetVisibility': isDraft ? 'private' : selectedVisibility.value,
         'isKidFriendly': isKidFriendly.value,
@@ -244,7 +381,26 @@ mixin UploadSubmissionMixin on
         'aiFeatures': buildFeaturesMap(
           pipelineStage: isDraft ? 'draft' : 'published',
         ),
+        'factCheckTier': aiFactCheckTier.value,
       };
+
+      if (dubbingCost > 0) {
+        updateData['dubbingPaid'] = true;
+        updateData['dubbingCostUSD'] = dubbingCost;
+        updateData['dubbingDurationSeconds'] = effectiveDurationSec;
+        if (dubbingTx != null) {
+          updateData['dubbingWalletTxId'] = dubbingTx.id;
+        }
+      }
+
+      if (subtitleCost > 0) {
+        updateData['subtitlesPaid'] = true;
+        updateData['subtitlesCostUSD'] = subtitleCost;
+        updateData['subtitlesDurationSeconds'] = effectiveDurationSec;
+        if (subtitleTx != null) {
+          updateData['subtitlesWalletTxId'] = subtitleTx.id;
+        }
+      }
 
       if (!docSnapshot.exists) {
         debugPrint('📄 Creating initial Firestore document with metadata...');

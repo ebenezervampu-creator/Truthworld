@@ -53,11 +53,14 @@ export const onCommunityPostCreated = onDocumentCreated(
       const notifications: Promise<any>[] = [];
 
       subscribersSnap.docs.forEach(doc => {
-        const { userId, notificationsEnabled } = doc.data();
+        const data = doc.data();
+        const { userId, notificationsEnabled } = data;
         if (!userId) return;
 
-        // Mute if notifications are disabled
-        if (notificationsEnabled === false) return;
+        const effectiveOption = (data.notificationOption || data.notificationPreference || (notificationsEnabled === false ? "none" : "personalized")).toLowerCase();
+
+        // Mute if notifications are disabled or set to none
+        if (notificationsEnabled === false || effectiveOption === "none") return;
 
         // Don't notify the creator of their own post
         if (userId === ownerId) return;
@@ -74,7 +77,8 @@ export const onCommunityPostCreated = onDocumentCreated(
               channelId, 
               postId,
               thumbnailUrl: post.image || "",
-              avatarUrl: post.channelImage || ""
+              avatarUrl: post.channelImage || "",
+              notificationOption: effectiveOption,
             }
           })
         );
@@ -265,7 +269,8 @@ export const onNewSubscription = onDocumentCreated(
       metadata: { 
         channelId, 
         subscriberId,
-        avatarUrl
+        avatarUrl,
+        notificationOption: subscription.notificationOption || subscription.notificationPreference || "personalized",
       }
     });
   } catch (err) {

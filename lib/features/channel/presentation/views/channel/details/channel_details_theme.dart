@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 // ==========================================================================
-// YOUTUBE THEME COLORS FOR CHANNEL DETAILS
+// THEME COLORS FOR CHANNEL DETAILS
 // ==========================================================================
 const Color ytBackground = AppColors.bgPage;
 const Color ytSurface = Color(0xFF1A1A1A);

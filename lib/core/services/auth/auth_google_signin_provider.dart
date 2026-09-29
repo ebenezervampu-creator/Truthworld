@@ -139,19 +139,40 @@ class AuthGoogleSignInProvider {
         }
       }
 
-      // Step 2: ipapi.co — always called to get the authoritative ISO 2-letter
-      // country_code. Also fills city/state if Google People had no address,
-      // and builds the location string if it was missing entirely.
+      // Step 2: Location lookup via IP — authoritative ISO 2-letter country_code.
+      // Also fills city/state if Google People had no address, and builds location string.
+      // Uses CORS-friendly ipwho.is first, with ipapi.co as fallback.
       try {
-        final ipRes = await AppHttpClient.get(
-          Uri.parse('https://ipapi.co/json/'),
-        ).timeout(const Duration(seconds: 3));
-        if (ipRes.statusCode == 200) {
-          final ipData = jsonDecode(ipRes.body) as Map<String, dynamic>;
+        Map<String, dynamic>? ipData;
+        try {
+          final res = await AppHttpClient.get(
+            Uri.parse('https://ipwho.is/'),
+          ).timeout(const Duration(seconds: 3));
+          if (res.statusCode == 200) {
+            final parsed = jsonDecode(res.body) as Map<String, dynamic>;
+            if (parsed['success'] == true) {
+              ipData = parsed;
+            }
+          }
+        } catch (_) {}
+
+        if (ipData == null) {
+          try {
+            final ipRes = await AppHttpClient.get(
+              Uri.parse('https://ipapi.co/json/'),
+            ).timeout(const Duration(seconds: 3));
+            if (ipRes.statusCode == 200) {
+              ipData = jsonDecode(ipRes.body) as Map<String, dynamic>;
+            }
+          } catch (_) {}
+        }
+
+        if (ipData != null) {
           // Prefer ISO 2-letter code; fall back to full name only as last resort.
           country =
               ipData['country_code']?.toString() ??
-              ipData['country_name']?.toString();
+              ipData['country_name']?.toString() ??
+              ipData['country']?.toString();
           // Fill city/state only if Google People did not supply them.
           city ??= ipData['city']?.toString();
           state ??= ipData['region']?.toString();
@@ -218,6 +239,51 @@ class AuthGoogleSignInProvider {
       message: 'Sign-in failed after retries',
       code: 'max-retries-exceeded',
     );
+  }
+
+  /// Re-authenticates an existing user via Google provider to ensure fresh tokens
+  /// before sensitive operations (such as account deletion).
+  Future<UserCredential> reauthenticateWithGoogle(User user) async {
+    try {
+      if (kIsWeb) {
+        final provider = GoogleAuthProvider();
+        provider.addScope('https://www.googleapis.com/auth/userinfo.email');
+        provider.addScope('https://www.googleapis.com/auth/userinfo.profile');
+        provider.setCustomParameters({'prompt': 'select_account'});
+        return await user.reauthenticateWithPopup(provider);
+      } else {
+        try {
+          await googleSignIn.signOut();
+        } catch (e, s) {
+          ErrorHandler.log(
+            e,
+            stackTrace: s,
+            tag: 'AuthGoogleSignInProvider.reauthSignOut',
+          );
+        }
+
+        final googleUser = await googleSignIn.authenticate();
+        final googleAuth = googleUser.authentication;
+        final credential = GoogleAuthProvider.credential(
+          idToken: googleAuth.idToken,
+        );
+        return await user.reauthenticateWithCredential(credential);
+      }
+    } catch (e, st) {
+      final mapped = GoogleSignInExceptionHandler.from(e);
+      if (mapped.code == 'user-cancelled') {
+        if (kDebugMode) {
+          debugPrint('ℹ️ [GoogleSignIn] Re-authentication cancelled by user.');
+        }
+      } else {
+        ErrorHandler.log(
+          e,
+          stackTrace: st,
+          tag: 'AuthGoogleSignInProvider.reauthenticateWithGoogle',
+        );
+      }
+      throw mapped;
+    }
   }
 
   /// Signs out from Google Sign-In SDK.

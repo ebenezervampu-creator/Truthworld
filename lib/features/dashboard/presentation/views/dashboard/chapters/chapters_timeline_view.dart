@@ -37,7 +37,7 @@ class ChaptersTimelineView {
           ),
           const SizedBox(height: 8),
           Text(
-            'Create manual chapters or import YouTube description timestamps.',
+            'Create manual chapters or import video description timestamps.',
             style: TextStyle(
               fontSize: 13,
               color: textSecondaryColor,

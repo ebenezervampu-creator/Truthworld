@@ -53,6 +53,7 @@ const VideoModerationResponseSchema = z.object({
   violationCategories: z.array(z.string()).default([]),
   summary: z.string(),
   category: z.string().default("Other"),
+  detectedLanguage: z.string().default("en"),
 });
 
 type GeminiModerationOutput = z.infer<typeof VideoModerationResponseSchema>;
@@ -70,6 +71,8 @@ export interface VideoModerationResult {
   violationCategories: string[];
   summary: string;
   category?: string;
+  /** ISO 639-1 code of the primary spoken language detected by Gemini (e.g. "en", "hi", "te") */
+  detectedLanguage?: string;
   processingTimeMs: number;
 }
 
@@ -108,6 +111,16 @@ Our Credibility Engine fact-checks every claim in every video, provides source c
 **Our job is ONLY to ensure the DELIVERY is clean, family-friendly, and appropriate for all audiences.**
 
 ## MODERATION PIPELINE — Follow these 5 steps in order:
+
+### STEP 0: Detect Primary Spoken Language (MANDATORY — Run First)
+Before anything else, identify the PRIMARY language being spoken in the audio track.
+
+- Set "detectedLanguage" in your JSON output to the ISO 639-1 code of the primary spoken language (e.g. "en" for English, "hi" for Hindi, "te" for Telugu, "es" for Spanish, "fr" for French, "zh" for Chinese, etc.)
+- If multiple languages are spoken, identify the DOMINANT one (by time spoken).
+- If the video is SILENT or contains only music/sound effects with no speech, set detectedLanguage to "en".
+- TruthWorld welcomes all languages and supports auto-subtitles and AI dubbing in 100+ languages. Proceed directly to STEP 1–4.
+
+---
 
 ### STEP 1: Identify Content Topic & Category
 1. **Topic**: Determine what the video is ABOUT. Use a concise lowercase topic label (e.g., "political_debate", "historical_analysis", "conspiracy_theory", "religious_debate", "gambling_analysis", "cybersecurity", "war_history", "crypto_trading", "gaming_industry").
@@ -336,6 +349,7 @@ When approving controversial content, explain that the Credibility Engine handle
 You MUST return a JSON object matching this exact schema:
 {
   "approved": boolean,
+  "detectedLanguage": "ISO 639-1 language code of the primary spoken language (e.g. \"en\", \"hi\", \"te\", \"es\")",
   "topic": "concise_topic_label",
   "intent": "one of: news_reporting, documentary, educational, commentary, review, satire, personal_experience, entertainment, promotional, instructional_harmful",
   "policyAction": "allow | reject | manual_review",
@@ -348,7 +362,7 @@ You MUST return a JSON object matching this exact schema:
   "category": "One category from the valid list below"
 }
 
-Valid violation categories: "profanity", "sexual_content", "graphic_violence", "romantic_content", "child_exploitation", "gambling_promotion", "dangerous_instructions", "violent_game_glorification"
+Valid violation categories: "profanity", "sexual_content", "graphic_violence", "romantic_content", "child_exploitation", "gambling_promotion", "dangerous_instructions", "violent_game_glorification", "non_english_content"
 
 Valid content categories (must match casing exactly, default is 'Other'):
 'News', 'Politics', 'Business & Finance', 'Technology', 'Science', 'Health & Fitness', 'History', 'Education', 'Entertainment', 'Music', 'Sports', 'Gaming', 'Travel', 'Lifestyle', 'Comedy', 'Documentary', 'Movies', 'TV Shows', 'Vlogs', 'DIY & How-to', 'Fashion & Beauty', 'Food & Cooking', 'Business & Finance', 'Animation', 'Short Films', 'Motivation', 'History', 'Art & Design', 'Automotive', 'Animals & Pets', 'Spirituality', 'Nature & Wildlife', 'Kids & Family', 'Other'
@@ -556,7 +570,7 @@ export class VideoModerationService {
                     },
                   },
                   {
-                    text: "Analyze this video content following the 5-step moderation pipeline (Topic & Category → Intent → Risk → Decision). Focus on audio/speech. Select an accurate content category from the allowed list. Return your analysis as JSON.",
+                    text: "Analyze this video following the moderation pipeline. STEP 0 FIRST: Detect the primary spoken language and set detectedLanguage (e.g. 'en', 'es', 'hi', 'fr', etc.). Then proceed through STEP 1–4 (Topic & Category → Intent → Risk → Decision). Focus on audio/speech. Return your analysis as JSON.",
                   },
                 ],
               },
@@ -619,6 +633,7 @@ export class VideoModerationService {
           violationCategories: parsed.data.violationCategories,
           summary: parsed.data.summary || "Summary unavailable.",
           category: finalCategory,
+          detectedLanguage: parsed.data.detectedLanguage || "en",
           processingTimeMs,
         };
       } catch (error) {
@@ -721,7 +736,6 @@ export class VideoModerationService {
 
     // ─── CASE 1: Gemini says REJECT ───────────────────────────────────
     if (!raw.approved || raw.policyAction === "reject") {
-
       // High-confidence rejection on harmful intent → auto-reject
       if (HARMFUL_INTENTS.has(raw.intent) && raw.confidenceScore >= 0.80) {
         return { approved: false, policyAction: "reject" };

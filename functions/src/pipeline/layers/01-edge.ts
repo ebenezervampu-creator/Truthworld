@@ -102,7 +102,8 @@ export class EdgeLayer {
       };
 
       if (plan.enablePath2 || plan.enableReachEngine) {
-        const targetLanguages = (plan.languages || []).filter(l => normalizeLanguageCode(l) !== "en"); 
+        const sourceLang = normalizeLanguageCode(plan.primaryLanguage || "en");
+        const targetLanguages = (plan.languages || []).filter(l => normalizeLanguageCode(l) !== sourceLang); 
         for (const lang of targetLanguages) {
           const normLang = normalizeLanguageCode(lang);
           stages[`translating_${normLang}`] = this.stagePending();
@@ -193,7 +194,8 @@ export class EdgeLayer {
       }
 
       if (job.executionPlan?.enablePath2 || job.executionPlan?.enableReachEngine) {
-        const targetLanguages = (job.executionPlan.languages || []).filter(l => normalizeLanguageCode(l) !== "en");
+        const sourceLang = normalizeLanguageCode(job.executionPlan.primaryLanguage || "en");
+        const targetLanguages = (job.executionPlan.languages || []).filter(l => normalizeLanguageCode(l) !== sourceLang);
         if (targetLanguages.length > 0) {
           const weightPerLang = LOCALIZATION_TOTAL_WEIGHT / targetLanguages.length;
           const translationWeight = weightPerLang * 0.4;

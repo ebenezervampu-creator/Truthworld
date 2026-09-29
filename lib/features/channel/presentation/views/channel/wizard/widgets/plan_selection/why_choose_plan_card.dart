@@ -33,44 +33,71 @@ class WhyChoosePlanCard extends StatelessWidget {
         customBullets = [
           '100% Revenue Share: Keep 100% from Ads, Subscriptions & Superchats',
           'Flexible Cloud Storage & Global CDN Bandwidth scaled to your audience',
+          'Firestore Database Operations & Google Cloud Backend Compute Included',
           'Dedicated 24/7 VIP Account Manager & Direct Technical Support',
           '4K HDR Video Encoding & Custom Transcoding Pipelines',
-          r'50% Off AI Dubbing ($0.25/lang) & Studio Vocal Identity Cloning included',
+          r'At-Cost AI Dubbing (From $0.10/lang) & Studio Vocal Identity Cloning included',
           'Custom Integration & Payout Contract SLAs',
-          '100% Free Premium Features (Value ₹25,999/year included)',
+          '100% Free Premium Creator Features included',
+        ];
+      } else if (selectedTier == r'$200') {
+        customBullets = [
+          '100% Revenue Share: Keep 100% from Ads, Subscriptions & Superchats',
+          '800 GB Cloud Storage: Space for ~3,000+ HD/4K videos',
+          '3.2 TB Ultra High-Speed Global CDN: Cinema-grade streaming',
+          'Firestore Database Operations & Google Cloud Backend Compute Included',
+          '8K Cinema Master Encoding & Lossless Dolby Atmos Audio',
+          '100% Free AI Fact-Checking: Automatic verification on all uploads',
+          r'At-Cost AI Dubbing (From $0.10/lang) & Studio Vocal Identity Cloning included',
+          'Enterprise 24/7 Dedicated Account Manager & VIP Response',
+          '100% Free Premium Creator Features included',
+        ];
+      } else if (selectedTier == r'$100') {
+        customBullets = [
+          '100% Revenue Share: Keep 100% from Ads, Subscriptions & Superchats',
+          '400 GB Cloud Storage: Space for ~1,500+ HD/4K videos',
+          '1.6 TB High-Speed Global CDN: Multi-region global streaming',
+          'Firestore Database Operations & Google Cloud Backend Compute Included',
+          '4K HDR Video & 8K Multi-Track Transcoding',
+          '100% Free AI Fact-Checking: Automatic verification on all uploads',
+          r'At-Cost AI Dubbing (From $0.10/lang) & Studio Vocal Identity Cloning included',
+          'VIP Priority 24/7 Account Support & Fast Transcoding Queue',
+          '100% Free Premium Creator Features included',
         ];
       } else if (selectedTier == r'$45') {
         customBullets = [
           '100% Revenue Share: Keep 100% from Ads, Subscriptions & Superchats',
-          '1 TB Cloud Storage: Space for ~3,000+ HD/4K videos',
-          '5 TB High-Speed Global CDN: Fast global streaming (~15,000+ hrs)',
+          '150 GB Cloud Storage: Space for ~500+ HD/4K videos',
+          '750 GB High-Speed Global CDN: Fast global streaming (~2,500+ hrs)',
+          'Firestore Database Operations & Google Cloud Backend Compute Included',
           '4K HDR Video & Lossless Audio encoding',
-          r'$20 FREE Monthly Bonus Credit included',
-          r'50% Off AI Dubbing ($0.25/lang) & Studio Vocal Identity Cloning included',
+          '100% Free AI Fact-Checking: Automatic verification on all uploads',
+          r'At-Cost AI Dubbing (From $0.10/lang) & Studio Vocal Identity Cloning included',
           'VIP Priority 24/7 Account Support & HD Transcoding',
-          '100% Free Premium Features (Value ₹25,999/year included)',
+          '100% Free Premium Creator Features included',
         ];
       } else if (selectedTier == r'$30') {
         customBullets = [
           '100% Revenue Share: Keep 100% from Ads, Subscriptions & Superchats',
-          '300 GB Cloud Storage: Space for ~1,000 HD/4K videos',
-          '1.5 TB High-Speed Global CDN: Fast streaming (~5,000 hrs)',
+          '100 GB Cloud Storage: Space for ~300 HD/4K videos',
+          '500 GB High-Speed Global CDN: Fast streaming (~1,500 hrs)',
+          'Firestore Database Operations & Google Cloud Backend Compute Included',
           '4K Ultra HD Uploads (3840x2160) + High Bitrate',
-          r'$10 FREE Monthly Bonus Credit included',
-          r'50% Off AI Dubbing ($0.25/lang) & Studio Vocal Identity Cloning included',
+          '100% Free AI Fact-Checking: Automatic verification on all uploads',
+          r'At-Cost AI Dubbing (From $0.10/lang) & Studio Vocal Identity Cloning included',
           'Priority Live Support & Fast HD Transcoding',
-          '100% Free Premium Features (Value ₹25,999/year included)',
+          '100% Free Premium Creator Features included',
         ];
       } else {
         customBullets = [
           '100% Revenue Share: Keep 100% from Ads, Subscriptions & Superchats',
-          '100 GB Cloud Storage: Space for ~300 HD/4K videos',
-          '500 GB High-Speed Global CDN: Ultra-fast streaming (~1,500+ hrs)',
+          '50 GB Cloud Storage: Space for ~150 HD/4K videos',
+          '250 GB High-Speed Global CDN: Ultra-fast streaming (~750+ hrs)',
+          'Firestore Database Operations & Google Cloud Backend Compute Included',
           '4K Ultra HD Uploads (3840x2160) & Unlimited Uploads/Day',
-          'Google Cloud & Firebase Backend Egress Included',
-          r'50% Off AI Dubbing ($0.25/lang) & Studio Vocal Identity Cloning included',
+          r'At-Cost AI Dubbing (From $0.10/lang) & Studio Vocal Identity Cloning included',
           'Standard Priority Support & Fast Transcoding',
-          '100% Free Premium Features (Value ₹25,999/year included)',
+          '100% Free Premium Creator Features included',
         ];
       }
 
@@ -81,7 +108,7 @@ class WhyChoosePlanCard extends StatelessWidget {
         '100% Direct Fan Revenue: Keep 100% Memberships & Superchats',
         'Up to 4K Ultra HD Uploads: High quality video playback',
         '10 Min/Day Upload Limit: Ideal for starting out creators',
-        r'Pay-As-You-Go Dubbing: $0.50/language with standard voice presets from channel earnings',
+        r'At-Cost Pass-Through Dubbing: From $0.10/language with zero platform markup',
         'Easy Upgrade Anytime: Switch to Custom plan whenever you grow',
       ];
 
@@ -90,9 +117,9 @@ class WhyChoosePlanCard extends StatelessWidget {
         'Earn 70% to 100% Revenue Share on Ads & Premium Subscriptions',
         'Keep 100% Direct Fan Revenue: 0% Platform Commission on Memberships & Superchats',
         'Standard Plan: 100% Free with 10 min/day uploads in up to 4K Ultra HD',
-        'Custom Plan: Unlimited uploads, 4K Ultra HD & Cloud Storage up to 1 TB',
-        r'AI Dubbing: $0.50/lang (Standard) vs 50% Partner Discount $0.25/lang + Voice Cloning (Custom)',
-        r'Custom Bonus: Instant $10 FREE Monthly Bonus Credit included',
+        'Custom Plan: Unlimited uploads, 4K Ultra HD & Cloud Storage up to 800 GB',
+        r'AI Dubbing: 100% At-Cost Pass-Through (From $0.10/lang) with 0% platform markup for all channels',
+        '100% Creator Retention: Zero platform commissions on custom channels',
         'Easy Upgrade: Switch or upgrade your plan anytime from Channel Settings',
       ];
 

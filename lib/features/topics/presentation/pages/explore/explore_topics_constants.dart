@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 // ==========================================================================
-// YOUTUBE-STYLE THEME COLORS (EXACT MATCH WITH LIBRARY SCREEN)
+// THEME COLORS (EXACT MATCH WITH LIBRARY SCREEN)
 // ==========================================================================
 const Color _ytBlack = Color(0xFF0F0F0F);
 const Color _ytCardBg = Color(0xFF1E1E1E);

@@ -217,6 +217,7 @@ class RecommendationFeed extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: 16),
                     child: ScrollAdCard(
                       ad: item,
+                      contextChannelId: video.channelId,
                     ),
                   );
                 }
@@ -238,7 +239,10 @@ class RecommendationFeed extends StatelessWidget {
               if (displayAd == null || displayAd.adType == 'homepage') return const SizedBox.shrink();
               return Padding(
                 padding: const EdgeInsets.only(left: 16, right: 16, top: 4, bottom: 8),
-                child: ScrollAdCard(ad: displayAd),
+                child: ScrollAdCard(
+                  ad: displayAd,
+                  contextChannelId: controller.video.channelId,
+                ),
               );
             }),
           if (displayItems.isEmpty)

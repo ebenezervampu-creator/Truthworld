@@ -15,6 +15,8 @@ import 'package:truthworld/theme/app_theme.dart';
 /// Modal bottom sheet and widgets for previewing channel membership tiers, perks,
 /// and joining channel memberships.
 class VideoChannelMembershipModal {
+  static final RxBool rxAutoPay = true.obs;
+
   static void show({
     required BuildContext context,
     required VideoController controller,
@@ -114,6 +116,60 @@ class VideoChannelMembershipModal {
                   const SizedBox(height: 16),
                   const Divider(height: 1, color: AppColors.bgDivider),
                   const SizedBox(height: 16),
+
+                  Obx(() {
+                    final ch = controller.channelController.selectedChannel.value;
+                    if (ch != null && ch.noAdsForMembers) {
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 14),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: Colors.amber.withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(
+                              Icons.workspace_premium_rounded,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                            SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Channel Premium: Zero Ads & 4K Streaming',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    'Members watch all videos on this channel ad-free in 4K Ultra HD (up to 2160p).',
+                                    style: TextStyle(
+                                      color: AppColors.textSecondary,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  }),
 
                   // Tiers Stream
                   Expanded(
@@ -316,29 +372,121 @@ class VideoChannelMembershipModal {
             ),
           ),
           const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.brand,
-                foregroundColor: Colors.black,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+          Obx(() {
+            final isAutoPay = rxAutoPay.value;
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.bgSurface,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isAutoPay
+                      ? AppColors.brand.withValues(alpha: 0.5)
+                      : AppColors.bgDivider,
                 ),
               ),
-              onPressed: () =>
-                  _joinMembershipTier(context, tier, channelId, channelName, onSignInPrompt),
-              child: Text(
-                'Join ${tier.name}',
-                style: AppTextStyles.buttonText.copyWith(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                  color: Colors.black,
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: isAutoPay
+                          ? AppColors.brand.withValues(alpha: 0.15)
+                          : Colors.transparent,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.autorenew_rounded,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Text(
+                              'Auto Pay',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: isAutoPay
+                                    ? const Color(0xFF10B981).withValues(alpha: 0.2)
+                                    : const Color(0xFF3F3F46),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                isAutoPay ? 'MONTHLY' : 'ONE-TIME',
+                                style: TextStyle(
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.bold,
+                                  color: isAutoPay
+                                      ? const Color(0xFF34D399)
+                                      : Colors.white70,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          isAutoPay
+                              ? 'Auto-renews monthly. Cancel anytime.'
+                              : 'Valid for 30 days. No recurring debit.',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch.adaptive(
+                    value: isAutoPay,
+                    onChanged: (val) => rxAutoPay.value = val,
+                    activeColor: Colors.black,
+                    activeTrackColor: Colors.white,
+                  ),
+                ],
+              ),
+            );
+          }),
+          Obx(() {
+            final isAutoPay = rxAutoPay.value;
+            return SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.brand,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                onPressed: () =>
+                    _joinMembershipTier(context, tier, channelId, channelName, onSignInPrompt, isAutoPay),
+                child: Text(
+                  isAutoPay ? 'Join ${tier.name} with Auto Pay' : 'Join ${tier.name} (One-Time)',
+                  style: AppTextStyles.buttonText.copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: Colors.black,
+                  ),
                 ),
               ),
-            ),
-          ),
+            );
+          }),
         ],
       ),
     );
@@ -349,8 +497,9 @@ class VideoChannelMembershipModal {
     ChannelMembershipTier tier,
     String channelId,
     String channelName,
-    VoidCallback onSignInPrompt,
-  ) async {
+    VoidCallback onSignInPrompt, [
+    bool autoPay = true,
+  ]) async {
     if (!AuthService.to.isAuthenticated.value) {
       onSignInPrompt();
       return;
@@ -368,16 +517,19 @@ class VideoChannelMembershipModal {
           ? tier.price
           : (tier.price * rate);
       final amountINR = math.max(1.0, double.parse(calculatedAmount.toStringAsFixed(2)));
+      final autoPaySuffix = autoPay ? ' (Auto Pay)' : ' (One-Time)';
       final paymentResult = await CashfreePaymentService.to.startPayment(
         amount: amountINR,
         purpose: 'channel_membership',
-        orderNote: 'Membership: $channelName - ${tier.name}',
+        orderNote: 'Membership$autoPaySuffix: $channelName - ${tier.name}',
         metadata: {
           'channelId': channelId,
           'channelName': channelName,
           'tierId': tier.id,
           'tierName': tier.name,
           'currency': tier.currency,
+          'autoPay': autoPay,
+          'billingType': autoPay ? 'recurring' : 'one_time',
           'userName': AuthService.to.currentUser.value?.displayName ?? 'Channel Supporter',
           'userAvatarUrl': AuthService.to.currentUser.value?.photoURL ?? '',
         },
@@ -411,6 +563,8 @@ class VideoChannelMembershipModal {
           'currency': tier.currency,
           'orderId': paymentResult.orderId,
           'paymentGateway': 'cashfree',
+          'autoPay': autoPay,
+          'isAutoPay': autoPay,
           'joinedAt': FieldValue.serverTimestamp(),
           'status': 'active',
         },
@@ -433,6 +587,8 @@ class VideoChannelMembershipModal {
         'perks': tier.perks,
         'orderId': paymentResult.orderId,
         'paymentGateway': 'cashfree',
+        'autoPay': autoPay,
+        'isAutoPay': autoPay,
         'joinedAt': FieldValue.serverTimestamp(),
         'status': 'active',
       };
@@ -450,8 +606,9 @@ class VideoChannelMembershipModal {
       // Note: memberCount on the tier document and channel revenue are incremented authoritatively by backend fulfillOrder
       await batch.commit();
 
+      final autoPayNote = autoPay ? ' Auto Pay is active for monthly renewals.' : '';
       AppSnackbar.success(
-        'Welcome to ${tier.name}! You are now a member of $channelName. Enjoy your exclusive perks!',
+        'Welcome to ${tier.name}! You are now a member of $channelName.$autoPayNote Enjoy your exclusive perks!',
       );
     } catch (e) {
       ErrorHandler.log(e);

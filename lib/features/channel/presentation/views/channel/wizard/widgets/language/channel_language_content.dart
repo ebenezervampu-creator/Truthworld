@@ -27,23 +27,27 @@ class ChannelLanguageContent extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
+            color: const Color(0xFF121212),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+            border: Border.all(color: const Color(0xFF27272A)),
           ),
           child: const Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.info_outline, color: Colors.white, size: 15),
+              Icon(
+                Icons.info_outline,
+                color: Color(0xFFA1A1AA),
+                size: 16,
+              ),
               SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'Truthworld is accepting only English as of now. All other languages are invite only.',
                   style: TextStyle(
                     fontSize: 11,
-                    color: AppColors.textSecondary,
+                    color: Color(0xFFA1A1AA),
                     height: 1.35,
                   ),
                 ),
@@ -85,7 +89,7 @@ class ChannelLanguageContent extends StatelessWidget {
                         '#1 Worldwide • ~1.5B Speakers (Active)',
                         style: TextStyle(
                           fontSize: 11,
-                          color: AppColors.textTertiary,
+                          color: Color(0xFFA1A1AA),
                         ),
                       ),
                     ],
@@ -94,10 +98,10 @@ class ChannelLanguageContent extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,
-                    vertical: 2,
+                    vertical: 3,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF15803D).withValues(alpha: 0.3),
+                    color: const Color(0xFF1B382B),
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(
                       color: const Color(0xFF22C55E).withValues(alpha: 0.4),
@@ -108,7 +112,7 @@ class ChannelLanguageContent extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: Color(0xFF4ADE80),
                     ),
                   ),
                 ),

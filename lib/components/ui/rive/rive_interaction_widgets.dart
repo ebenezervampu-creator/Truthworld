@@ -134,7 +134,7 @@ class TruthworldRiveSubscribeButton extends StatefulWidget {
     required this.isSubscribed,
     required this.onPressed,
     super.key,
-    this.notificationOption = 'all',
+    this.notificationOption = 'personalized',
     this.compact = false,
   });
 
@@ -253,7 +253,9 @@ class _TruthworldRiveSubscribeButtonState
                     return Icon(
                       widget.notificationOption == 'none'
                           ? Icons.notifications_off_rounded
-                          : Icons.notifications_active_rounded,
+                          : (widget.notificationOption == 'personalized'
+                              ? Icons.notifications_outlined
+                              : Icons.notifications_active_rounded),
                       size: fontSize + 3,
                       color: fgColor,
                     );

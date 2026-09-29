@@ -367,11 +367,11 @@ class VideoDescriptionBox extends StatelessWidget {
                 const SizedBox(width: 6),
                 Text(
                   'AI SUMMARY',
-                  style: GoogleFonts.outfit(
+                  style: GoogleFonts.roboto(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
                     color: AppColors.brand,
-                    letterSpacing: 1.1,
+                    letterSpacing: 1.0,
                   ),
                 ),
               ],
@@ -483,7 +483,7 @@ class VideoDescriptionBox extends StatelessWidget {
         children: [
           Text(
             'TIMESTAMPED TRANSCRIPT',
-            style: GoogleFonts.outfit(
+            style: GoogleFonts.roboto(
               fontSize: 11,
               fontWeight: FontWeight.w600,
               color: Colors.white54,

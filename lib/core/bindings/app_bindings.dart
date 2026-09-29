@@ -1,7 +1,6 @@
 import 'package:get/get.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
-import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
 import 'package:truthworld/features/feedback/presentation/views/feedback/feedbacks.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
@@ -41,10 +40,11 @@ class VideoBinding extends Bindings {
   void dependencies() {
     MiniplayerBinding().dependencies();
     final videoId =
-        Get.arguments?['video']?.id ??
+        (Get.arguments is Map ? (Get.arguments['video']?.id as String?) : null) ??
         Get.parameters['v'] ??
-        Get.parameters['videoId'];
-    Get.lazyPut<VideoController>(VideoController.new, tag: videoId);
+        Get.parameters['videoId'] ??
+        Get.parameters['id'];
+    Get.lazyPut<VideoController>(() => VideoController(tag: videoId), tag: videoId);
     Get.lazyPut<ChannelController>(ChannelController.new, tag: videoId);
     Get.lazyPut<ChannelSubscriptionController>(
       ChannelSubscriptionController.new,

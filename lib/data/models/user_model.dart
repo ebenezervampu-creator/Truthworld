@@ -39,7 +39,8 @@ enum AuthProvider {
 enum AccountStatus {
   active,
   suspended,
-  deleted;
+  deleted,
+  deactivated;
 
   String get value => name;
 
@@ -49,6 +50,8 @@ enum AccountStatus {
         return AccountStatus.suspended;
       case 'deleted':
         return AccountStatus.deleted;
+      case 'deactivated':
+        return AccountStatus.deactivated;
       default:
         return AccountStatus.active;
     }
@@ -87,7 +90,6 @@ class UserModel {
     this.country,
     this.hasCompletedOnboarding = false,
     this.ageGroup,
-    this.walletBalance = 0.0,
   });
 
   /// Create from Firestore document snapshot
@@ -119,7 +121,6 @@ class UserModel {
       country: data['country'] as String?,
       hasCompletedOnboarding: data['hasCompletedOnboarding'] as bool? ?? false,
       ageGroup: data['ageGroup'] as String?,
-      walletBalance: (data['walletBalance'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
@@ -159,7 +160,6 @@ class UserModel {
   final String? country;
   final bool hasCompletedOnboarding;
   final String? ageGroup;
-  final double walletBalance;
 
   /// Serialize for Firestore document creation
   /// Uses `FieldValue.serverTimestamp()` for consistent timestamps
@@ -179,7 +179,6 @@ class UserModel {
       'metadata': metadata,
       'channelId': channelId,
       'hasCompletedOnboarding': hasCompletedOnboarding,
-      'walletBalance': walletBalance,
       if (gender != null) 'gender': gender,
       if (age != null) 'age': age,
       if (birthdate != null) 'birthdate': birthdate,
@@ -202,7 +201,6 @@ class UserModel {
       'status': status.value,
       'channelId': channelId,
       'hasCompletedOnboarding': hasCompletedOnboarding,
-      'walletBalance': walletBalance,
       if (gender != null) 'gender': gender,
       if (age != null) 'age': age,
       if (birthdate != null) 'birthdate': birthdate,
@@ -232,7 +230,6 @@ class UserModel {
     String? country,
     bool? hasCompletedOnboarding,
     String? ageGroup,
-    double? walletBalance,
   }) {
     return UserModel(
       uid: uid,
@@ -256,7 +253,6 @@ class UserModel {
       hasCompletedOnboarding:
           hasCompletedOnboarding ?? this.hasCompletedOnboarding,
       ageGroup: ageGroup ?? this.ageGroup,
-      walletBalance: walletBalance ?? this.walletBalance,
     );
   }
 

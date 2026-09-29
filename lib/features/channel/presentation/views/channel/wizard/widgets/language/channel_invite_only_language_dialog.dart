@@ -28,6 +28,7 @@ void showInviteOnlyLanguageDialog(
         backgroundColor: const Color(0xFF18181B),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFF27272A)),
         ),
         title: Row(
           children: [
@@ -37,9 +38,9 @@ void showInviteOnlyLanguageDialog(
               child: Text(
                 '$langName is Invite-Only',
                 style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 17,
+                  fontSize: 18,
                   fontWeight: FontWeight.bold,
+                  color: Colors.white,
                 ),
               ),
             ),
@@ -52,9 +53,10 @@ void showInviteOnlyLanguageDialog(
             Text(
               'Truthworld currently accepts channel creation only in English.\n\n$langName ($nativeName) is ranked #$rank worldwide with $speakers. You can request language support below, and our admin team will review your request.',
               style: const TextStyle(
-                color: AppColors.textSecondary,
                 fontSize: 13,
+                color: Color(0xFFA1A1AA),
                 height: 1.4,
+                fontFamilyFallback: TWTypography.fallbackFamilies,
               ),
             ),
             const SizedBox(height: 14),
@@ -98,15 +100,22 @@ void showInviteOnlyLanguageDialog(
               onPressed: () => Navigator.pop(ctx),
               child: const Text(
                 'Cancel',
-                style: TextStyle(color: AppColors.textSecondary),
+                style: TextStyle(
+                  color: Color(0xFFA1A1AA),
+                  fontSize: 14,
+                ),
               ),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF27272A),
-                foregroundColor: Colors.white,
+                backgroundColor: AppColors.brand,
+                foregroundColor: Colors.black,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
                 ),
               ),
               onPressed: isSubmitting.value
@@ -197,22 +206,40 @@ void showInviteOnlyLanguageDialog(
                       height: 16,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: Colors.white,
+                        color: Colors.black,
                       ),
                     )
-                  : const Text('Request Invite'),
+                  : const Text(
+                      'Request Invite',
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
             ),
           ] else ...[
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF27272A),
-                foregroundColor: Colors.white,
+                backgroundColor: AppColors.brand,
+                foregroundColor: Colors.black,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
               ),
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Done'),
+              child: const Text(
+                'Done',
+                style: TextStyle(
+                  color: Colors.black,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
             ),
           ],
         ],

@@ -85,7 +85,7 @@ class TruthVerificationDashboardPage extends StatelessWidget {
         ),
         title: Text(
           'Attach Supporting Evidence / Citation',
-          style: GoogleFonts.outfit(
+          style: GoogleFonts.roboto(
             color: isDarkMode ? AppColors.textPrimary : Colors.black,
             fontSize: 18,
             fontWeight: FontWeight.bold,
@@ -400,7 +400,7 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                         children: [
                           Text(
                             'Fact Verification Console',
-                            style: GoogleFonts.outfit(
+                            style: GoogleFonts.roboto(
                               fontSize: 26,
                               fontWeight: FontWeight.bold,
                               color: isDarkMode
@@ -502,7 +502,7 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                             overallTruthScore > 0
                                 ? '${(overallTruthScore * 100).toInt()}%'
                                 : 'N/A',
-                            style: GoogleFonts.outfit(
+                            style: GoogleFonts.roboto(
                               fontSize: 22,
                               fontWeight: FontWeight.bold,
                               color: isDarkMode
@@ -523,7 +523,7 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                                   : (overallTruthScore >= 0.5
                                       ? 'Overall Credibility Rating: Moderate Confidence'
                                       : 'Overall Credibility Rating: Pending Verification'),
-                              style: GoogleFonts.outfit(
+                              style: GoogleFonts.roboto(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w700,
                                 color: overallTruthScore >= 0.5
@@ -560,7 +560,7 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                   children: [
                     Text(
                       'Extracted Factual Claims & Citations',
-                      style: GoogleFonts.outfit(
+                      style: GoogleFonts.roboto(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: isDarkMode
@@ -644,7 +644,7 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                         const SizedBox(height: 16),
                         Text(
                           'No Fact-Checked Claims Found',
-                          style: GoogleFonts.outfit(
+                          style: GoogleFonts.roboto(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                             color: isDarkMode

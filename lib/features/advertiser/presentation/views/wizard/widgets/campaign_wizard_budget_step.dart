@@ -15,6 +15,8 @@ class CampaignWizardBudgetStep extends StatelessWidget {
   final RxList<String> selectedLocations;
   final RxBool targetAllLanguages;
   final RxList<String> selectedLanguages;
+  final RxBool targetAllAudiences;
+  final RxList<String> selectedAudiences;
   final RxBool targetAllTopics;
   final RxList<String> selectedTopics;
   final RxString selectedBudget;
@@ -32,6 +34,8 @@ class CampaignWizardBudgetStep extends StatelessWidget {
     required this.selectedLocations,
     required this.targetAllLanguages,
     required this.selectedLanguages,
+    required this.targetAllAudiences,
+    required this.selectedAudiences,
     required this.targetAllTopics,
     required this.selectedTopics,
     required this.selectedBudget,
@@ -148,6 +152,16 @@ class CampaignWizardBudgetStep extends StatelessWidget {
                       CampaignWizardAudienceBadge(
                         icon: Icons.translate_rounded,
                         label: 'Languages: ${selectedLanguages.join(', ')}',
+                      ),
+                    if (!targetAllAudiences.value && selectedAudiences.isNotEmpty)
+                      CampaignWizardAudienceBadge(
+                        icon: Icons.groups_rounded,
+                        label: 'Audience: ${selectedAudiences.join(', ')}',
+                      )
+                    else if (targetAllAudiences.value)
+                      const CampaignWizardAudienceBadge(
+                        icon: Icons.groups_rounded,
+                        label: 'All People / All Audiences',
                       ),
                     if (!targetAllTopics.value && selectedTopics.isNotEmpty)
                       CampaignWizardAudienceBadge(

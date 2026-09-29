@@ -483,6 +483,53 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
           ],
           const Divider(color: AppColors.bgDivider, height: 24),
 
+          if (controller.isAdFreeChannel) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: Colors.amber.withValues(alpha: 0.4),
+                ),
+              ),
+              child: const Row(
+                children: [
+                  Icon(
+                    Icons.workspace_premium_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Channel Premium: Zero Ads & 4K Streaming',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Members enjoy zero ads and unlock 4K Ultra HD (up to 2160p) on all channel videos.',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
           // Perks list
           const Text(
             'Included Member Perks:',
@@ -595,6 +642,8 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
         CurrencyLocalizationService.to.isIndianUser;
     final currentTierPrice = controller.currentMembership.value?.price ?? 0;
     final isHigher = tier.price > currentTierPrice;
+    final isAutoPay = controller.isAutoPay.value;
+    final autoPaySuffix = isAutoPay ? 'with Auto Pay for' : '(One-Time) for';
     final actionLabel = isUpgrading
         ? (isHigher ? 'Upgrade to ${tier.name}' : 'Switch to ${tier.name}')
         : 'Join';
@@ -607,52 +656,150 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
       ),
       child: SafeArea(
         top: false,
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            if (isCurrentTier) ...[
-              Expanded(
-                child: OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.redAccent,
-                    side: const BorderSide(color: Colors.redAccent),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+            if (!isCurrentTier) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.bgPage,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isAutoPay
+                        ? tier.badgeColor.withValues(alpha: 0.6)
+                        : AppColors.bgDivider,
+                    width: isAutoPay ? 1.5 : 1.0,
                   ),
-                  onPressed: controller.isProcessing.value
-                      ? null
-                      : controller.cancelMembership,
-                  child: const Text('Cancel Membership'),
                 ),
-              ),
-            ] else ...[
-              Expanded(
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: Colors.black,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    elevation: 0,
-                  ),
-                  onPressed: controller.isProcessing.value
-                      ? null
-                      : controller.joinSelectedTier,
-                  child: controller.isProcessing.value
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: isAutoPay
+                            ? tier.badgeColor.withValues(alpha: 0.2)
+                            : AppColors.bgSurface,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.autorenew_rounded,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Text(
+                                'Auto Pay',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                decoration: BoxDecoration(
+                                  color: isAutoPay
+                                      ? const Color(0xFF10B981).withValues(alpha: 0.2)
+                                      : const Color(0xFF3F3F46),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  isAutoPay ? 'RECURRING' : 'ONE-TIME',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                    color: isAutoPay
+                                        ? const Color(0xFF34D399)
+                                        : Colors.white70,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        )
-                      : Text(
-                          '$actionLabel for ${tier.formattedPriceForUser(isIndian)} / month',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                        ),
+                          const SizedBox(height: 2),
+                          Text(
+                            isAutoPay
+                                ? 'Auto-renews monthly so loyalty badges and perks stay active. Cancel anytime.'
+                                : 'Valid for 1 month only. No automatic renewal.',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Switch.adaptive(
+                      value: isAutoPay,
+                      onChanged: (val) {
+                        controller.toggleAutoPay(val);
+                      },
+                      activeColor: Colors.white,
+                      activeTrackColor: tier.badgeColor,
+                    ),
+                  ],
                 ),
               ),
             ],
+            Row(
+              children: [
+                if (isCurrentTier) ...[
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.redAccent,
+                        side: const BorderSide(color: Colors.redAccent),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      onPressed: controller.isProcessing.value
+                          ? null
+                          : controller.cancelMembership,
+                      child: const Text('Cancel Membership'),
+                    ),
+                  ),
+                ] else ...[
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        elevation: 0,
+                      ),
+                      onPressed: controller.isProcessing.value
+                          ? null
+                          : controller.joinSelectedTier,
+                      child: controller.isProcessing.value
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                              ),
+                            )
+                          : Text(
+                              '$actionLabel $autoPaySuffix ${tier.formattedPriceForUser(isIndian)}${isAutoPay ? ' / month' : ''}',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                            ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ],
         ),
       ),

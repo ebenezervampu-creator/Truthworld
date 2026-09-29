@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/core/widgets/truth_lottie_animation.dart';
 import 'package:truthworld/features/video/presentation/views/player/overlays/fact_check/fact_check_models_helper.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -38,19 +39,15 @@ import 'package:truthworld/theme/app_theme.dart';
         ? (score > 5.0 ? score.toInt() : (score * 20).toInt())
         : null;
 
-    Color stateColor;
+    const stateColor = Colors.white;
     String badgeText;
     if (!isNotScored && displayScore != null) {
-      stateColor = getScoreColor(displayScore.toDouble());
       badgeText = analysisState.toUpperCase();
     } else if (falseCount > 0 && falseCount >= verifiedCount) {
-      stateColor = AppColors.error;
       badgeText = 'DISPUTED CONTENT';
     } else if (cautionCount > 0 && cautionCount > verifiedCount) {
-      stateColor = AppColors.warning;
       badgeText = 'CAUTION ADVISED';
     } else {
-      stateColor = AppColors.success;
       badgeText = totalClaims > 0 ? 'FACT-CHECK COMPLETE' : 'VERIFIED';
     }
 
@@ -87,14 +84,16 @@ import 'package:truthworld/theme/app_theme.dart';
                   border: Border.all(color: stateColor, width: 2),
                 ),
                 alignment: Alignment.center,
-                child: Text(
-                  displayScore != null ? '$displayScore%' : '✓',
-                  style: TextStyle(
-                    color: stateColor,
-                    fontSize: displayScore != null ? 14 : 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                child: displayScore != null
+                    ? Text(
+                        '$displayScore%',
+                        style: const TextStyle(
+                          color: stateColor,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      )
+                    : TruthLottieAnimation.verifiedShield(size: 26),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -114,7 +113,7 @@ import 'package:truthworld/theme/app_theme.dart';
                           ),
                           child: Text(
                             badgeText,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 9,
                               fontWeight: FontWeight.w900,
                               color: stateColor,
@@ -200,7 +199,7 @@ import 'package:truthworld/theme/app_theme.dart';
               style: const TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
-                color: AppColors.success,
+                color: Colors.white,
               ),
             ),
           ],
@@ -217,17 +216,17 @@ import 'package:truthworld/theme/app_theme.dart';
                 if (verifiedFactor > 0)
                   Expanded(
                     flex: (verifiedFactor * 1000).toInt().clamp(1, 1000),
-                    child: Container(color: AppColors.success),
+                    child: Container(color: Colors.white),
                   ),
                 if (cautionFactor > 0)
                   Expanded(
                     flex: (cautionFactor * 1000).toInt().clamp(1, 1000),
-                    child: Container(color: AppColors.warning),
+                    child: Container(color: Colors.white.withValues(alpha: 0.55)),
                   ),
                 if (falseFactor > 0)
                   Expanded(
                     flex: (falseFactor * 1000).toInt().clamp(1, 1000),
-                    child: Container(color: AppColors.error),
+                    child: Container(color: Colors.white.withValues(alpha: 0.20)),
                   ),
               ],
             ),
@@ -236,12 +235,12 @@ import 'package:truthworld/theme/app_theme.dart';
         const SizedBox(height: 6),
         Row(
           children: [
-            _claimLegendDot(AppColors.success, '$verified True'),
+            _claimLegendDot(Colors.white, '$verified True'),
             const SizedBox(width: 10),
-            _claimLegendDot(AppColors.warning, '$caution Unconfirmed'),
+            _claimLegendDot(Colors.white.withValues(alpha: 0.55), '$caution Unconfirmed'),
             if (falseCount > 0) ...[
               const SizedBox(width: 10),
-              _claimLegendDot(AppColors.error, '$falseCount False'),
+              _claimLegendDot(Colors.white.withValues(alpha: 0.25), '$falseCount False'),
             ],
           ],
         ),
@@ -276,10 +275,6 @@ import 'package:truthworld/theme/app_theme.dart';
 
   Widget _buildConfidenceBar(double value) {
     final clamped = value.clamp(0.0, 1.0);
-    final color = clamped >= 0.75
-        ? AppColors.success
-        : (clamped >= 0.45 ? AppColors.warning : AppColors.error);
-
     return Column(
       children: [
         Row(
@@ -296,38 +291,43 @@ import 'package:truthworld/theme/app_theme.dart';
             ),
             Text(
               '${(clamped * 100).toInt()}%',
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
-                color: color,
+                color: Colors.white,
               ),
             ),
           ],
         ),
         const SizedBox(height: 4),
-        Stack(
-          children: [
-            Container(
-              height: 5,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(3),
-              ),
-            ),
-            FractionallySizedBox(
-              widthFactor: clamped,
-              child: Container(
-                height: 5,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [color.withValues(alpha: 0.5), color],
+        TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.0, end: clamped),
+          duration: const Duration(milliseconds: 700),
+          curve: Curves.easeOutCubic,
+          builder: (context, animVal, _) {
+            return Stack(
+              children: [
+                Container(
+                  height: 5,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(3),
                   ),
-                  borderRadius: BorderRadius.circular(3),
                 ),
-              ),
-            ),
-          ],
+                FractionallySizedBox(
+                  widthFactor: animVal,
+                  child: Container(
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ],
     );

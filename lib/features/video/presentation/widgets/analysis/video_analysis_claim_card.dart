@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/core/utils/source_url_sanitizer.dart';
 import 'package:truthworld/core/widgets/truth_credibility_badge.dart';
+import 'package:truthworld/features/video/data/models/claim_verdict_helper.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/widgets/analysis/video_analysis_controller.dart';
@@ -33,41 +35,12 @@ import 'package:url_launcher/url_launcher.dart';
 
   @override
   Widget build(BuildContext context) {
-    final status = (claim['status'] ?? claim['verificationStatus'] ?? '')
-        .toString()
-        .toLowerCase();
-    final isVerified = status == 'correct' ||
-        status == 'mostly_correct' ||
-        status == 'verified' ||
-        status == 'true' ||
-        claim['isVerified'] == true;
-    final isDisputed = status.contains('dispute') ||
-        status.contains('caution') ||
-        status.contains('mostly_false') ||
-        status.contains('unverified') ||
-        status == 'unconfirmed';
-    final isFalse = status == 'false' || status == 'incorrect';
-
-    Color color;
-    String statusBadgeText;
-    IconData statusIcon;
-    if (isVerified) {
-      color = AppColors.success;
-      statusBadgeText = 'VERIFIED TRUE';
-      statusIcon = Icons.check_circle_rounded;
-    } else if (isFalse) {
-      color = AppColors.error;
-      statusBadgeText = 'FALSE';
-      statusIcon = Icons.cancel_rounded;
-    } else if (isDisputed) {
-      color = AppColors.warning;
-      statusBadgeText = 'UNCONFIRMED';
-      statusIcon = Icons.warning_amber_rounded;
-    } else {
-      color = AppColors.info;
-      statusBadgeText = 'ANALYZED';
-      statusIcon = Icons.help_outline_rounded;
-    }
+    final verdict = ClaimVerdictHelper.resolveVerdict(claim);
+    final isVerified = verdict.isVerified;
+    final isDisputed = verdict.isCaution;
+    final isFalse = verdict.isFalse;
+    final statusBadgeText = verdict.label;
+    final statusIcon = verdict.icon;
 
     final resolved = VideoAnalysisHelpers.resolveRealClaimDetails(claim, index, allSources);
     final cleanClaimText = resolved.cleanText;
@@ -84,27 +57,26 @@ import 'package:url_launcher/url_launcher.dart';
             analysisCtrl.expandedClaimIndices.add(index);
           }
         },
-        borderRadius: TWRadius.xlBorderRadius,
+        borderRadius: BorderRadius.circular(12),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: isExpanded
-              ? color.withValues(alpha: 0.12)
-              : color.withValues(alpha: 0.05),
-          borderRadius: TWRadius.xlBorderRadius,
+              ? Colors.white.withValues(alpha: 0.05)
+              : AppColors.bgSurface,
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isExpanded
-                ? (isVerified ? const Color(0xFF00E676) : color).withValues(alpha: 0.5)
-                : color.withValues(alpha: 0.18),
-            width: isExpanded ? 1.5 : 1.0,
+                ? Colors.white.withValues(alpha: 0.3)
+                : AppColors.bgDivider.withValues(alpha: 0.7),
           ),
           boxShadow: isExpanded
               ? [
                   BoxShadow(
-                    color: (isVerified ? const Color(0xFF00F2FE) : color).withValues(alpha: 0.14),
-                    blurRadius: 14,
-                    spreadRadius: 1,
+                    color: Colors.black.withValues(alpha: 0.35),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   ),
                 ]
               : const [],
@@ -120,7 +92,7 @@ import 'package:url_launcher/url_launcher.dart';
                   width: 24,
                   height: 24,
                   decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.2),
+                    color: Colors.white.withValues(alpha: 0.12),
                     shape: BoxShape.circle,
                   ),
                   child: Center(
@@ -129,7 +101,7 @@ import 'package:url_launcher/url_launcher.dart';
                       style: context.twTypography.caption.copyWith(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
-                        color: color,
+                        color: Colors.white,
                         fontFamily: TWTypography.uiFamily,
                       ),
                     ),
@@ -144,7 +116,7 @@ import 'package:url_launcher/url_launcher.dart';
                         children: [
                           TruthCredibilityBadge(
                             label: statusBadgeText,
-                            color: color,
+                            color: Colors.white,
                             icon: statusIcon,
                             isVerified: isVerified,
                             isDisputed: isDisputed,
@@ -229,12 +201,15 @@ import 'package:url_launcher/url_launcher.dart';
                   ),
                 ),
                 const SizedBox(width: 8),
-                Icon(
-                  isExpanded
-                      ? Icons.expand_less_rounded
-                      : Icons.expand_more_rounded,
-                  color: Colors.white,
-                  size: 20,
+                AnimatedRotation(
+                  turns: isExpanded ? 0.5 : 0.0,
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeInOutCubic,
+                  child: const Icon(
+                    Icons.expand_more_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                 ),
               ],
             ),
@@ -290,29 +265,31 @@ import 'package:url_launcher/url_launcher.dart';
               ),
 
               // Tapable Sources & Citations
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  const Icon(
-                    Icons.link_rounded,
-                    size: 14,
-                    color: Colors.white,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'SUPPORTING CITATIONS & PROVENANCE (${effectiveSources.length})',
-                    style: context.twTypography.overline.copyWith(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textSecondary,
-                      letterSpacing: 1.0,
+              if (effectiveSources.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.link_rounded,
+                      size: 14,
+                      color: Colors.white,
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
+                    const SizedBox(width: 6),
+                    Text(
+                      'SUPPORTING CITATIONS & PROVENANCE (${effectiveSources.length})',
+                      style: context.twTypography.overline.copyWith(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textSecondary,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
 
-              ...effectiveSources.map((s) => _buildTapableClaimSource(context, s)),
+                ...effectiveSources.map((s) => _buildTapableClaimSource(context, s)),
+              ],
 
               // Action Buttons: Search on Web + Provide Evidence
               const SizedBox(height: 12),
@@ -403,37 +380,25 @@ import 'package:url_launcher/url_launcher.dart';
 
 
   Widget _buildTapableClaimSource(BuildContext context, Map<dynamic, dynamic> source) {
-    final title = (source['title'] ??
-            source['author'] ??
-            source['domain'] ??
-            source['url'] ??
+    final cleanSource = SourceUrlSanitizer.sanitizeSourceMap(source);
+    final title = (cleanSource['title'] ??
+            cleanSource['author'] ??
+            cleanSource['domain'] ??
             'Source Citation')
         .toString();
-    final url =
-        (source['url'] ?? source['directUrl'] ?? source['link'])?.toString();
-    final domain = (source['domain'] ??
-            (url != null ? Uri.tryParse(url)?.host : null) ??
-            '')
-        .toString();
-    final snippet = source['snippet']?.toString();
+    final url = cleanSource['url']?.toString();
+    final domain = (cleanSource['domain'] ?? '').toString();
+    final snippet = cleanSource['snippet']?.toString();
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: InkWell(
         onTap: () async {
-          if (url != null && url.isNotEmpty) {
-            try {
-              final uri =
-                  Uri.parse(url.startsWith('http') ? url : 'https://$url');
-              await launchUrl(uri, mode: LaunchMode.externalApplication);
-            } catch (e, stackTrace) {
-              ErrorHandler.log(
-                e,
-                stackTrace: stackTrace,
-                tag: 'VideoAnalysisClaimCard.launchSourceUrl',
-              );
-            }
-          }
+          await SourceUrlSanitizer.launchSourceUrl(
+            url: url,
+            title: title,
+            domain: domain,
+          );
         },
         borderRadius: BorderRadius.circular(8),
         child: Container(

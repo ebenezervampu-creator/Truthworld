@@ -79,6 +79,7 @@ mixin VideoHydrationFlowMixin on GetxController {
   Future<void> fetchFirstPlaylistVideo(String videoId);
   Future<void> fetchRecommendations();
   Future<void> fetchPlaylistForVideo();
+  Future<void> loadFactCheckData([String? overrideUrl, bool force = false]);
 
   Stream<DocumentSnapshot<Map<String, dynamic>>>? _channelStream;
   String? _lastChannelStreamId;
@@ -362,10 +363,11 @@ mixin VideoHydrationFlowMixin on GetxController {
         rxErrorMessage.value = 'Video not found or has been removed.';
         rxIsLoading.value = false;
       }
-    } catch (e) {
-      debugPrint('[VideoController] Deep link video load error: $e');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'VideoController.deepLinkLoad');
       videoError.value = true;
-      rxErrorMessage.value = 'Unable to load video: $e';
+      rxErrorMessage.value =
+          'Unable to load video. Please check your connection and try again.';
       rxIsLoading.value = false;
     }
   }
@@ -450,7 +452,8 @@ mixin VideoHydrationFlowMixin on GetxController {
       rxIsLoading.value = false;
       showThumbnail.value = false;
     }
-    startPlaybackFlow();
+    final overrideUrl = args?['overrideUrl'] as String?;
+    startPlaybackFlow(overrideUrl: overrideUrl);
     Future.microtask(_initializeAllMetadata);
   }
 
@@ -495,6 +498,7 @@ mixin VideoHydrationFlowMixin on GetxController {
       });
 
       channelController.listenSubscription(video.channelId);
+      channelController.fetchChannel(video.channelId);
       if (isAuthenticated) {
         checkUserInteractions();
       }
@@ -503,6 +507,9 @@ mixin VideoHydrationFlowMixin on GetxController {
       _initializeCommentsController();
       _listenToVideoUpdates();
       listenToLanguageRequests();
+      if (video.factCheckUrl.isNotEmpty) {
+        unawaited(loadFactCheckData());
+      }
     }
   }
 

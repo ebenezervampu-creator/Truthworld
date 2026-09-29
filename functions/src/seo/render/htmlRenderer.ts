@@ -278,15 +278,111 @@ export function buildSemanticSsrHtml(options: HtmlRenderOptions): string {
   ${headMetaTags}
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#9B30FF" />
+  <meta name="apple-itunes-app" content="app-id=com.truthworld.app, app-argument=${escapeHtml(canonicalUrl)}" />
   <link rel="icon" type="image/png" href="favicon.png" />
   <link rel="apple-touch-icon" href="icons/Icon-192.png" />
   <link rel="manifest" href="manifest.json" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { width: 100%; height: 100%; background: #0D0014; color: #f4f4f5; }
+
+    /* Mobile Smart App Banner */
+    .tw-mobile-app-banner {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 16px;
+      background: #141416;
+      border-bottom: 1px solid #27272a;
+      position: sticky;
+      top: 0;
+      z-index: 999999;
+      font-family: Roboto, -apple-system, sans-serif;
+    }
+    .tw-mobile-app-banner-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+      flex: 1;
+    }
+    .tw-mobile-app-banner-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      object-fit: cover;
+      flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    }
+    .tw-mobile-app-banner-text {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .tw-mobile-app-banner-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #ffffff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .tw-mobile-app-banner-desc {
+      font-size: 12px;
+      color: #a1a1aa;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .tw-mobile-app-banner-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .tw-mobile-app-banner-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 18px;
+      background: #ffffff;
+      color: #000000;
+      font-size: 13px;
+      font-weight: 700;
+      border-radius: 20px;
+      text-decoration: none;
+      cursor: pointer;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+      transition: opacity 0.2s ease;
+    }
+    .tw-mobile-app-banner-close {
+      background: transparent;
+      border: none;
+      color: #71717a;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 4px 6px;
+      line-height: 1;
+    }
   </style>
 </head>
 <body>
+  <!-- Mobile Smart App Banner -->
+  <div id="tw-app-banner" class="tw-mobile-app-banner">
+    <div class="tw-mobile-app-banner-info">
+      <img src="${DOMAIN}/icons/Icon-192.png" alt="Truthworld App" class="tw-mobile-app-banner-icon" />
+      <div class="tw-mobile-app-banner-text">
+        <span class="tw-mobile-app-banner-title">Truthworld App</span>
+        <span class="tw-mobile-app-banner-desc">Open in the Truthworld mobile app</span>
+      </div>
+    </div>
+    <div class="tw-mobile-app-banner-actions">
+      <a id="tw-open-app-btn" href="#" class="tw-mobile-app-banner-btn">OPEN APP</a>
+      <button id="tw-close-app-btn" class="tw-mobile-app-banner-close" aria-label="Close banner">&times;</button>
+    </div>
+  </div>
+
   ${semanticBodyHtml}
   <script>
     if ('serviceWorker' in navigator) {
@@ -296,6 +392,60 @@ export function buildSemanticSsrHtml(options: HtmlRenderOptions): string {
         }
       }).catch(function() {});
     }
+
+    // Mobile Deep Link & Smart Banner Controller
+    (function() {
+      var isAndroid = /Android/i.test(navigator.userAgent);
+      var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+      if (!isAndroid && !isIOS) return;
+
+      var banner = document.getElementById('tw-app-banner');
+      var openBtn = document.getElementById('tw-open-app-btn');
+      var closeBtn = document.getElementById('tw-close-app-btn');
+
+      if (banner && sessionStorage.getItem('tw_banner_dismissed') !== 'true') {
+        banner.style.display = 'flex';
+      }
+
+      if (closeBtn) {
+        closeBtn.addEventListener('click', function() {
+          if (banner) banner.style.display = 'none';
+          sessionStorage.setItem('tw_banner_dismissed', 'true');
+        });
+      }
+
+      var pathWithQuery = window.location.pathname + window.location.search + window.location.hash;
+      var cleanPath = pathWithQuery.replace(/^\\/+/, '');
+      var deepLinkIntentUrl = isAndroid
+        ? 'intent://www.truthworld.in/' + cleanPath + '#Intent;scheme=https;package=com.truthworld.app;S.browser_fallback_url=' + encodeURIComponent(window.location.href) + ';end'
+        : 'truthworld://' + cleanPath;
+
+      if (openBtn) {
+        openBtn.setAttribute('href', deepLinkIntentUrl);
+        openBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          var freshPath = (window.location.pathname + window.location.search + window.location.hash).replace(/^\\/+/, '');
+          var targetUrl = isAndroid
+            ? 'intent://www.truthworld.in/' + freshPath + '#Intent;scheme=https;package=com.truthworld.app;S.browser_fallback_url=' + encodeURIComponent(window.location.href) + ';end'
+            : 'truthworld://' + freshPath;
+          window.location.href = targetUrl;
+        });
+      }
+
+      // Auto-dispatch when opened inside mobile social messaging apps (WhatsApp, Telegram, Twitter, FB, IG)
+      var isInAppBrowser = /FBAN|FBAV|Instagram|Twitter|Line|WhatsApp|Telegram|MicroMessenger/i.test(navigator.userAgent);
+      var isReferrerExternal = document.referrer && !document.referrer.includes('truthworld.in');
+      var hasAutoLaunched = sessionStorage.getItem('tw_app_launch_attempted');
+
+      if ((isInAppBrowser || isReferrerExternal) && !hasAutoLaunched) {
+        sessionStorage.setItem('tw_app_launch_attempted', 'true');
+        setTimeout(function() {
+          try {
+            window.location.href = deepLinkIntentUrl;
+          } catch (_) {}
+        }, 300);
+      }
+    })();
   </script>
   <!-- Flutter bootstrap -->
   <script src="flutter_bootstrap.js"></script>

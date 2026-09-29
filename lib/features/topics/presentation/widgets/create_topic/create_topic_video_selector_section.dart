@@ -9,8 +9,9 @@ import 'package:truthworld/theme/app_theme.dart';
 Widget buildSection8AddVideos(
   BuildContext context,
   CreateTopicController controller,
-  Future<List<Map<String, dynamic>>> channelVideosFuture,
-) {
+  Future<List<Map<String, dynamic>>> channelVideosFuture, {
+  bool isFromUpload = false,
+}) {
   return buildCreateTopicCardContainer(
     context: context,
     child: Column(
@@ -20,19 +21,31 @@ Widget buildSection8AddVideos(
           children: [
             buildCreateTopicSectionTitle(context, '8. Add Videos'),
             const SizedBox(width: 6),
-            const Text(
-              '* (Required)',
-              style: TextStyle(
-                color: Color(0xFFF59E0B),
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
+            if (!isFromUpload)
+              const Text(
+                '* (Required)',
+                style: TextStyle(
+                  color: Color(0xFFF59E0B),
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              )
+            else
+              const Text(
+                '(Optional)',
+                style: TextStyle(
+                  color: Colors.white54,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
           ],
         ),
         const SizedBox(height: 4),
         Text(
-          'At least 1 video is required to create a topic.',
+          isFromUpload
+              ? 'The video you are currently uploading will be automatically added to this topic upon publishing.'
+              : 'At least 1 video is required to create a topic.',
           style: TextStyle(
             color: Colors.white.withValues(alpha: 0.45),
             fontSize: 12,
@@ -47,7 +60,9 @@ Widget buildSection8AddVideos(
           label: Obx(() {
             final count = controller.selectedVideoIds.length;
             return Text(
-              count > 0 ? '+ Select videos ($count)' : '+ Select videos',
+              count > 0
+                  ? 'Select videos ($count)'
+                  : (isFromUpload ? 'Add more videos (Optional)' : 'Select videos'),
               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
             );
           }),
@@ -70,6 +85,58 @@ Widget buildSection8AddVideos(
               final selectedVideos = videos.where((v) => selectedIds.contains(v['id'])).toList();
 
               if (selectedVideos.isEmpty) {
+                if (isFromUpload) {
+                  return Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F0F11),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.08),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.check_circle_outline,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Current uploading video will be added',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'Your current video is already staged and will be linked to this topic once you publish.',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
                 return Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(

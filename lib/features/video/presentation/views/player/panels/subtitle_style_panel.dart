@@ -14,7 +14,7 @@ class SubtitleStylePanel extends StatelessWidget {
       children: [
         PanelHeader(
           title: 'Subtitle Appearance',
-          onBack: () => ctrl.activePanel.value = 'subtitles',
+          onBack: () => ctrl.activePanel.value = 'subtitle_settings',
           onClose: null,
         ),
         const SizedBox(height: 4),

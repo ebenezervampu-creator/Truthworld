@@ -445,7 +445,7 @@ class UploadController extends UploadControllerBase
   @override
   final RxBool aiDiarizationEnabled = false.obs;
   @override
-  final RxBool aiSummaryEnabled = false.obs;
+  final RxBool aiSummaryEnabled = true.obs;
   @override
   final RxList<String> aiTranslationLanguages = <String>[].obs;
   @override
@@ -456,6 +456,8 @@ class UploadController extends UploadControllerBase
   final RxString aiTTSVoiceType = 'default'.obs;
   @override
   final RxBool aiFactCheckEnabled = false.obs;
+  @override
+  final RxString aiFactCheckTier = 'full_ground'.obs;
   @override
   final Rx<PlatformFile?> voiceSampleFile = Rx<PlatformFile?>(null);
   @override

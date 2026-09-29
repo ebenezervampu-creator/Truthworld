@@ -1,264 +1,267 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/features/playlist/presentation/views/playlist/show_dialog.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
-import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class FullscreenVerticalActionsBar extends StatelessWidget {
-  const FullscreenVerticalActionsBar({required this.ctrl, super.key});
+/// Minimal floating horizontal action dock for TruthWorld fullscreen player.
+/// Replaces the bulky vertical action bar with a sleek, translucent glass pill.
+class FullscreenFloatingActionDock extends StatelessWidget {
+  const FullscreenFloatingActionDock({
+    required this.ctrl,
+    this.vc,
+    super.key,
+  });
+
   final TowerPlayerController ctrl;
+  final VideoController? vc;
 
   @override
   Widget build(BuildContext context) {
-    final vc = ctrl.videoController;
-    if (vc == null) {
-      return const SizedBox.shrink();
-    }
+    final videoCtrl = vc ?? ctrl.videoController;
+    if (videoCtrl == null) return const SizedBox.shrink();
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+      height: 34,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
       decoration: BoxDecoration(
-        color: AppColors.bgPage.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.1)),
+        color: const Color(0x730F0F12), // rgba(15, 15, 18, 0.45)
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.1),
+        ),
       ),
-      child: Column(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           // Like
           Obx(() {
-            return _buildVerticalIconBtn(
-              icon: vc.isLiked.value
-                  ? Icons.thumb_up_rounded
-                  : Icons.thumb_up_outlined,
-              onTap: vc.toggleLike,
-              isActive: vc.isLiked.value,
+            final isLiked = videoCtrl.isLiked.value;
+            return _DockBtn(
+              icon: isLiked ? Icons.thumb_up_rounded : Icons.thumb_up_outlined,
+              isActive: isLiked,
+              onTap: () {
+                videoCtrl.toggleLike();
+                ctrl.startHideTimer();
+              },
+              tooltip: isLiked ? 'Liked' : 'Like',
             );
           }),
-          const SizedBox(height: 6),
-
-          // Dislike
-          Obx(() {
-            return _buildVerticalIconBtn(
-              icon: vc.isDisliked.value
-                  ? Icons.thumb_down_rounded
-                  : Icons.thumb_down_outlined,
-              onTap: vc.toggleDislike,
-              isActive: vc.isDisliked.value,
-            );
-          }),
-          const SizedBox(height: 6),
-
           // Comments
-          Obx(
-            () => _buildVerticalIconBtn(
-              icon: Icons.chat_bubble_outline_rounded,
+          Obx(() {
+            final isCommentsOpen = ctrl.overlayManager.isCommentsOpen || ctrl.showCommentsPopup.value;
+            return _DockBtn(
+              icon: isCommentsOpen
+                  ? Icons.chat_bubble_rounded
+                  : Icons.chat_bubble_outline_rounded,
+              isActive: isCommentsOpen,
               onTap: () {
+                ctrl.overlayManager.toggle(TowerPlayerOverlay.comments);
+                ctrl.showCommentsPopup.value = ctrl.overlayManager.isCommentsOpen;
                 ctrl.showTranscriptPopup.value = false;
                 ctrl.showFactCheckPopup.value = false;
                 ctrl.showLiveChat.value = false;
-                ctrl.showCommentsPopup.toggle();
                 ctrl.startHideTimer();
               },
-              isActive: ctrl.showCommentsPopup.value,
-            ),
+              tooltip: 'Comments',
+            );
+          }),
+          // Share
+          _DockBtn(
+            icon: Icons.share_outlined,
+            onTap: () {
+              final url = 'https://truthworld.app/video/${videoCtrl.video.id}';
+              Clipboard.setData(ClipboardData(text: url));
+              AppSnackbar.info('Video link copied to clipboard');
+              ctrl.startHideTimer();
+            },
+            tooltip: 'Share',
           ),
-          const SizedBox(height: 6),
-
-          // Live Chat
-          Obx(
-            () => _buildVerticalIconBtn(
-              icon: ctrl.showLiveChat.value
-                  ? Icons.forum_rounded
-                  : Icons.forum_outlined,
-              onTap: () {
-                ctrl.showCommentsPopup.value = false;
-                ctrl.showTranscriptPopup.value = false;
-                ctrl.showFactCheckPopup.value = false;
-                ctrl.toggleLiveChat();
+          // More (⋯)
+          Theme(
+            data: Theme.of(context).copyWith(
+              hoverColor: Colors.transparent,
+              splashColor: Colors.transparent,
+              highlightColor: Colors.transparent,
+            ),
+            child: PopupMenuButton<String>(
+              icon: const Icon(
+                Icons.more_horiz_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
+              tooltip: 'More actions',
+              padding: EdgeInsets.zero,
+              color: const Color(0xFF161616),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: Colors.white.withValues(alpha: 0.12),
+                ),
+              ),
+              onSelected: (val) {
                 ctrl.startHideTimer();
-              },
-              isActive: ctrl.showLiveChat.value,
-            ),
-          ),
-          const SizedBox(height: 6),
-
-          // Transcript
-          Obx(
-            () => _buildVerticalIconBtn(
-              icon: Icons.description_outlined,
-              onTap: () {
-                ctrl.showCommentsPopup.value = false;
-                ctrl.showFactCheckPopup.value = false;
-                ctrl.showLiveChat.value = false;
-                final next = !ctrl.showTranscriptPopup.value;
-                ctrl.showTranscriptPopup.value = next;
-                if (next) {
-                  vc.loadTranscriptForVideo();
+                switch (val) {
+                  case 'save':
+                    showModernizedPlaylistDialog(
+                      context: context,
+                      videoId: videoCtrl.video.id,
+                    );
+                  case 'transcript':
+                    ctrl.overlayManager.toggle(TowerPlayerOverlay.transcript);
+                    ctrl.showTranscriptPopup.value = ctrl.overlayManager.isTranscriptOpen;
+                    ctrl.showCommentsPopup.value = false;
+                    ctrl.showFactCheckPopup.value = false;
+                    ctrl.showLiveChat.value = false;
+                    if (ctrl.showTranscriptPopup.value) {
+                      videoCtrl.loadTranscriptForVideo();
+                    }
+                  case 'chat':
+                    ctrl.overlayManager.toggle(TowerPlayerOverlay.liveChat);
+                    ctrl.showLiveChat.value = ctrl.overlayManager.isLiveChatOpen;
+                    ctrl.showCommentsPopup.value = false;
+                    ctrl.showFactCheckPopup.value = false;
+                    ctrl.showTranscriptPopup.value = false;
+                  case 'stats':
+                    ctrl.overlayManager.toggle(TowerPlayerOverlay.statsForNerds);
+                    ctrl.showStatsForNerds.value = ctrl.overlayManager.isStatsForNerdsOpen;
                 }
-                ctrl.startHideTimer();
               },
-              isActive: ctrl.showTranscriptPopup.value,
-            ),
-          ),
-          const SizedBox(height: 6),
-
-          // Verified / Facts
-          Obx(
-            () => _buildVerticalIconBtn(
-              icon: ctrl.showFactCheckPopup.value || ctrl.showFactOverlay.value
-                  ? Icons.verified_rounded
-                  : Icons.verified_outlined,
-              onTap: () {
-                ctrl.showCommentsPopup.value = false;
-                ctrl.showTranscriptPopup.value = false;
-                ctrl.showLiveChat.value = false;
-                final next = !ctrl.showFactCheckPopup.value;
-                ctrl.showFactCheckPopup.value = next;
-                if (next) {
-                  ctrl.showFactOverlay.value = true;
-                }
-                ctrl.startHideTimer();
-              },
-              isActive: ctrl.showFactCheckPopup.value,
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'save',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.playlist_add_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                      SizedBox(width: 10),
+                      Text(
+                        'Save to Playlist',
+                        style: TextStyle(color: Colors.white, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'transcript',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.description_outlined,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                      SizedBox(width: 10),
+                      Text(
+                        'Transcript',
+                        style: TextStyle(color: Colors.white, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'chat',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.forum_outlined,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                      SizedBox(width: 10),
+                      Text(
+                        'Live Chat',
+                        style: TextStyle(color: Colors.white, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'stats',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.analytics_outlined,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                      SizedBox(width: 10),
+                      Text(
+                        'Playback Statistics',
+                        style: TextStyle(color: Colors.white, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
   }
-
-  Widget _buildVerticalIconBtn({
-    required IconData icon,
-    required VoidCallback onTap,
-    bool isActive = false,
-    int? badgeCount,
-    bool flipHorizontal = false,
-  }) {
-    return Stack(
-      alignment: Alignment.center,
-      clipBehavior: Clip.none,
-      children: [
-        InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(18),
-          child: Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: isActive
-                  ? AppColors.textPrimary.withValues(alpha: 0.22)
-                  : AppColors.textPrimary.withValues(alpha: 0.08),
-              shape: BoxShape.circle,
-              border: isActive
-                  ? Border.all(
-                      color: AppColors.textPrimary.withValues(alpha: 0.4),
-                    )
-                  : null,
-            ),
-            child: _AnimatedBounceIcon(
-              icon: icon,
-              isActive: isActive,
-              color: AppColors.textPrimary,
-              textDirection: flipHorizontal ? TextDirection.rtl : null,
-            ),
-          ),
-        ),
-        if (badgeCount != null && badgeCount > 0)
-          Positioned(
-            bottom: -4,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-              decoration: BoxDecoration(
-                color: PT.primary,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                '$badgeCount',
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
 }
 
-class _AnimatedBounceIcon extends StatefulWidget {
-  const _AnimatedBounceIcon({
+class _DockBtn extends StatelessWidget {
+  const _DockBtn({
     required this.icon,
-    required this.isActive,
-    required this.color,
-    this.textDirection,
+    required this.onTap,
+    this.isActive = false,
+    this.tooltip,
   });
+
   final IconData icon;
+  final VoidCallback onTap;
   final bool isActive;
-  final Color color;
-  final double size = 20;
-  final TextDirection? textDirection;
-
-  @override
-  State<_AnimatedBounceIcon> createState() => _AnimatedBounceIconState();
-}
-
-class _AnimatedBounceIconState extends State<_AnimatedBounceIcon>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _scaleAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-    _scaleAnimation = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween<double>(
-          begin: 1,
-          end: 1.4,
-        ).chain(CurveTween(curve: Curves.easeOut)),
-        weight: 40,
-      ),
-      TweenSequenceItem(
-        tween: Tween<double>(
-          begin: 1.4,
-          end: 1,
-        ).chain(CurveTween(curve: Curves.bounceOut)),
-        weight: 60,
-      ),
-    ]).animate(_controller);
-  }
-
-  @override
-  void didUpdateWidget(covariant _AnimatedBounceIcon oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.isActive != oldWidget.isActive && widget.isActive) {
-      _controller.forward(from: 0);
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+  final String? tooltip;
 
   @override
   Widget build(BuildContext context) {
-    return ScaleTransition(
-      scale: _scaleAnimation,
-      child: Icon(
-        widget.icon,
-        size: widget.size,
-        color: widget.color,
-        textDirection: widget.textDirection,
+    final btn = InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        width: 30,
+        height: 30,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isActive
+              ? Colors.white.withValues(alpha: 0.18)
+              : Colors.transparent,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          icon,
+          size: 17,
+          color: isActive ? AppColors.brand : Colors.white,
+        ),
       ),
     );
+
+    if (tooltip != null) {
+      return Tooltip(
+        message: tooltip,
+        child: btn,
+      );
+    }
+    return btn;
+  }
+}
+
+/// Legacy compatibility wrapper for FullscreenVerticalActionsBar.
+/// Points to FullscreenFloatingActionDock to eliminate the heavy vertical grey rail.
+class FullscreenVerticalActionsBar extends StatelessWidget {
+  const FullscreenVerticalActionsBar({required this.ctrl, super.key});
+  final TowerPlayerController ctrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return FullscreenFloatingActionDock(ctrl: ctrl);
   }
 }

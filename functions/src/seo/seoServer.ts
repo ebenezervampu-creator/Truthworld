@@ -282,8 +282,62 @@ export const seoServer = onRequest(
             "relation": ["delegate_permission/common.handle_all_urls"],
             "target": {
               "namespace": "android_app",
+              "package_name": "com.truthworld.app",
+              "sha256_cert_fingerprints": [
+                "0A:BB:3D:F0:30:E7:CD:77:FD:72:CF:01:9D:26:BA:A5:9E:FD:6A:19:5A:C1:C6:00:9C:B9:33:19:F3:C2:B9:2E",
+                "E4:A1:36:64:70:A4:34:A6:7A:49:19:A4:5E:2E:F8:C0:4D:0B:3C:2D:E3:F4:4F:FC:65:A2:3F:7E:00:FF:C4:E1",
+                "10:ED:17:F1:C9:46:1A:11:80:C1:F6:41:09:59:E4:FA:21:40:9D:6F:02:4B:92:4B:FA:05:8B:71:0D:37:A1:AC",
+                "FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C"
+              ]
+            }
+          },
+          {
+            "relation": ["delegate_permission/common.handle_all_urls"],
+            "target": {
+              "namespace": "android_app",
               "package_name": "com.example.truthworld",
               "sha256_cert_fingerprints": [
+                "0A:BB:3D:F0:30:E7:CD:77:FD:72:CF:01:9D:26:BA:A5:9E:FD:6A:19:5A:C1:C6:00:9C:B9:33:19:F3:C2:B9:2E",
+                "E4:A1:36:64:70:A4:34:A6:7A:49:19:A4:5E:2E:F8:C0:4D:0B:3C:2D:E3:F4:4F:FC:65:A2:3F:7E:00:FF:C4:E1",
+                "10:ED:17:F1:C9:46:1A:11:80:C1:F6:41:09:59:E4:FA:21:40:9D:6F:02:4B:92:4B:FA:05:8B:71:0D:37:A1:AC",
+                "FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C"
+              ]
+            }
+          },
+          {
+            "relation": ["delegate_permission/common.handle_all_urls"],
+            "target": {
+              "namespace": "android_app",
+              "package_name": "com.truthworld.studio",
+              "sha256_cert_fingerprints": [
+                "0A:BB:3D:F0:30:E7:CD:77:FD:72:CF:01:9D:26:BA:A5:9E:FD:6A:19:5A:C1:C6:00:9C:B9:33:19:F3:C2:B9:2E",
+                "E4:A1:36:64:70:A4:34:A6:7A:49:19:A4:5E:2E:F8:C0:4D:0B:3C:2D:E3:F4:4F:FC:65:A2:3F:7E:00:FF:C4:E1",
+                "10:ED:17:F1:C9:46:1A:11:80:C1:F6:41:09:59:E4:FA:21:40:9D:6F:02:4B:92:4B:FA:05:8B:71:0D:37:A1:AC",
+                "FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C"
+              ]
+            }
+          },
+          {
+            "relation": ["delegate_permission/common.handle_all_urls"],
+            "target": {
+              "namespace": "android_app",
+              "package_name": "com.truthworld.advertiser",
+              "sha256_cert_fingerprints": [
+                "0A:BB:3D:F0:30:E7:CD:77:FD:72:CF:01:9D:26:BA:A5:9E:FD:6A:19:5A:C1:C6:00:9C:B9:33:19:F3:C2:B9:2E",
+                "E4:A1:36:64:70:A4:34:A6:7A:49:19:A4:5E:2E:F8:C0:4D:0B:3C:2D:E3:F4:4F:FC:65:A2:3F:7E:00:FF:C4:E1",
+                "10:ED:17:F1:C9:46:1A:11:80:C1:F6:41:09:59:E4:FA:21:40:9D:6F:02:4B:92:4B:FA:05:8B:71:0D:37:A1:AC",
+                "FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C"
+              ]
+            }
+          },
+          {
+            "relation": ["delegate_permission/common.handle_all_urls"],
+            "target": {
+              "namespace": "android_app",
+              "package_name": "com.truthworld.admin",
+              "sha256_cert_fingerprints": [
+                "0A:BB:3D:F0:30:E7:CD:77:FD:72:CF:01:9D:26:BA:A5:9E:FD:6A:19:5A:C1:C6:00:9C:B9:33:19:F3:C2:B9:2E",
+                "E4:A1:36:64:70:A4:34:A6:7A:49:19:A4:5E:2E:F8:C0:4D:0B:3C:2D:E3:F4:4F:FC:65:A2:3F:7E:00:FF:C4:E1",
                 "10:ED:17:F1:C9:46:1A:11:80:C1:F6:41:09:59:E4:FA:21:40:9D:6F:02:4B:92:4B:FA:05:8B:71:0D:37:A1:AC",
                 "FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C"
               ]
@@ -300,10 +354,13 @@ export const seoServer = onRequest(
             "apps": [],
             "details": [
               {
-                "appID": "TEAMID.com.example.truthworld",
-                "paths": ["/watch/*", "/channel/*", "/@*", "/c/*", "/user/*", "/playlist/*", "/topic/*", "/topics/*", "/T/*", "/t/*", "/studio/*", "/advertiser/*", "/ads/*"]
+                "appIDs": ["*.com.truthworld.app", "TEAMID.com.truthworld.app"],
+                "paths": ["/watch/*", "/channel/*", "/@*", "/c/*", "/user/*", "/playlist/*", "/topic/*", "/topics/*", "/T/*", "/t/*", "/studio/*", "/advertiser/*", "/ads/*", "/post/*", "/community/*"]
               }
             ]
+          },
+          "webcredentials": {
+            "apps": ["TEAMID.com.truthworld.app"]
           }
         }));
         return;

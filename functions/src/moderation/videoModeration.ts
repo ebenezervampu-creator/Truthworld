@@ -22,7 +22,7 @@ import * as admin from "firebase-admin";
 import { onObjectFinalized } from "firebase-functions/v2/storage";
 import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { requireAdmin } from "../utils/auth";
+import { requireRecentAdmin } from "../utils/auth";
 import { notifyUser } from "../notifications/notifications";
 
 const db = admin.firestore();
@@ -196,6 +196,7 @@ export const onVideoUploadedForModeration = onObjectFinalized(
         "moderation.violationCategories": result.violationCategories,
         "moderation.confidenceScore": result.confidenceScore,
         "moderation.summary": result.summary,
+        "moderation.detectedLanguage": result.detectedLanguage || "en",
         "moderation.processingTimeMs": result.processingTimeMs,
         "moderation.checkedAt": Date.now(),
         "moderation.model": "gemini-2.5-flash",
@@ -368,8 +369,8 @@ export const moderateVideoManual = onRequest(
   },
   async (req, res) => {
     try {
-      const authUser = await requireAdmin(req, res);
-      if (!authUser) return; // Response is already handled by requireAdmin
+      const authUser = await requireRecentAdmin(req, res, 3600);
+      if (!authUser) return; // Response is already handled by requireRecentAdmin
 
       const { videoId, action, reason } = req.body;
 

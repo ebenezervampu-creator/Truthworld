@@ -5,6 +5,7 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/customization_screen.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class DashboardTruthworldIssuesNotice extends StatelessWidget {
@@ -609,8 +610,10 @@ class DashboardModerationStatusBanner extends StatelessWidget {
       bannerColor = const Color(0xFFEF4444);
       icon = Icons.error_outline_rounded;
       title = 'Branding Verification Rejected';
-      subtitle =
-          'We created channel according to community guidelines, then channel selected for manual verification. ${channel.moderationReason != null && channel.moderationReason!.isNotEmpty ? "\n\nVerification System Response: ${channel.moderationReason}" : ""}';
+      subtitle = channel.moderationReason != null &&
+              channel.moderationReason!.isNotEmpty
+          ? 'Verification System Response: ${channel.moderationReason}'
+          : 'Your channel details did not pass verification. Please update your channel description and resubmit.';
       showButton = true;
     } else {
       return const SizedBox.shrink();
@@ -669,20 +672,21 @@ class DashboardModerationStatusBanner extends StatelessWidget {
                   const SizedBox(height: 12),
                   ElevatedButton.icon(
                     onPressed: () {
-                      Get.toNamed(
-                        '/community-guidelines',
-                        arguments: {
-                          'fromRejectedChannelId': channel.id,
-                          'ownerId': channel.ownerId,
-                        },
+                      Get.to<void>(
+                        () => ChannelCustomizationPage(
+                          channelId: channel.id,
+                          ownerId: channel.ownerId,
+                          // Basic Info tab (index 1) — where description lives
+                          initialTabIndex: 1,
+                        ),
                       );
                     },
                     icon: const Icon(
-                      Icons.description_outlined,
+                      Icons.edit_rounded,
                       size: 16,
                       color: Colors.white,
                     ),
-                    label: const Text('Review Community Guidelines'),
+                    label: const Text('Edit Channel Description'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: bannerColor,
                       foregroundColor: AppColors.textPrimary,

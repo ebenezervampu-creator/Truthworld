@@ -46,7 +46,8 @@ class VideoScreen extends GetView<VideoController> {
 
     // Dismiss miniplayer once when screen first builds
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (Get.isRegistered<MiniplayerController>(tag: 'miniplayer')) {
+      if (Get.isRegistered<MiniplayerController>(tag: 'miniplayer') ||
+          Get.isRegistered<MiniplayerController>()) {
         MiniplayerController.to.dismiss();
       }
     });

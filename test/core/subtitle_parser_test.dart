@@ -68,7 +68,7 @@ void main() {
       expect(SubtitleParser.findActiveSubtitle(segments, const Duration(milliseconds: 120500))?.text, 'Two minutes later.');
     });
 
-    test('Splits large paragraph blocks into compact YouTube phrase cues (3-6 words, moving with video)', () {
+    test('Splits large paragraph blocks into compact phrase cues (3-6 words, moving with video)', () {
       const longParagraph =
           "Over the last few years, millions of new retail investors have been absolutely flooding into the Indian stock market, tracking active brokerage accounts in India. By late 2023, startup Grow officially surpassed industry leader Zerodha. Crossing the 6.5 million mark, Grow surged 750% in just a couple of years, while Zeroda's customer acquisition almost entirely flattened out.";
 

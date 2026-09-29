@@ -3,7 +3,7 @@
 /// Modularized architecture with single-responsibility components:
 /// - [AdMediaWidget] & [AdMediaController]: Reactive video/image ad media display
 /// - [AdCardController]: Hover state and tracking controller
-/// - [HomepageAdCard]: Rich YouTube feed-scale native ad card
+/// - [HomepageAdCard]: Rich feed-scale native ad card
 /// - [ScrollAdCard]: Compact feed and scroll interstitial ad card
 /// - [PinnedSponsorCommentCard] & [showSponsorDiscussionModal]: Verified sponsor comments
 library;

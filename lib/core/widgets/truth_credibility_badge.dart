@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:truthworld/features/video/data/models/claim_verdict_helper.dart';
-import 'package:truthworld/theme/app_colors.dart';
 import 'package:truthworld/theme/tw_radius.dart';
 import 'package:truthworld/theme/tw_typography.dart';
 
@@ -47,24 +46,20 @@ class TruthCredibilityBadge extends StatelessWidget {
         lower == 'unconfirmed';
     final isFalse = lower == 'false' || lower == 'incorrect';
 
-    Color color;
+    const color = Colors.white;
     String label;
     IconData icon;
 
     if (isVerified) {
-      color = const Color(0xFF00E676);
       label = 'VERIFIED TRUE';
       icon = Icons.verified_rounded;
     } else if (isFalse) {
-      color = AppColors.error;
       label = 'FALSE';
-      icon = Icons.cancel_rounded;
+      icon = Icons.cancel_outlined;
     } else if (isDisputed) {
-      color = AppColors.warning;
       label = 'UNCONFIRMED';
       icon = Icons.warning_amber_rounded;
     } else {
-      color = AppColors.info;
       label = 'ANALYZED';
       icon = Icons.help_outline_rounded;
     }
@@ -129,20 +124,13 @@ class TruthCredibilityBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveColor = color ??
-        (isVerified
-            ? const Color(0xFF00E676)
-            : isFalse
-                ? AppColors.error
-                : isDisputed
-                    ? AppColors.warning
-                    : AppColors.info);
+    const effectiveColor = Colors.white;
 
     final effectiveIcon = icon ??
         (isVerified
             ? Icons.verified_rounded
             : isFalse
-                ? Icons.cancel_rounded
+                ? Icons.cancel_outlined
                 : isDisputed
                     ? Icons.warning_amber_rounded
                     : Icons.check_circle_outline_rounded);
@@ -150,40 +138,27 @@ class TruthCredibilityBadge extends StatelessWidget {
     final effectiveBorderRadius =
         pill ? TWRadius.pillBorderRadius : TWRadius.smBorderRadius;
 
-    final baseGlowColor = isVerified
-        ? const Color(0xFF00F2FE)
-        : effectiveColor;
+    final alpha = isVerified ? 0.15 : (isFalse ? 0.08 : (isDisputed ? 0.09 : 0.10));
+    final borderAlpha = isVerified ? 0.35 : (isFalse ? 0.18 : (isDisputed ? 0.20 : 0.22));
 
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: effectiveBorderRadius,
-        boxShadow: showGlow
-            ? [
-                BoxShadow(
-                  color: baseGlowColor.withValues(alpha: isVerified ? 0.28 : 0.16),
-                  blurRadius: isVerified ? 8 : 5,
-                ),
-              ]
-            : null,
-        gradient: isVerified
-            ? const LinearGradient(
-                colors: [
-                  Color(0x3300F2FE),
-                  Color(0x1F4FACFE),
-                  Color(0x3300E676),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              )
-            : null,
-        color: isVerified ? null : effectiveColor.withValues(alpha: 0.14),
-        border: Border.all(
-          color: isVerified
-              ? const Color(0xFF00E676).withValues(alpha: 0.75)
-              : effectiveColor.withValues(alpha: 0.55),
-          width: isVerified ? 1.2 : 1.0,
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.92, end: 1.0),
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOutBack,
+      builder: (context, scale, child) {
+        return Transform.scale(
+          scale: scale,
+          child: child,
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: effectiveBorderRadius,
+          color: effectiveColor.withValues(alpha: alpha),
+          border: Border.all(
+            color: effectiveColor.withValues(alpha: borderAlpha),
+          ),
         ),
-      ),
       padding: padding ??
           const EdgeInsets.symmetric(
             horizontal: 8,
@@ -195,7 +170,7 @@ class TruthCredibilityBadge extends StatelessWidget {
           Icon(
             effectiveIcon,
             size: iconSize,
-            color: isVerified ? const Color(0xFF00F2FE) : effectiveColor,
+            color: effectiveColor,
           ),
           const SizedBox(width: 5),
           Text(
@@ -203,8 +178,8 @@ class TruthCredibilityBadge extends StatelessWidget {
             style: TextStyle(
               fontSize: fontSize,
               fontWeight: FontWeight.w700,
-              color: isVerified ? const Color(0xFFE0F7FA) : effectiveColor,
-              letterSpacing: 0.8,
+              color: effectiveColor,
+              letterSpacing: 0.6,
               fontFamily: TWTypography.uiFamily,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
@@ -214,7 +189,7 @@ class TruthCredibilityBadge extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
               decoration: BoxDecoration(
-                color: effectiveColor.withValues(alpha: 0.22),
+                color: effectiveColor.withValues(alpha: 0.2),
                 borderRadius: TWRadius.smBorderRadius,
               ),
               child: Text(
@@ -224,7 +199,7 @@ class TruthCredibilityBadge extends StatelessWidget {
                 style: TextStyle(
                   fontSize: fontSize - 1,
                   fontWeight: FontWeight.w800,
-                  color: isVerified ? const Color(0xFF00E676) : effectiveColor,
+                  color: effectiveColor,
                   fontFamily: TWTypography.uiFamily,
                   fontFeatures: const [FontFeature.tabularFigures()],
                 ),
@@ -233,6 +208,7 @@ class TruthCredibilityBadge extends StatelessWidget {
           ],
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 }

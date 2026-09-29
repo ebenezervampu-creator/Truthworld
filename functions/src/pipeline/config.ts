@@ -80,8 +80,8 @@ export const PIPELINE_CONFIG = {
 export const DEEP_RESEARCH_CONFIG = {
   GROUNDING_MODE: "always" as "always" | "sensitive_only" | "never",
   BATCH_SIZE_GROUNDING: 10,         // parallel claims per Gemini call
-  MAX_CLAIMS_INSTITUTIONAL: 50,     // raised from 12/20
-  MAX_CLAIMS_STANDARD: 20,          // unchanged for standard tier
+  MAX_CLAIMS_INSTITUTIONAL: 50,     // cost-conscious cap for institutional tier
+  MAX_CLAIMS_STANDARD: 35,          // cost-conscious cap for standard tier
   FORCE_PRO_MODEL: true,            // always use gemini-2.5-pro for verification
   MIN_SOURCES_PER_CLAIM: 2,         // minimum sources required to mark a claim as grounded
   SOURCE_DIVERSITY_REQUIRED: true,  // reject results where all sources are the same domain
@@ -95,7 +95,21 @@ export function isDeepResearchEnabled(synthesisTier: string, forcedByConfig?: bo
 }
 
 /**
+ * TruthWorld Core Epistemic Policy: "No Claim Left Unchecked"
+ * Every verifiable empirical claim extracted from the video must be fact-checked.
+ * We provide a generous system ceiling of 200 claims per video to protect against memory exhaustion,
+ * ensuring no creator claims are truncated or dropped.
+ */
+export function calculateMaxClaimsForDuration(
+  durationSec: number,
+  isDeepResearch: boolean = false
+): number {
+  return 200;
+}
+
+/**
  * v11.0: Fast Tier — lightweight signal for real-time use cases.
  * Config is in fastVerification.ts. This re-export ensures central discoverability.
  */
 export { FAST_TIER_CONFIG } from './services/fastVerification';
+

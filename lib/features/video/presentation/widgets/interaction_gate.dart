@@ -1,6 +1,6 @@
 // ============================================================
 // interaction_gate.dart
-// Root Interaction Gate and YouTube-Style Unlock Pill Overlay
+// Root Interaction Gate and Unlock Pill Overlay
 // ============================================================
 
 import 'package:flutter/material.dart';
@@ -44,7 +44,7 @@ class InteractionGate extends StatelessWidget {
               child: const SizedBox.expand(),
             ),
 
-          // YouTube-Style Floating Unlock Pill Overlay
+          // Floating Unlock Pill Overlay
           Obx(() {
             lockController.isLocked.value;
             lockController.pillState.value;

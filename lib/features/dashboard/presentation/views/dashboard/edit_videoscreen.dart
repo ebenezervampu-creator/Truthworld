@@ -245,6 +245,30 @@ class EditVideoScreen extends StatelessWidget {
             ),
           ),
         ),
+        const SizedBox(height: 12),
+        Obx(
+          () => SwitchListTile(
+            title: Text(
+              'Allow automatic chapters',
+              style: AppTextStyles.bodyMedium,
+            ),
+            subtitle: Text(
+              'When eligible and available. Adding description timestamps (e.g. 0:00 Intro, 0:10 Topic) will override automatic chapters.',
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            value: controller.autoChaptersEnabled.value,
+            onChanged: (value) {
+              controller.autoChaptersEnabled.value = value;
+            },
+            activeThumbColor: AppColors.brand,
+            tileColor: AppColors.bgSurface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
       ],
     );
   }

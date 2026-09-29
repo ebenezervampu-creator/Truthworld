@@ -190,8 +190,8 @@ class ChannelTypeCard extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             isCustom
-                ? r'Your channel operates on the Custom Channel Tier with full infrastructure control, 100% gross revenue share across all sources (0% platform cut), plans at $15, $30, $45/mo etc., unlimited uploads, and instant cash withdrawals.'
-                : 'Your channel is currently on the Standard Channel Tier with zero hosting fees, 70% net revenue share on ads and premium subscriptions (30% platform), 100% creator share on superchats and memberships (0% platform), 10 min/day video upload limit, and a 10-hour watch time threshold for cash withdrawals.',
+                ? r'Your channel operates on the Custom Channel Tier with full infrastructure control, 100% gross revenue share across all sources (0% platform cut), plans at $15, $30, $45, $100, $200/mo etc., unlimited uploads, and a 1,000 views and 10-hour watch time threshold for video cash withdrawals.'
+                : 'Your channel is currently on the Standard Channel Tier with zero hosting fees, 70% net revenue share on ads and premium subscriptions (30% platform), 100% creator share on superchats and memberships (0% platform), 10 min/day video upload limit, and a 1,000 views and 10-hour watch time threshold for cash withdrawals.',
             style: const TextStyle(
               fontSize: 13,
               color: AppColors.textSecondary,
@@ -231,13 +231,11 @@ class ChannelTypeCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              Expanded(
+              const Expanded(
                 child: ChannelTypeDetailTile(
                   icon: Icons.account_balance_wallet_outlined,
                   label: 'Cash-Out Rule',
-                  value: isCustom
-                      ? 'Instant Withdrawal'
-                      : '10h Watch Time Gate',
+                  value: '1k Views & 10h Gate',
                 ),
               ),
             ],

@@ -3,6 +3,7 @@ import 'dart:async' show unawaited;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/config/app_flavor.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 
 /// Route guard middleware for protecting authenticated routes
@@ -57,6 +58,9 @@ class AuthGuard extends GetMiddleware {
 
     final isAuthed = _authService?.isAuthenticated.value ?? false;
     if (isProtected && !isAuthed) {
+      if (AppFlavor.isStudio) {
+        return const RouteSettings(name: '/studio');
+      }
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _showAuthRequiredDialog();
       });
@@ -116,6 +120,9 @@ class ChannelCreationGuard extends GetMiddleware {
     if (auth != null &&
         auth.isAuthenticated.value &&
         (auth.hasChannel.value || auth.userChannel != null)) {
+      if (AppFlavor.isStudio) {
+        return const RouteSettings(name: '/studio');
+      }
       if (kIsWeb) {
         final host = Uri.base.host.toLowerCase();
         if (host.startsWith('studio') || host.contains('studio.truthworld.in')) {
@@ -129,7 +136,8 @@ class ChannelCreationGuard extends GetMiddleware {
 }
 
 /// Route guard middleware for protecting studio routes (/studio, /dashboard).
-/// Enforces that a user MUST be authenticated AND MUST have an active channel to enter Studio.
+/// When running in Studio app flavor, unauthenticated users are allowed to reach
+/// DashboardScreen which presents DashboardFallbackLogin directly — never the consumer app.
 class StudioAccessGuard extends GetMiddleware {
   @override
   int? get priority => 8;
@@ -139,8 +147,14 @@ class StudioAccessGuard extends GetMiddleware {
 
   @override
   RouteSettings? redirect(String? route) {
+    // In Studio app flavor or domain, NEVER redirect to consumer home!
+    // Studio handles authentication natively via DashboardFallbackLogin on DashboardScreen.
+    if (AppFlavor.isStudio) {
+      return null;
+    }
+
     final auth = _authService;
-    // 1. If user is NOT authenticated -> redirect to home / prompt sign-in
+    // In Consumer app: unauthenticated access to /studio redirects to home / prompts sign-in
     if (auth == null || !auth.isAuthenticated.value) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         AuthGuard._showAuthRequiredDialog();
@@ -148,9 +162,22 @@ class StudioAccessGuard extends GetMiddleware {
       return const RouteSettings(name: '/');
     }
 
-    // 2. Authentication verified: Allow DashboardScreen to mount and resolve channel asynchronously.
-    // DashboardScreen displays a loading spinner (isSelectingDefault) and safely queries Firestore
-    // before making an authoritative redirect to /channelscreen if no channel exists.
+    // Authentication verified: Allow DashboardScreen to mount and resolve channel asynchronously.
+    return null;
+  }
+}
+
+/// Route guard that guarantees consumer-facing routes (e.g., /home, /clips, /trending, /feed)
+/// never render inside Truthworld Studio, permanently redirecting them to '/studio'.
+class ConsumerRouteGuard extends GetMiddleware {
+  @override
+  int? get priority => 1;
+
+  @override
+  RouteSettings? redirect(String? route) {
+    if (AppFlavor.isStudio) {
+      return const RouteSettings(name: '/studio');
+    }
     return null;
   }
 }
@@ -197,5 +224,20 @@ class RouteProtection {
       return Get.toNamed(routeName, arguments: arguments);
     }
     return null;
+  }
+}
+
+/// Redirects creators to Channel Wallet (/dashboard) and regular viewers to home (/)
+class WalletRedirectMiddleware extends GetMiddleware {
+  @override
+  int? get priority => 8;
+
+  @override
+  RouteSettings? redirect(String? route) {
+    final auth = Get.isRegistered<AuthService>() ? AuthService.to : null;
+    if (auth != null && auth.hasChannel.value) {
+      return const RouteSettings(name: '/dashboard');
+    }
+    return const RouteSettings(name: '/');
   }
 }

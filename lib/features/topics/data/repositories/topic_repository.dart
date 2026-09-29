@@ -550,7 +550,7 @@ class TopicRepository {
           .collection('savedTopics')
           .doc(topicId);
 
-      // YouTube-standard: user-centric subcollection + denormalized count only
+      // User-centric subcollection + denormalized count only
       batch.set(userSavedRef, {
         'topicId': topicId,
         'savedAt': FieldValue.serverTimestamp(),
@@ -566,6 +566,30 @@ class TopicRepository {
     } catch (e, s) {
       ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.followTopic');
       return false;
+    }
+  }
+
+  Future<Map<String, String>> fetchTopicNotificationSettings(String userId) async {
+    try {
+      final snapshot = await _firestore
+          .collection(FirestoreCollections.users)
+          .doc(userId)
+          .collection('savedTopics')
+          .get();
+
+      final settings = <String, String>{};
+      for (final doc in snapshot.docs) {
+        settings[doc.id] =
+            (doc.data()['notificationSetting'] as String?) ?? 'all';
+      }
+      return settings;
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'TopicRepository.fetchTopicNotificationSettings',
+      );
+      return {};
     }
   }
 
@@ -625,7 +649,7 @@ class TopicRepository {
           .collection('savedTopics')
           .doc(topicId);
 
-      // YouTube-standard: only delete user-centric doc + decrement count
+      // Only delete user-centric doc + decrement count
       batch.delete(userSavedRef);
       batch.set(topicRef, {
         'followerCount': FieldValue.increment(-1),

@@ -38,9 +38,14 @@ class VideoPresenceService extends GetxService {
   int _lastWatchedSeconds = 0;
   double _lastPosition = 0;
   bool _isTransitioning = false;
+  bool _isPermissionDenied = false;
+  DateTime _lastHeartbeatSent = DateTime(2000);
 
   /// Whether there is an active watching session
-  bool get isWatching => _currentSessionRef != null && _currentVideoId != null;
+  bool get isWatching =>
+      !_isPermissionDenied &&
+      _currentSessionRef != null &&
+      _currentVideoId != null;
   String? get currentVideoId => _currentVideoId;
   String? get currentSessionId => _currentSessionId;
 
@@ -56,7 +61,7 @@ class VideoPresenceService extends GetxService {
       _connectionSubscription?.cancel();
       _connectionSubscription = _database.ref('.info/connected').onValue.listen((event) {
         final isConnected = event.snapshot.value == true;
-        if (isConnected && isWatching && _currentSessionRef != null && _currentVideoId != null) {
+        if (isConnected && isWatching && _currentSessionRef != null && _currentVideoId != null && !_isPermissionDenied) {
           logger.info('RTDB reconnected. Restoring live presence session: $_currentSessionId', tag: _tag);
           _reestablishSession();
         }
@@ -78,6 +83,7 @@ class VideoPresenceService extends GetxService {
 
   /// Re-writes presence node and re-attaches onDisconnect handler after network reconnection
   Future<void> _reestablishSession() async {
+    if (_isPermissionDenied) return;
     final ref = _currentSessionRef;
     final videoId = _currentVideoId;
     final sessionId = _currentSessionId;
@@ -100,6 +106,14 @@ class VideoPresenceService extends GetxService {
       await ref.onDisconnect().remove();
       logger.info('Presence session re-established: $sessionId for video: $videoId', tag: _tag);
     } catch (e, s) {
+      final errStr = e.toString().toLowerCase();
+      if (errStr.contains('permission')) {
+        _isPermissionDenied = true;
+        _currentSessionRef = null;
+        _heartbeatTimer?.cancel();
+        _heartbeatTimer = null;
+        return;
+      }
       ErrorHandler.log(
         e,
         stackTrace: s,
@@ -115,6 +129,9 @@ class VideoPresenceService extends GetxService {
     int watchedSeconds = 0,
   }) async {
     if (videoId.isEmpty) return;
+
+    // Reset permission denied flag on new video session in case auth state changed
+    _isPermissionDenied = false;
 
     // Idempotent fast-path: if already watching the exact same video with active session
     if (_currentVideoId == videoId && _currentSessionRef != null) {
@@ -166,29 +183,69 @@ class VideoPresenceService extends GetxService {
       // Start periodic heartbeat (every 8s for high fault-tolerance)
       _startHeartbeatTimer();
     } catch (e, stackTrace) {
-      logger.error(
-        'Failed to start live presence for video: $videoId: $e',
-        stackTrace: stackTrace,
-        tag: _tag,
-      );
+      final errStr = e.toString().toLowerCase();
+      final isPermDenied = errStr.contains('permission');
+      if (isPermDenied) {
+        _isPermissionDenied = true;
+      }
+      _currentSessionRef = null;
+      _currentVideoId = null;
+      _currentSessionId = null;
+      _heartbeatTimer?.cancel();
+      _heartbeatTimer = null;
+
+      if (!isPermDenied) {
+        logger.error(
+          'Failed to start live presence for video: $videoId: $e',
+          stackTrace: stackTrace,
+          tag: _tag,
+        );
+      } else {
+        logger.info(
+          'Live presence disabled for video: $videoId (unauthenticated or permission restricted)',
+          tag: _tag,
+        );
+      }
     } finally {
       _isTransitioning = false;
     }
   }
 
   /// Update active viewer presence heartbeat
-  void heartbeat({double? position, int? watchedSeconds}) {
-    if (_currentSessionRef == null || _currentVideoId == null) return;
-
+  void heartbeat({double? position, int? watchedSeconds, bool force = false}) {
     if (position != null) _lastPosition = position;
     if (watchedSeconds != null) _lastWatchedSeconds = watchedSeconds;
 
+    if (_isPermissionDenied || _currentSessionRef == null || _currentVideoId == null) {
+      return;
+    }
+
+    final now = DateTime.now();
+    if (!force && now.difference(_lastHeartbeatSent).inSeconds < 5) {
+      return; // Throttled: memory updated, skip redundant network call
+    }
+    _lastHeartbeatSent = now;
+
     try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      final uid = (currentUser != null && !currentUser.isAnonymous)
+          ? currentUser.uid
+          : 'guest_$_currentSessionId';
+
       _currentSessionRef!.update({
+        'uid': uid,
         'position': _lastPosition,
         'watchedSeconds': _lastWatchedSeconds,
         'updatedAt': ServerValue.timestamp,
       }).catchError((Object e, StackTrace s) {
+        final errStr = e.toString().toLowerCase();
+        if (errStr.contains('permission')) {
+          _isPermissionDenied = true;
+          _currentSessionRef = null;
+          _heartbeatTimer?.cancel();
+          _heartbeatTimer = null;
+          return;
+        }
         ErrorHandler.log(
           e,
           stackTrace: s,
@@ -196,6 +253,14 @@ class VideoPresenceService extends GetxService {
         );
       });
     } catch (e, s) {
+      final errStr = e.toString().toLowerCase();
+      if (errStr.contains('permission')) {
+        _isPermissionDenied = true;
+        _currentSessionRef = null;
+        _heartbeatTimer?.cancel();
+        _heartbeatTimer = null;
+        return;
+      }
       ErrorHandler.log(
         e,
         stackTrace: s,
@@ -207,7 +272,7 @@ class VideoPresenceService extends GetxService {
   void _startHeartbeatTimer() {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = Timer.periodic(const Duration(seconds: 8), (_) {
-      heartbeat();
+      heartbeat(force: true);
     });
   }
 
@@ -228,6 +293,7 @@ class VideoPresenceService extends GetxService {
     final ref = _currentSessionRef;
     final videoId = _currentVideoId;
     final sessionId = _currentSessionId;
+    final wasPermDenied = _isPermissionDenied;
 
     _currentSessionRef = null;
     _currentVideoId = null;
@@ -235,29 +301,17 @@ class VideoPresenceService extends GetxService {
     _lastPosition = 0;
     _lastWatchedSeconds = 0;
 
-    if (ref != null) {
+    if (ref != null && !wasPermDenied) {
       try {
         await ref.onDisconnect().cancel();
-      } catch (e, s) {
-        ErrorHandler.log(
-          e,
-          stackTrace: s,
-          tag: '$_tag.internalStopWatching.onDisconnect',
-        );
-      }
+      } catch (_) {}
       try {
         await ref.remove();
         logger.info(
           'Live presence stopped for video: $videoId (session: $sessionId)',
           tag: _tag,
         );
-      } catch (e, s) {
-        ErrorHandler.log(
-          e,
-          stackTrace: s,
-          tag: '$_tag.internalStopWatching.remove',
-        );
-      }
+      } catch (_) {}
     }
   }
 

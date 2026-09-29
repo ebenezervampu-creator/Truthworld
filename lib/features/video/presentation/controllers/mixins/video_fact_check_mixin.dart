@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -17,26 +19,105 @@ mixin VideoFactCheckMixin on GetxController {
   RxMap<String, dynamic> get factCheckData;
   RxBool get isLoadingFactCheck;
 
-  Future<void> loadFactCheckData([String? overrideUrl]) async {
-    final rawUrl = (overrideUrl != null && overrideUrl.isNotEmpty)
+  final RxBool hasFactCheckError = false.obs;
+  final RxBool hasAttemptedFactCheck = false.obs;
+  String? _lastAttemptedFactCheckUrl;
+
+  Future<void> loadFactCheckData([String? overrideUrl, bool force = false]) async {
+    var rawUrl = (overrideUrl != null && overrideUrl.isNotEmpty)
         ? overrideUrl
         : video.factCheckUrl;
+
     if (rawUrl.isEmpty) {
+      final cached = VideoMediaService.credibilityCache[video.id];
+      if (cached != null && cached.factCheckUrl.isNotEmpty) {
+        rawUrl = cached.factCheckUrl;
+      } else {
+        try {
+          final fetched = await VideoMediaService().getCredibility(video.id);
+          if (fetched.factCheckUrl.isNotEmpty) {
+            rawUrl = fetched.factCheckUrl;
+          }
+        } catch (_) {}
+      }
+    }
+
+    if (rawUrl.isEmpty) {
+      final cached = VideoMediaService.credibilityCache[video.id];
+      if (cached != null &&
+          (cached.uiReport != null ||
+              cached.claims.isNotEmpty ||
+              cached.summary.isNotEmpty ||
+              cached.trustScore > 0)) {
+        factCheckData.value = cached.toMap();
+        hasFactCheckError.value = false;
+        hasAttemptedFactCheck.value = true;
+        return;
+      }
+      if (video.uiReport != null) {
+        factCheckData.value = video.uiReport!.toMap();
+        hasFactCheckError.value = false;
+        hasAttemptedFactCheck.value = true;
+        return;
+      }
       factCheckData.clear();
+      hasFactCheckError.value = false;
+      hasAttemptedFactCheck.value = true;
       return;
     }
 
+    if (isLoadingFactCheck.value) return;
+    if (!force &&
+        hasAttemptedFactCheck.value &&
+        _lastAttemptedFactCheckUrl == rawUrl &&
+        (factCheckData.isNotEmpty || hasFactCheckError.value)) {
+      return;
+    }
+
+    _lastAttemptedFactCheckUrl = rawUrl;
     isLoadingFactCheck.value = true;
+    hasFactCheckError.value = false;
+
     try {
-      var url = rawUrl;
-      if (url.startsWith('gs://')) {
-        url = await FirebaseStorage.instance.refFromURL(url).getDownloadURL();
+      Map<String, dynamic>? decoded;
+
+      // 1. Try Firebase Storage authenticated SDK first if it is a Storage or gs:// URL
+      if (rawUrl.startsWith('gs://') || rawUrl.contains('firebasestorage.googleapis.com')) {
+        try {
+          final ref = FirebaseStorage.instance.refFromURL(rawUrl);
+          final bytes = await ref.getData();
+          if (bytes != null && bytes.isNotEmpty) {
+            final jsonStr = utf8.decode(bytes);
+            decoded = await IsolateComputeUtils.parseJsonMapAsync(jsonStr);
+          }
+        } catch (storageErr, stack) {
+          ErrorHandler.log(
+            storageErr,
+            stackTrace: stack,
+            tag: 'VideoFactCheckMixin.loadFactCheckData.firebaseStorageSdk',
+          );
+        }
       }
 
-      final response = await AppHttpClient.get(Uri.parse(url));
-      if (response.statusCode == 200) {
-        final decoded = await IsolateComputeUtils.parseJsonMapAsync(response.body);
-        factCheckData.value = decoded;
+      // 2. If SDK read was not used or failed, resolve fresh download URL and fetch via AppHttpClient
+      if (decoded == null) {
+        var fetchUrl = rawUrl;
+        if (fetchUrl.startsWith('gs://')) {
+          fetchUrl = await FirebaseStorage.instance.refFromURL(fetchUrl).getDownloadURL();
+        }
+        final response = await AppHttpClient.get(Uri.parse(fetchUrl));
+        if (response.statusCode == 200) {
+          decoded = await IsolateComputeUtils.parseJsonMapAsync(response.body);
+        } else {
+          throw Exception(
+            'Failed to load fact-check data (status: ${response.statusCode}, url: $fetchUrl)',
+          );
+        }
+      }
+
+      factCheckData.value = decoded;
+      hasFactCheckError.value = false;
+      hasAttemptedFactCheck.value = true;
 
         try {
           final existing = VideoMediaService.credibilityCache[video.id];
@@ -88,6 +169,12 @@ mixin VideoFactCheckMixin on GetxController {
                 ? parsedCred.intentToMisleadScore
                 : (existing?.intentToMisleadScore ?? 0.0),
             uiReport: parsedCred.uiReport ?? UIReport.fromMap(decoded),
+            claims: parsedCred.claims.isNotEmpty
+                ? parsedCred.claims
+                : (existing?.claims ?? const []),
+            sources: parsedCred.sources.isNotEmpty
+                ? parsedCred.sources
+                : (existing?.sources ?? const []),
             factCheckUrl: rawUrl,
           );
         } catch (e, stackTrace) {
@@ -97,24 +184,51 @@ mixin VideoFactCheckMixin on GetxController {
             tag: 'VideoFactCheckMixin.loadFactCheckData.cacheCredibility',
           );
         }
-      } else {
-        throw Exception('Failed to load fact-check data');
-      }
     } catch (e, stackTrace) {
       ErrorHandler.log(
         e,
         stackTrace: stackTrace,
         tag: 'VideoFactCheckMixin.loadFactCheckData',
       );
-      factCheckData.clear();
+
+      // Attempt fallback to cached credibility or Firestore credibility document
+      var fallbackSucceeded = false;
+      try {
+        final cached = VideoMediaService.credibilityCache[video.id] ??
+            await VideoMediaService().getCredibility(video.id);
+        if (cached.uiReport != null ||
+            cached.claims.isNotEmpty ||
+            cached.trustScore > 0 ||
+            cached.summary.isNotEmpty) {
+          factCheckData.value = cached.toMap();
+          fallbackSucceeded = true;
+          hasFactCheckError.value = false;
+        }
+      } catch (_) {}
+
+      if (!fallbackSucceeded) {
+        if (video.uiReport != null) {
+          factCheckData.value = video.uiReport!.toMap();
+          hasFactCheckError.value = false;
+        } else {
+          factCheckData.clear();
+          hasFactCheckError.value = true;
+        }
+      }
+      hasAttemptedFactCheck.value = true;
     } finally {
       isLoadingFactCheck.value = false;
     }
   }
 
   Future<void> fetchFullDisclosure() async {
-    if (video.factCheckUrl.isEmpty) {
+    if (video.factCheckUrl.isEmpty && factCheckData.isEmpty) {
       AppSnackbar.info('Detailed fact-checking data is not available for this video.');
+      return;
+    }
+
+    if (factCheckData.isNotEmpty) {
+      showFullDisclosurePanel();
       return;
     }
 
@@ -130,10 +244,25 @@ mixin VideoFactCheckMixin on GetxController {
         factCheckData.value = await IsolateComputeUtils.parseJsonMapAsync(response.body);
         showFullDisclosurePanel();
       } else {
-        throw Exception('Failed to load fact-check data');
+        final cached = VideoMediaService.credibilityCache[video.id] ??
+            await VideoMediaService().getCredibility(video.id);
+        if (cached.uiReport != null || cached.summary.isNotEmpty) {
+          factCheckData.value = cached.toMap();
+          showFullDisclosurePanel();
+          return;
+        }
+        throw Exception(
+          'Failed to load fact-check disclosure (status: ${response.statusCode}, url: $url)',
+        );
       }
     } catch (e) {
-      ErrorHandler.log(e);
+      ErrorHandler.log(e, tag: 'VideoFactCheckMixin.fetchFullDisclosure');
+      final cached = VideoMediaService.credibilityCache[video.id];
+      if (cached != null && (cached.uiReport != null || cached.summary.isNotEmpty)) {
+        factCheckData.value = cached.toMap();
+        showFullDisclosurePanel();
+        return;
+      }
       AppSnackbar.error('Unable to retrieve fact check disclosure. Please try again.');
     } finally {
       isLoadingFactCheck.value = false;

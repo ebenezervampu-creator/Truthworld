@@ -186,9 +186,10 @@ class VideoPlaybackHandoff {
 
   /// Check if the active controller for a video ID is still in the handoff (not claimed yet).
   static bool isActive(String videoId) {
-    if (_activePositions.containsKey(videoId)) return true;
     if (kIsWeb) return false;
-    return _activeVideoId == videoId && _activeController != null;
+    return _activeVideoId == videoId &&
+        _activeController != null &&
+        !_activeController!.value.hasError;
   }
 
   /// Clear/dispose the active controller for a video ID if it hasn't been claimed yet.

@@ -191,10 +191,10 @@ class UserDetailPanel extends StatelessWidget {
 
               final trustScore = (safetyProfile?['trustScore'] is num)
                   ? (safetyProfile!['trustScore'] as num).toInt()
-                  : (user['trustScore'] as int? ?? 100);
+                  : ((user['trustScore'] as num?)?.toInt() ?? 100);
               final strikes = (safetyProfile?['strikes'] is num)
                   ? (safetyProfile!['strikes'] as num).toInt()
-                  : (user['strikes'] as int? ?? 0);
+                  : ((user['strikes'] as num?)?.toInt() ?? 0);
               final channels = (safetyProfile?['channels'] as List?) ?? [];
 
               return Column(

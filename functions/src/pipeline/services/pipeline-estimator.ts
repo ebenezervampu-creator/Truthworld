@@ -6,6 +6,7 @@
  */
 
 import { ExecutionPlan } from "../types";
+import { normalizeLanguageCode } from "../../shared/language-normalizer";
 
 export type ETAMode = "cold" | "stable" | "high-variance";
 
@@ -58,7 +59,8 @@ export class PipelineEstimator {
     }
     
     if (plan.enablePath2 || plan.enableReachEngine) {
-      const targetLangs = (plan.languages ?? []).filter(l => l !== "en");
+      const sourceLang = normalizeLanguageCode(plan.primaryLanguage || "en");
+      const targetLangs = (plan.languages ?? []).filter(l => normalizeLanguageCode(l) !== sourceLang);
       for (const lang of targetLangs) {
         total += this.estimateStageDuration(`translating_${lang}`, duration);
         total += this.estimateStageDuration(`dubbing_${lang}`, duration);

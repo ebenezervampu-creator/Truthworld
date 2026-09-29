@@ -137,6 +137,9 @@ class UserInterestProfile {
   final int flipCoinCount;
   final int oppositeWatchesCount;
 
+  // === Two-Tower Neural Retrieval User Vector ===
+  final List<double>? userEmbedding;
+
   UserInterestProfile({
     this.userId = '',
     this.categoryAffinities = const {},
@@ -170,6 +173,7 @@ class UserInterestProfile {
     this.channelAffinities = const {},
     this.flipCoinCount = 0,
     this.oppositeWatchesCount = 0,
+    this.userEmbedding,
   });
 
   Map<String, dynamic> toMap() {
@@ -206,6 +210,7 @@ class UserInterestProfile {
       'channelAffinities': channelAffinities,
       'flipCoinCount': flipCoinCount,
       'oppositeWatchesCount': oppositeWatchesCount,
+      if (userEmbedding != null) 'userEmbedding': userEmbedding,
     };
   }
 
@@ -339,6 +344,19 @@ class UserInterestProfile {
       flipCoinCount: (data['flipCoinCount'] as num?)?.toInt() ?? 0,
       oppositeWatchesCount:
           (data['oppositeWatchesCount'] as num?)?.toInt() ?? 0,
+      userEmbedding: () {
+        final raw = data['userEmbedding'] ?? data['embedding'];
+        if (raw == null) return null;
+        if (raw is List) {
+          return raw.map((e) => (e as num).toDouble()).toList();
+        }
+        if (raw is Map && raw['values'] is List) {
+          return (raw['values'] as List)
+              .map((e) => (e as num).toDouble())
+              .toList();
+        }
+        return null;
+      }(),
     );
   }
 
@@ -375,6 +393,7 @@ class UserInterestProfile {
     Map<String, double>? channelAffinities,
     int? flipCoinCount,
     int? oppositeWatchesCount,
+    List<double>? userEmbedding,
   }) {
     return UserInterestProfile(
       userId: userId ?? this.userId,
@@ -420,7 +439,56 @@ class UserInterestProfile {
       channelAffinities: channelAffinities ?? this.channelAffinities,
       flipCoinCount: flipCoinCount ?? this.flipCoinCount,
       oppositeWatchesCount: oppositeWatchesCount ?? this.oppositeWatchesCount,
+      userEmbedding: userEmbedding ?? this.userEmbedding,
     );
+  }
+
+  /// Two-Tower Neural Retrieval: Returns the 768-dim user embedding vector.
+  /// If the server has not yet computed a persisted vector, generates a deterministic
+  /// normalized representation from user's active topic and category affinities.
+  List<double>? computeUserTowerVector() {
+    if (userEmbedding != null && userEmbedding!.isNotEmpty) {
+      return userEmbedding;
+    }
+    if (categoryAffinities.isEmpty && topicAffinities.isEmpty) {
+      return null;
+    }
+
+    // Deterministic 768-dim synthetic projection of topic and category affinities
+    const dimension = 768;
+    final vector = List<double>.filled(dimension, 0.0);
+
+    // Map category affinities to vector buckets
+    categoryAffinities.forEach((cat, weight) {
+      final hash = cat.toLowerCase().hashCode.abs();
+      for (var i = 0; i < 16; i++) {
+        final idx = (hash + i * 31) % dimension;
+        vector[idx] += weight * (1.0 / (i + 1));
+      }
+    });
+
+    // Map topic affinities to vector buckets
+    topicAffinities.forEach((topic, weight) {
+      final clean = topic.toLowerCase().replaceFirst('topic:', '');
+      final hash = clean.hashCode.abs();
+      for (var i = 0; i < 24; i++) {
+        final idx = (hash + i * 17) % dimension;
+        vector[idx] += weight * 1.5 * (1.0 / (i + 1));
+      }
+    });
+
+    // Normalize
+    var normSq = 0.0;
+    for (final v in vector) {
+      normSq += v * v;
+    }
+    if (normSq == 0.0) return null;
+    final magnitude = sqrt(normSq);
+    for (var i = 0; i < dimension; i++) {
+      vector[i] /= magnitude;
+    }
+
+    return vector;
   }
 
   // === User Psychology & Inferred Personality Profiling ===

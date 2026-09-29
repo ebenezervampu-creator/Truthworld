@@ -50,6 +50,7 @@ mixin VideoPlaybackFlowMixin on GetxController {
   Future<void> fetchAvailableSubtitles();
   Future<void> fetchAvailableAudioTracks();
   Future<void> loadTranscriptForVideo();
+  Future<void> loadFactCheckData([String? overrideUrl, bool force = false]);
   Future<void> initializeVideoPlayer({String? overrideUrl});
   void disposePlayer();
   void videoListener();
@@ -322,7 +323,32 @@ mixin VideoPlaybackFlowMixin on GetxController {
         fetchAvailableAudioTracks(),
       ]);
       unawaited(loadTranscriptForVideo());
+      if (video.factCheckUrl.isNotEmpty) {
+        unawaited(loadFactCheckData());
+      }
     }();
+
+    // Priority 0: Explicit overrideUrl passed in (e.g. from miniplayer or custom stream source)
+    if (overrideUrl != null && overrideUrl.isNotEmpty) {
+      debugPrint('[VideoController] 🎯 Direct playback from overrideUrl: $overrideUrl');
+      await initializeVideoPlayer(overrideUrl: overrideUrl);
+      if (activeClip.value != null) {
+        videoPlayerController?.seekTo(
+          Duration(milliseconds: (activeClip.value!.startTime * 1000).toInt()),
+        );
+      }
+      metadataFuture.then((_) {
+        if (availableResolutions.isNotEmpty) {
+          final match = availableResolutions.firstWhereOrNull(
+            (r) => r.url == overrideUrl,
+          );
+          if (match != null) {
+            currentResolution.value = match;
+          }
+        }
+      });
+      return;
+    }
 
     // Check if we have an active handoff controller (from miniplayer or card hover)
     final hasHandoff = VideoPlaybackHandoff.isActive(video.id);
@@ -348,14 +374,16 @@ mixin VideoPlaybackFlowMixin on GetxController {
       return;
     }
 
-    // 2. YouTube-style playback strategy:
+    // 2. Playback strategy:
     //    - On native (iOS/Android/Desktop): Attempt HLS adaptive streaming for instant start
     //    - If HLS not available or fails, automatically fallback to transcoded MP4s / videoUrl / originalUrl
+    var hlsSuccess = false;
     if (!kIsWeb && video.hlsUrl.isNotEmpty) {
       debugPrint('[VideoController] 🎬 Native playback: Using HLS adaptive stream');
       await initializeVideoPlayer(overrideUrl: video.hlsUrl);
 
       if (!videoError.value) {
+        hlsSuccess = true;
         // Once metadata finishes, update the quality/resolution menu reactively
         metadataFuture.then((_) {
           if (availableResolutions.isNotEmpty) {
@@ -365,8 +393,14 @@ mixin VideoPlaybackFlowMixin on GetxController {
             }
           }
         });
+      } else {
+        debugPrint('[VideoController] ⚠️ HLS stream failed, falling back to MP4 ladder...');
+        videoError.value = false;
+        rxErrorMessage.value = '';
       }
-    } else {
+    }
+
+    if (!hlsSuccess) {
       debugPrint('[VideoController] 🌐 Initializing stream from resolutions / MP4 variants...');
       await metadataFuture;
 
@@ -383,13 +417,19 @@ mixin VideoPlaybackFlowMixin on GetxController {
       } else if (video.hlsUrl.isNotEmpty && !video.hlsUrl.endsWith('original.mp4') && !video.hlsUrl.contains('/original/')) {
         debugPrint('[VideoController] 🎬 Playing from hlsUrl: ${video.hlsUrl}');
         await initializeVideoPlayer(overrideUrl: video.hlsUrl);
+      } else if (video.videoUrl.isNotEmpty) {
+        debugPrint('[VideoController] 🎬 Playing from fallback videoUrl: ${video.videoUrl}');
+        await initializeVideoPlayer(overrideUrl: video.videoUrl);
+      } else if (video.originalUrl.isNotEmpty) {
+        debugPrint('[VideoController] 🎬 Playing from fallback originalUrl: ${video.originalUrl}');
+        await initializeVideoPlayer(overrideUrl: video.originalUrl);
       } else {
         debugPrint(
-          '[VideoController] ❌ No processed resolution stream found. Video is still processing.',
+          '[VideoController] ❌ No playable video stream found.',
         );
         videoError.value = true;
         rxErrorMessage.value =
-            'Video resolutions are still processing. Please check back later.';
+            'This video is currently unavailable. Please try again later.';
         rxIsLoading.value = false;
         return;
       }

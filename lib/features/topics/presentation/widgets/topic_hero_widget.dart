@@ -6,6 +6,7 @@ import 'package:truthworld/components/ui/animated_interaction_buttons.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
+import 'package:truthworld/features/topics/presentation/widgets/topic_notification_options_sheet.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Topic Hero Widget
@@ -349,7 +350,13 @@ class TopicHeroWidget extends StatelessWidget {
             // Follow / Following Button
             AnimatedFollowTopicButton(
               isFollowed: isFollowed,
-              onPressed: () => followingController.toggleFollowTopic(topic),
+              onPressed: () {
+                if (isFollowed) {
+                  TopicNotificationOptionsSheet.show(context, topic: topic);
+                } else {
+                  followingController.toggleFollowTopic(topic);
+                }
+              },
             ),
 
             // Bell Icon Notification Option (when Following)
@@ -367,7 +374,7 @@ class TopicHeroWidget extends StatelessWidget {
                   child: InkWell(
                     customBorder: const CircleBorder(),
                     onTap: () =>
-                        _showNotificationSettingsDialog(context, topic.id),
+                        TopicNotificationOptionsSheet.show(context, topic: topic),
                     child: Icon(
                       _getBellIcon(currentBellSetting),
                       size: 18,
@@ -393,127 +400,6 @@ class TopicHeroWidget extends StatelessWidget {
       default:
         return Icons.notifications_active_rounded;
     }
-  }
-
-  void _showNotificationSettingsDialog(BuildContext context, String topicId) {
-    final followingController = Get.isRegistered<FollowingTopicsController>()
-        ? Get.find<FollowingTopicsController>()
-        : Get.put(FollowingTopicsController());
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.bgPage,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) {
-        return FutureBuilder<String>(
-          future: followingController.fetchTopicNotificationSetting(topicId),
-          builder: (context, snapshot) {
-            final currentSetting = snapshot.data ?? 'all';
-            return Container(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: AppColors.textTertiary.withValues(alpha: 0.4),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Topic Notification Settings',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildNotificationOption(
-                    context,
-                    followingController,
-                    topicId,
-                    title: 'All notifications',
-                    subtitle: 'Receive all notifications for this topic',
-                    icon: Icons.notifications_active_rounded,
-                    value: 'all',
-                    currentSetting: currentSetting,
-                  ),
-                  _buildNotificationOption(
-                    context,
-                    followingController,
-                    topicId,
-                    title: 'Personalized',
-                    subtitle: 'Receive occasional highlights & updates',
-                    icon: Icons.notifications_outlined,
-                    value: 'personalized',
-                    currentSetting: currentSetting,
-                  ),
-                  _buildNotificationOption(
-                    context,
-                    followingController,
-                    topicId,
-                    title: 'None',
-                    subtitle: 'Turn off notifications for this topic',
-                    icon: Icons.notifications_off_outlined,
-                    value: 'none',
-                    currentSetting: currentSetting,
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildNotificationOption(
-    BuildContext context,
-    FollowingTopicsController controller,
-    String topicId, {
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required String value,
-    required String currentSetting,
-  }) {
-    final isSelected = currentSetting == value;
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Icon(
-        icon,
-        color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          color: AppColors.textPrimary,
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-        ),
-      ),
-      subtitle: Text(
-        subtitle,
-        style: const TextStyle(
-          color: AppColors.textTertiary,
-          fontSize: 12,
-        ),
-      ),
-      trailing: isSelected
-          ? const Icon(Icons.check_circle_rounded, color: Colors.white)
-          : null,
-      onTap: () {
-        Navigator.pop(context);
-        controller.updateTopicNotificationSetting(topicId, value);
-      },
-    );
   }
 
   Widget _buildSkeleton() {

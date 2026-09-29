@@ -107,11 +107,14 @@ class VideoController extends BaseController
   set initialSeekPosition(Duration? pos) => _initialSeekPosition = pos;
 
   @override
-  VideoPlayerController? get videoPlayerController => _videoPlayerController;
+  VideoPlayerController? get videoPlayerController => rxVideoPlayerController.value;
 
   @override
-  set videoPlayerController(VideoPlayerController? c) =>
-      _videoPlayerController = c;
+  set videoPlayerController(VideoPlayerController? c) {
+    if (rxVideoPlayerController.value != c) {
+      rxVideoPlayerController.value = c;
+    }
+  }
 
   @override
   ChewieController? get chewieController => _chewieController;
@@ -342,7 +345,6 @@ class VideoController extends BaseController
   late TabController mobileTabController;
   late TabController desktopTabController;
   final ScrollController scrollController = ScrollController();
-  VideoPlayerController? _videoPlayerController;
   @override
   final Rx<VideoPlayerController?> rxVideoPlayerController = Rx<VideoPlayerController?>(null);
   ChewieController? _chewieController;

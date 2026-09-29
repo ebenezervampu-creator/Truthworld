@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/features/channel/presentation/views/channel/widgets/channel_membership_join_sheet.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/features/video/presentation/controllers/adaptive_bitrate_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
@@ -14,24 +14,9 @@ class QualityPanel extends StatelessWidget {
   const QualityPanel({required this.ctrl, super.key});
   final TowerPlayerController ctrl;
 
-  String _bwLabel(double k) => k > 1000
-      ? '${(k / 1000).toStringAsFixed(1)} Mbps'
-      : '${k.toStringAsFixed(0)} kbps';
-
-  Color _qColor(NetworkQuality q) {
-    switch (q) {
-      case NetworkQuality.excellent:
-      case NetworkQuality.good:
-        return AppColors.success;
-      case NetworkQuality.fair:
-        return AppColors.brandHover;
-      default:
-        return PT.primary;
-    }
-  }
-
   bool _isPremiumUser() {
     try {
+      if (ctrl.hasPremiumPlaybackAccess) return true;
       if (!Get.isRegistered<AuthService>()) return false;
       return AuthService.to.hasFullPremium;
     } catch (_) {
@@ -40,6 +25,25 @@ class QualityPanel extends StatelessWidget {
   }
 
   void _showPremiumDialog(BuildContext context) {
+    try {
+      final vCtrl = ctrl.videoController;
+      final channel = vCtrl?.channelController.selectedChannel.value;
+      if (channel != null && channel.noAdsForMembers) {
+        // Channel offers Channel Premium (No Ads + 4K streaming)!
+        ChannelMembershipJoinSheet.show(
+          context,
+          channelId: channel.channelId,
+          channel: channel,
+        );
+        return;
+      }
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'QualityPanel.showPremiumDialog',
+      );
+    }
     showPremiumDialog(context);
   }
 
@@ -101,38 +105,6 @@ class QualityPanel extends StatelessWidget {
             onBack: () => ctrl.activePanel.value = '',
             onClose: null,
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.speed_rounded,
-                  color: AppColors.textTertiary,
-                  size: 14,
-                ),
-                const SizedBox(width: 8),
-                const Text('Network: ', style: TS.bodySm),
-                Text(
-                  _bwLabel(ctrl.abr.measuredBandwidthKbps.value),
-                  style: TS.bodySm.copyWith(
-                    color: _qColor(ctrl.abr.networkQuality.value),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const Spacer(),
-                const Text('Buffer: ', style: TS.bodySm),
-                Text(
-                  '${ctrl.abr.bufferHealthSeconds.value.toStringAsFixed(1)}s',
-                  style: TS.bodySm.copyWith(
-                    color: ctrl.abr.bufferHealthSeconds.value < 3
-                        ? PT.primary
-                        : AppColors.success,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
           const PlayerDivider(),
           Flexible(
             child: SingleChildScrollView(
@@ -154,10 +126,19 @@ class QualityPanel extends StatelessWidget {
                       .map((tier) {
                         final idx = tiers.indexWhere((t) => t.height == tier.height);
                         final isPremiumRes = tier.height > 1040;
+                        String? resBadge;
+                        if (tier.height >= 2160) {
+                          resBadge = '4K UHD';
+                        } else if (tier.height >= 1440) {
+                          resBadge = '2K QHD';
+                        } else if (tier.height >= 1080) {
+                          resBadge = 'FHD';
+                        }
 
                         return SelectTile(
                           label: tier.label,
                           sublabel: '${tier.bitrate} kbps',
+                          badge: resBadge,
                           selected:
                               !ctrl.abr.isAutoMode.value &&
                               ctrl.abr.currentTier.height == tier.height,

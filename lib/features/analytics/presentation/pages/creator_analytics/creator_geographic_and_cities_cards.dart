@@ -34,10 +34,10 @@ class CreatorGeographicBreakdownCard extends StatelessWidget {
                       xValueMapper: (dynamic d, _) => d.title as String,
                       yValueMapper: (dynamic d, _) => d.value as num,
                       pointColorMapper: (dynamic d, _) => Color(d.color as int),
-                      dataLabelMapper: (dynamic d, _) =>
-                          (d.percentage as double) >= 8
-                              ? '${(d.percentage as double).toStringAsFixed(0)}%'
-                              : '',
+                      dataLabelMapper: (dynamic d, _) {
+                        final pct = (d.percentage as num?)?.toDouble() ?? 0.0;
+                        return pct >= 8 ? '${pct.toStringAsFixed(0)}%' : '';
+                      },
                       dataLabelSettings: const DataLabelSettings(
                         isVisible: true,
                         textStyle: TextStyle(
@@ -173,6 +173,7 @@ class CreatorTopCitiesCard extends StatelessWidget {
                 series: <CartesianSeries<dynamic, String>>[
                   ColumnSeries<dynamic, String>(
                     dataSource: data,
+                    animationDuration: 0,
                     xValueMapper: (dynamic d, _) {
                       final label = d.label as String;
                       return label.length > 6 ? '${label.substring(0, 5)}..' : label;

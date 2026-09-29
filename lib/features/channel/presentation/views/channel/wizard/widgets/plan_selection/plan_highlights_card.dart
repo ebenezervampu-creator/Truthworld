@@ -94,7 +94,7 @@ class PlanHighlightsCard extends StatelessWidget {
           'title':
               'Custom Tier Pricing: ${controller.customPricingTier.value}/month',
           'subtitle':
-              r'$10 FREE credit applied automatically upon channel creation!',
+              'Dedicated cloud storage, global CDN streaming, and 100% revenue retention.',
         },
         {
           'title': '100% Revenue Share from Ads & Premium Subscriptions',
@@ -111,9 +111,9 @@ class PlanHighlightsCard extends StatelessWidget {
           'subtitle': '2-5 times faster processing speed & ultra HD playback',
         },
         {
-          'title': r'50% Off AI Dubbing ($0.25/language) & Vocal Identity',
+          'title': r'AI Dubbing (From $0.10/lang at-cost) & Studio Voice Cloning',
           'subtitle':
-              'Half-price dubbing with exclusive Studio Voice Cloning, fundable via monthly bonus credits',
+              'At-cost dubbing with exclusive Studio Voice Cloning from channel spendable balance',
         },
         {
           'title': '30+ Premium Features & Tools',
@@ -125,7 +125,7 @@ class PlanHighlightsCard extends StatelessWidget {
           'subtitle': '',
         },
         {
-          'title': '100% Free premium features (Value ₹25,999/year)',
+          'title': '100% Free Premium Creator Features Included',
           'subtitle': '',
         },
       ];
@@ -146,9 +146,9 @@ class PlanHighlightsCard extends StatelessWidget {
               'Fast processing with up to 4K Ultra HD resolution (Free playback up to 1040p)',
         },
         {
-          'title': r'Standard AI Dubbing ($0.50/language)',
+          'title': r'AI Dubbing (From $0.10/language at-cost)',
           'subtitle':
-              'Translate and dub videos into 70+ languages on demand with zero upfront hardware costs',
+              'Translate and dub videos into 70+ languages at zero platform markup pass-through rates',
         },
         {
           'title': '10+ Essential Creator Tools',
@@ -185,19 +185,19 @@ class PlanHighlightsCard extends StatelessWidget {
         },
         {
           'title':
-              r'AI Multilingual Dubbing: $0.50/lang (Standard) vs $0.25/lang (Custom)',
+              r'AI Multilingual Dubbing: At-cost pass-through from $0.10/lang',
           'subtitle':
-              'Standard uses natural voice presets; Custom includes 50% discount and vocal identity voice cloning.',
+              'Both Standard and Custom channels receive 100% provider pass-through pricing with zero platform markup.',
         },
         {
           'title': 'Storage & Global CDN Infrastructure Tiers',
           'subtitle':
-              'Standard: Free hosting. Custom: 100 GB, 300 GB, 1 TB Cloud Storage & 500 GB to 5 TB CDN.',
+              'Standard: Free hosting. Custom: 50 GB to 800 GB Cloud Storage & 250 GB to 3.2 TB CDN.',
         },
         {
-          'title': r'$10 FREE Monthly Bonus Credit Included on Custom',
+          'title': '100% Creator Revenue Share on Custom (0% Platform Fee)',
           'subtitle':
-              r'$10 credit applied automatically upon Custom Channel creation.',
+              'Custom channels retain 100% of all ad revenue, memberships, and superchats.',
         },
         {
           'title':
@@ -327,7 +327,7 @@ class PlanHighlightsCard extends StatelessWidget {
                     const SizedBox(width: 10),
                     const Expanded(
                       child: Text(
-                        r'Note: Standard channels are 100% free to operate with zero hosting fees. Truthworld takes 30% revenue share from ads and premium subscriptions (70% for creator), and 0% revenue share from superchats and memberships (100% for creator). Custom channels keep 100% revenue across all streams (0% platform cut) with plans starting at $15, $30, $45/mo.',
+                        r'Note: Standard channels are 100% free to operate with zero hosting fees. Truthworld takes 30% revenue share from ads and premium subscriptions (70% for creator), and 0% revenue share from superchats and memberships (100% for creator). Custom channels keep 100% revenue across all streams (0% platform cut) with plans starting at $15, $30, $45, $100, $200/mo.',
                         style: TextStyle(
                           fontSize: 12,
                           color: Color(0xFFD4D4D8),

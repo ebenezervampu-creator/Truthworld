@@ -86,28 +86,51 @@ class AppNavigationController extends BaseController {
           ? DistributedCounterService.to
           : Get.put(DistributedCounterService());
 
+      // Check whether user is actually authenticated with a valid auth UID
+      final currentUser = _auth.currentUser;
+      final isAuthenticated = currentUser != null && !currentUser.isAnonymous;
+      final actualAuthUid = currentUser?.uid;
+
       // If user is authenticated, enforce one view per user doc
-      if (userId.isNotEmpty && userId != 'anonymous') {
+      if (isAuthenticated &&
+          actualAuthUid != null &&
+          actualAuthUid.isNotEmpty &&
+          userId != 'anonymous') {
         final viewRef = _firestore
             .collection(FirestoreCollections.videos)
             .doc(videoId)
             .collection('views')
-            .doc(userId);
+            .doc(actualAuthUid);
 
-        final viewDoc = await viewRef.get().timeout(_defaultTimeout);
-        if (!viewDoc.exists) {
-          // Record unique user view doc (independent document, zero contention)
-          await viewRef
-              .set({'timestamp': FieldValue.serverTimestamp()})
-              .timeout(_defaultTimeout);
+        try {
+          final viewDoc = await viewRef.get().timeout(_defaultTimeout);
+          if (!viewDoc.exists) {
+            // Record unique user view doc (independent document, zero contention)
+            await viewRef
+                .set({'timestamp': FieldValue.serverTimestamp()})
+                .timeout(_defaultTimeout);
 
-          // Increment distributed counter shards
-          await counterService.incrementVideoViews(
-            videoId: videoId,
-            isQualified: isQualified,
-            channelId: channelId,
-            timeout: _defaultTimeout,
-          );
+            // Increment distributed counter shards
+            await counterService.incrementVideoViews(
+              videoId: videoId,
+              isQualified: isQualified,
+              channelId: channelId,
+              timeout: _defaultTimeout,
+            );
+          }
+        } catch (e) {
+          final errStr = e.toString().toLowerCase();
+          if (errStr.contains('permission')) {
+            // Fallback to distributed counter shards if subcollection rule denies
+            await counterService.incrementVideoViews(
+              videoId: videoId,
+              isQualified: isQualified,
+              channelId: channelId,
+              timeout: _defaultTimeout,
+            );
+          } else {
+            rethrow;
+          }
         }
       } else {
         // Anonymous view (directly increment distributed counter shards)

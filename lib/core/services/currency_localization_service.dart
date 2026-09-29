@@ -15,7 +15,7 @@ import 'package:truthworld/core/services/auth_service.dart';
 ///   (Primary: open.er-api.com, Secondary: frankfurter.app, Tertiary: Firestore system_config/currency)
 /// - Persistent local caching via GetStorage so initial launch is instantaneous and offline-safe
 /// - Dynamic 30-minute background auto-refresh
-/// - Zero mock data & production-grade resilience with safe baseline fallback (95.60)
+/// - Zero mock data & production-grade resilience with safe baseline fallback (84.0)
 class CurrencyLocalizationService extends GetxService {
   static CurrencyLocalizationService get to {
     if (!Get.isRegistered<CurrencyLocalizationService>()) {
@@ -24,8 +24,8 @@ class CurrencyLocalizationService extends GetxService {
     return Get.find<CurrencyLocalizationService>();
   }
 
-  /// Safe baseline default exchange rate (1 USD = ₹95.60 INR)
-  static const double defaultRate = 95.60;
+  /// Safe baseline default exchange rate (1 USD = ₹84.0 INR)
+  static const double defaultRate = 84.0;
 
   /// Whether persistent caching and Firebase listeners should run (can be disabled in pure unit tests)
   static bool enablePersistentStorage = true;
@@ -113,7 +113,7 @@ class CurrencyLocalizationService extends GetxService {
       if (cachedRate != null &&
           cachedRate > 50.0 &&
           cachedRate < 200.0 &&
-          (cachedRate - 85.0).abs() > 0.05) {
+          (cachedRate - 84.0).abs() > 0.05) {
         liveUsdToInrRate.value = cachedRate;
         if (cachedTimeMs != null) {
           lastRateUpdateTime.value =
@@ -159,7 +159,7 @@ class CurrencyLocalizationService extends GetxService {
   /// Fetches the latest live market exchange rate with multi-source fallback
   Future<double> fetchRealtimeRate({bool force = false}) async {
     final isUnverified = rateSource.value == 'default' ||
-        (liveUsdToInrRate.value - 85.0).abs() < 0.05;
+        (liveUsdToInrRate.value - 84.0).abs() < 0.05;
     // Avoid spamming requests if updated within the last 15 minutes and rate is verified
     if (!force && !isUnverified && lastRateUpdateTime.value != null) {
       final elapsed = DateTime.now().difference(lastRateUpdateTime.value!);
@@ -270,20 +270,57 @@ class CurrencyLocalizationService extends GetxService {
     userCountryCode.value = 'IN';
   }
 
-  /// Fetches the real-time ISO 2-letter country code from ipapi.co on every
-  /// app launch. Runs non-blocking after [detectUserCountry] so UI sees the
-  /// cached Firestore value immediately, then gets silently corrected if
-  /// the live IP result differs (e.g. user travelling, VPN off, new device).
+  /// Fetches the real-time ISO 2-letter country code on every app launch.
+  /// Uses multi-source fallback with CORS-compatible endpoints:
+  /// 1. ipwho.is (Primary, CORS-friendly, HTTPS)
+  /// 2. api.country.is (Secondary, CORS-friendly, ultra-fast)
+  /// 3. ipapi.co/json (Tertiary native/desktop fallback)
+  /// Runs non-blocking after [detectUserCountry] so UI sees the cached
+  /// Firestore value immediately, then gets silently corrected if the live IP differs.
   Future<void> _refreshCountryFromIp() async {
+    // 1. Primary: ipwho.is (CORS-friendly for Web, HTTPS)
+    try {
+      final res = await AppHttpClient.get(
+        Uri.parse('https://ipwho.is/'),
+      ).timeout(const Duration(seconds: 4));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        if (data['success'] == true) {
+          final code = data['country_code']?.toString();
+          if (code != null && code.length == 2) {
+            userCountryCode.value = code.toUpperCase();
+            return;
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 2. Secondary: api.country.is (CORS-friendly for Web, ultra-fast)
+    try {
+      final res = await AppHttpClient.get(
+        Uri.parse('https://api.country.is/'),
+      ).timeout(const Duration(seconds: 3));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        final code = data['country']?.toString();
+        if (code != null && code.length == 2) {
+          userCountryCode.value = code.toUpperCase();
+          return;
+        }
+      }
+    } catch (_) {}
+
+    // 3. Tertiary: ipapi.co/json (Native/desktop fallback)
     try {
       final res = await AppHttpClient.get(
         Uri.parse('https://ipapi.co/json/'),
-      ).timeout(const Duration(seconds: 5));
+      ).timeout(const Duration(seconds: 3));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
         final code = data['country_code']?.toString();
         if (code != null && code.length == 2) {
           userCountryCode.value = code.toUpperCase();
+          return;
         }
       }
     } catch (e, s) {

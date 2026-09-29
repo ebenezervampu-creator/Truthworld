@@ -24,14 +24,21 @@ import 'package:truthworld/theme/app_theme.dart';
         ? Get.find<DashboardController>().currentChannel.value
         : null;
 
+    final videoDurationSec = video.durationValue.inSeconds;
+    final flatDubbingRate = ChannelWalletService.getFlatDubbingPricePerLanguage(
+      durationSeconds: videoDurationSec,
+      channelType: effectiveChannelType,
+    );
+    final dubbingTier =
+        ChannelWalletService.getDubbingDurationTier(videoDurationSec);
     final selectedLangs = <String>{'te', 'hi'}.obs;
     final selectedFeatures = <String>{
       'subtitles',
       'dubbing',
       'factcheck',
-      'summary',
       'chapters',
     }.obs;
+    final selectedFactCheckTier = 'standard'.obs;
     final isAccuracyMode = true.obs;
     final showAdvanced = false.obs;
 
@@ -169,12 +176,11 @@ import 'package:truthworld/theme/app_theme.dart';
                       },
                     ),
                     buildFeatureCheckbox(
-                      title: isCustom
-                          ? r'AI Audio Dubbing Tracks (50% Off: $0.25/lang)'
-                          : r'AI Audio Dubbing Tracks ($0.50/lang)',
+                      title:
+                          'AI Audio Dubbing (Flat \$${flatDubbingRate.toStringAsFixed(2)}/lang • ${dubbingTier.label})',
                       subtitle: isCustom
-                          ? 'Natural AI voice tracks with Studio Vocal Identity & Voice Cloning included'
-                          : 'Generate natural AI voice tracks in Telugu, Hindi, etc.',
+                          ? 'Dubbing is NOT free: Flat rate for ${videoDurationSec > 0 ? VideoDurationUtils.formatDurationSeconds(videoDurationSec) : "detected duration"}. Includes Studio Vocal Identity & Voice Cloning.'
+                          : 'Dubbing is NOT free: Predictable flat pricing for ${videoDurationSec > 0 ? VideoDurationUtils.formatDurationSeconds(videoDurationSec) : "detected duration"} across chosen languages.',
                       icon: Icons.record_voice_over_outlined,
                       value: selectedFeatures.contains('dubbing'),
                       onChanged: (val) {
@@ -186,9 +192,9 @@ import 'package:truthworld/theme/app_theme.dart';
                       },
                     ),
                     buildFeatureCheckbox(
-                      title: 'Fact-Checking & Truth Score Report',
+                      title: 'Fact-Checking & Truth Report (FREE • All Claims Verified)',
                       subtitle:
-                          'Extract claims & verify truthfulness with citations',
+                          'Epistemic verification & claim analysis for ${videoDurationSec > 0 ? VideoDurationUtils.formatDurationSeconds(videoDurationSec) : "detected duration"}.',
                       icon: Icons.fact_check_outlined,
                       value: selectedFeatures.contains('factcheck'),
                       onChanged: (val) {
@@ -199,19 +205,50 @@ import 'package:truthworld/theme/app_theme.dart';
                         }
                       },
                     ),
-                    buildFeatureCheckbox(
-                      title: 'AI Video Summary & Key Takeaways',
-                      subtitle: 'Generate concise summary of video content',
-                      icon: Icons.auto_stories_outlined,
-                      value: selectedFeatures.contains('summary'),
-                      onChanged: (val) {
-                        if (val ?? false) {
-                          selectedFeatures.add('summary');
-                        } else {
-                          selectedFeatures.remove('summary');
-                        }
-                      },
-                    ),
+                    if (selectedFeatures.contains('factcheck')) ...[
+                      Padding(
+                        padding: const EdgeInsets.only(left: 36, bottom: 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Fact-Checking Verification Level:',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: ChannelWalletService.factCheckDepthPlans.map((plan) {
+                                final isSelected = selectedFactCheckTier.value == plan.id;
+                                return FilterChip(
+                                  label: const Text('All Claims Ground Truth (FREE)'),
+                                  selected: isSelected,
+                                  selectedColor: AppColors.brand.withValues(alpha: 0.2),
+                                  checkmarkColor: AppColors.brand,
+                                  labelStyle: AppTextStyles.labelMedium.copyWith(
+                                    fontSize: 11,
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                    color: isSelected ? AppColors.brand : AppColors.textSecondary,
+                                  ),
+                                  backgroundColor: AppColors.bgSurfaceHover,
+                                  side: BorderSide(
+                                    color: isSelected ? AppColors.brand : AppColors.bgDivider,
+                                  ),
+                                  onSelected: (_) {
+                                    selectedFactCheckTier.value = plan.id;
+                                  },
+                                );
+                              }).toList(),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     buildFeatureCheckbox(
                       title: 'Timestamped Auto-Chapters',
                       subtitle: 'Detect topics and create chapter timestamps',
@@ -332,8 +369,8 @@ import 'package:truthworld/theme/app_theme.dart';
                                 children: [
                                   Text(
                                     isCustom
-                                        ? 'Bonus & Revenue (Custom 50% Off)'
-                                        : r'Channel Wallet & $10 Credit',
+                                        ? 'Channel Wallet & Revenue (Custom Channel)'
+                                        : 'Channel Wallet & Revenue',
                                     style: AppTextStyles.labelMedium.copyWith(
                                       color: isCustom ? const Color(0xFFC084FC) : Colors.green,
                                       fontWeight: FontWeight.bold,
@@ -388,7 +425,9 @@ import 'package:truthworld/theme/app_theme.dart';
                                 '\$${ChannelWalletService.calculateAIFeatureCost(
                                   selectedFeatures: selectedFeatures.toSet(),
                                   targetLanguages: selectedLangs.toList(),
+                                  durationSeconds: videoDurationSec,
                                   channelType: effectiveChannelType,
+                                  factCheckTier: selectedFactCheckTier.value,
                                 ).toStringAsFixed(2)}',
                                 style: AppTextStyles.titleMedium.copyWith(
                                   color: AppColors.textPrimary,
@@ -446,12 +485,15 @@ import 'package:truthworld/theme/app_theme.dart';
                                     videoId: video.id,
                                     features: selectedFeatures.toList(),
                                     targetLanguages: selectedLangs.toList(),
+                                    durationSeconds: videoDurationSec,
+                                    channel: currentChannel,
                                     priorityMode: isAccuracyMode.value
                                         ? 'accuracy'
                                         : 'speed',
                                     autoChapters: selectedFeatures.contains(
                                       'chapters',
                                     ),
+                                    factCheckTier: selectedFactCheckTier.value,
                                   );
                                 },
                         ),

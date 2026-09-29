@@ -6,12 +6,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/pip_service.dart';
+import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
+import 'package:truthworld/features/video/data/services/storyboard_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/playback_source.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
+import 'package:truthworld/features/video/presentation/views/player/overlays/components/storyboard_thumbnail_widget.dart';
 import 'package:universal_html/html.dart' as html;
-import 'package:universal_html/js.dart' as js;
 import 'package:video_player/video_player.dart';
 
 mixin TowerPlayerModesMixin on GetxController {
@@ -31,7 +34,7 @@ mixin TowerPlayerModesMixin on GetxController {
   RxBool get showLiveChat;
   RxDouble get aspectRatio;
   void onInteraction();
-  void startHideTimer();
+  void startHideTimer([Duration? timeout]);
   RxBool get controlsVisible;
   RxBool get settingsOpen;
   RxBool get isLooping;
@@ -46,6 +49,8 @@ mixin TowerPlayerModesMixin on GetxController {
   final RxBool seekPreviewVis = false.obs;
   final Rx<Duration> seekPreviewPos = Duration.zero.obs;
   final RxDouble seekPreviewX = 0.0.obs;
+  final Rx<StoryboardTrack?> storyboardTrack = Rx<StoryboardTrack?>(null);
+  void setStoryboardTrack(StoryboardTrack? track) => storyboardTrack.value = track;
   // ignore: cancel_subscriptions
   StreamSubscription? webFullscreenSub;
 
@@ -131,11 +136,17 @@ mixin TowerPlayerModesMixin on GetxController {
   }
 
   void updateSeekPreview(double fraction, double xPixel, Duration total) {
-    seekPreviewPos.value = Duration(
+    final pos = Duration(
       milliseconds: (total.inMilliseconds * fraction).toInt(),
     );
+    seekPreviewPos.value = pos;
     seekPreviewX.value = xPixel;
     seekPreviewVis.value = true;
+
+    final track = storyboardTrack.value;
+    if (track != null) {
+      SpriteSheetImageCache.preloadAround(track, pos);
+    }
   }
 
   void hideSeekPreview() => seekPreviewVis.value = false;
@@ -272,56 +283,23 @@ mixin TowerPlayerModesMixin on GetxController {
   void onOuterChewieChanged() {}
 
   Future<void> togglePiP() async {
-    if (kIsWeb) {
-      try {
-        final video =
-            html.document.querySelector('video') as html.VideoElement?;
-        if (video == null) return;
-        final docJs = js.JsObject.fromBrowserObject(html.document);
-        if (docJs['pictureInPictureElement'] == null) {
-          js.JsObject.fromBrowserObject(
-            video,
-          ).callMethod('requestPictureInPicture', []);
-          isPiP.value = true;
-        } else {
-          docJs.callMethod('exitPictureInPicture', []);
-          isPiP.value = false;
-        }
-      } catch (e, s) {
-        ErrorHandler.log(
-          e,
-          stackTrace: s,
-          tag: 'TowerPlayerModesMixin.webPiP',
-        );
-      }
-    } else {
-      try {
-        var ratio = aspectRatio.value;
-        if (ratio < 0.418) ratio = 0.418;
-        if (ratio > 2.39) ratio = 2.39;
-        await pipChannel.invokeMethod('enterPip', {
-          'aspectRatio': ratio,
-        });
-      } catch (e, s) {
-        ErrorHandler.log(
-          e,
-          stackTrace: s,
-          tag: 'TowerPlayerModesMixin.nativePiP',
-        );
+    final success =
+        await PipService.to.togglePip(aspectRatio: aspectRatio.value);
+    if (!success) {
+      final vid = videoController?.video;
+      if (vid != null) {
+        final pos = videoPlayerController.value.position;
+        Get.back();
+        MiniplayerController.to.showWithVideo(vid, resumeFromPosition: pos);
       }
     }
   }
 
   void updateAutoPip(bool isPlaying) {
-    if (!kIsWeb) {
-      var ratio = aspectRatio.value;
-      if (ratio < 0.418) ratio = 0.418;
-      if (ratio > 2.39) ratio = 2.39;
-      pipChannel.invokeMethod('setAutoEnterPip', {
-        'enabled': isPlaying,
-        'aspectRatio': ratio,
-      });
-    }
+    PipService.to.updateAutoPip(
+      enabled: isPlaying,
+      aspectRatio: aspectRatio.value,
+    );
   }
 
   void toggleLoop() {

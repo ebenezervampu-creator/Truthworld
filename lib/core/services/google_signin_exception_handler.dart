@@ -43,6 +43,19 @@ final class GoogleSignInExceptionHandler {
       );
     }
 
+    if (str.contains('app check') ||
+        str.contains('appcheck') ||
+        str.contains('app-check') ||
+        str.contains('app attestation')) {
+      return GoogleSignInException(
+        message:
+            'Device security verification failed. Please check your connection and try again.',
+        code: 'app-check-failed',
+        isRetryable: true,
+        originalException: exception,
+      );
+    }
+
     return switch (exception) {
       final FirebaseAuthException e => _fromFirebaseAuth(e),
       final PlatformException e => _fromPlatformException(e),
@@ -124,13 +137,46 @@ final class GoogleSignInExceptionHandler {
         isRetryable: true,
         originalException: e,
       ),
-      _ => GoogleSignInException(
-        message: e.message ?? 'Authentication failed [${e.code}]',
+      _ => _mapFallbackAuthException(e),
+    };
+  }
+
+  static GoogleSignInException _mapFallbackAuthException(
+    FirebaseAuthException e,
+  ) {
+    final rawMsg = e.message ?? '';
+    final lower = rawMsg.toLowerCase();
+
+    if (lower.contains('app check') ||
+        lower.contains('appcheck') ||
+        lower.contains('app-check') ||
+        lower.contains('app attestation')) {
+      return GoogleSignInException(
+        message:
+            'Device security verification failed. Please check your connection and try again.',
+        code: 'app-check-failed',
+        isRetryable: true,
+        originalException: e,
+      );
+    }
+
+    if (lower.contains('internal error') || e.code == 'unknown') {
+      return GoogleSignInException(
+        message:
+            'An unexpected authentication error occurred. Please try again.',
         code: e.code,
         isRetryable: true,
         originalException: e,
-      ),
-    };
+      );
+    }
+
+    return GoogleSignInException(
+      message:
+          rawMsg.isNotEmpty ? rawMsg : 'Authentication failed. Please try again.',
+      code: e.code,
+      isRetryable: true,
+      originalException: e,
+    );
   }
 
   static GoogleSignInException _fromUserCancelled(

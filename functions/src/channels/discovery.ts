@@ -7,6 +7,7 @@ import {
   ChannelCategory, 
   VALID_CATEGORIES 
 } from "./types";
+import { applySecurityHeaders } from "../utils/securityHeaders";
 
 const db = () => admin.firestore();
 
@@ -34,6 +35,7 @@ function calculateRankScore(channel: ChannelV2): number {
 export const getLeaderboard = onRequest(
   { region: "asia-south1", cors: true, memory: "256MiB" },
   async (req, res) => {
+    applySecurityHeaders(res);
     try {
       const category = req.query.category as ChannelCategory;
       const limit = Math.min(Number(req.query.limit) || 20, 100);
@@ -91,6 +93,7 @@ export const getLeaderboard = onRequest(
 export const getRisingCreators = onRequest(
   { region: "asia-south1", cors: true, memory: "256MiB" },
   async (req, res) => {
+    applySecurityHeaders(res);
     try {
       const limit = Math.min(Number(req.query.limit) || 10, 50);
 

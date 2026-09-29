@@ -96,6 +96,7 @@ void main() {
         channel,
         durationSeconds: 1,
         dailyUploadedDurationSeconds: usedSeconds,
+        enforceMinimumDuration: false,
       );
       expect(validResult.isValid, isTrue,
           reason: 'Exactly 1 second remaining must allow a 1-second upload.');
@@ -104,6 +105,7 @@ void main() {
         channel,
         durationSeconds: 2,
         dailyUploadedDurationSeconds: usedSeconds,
+        enforceMinimumDuration: false,
       );
       expect(blockedResult.isValid, isFalse,
           reason: 'A 2-second upload when only 1s remains must be blocked.');
@@ -318,6 +320,50 @@ void main() {
       expect(result.isValid, isFalse,
           reason: 'dailyUploadedDurationSeconds=550 should take precedence over '
               'currentTotalDurationSeconds=300. Upload of 100s should be blocked.');
+    });
+  });
+
+  // ── Group 6: Truthworld Minimum 2-Minute Video Duration Enforcements ─────
+
+  group('Truthworld Minimum 2-Minute (120s) Video Duration Enforcements', () {
+    test('Standard channel: video shorter than 120s (e.g. 119s) is BLOCKED', () {
+      final channel = _makeStandardChannel('ch_min_std');
+      final result = ContentValidator.validateChannelVideoUpload(
+        channel,
+        durationSeconds: 119,
+      );
+      expect(result.isValid, isFalse);
+      expect(result.message,
+          contains('Truthworld requires videos to be at least 2 minutes (120 seconds)'));
+    });
+
+    test('Standard channel: video exactly 120s (2 minutes) is VALID', () {
+      final channel = _makeStandardChannel('ch_min_std_exact');
+      final result = ContentValidator.validateChannelVideoUpload(
+        channel,
+        durationSeconds: 120,
+      );
+      expect(result.isValid, isTrue);
+    });
+
+    test('Custom channel: video shorter than 120s (e.g. 45s) is BLOCKED', () {
+      final channel = _makeCustomChannel('ch_min_custom');
+      final result = ContentValidator.validateChannelVideoUpload(
+        channel,
+        durationSeconds: 45,
+      );
+      expect(result.isValid, isFalse);
+      expect(result.message,
+          contains('Truthworld requires videos to be at least 2 minutes (120 seconds)'));
+    });
+
+    test('Custom channel: video of 120s or more is VALID', () {
+      final channel = _makeCustomChannel('ch_min_custom_valid');
+      final result = ContentValidator.validateChannelVideoUpload(
+        channel,
+        durationSeconds: 120,
+      );
+      expect(result.isValid, isTrue);
     });
   });
 }

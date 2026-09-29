@@ -80,12 +80,13 @@ class UploadState {
     this.aiGenerateSubtitles = false,
     this.aiGenerateDubbing = false,
     this.aiDiarizationEnabled = false,
-    this.aiSummaryEnabled = false,
+    this.aiSummaryEnabled = true,
     this.aiTranslationLanguages = const [],
     this.aiDubbingLanguages = const [],
     this.aiTTSEnabled = false,
     this.aiTTSVoiceType = 'default',
     this.aiFactCheckEnabled = false,
+    this.aiFactCheckTier = 'full_ground',
     this.voiceSampleFile,
     this.providedSources = const [],
 
@@ -180,6 +181,7 @@ class UploadState {
   final bool aiTTSEnabled;
   final String aiTTSVoiceType;
   final bool aiFactCheckEnabled;
+  final String aiFactCheckTier;
   final PlatformFile? voiceSampleFile;
   final List<String> providedSources;
 
@@ -332,6 +334,7 @@ class UploadState {
     bool? aiTTSEnabled,
     String? aiTTSVoiceType,
     bool? aiFactCheckEnabled,
+    String? aiFactCheckTier,
     Object? voiceSampleFile = _sentinel,
     List<String>? providedSources,
     String? selectedTopicId,
@@ -436,6 +439,7 @@ class UploadState {
       aiTTSEnabled: aiTTSEnabled ?? this.aiTTSEnabled,
       aiTTSVoiceType: aiTTSVoiceType ?? this.aiTTSVoiceType,
       aiFactCheckEnabled: aiFactCheckEnabled ?? this.aiFactCheckEnabled,
+      aiFactCheckTier: aiFactCheckTier ?? this.aiFactCheckTier,
       voiceSampleFile: identical(voiceSampleFile, _sentinel)
           ? this.voiceSampleFile
           : voiceSampleFile as PlatformFile?,
@@ -523,6 +527,7 @@ class UploadState {
         other.aiTTSEnabled == aiTTSEnabled &&
         other.aiTTSVoiceType == aiTTSVoiceType &&
         other.aiFactCheckEnabled == aiFactCheckEnabled &&
+        other.aiFactCheckTier == aiFactCheckTier &&
         other.voiceSampleFile == voiceSampleFile &&
         listEquals(other.providedSources, providedSources) &&
         other.selectedTopicId == selectedTopicId &&
@@ -564,6 +569,7 @@ class UploadState {
         communityImageUrl,
         communityImageStatus,
         uploadProgress,
+        aiFactCheckTier,
       ]);
 
   @override

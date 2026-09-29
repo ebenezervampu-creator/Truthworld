@@ -18,6 +18,8 @@ mixin DeepLinkNavigator on DeepLinkCacheManager {
   AppLinks? _appLinks;
   StreamSubscription<Uri>? _linkSubscription;
   bool _isInitialized = false;
+  String? _lastHandledUrl;
+  DateTime? _lastHandledTime;
 
   /// Initialize deep link listeners for Android App Links and iOS Universal Links.
   Future<void> initAppLinks() async {
@@ -69,6 +71,24 @@ mixin DeepLinkNavigator on DeepLinkCacheManager {
   Future<void> handleUrl(String rawUrl, {bool replace = false}) async {
     final clean = DeepLinkUrlParser.cleanUrlString(rawUrl);
     if (clean.isEmpty) return;
+
+    // Deduplicate identical deep link events within 1.5 seconds
+    final now = DateTime.now();
+    if (_lastHandledUrl == clean &&
+        _lastHandledTime != null &&
+        now.difference(_lastHandledTime!) < const Duration(milliseconds: 1500)) {
+      debugPrint('[DeepLinkService] ⏩ Skipping duplicate deep link event: $clean');
+      return;
+    }
+    _lastHandledUrl = clean;
+    _lastHandledTime = now;
+
+    // Ensure GetX navigator is mounted and initial routing is complete
+    var attempts = 0;
+    while ((Get.key.currentState == null || Get.currentRoute.isEmpty) && attempts < 40) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      attempts++;
+    }
 
     final parsed = DeepLinkUrlParser.parseUrl(clean);
 
@@ -300,6 +320,30 @@ mixin DeepLinkNavigator on DeepLinkCacheManager {
       Get.offNamed<void>(routeUrl);
     } else {
       Get.toNamed<void>(routeUrl);
+    }
+  }
+
+  /// Launches the native mobile TruthWorld app from mobile web browsers.
+  Future<void> launchNativeAppFromWeb({String? path}) async {
+    if (!kIsWeb) return;
+    try {
+      final currentPath = path ??
+          (Uri.base.path + (Uri.base.hasQuery ? '?${Uri.base.query}' : ''));
+      final clean = currentPath.replaceFirst(RegExp(r'^\/+'), '');
+      final isAndroid = defaultTargetPlatform == TargetPlatform.android;
+
+      final urlStr = isAndroid
+          ? 'intent://www.truthworld.in/$clean#Intent;scheme=https;package=com.truthworld.app;end'
+          : 'truthworld://$clean';
+
+      final uri = Uri.parse(urlStr);
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'DeepLinkService.launchNativeAppFromWeb',
+      );
     }
   }
 }

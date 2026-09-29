@@ -16,7 +16,7 @@ import 'package:truthworld/features/video/presentation/controllers/video_playbac
 /// These are convenience wrappers around `MiniplayerController.to`
 /// for use from places that don't hold a direct controller reference.
 ///
-/// Implements YouTube-style miniplayer with professional exception handling.
+/// Implements miniplayer with professional exception handling.
 class MiniplayerNavigationHelper {
   MiniplayerNavigationHelper._();
 
@@ -40,7 +40,7 @@ class MiniplayerNavigationHelper {
         );
         // Continue with navigation even if video is invalid
       } else {
-        // Pre-warm CDN stream immediately for instant YouTube-style low-latency playback
+        // Pre-warm CDN stream immediately for instant low-latency playback
         VideoPlaybackHandoff.prewarmVideo(video);
       }
 

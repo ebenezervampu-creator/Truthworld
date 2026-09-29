@@ -44,6 +44,35 @@ class StudioSettingsController extends BaseController {
         userData.assignAll(Map<String, dynamic>.from(doc.data()! as Map));
       }
 
+      // Check if channel has noAdsForMembers set
+      String? targetChannelId;
+      if (Get.isRegistered<AuthService>() && AuthService.to.userChannel != null) {
+        targetChannelId = AuthService.to.userChannel!.id;
+      }
+      if (targetChannelId == null || targetChannelId.isEmpty) {
+        final query = await _firestore
+            .collection(FirestoreCollections.channels)
+            .where('ownerId', isEqualTo: user.uid)
+            .get();
+        if (query.docs.isNotEmpty) {
+          targetChannelId = query.docs.first.id;
+        }
+      }
+
+      if (targetChannelId != null && targetChannelId.isNotEmpty) {
+        final channelDoc = await _firestore
+            .collection(FirestoreCollections.channels)
+            .doc(targetChannelId)
+            .get();
+        if (channelDoc.exists && channelDoc.data() != null) {
+          final cData = channelDoc.data()!;
+          final settings = cData['monetizationSettings'];
+          final noAds = (cData['noAdsForMembers'] as bool?) ??
+              (settings is Map && settings['noAdsForMembers'] == true);
+          userData['noAdsForMembers'] = noAds;
+        }
+      }
+
       clearError();
     } catch (e, stackTrace) {
       ErrorHandler.log(
@@ -54,6 +83,62 @@ class StudioSettingsController extends BaseController {
       setError('Unable to load user settings. Please try again.');
     } finally {
       isLoadingData.value = false;
+    }
+  }
+
+  /// Toggle "No ads for members" with 30% platform cut on memberships.
+  Future<void> toggleNoAdsForMembers(bool enabled) async {
+    try {
+      userData['noAdsForMembers'] = enabled;
+      userData.refresh();
+
+      await _userRef.update({'noAdsForMembers': enabled});
+
+      String? targetChannelId;
+      if (Get.isRegistered<AuthService>() && AuthService.to.userChannel != null) {
+        targetChannelId = AuthService.to.userChannel!.id;
+      }
+      final user = _auth.currentUser;
+      if ((targetChannelId == null || targetChannelId.isEmpty) && user != null) {
+        final query = await _firestore
+            .collection(FirestoreCollections.channels)
+            .where('ownerId', isEqualTo: user.uid)
+            .get();
+        if (query.docs.isNotEmpty) {
+          targetChannelId = query.docs.first.id;
+        }
+      }
+
+      if (targetChannelId != null && targetChannelId.isNotEmpty) {
+        await _firestore
+            .collection(FirestoreCollections.channels)
+            .doc(targetChannelId)
+            .set({
+          'noAdsForMembers': enabled,
+          'monetizationSettings': {
+            'noAdsForMembers': enabled,
+          },
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+
+      if (enabled) {
+        showSuccess(
+          'Channel Premium enabled! Members get zero ads and 4K Ultra HD streaming on your channel (30% platform cut).',
+        );
+      } else {
+        showSuccess(
+          'Channel Premium disabled. Standard ad and resolution policies restored (0% commission).',
+        );
+      }
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'StudioSettingsController.toggleNoAdsForMembers',
+      );
+      showWarning('Unable to update member ad-free setting. Please try again.');
+      loadUserData();
     }
   }
 

@@ -1,5 +1,5 @@
 // ==========================================================================
-// VIDEO MEDIA SUBCOLLECTION MODELS — YouTube-Style Document Splitting
+// VIDEO MEDIA SUBCOLLECTION MODELS — Document Splitting
 // ==========================================================================
 //
 // These models represent data stored in subcollections under each video:
@@ -111,6 +111,8 @@ class VideoMediaCredibility {
     this.hardeningMetadata,
     this.intentToMisleadScore,
     this.uiReport,
+    this.claims = const [],
+    this.sources = const [],
     this.factCheckUrl = '',
     this.transcriptionUrl = '',
     this.updatedAt,
@@ -136,6 +138,33 @@ class VideoMediaCredibility {
     final scoringFactors = rawFactors != null && rawFactors is Map
         ? ScoringFactors.fromMap(Map<String, dynamic>.from(rawFactors))
         : null;
+
+    final rawClaims = (data['claims'] as List?) ??
+        (data['keyClaims'] as List?) ??
+        (data['uiReport']?['keyClaims'] as List?) ??
+        (data['uiReport']?['claims'] as List?) ??
+        [];
+    final claimsList = <Map<String, dynamic>>[];
+    for (final c in rawClaims) {
+      if (c is Map) {
+        claimsList.add(Map<String, dynamic>.from(c));
+      } else if (c is ClaimResult) {
+        claimsList.add(c.toMap());
+      }
+    }
+
+    final rawSources = (data['sources'] as List?) ??
+        (data['richSources'] as List?) ??
+        (data['uiReport']?['sources'] as List?) ??
+        [];
+    final sourcesList = <Map<String, dynamic>>[];
+    for (final s in rawSources) {
+      if (s is Map) {
+        sourcesList.add(Map<String, dynamic>.from(s));
+      } else if (s is UISource) {
+        sourcesList.add(s.toMap());
+      }
+    }
 
     final rawUiReport = data['uiReport'] != null
         ? UIReport.fromMap(Map<String, dynamic>.from(data['uiReport']))
@@ -187,6 +216,8 @@ class VideoMediaCredibility {
           : null,
       intentToMisleadScore: (data['intentToMisleadScore'] ?? 0).toDouble(),
       uiReport: rawUiReport,
+      claims: claimsList,
+      sources: sourcesList,
       factCheckUrl: (data['media'] is Map &&
               data['media']['factCheckUrl'] != null &&
               (data['media']['factCheckUrl'] as String).isNotEmpty)
@@ -226,6 +257,10 @@ class VideoMediaCredibility {
   // Full UI Report (biggest nested object)
   final UIReport? uiReport;
 
+  // Extracted or cached claims and sources
+  final List<Map<String, dynamic>> claims;
+  final List<Map<String, dynamic>> sources;
+
   // References to Cloud Storage for raw reports
   final String factCheckUrl;
   final String transcriptionUrl;
@@ -235,6 +270,17 @@ class VideoMediaCredibility {
   Map<String, dynamic> toMap() => {
     'trustScore': trustScore,
     'trustLabel': trustLabel,
+    'summary': summary,
+    'viewerNote': summary,
+    'claims': claims.isNotEmpty
+        ? claims
+        : (uiReport?.keyClaims.map((c) => c.toMap()).toList() ?? []),
+    'keyClaims': claims.isNotEmpty
+        ? claims
+        : (uiReport?.keyClaims.map((c) => c.toMap()).toList() ?? []),
+    'sources': sources.isNotEmpty
+        ? sources
+        : (uiReport?.sources.map((s) => s.toMap()).toList() ?? []),
     'scoringFactors': scoringFactors?.toMap(),
     'deductions': deductions.map((e) => e.toMap()).toList(),
     'contextualFlags': contextualFlags.map((e) => e.toMap()).toList(),

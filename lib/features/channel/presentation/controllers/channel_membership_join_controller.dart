@@ -28,15 +28,25 @@ class ChannelMembershipJoinController extends BaseController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // Reactive State
+  late final Rxn<Channel> channelData = Rxn<Channel>(channel);
   final RxList<ChannelMembershipTier> tiers = <ChannelMembershipTier>[].obs;
   final RxBool isLoadingTiers = true.obs;
   final RxBool isMember = false.obs;
   final Rxn<ChannelMember> currentMembership = Rxn<ChannelMember>();
   final RxInt selectedTierIndex = 0.obs;
   final RxBool isProcessing = false.obs;
+  final RxBool isAutoPay = true.obs;
+
+  bool get isAdFreeChannel =>
+      channelData.value?.noAdsForMembers ?? (channel?.noAdsForMembers ?? false);
+
+  void toggleAutoPay([bool? value]) {
+    isAutoPay.value = value ?? !isAutoPay.value;
+  }
 
   StreamSubscription? _tiersSubscription;
   StreamSubscription? _membershipSubscription;
+  StreamSubscription? _channelSubscription;
 
   ChannelMembershipTier? get selectedTier {
     if (tiers.isEmpty) return null;
@@ -47,6 +57,7 @@ class ChannelMembershipJoinController extends BaseController {
   @override
   void onInit() {
     super.onInit();
+    _listenChannel();
     _loadTiers();
     _checkMembership();
     CurrencyLocalizationService.to.fetchRealtimeRate();
@@ -62,7 +73,30 @@ class ChannelMembershipJoinController extends BaseController {
   void onClose() {
     _tiersSubscription?.cancel();
     _membershipSubscription?.cancel();
+    _channelSubscription?.cancel();
     super.onClose();
+  }
+
+  void _listenChannel() {
+    if (channelId.isEmpty) return;
+    try {
+      _channelSubscription = _firestore
+          .collection(FirestoreCollections.channels)
+          .doc(channelId)
+          .snapshots()
+          .listen(
+        (doc) {
+          if (doc.exists && doc.data() != null) {
+            channelData.value = Channel.fromMap(doc.data()!, doc.id);
+          }
+        },
+        onError: (err) {
+          debugPrint('[ChannelMembershipJoinController] Error loading channel: $err');
+        },
+      );
+    } catch (e) {
+      debugPrint('[ChannelMembershipJoinController] Could not initialize channel stream: $e');
+    }
   }
 
   void _loadTiers() {
@@ -72,32 +106,37 @@ class ChannelMembershipJoinController extends BaseController {
     }
 
     isLoadingTiers.value = true;
-    _tiersSubscription = _firestore
-        .collection(FirestoreCollections.channels)
-        .doc(channelId)
-        .collection('membership_tiers')
-        .snapshots()
-        .listen(
-      (snapshot) {
-        final list = snapshot.docs
-            .map((doc) => ChannelMembershipTier.fromMap(doc.data(), doc.id))
-            .where((tier) => tier.isEnabled)
-            .toList();
+    try {
+      _tiersSubscription = _firestore
+          .collection(FirestoreCollections.channels)
+          .doc(channelId)
+          .collection('membership_tiers')
+          .snapshots()
+          .listen(
+        (snapshot) {
+          final list = snapshot.docs
+              .map((doc) => ChannelMembershipTier.fromMap(doc.data(), doc.id))
+              .where((tier) => tier.isEnabled)
+              .toList();
 
-        list.sort((a, b) {
-          if (a.order != b.order) return a.order.compareTo(b.order);
-          return a.price.compareTo(b.price);
-        });
+          list.sort((a, b) {
+            if (a.order != b.order) return a.order.compareTo(b.order);
+            return a.price.compareTo(b.price);
+          });
 
-        tiers.value = list;
-        isLoadingTiers.value = false;
-        _syncSelectedTierToCurrentMembership();
-      },
-      onError: (err) {
-        isLoadingTiers.value = false;
-        debugPrint('[ChannelMembershipJoinController] Error loading tiers: $err');
-      },
-    );
+          tiers.value = list;
+          isLoadingTiers.value = false;
+          _syncSelectedTierToCurrentMembership();
+        },
+        onError: (err) {
+          isLoadingTiers.value = false;
+          debugPrint('[ChannelMembershipJoinController] Error loading tiers: $err');
+        },
+      );
+    } catch (e) {
+      isLoadingTiers.value = false;
+      debugPrint('[ChannelMembershipJoinController] Could not initialize tiers stream: $e');
+    }
   }
 
   void _checkMembership() {
@@ -109,31 +148,35 @@ class ChannelMembershipJoinController extends BaseController {
     }
 
     _membershipSubscription?.cancel();
-    _membershipSubscription = _firestore
-        .collection(FirestoreCollections.channels)
-        .doc(channelId)
-        .collection('members')
-        .doc(uid)
-        .snapshots()
-        .listen(
-      (doc) {
-        if (doc.exists && doc.data() != null) {
-          final data = doc.data()!;
-          final status = (data['status'] ?? 'active').toString().toLowerCase();
-          if (status == 'active') {
-            isMember.value = true;
-            currentMembership.value = ChannelMember.fromMap(data, doc.id);
-            _syncSelectedTierToCurrentMembership();
-            return;
+    try {
+      _membershipSubscription = _firestore
+          .collection(FirestoreCollections.channels)
+          .doc(channelId)
+          .collection('members')
+          .doc(uid)
+          .snapshots()
+          .listen(
+        (doc) {
+          if (doc.exists && doc.data() != null) {
+            final data = doc.data()!;
+            final status = (data['status'] ?? 'active').toString().toLowerCase();
+            if (status == 'active') {
+              isMember.value = true;
+              currentMembership.value = ChannelMember.fromMap(data, doc.id);
+              _syncSelectedTierToCurrentMembership();
+              return;
+            }
           }
-        }
-        _checkUserMembershipFallback(uid);
-      },
-      onError: (err) {
-        debugPrint('[ChannelMembershipJoinController] Error checking membership: $err');
-        _checkUserMembershipFallback(uid);
-      },
-    );
+          _checkUserMembershipFallback(uid);
+        },
+        onError: (err) {
+          debugPrint('[ChannelMembershipJoinController] Error checking membership: $err');
+          _checkUserMembershipFallback(uid);
+        },
+      );
+    } catch (e) {
+      debugPrint('[ChannelMembershipJoinController] Could not initialize membership stream: $e');
+    }
   }
 
   void _checkUserMembershipFallback(String uid) {
@@ -223,13 +266,14 @@ class ChannelMembershipJoinController extends BaseController {
           ? tier.price
           : (tier.price * rate);
       final amountINR = math.max(1.0, double.parse(calculatedAmount.toStringAsFixed(2)));
+      final autoPaySuffix = isAutoPay.value ? ' (Auto Pay)' : ' (One-Time)';
       final orderNote = isIndian
           ? (isUpgrading
-              ? 'Upgrade Membership: ${channel?.name ?? "Channel"} - ${tier.name}'
-              : 'Membership: ${channel?.name ?? "Channel"} - ${tier.name}')
+              ? 'Upgrade Membership$autoPaySuffix: ${channel?.name ?? "Channel"} - ${tier.name}'
+              : 'Membership$autoPaySuffix: ${channel?.name ?? "Channel"} - ${tier.name}')
           : (isUpgrading
-              ? 'Upgrade Membership: ${channel?.name ?? "Channel"} - ${tier.name} (${tier.formattedPriceForUser(false)})'
-              : 'Membership: ${channel?.name ?? "Channel"} - ${tier.name} (${tier.formattedPriceForUser(false)})');
+              ? 'Upgrade Membership$autoPaySuffix: ${channel?.name ?? "Channel"} - ${tier.name} (${tier.formattedPriceForUser(false)})'
+              : 'Membership$autoPaySuffix: ${channel?.name ?? "Channel"} - ${tier.name} (${tier.formattedPriceForUser(false)})');
 
       final paymentResult = await CashfreePaymentService.to.startPayment(
         amount: amountINR,
@@ -246,6 +290,8 @@ class ChannelMembershipJoinController extends BaseController {
           'previousTierId': previousTierId ?? '',
           'userName': user.displayName ?? 'Channel Supporter',
           'userAvatarUrl': user.photoURL ?? '',
+          'autoPay': isAutoPay.value,
+          'billingType': isAutoPay.value ? 'recurring' : 'one_time',
           if (!isIndian) 'displayPrice': tier.formattedPriceForUser(false),
         },
       );
@@ -275,6 +321,7 @@ class ChannelMembershipJoinController extends BaseController {
         tierName: tier.name,
         price: tier.price,
         currency: tier.currency,
+        autoPay: isAutoPay.value,
         joinedAt: DateTime.now(),
       );
 
@@ -298,6 +345,8 @@ class ChannelMembershipJoinController extends BaseController {
         'badgeColorHex': tier.badgeColorHex,
         'badgeIcon': tier.badgeIcon,
         'status': 'active',
+        'autoPay': isAutoPay.value,
+        'isAutoPay': isAutoPay.value,
         'joinedAt': FieldValue.serverTimestamp(),
       });
 
@@ -326,10 +375,11 @@ class ChannelMembershipJoinController extends BaseController {
         sub.currentMembership.value = memberData;
       }
 
+      final autoPayNote = isAutoPay.value ? ' Auto Pay is enabled for monthly renewals.' : '';
       AppSnackbar.success(
         isUpgrading
-            ? 'You have successfully upgraded to the ${tier.name} tier! Enjoy your enhanced perks.'
-            : 'You have successfully joined the ${tier.name} tier! Enjoy your loyalty badge and member perks.',
+            ? 'You have successfully upgraded to the ${tier.name} tier! Enjoy your enhanced perks.$autoPayNote'
+            : 'You have successfully joined the ${tier.name} tier! Enjoy your loyalty badge and member perks.$autoPayNote',
         title: isUpgrading ? 'Membership Upgraded!' : 'Welcome to the Family!',
       );
 

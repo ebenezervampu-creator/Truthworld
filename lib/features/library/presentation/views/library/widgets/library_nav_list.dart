@@ -5,7 +5,6 @@ import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/library/presentation/views/library/widgets/library_constants.dart';
 import 'package:truthworld/features/library/presentation/views/library/widgets/library_profile_header.dart';
-import 'package:truthworld/features/wallet/presentation/widgets/user_wallet_card.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Navigation list displaying profile header, empty states, and library entry points.
@@ -32,12 +31,7 @@ class LibraryNavList extends StatelessWidget {
             child: LibraryProfileHeader(userId: userId),
           ),
 
-          // 2. User Wallet Card
-          const SliverToBoxAdapter(
-            child: UserWalletCard(compact: true),
-          ),
-
-          // 3. Main Navigation Tiles & Dynamic Empty State
+          // 2. Main Navigation Tiles & Dynamic Empty State
           Obx(() {
             final hasHome = Get.isRegistered<HomeController>();
             final homeController = hasHome ? Get.find<HomeController>() : null;
@@ -175,37 +169,18 @@ class LibraryNavList extends StatelessWidget {
               items.add(const Divider());
             }
 
+            if (hasChannel) {
+              items.add(
+                LibraryListTile(
+                  icon: Icons.account_balance_wallet_outlined,
+                  title: 'Channel Wallet',
+                  onTap: () => Get.toNamed('/dashboard'),
+                ),
+              );
+            }
+
             // Always display the Text and icon for every Tab
             items.addAll([
-              LibraryListTile(
-                icon: Icons.account_balance_wallet_outlined,
-                title: 'My Wallet',
-                trailing: Obx(() {
-                  final bal = authService.userWalletBalance.value;
-                  return Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.15),
-                      ),
-                    ),
-                    child: Text(
-                      '₹${bal.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  );
-                }),
-                onTap: () => Get.toNamed('/user-wallet'),
-              ),
               LibraryListTile(
                 icon: Icons.history_rounded,
                 title: 'History',

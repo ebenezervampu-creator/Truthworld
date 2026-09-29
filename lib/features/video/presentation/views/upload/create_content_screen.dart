@@ -89,15 +89,10 @@ class CreateContentScreen extends StatelessWidget {
       }
 
       if (uploadType == UploadType.video) {
-        return Scaffold(
-          backgroundColor: context.colors.background,
-          body: SafeArea(
-            child: CreateContentVideoLayout(
-              uploadController: uploadController,
-              contentController: contentController,
-              isDark: isDark,
-            ),
-          ),
+        return CreateContentVideoLayout(
+          uploadController: uploadController,
+          contentController: contentController,
+          isDark: isDark,
         );
       }
 

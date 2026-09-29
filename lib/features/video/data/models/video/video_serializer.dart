@@ -15,6 +15,8 @@ class VideoSerializer {
       'originalUrl': video.originalUrl,
       'hlsUrl': video.hlsUrl,
       'dashUrl': video.dashUrl,
+      'storyboardUrl': video.storyboardUrl,
+      'storyboardVariants': video.storyboardVariants,
       'adaptiveResolutions':
           video.adaptiveResolutions.map((e) => e.toMap()).toList(),
       'thumbnailUrl': video.thumbnailUrl,
@@ -49,9 +51,11 @@ class VideoSerializer {
       'allowRatings': video.allowRatings,
       'showLikeCount': video.showLikeCount,
       'showDislikeCount': video.showDislikeCount,
+      'autoChaptersEnabled': video.autoChaptersEnabled,
       'trustScore': video.trustScore,
       'sourceLinks': video.sourceLinks,
       'isFactChecked': video.isFactChecked,
+      'factCheckTier': video.factCheckTier,
       'isVerified': video.isVerified,
       'qualifiedViewCount': video.viewCount,
       'totalWatchTimeSeconds': video.totalWatchTimeSeconds,
@@ -63,6 +67,7 @@ class VideoSerializer {
       'coinBattlePairVideoId': video.coinBattlePairVideoId,
       'coinBattleStance': video.coinBattleStance,
       'moderationSummary': video.moderationSummary,
+      if (video.embedding != null) 'embedding': video.embedding,
     };
   }
 

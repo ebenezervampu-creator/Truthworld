@@ -5,7 +5,7 @@ class PlaybackSettings {
     this.autoplayNext = true,
     this.seekDurationSeconds = 10,
     this.volumeNormalizationMode = 'Standard',
-    this.backgroundPlaybackMode = 'Off',
+    this.backgroundPlaybackMode = 'Always On',
     this.statsForNerdsEnabled = false,
     this.showResolution = true,
     this.showDroppedFrames = true,
@@ -26,7 +26,7 @@ class PlaybackSettings {
       volumeNormalizationMode:
           json['volumeNormalizationMode'] as String? ?? 'Standard',
       backgroundPlaybackMode:
-          json['backgroundPlaybackMode'] as String? ?? 'Off',
+          json['backgroundPlaybackMode'] as String? ?? 'Always On',
       statsForNerdsEnabled: json['statsForNerdsEnabled'] as bool? ?? false,
       showResolution: json['showResolution'] as bool? ?? true,
       showDroppedFrames: json['showDroppedFrames'] as bool? ?? true,

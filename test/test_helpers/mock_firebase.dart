@@ -1,9 +1,44 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 // ignore: depend_on_referenced_packages
 import 'package:firebase_core_platform_interface/test.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:google_fonts/src/google_fonts_base.dart' as gfb;
+
+class FakeAssetManifest implements AssetManifest {
+  final List<String> _assets;
+  FakeAssetManifest(this._assets);
+
+  @override
+  List<String> listAssets() => _assets;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+List<String> _generateFontAssets() {
+  final families = ['Roboto', 'Outfit', 'Oswald', 'Merriweather', 'RobotoMono', 'NotoSans'];
+  final variants = [
+    'Regular', 'Medium', 'Bold', 'SemiBold', 'Light', 'Thin', 'Black', 'ExtraBold', 'ExtraLight',
+    'Italic', 'MediumItalic', 'BoldItalic', 'SemiBoldItalic', 'LightItalic', 'ThinItalic', 'BlackItalic',
+    '100', '200', '300', '400', '500', '600', '700', '800', '900',
+    '100italic', '200italic', '300italic', '400italic', '500italic', '600italic', '700italic', '800italic', '900italic',
+  ];
+  final list = <String>[];
+  for (final f in families) {
+    list.add('assets/fonts/$f.ttf');
+    for (final v in variants) {
+      list.add('assets/fonts/$f-$v.ttf');
+      list.add('assets/fonts/${f}_$v.ttf');
+      list.add('assets/fonts/$f-$v.otf');
+    }
+  }
+  return list;
+}
 
 class MockFirebaseAppWithStorage implements TestFirebaseCoreHostApi {
   @override
@@ -55,6 +90,26 @@ class MockFirebaseAppWithStorage implements TestFirebaseCoreHostApi {
 
 Future<void> setupMockFirebase() async {
   TestWidgetsFlutterBinding.ensureInitialized();
+  GoogleFonts.config.allowRuntimeFetching = false;
+  gfb.assetManifest = FakeAssetManifest(_generateFontAssets());
+  final fontFile = File('assets/fonts/Roboto-Regular.ttf');
+  final fontByteData = fontFile.existsSync()
+      ? fontFile.readAsBytesSync().buffer.asByteData()
+      : null;
+
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMessageHandler('flutter/assets', (message) async {
+    if (message == null) return null;
+    final key = utf8.decode(message.buffer.asUint8List(message.offsetInBytes, message.lengthInBytes));
+    final file = File(key);
+    if (file.existsSync()) {
+      return file.readAsBytesSync().buffer.asByteData();
+    }
+    if (key.endsWith('.ttf') || key.endsWith('.otf') || key.endsWith('.woff') || key.endsWith('.woff2')) {
+      return fontByteData;
+    }
+    return null;
+  });
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(
     const MethodChannel('plugins.flutter.io/path_provider'),

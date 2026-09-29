@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/utils/source_url_sanitizer.dart';
 import 'package:truthworld/theme/app_theme.dart';
-import 'package:url_launcher/url_launcher.dart';
 
   class VideoAnalysisSourceCard extends StatelessWidget {
   final Map<dynamic, dynamic> source;
@@ -10,20 +9,21 @@ import 'package:url_launcher/url_launcher.dart';
 
   @override
   Widget build(BuildContext context) {
-    final sourceType = source['sourceType']?.toString() ?? 'default';
-    final author = source['author']?.toString();
-    final bookTitle = source['bookTitle']?.toString();
-    final chapter = source['chapter']?.toString();
-    final pageNumbers = source['pageNumbers']?.toString();
-    final volume = source['volume']?.toString();
-    final journalName = source['journalName']?.toString();
-    final yearPublished = source['yearPublished'];
-    final title = source['title']?.toString();
-    final domain = source['domain']?.toString();
-    final trustLevel = source['trustLevel']?.toString();
-    final snippet = source['snippet']?.toString();
-    final directUrl = source['directUrl']?.toString();
-    final url = source['url']?.toString();
+    final cleanSource = SourceUrlSanitizer.sanitizeSourceMap(source);
+    final sourceType = cleanSource['sourceType']?.toString() ?? 'default';
+    final author = cleanSource['author']?.toString();
+    final bookTitle = cleanSource['bookTitle']?.toString();
+    final chapter = cleanSource['chapter']?.toString();
+    final pageNumbers = cleanSource['pageNumbers']?.toString();
+    final volume = cleanSource['volume']?.toString();
+    final journalName = cleanSource['journalName']?.toString();
+    final yearPublished = cleanSource['yearPublished'];
+    final title = cleanSource['title']?.toString();
+    final domain = cleanSource['domain']?.toString();
+    final trustLevel = cleanSource['trustLevel']?.toString();
+    final snippet = cleanSource['snippet']?.toString();
+    final directUrl = cleanSource['directUrl']?.toString();
+    final url = cleanSource['url']?.toString();
 
     IconData icon;
     switch (sourceType) {
@@ -70,25 +70,15 @@ import 'package:url_launcher/url_launcher.dart';
 
     final citationText = '$prefix${citationParts.join(', ')}';
 
-    var trustColor = AppColors.textTertiary;
-    if (trustLevel == 'High') trustColor = AppColors.success;
-    if (trustLevel == 'Medium') trustColor = AppColors.warning;
-    if (trustLevel == 'Low') trustColor = AppColors.error;
+    const trustColor = Colors.white70;
 
     return GestureDetector(
       onTap: () async {
-        final link = directUrl ?? url;
-        if (link != null && link.isNotEmpty) {
-          try {
-            await launchUrl(Uri.parse(link));
-          } on Exception catch (e, s) {
-            ErrorHandler.log(
-              e,
-              stackTrace: s,
-              tag: 'VideoAnalysisSourceCard.launchUrl',
-            );
-          }
-        }
+        await SourceUrlSanitizer.launchSourceUrl(
+          url: directUrl ?? url,
+          title: author ?? title,
+          domain: domain,
+        );
       },
       child: Container(
         width: double.infinity,
@@ -96,7 +86,7 @@ import 'package:url_launcher/url_launcher.dart';
         decoration: BoxDecoration(
           color: AppColors.bgSurface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.bgDivider),
+          border: Border.all(color: AppColors.bgDivider.withValues(alpha: 0.7)),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -113,6 +103,7 @@ import 'package:url_launcher/url_launcher.dart';
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
                       color: AppColors.textPrimary,
+                      fontFamily: TWTypography.uiFamily,
                     ),
                   ),
                   if (citationText.isNotEmpty) ...[
@@ -122,6 +113,7 @@ import 'package:url_launcher/url_launcher.dart';
                       style: context.twTypography.bodySmall.copyWith(
                         fontSize: 11,
                         color: AppColors.textSecondary,
+                        fontFamily: TWTypography.uiFamily,
                       ),
                     ),
                   ],
@@ -145,7 +137,7 @@ import 'package:url_launcher/url_launcher.dart';
                         Container(
                           width: 6,
                           height: 6,
-                          decoration: BoxDecoration(
+                          decoration: const BoxDecoration(
                             color: trustColor,
                             shape: BoxShape.circle,
                           ),

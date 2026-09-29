@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -119,7 +118,8 @@ class ShareEmbedPanel extends StatelessWidget {
                         scrollDirection: Axis.horizontal,
                         child: Text(
                           getIframeCode(),
-                          style: GoogleFonts.robotoMono(
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
                             fontSize: 13,
                             color: AppColors.textPrimary,
                           ),

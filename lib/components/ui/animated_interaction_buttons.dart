@@ -357,8 +357,8 @@ class AnimatedSubscribeButton extends StatefulWidget {
     super.key,
     this.subscribedText = 'Subscribed',
     this.unsubscribedText = 'Subscribe',
-    this.notificationsEnabled = false,
-    this.notificationOption = 'all',
+    this.notificationsEnabled = true,
+    this.notificationOption = 'personalized',
     this.onNotificationTap,
     this.compact = false,
   });

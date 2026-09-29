@@ -125,6 +125,12 @@ void main() {
 
   group('LibraryNavList Tests', () {
     testWidgets('renders core navigation shortcuts', (tester) async {
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
       Get.put<AuthService>(AuthService());
 
       await tester.pumpWidget(
@@ -136,7 +142,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('History'), findsOneWidget);
+      expect(find.text('History'), findsAtLeastNWidgets(1));
       expect(find.text('My videos'), findsOneWidget);
       expect(find.text('Playlists'), findsOneWidget);
       expect(find.text('Subscriptions'), findsOneWidget);

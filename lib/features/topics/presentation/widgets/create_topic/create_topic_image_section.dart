@@ -8,8 +8,9 @@ import 'package:truthworld/features/topics/presentation/widgets/create_topic/cre
 Widget buildSection9TopicImage(
   BuildContext context,
   CreateTopicController controller,
-  Future<List<Map<String, dynamic>>> channelVideosFuture,
-) {
+  Future<List<Map<String, dynamic>>> channelVideosFuture, {
+  bool isFromUpload = false,
+}) {
   return buildCreateTopicCardContainer(
     context: context,
     child: Column(
@@ -83,7 +84,9 @@ Widget buildSection9TopicImage(
 
                             if (selectedVideos.isEmpty) {
                               return Text(
-                                'Select videos in section 8 first.',
+                                isFromUpload
+                                    ? 'Will use the thumbnail from your uploading video (or choose a custom image).'
+                                    : 'Select videos in section 8 first.',
                                 style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12),
                               );
                             }

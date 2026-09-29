@@ -56,7 +56,7 @@ mixin MiniplayerGesturesMixin on MiniplayerStateBase {
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // Free-positioning drag (YouTube-style: card can be moved anywhere)
+  // Free-positioning drag (card can be moved anywhere)
   // ───────────────────────────────────────────────────────────────────────────
 
   /// Translate the floating card by [delta] pixels, keeping it on-screen.

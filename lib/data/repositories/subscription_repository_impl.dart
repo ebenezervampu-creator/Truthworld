@@ -39,7 +39,9 @@ class SubscriptionRepositoryImpl extends BaseRepository implements SubscriptionR
 
       tx.set(subRef, {
         'channelId': channelId,
-        'notificationPreference': 'all',
+        'notificationPreference': 'personalized',
+        'notificationOption': 'personalized',
+        'notificationsEnabled': true,
         'subscribedAt': FieldValue.serverTimestamp(),
       });
 

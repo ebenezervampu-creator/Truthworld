@@ -156,7 +156,14 @@ Widget buildSection3Title(BuildContext context, CreateTopicController controller
 }
 
 /// Section 4: Description Input
-Widget buildSection4Description(BuildContext context, CreateTopicController controller) {
+Widget buildSection4Description(
+  BuildContext context,
+  CreateTopicController controller, {
+  bool isDesktop = false,
+}) {
+  final minLines = isDesktop ? 12 : 5;
+  final maxLines = isDesktop ? 14 : 5;
+
   return buildCreateTopicCardContainer(
     context: context,
     child: Column(
@@ -168,8 +175,10 @@ Widget buildSection4Description(BuildContext context, CreateTopicController cont
           children: [
             TextFormField(
               controller: controller.descriptionController,
-              maxLines: 4,
+              minLines: minLines,
+              maxLines: maxLines,
               maxLength: 500,
+              textAlignVertical: TextAlignVertical.top,
               inputFormatters: [TruthworldTextInputFormatters.englishOnly],
               style: const TextStyle(color: Colors.white, fontSize: 14),
               decoration: buildCreateTopicInputDecoration(
@@ -180,12 +189,17 @@ Widget buildSection4Description(BuildContext context, CreateTopicController cont
             Positioned(
               right: 14,
               bottom: 10,
-              child: Text(
-                '${controller.descriptionController.text.length}/500',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.4),
-                  fontSize: 12,
-                ),
+              child: ValueListenableBuilder<TextEditingValue>(
+                valueListenable: controller.descriptionController,
+                builder: (context, value, _) {
+                  return Text(
+                    '${value.text.length}/500',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.4),
+                      fontSize: 12,
+                    ),
+                  );
+                },
               ),
             ),
           ],
@@ -203,14 +217,18 @@ Widget buildSection4Description(BuildContext context, CreateTopicController cont
   );
 }
 
-/// Section 5: Tags Input & Tag Chips
-Widget buildSection5Tags(BuildContext context, CreateTopicController controller) {
+/// Section 7: Tags Input & Tag Chips (Positioned above Add Videos)
+Widget buildSection7Tags(
+  BuildContext context,
+  CreateTopicController controller, {
+  String title = '7. Tags',
+}) {
   return buildCreateTopicCardContainer(
     context: context,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        buildCreateTopicSectionTitle(context, '5. Tags'),
+        buildCreateTopicSectionTitle(context, title),
         const SizedBox(height: 12),
         TextFormField(
           controller: controller.tagInputController,
@@ -267,3 +285,10 @@ Widget buildSection5Tags(BuildContext context, CreateTopicController controller)
     ),
   );
 }
+
+/// Backward compatibility alias for Section 7 Tags
+Widget buildSection5Tags(
+  BuildContext context,
+  CreateTopicController controller, {
+  String title = '7. Tags',
+}) => buildSection7Tags(context, controller, title: title);

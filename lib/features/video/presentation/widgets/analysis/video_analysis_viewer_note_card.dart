@@ -11,9 +11,9 @@ import 'package:truthworld/theme/app_theme.dart';
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.brand.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.brand.withValues(alpha: 0.25)),
+        color: AppColors.bgSurface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.bgDivider.withValues(alpha: 0.7)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -32,7 +32,8 @@ import 'package:truthworld/theme/app_theme.dart';
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
                   color: AppColors.brand,
-                  letterSpacing: 1.1,
+                  letterSpacing: 1.0,
+                  fontFamily: TWTypography.uiFamily,
                 ),
               ),
             ],
@@ -43,7 +44,8 @@ import 'package:truthworld/theme/app_theme.dart';
             style: context.twTypography.body.copyWith(
               color: AppColors.textPrimary,
               fontSize: 13,
-              height: 1.45,
+              height: 1.5,
+              fontFamily: TWTypography.uiFamily,
             ),
           ),
         ],

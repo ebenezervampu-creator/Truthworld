@@ -4,7 +4,9 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/pip_service.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
+import 'package:truthworld/features/miniplayer/data/models/miniplayer_model.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer/miniplayer_state_base.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer/miniplayer_subtitles_mixin.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -148,7 +150,13 @@ mixin MiniplayerPlaybackMixin on MiniplayerStateBase, MiniplayerSubtitlesMixin {
     if (vpc == null || isControllerClosed) return;
     try {
       final val = vpc.value;
-      isPlaying.value = val.isPlaying;
+      if (isPlaying.value != val.isPlaying) {
+        isPlaying.value = val.isPlaying;
+        PipService.to.updateAutoPip(
+          enabled: val.isPlaying && mode.value != MiniplayerMode.dismissed,
+          aspectRatio: currentAspectRatio,
+        );
+      }
       currentPosition.value = val.position;
       isBuffering.value = val.isBuffering;
       if (val.duration > Duration.zero) {
@@ -211,6 +219,11 @@ mixin MiniplayerPlaybackMixin on MiniplayerStateBase, MiniplayerSubtitlesMixin {
         }
       }
     }
+  }
+
+  /// Triggers Picture-in-Picture mode for the active video.
+  Future<bool> enterPip() async {
+    return PipService.to.enterPip(aspectRatio: currentAspectRatio);
   }
 
   Future<void> seekForward({int seconds = 10}) async {

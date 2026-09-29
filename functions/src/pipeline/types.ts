@@ -1110,6 +1110,8 @@ export interface ExecutionPlan {
   sensitiveTopics?: ('health' | 'politics' | 'finance' | 'religion' | 'other')[]; // v7.2: Risk-aware scoring
   priorityMode?: 'speed' | 'balanced' | 'accuracy'; // v7.2: Pipeline depth control
   synthesisTier?: 'standard' | 'deep' | 'podcast';
+  factCheckTier?: 'short' | 'standard' | 'full_ground';
+  factCheckEnabled?: boolean;
   
   // v8.0: Category-Aware Scoring
   videoCategory?: string;      // Upload category mapped to scoring profile
@@ -1122,6 +1124,9 @@ export interface ExecutionPlan {
   generateSubtitles?: boolean;
   channelType: ChannelType;
   autoChapters?: boolean;
+  enableDiarization?: boolean;
+  diarization?: boolean;
+  dubbingLanguages?: string[];
 
   duration?: number;
   maxClaims: number;
@@ -1472,6 +1477,7 @@ export interface CredibilityResult {
   
   scoringMethod: 'strict' | 'balanced';
   synthesisTier: 'standard' | 'deep' | 'podcast';
+  factCheckTier?: 'short' | 'standard' | 'full_ground';
   isLongform: boolean;
   isFinal: boolean;         // Preliminary vs Final
   

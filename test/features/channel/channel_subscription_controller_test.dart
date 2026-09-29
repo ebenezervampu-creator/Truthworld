@@ -23,8 +23,8 @@ class TestChannelSubscriptionController extends ChannelSubscriptionController {
   Future<void> updateNotificationPreference(String channelId, String option) async {
     updatePrefCalled = true;
     lastUpdatedOption = option;
-    final isAll = option == 'all';
-    notificationsEnabled.value = isAll;
+    final isNone = option == 'none';
+    notificationsEnabled.value = !isNone;
     notificationOption.value = option;
   }
 
@@ -49,9 +49,11 @@ void main() {
       controller = TestChannelSubscriptionController();
     });
 
-    test('initial state is correct', () {
+    test('initial state is correct with personalized notificationOption', () {
       expect(controller.isSubscribed.value, isFalse);
       expect(controller.subscriberCount.value, equals(0));
+      expect(controller.notificationOption.value, equals('personalized'));
+      expect(controller.getNotificationOption('test_channel').value, equals('personalized'));
     });
 
     test('toggleSubscription subscribes when not subscribed', () async {
@@ -82,7 +84,16 @@ void main() {
       expect(controller.subscriberCount.value, equals(100));
     });
 
-    test('updateNotificationPreference updates states', () async {
+    test('updateNotificationPreference updates states to personalized', () async {
+      await controller.updateNotificationPreference('channel1', 'personalized');
+      
+      expect(controller.updatePrefCalled, isTrue);
+      expect(controller.lastUpdatedOption, equals('personalized'));
+      expect(controller.notificationsEnabled.value, isTrue);
+      expect(controller.notificationOption.value, equals('personalized'));
+    });
+
+    test('updateNotificationPreference updates states to none', () async {
       await controller.updateNotificationPreference('channel1', 'none');
       
       expect(controller.updatePrefCalled, isTrue);

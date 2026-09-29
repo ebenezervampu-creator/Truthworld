@@ -61,7 +61,7 @@ class ClickableUrlText extends StatelessWidget {
     final clean = DeepLinkService.cleanUrlString(rawUrl);
     if (clean.isEmpty) return;
 
-    // In-app low-latency deep link handling for Truthworld links (YouTube style)
+    // In-app low-latency deep link handling for Truthworld links
     if (DeepLinkService.isTruthworldUrl(clean)) {
       await DeepLinkService.instance.handleUrl(clean);
       return;

@@ -74,6 +74,9 @@ mixin ChannelManagementMixin on ChannelControllerBase {
   @override
   RxString get notificationOption => subController.notificationOption;
 
+  RxString getNotificationOption(String channelId) =>
+      subController.getNotificationOption(channelId);
+
   @override
   RxBool get isChannelMember => subController.isChannelMember;
 

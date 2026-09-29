@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/bindings/initial_binding.dart';
+import 'package:truthworld/core/config/app_flavor.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/app_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
@@ -16,6 +17,7 @@ import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/core/services/pip_service.dart';
 import 'package:truthworld/core/services/push_notification_service.dart';
 import 'package:truthworld/core/services/user_preferences_service.dart';
 import 'package:truthworld/core/utils/color_blind_matrices.dart';
@@ -23,6 +25,7 @@ import 'package:truthworld/core/utils/error_handler_utils.dart';
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/utils/url_strategy/url_strategy.dart';
 import 'package:truthworld/core/widgets/truthworld_splash_screen.dart';
+import 'package:truthworld/features/miniplayer/presentation/widgets/components/pip_dedicated_view.dart';
 import 'package:truthworld/features/miniplayer/presentation/widgets/miniplayer_overlay_manager.dart';
 import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
 import 'package:truthworld/firebase_options.dart';
@@ -30,8 +33,16 @@ import 'package:truthworld/routes/app_pages.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
-/// Initialize and run the application with proper error handling
-void main() {
+/// Default consumer-app entry point.
+void main() => bootstrap();
+
+/// Shared bootstrap function invoked by all flavor entry points.
+///
+/// [flavor] controls the initial route on **native** mobile builds.
+/// On web the initial route is always resolved from the URL host.
+void bootstrap({AppFlavor? flavor}) {
+  final resolvedFlavor = flavor ?? AppFlavor.active;
+  AppFlavor.current = resolvedFlavor;
   // Catch errors outside of Flutter's error handling
   unawaited(
     runZonedGuarded(
@@ -64,7 +75,7 @@ void main() {
               try {
                 if (Firebase.apps.isEmpty) {
                   await Firebase.initializeApp(
-                    options: DefaultFirebaseOptions.currentPlatform,
+                    options: DefaultFirebaseOptions.forFlavor(resolvedFlavor),
                   );
                 }
               } catch (e) {
@@ -100,31 +111,33 @@ void main() {
                       ? AppleProvider.debug
                       : AppleProvider.deviceCheck,
                 );
-                if (!kIsWeb) {
-                  await FirebaseAppCheck.instance.setTokenAutoRefreshEnabled(true);
-                } else {
-                  // On web, test token retrieval once with a timeout. If web domain is not yet
-                  // registered in Google Cloud ReCaptcha Enterprise console, disable auto-refresh
-                  // to prevent repeated 403 token exchange network thrashing.
-                  try {
-                    final token = await FirebaseAppCheck.instance
-                        .getToken()
-                        .timeout(const Duration(seconds: 4));
-                    if (token != null && token.isNotEmpty) {
-                      await FirebaseAppCheck.instance
-                          .setTokenAutoRefreshEnabled(true);
-                    } else {
-                      await FirebaseAppCheck.instance
-                          .setTokenAutoRefreshEnabled(false);
-                    }
-                  } catch (tokenErr) {
-                    logger.warning(
-                      'Web AppCheck token exchange unavailable (skipping auto-refresh): $tokenErr',
+
+                // Safely test token retrieval. If attestation provider is pending registration
+                // (e.g. debug token not yet whitelisted or domain unconfigured), gracefully disable
+                // auto-refresh to prevent continuous token exchange network spam.
+                try {
+                  final token = await FirebaseAppCheck.instance
+                      .getToken()
+                      .timeout(const Duration(seconds: 4));
+                  if (token != null && token.isNotEmpty) {
+                    await FirebaseAppCheck.instance
+                        .setTokenAutoRefreshEnabled(true);
+                    logger.info(
+                      'Firebase App Check active & token acquired',
                       tag: 'Startup',
                     );
+                  } else {
                     await FirebaseAppCheck.instance
                         .setTokenAutoRefreshEnabled(false);
                   }
+                } catch (tokenErr) {
+                  logger.info(
+                    'AppCheck token exchange unavailable in current environment (disabling auto-refresh): $tokenErr. '
+                    'If using debug mode, ensure debug token "26B7C98E-FC8F-4580-BA97-455ADBE131BC" is registered in Firebase Console -> App Check -> Apps for this flavor, or keep Authentication in Unenforce mode during development.',
+                    tag: 'Startup',
+                  );
+                  await FirebaseAppCheck.instance
+                      .setTokenAutoRefreshEnabled(false);
                 }
               } catch (e) {
                 logger.warning(
@@ -136,6 +149,7 @@ void main() {
           );
 
           final authService = Get.put(AuthService(), permanent: true);
+          Get.put<AppFlavor>(resolvedFlavor, permanent: true);
           Get.put(AppService(), permanent: true);
           Get.put(ConnectivityService(), permanent: true);
           Get.put(PushNotificationService(), permanent: true);
@@ -172,7 +186,12 @@ void main() {
           }
 
           // Run the app immediately so first frame / splash paints in zero-wait time
-          runApp(const Truthworld());
+          runApp(Truthworld(
+            title: resolvedFlavor.appTitle,
+            // On web the Truthworld widget resolves initial route from the URL
+            // host, so we only pass an override for native mobile builds.
+            overrideInitialRoute: kIsWeb ? null : resolvedFlavor.initialRoute,
+          ));
 
           // Non-critical service init in background
           unawaited(
@@ -276,6 +295,15 @@ class Truthworld extends StatelessWidget {
     if (overrideInitialRoute != null) {
       return overrideInitialRoute!;
     }
+    if (AppFlavor.isStudio) {
+      return '/studio';
+    }
+    if (AppFlavor.isAdmin) {
+      return '/admin/login';
+    }
+    if (AppFlavor.isAdvertiser) {
+      return '/advertiser';
+    }
     if (kIsWeb) {
       final host = Uri.base.host.toLowerCase();
       final uriStr = Uri.base.toString().toLowerCase();
@@ -344,12 +372,19 @@ class Truthworld extends StatelessWidget {
         final content = MediaQuery(
           data: mediaQueryData.copyWith(textScaler: clampedTextScaler),
           child: TruthworldSplashScreen(
-            child: Stack(
-              children: [
-                child!,
-                const MiniplayerOverlayManager(),
-              ],
-            ),
+            child: Obx(() {
+              final isInPip = PipService.to.isPiP.value;
+              return Stack(
+                children: [
+                  Offstage(
+                    offstage: isInPip,
+                    child: child,
+                  ),
+                  if (!isInPip) const MiniplayerOverlayManager(),
+                  if (isInPip) const PipDedicatedView(),
+                ],
+              );
+            }),
           ),
         );
 

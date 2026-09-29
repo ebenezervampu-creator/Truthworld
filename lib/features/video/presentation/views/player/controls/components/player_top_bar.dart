@@ -3,14 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
-import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
-import 'package:truthworld/features/video/presentation/views/player/controls/components/player_badges.dart';
 import 'package:truthworld/features/video/presentation/views/player/controls/components/player_controls_buttons.dart';
 import 'package:truthworld/features/video/presentation/views/player/controls/components/player_notifications_dialog.dart';
+import 'package:truthworld/features/video/presentation/views/player/controls/fullscreen_actions_bar.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -40,169 +39,275 @@ class PlayerTopBar extends StatelessWidget {
         tag: 'PlayerControls.findControllers',
       );
     }
+
+    final isWide = MediaQuery.of(context).size.width > 680;
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [AppColors.bgPage.withValues(alpha: 0.8), Colors.transparent],
+          stops: const [0.0, 0.45, 1.0],
+          colors: [
+            Colors.black.withValues(alpha: 0.85),
+            Colors.black.withValues(alpha: 0.45),
+            Colors.transparent,
+          ],
         ),
       ),
       child: Row(
         children: [
           // Back / minimize fullscreen
           IconBtn(
-            icon: Icons.keyboard_arrow_down_rounded,
-            size: 30,
+            icon: Icons.arrow_back_rounded,
+            size: 22,
             onTap: ctrl.toggleFullscreen,
           ),
           const SizedBox(width: 8),
-          NetworkBadge(ctrl: ctrl),
-          const SizedBox(width: 12),
-          // Video title
+
+          // Video title & Truth Credibility Badge
           Expanded(
-            child: Text(
-              title,
-              style: TS.body.copyWith(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          if (ctrl.isFullScreen.value &&
-              vc != null &&
-              subCtrl != null &&
-              MediaQuery.of(context).size.width > 600) ...[
-            const SizedBox(width: 20),
-            // Avatar
-            ClipOval(
-              child: vc.video.channelAvatarUrl.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: vc.video.channelAvatarUrl,
-                      width: 32,
-                      height: 32,
-                      fit: BoxFit.cover,
-                    )
-                  : Container(
-                      width: 32,
-                      height: 32,
-                      color: AppColors.textSecondary,
-                      child: const Icon(
-                        Icons.person,
-                        size: 20,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-            ),
-            const SizedBox(width: 8),
-            // Channel Name & Subs
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  vc.video.channelName,
-                  style: TS.body.copyWith(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
+                Flexible(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TS.body.copyWith(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (vc != null && vc.video.channelName.isNotEmpty)
+                        Text(
+                          vc.video.channelName,
+                          style: TS.bodySm.copyWith(
+                            fontSize: 11,
+                            color: Colors.white.withValues(alpha: 0.65),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
                   ),
                 ),
-                Obx(
-                  () => Text(
-                    '${FormatUtils.formatCount(subCtrl!.subscriberCount.value)} subscribers',
-                    style: TS.bodySm.copyWith(fontSize: 11),
-                  ),
-                ),
+                // TruthWorld Credibility / Fact-Check badge
+                if (vc != null) _buildCredibilityBadge(context, ctrl, vc),
               ],
             ),
-            const SizedBox(width: 12),
-            // Subscribe Button & Bell Icon
-            Obx(() {
-              final isSubbed = subCtrl!.isSubscribed.value;
-              final notificationsEnabled =
-                  subCtrl.notificationsEnabled.value;
-              final notificationOption = subCtrl.notificationOption.value;
+          ),
 
-              IconData bellIcon;
-              if (!notificationsEnabled || notificationOption == 'none') {
-                bellIcon = Icons.notifications_off;
-              } else if (notificationOption == 'personalized') {
-                bellIcon = Icons.notifications_outlined;
-              } else {
-                bellIcon = Icons.notifications_active;
-              }
-
-              return Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  InkWell(
-                    onTap: () {
-                      if (!AuthService.to.isAuthenticated.value) {
-                        AppSnackbar.info(
-                          'Please sign in to subscribe to channels.',
-                          title: 'Sign In Required',
-                          actionLabel: 'SIGN IN',
-                          onAction: AuthService.to.signInWithGoogle,
-                        );
-                        return;
-                      }
-                      subCtrl!.toggleSubscription(vc!.video.channelId);
-                    },
-                    borderRadius: BorderRadius.circular(16),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSubbed
-                            ? AppColors.textPrimary.withValues(alpha: 0.1)
-                            : AppColors.textPrimary,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Text(
-                        isSubbed ? 'Subscribed' : 'Subscribe',
-                        style: TS.bold.copyWith(
-                          color: isSubbed
-                              ? AppColors.textPrimary
-                              : AppColors.bgPage,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (isSubbed) ...[
-                    const SizedBox(width: 8),
-                    InkWell(
-                      onTap: () => PlayerNotificationsDialog.show(
-                        context,
-                        subCtrl!,
-                        vc!.video.channelId,
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: AppColors.textPrimary.withValues(alpha: 0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          bellIcon,
+          // Right cluster: Channel Follow + Action Dock
+          if (ctrl.isFullScreen.value && vc != null) ...[
+            if (isWide && subCtrl != null) ...[
+              const SizedBox(width: 14),
+              // Channel Avatar
+              ClipOval(
+                child: vc.video.channelAvatarUrl.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: vc.video.channelAvatarUrl,
+                        width: 28,
+                        height: 28,
+                        fit: BoxFit.cover,
+                      )
+                    : Container(
+                        width: 28,
+                        height: 28,
+                        color: AppColors.textSecondary,
+                        child: const Icon(
+                          Icons.person,
+                          size: 16,
                           color: AppColors.textPrimary,
-                          size: 18,
                         ),
                       ),
-                    ),
-                  ],
-                ],
-              );
-            }),
+              ),
+              const SizedBox(width: 8),
+              // Follow Button & Notification Bell
+              _buildFollowButton(context, vc, subCtrl),
+            ],
+            const SizedBox(width: 10),
+            // Floating Action Dock (Like, Comments, Share, More ⋯)
+            FullscreenFloatingActionDock(ctrl: ctrl, vc: vc),
           ],
         ],
       ),
     );
+  }
+
+  Widget _buildCredibilityBadge(
+    BuildContext context,
+    TowerPlayerController ctrl,
+    VideoController vc,
+  ) {
+    final video = vc.video;
+    final isFactChecked = video.isFactChecked ||
+        video.factCheckUrl.isNotEmpty ||
+        (video.uiReport != null && (video.uiReport?.keyClaims.isNotEmpty ?? false));
+
+    if (!isFactChecked && !ctrl.isAnalyzingTruth) return const SizedBox.shrink();
+
+    final score = ctrl.truthReportScore;
+    final isHigh = score != null && score >= 75;
+    final badgeColor = isHigh ? AppColors.success : AppColors.brand;
+    final badgeText = ctrl.truthReportBadgeText;
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 8),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            ctrl.overlayManager.toggle(TowerPlayerOverlay.factCheck);
+            ctrl.showFactCheckPopup.value = ctrl.overlayManager.isFactCheckOpen;
+            ctrl.showCommentsPopup.value = false;
+            ctrl.showTranscriptPopup.value = false;
+            ctrl.showLiveChat.value = false;
+            ctrl.startHideTimer();
+          },
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+            decoration: BoxDecoration(
+              color: const Color(0x730F0F12), // rgba(15,15,18,0.45)
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: badgeColor.withValues(alpha: 0.35),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.verified_rounded,
+                  size: 12,
+                  color: badgeColor,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  badgeText,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFollowButton(
+    BuildContext context,
+    VideoController vc,
+    ChannelSubscriptionController subCtrl,
+  ) {
+    return Obx(() {
+      final isSubbed = subCtrl.isSubscribedTo(vc.video.channelId).value;
+      final notificationsEnabled = subCtrl.notificationsEnabled.value;
+      final notificationOption =
+          subCtrl.getNotificationOption(vc.video.channelId).value;
+
+      IconData bellIcon;
+      if (!notificationsEnabled || notificationOption == 'none') {
+        bellIcon = Icons.notifications_off;
+      } else if (notificationOption == 'personalized') {
+        bellIcon = Icons.notifications_outlined;
+      } else {
+        bellIcon = Icons.notifications_active;
+      }
+
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            onTap: () {
+              if (!AuthService.to.isAuthenticated.value) {
+                AppSnackbar.info(
+                  'Please sign in to follow channels.',
+                  title: 'Sign In Required',
+                  actionLabel: 'SIGN IN',
+                  onAction: AuthService.to.signInWithGoogle,
+                );
+                return;
+              }
+              if (isSubbed) {
+                PlayerNotificationsDialog.show(
+                  context,
+                  subCtrl,
+                  vc.video.channelId,
+                  channelName: vc.video.channelName,
+                );
+              } else {
+                subCtrl.subscribeToChannel(vc.video.channelId);
+              }
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              height: 28,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: isSubbed
+                    ? Colors.white.withValues(alpha: 0.12)
+                    : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isSubbed
+                      ? Colors.white.withValues(alpha: 0.15)
+                      : Colors.transparent,
+                ),
+              ),
+              child: Text(
+                isSubbed ? 'Following' : '+ Follow',
+                style: TS.bold.copyWith(
+                  color: isSubbed ? Colors.white : Colors.black,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ),
+          if (isSubbed) ...[
+            const SizedBox(width: 6),
+            InkWell(
+              onTap: () => PlayerNotificationsDialog.show(
+                context,
+                subCtrl,
+                vc.video.channelId,
+                channelName: vc.video.channelName,
+              ),
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.15),
+                  ),
+                ),
+                child: Icon(
+                  bellIcon,
+                  color: Colors.white,
+                  size: 15,
+                ),
+              ),
+            ),
+          ],
+        ],
+      );
+    });
   }
 }

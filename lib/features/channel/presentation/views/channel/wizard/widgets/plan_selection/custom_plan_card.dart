@@ -121,13 +121,13 @@ class CustomPlanCard extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          Icons.card_giftcard,
+                          Icons.verified_rounded,
                           size: 13,
                           color: Colors.white,
                         ),
                         SizedBox(width: 6),
                         Text(
-                          r'$10 FREE Bonus Credit Included',
+                          '100% Creator Revenue Share',
                           style: TextStyle(
                             fontFamily: TWTypography.uiFamily,
                             fontSize: 11,
@@ -153,7 +153,7 @@ class CustomPlanCard extends StatelessWidget {
                     alignment: WrapAlignment.center,
                     spacing: 4,
                     runSpacing: 4,
-                    children: [r'$15', r'$30', r'$45', 'Custom'].map((tier) {
+                    children: [r'$15', r'$30', r'$45', r'$100', r'$200', 'Custom'].map((tier) {
                       return Obx(() {
                         final isTierSelected =
                             controller.customPricingTier.value == tier;
@@ -171,7 +171,7 @@ class CustomPlanCard extends StatelessWidget {
                             ),
                             decoration: BoxDecoration(
                               color: isTierSelected
-                                  ? const Color(0xFF7C3AED)
+                                   ? const Color(0xFF7C3AED)
                                   : const Color(0xFF27272A),
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
@@ -205,6 +205,108 @@ class CustomPlanCard extends StatelessWidget {
                       });
                     }).toList(),
                   ),
+                  SizedBox(height: isDesktop ? 6 : 10),
+                  Obx(() {
+                    final isAutoPay = controller.customPlanAutoPay.value;
+                    final tier = controller.customPricingTier.value;
+                    final tierLabel = tier == 'Custom' ? 'Custom tier' : '$tier/mo';
+
+                    return Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isDesktop ? 10 : 12,
+                        vertical: isDesktop ? 6 : 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF18181B),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isAutoPay
+                              ? const Color(0xFFA855F7).withOpacity(0.6)
+                              : const Color(0xFF27272A),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: isAutoPay
+                                  ? const Color(0xFF7C3AED).withOpacity(0.2)
+                                  : Colors.transparent,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.autorenew_rounded,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Text(
+                                      'Auto Pay',
+                                      style: TextStyle(
+                                        fontFamily: TWTypography.uiFamily,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: isAutoPay
+                                            ? const Color(0xFF10B981).withValues(alpha: 0.2)
+                                            : const Color(0xFF3F3F46),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        isAutoPay ? 'RECURRING' : 'ONE-TIME',
+                                        style: TextStyle(
+                                          fontFamily: TWTypography.uiFamily,
+                                          fontSize: 8,
+                                          fontWeight: FontWeight.bold,
+                                          color: isAutoPay
+                                              ? const Color(0xFF34D399)
+                                              : Colors.white70,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  isAutoPay
+                                      ? 'Auto-renews $tierLabel each month. Cancel anytime.'
+                                      : 'One-time month payment. No recurring debit.',
+                                  style: const TextStyle(
+                                    fontFamily: TWTypography.uiFamily,
+                                    fontSize: 10,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Switch.adaptive(
+                            value: isAutoPay,
+                            onChanged: (val) {
+                              controller.selectedPlan.value = 'custom';
+                              controller.customPlanAutoPay.value = val;
+                            },
+                            activeColor: Colors.white,
+                            activeTrackColor: const Color(0xFF7C3AED),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
                   SizedBox(height: isDesktop ? 6 : 14),
                   Obx(() {
                     final selectedTier = controller.customPricingTier.value;
@@ -213,34 +315,60 @@ class CustomPlanCard extends StatelessWidget {
                       tierBadges = [
                         'Flexible Storage & CDN',
                         'Dedicated VIP Support & SLA',
-                        r'50% Off Dubbing ($0.25/lang)',
+                        r'AI Dubbing (From $0.10/lang at-cost)',
+                        'Studio Voice Cloning Included',
+                        '100% Free Fact-Checking',
+                        '100% Revenue Share',
+                      ];
+                    } else if (selectedTier == r'$200') {
+                      tierBadges = [
+                        '800 GB Cloud Storage',
+                        '3.2 TB Global CDN Bandwidth',
+                        '8K Cinema Master & HDR',
+                        '100% Free Fact-Checking',
+                        r'AI Dubbing (From $0.10/lang at-cost)',
+                        'Studio Voice Cloning Included',
+                        '100% Revenue Share',
+                      ];
+                    } else if (selectedTier == r'$100') {
+                      tierBadges = [
+                        '400 GB Cloud Storage',
+                        '1.6 TB Global CDN Bandwidth',
+                        '4K HDR & 8K Transcoding',
+                        '100% Free Fact-Checking',
+                        r'AI Dubbing (From $0.10/lang at-cost)',
+                        'Studio Voice Cloning Included',
                         '100% Revenue Share',
                       ];
                     } else if (selectedTier == r'$45') {
                       tierBadges = [
-                        '1 TB Cloud Storage',
-                        '5 TB Global CDN Bandwidth',
+                        '150 GB Cloud Storage',
+                        '750 GB Global CDN Bandwidth',
                         '4K HDR Video',
-                        r'$20 Monthly Bonus Credit',
-                        r'50% Off Dubbing ($0.25/lang)',
+                        '100% Free Fact-Checking',
+                        r'AI Dubbing (From $0.10/lang at-cost)',
+                        'Studio Voice Cloning Included',
                         '100% Revenue Share',
                       ];
                     } else if (selectedTier == r'$30') {
                       tierBadges = [
-                        '300 GB Cloud Storage',
-                        '1.5 TB Global CDN Bandwidth',
+                        '100 GB Cloud Storage',
+                        '500 GB Global CDN Bandwidth',
                         '4K Ultra HD',
-                        r'$10 Monthly Bonus Credit',
-                        r'50% Off Dubbing ($0.25/lang)',
+                        '100% Free Fact-Checking',
+                        r'AI Dubbing (From $0.10/lang at-cost)',
+                        'Studio Voice Cloning Included',
                         '100% Revenue Share',
                       ];
                     } else {
                       tierBadges = [
-                        '100 GB Cloud Storage',
-                        '500 GB Global CDN Bandwidth',
+                        '50 GB Cloud Storage',
+                        '250 GB Global CDN Bandwidth',
                         '4K Ultra HD',
                         'Unlimited Uploads',
-                        r'50% Off Dubbing ($0.25/lang)',
+                        '100% Free Fact-Checking',
+                        r'AI Dubbing (From $0.10/lang at-cost)',
+                        'Studio Voice Cloning Included',
                         '100% Revenue Share',
                       ];
                     }

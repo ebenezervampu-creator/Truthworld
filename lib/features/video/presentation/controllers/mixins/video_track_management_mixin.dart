@@ -13,6 +13,7 @@ import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/adaptive_bitrate_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_engagement_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_transcript_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
@@ -31,6 +32,8 @@ mixin VideoTrackManagementMixin on GetxController {
   RxList<AudioTrack> get availableAudioTracks;
   VideoTranscriptController get transcriptController;
   VideoEngagementController get engagementController;
+  Duration? get initialSeekPosition;
+  set initialSeekPosition(Duration? pos);
 
   Future<void> initializeVideoPlayer({String? overrideUrl});
 
@@ -129,7 +132,16 @@ mixin VideoTrackManagementMixin on GetxController {
 
               if (ladder.isNotEmpty) {
                 abr.resolutionLadder = ladder;
-                abr.currentTierIndex.value = (ladder.length / 2).floor();
+                final activeHeight = currentResolution.value?.height;
+                final matchingIdx = activeHeight != null
+                    ? ladder.indexWhere((t) => t.height == activeHeight)
+                    : -1;
+                if (matchingIdx != -1) {
+                  abr.currentTierIndex.value = matchingIdx;
+                } else {
+                  abr.currentTierIndex.value =
+                      (ladder.length - 1).clamp(0, ladder.length - 1);
+                }
               }
             }
 
@@ -161,7 +173,16 @@ mixin VideoTrackManagementMixin on GetxController {
                 .toList();
             if (ladder.isNotEmpty) {
               abr.resolutionLadder = ladder;
-              abr.currentTierIndex.value = (ladder.length / 2).floor();
+              final activeHeight = currentResolution.value?.height;
+              final matchingIdx = activeHeight != null
+                  ? ladder.indexWhere((t) => t.height == activeHeight)
+                  : -1;
+              if (matchingIdx != -1) {
+                abr.currentTierIndex.value = matchingIdx;
+              } else {
+                abr.currentTierIndex.value =
+                    (ladder.length - 1).clamp(0, ladder.length - 1);
+              }
             }
           }
           debugPrint(
@@ -317,6 +338,11 @@ mixin VideoTrackManagementMixin on GetxController {
       availableSubtitles.assignAll(found);
 
       debugPrint('[VideoController] ✅ Loaded ${found.length} subtitle tracks');
+
+      // If audio tracks only has original, retry audio track discovery now that subtitles are resolved
+      if (availableAudioTracks.length <= 1 && found.isNotEmpty) {
+        unawaited(fetchAvailableAudioTracks());
+      }
     } catch (e, s) {
       ErrorHandler.log(
         e,
@@ -338,12 +364,118 @@ mixin VideoTrackManagementMixin on GetxController {
 
   Future<void> fetchAvailableAudioTracks() async {
     try {
-      var audioTracksMap = video.audioTracks;
+      final audioTracksMap = Map<String, String>.from(video.audioTracks);
+      final loc = await VideoMediaService().getLocalization(video.id);
       if (audioTracksMap.isEmpty) {
-        final loc = await VideoMediaService().getLocalization(video.id);
-        audioTracksMap = loc.audioTracks;
+        audioTracksMap.addAll(loc.audioTracks);
       }
-      final dubbedVideosMap = video.dubbedVideos;
+
+      // If still empty, check Firestore video document directly
+      if (audioTracksMap.isEmpty) {
+        try {
+          final videoDoc = await FirebaseFirestore.instance
+              .collection(FirestoreCollections.videos)
+              .doc(video.id)
+              .getCacheFirst();
+          if (videoDoc.exists && videoDoc.data() != null) {
+            final data = videoDoc.data()!;
+            final directAudio = data['audioTracks'] as Map? ??
+                (data['media'] is Map ? (data['media']['audioTracks'] as Map?) : null);
+            if (directAudio != null) {
+              directAudio.forEach((k, v) {
+                if (k is String && v is String && v.isNotEmpty) {
+                  audioTracksMap[k] = v;
+                }
+              });
+            }
+          }
+        } catch (_) {}
+      }
+
+      // If still empty, discover from subtitle job ID or Storage audio/ folder
+      if (audioTracksMap.isEmpty) {
+        var detectedJobId = video.jobId;
+        if (detectedJobId == null || detectedJobId.isEmpty) {
+          final allUrls = <String>[
+            ...video.mediaSubtitles.values,
+            ...loc.subtitles.values,
+            ...availableSubtitles.map((s) => s.url),
+            video.factCheckUrl,
+            video.transcriptionUrl,
+            video.videoUrl,
+            video.originalUrl,
+          ];
+          for (final rawUrl in allUrls) {
+            if (rawUrl.isEmpty) continue;
+            final u = Uri.decodeFull(rawUrl);
+            final match = RegExp(r'job_[a-zA-Z0-9_\-]+').firstMatch(u);
+            if (match != null) {
+              detectedJobId = match.group(0);
+              debugPrint('[AudioDiscovery] 🔍 Detected jobId from URL: $detectedJobId');
+              break;
+            }
+          }
+        }
+
+        if (detectedJobId != null && detectedJobId.isNotEmpty) {
+          final candidateLangs = <String>{
+            ...video.mediaSubtitles.keys,
+            ...loc.subtitles.keys,
+            ...availableSubtitles.map((s) => s.langCode),
+            ...video.languages,
+            'te',
+            'be',
+            'hi',
+            'es',
+            'fr',
+            'de',
+            'ta',
+          }.where((l) => l.isNotEmpty && l != video.language).toSet();
+
+          for (final langCode in candidateLangs) {
+            if (!audioTracksMap.containsKey(langCode)) {
+              try {
+                debugPrint('[AudioDiscovery] Scanning Storage for audio/$detectedJobId/$langCode');
+                final storageRef = FirebaseStorage.instance.ref('audio/$detectedJobId/$langCode');
+                final listResult = await storageRef.list(const ListOptions(maxResults: 10));
+                debugPrint('[AudioDiscovery] Items found in audio/$detectedJobId/$langCode: ${listResult.items.length}');
+                if (listResult.items.isNotEmpty) {
+                  final bestItem = listResult.items.firstWhereOrNull(
+                    (item) => item.name == 'stitched.mp3' || item.name == 'full.mp3',
+                  ) ?? listResult.items.firstWhereOrNull(
+                    (item) => item.name.endsWith('.mp3') || item.name.endsWith('.wav') || item.name.endsWith('.m4a'),
+                  ) ?? listResult.items.first;
+                  final downloadUrl = await bestItem.getDownloadURL();
+                  debugPrint('[AudioDiscovery] ✅ Resolved track for $langCode: $downloadUrl');
+                  audioTracksMap[langCode] = downloadUrl;
+                }
+              } catch (storageErr) {
+                debugPrint('[AudioDiscovery] ⚠️ Storage check for $langCode failed: $storageErr');
+              }
+            }
+          }
+
+          if (audioTracksMap.isNotEmpty) {
+            // Persist discovered audio tracks back to Firestore so subsequent loads are immediate
+            FirebaseFirestore.instance.collection(FirestoreCollections.videos).doc(video.id).set({
+              'audioTracks': audioTracksMap,
+              'media': {'audioTracks': audioTracksMap},
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true)).catchError((e) {
+              debugPrint('[AudioDiscovery] ⚠️ Failed to persist audioTracks to video doc: $e');
+            });
+
+            FirebaseFirestore.instance.collection(FirestoreCollections.videos).doc(video.id).collection('media').doc('localization').set({
+              'audioTracks': audioTracksMap,
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true)).catchError((e) {
+              debugPrint('[AudioDiscovery] ⚠️ Failed to persist audioTracks to localization doc: $e');
+            });
+          }
+        }
+      }
+
+      final dubbedVideosMap = Map<String, String>.from(video.dubbedVideos);
       final fetchTasks = <Future<AudioTrack?>>[];
 
       // Add original track
@@ -366,8 +498,17 @@ mixin VideoTrackManagementMixin on GetxController {
           try {
             var url = pathOrUrl;
             if (pathOrUrl.startsWith('gs://')) {
+              try {
+                url = await FirebaseStorage.instance
+                    .refFromURL(pathOrUrl)
+                    .getDownloadURL();
+              } catch (_) {
+                final stripped = pathOrUrl.replaceFirst(RegExp('^gs://[^/]+/'), '');
+                url = await FirebaseStorage.instance.ref(stripped).getDownloadURL();
+              }
+            } else if (pathOrUrl.startsWith('audio/') || pathOrUrl.startsWith('audiotracks/') || pathOrUrl.startsWith('videos/')) {
               url = await FirebaseStorage.instance
-                  .refFromURL(pathOrUrl)
+                  .ref(pathOrUrl)
                   .getDownloadURL();
             }
 
@@ -385,6 +526,32 @@ mixin VideoTrackManagementMixin on GetxController {
               url: url,
             );
           } catch (e, s) {
+            // If direct download failed, it may be a directory holding audio chunks
+            try {
+              final ref = pathOrUrl.startsWith('gs://')
+                  ? FirebaseStorage.instance.refFromURL(pathOrUrl)
+                  : FirebaseStorage.instance.ref(pathOrUrl);
+              final listRes = await ref.list(const ListOptions(maxResults: 5));
+              if (listRes.items.isNotEmpty) {
+                final item = listRes.items.firstWhereOrNull(
+                  (i) => i.name.endsWith('.mp3') || i.name.endsWith('.wav') || i.name.endsWith('.m4a'),
+                ) ?? listRes.items.first;
+                final resolvedUrl = await item.getDownloadURL();
+                final lang = supportedLanguages.firstWhereOrNull(
+                  (l) => l.code == langCode,
+                );
+                final label = lang?.name != null
+                    ? '${lang!.name} (Audio)'
+                    : '${langCode.toUpperCase()} (Audio)';
+                return AudioTrack(
+                  label: label,
+                  langCode: langCode,
+                  type: 'Audio',
+                  url: resolvedUrl,
+                );
+              }
+            } catch (_) {}
+
             ErrorHandler.log(
               e,
               stackTrace: s,
@@ -400,13 +567,23 @@ mixin VideoTrackManagementMixin on GetxController {
         final langCode = entry.key;
         final pathOrUrl = entry.value;
 
+        // Skip if this language is already handled as audio
+        if (audioTracksMap.containsKey(langCode)) continue;
+
         fetchTasks.add(() async {
           try {
             var url = pathOrUrl;
             if (pathOrUrl.startsWith('gs://')) {
-              url = await FirebaseStorage.instance
-                  .refFromURL(pathOrUrl)
-                  .getDownloadURL();
+              try {
+                url = await FirebaseStorage.instance
+                    .refFromURL(pathOrUrl)
+                    .getDownloadURL();
+              } catch (_) {
+                final stripped = pathOrUrl.replaceFirst(RegExp('^gs://[^/]+/'), '');
+                url = await FirebaseStorage.instance.ref(stripped).getDownloadURL();
+              }
+            } else if (pathOrUrl.startsWith('videos/') || pathOrUrl.startsWith('audio/')) {
+              url = await FirebaseStorage.instance.ref(pathOrUrl).getDownloadURL();
             }
 
             final lang = supportedLanguages.firstWhereOrNull(
@@ -531,20 +708,42 @@ mixin VideoTrackManagementMixin on GetxController {
     final currentPosition =
         videoPlayerController?.value.position ?? Duration.zero;
     final wasPlaying = videoPlayerController?.value.isPlaying ?? false;
+    final speed = videoPlayerController?.value.playbackSpeed ?? 1.0;
+    final volume = videoPlayerController?.value.volume ?? 1.0;
 
     isSwitchingResolution.value = true;
     isAutoSwitching.value = !isManual;
     currentResolution.value = res;
 
+    // Pre-seed initialSeekPosition so player immediately resumes at the exact frame
+    initialSeekPosition = currentPosition;
+
     try {
       await initializeVideoPlayer(overrideUrl: res.url);
 
       if (videoPlayerController != null) {
-        await videoPlayerController!.seekTo(currentPosition);
+        if (currentPosition > Duration.zero) {
+          await videoPlayerController!.seekTo(currentPosition);
+        }
+        await videoPlayerController!.setPlaybackSpeed(speed);
+        await videoPlayerController!.setVolume(volume);
         if (wasPlaying) {
           await videoPlayerController!.play();
         }
       }
+
+      // Display seamless HUD toast notification
+      final towerCtrl = TowerPlayerController.getForTagOrActive(video.id);
+      final qualityText = isManual
+          ? 'Quality: ${res.label}'
+          : 'Quality: ${res.label} (Auto)';
+      towerCtrl?.showToast(qualityText);
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'VideoTrackManagementMixin.setResolution',
+      );
     } finally {
       isSwitchingResolution.value = false;
       isAutoSwitching.value = false;

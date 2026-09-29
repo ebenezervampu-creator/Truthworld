@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/config/app_flavor.dart';
 import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_view_controller.dart';
@@ -51,15 +52,16 @@ class DashboardCreatorAppBar extends StatelessWidget
             ),
       title: Row(
         children: [
-          IconButton(
-            icon: const Icon(
-              Icons.arrow_back,
-              size: 20,
-              color: Colors.white,
+          if (!AppFlavor.isStudio)
+            IconButton(
+              icon: const Icon(
+                Icons.arrow_back,
+                size: 20,
+                color: Colors.white,
+              ),
+              onPressed: () => Get.offAllNamed('/home'),
+              tooltip: 'Back to Home',
             ),
-            onPressed: () => Get.offAllNamed('/home'),
-            tooltip: 'Back to Home',
-          ),
           if (!isMobile) ...[
             const AppLogo(
               size: 34,

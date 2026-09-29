@@ -506,10 +506,17 @@ class CategoryController extends BaseController
       ),
     );
 
-    heroAnimationController.forward();
-    fadeAnimationController.forward();
-    slideAnimationController.forward();
-    scaleAnimationController.forward();
+    if (Get.testMode) {
+      heroAnimationController.value = 1.0;
+      fadeAnimationController.value = 1.0;
+      slideAnimationController.value = 1.0;
+      scaleAnimationController.value = 1.0;
+    } else {
+      heroAnimationController.forward();
+      fadeAnimationController.forward();
+      slideAnimationController.forward();
+      scaleAnimationController.forward();
+    }
 
     // Setup native GetX debounce worker for search
     addWorker(
@@ -531,6 +538,10 @@ class CategoryController extends BaseController
 
   @override
   void onClose() {
+    fadeAnimationController.stop();
+    slideAnimationController.stop();
+    scaleAnimationController.stop();
+    heroAnimationController.stop();
     fadeAnimationController.dispose();
     slideAnimationController.dispose();
     scaleAnimationController.dispose();

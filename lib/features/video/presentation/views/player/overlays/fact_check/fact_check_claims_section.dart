@@ -57,7 +57,7 @@ import 'package:truthworld/theme/app_theme.dart';
                   height: 7,
                   decoration: BoxDecoration(
                     color: ctrl.isFactCheckAutoPlay.value
-                        ? AppColors.success
+                        ? Colors.white
                         : AppColors.textSecondary,
                     shape: BoxShape.circle,
                   ),
@@ -68,7 +68,7 @@ import 'package:truthworld/theme/app_theme.dart';
                   style: TextStyle(
                     fontSize: 10,
                     color: ctrl.isFactCheckAutoPlay.value
-                        ? AppColors.success
+                        ? Colors.white
                         : AppColors.textSecondary.withValues(alpha: 0.7),
                     fontWeight: FontWeight.w600,
                   ),

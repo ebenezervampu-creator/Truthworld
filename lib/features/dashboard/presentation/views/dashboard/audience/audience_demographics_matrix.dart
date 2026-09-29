@@ -5,7 +5,7 @@ import 'package:truthworld/features/dashboard/presentation/views/dashboard/audie
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audience/audience_subscribers_watch_share_card.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audience/audience_viewer_loyalty_card.dart';
 
-/// YouTube Studio Demographics Matrix (Ages, Genders, Subscribed vs Unsubscribed, Retention)
+/// Demographics Matrix (Ages, Genders, Subscribed vs Unsubscribed, Retention)
 Widget buildAudienceDemographicsMatrix({
   required AudienceController controller,
   required bool isDarkMode,
@@ -25,7 +25,7 @@ Widget buildAudienceDemographicsMatrix({
         spacing: 16,
         runSpacing: 16,
         children: [
-          // Card 1: Watch time / views from subscribers (YouTube Studio style)
+          // Card 1: Watch time / views from subscribers
           SizedBox(
             width: cardWidth,
             child: buildAudienceSubscribersWatchShareCard(

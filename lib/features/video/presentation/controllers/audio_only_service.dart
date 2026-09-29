@@ -2,7 +2,7 @@
 // audio_only_service.dart
 // Industry-Standard Audio-Only Pipeline for Flutter Web & Native
 // Uses: Web Audio API (Web) & just_audio (Native Android / iOS)
-// Standard: Matches Spotify/YouTube Music audio pipeline
+// Standard: Matches music audio pipeline
 // ============================================================
 
 import 'dart:async';

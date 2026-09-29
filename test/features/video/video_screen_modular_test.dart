@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
@@ -15,6 +16,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUpAll(() async {
+    GoogleFonts.config.allowRuntimeFetching = false;
     await setupMockFirebase();
   });
 

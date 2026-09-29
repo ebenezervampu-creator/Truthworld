@@ -5,7 +5,7 @@ import 'package:truthworld/features/dashboard/presentation/controllers/multi_aud
 import 'package:truthworld/theme/app_colors.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-/// Drop-in YouTube-style video player with multi-language dubbed audio support.
+/// Drop-in video player with multi-language dubbed audio support.
 ///
 /// Example:
 /// ```dart

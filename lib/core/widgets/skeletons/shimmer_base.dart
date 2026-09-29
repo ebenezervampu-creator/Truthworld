@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/theme/app_colors.dart';
 
@@ -8,18 +9,21 @@ class ShimmerBase extends StatelessWidget {
     required this.child,
     this.baseColor,
     this.highlightColor,
+    this.enabled,
     super.key,
   });
 
   final Widget child;
   final Color? baseColor;
   final Color? highlightColor;
+  final bool? enabled;
 
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
       baseColor: baseColor ?? AppColors.bgSurfaceHover,
       highlightColor: highlightColor ?? AppColors.bgDivider,
+      enabled: enabled ?? !Get.testMode,
       child: child,
     );
   }

@@ -1,154 +1,20 @@
 import 'dart:math' as math;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/cashfree_service.dart';
+import 'package:truthworld/core/services/channel_wallet_pricing.dart';
 import 'package:truthworld/core/services/currency_localization_service.dart';
+import 'package:truthworld/core/services/infrastructure_metering_service.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/data/models/channel_wallet_models.dart';
 
-enum WalletTransactionCategory {
-  walletTopup,
-  customChannelPlan,
-  storageTopup,
-  bandwidthTopup,
-  aiSubtitles,
-  aiDubbing,
-  aiFactcheck,
-  aiSummaryChapters,
-  aiBundle,
-}
-
-class SpendableBalance {
-  final double fundedBalance;
-  final double trialCreditRemaining;
-  final double withdrawableRevenue;
-  final double lockedRevenue;
-
-  const SpendableBalance({
-    required this.trialCreditRemaining,
-    required this.withdrawableRevenue,
-    required this.lockedRevenue,
-    this.fundedBalance = 0.0,
-  });
-
-  double get totalRevenue => withdrawableRevenue + lockedRevenue;
-  double get totalSpendableBalance => fundedBalance + trialCreditRemaining + totalRevenue;
-
-  bool canAfford(double amount) => totalSpendableBalance >= amount;
-}
-
-class WalletTransaction {
-  final String id;
-  final String channelId;
-  final String userId;
-  final double amount;
-  final double trialCreditDeducted;
-  final double fundedDeducted;
-  final double revenueDeducted;
-  final WalletTransactionCategory category;
-  final String description;
-  final double balanceBefore;
-  final double balanceAfter;
-  final DateTime timestamp;
-  final Map<String, dynamic>? metadata;
-
-  WalletTransaction({
-    required this.id,
-    required this.channelId,
-    required this.userId,
-    required this.amount,
-    required this.trialCreditDeducted,
-    required this.revenueDeducted,
-    required this.category,
-    required this.description,
-    required this.balanceBefore,
-    required this.balanceAfter,
-    required this.timestamp,
-    this.fundedDeducted = 0.0,
-    this.metadata,
-  });
-
-  Map<String, dynamic> toMap() => {
-    'id': id,
-    'channelId': channelId,
-    'userId': userId,
-    'amount': amount,
-    'trialCreditDeducted': trialCreditDeducted,
-    'fundedDeducted': fundedDeducted,
-    'revenueDeducted': revenueDeducted,
-    'category': category.name,
-    'description': description,
-    'balanceBefore': balanceBefore,
-    'balanceAfter': balanceAfter,
-    'timestamp': Timestamp.fromDate(timestamp),
-    'metadata': metadata,
-  };
-
-  factory WalletTransaction.fromMap(Map<String, dynamic> map, String docId) {
-    return WalletTransaction(
-      id: docId,
-      channelId: map['channelId'] as String? ?? '',
-      userId: map['userId'] as String? ?? '',
-      amount: (map['amount'] as num?)?.toDouble() ?? 0.0,
-      trialCreditDeducted:
-          (map['trialCreditDeducted'] as num?)?.toDouble() ?? 0.0,
-      fundedDeducted:
-          (map['fundedDeducted'] as num?)?.toDouble() ?? 0.0,
-      revenueDeducted: (map['revenueDeducted'] as num?)?.toDouble() ?? 0.0,
-      category: WalletTransactionCategory.values.firstWhere(
-        (e) => e.name == map['category'],
-        orElse: () => WalletTransactionCategory.aiBundle,
-      ),
-      description: map['description'] as String? ?? '',
-      balanceBefore: (map['balanceBefore'] as num?)?.toDouble() ?? 0.0,
-      balanceAfter: (map['balanceAfter'] as num?)?.toDouble() ?? 0.0,
-      timestamp: (map['timestamp'] is Timestamp)
-          ? (map['timestamp'] as Timestamp).toDate()
-          : DateTime.now(),
-      metadata: map['metadata'] != null
-          ? Map<String, dynamic>.from(map['metadata'] as Map)
-          : null,
-    );
-  }
-}
-
-class StorageTopupPack {
-  final String id;
-  final String title;
-  final int gigabytes;
-  final double priceUSD;
-  final String badge;
-
-  const StorageTopupPack({
-    required this.id,
-    required this.title,
-    required this.gigabytes,
-    required this.priceUSD,
-    this.badge = '',
-  });
-
-  int get bytes => gigabytes * 1024 * 1024 * 1024;
-}
-
-class BandwidthTopupPack {
-  final String id;
-  final String title;
-  final int gigabytes;
-  final double priceUSD;
-  final String badge;
-
-  const BandwidthTopupPack({
-    required this.id,
-    required this.title,
-    required this.gigabytes,
-    required this.priceUSD,
-    this.badge = '',
-  });
-
-  int get bytes => gigabytes * 1024 * 1024 * 1024;
-}
+// Re-export models and pricing for 100% backward compatibility
+export 'package:truthworld/core/services/channel_wallet_pricing.dart';
+export 'package:truthworld/data/models/channel_wallet_models.dart';
 
 class ChannelWalletService {
   final FirebaseFirestore? _firestoreInstance;
@@ -157,154 +23,138 @@ class ChannelWalletService {
   ChannelWalletService({FirebaseFirestore? firestore})
     : _firestoreInstance = firestore;
 
-  static const List<StorageTopupPack> storagePacks = [
-    StorageTopupPack(
-      id: 'storage_25gb',
-      title: '+25 GB Storage',
-      gigabytes: 25,
-      priceUSD: 2.50,
-    ),
-    StorageTopupPack(
-      id: 'storage_50gb',
-      title: '+50 GB Storage',
-      gigabytes: 50,
-      priceUSD: 5.00,
-      badge: 'Popular',
-    ),
-    StorageTopupPack(
-      id: 'storage_100gb',
-      title: '+100 GB Storage',
-      gigabytes: 100,
-      priceUSD: 9.00,
-      badge: 'Best Value',
-    ),
-    StorageTopupPack(
-      id: 'storage_500gb',
-      title: '+500 GB Storage',
-      gigabytes: 500,
-      priceUSD: 40.00,
-    ),
-  ];
+  // =========================================================================
+  // DELEGATED PRICING CATALOGS & CALCULATIONS (Backed by ChannelWalletPricing)
+  // =========================================================================
+  static const List<StorageTopupPack> storagePacks = ChannelWalletPricing.storagePacks;
+  static const List<BandwidthTopupPack> bandwidthPacks = ChannelWalletPricing.bandwidthPacks;
+  static const List<DubbingDurationTier> dubbingDurationTiers = ChannelWalletPricing.dubbingDurationTiers;
+  static const List<SubtitleDurationTier> subtitleDurationTiers = ChannelWalletPricing.subtitleDurationTiers;
+  static const List<FactCheckDurationTier> factCheckDurationTiers = ChannelWalletPricing.factCheckDurationTiers;
+  static const List<FactCheckDepthPlan> factCheckDepthPlans = ChannelWalletPricing.factCheckDepthPlans;
+  static const List<ChannelFactCheckAddonTier> channelFactCheckPlans = ChannelWalletPricing.channelFactCheckPlans;
 
-  static const List<BandwidthTopupPack> bandwidthPacks = [
-    BandwidthTopupPack(
-      id: 'bandwidth_100gb',
-      title: '+100 GB Streaming Bandwidth',
-      gigabytes: 100,
-      priceUSD: 3.00,
-    ),
-    BandwidthTopupPack(
-      id: 'bandwidth_250gb',
-      title: '+250 GB Streaming Bandwidth',
-      gigabytes: 250,
-      priceUSD: 7.00,
-      badge: 'Popular',
-    ),
-    BandwidthTopupPack(
-      id: 'bandwidth_500gb',
-      title: '+500 GB Streaming Bandwidth',
-      gigabytes: 500,
-      priceUSD: 13.00,
-    ),
-    BandwidthTopupPack(
-      id: 'bandwidth_1tb',
-      title: '+1 TB (1000 GB) Bandwidth',
-      gigabytes: 1000,
-      priceUSD: 24.00,
-      badge: 'Pro Choice',
-    ),
-  ];
+  static const double standardDubbingRatePerLanguage = ChannelWalletPricing.standardDubbingRatePerLanguage;
+  static const double standardDubbingMinCost = ChannelWalletPricing.standardDubbingMinCost;
+  static const double standardDubbingCapCost = ChannelWalletPricing.standardDubbingCapCost;
+  static const double customDubbingRatePerLanguage = ChannelWalletPricing.customDubbingRatePerLanguage;
+  static const double customDubbingMinCost = ChannelWalletPricing.customDubbingMinCost;
+  static const double customDubbingCapCost = ChannelWalletPricing.customDubbingCapCost;
+  static const double standardSubtitleRatePerLanguage = ChannelWalletPricing.standardSubtitleRatePerLanguage;
+  static const double customSubtitleRatePerLanguage = ChannelWalletPricing.customSubtitleRatePerLanguage;
+  static const double standardSubtitleMinCost = ChannelWalletPricing.standardSubtitleMinCost;
+  static const double customSubtitleMinCost = ChannelWalletPricing.customSubtitleMinCost;
+  static const double standardSubtitleCapCost = ChannelWalletPricing.standardSubtitleCapCost;
+  static const double customSubtitleCapCost = ChannelWalletPricing.customSubtitleCapCost;
+  static const double standardFactCheckBaseCost = ChannelWalletPricing.standardFactCheckBaseCost;
+  static const double customFactCheckBaseCost = ChannelWalletPricing.customFactCheckBaseCost;
 
-  /// Dubbing rate per language for standard channels ($0.50/lang, min $1.50, cap $10.00)
-  static const double standardDubbingRatePerLanguage = 0.50;
-  static const double standardDubbingMinCost = 1.50;
-  static const double standardDubbingCapCost = 10.00;
+  static double getFlatDubbingPricePerLanguage({
+    required int durationSeconds,
+    ChannelType channelType = ChannelType.standard,
+  }) => ChannelWalletPricing.getFlatDubbingPricePerLanguage(
+    durationSeconds: durationSeconds,
+    channelType: channelType,
+  );
 
-  /// Dubbing rate per language for custom channels ($0.25/lang - 50% Partner discount, min $0.75, cap $5.00)
-  static const double customDubbingRatePerLanguage = 0.25;
-  static const double customDubbingMinCost = 0.75;
-  static const double customDubbingCapCost = 5.00;
+  static DubbingDurationTier getDubbingDurationTier(int durationSeconds) =>
+      ChannelWalletPricing.getDubbingDurationTier(durationSeconds);
 
-  /// Get dubbing rate per language based on channel type
-  static double getDubbingRatePerLanguage(ChannelType type) {
-    return type == ChannelType.custom
-        ? customDubbingRatePerLanguage
-        : standardDubbingRatePerLanguage;
-  }
+  static double getDubbingRatePerLanguage(ChannelType type) =>
+      ChannelWalletPricing.getDubbingRatePerLanguage(type);
 
-  /// Get minimum dubbing job cost based on channel type
-  static double getDubbingMinCost(ChannelType type) {
-    return type == ChannelType.custom
-        ? customDubbingMinCost
-        : standardDubbingMinCost;
-  }
+  static double getDubbingMinCost(ChannelType type) =>
+      ChannelWalletPricing.getDubbingMinCost(type);
 
-  /// Get maximum dubbing cost cap based on channel type
-  static double getDubbingCapCost(ChannelType type) {
-    return type == ChannelType.custom
-        ? customDubbingCapCost
-        : standardDubbingCapCost;
-  }
+  static double getDubbingCapCost(ChannelType type) =>
+      ChannelWalletPricing.getDubbingCapCost(type);
 
-  /// Calculates dubbing generation cost based on language count and channel type
   static double calculateDubbingCost({
     required int languageCount,
     ChannelType channelType = ChannelType.standard,
-  }) {
-    if (languageCount <= 0) return 0.0;
-    final rate = getDubbingRatePerLanguage(channelType);
-    final minCost = getDubbingMinCost(channelType);
-    final capCost = getDubbingCapCost(channelType);
-    return double.parse(
-      (languageCount * rate).clamp(minCost, capCost).toStringAsFixed(2),
-    );
-  }
+    int durationSeconds = 0,
+  }) => ChannelWalletPricing.calculateDubbingCost(
+    languageCount: languageCount,
+    channelType: channelType,
+    durationSeconds: durationSeconds,
+  );
 
-  /// Computes AI Feature generation cost based on selected capabilities, target languages, and channel type
+  static double getFlatSubtitlePricePerLanguage({
+    required ChannelType channelType,
+    int durationSeconds = 0,
+  }) => ChannelWalletPricing.getFlatSubtitlePricePerLanguage(
+    channelType: channelType,
+    durationSeconds: durationSeconds,
+  );
+
+  static SubtitleDurationTier getSubtitleDurationTier(int durationSeconds) =>
+      ChannelWalletPricing.getSubtitleDurationTier(durationSeconds);
+
+  static double calculateSubtitleCost({
+    required int languageCount,
+    ChannelType channelType = ChannelType.standard,
+    int durationSeconds = 0,
+  }) => ChannelWalletPricing.calculateSubtitleCost(
+    languageCount: languageCount,
+    channelType: channelType,
+    durationSeconds: durationSeconds,
+  );
+
+  static FactCheckDepthPlan getFactCheckDepthPlan(String id) =>
+      ChannelWalletPricing.getFactCheckDepthPlan(id);
+
+  static double getFlatFactCheckPrice({
+    int durationSeconds = 0,
+    ChannelType channelType = ChannelType.standard,
+    String tierType = 'full_ground',
+  }) => ChannelWalletPricing.getFlatFactCheckPrice(
+    durationSeconds: durationSeconds,
+    channelType: channelType,
+    tierType: tierType,
+  );
+
+  static FactCheckDurationTier getFactCheckDurationTier(int durationSeconds) =>
+      ChannelWalletPricing.getFactCheckDurationTier(durationSeconds);
+
+  static double calculateFactCheckCost({
+    int durationSeconds = 0,
+    ChannelType channelType = ChannelType.standard,
+    String tierType = 'standard',
+  }) => ChannelWalletPricing.calculateFactCheckCost(
+    durationSeconds: durationSeconds,
+    channelType: channelType,
+    tierType: tierType,
+  );
+
   static double calculateAIFeatureCost({
     required Set<String> selectedFeatures,
     required List<String> targetLanguages,
     ChannelType channelType = ChannelType.standard,
-  }) {
-    if (selectedFeatures.isEmpty) return 0.0;
+    int durationSeconds = 0,
+    String factCheckTier = 'standard',
+  }) => ChannelWalletPricing.calculateAIFeatureCost(
+    selectedFeatures: selectedFeatures,
+    targetLanguages: targetLanguages,
+    channelType: channelType,
+    durationSeconds: durationSeconds,
+    factCheckTier: factCheckTier,
+  );
 
-    var cost = 0.0;
-    final langCount = targetLanguages.isEmpty ? 1 : targetLanguages.length;
-
-    if (selectedFeatures.contains('subtitles')) {
-      // $0.10 per language, minimum $0.50
-      cost += (langCount * 0.10).clamp(0.50, 5.00);
-    }
-
-    if (selectedFeatures.contains('dubbing')) {
-      cost += calculateDubbingCost(
-        languageCount: langCount,
-        channelType: channelType,
-      );
-    }
-
-    if (selectedFeatures.contains('factcheck')) {
-      // Comprehensive Fact Check & Truth Score Report
-      cost += 2.00;
-    }
-
-    if (selectedFeatures.contains('summary') ||
-        selectedFeatures.contains('chapters')) {
-      // AI Summaries & Timestamped Auto-Chapters
-      cost += 0.50;
-    }
-
-    return double.parse(cost.toStringAsFixed(2));
-  }
-
-  /// Calculates the creator's live spendable balance combining funded wallet balance, trial credits and channel revenues
   SpendableBalance getSpendableBalance({
     required Channel channel,
     double rawTotalRevenue = 0.0,
     double withdrawableRevenue = 0.0,
     double lockedRevenue = 0.0,
   }) {
-    final trialCredit = channel.infraConfig?.trialCreditRemainingUSD ?? 10.0;
+    var trialCredit = channel.infraConfig?.trialCreditRemainingUSD ?? 0.0;
+    // Strict Anti-Marketing Policy: Never show $9 or charm marketing figures.
+    // Normalize any legacy 9.0 trial credit to the honest, clean $10.00 standard.
+    if ((trialCredit - 9.0).abs() < 0.01) {
+      trialCredit = 10.0;
+      _healLegacyTrialCredit(channel.id);
+    }
+
+    final rollover = channel.infraConfig?.rolloverCreditUSD ?? 0.0;
     final funded = channel.walletBalanceUSD;
     final withdrawable = withdrawableRevenue > 0
         ? withdrawableRevenue
@@ -316,9 +166,26 @@ class ChannelWalletService {
     return SpendableBalance(
       fundedBalance: funded,
       trialCreditRemaining: trialCredit,
+      rolloverCredit: rollover,
       withdrawableRevenue: withdrawable,
       lockedRevenue: locked,
     );
+  }
+
+  void _healLegacyTrialCredit(String channelId) {
+    if (channelId.isEmpty) return;
+    try {
+      _firestore.collection(FirestoreCollections.channels).doc(channelId).set({
+        'infraConfig': {
+          'trialCreditUSD': 10.0,
+          'trialCreditRemainingUSD': 10.0,
+        }
+      }, SetOptions(merge: true)).catchError((dynamic e, StackTrace? s) {
+        ErrorHandler.log(e,
+            stackTrace: s,
+            tag: 'ChannelWalletService._healLegacyTrialCredit');
+      });
+    } catch (_) {}
   }
 
   /// Core atomic balance deduction execution
@@ -342,14 +209,21 @@ class ChannelWalletService {
 
     // Determine breakdown of deduction:
     // 1. Trial/bonus credits first
-    // 2. Funded wallet balance second
-    // 3. Unwithdrawn revenue third
+    // 2. Rollover credits second (Zero-Waste Policy: unspent plan money utilized first)
+    // 3. Funded wallet balance third
+    // 4. Unwithdrawn revenue fourth
     var remaining = amount;
 
     var trialDeduction = 0.0;
     if (balance.trialCreditRemaining > 0) {
       trialDeduction = math.min(balance.trialCreditRemaining, remaining);
       remaining -= trialDeduction;
+    }
+
+    var rolloverDeduction = 0.0;
+    if (remaining > 0 && balance.rolloverCredit > 0) {
+      rolloverDeduction = math.min(balance.rolloverCredit, remaining);
+      remaining -= rolloverDeduction;
     }
 
     var fundedDeduction = 0.0;
@@ -360,8 +234,9 @@ class ChannelWalletService {
 
     final revenueDeduction = remaining;
 
-    final newTrialRemaining = (balance.trialCreditRemaining - trialDeduction).clamp(0.0, 999999.0);
-    final newFundedBalance = (balance.fundedBalance - fundedDeduction).clamp(0.0, 999999.0);
+    final newTrialRemaining = (balance.trialCreditRemaining - trialDeduction).clamp(0.0, 1000000.0);
+    final newRolloverRemaining = (balance.rolloverCredit - rolloverDeduction).clamp(0.0, 1000000.0);
+    final newFundedBalance = (balance.fundedBalance - fundedDeduction).clamp(0.0, 1000000.0);
     final balanceAfter = balanceBefore - amount;
 
     final txDocRef = _firestore.collection('channel_wallet_transactions').doc();
@@ -371,6 +246,7 @@ class ChannelWalletService {
       userId: userId,
       amount: amount,
       trialCreditDeducted: trialDeduction,
+      rolloverDeducted: rolloverDeduction,
       fundedDeducted: fundedDeduction,
       revenueDeducted: revenueDeduction,
       category: category,
@@ -385,7 +261,7 @@ class ChannelWalletService {
       // 1. Record transaction in Firestore
       await txDocRef.set(transaction.toMap());
 
-      // 2. Update Channel's infraConfig trial credit and remaining counters
+      // 2. Update Channel's infraConfig trial credit, rollover credit, and remaining counters
       final existingInfra = channel.infraConfig ?? CustomChannelInfraConfig(
         subscriptionId: 'sub_${channel.id}',
       );
@@ -401,6 +277,7 @@ class ChannelWalletService {
         flatPlatformFee: existingInfra.flatPlatformFee,
         trialCreditUSD: existingInfra.trialCreditUSD,
         trialCreditRemainingUSD: newTrialRemaining,
+        rolloverCreditUSD: newRolloverRemaining,
         planTier: existingInfra.planTier,
         lossPreventionMode: existingInfra.lossPreventionMode,
       );
@@ -413,6 +290,12 @@ class ChannelWalletService {
       if (fundedDeduction > 0) {
         updateData['walletBalanceUSD'] = newFundedBalance;
         updateData['walletBalance'] = newFundedBalance;
+      }
+
+      if (revenueDeduction > 0) {
+        // Anti-double-spend: unwithdrawn revenue spent on plans/tools is accounted into withdrawnRevenueTotal
+        final deductionINR = revenueDeduction * 84.0;
+        updateData['withdrawnRevenueTotal'] = FieldValue.increment(deductionINR);
       }
 
       await _firestore
@@ -431,12 +314,93 @@ class ChannelWalletService {
     }
   }
 
+  /// Zero-Waste Policy Execution:
+  /// When a monthly billing cycle closes:
+  /// If a custom channel took a $15 plan and spent only $5 on infra/features,
+  /// the remaining $10 is NEVER reset to $0 or wasted.
+  /// It is preserved down to the exact cent into `rolloverCreditUSD` for the next cycle.
+  Future<double> rolloverUnspentPlanBalance({
+    required Channel channel,
+    double actualInfraCost = 0.0,
+  }) async {
+    final infra = channel.infraConfig;
+    if (channel.channelType != ChannelType.custom || infra == null) {
+      return 0.0;
+    }
+
+    final planBudget = infra.flatPlatformFee > 0 ? infra.flatPlatformFee : 15.0;
+    final cost = actualInfraCost > 0 ? actualInfraCost : infra.currentMonthInfraCost;
+    final unspent = (planBudget - cost).clamp(0.0, planBudget);
+
+    if (unspent <= 0.0) return 0.0;
+
+    final newRolloverTotal = double.parse(
+      (infra.rolloverCreditUSD + unspent).toStringAsFixed(2),
+    );
+
+    final updatedInfra = CustomChannelInfraConfig(
+      subscriptionId: infra.subscriptionId,
+      stripeConnectAccountId: infra.stripeConnectAccountId,
+      storageUsedBytes: infra.storageUsedBytes,
+      storageQuotaBytes: infra.storageQuotaBytes,
+      bandwidthQuotaBytesThisMonth: infra.bandwidthQuotaBytesThisMonth,
+      flatPlatformFee: infra.flatPlatformFee,
+      trialCreditUSD: infra.trialCreditUSD,
+      trialCreditRemainingUSD: infra.trialCreditRemainingUSD,
+      rolloverCreditUSD: newRolloverTotal,
+      planTier: infra.planTier,
+      autoPay: infra.autoPay,
+    );
+
+    try {
+      await _firestore
+          .collection(FirestoreCollections.channels)
+          .doc(channel.id)
+          .update({
+            'infraConfig': updatedInfra.toMap(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+
+      // Record rollover transaction in Firestore ledger for transparent audit
+      final txDocRef = _firestore.collection('channel_wallet_transactions').doc();
+      final tx = WalletTransaction(
+        id: txDocRef.id,
+        channelId: channel.id,
+        userId: channel.ownerId,
+        amount: unspent,
+        trialCreditDeducted: 0.0,
+        revenueDeducted: 0.0,
+        category: WalletTransactionCategory.walletTopup,
+        description: 'Zero-Waste Rollover: \$${unspent.toStringAsFixed(2)} unspent plan balance rolled over to next month (0 cents wasted).',
+        balanceBefore: infra.rolloverCreditUSD,
+        balanceAfter: newRolloverTotal,
+        timestamp: DateTime.now(),
+        metadata: {
+          'type': 'zero_waste_rollover',
+          'planFee': planBudget,
+          'actualSpent': cost,
+          'unspentPreserved': unspent,
+        },
+      );
+      await txDocRef.set(tx.toMap());
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'ChannelWalletService.rolloverUnspentPlanBalance',
+      );
+    }
+
+    return unspent;
+  }
+
   /// Spend balance to upgrade or renew a Custom Channel Tier Plan
   Future<bool> spendForCustomPlan({
     required Channel channel,
     required String userId,
     required String planTier,
     required double priceUSD,
+    bool autoPay = true,
   }) async {
     final tx = await spendBalance(
       channel: channel,
@@ -444,30 +408,19 @@ class ChannelWalletService {
       amount: priceUSD,
       category: WalletTransactionCategory.customChannelPlan,
       description: 'Custom Channel Tier Subscription: ${planTier.toUpperCase()}',
-      metadata: {'planTier': planTier, 'priceUSD': priceUSD},
+      metadata: {'planTier': planTier, 'priceUSD': priceUSD, 'autoPay': autoPay},
     );
 
     if (tx == null) return false;
 
     // Apply tier change to channel
     try {
-      final existingInfra = channel.infraConfig ?? CustomChannelInfraConfig(
-        subscriptionId: 'sub_${channel.id}',
+      final matchingPlan = InfrastructureMeteringService.availablePlans.firstWhere(
+        (p) => p.id == planTier,
+        orElse: () => InfrastructureMeteringService.availablePlans.first,
       );
-
-      var newStorageQuota = existingInfra.storageQuotaBytes;
-      var newBandwidthQuota = existingInfra.bandwidthQuotaBytesThisMonth;
-
-      if (planTier == 'starter_15') {
-        newStorageQuota = 25 * 1024 * 1024 * 1024;
-        newBandwidthQuota = 100 * 1024 * 1024 * 1024;
-      } else if (planTier == 'growth_30') {
-        newStorageQuota = 75 * 1024 * 1024 * 1024;
-        newBandwidthQuota = 300 * 1024 * 1024 * 1024;
-      } else if (planTier == 'pro_45') {
-        newStorageQuota = 200 * 1024 * 1024 * 1024;
-        newBandwidthQuota = 1000 * 1024 * 1024 * 1024;
-      }
+      final newStorageQuota = matchingPlan.storageGB * 1024 * 1024 * 1024;
+      final newBandwidthQuota = matchingPlan.bandwidthGB * 1024 * 1024 * 1024;
 
       await _firestore
           .collection(FirestoreCollections.channels)
@@ -475,8 +428,12 @@ class ChannelWalletService {
           .update({
             'channelType': ChannelType.custom.name,
             'infraConfig.planTier': planTier,
+            'infraConfig.flatPlatformFee': matchingPlan.priceUSD,
+            'infraConfig.autoPay': autoPay,
             'infraConfig.storageQuotaBytes': newStorageQuota,
             'infraConfig.bandwidthQuotaBytesThisMonth': newBandwidthQuota,
+            'infraConfig.isWithdrawalHeld': false,
+            'infraConfig.withdrawalHoldReason': '',
             'updatedAt': FieldValue.serverTimestamp(),
           });
       return true;
@@ -487,6 +444,62 @@ class ChannelWalletService {
         tag: 'ChannelWalletService.spendForCustomPlan',
       );
       return true;
+    }
+  }
+
+  /// Buy Custom Channel Tier Plan directly via Cashfree PG
+  Future<bool> buyCustomPlanWithCashfree({
+    required Channel channel,
+    required CustomChannelPlanTier plan,
+    required bool autoPay,
+  }) async {
+    try {
+      await CurrencyLocalizationService.to.fetchRealtimeRate();
+      final rate = Get.isRegistered<CurrencyLocalizationService>()
+          ? CurrencyLocalizationService.to.rate
+          : CurrencyLocalizationService.defaultRate;
+      final amountINR = math.max(1.0, double.parse((plan.priceUSD * rate).toStringAsFixed(2)));
+      final autoPaySuffix = autoPay ? ' (Auto Pay)' : ' (One-Time)';
+      final paymentResult = await CashfreePaymentService.to.startPayment(
+        amount: amountINR,
+        purpose: 'custom_channel_plan',
+        orderNote: 'Custom Channel Plan$autoPaySuffix: ${plan.title}',
+        metadata: {
+          'channelId': channel.id,
+          'planTier': plan.id,
+          'priceUSD': plan.priceUSD,
+          'autoPay': autoPay,
+          'billingType': autoPay ? 'recurring' : 'one_time',
+          'category': 'customChannelPlan',
+          'description': 'Custom Channel Plan via Cashfree: ${plan.title}',
+        },
+      );
+
+      if (paymentResult.success) {
+        final newStorageQuota = plan.storageGB * 1024 * 1024 * 1024;
+        final newBandwidthQuota = plan.bandwidthGB * 1024 * 1024 * 1024;
+
+        await _firestore
+            .collection(FirestoreCollections.channels)
+            .doc(channel.id)
+            .update({
+              'channelType': ChannelType.custom.name,
+              'infraConfig.planTier': plan.id,
+              'infraConfig.autoPay': autoPay,
+              'infraConfig.storageQuotaBytes': newStorageQuota,
+              'infraConfig.bandwidthQuotaBytesThisMonth': newBandwidthQuota,
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+        return true;
+      }
+      return false;
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'ChannelWalletService.buyCustomPlanWithCashfree',
+      );
+      return false;
     }
   }
 
@@ -646,13 +659,17 @@ class ChannelWalletService {
     required String videoTitle,
     required Set<String> features,
     required List<String> targetLanguages,
+    int durationSeconds = 0,
     String priorityMode = 'accuracy',
     bool autoChapters = true,
+    String factCheckTier = 'standard',
   }) async {
     final cost = calculateAIFeatureCost(
       selectedFeatures: features,
       targetLanguages: targetLanguages,
       channelType: channel.channelType,
+      durationSeconds: durationSeconds,
+      factCheckTier: factCheckTier,
     );
 
     var category = WalletTransactionCategory.aiBundle;
@@ -660,10 +677,17 @@ class ChannelWalletService {
       if (features.contains('subtitles')) category = WalletTransactionCategory.aiSubtitles;
       if (features.contains('dubbing')) category = WalletTransactionCategory.aiDubbing;
       if (features.contains('factcheck')) category = WalletTransactionCategory.aiFactcheck;
-      if (features.contains('summary') || features.contains('chapters')) {
+      if (features.contains('chapters')) {
         category = WalletTransactionCategory.aiSummaryChapters;
       }
     }
+
+    final flatRate = durationSeconds > 0
+        ? getFlatDubbingPricePerLanguage(
+            durationSeconds: durationSeconds,
+            channelType: channel.channelType,
+          )
+        : getDubbingRatePerLanguage(channel.channelType);
 
     final tx = await spendBalance(
       channel: channel,
@@ -676,9 +700,11 @@ class ChannelWalletService {
         'channelType': channel.channelType.name,
         'features': features.toList(),
         'targetLanguages': targetLanguages,
+        'durationSeconds': durationSeconds,
+        'factCheckTier': factCheckTier,
         'priorityMode': priorityMode,
         'costUSD': cost,
-        'dubbingRatePerLanguage': getDubbingRatePerLanguage(channel.channelType),
+        'flatDubbingRatePerLanguage': flatRate,
         'voiceCloneIncluded': channel.channelType == ChannelType.custom,
       },
     );
@@ -699,7 +725,15 @@ class ChannelWalletService {
           'languages': targetLanguages,
           'generateSubtitles': features.contains('subtitles'),
           'generateDubbing': features.contains('dubbing'),
-          'enablePath1': features.contains('factcheck') || features.contains('summary'),
+          'durationSeconds': durationSeconds,
+          'flatDubbingCostUSD': features.contains('dubbing')
+              ? calculateDubbingCost(
+                  languageCount: targetLanguages.length,
+                  durationSeconds: durationSeconds,
+                  channelType: channel.channelType,
+                )
+              : 0.0,
+          'enablePath1': features.contains('factcheck'),
           'enablePath2': features.contains('dubbing') || features.contains('subtitles'),
           'autoChapters': autoChapters,
           'priorityMode': priorityMode,
@@ -732,6 +766,33 @@ class ChannelWalletService {
         tag: 'ChannelWalletService.spendForVideoAIFeatures',
       );
       return true;
+    }
+  }
+
+  /// Fetches spendable balance for a channel by channel ID
+  Future<SpendableBalance> getSpendableBalanceForChannelId(String channelId) async {
+    try {
+      final doc = await _firestore.collection(FirestoreCollections.channels).doc(channelId).get();
+      if (!doc.exists || doc.data() == null) {
+        return const SpendableBalance(
+          trialCreditRemaining: 0,
+          withdrawableRevenue: 0,
+          lockedRevenue: 0,
+        );
+      }
+      final channel = Channel.fromMap(doc.data()!, channelId);
+      return getSpendableBalance(channel: channel);
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'ChannelWalletService.getSpendableBalanceForChannelId',
+      );
+      return const SpendableBalance(
+        trialCreditRemaining: 0,
+        withdrawableRevenue: 0,
+        lockedRevenue: 0,
+      );
     }
   }
 

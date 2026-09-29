@@ -26,28 +26,36 @@ class ProgressBar extends StatelessWidget {
           : 0.0;
       final hovered = ctrl.progressBarHovered.value;
       final hasChapters = ctrl.chapters.length > 1 && dur.inMilliseconds > 0;
+      var pointerWasDrag = false;
 
-      return MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) {
-          ctrl.progressBarHovered.value = true;
-          ctrl.onInteraction();
-        },
-        onExit: (_) => ctrl.progressBarHovered.value = false,
-        child: LayoutBuilder(
-          builder: (_, constraints) {
-            final barWidth = constraints.maxWidth;
+      return LayoutBuilder(
+        builder: (_, constraints) {
+          final barWidth = constraints.maxWidth;
 
-            // Use Listener for tap-to-seek (raw pointer events bypass
-            // the gesture arena so the outer player GestureDetector
-            // cannot steal them). Keep GestureDetector only for drag.
-            var pointerWasDrag = false;
-            return Listener(
-              behavior: HitTestBehavior.opaque,
-              onPointerDown: (e) {
-                pointerWasDrag = false;
+          return MouseRegion(
+              cursor: SystemMouseCursors.click,
+              onEnter: (_) {
+                ctrl.progressBarHovered.value = true;
                 ctrl.onInteraction();
-                final frac = (e.localPosition.dx / barWidth).clamp(0.0, 1.0);
+              },
+              onHover: (e) {
+                ctrl.progressBarHovered.value = true;
+                ctrl.onInteraction();
+                if (dur.inMilliseconds > 0 && barWidth > 0) {
+                  final frac = (e.localPosition.dx / barWidth).clamp(0.0, 1.0);
+                  ctrl.updateSeekPreview(frac, e.localPosition.dx, dur);
+                }
+              },
+              onExit: (_) {
+                ctrl.progressBarHovered.value = false;
+                ctrl.hideSeekPreview();
+              },
+              child: Listener(
+                behavior: HitTestBehavior.opaque,
+                onPointerDown: (e) {
+                  pointerWasDrag = false;
+                  ctrl.onInteraction();
+                  final frac = (e.localPosition.dx / barWidth).clamp(0.0, 1.0);
                 ctrl.dragPos.value = Duration(
                   milliseconds: (dur.inMilliseconds * frac).toInt(),
                 );
@@ -171,10 +179,10 @@ class ProgressBar extends StatelessWidget {
                                       ? PT.kProgressBarHover
                                       : PT.kProgressBarH,
                                   decoration: BoxDecoration(
-                                    color: AppColors.textPrimary.withValues(
-                                      alpha: 0.18,
+                                    color: Colors.white.withValues(
+                                      alpha: 0.14,
                                     ),
-                                    borderRadius: BorderRadius.circular(3),
+                                    borderRadius: BorderRadius.circular(2),
                                   ),
                                 ),
                               ),
@@ -189,10 +197,10 @@ class ProgressBar extends StatelessWidget {
                                         ? PT.kProgressBarHover
                                         : PT.kProgressBarH,
                                     decoration: BoxDecoration(
-                                      color: AppColors.textPrimary.withValues(
-                                        alpha: 0.3,
+                                      color: Colors.white.withValues(
+                                        alpha: 0.32,
                                       ),
-                                      borderRadius: BorderRadius.circular(3),
+                                      borderRadius: BorderRadius.circular(2),
                                     ),
                                   ),
                                 ),
@@ -208,15 +216,15 @@ class ProgressBar extends StatelessWidget {
                                         ? PT.kProgressBarHover
                                         : PT.kProgressBarH,
                                     decoration: BoxDecoration(
-                                      color: AppColors.error,
-                                      borderRadius: BorderRadius.circular(3),
+                                      color: AppColors.brand,
+                                      borderRadius: BorderRadius.circular(2),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: AppColors.error.withValues(
-                                            alpha: 0.6,
+                                          color: Colors.white.withValues(
+                                            alpha: 0.4,
                                           ),
-                                          blurRadius: 6,
-                                          spreadRadius: 1,
+                                          blurRadius: 4,
+                                          spreadRadius: 0.5,
                                         ),
                                       ],
                                     ),
@@ -294,15 +302,15 @@ class ProgressBar extends StatelessWidget {
                                       width: PT.kThumbRadius * 2,
                                       height: PT.kThumbRadius * 2,
                                       decoration: BoxDecoration(
-                                        color: AppColors.error,
+                                        color: AppColors.brand,
                                         shape: BoxShape.circle,
                                         boxShadow: [
                                           BoxShadow(
-                                            color: AppColors.error.withValues(
-                                              alpha: 0.7,
+                                            color: Colors.white.withValues(
+                                              alpha: 0.6,
                                             ),
-                                            blurRadius: 8,
-                                            spreadRadius: 2,
+                                            blurRadius: 6,
+                                            spreadRadius: 1,
                                           ),
                                         ],
                                       ),
@@ -318,9 +326,9 @@ class ProgressBar extends StatelessWidget {
                   ),
                 ),
               ),
-            );
-          },
-        ),
+            ),
+          );
+        },
       );
     });
   }
@@ -364,7 +372,7 @@ class _ChapterTooltip extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CHAPTER SEGMENTED BAR — YouTube-style with gaps between chapters
+// CHAPTER SEGMENTED BAR — With gaps between chapters
 // ─────────────────────────────────────────────────────────────────────────────
 class _ChapterSegmentedBar extends StatelessWidget {
   const _ChapterSegmentedBar({
@@ -390,7 +398,7 @@ class _ChapterSegmentedBar extends StatelessWidget {
 
     final isExpanded = hovered || ctrl.isDragging.value;
     final barHeight = isExpanded ? PT.kProgressBarHover : PT.kProgressBarH;
-    // Gap between chapter segments (YouTube uses ~2px)
+    // Gap between chapter segments (~2px)
     const double gapWidth = 2;
     final totalGapWidth = gapWidth * (chapters.length - 1);
     final availableWidth = barWidth - totalGapWidth;
@@ -470,12 +478,12 @@ class _ChapterSegmentedBar extends StatelessWidget {
                     widthFactor: chapterPlayedFrac,
                     child: Container(
                       decoration: BoxDecoration(
-                        color: AppColors.error,
+                        color: AppColors.brand,
                         borderRadius: BorderRadius.circular(2),
                         boxShadow: isCurrent && isExpanded
                             ? [
                                 BoxShadow(
-                                  color: AppColors.error.withValues(alpha: 0.5),
+                                  color: Colors.white.withValues(alpha: 0.4),
                                   blurRadius: 4,
                                   spreadRadius: 0.5,
                                 ),

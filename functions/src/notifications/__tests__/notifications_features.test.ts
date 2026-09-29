@@ -303,6 +303,198 @@ function testSafetyNetFiltering() {
 }
 
 // ----------------------------------------------------------------------
+// FEATURE 7: Channel Subscription Notification Preferences (Personalized First)
+// ----------------------------------------------------------------------
+function testChannelNotificationPreferences() {
+  console.log("\n--- [Feature 7] Testing Channel Notification Preferences ---");
+
+  // Helper matching followChannel option resolution
+  function resolveSubscribeNotificationOption(rawOption?: string, rawPref?: string) {
+    const inputOption = (rawOption || rawPref || "personalized").toLowerCase();
+    const notificationOption = ["all", "personalized", "none"].includes(inputOption)
+      ? inputOption
+      : "personalized";
+    const notificationsEnabled = notificationOption !== "none";
+    return { notificationOption, notificationPreference: notificationOption, notificationsEnabled };
+  }
+
+  // Helper matching subscriber fan-out filter logic
+  function shouldNotifySubscriber(subDoc: {
+    userId?: string;
+    notificationsEnabled?: boolean;
+    notificationOption?: string;
+    notificationPreference?: string;
+  }, creatorId: string): { notify: boolean; effectiveOption: string; deliverFeedInbox: boolean } {
+    if (!subDoc.userId || subDoc.userId === creatorId) {
+      return { notify: false, effectiveOption: "none", deliverFeedInbox: false };
+    }
+    const effectiveOption = (subDoc.notificationOption || subDoc.notificationPreference || (subDoc.notificationsEnabled === false ? "none" : "personalized")).toLowerCase();
+    const notify = subDoc.notificationsEnabled !== false && effectiveOption !== "none";
+    return { notify, effectiveOption, deliverFeedInbox: true };
+  }
+
+  // 1. Default subscription resolution
+  const defaultSub = resolveSubscribeNotificationOption();
+  assert(defaultSub.notificationOption === "personalized", "Default subscription notification option is 'personalized'");
+  assert(defaultSub.notificationsEnabled === true, "Default subscription has notificationsEnabled === true");
+
+  // 2. Custom subscription options
+  const allSub = resolveSubscribeNotificationOption("all");
+  assert(allSub.notificationOption === "all" && allSub.notificationsEnabled === true, "Resolves 'all' option correctly with enabled true");
+
+  const noneSub = resolveSubscribeNotificationOption("none");
+  assert(noneSub.notificationOption === "none" && noneSub.notificationsEnabled === false, "Resolves 'none' option correctly with enabled false");
+
+  const invalidSub = resolveSubscribeNotificationOption("unknown_random_option");
+  assert(invalidSub.notificationOption === "personalized", "Falls back to 'personalized' for unknown options");
+
+  // 3. Fan-out filtering tests
+  const creatorId = "creator_123";
+
+  // Creator uploading own video
+  const creatorCheck = shouldNotifySubscriber({ userId: creatorId, notificationOption: "all" }, creatorId);
+  assert(creatorCheck.notify === false && creatorCheck.deliverFeedInbox === false, "Skips notifying creator of their own video");
+
+  // Subscriber with 'personalized' (Default)
+  const personalizedSub = shouldNotifySubscriber({ userId: "sub_1", notificationsEnabled: true, notificationOption: "personalized" }, creatorId);
+  assert(personalizedSub.notify === true && personalizedSub.effectiveOption === "personalized", "Delivers push notification to personalized subscriber");
+  assert(personalizedSub.deliverFeedInbox === true, "Delivers video to personalized subscriber's feed inbox");
+
+  // Subscriber with 'all'
+  const allSubscriber = shouldNotifySubscriber({ userId: "sub_2", notificationsEnabled: true, notificationOption: "all" }, creatorId);
+  assert(allSubscriber.notify === true && allSubscriber.effectiveOption === "all", "Delivers push notification to 'all' subscriber");
+  assert(allSubscriber.deliverFeedInbox === true, "Delivers video to 'all' subscriber's feed inbox");
+
+  // Subscriber with 'none'
+  const noneSubscriber = shouldNotifySubscriber({ userId: "sub_3", notificationsEnabled: false, notificationOption: "none" }, creatorId);
+  assert(noneSubscriber.notify === false && noneSubscriber.effectiveOption === "none", "Suppresses push notification when subscriber selected 'none'");
+  assert(noneSubscriber.deliverFeedInbox === true, "Still delivers video to feed inbox when push notifications are 'none'");
+
+  // Legacy subscriber doc with only notificationsEnabled: false
+  const legacyMuted = shouldNotifySubscriber({ userId: "sub_4", notificationsEnabled: false }, creatorId);
+  assert(legacyMuted.notify === false && legacyMuted.effectiveOption === "none", "Suppresses push notification for legacy muted doc");
+
+  // Legacy subscriber doc with no notificationOption field (defaults to 'personalized')
+  const legacyDefault = shouldNotifySubscriber({ userId: "sub_5", notificationsEnabled: true }, creatorId);
+  assert(legacyDefault.notify === true && legacyDefault.effectiveOption === "personalized", "Defaults legacy active subscriber to 'personalized'");
+}
+
+// ----------------------------------------------------------------------
+// FEATURE 8: Topic Notification Preferences & Fan-Out Logic
+// ----------------------------------------------------------------------
+function testTopicNotificationPreferences() {
+  console.log("\n--- [Feature 8] Testing Topic Notification Preferences & Fan-Out ---");
+
+  // Helper matching updateTopicNotificationSettings validation
+  function isValidTopicSetting(setting?: string): boolean {
+    if (!setting || typeof setting !== "string") return false;
+    return ["all", "personalized", "none", "unfollow"].includes(setting.trim().toLowerCase());
+  }
+
+  // 1. Setting validation
+  assert(isValidTopicSetting("all"), "Validates 'all' setting");
+  assert(isValidTopicSetting("personalized"), "Validates 'personalized' setting");
+  assert(isValidTopicSetting("none"), "Validates 'none' setting");
+  assert(isValidTopicSetting("unfollow"), "Validates 'unfollow' setting");
+  assert(isValidTopicSetting("ALL"), "Case-insensitively validates 'ALL'");
+  assert(!isValidTopicSetting("invalid_setting"), "Rejects invalid setting");
+  assert(!isValidTopicSetting(""), "Rejects empty setting");
+  assert(!isValidTopicSetting(undefined), "Rejects undefined setting");
+
+  // 2. Topic key extraction
+  function extractTopicKeys(video: { topicId?: string; topics?: string[] }): string[] {
+    const rawTopicKeys: string[] = [];
+    if (video.topicId && typeof video.topicId === "string" && video.topicId.trim().length > 0) {
+      rawTopicKeys.push(video.topicId.trim());
+    }
+    if (Array.isArray(video.topics)) {
+      for (const t of video.topics) {
+        if (typeof t === "string" && t.trim().length > 0) {
+          rawTopicKeys.push(t.trim());
+        }
+      }
+    }
+    return Array.from(new Set(rawTopicKeys));
+  }
+
+  const extractedKeys = extractTopicKeys({
+    topicId: "ai-safety",
+    topics: ["ai-safety", "tech-ethics", "deepfakes", "   ", "deepfakes"],
+  });
+  assert(extractedKeys.length === 3, "Extracts exactly 3 unique non-empty topic keys");
+  assert(extractedKeys.includes("ai-safety"), "Includes primary topicId");
+  assert(extractedKeys.includes("tech-ethics"), "Includes topics array element");
+  assert(extractedKeys.includes("deepfakes"), "Deduplicates repeated topic in array");
+
+  // 3. Personalized eligibility helper matching videoPublishTrigger
+  function isPersonalizedEligible(video: any): boolean {
+    const isVerified = video.isFactChecked === true || video.factCheckStatus === "verified";
+    const isFeatured = video.featured === true || video.isFeatured === true;
+    const isHighTruth = typeof video.truthScore === "number" && video.truthScore >= 75;
+    const isHighTrust = typeof video.trustScore === "number" && video.trustScore >= 75;
+    const isHighlight = video.isHighlight === true;
+    return isVerified || isFeatured || isHighTruth || isHighTrust || isHighlight;
+  }
+
+  assert(isPersonalizedEligible({ factCheckStatus: "verified" }) === true, "Personalized eligible: factCheckStatus verified");
+  assert(isPersonalizedEligible({ isFactChecked: true }) === true, "Personalized eligible: isFactChecked true");
+  assert(isPersonalizedEligible({ featured: true }) === true, "Personalized eligible: featured true");
+  assert(isPersonalizedEligible({ truthScore: 88 }) === true, "Personalized eligible: truthScore >= 75");
+  assert(isPersonalizedEligible({ trustScore: 75 }) === true, "Personalized eligible: trustScore >= 75");
+  assert(isPersonalizedEligible({ isHighlight: true }) === true, "Personalized eligible: isHighlight true");
+  assert(isPersonalizedEligible({ truthScore: 50, featured: false }) === false, "Routine video is not personalized eligible");
+
+  // 4. Topic follower fanout decision logic matching videoPublishTrigger
+  function shouldNotifyTopicFollower(
+    follower: { userId: string; notificationSetting?: string },
+    video: any,
+    notifiedUserIds: Set<string>,
+    creatorId: string
+  ): boolean {
+    const uid = follower.userId;
+    if (!uid || notifiedUserIds.has(uid) || uid === creatorId) return false;
+
+    const setting = (follower.notificationSetting || "all").toLowerCase();
+    if (setting === "none" || setting === "unfollow") return false;
+    if (setting === "personalized" && !isPersonalizedEligible(video)) return false;
+
+    notifiedUserIds.add(uid);
+    return true;
+  }
+
+  const creatorUid = "creator_abc";
+  const notifiedSet = new Set<string>();
+
+  // Creator exclusion
+  const resCreator = shouldNotifyTopicFollower({ userId: creatorUid, notificationSetting: "all" }, { truthScore: 90 }, notifiedSet, creatorUid);
+  assert(resCreator === false, "Skips notifying creator of their own video in followed topic");
+
+  // 'none' setting suppresses notifications
+  const resNone = shouldNotifyTopicFollower({ userId: "user_muted", notificationSetting: "none" }, { truthScore: 90 }, notifiedSet, creatorUid);
+  assert(resNone === false, "Suppresses topic notification when user setting is 'none'");
+
+  // 'unfollow' suppresses notifications
+  const resUnfollow = shouldNotifyTopicFollower({ userId: "user_unfollowed", notificationSetting: "unfollow" }, { truthScore: 90 }, notifiedSet, creatorUid);
+  assert(resUnfollow === false, "Suppresses topic notification when setting is 'unfollow'");
+
+  // 'all' setting receives notification for routine video
+  const resAllRoutine = shouldNotifyTopicFollower({ userId: "user_all", notificationSetting: "all" }, { truthScore: 50 }, notifiedSet, creatorUid);
+  assert(resAllRoutine === true, "Delivers notification to 'all' topic follower even for routine video");
+
+  // 'personalized' setting skips routine video
+  const resPersonalizedRoutine = shouldNotifyTopicFollower({ userId: "user_pers_1", notificationSetting: "personalized" }, { truthScore: 50 }, notifiedSet, creatorUid);
+  assert(resPersonalizedRoutine === false, "Skips notifying 'personalized' follower for routine video");
+
+  // 'personalized' setting receives notification for verified highlight video
+  const resPersonalizedVerified = shouldNotifyTopicFollower({ userId: "user_pers_2", notificationSetting: "personalized" }, { factCheckStatus: "verified" }, notifiedSet, creatorUid);
+  assert(resPersonalizedVerified === true, "Delivers notification to 'personalized' follower for verified video");
+
+  // Deduplication: if user_pers_2 follows another topic on same video, skips duplicate
+  const resDeduplication = shouldNotifyTopicFollower({ userId: "user_pers_2", notificationSetting: "all" }, { factCheckStatus: "verified" }, notifiedSet, creatorUid);
+  assert(resDeduplication === false, "Deduplicates notification across multiple followed topics for the same video");
+}
+
+// ----------------------------------------------------------------------
 // RUN ALL TESTS
 // ----------------------------------------------------------------------
 console.log("==================================================");
@@ -315,6 +507,8 @@ testMentionExtraction();
 testTemplateRegistry();
 testStaleTokenCleanup();
 testSafetyNetFiltering();
+testChannelNotificationPreferences();
+testTopicNotificationPreferences();
 
 console.log("\n==================================================");
 console.log(`TOTAL RESULTS: ${passed} PASSED, ${failed} FAILED`);

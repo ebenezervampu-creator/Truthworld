@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/widgets/truth_lottie_animation.dart';
 import 'package:truthworld/features/video/data/models/fact_check_data_parser.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
@@ -26,9 +27,14 @@ class FactCheckOverlay extends StatelessWidget {
         video.factCheckUrl.isNotEmpty &&
         vc != null &&
         vc.factCheckData.isEmpty &&
-        !vc.isLoadingFactCheck.value) {
+        !vc.isLoadingFactCheck.value &&
+        !vc.hasAttemptedFactCheck.value) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        vc.loadFactCheckData(video.factCheckUrl);
+        if (vc.factCheckData.isEmpty &&
+            !vc.isLoadingFactCheck.value &&
+            !vc.hasAttemptedFactCheck.value) {
+          vc.loadFactCheckData(video.factCheckUrl);
+        }
       });
     }
 
@@ -75,18 +81,13 @@ class FactCheckOverlay extends StatelessWidget {
                 ctrl.showFactOverlay.value;
 
                 if (vc != null && vc.isLoadingFactCheck.value) {
-                  return const Center(
+                  return Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            AppColors.brand,
-                          ),
-                        ),
-                        SizedBox(height: 12),
-                        Text(
+                        TruthLottieAnimation.aiScanning(size: 48),
+                        const SizedBox(height: 12),
+                        const Text(
                           'Loading fact-check data...',
                           style: TextStyle(
                             color: AppColors.textSecondary,

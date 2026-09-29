@@ -64,7 +64,7 @@ class ChannelMonetizationHeaderCard extends StatelessWidget {
                           ),
                           child: Text(
                             isCustom
-                                ? r'Custom Channel (0% Cut • Plans $15, $30, $45/mo)'
+                                ? r'Custom Channel (0% Cut • Plans $15, $30, $45, $100, $200/mo)'
                                 : 'Standard Channel (70/30 Ads/Subs • 100% Fans)',
                             style: typography.label.copyWith(
                               color: Colors.white,

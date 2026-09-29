@@ -169,10 +169,12 @@ export const processSuperchat = onCall(
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
+      // Normalize to INR for channel revenue ledger to ensure accurate bank withdrawal calculation
+      const amountINR = currency === "USD" ? Math.round(amount * 84.0 * 100) / 100 : amount;
       transaction.set(
         channelRef,
         {
-          superchatRevenueTotal: admin.firestore.FieldValue.increment(amount),
+          superchatRevenueTotal: admin.firestore.FieldValue.increment(amountINR),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         },
         { merge: true }

@@ -94,7 +94,6 @@ async function calculateLiveChannelRevenue(
   channelRef: admin.firestore.DocumentReference,
   channelData: admin.firestore.DocumentData
 ): Promise<number> {
-  const isCustom = channelData.type === "custom" || channelData.channelType === "custom";
   const chSuperchats = Number(channelData.superchatRevenueTotal || 0);
   const chAds = Number(channelData.adsRevenueTotal || 0);
   let chMembers = Number(channelData.membershipRevenueTotal || channelData.membershipsRevenueTotal || 0);
@@ -120,12 +119,10 @@ async function calculateLiveChannelRevenue(
     }
   }
 
-  const chWatchRevenue = Number(channelData.watchTimeRevenueTotal || 0);
-  const gross = chSuperchats + chAds + chMembers + chWatchRevenue;
-  if (isCustom) {
-    return Math.round(gross * 100) / 100;
-  }
-  return Math.round(((chAds * 0.70) + chSuperchats + chMembers + (chWatchRevenue * 0.70)) * 100) / 100;
+  const chWatchRevenue = Number(channelData.premiumSubsRevenueTotal || channelData.watchTimeRevenueTotal || 0);
+  // chAds and chWatchRevenue are already net creator shares credited by settlement functions
+  const total = chSuperchats + chAds + chMembers + chWatchRevenue;
+  return Math.round(total * 100) / 100;
 }
 
 // =============================================================================

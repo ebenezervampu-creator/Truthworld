@@ -5,7 +5,7 @@ import 'package:truthworld/features/dashboard/presentation/views/dashboard/comme
 
 export 'package:truthworld/features/dashboard/presentation/views/dashboard/comments/dashboard_comments_widgets.dart';
 
-/// Exact YouTube Studio Architecture Comment Management Page
+/// Studio Architecture Comment Management Page
 /// 100% AppTheme, 100% AppFonts (GoogleFonts.roboto), Icon Guidelines Compliant
 /// Declarative StatelessWidget strictly enforcing Zero setState Policy.
 /// Optimized for Mobile (Android/iOS) and Responsive Desktop Layouts.

@@ -3,16 +3,19 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/features/video/data/services/storyboard_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/playback_source.dart';
 import 'package:truthworld/features/video/presentation/controllers/player_lock_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_mixins/tower_mixins.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player/tower_player_components.dart';
+import 'package:truthworld/features/video/presentation/controllers/tower_player_overlay_manager.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/services/sleep_timer_service.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:video_player/video_player.dart';
 
 export 'tower_player/tower_player_components.dart';
+export 'tower_player_overlay_manager.dart';
 
 /// TowerPlayerController: Core video playback controller orchestrating Chewie,
 /// ABR streaming, ads, background audio, gestures, and subtitle/track sync.
@@ -29,7 +32,9 @@ class TowerPlayerController extends BaseController
         TowerPlayerModesMixin,
         TowerPlayerNavigationMixin,
         TowerPlayerSleepTimerMixin,
+        TowerPlayerTimelineMixin,
         TowerPlayerTracksMixin,
+        TowerPlayerUIStateMixin,
         TowerPlayerPlaybackControlMixin {
   bool _isClosed = false;
   @override
@@ -49,6 +54,50 @@ class TowerPlayerController extends BaseController
       rxValue = const VideoPlayerValue.uninitialized().obs;
       isInitialized.value = false;
     }
+  }
+
+  // ── Overlay Manager & UI State Contracts ──────────────────
+  @override
+  late final TowerPlayerOverlayManager overlayManager = TowerPlayerOverlayManager(
+    onOverlayChanged: (overlay) {
+      if (overlay != TowerPlayerOverlay.none) {
+        cancelHideTimer();
+        controlsVisible.value = true;
+      } else {
+        startHideTimer();
+      }
+    },
+  );
+
+  @override
+  bool get isPlayingValue => isPlaying.value;
+
+  @override
+  bool get isScrubbingValue => isScrubbing.value;
+
+  // ── Dynamic Truth Report Getters ──────────────────────────
+  int? get truthReportScore {
+    final score = videoController?.video.trustScore;
+    if (score != null && score > 0) {
+      return score > 5.0 ? score.toInt() : (score * 20).toInt();
+    }
+    final rawScore = videoController?.factCheckData['trustScore'];
+    if (rawScore is num && rawScore > 0) {
+      return rawScore > 5.0 ? rawScore.toInt() : (rawScore * 20).toInt();
+    }
+    return null;
+  }
+
+  bool get isAnalyzingTruth =>
+      videoController?.isLoadingFactCheck.value == true;
+
+  String get truthReportBadgeText {
+    if (isAnalyzingTruth) return 'Analyzing…';
+    final score = truthReportScore;
+    if (score != null) return 'Truth Report $score';
+    final isFactChecked = videoController?.video.isFactChecked == true;
+    if (isFactChecked) return 'Truth Report ✓';
+    return 'Truth Report';
   }
 
   // ── Global Registry ───────────────────────────────────────
@@ -118,6 +167,26 @@ class TowerPlayerController extends BaseController
         height: height,
         shadows: shadows,
       );
+
+  // ── Theater Mode & Subtitle Sync Offset ───────────────────
+  final RxBool isTheaterMode = false.obs;
+  @override
+  void toggleTheaterMode() {
+    isTheaterMode.value = !isTheaterMode.value;
+    showToast(isTheaterMode.value ? 'Theater mode on (t)' : 'Default view (t)');
+  }
+
+  final RxInt subtitleOffsetMs = 0.obs;
+  void adjustSubtitleOffset(int deltaMs) {
+    subtitleOffsetMs.value += deltaMs;
+    final sign = subtitleOffsetMs.value > 0 ? '+' : '';
+    showToast('Subtitle sync: $sign${subtitleOffsetMs.value}ms');
+  }
+
+  void resetSubtitleOffset() {
+    subtitleOffsetMs.value = 0;
+    showToast('Subtitle sync reset to 0ms');
+  }
 
   // ── Core Controllers ──────────────────────────────────────
   @override
@@ -203,6 +272,22 @@ class TowerPlayerController extends BaseController
     initABR();
     initAudioService();
     trackAnalytics(PlayerEvent('player_init'));
+
+    if (videoController != null) {
+      ever(videoController!.availableAudioTracks, (_) => _syncTracksWithVideoController());
+      ever(videoController!.availableSubtitles, (_) => _syncTracksWithVideoController());
+      _syncTracksWithVideoController();
+    }
+
+    final vid = videoController?.video;
+    if (vid != null && vid.durationValue > Duration.zero) {
+      storyboardTrack.value = StoryboardService.generateHighDensityTrack(
+        totalDuration: vid.durationValue,
+        multiSheetUrls: vid.storyboardVariants,
+        singleSheetUrl: vid.storyboardUrl,
+        thumbnailVariants: vid.thumbnailVariants,
+      );
+    }
 
     final isFromMiniplayer =
         TowerPlayerLifecycleHelper.isFromMiniplayerOrResumed(
@@ -429,6 +514,7 @@ class TowerPlayerController extends BaseController
       isBackgroundAudioActive = false;
     }
     abr.onClose();
+    overlayManager.dispose();
     TowerPlayerRegistry.disposePipChannel();
     if (Get.isRegistered<PlayerLockController>(tag: tag)) {
       Get.delete<PlayerLockController>(tag: tag, force: true);

@@ -106,8 +106,8 @@ class ChannelWalletTopupSheet {
                     Expanded(
                       child: Text(
                         channel.channelType == ChannelType.custom
-                            ? r'Custom Partner Wholesale: $0.25/lang Dubbing (50% Off) + Voice Cloning & instant spend across all AI tools.'
-                            : r'Standard Channel: $0.50/lang Dubbing, $0.10/lang Subtitles, Fact-checking, Chapters & storage.',
+                            ? r'Custom Channel: At-cost pass-through Dubbing (from $0.10/lang) & Subtitles (from $0.025/lang) + Studio Voice Cloning.'
+                            : r'Standard Channel: At-cost pass-through Dubbing (from $0.10/lang) & Subtitles (from $0.025/lang). 100% Free Fact-Checking.',
                         style: const TextStyle(
                           fontSize: 12,
                           color: AppColors.textSecondary,

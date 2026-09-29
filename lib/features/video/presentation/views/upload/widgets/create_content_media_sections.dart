@@ -237,7 +237,7 @@ class CreateContentThumbnailSection extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'Choose or upload a YouTube 16:9 thumbnail for your video',
+              'Choose or upload a 16:9 thumbnail for your video',
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.45),
                 fontSize: 12,
