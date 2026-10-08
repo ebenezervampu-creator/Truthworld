@@ -12,34 +12,35 @@ class CopyrightEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return const Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.check_circle_outline,
               size: 80,
-              color: Colors.green,
+              color: AppColors.success,
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Text(
               'Channel content is claim-free',
-              style: AppTextStyles.pageTitle.copyWith(
+              style: TextStyle(
+                fontFamily: TWTypography.brandFamily,
                 fontSize: 18,
-                color: isDarkMode ? AppColors.textPrimary : Colors.black,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               'Keep up the great work creating original content!',
               textAlign: TextAlign.center,
-              style: AppTextStyles.bodyMedium.copyWith(
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
                 fontSize: 14,
-                color: isDarkMode
-                    ? AppColors.textSecondary
-                    : Colors.black,
+                color: AppColors.textSecondary,
               ),
             ),
           ],
@@ -68,29 +69,29 @@ class CopyrightErrorState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.error_outline,
+            const Icon(
+              Icons.error_outline_rounded,
               size: 48,
-              color: isDarkMode ? Colors.white : Colors.black87,
+              color: AppColors.error,
             ),
             const SizedBox(height: 16),
-            Text(
+            const Text(
               'Failed to load copyright data',
-              style: AppTextStyles.titleLarge.copyWith(
+              style: TextStyle(
+                fontFamily: TWTypography.brandFamily,
                 fontWeight: FontWeight.bold,
-                fontSize: 16,
-                color: isDarkMode ? AppColors.textPrimary : Colors.black,
+                fontSize: 18,
+                color: AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: 8),
-            Text(
+            const Text(
               'Unable to retrieve copyright details. Please check your connection and try again.',
               textAlign: TextAlign.center,
-              style: AppTextStyles.bodyMedium.copyWith(
-                fontSize: 13,
-                color: isDarkMode
-                    ? AppColors.textSecondary
-                    : Colors.black,
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                fontSize: 14,
+                color: AppColors.textSecondary,
               ),
             ),
             const SizedBox(height: 24),
@@ -99,8 +100,17 @@ class CopyrightErrorState extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.brand,
                 foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
-              child: const Text('Try Again'),
+              child: const Text(
+                'Try Again',
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ],
         ),
@@ -120,35 +130,35 @@ class MatchToolEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return const Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.verified_user_rounded,
               size: 64,
-              color: Colors.green,
+              color: AppColors.success,
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Text(
               'No unauthorized re-uploads detected',
               style: TextStyle(
+                fontFamily: TWTypography.brandFamily,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: isDarkMode ? AppColors.textPrimary : Colors.black,
+                color: AppColors.textPrimary,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               'Truthworld continuously scans new video uploads for copyright matches.',
               textAlign: TextAlign.center,
               style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
                 fontSize: 14,
-                color: isDarkMode
-                    ? AppColors.textSecondary
-                    : Colors.black,
+                color: AppColors.textSecondary,
               ),
             ),
           ],

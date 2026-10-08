@@ -28,25 +28,36 @@ class DeletePlaylistConfirmationDialog extends StatelessWidget {
     final controller = Get.find<PlaylistsManagementController>();
 
     return AlertDialog(
-      backgroundColor: const Color(0xFF141417),
+      backgroundColor: const Color(0xFF1E1E1E),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: Color(0xFF27272A)),
+        side: const BorderSide(color: AppColors.bgDivider),
       ),
       title: const Text(
         'Delete Playlist?',
-        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        style: TextStyle(
+          color: AppColors.textPrimary,
+          fontWeight: FontWeight.bold,
+          fontFamily: TWTypography.brandFamily,
+        ),
       ),
       content: Text(
         'Are you sure you want to permanently delete "${playlist.name}"? This action cannot be undone.',
-        style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+        style: const TextStyle(
+          color: AppColors.textSecondary,
+          fontSize: 13,
+          fontFamily: TWTypography.uiFamily,
+        ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text(
             'Cancel',
-            style: TextStyle(color: AppColors.textSecondary),
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontFamily: TWTypography.uiFamily,
+            ),
           ),
         ),
         ElevatedButton(
@@ -57,8 +68,17 @@ class DeletePlaylistConfirmationDialog extends StatelessWidget {
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.error,
             foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
-          child: const Text('Delete'),
+          child: const Text(
+            'Delete',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontFamily: TWTypography.uiFamily,
+            ),
+          ),
         ),
       ],
     );

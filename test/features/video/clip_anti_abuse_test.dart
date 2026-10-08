@@ -168,5 +168,69 @@ void main() {
       expect(controller.endSeconds.value, equals(40.0)); // Clamped to start (10) + maxDuration (30)
       expect(controller.endSeconds.value - controller.startSeconds.value, equals(30.0));
     });
+
+    test('setDurationPreset accurately adjusts clip length within bounds', () {
+      controller.initialize(totalDur: 300.0, currentPos: 50.0);
+      expect(controller.startSeconds.value, equals(50.0));
+
+      // 5s preset
+      controller.setDurationPreset(5.0);
+      expect(controller.endSeconds.value - controller.startSeconds.value, equals(5.0));
+
+      // 30s preset
+      controller.setDurationPreset(30.0);
+      expect(controller.endSeconds.value - controller.startSeconds.value, equals(30.0));
+
+      // Near end of video: shifts start back so desired duration is achieved
+      controller.initialize(totalDur: 100.0, currentPos: 95.0);
+      controller.setDurationPreset(15.0);
+      expect(controller.endSeconds.value, equals(100.0));
+      expect(controller.startSeconds.value, equals(85.0));
+    });
+
+    test('stepStart and stepEnd fine-tune timestamps by second increments', () {
+      controller.initialize(totalDur: 300.0, currentPos: 20.0);
+      final initialStart = controller.startSeconds.value;
+      final initialEnd = controller.endSeconds.value;
+
+      controller.stepStart(1.0);
+      expect(controller.startSeconds.value, equals(initialStart + 1.0));
+
+      controller.stepStart(-1.0);
+      expect(controller.startSeconds.value, equals(initialStart));
+
+      controller.stepEnd(1.0);
+      expect(controller.endSeconds.value, equals(initialEnd + 1.0));
+
+      controller.stepEnd(-1.0);
+      expect(controller.endSeconds.value, equals(initialEnd));
+    });
+
+    test('shiftSegment moves window left and right preserving duration', () {
+      controller.initialize(totalDur: 300.0, currentPos: 50.0);
+      controller.startSeconds.value = 50.0;
+      controller.endSeconds.value = 65.0; // 15s span
+
+      controller.shiftSegment(5.0);
+      expect(controller.startSeconds.value, equals(55.0));
+      expect(controller.endSeconds.value, equals(70.0));
+
+      controller.shiftSegment(-10.0);
+      expect(controller.startSeconds.value, equals(45.0));
+      expect(controller.endSeconds.value, equals(60.0));
+    });
+
+    test('setStartToPlayhead and setEndToPlayhead sync with player position', () {
+      controller.initialize(totalDur: 300.0, currentPos: 75.0);
+      controller.currentVideoPosition.value = 75.0;
+
+      controller.setStartToPlayhead();
+      expect(controller.startSeconds.value, equals(75.0));
+      expect(controller.endSeconds.value >= 80.0, isTrue);
+
+      controller.currentVideoPosition.value = 90.0;
+      controller.setEndToPlayhead();
+      expect(controller.endSeconds.value, equals(90.0));
+    });
   });
 }

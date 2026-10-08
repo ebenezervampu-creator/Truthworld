@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -33,6 +34,9 @@ mixin VideoPlaylistNavigationMixin on GetxController {
   set commentsController(CommentsController ctrl);
   RxBool get isAudioOnly;
   RxBool get navigatedFromPlaylist;
+  bool get isAlreadyWatched;
+  set isAlreadyWatched(bool val);
+  String? get tag;
 
   void flushRemainingWatchTime();
   Future<void> syncWatchHistory(int currentWatchSeconds, int totalDuration);
@@ -52,6 +56,19 @@ mixin VideoPlaylistNavigationMixin on GetxController {
     if (isAtEnd && value.isPlaying) {
       if (_hasHandledCompletion) return;
       _hasHandledCompletion = true;
+
+      // Transparent watch completion: Only grant genuine full completion if user
+      // ACTUALLY watched >= 85% of duration (never when dragged to end in a swap).
+      final totalDuration = value.duration.inSeconds;
+      final actualWatched = watchStopwatch.elapsed.inSeconds;
+      final isGenuineFullWatch = totalDuration > 0 && actualWatched >= (totalDuration * 0.85);
+
+      if (isGenuineFullWatch) {
+        isAlreadyWatched = true;
+        if (Get.isRegistered<WatchHistoryService>()) {
+          WatchHistoryService.to.markVideoFullyWatched(video.id);
+        }
+      }
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
         processVideoCompletion();
@@ -112,6 +129,7 @@ mixin VideoPlaylistNavigationMixin on GetxController {
       arguments: {
         'video': nextVideo,
         'playlist': currentPlaylist.value,
+        'isAudioOnly': false,
       },
     );
   }
@@ -149,19 +167,57 @@ mixin VideoPlaylistNavigationMixin on GetxController {
         arguments: {
           'video': prevVideo,
           'playlist': currentPlaylist.value,
+          'isAudioOnly': false,
         },
       );
     }
   }
 
-  void toggleAudioOnly() {
-    if (Get.isRegistered<TowerPlayerController>(tag: video.id)) {
-      Get.find<TowerPlayerController>(tag: video.id).toggleAudioOnly();
-    } else if (Get.isRegistered<TowerPlayerController>()) {
-      Get.find<TowerPlayerController>().toggleAudioOnly();
-    } else {
-      isAudioOnly.value = !isAudioOnly.value;
+  TowerPlayerController? get towerPlayerController {
+    if (tag != null &&
+        tag!.isNotEmpty &&
+        Get.isRegistered<TowerPlayerController>(tag: tag)) {
+      return Get.find<TowerPlayerController>(tag: tag);
     }
+    final strippedTag = tag?.replaceFirst('video_', '');
+    if (strippedTag != null &&
+        strippedTag.isNotEmpty &&
+        Get.isRegistered<TowerPlayerController>(tag: strippedTag)) {
+      return Get.find<TowerPlayerController>(tag: strippedTag);
+    }
+    final prefixedTag = 'video_${tag ?? ''}';
+    if (prefixedTag.isNotEmpty &&
+        Get.isRegistered<TowerPlayerController>(tag: prefixedTag)) {
+      return Get.find<TowerPlayerController>(tag: prefixedTag);
+    }
+    if (video.id.isNotEmpty &&
+        Get.isRegistered<TowerPlayerController>(tag: video.id)) {
+      return Get.find<TowerPlayerController>(tag: video.id);
+    }
+    if (Get.isRegistered<TowerPlayerController>()) {
+      return Get.find<TowerPlayerController>();
+    }
+    return TowerPlayerController.getForTagOrActive(
+      tag ?? (video.id.isNotEmpty ? video.id : null),
+    );
+  }
+
+  void setAudioOnly(bool enabled) {
+    isAudioOnly.value = enabled;
+    TowerPlayerController.globalAudioOnly = enabled;
+    if (Get.arguments is Map) {
+      (Get.arguments as Map)['isAudioOnly'] = enabled;
+    }
+    final tpc = towerPlayerController;
+    if (tpc != null) {
+      tpc.isAudioOnly.value = enabled;
+      tpc.setAudioOnly(enabled);
+    }
+    debugPrint('[VideoController] Audio only mode set to: $enabled');
+  }
+
+  void toggleAudioOnly() {
+    setAudioOnly(!isAudioOnly.value);
     debugPrint('[VideoController] Audio only mode: ${isAudioOnly.value}');
   }
 
@@ -236,9 +292,20 @@ mixin VideoPlaylistNavigationMixin on GetxController {
       tag: 'video_${nextVideo.id}',
     );
 
+    isAudioOnly.value = false;
+    TowerPlayerController.globalAudioOnly = false;
+    if (Get.arguments is Map) {
+      (Get.arguments as Map)['isAudioOnly'] = false;
+    }
+    if (Get.isRegistered<TowerPlayerController>(tag: nextVideo.id)) {
+      Get.find<TowerPlayerController>(tag: nextVideo.id).setAudioOnly(false);
+    }
+
     initializeVideoPlayer(overrideUrl: nextVideo.videoUrl);
     fetchRecommendations();
     checkUserInteractions();
-    channelController.listenSubscription(nextVideo.channelId);
+    if (nextVideo.channelId.trim().isNotEmpty) {
+      channelController.listenSubscription(nextVideo.channelId);
+    }
   }
 }

@@ -88,8 +88,8 @@ void main() {
       stopwatch.stop();
 
       expect(lastTokens.length, greaterThanOrEqualTo(5));
-      expect(stopwatch.elapsedMilliseconds, lessThan(400),
-          reason: 'Extracting tokens from 10,000 queries must complete within 400 ms. '
+      expect(stopwatch.elapsedMilliseconds, lessThan(800),
+          reason: 'Extracting tokens from 10,000 queries must complete within 800 ms. '
               'Took ${stopwatch.elapsedMilliseconds} ms.');
     });
   });

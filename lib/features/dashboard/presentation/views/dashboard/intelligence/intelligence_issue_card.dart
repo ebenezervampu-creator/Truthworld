@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Specialized issue notification card with status-specific badge accents.
 class IntelligenceIssueCard extends StatelessWidget {
@@ -25,30 +26,30 @@ class IntelligenceIssueCard extends StatelessWidget {
     Color borderColor;
 
     if (statusType == 'PENDING') {
-      badgeBg = const Color(0xFF1E293B);
-      borderColor = const Color(0xFF38BDF8).withValues(alpha: 0.4);
+      badgeBg = AppColors.infoContainer;
+      borderColor = AppColors.info.withValues(alpha: 0.4);
     } else if (statusType == 'APPROVED') {
-      badgeBg = const Color(0xFF064E3B);
-      borderColor = const Color(0xFF10B981).withValues(alpha: 0.4);
+      badgeBg = AppColors.successContainer;
+      borderColor = AppColors.success.withValues(alpha: 0.4);
     } else if (statusType == 'FLAGGED') {
-      badgeBg = const Color(0xFF451A03);
-      borderColor = const Color(0xFFF59E0B).withValues(alpha: 0.4);
+      badgeBg = AppColors.warningContainer;
+      borderColor = AppColors.warning.withValues(alpha: 0.4);
     } else if (statusType == 'MANUAL_REVIEW') {
-      badgeBg = const Color(0xFF2E1065);
-      borderColor = const Color(0xFF8B5CF6).withValues(alpha: 0.4);
+      badgeBg = AppColors.infoContainer;
+      borderColor = AppColors.info.withValues(alpha: 0.4);
     } else {
       // REJECTED
-      badgeBg = const Color(0xFF450A0A);
-      borderColor = const Color(0xFFEF4444).withValues(alpha: 0.4);
+      badgeBg = AppColors.errorContainer;
+      borderColor = AppColors.error.withValues(alpha: 0.4);
     }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF121212),
+        color: AppColors.bgSurface,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: AppColors.bgDivider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -83,17 +84,21 @@ class IntelligenceIssueCard extends StatelessWidget {
                     Text(
                       title,
                       style: const TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontFamilyFallback: TWTypography.fallbackFamilies,
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       description,
                       style: const TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontFamilyFallback: TWTypography.fallbackFamilies,
                         fontSize: 13,
-                        color: Color(0xFFA1A1AA),
+                        color: AppColors.textSecondary,
                         height: 1.4,
                       ),
                     ),

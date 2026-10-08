@@ -134,13 +134,17 @@ class TopicManagementController extends BaseController {
         .snapshots()
         .map(
           (snapshot) {
-            final topics = snapshot.docs
-                .map(Topic.fromDocumentSnapshot)
-                .where((t) =>
-                    t.status != 'deletion_pending' &&
-                    t.status != 'archived' &&
-                    t.status != 'empty_archived')
-                .toList();
+            final seenCanonical = <String>{};
+            final topics = <Topic>[];
+            for (final doc in snapshot.docs) {
+              final t = Topic.fromDocumentSnapshot(doc);
+              if (t.status != 'deletion_pending' &&
+                  t.status != 'archived' &&
+                  t.status != 'empty_archived' &&
+                  seenCanonical.add(t.canonicalKey)) {
+                topics.add(t);
+              }
+            }
             topics.sort((a, b) => b.createdAt.compareTo(a.createdAt));
             return topics;
           },
@@ -218,6 +222,15 @@ class TopicManagementController extends BaseController {
         throw Exception('At least 1 video is required to create a topic');
       }
 
+      // 0.1 Validate description has at least 10 characters
+      if (description.trim().length < 10) {
+        AppSnackbar.warning(
+          'Topic description must be at least 10 characters.',
+          title: 'Description Required',
+        );
+        throw Exception('Topic description must be at least 10 characters');
+      }
+
       // 1. Validate and clean handle format
       var cleanHandle = handle.trim();
       if (cleanHandle.startsWith('T/') || cleanHandle.startsWith('t/')) {
@@ -266,10 +279,15 @@ class TopicManagementController extends BaseController {
           .limit(1)
           .get();
 
-      var finalSlug = slug;
       if (existingSlug.docs.isNotEmpty) {
-        finalSlug = '$slug-${const Uuid().v4().substring(0, 6)}';
+        AppSnackbar.warning(
+          'A topic with this title already exists. Please choose a different title.',
+          title: 'Title Taken',
+        );
+        throw Exception('Topic with this title already exists');
       }
+
+      final finalSlug = slug;
 
       final newTopicRef = _firestore
           .collection(FirestoreCollections.topics)
@@ -293,25 +311,23 @@ class TopicManagementController extends BaseController {
         featuredVideoIds: selectedVideoIds,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
-        status: 'underReview',
       );
 
-      await newTopicRef.set(topic.toMap());
+      // Atomically create the topic and link all selected videos in a single batch write
+      final batch = _firestore.batch();
+      batch.set(newTopicRef, topic.toMap());
 
-      // Update selected videos to link to this new topic in a batch write
-      if (selectedVideoIds.isNotEmpty) {
-        final batch = _firestore.batch();
-        for (final videoId in selectedVideoIds) {
-          final videoRef = _firestore
-              .collection(FirestoreCollections.videos)
-              .doc(videoId);
-          batch.update(videoRef, {
-            'topicId': finalSlug,
-            'topics': FieldValue.arrayUnion([finalSlug]),
-          });
-        }
-        await batch.commit();
+      for (final videoId in selectedVideoIds) {
+        final videoRef = _firestore
+            .collection(FirestoreCollections.videos)
+            .doc(videoId);
+        batch.update(videoRef, {
+          'topicId': finalSlug,
+          'topics': FieldValue.arrayUnion([finalSlug, cleanHandle, newTopicRef.id]),
+        });
       }
+
+      await batch.commit();
 
       AppSnackbar.success(
         'Topic created successfully.',
@@ -344,7 +360,7 @@ class TopicManagementController extends BaseController {
     }
   }
 
-  Future<void> updateTopic({
+  Future<bool> updateTopic({
     required Topic topic,
     required String title,
     required String description,
@@ -353,6 +369,7 @@ class TopicManagementController extends BaseController {
     required TopicVisibilityType visibilityType,
     String? accessCode,
     String? thumbnailUrl,
+    bool showSuccessFeedback = false,
   }) async {
     try {
       if (selectedVideoIds.isEmpty) {
@@ -360,7 +377,7 @@ class TopicManagementController extends BaseController {
           'A topic must contain at least 1 video.',
           title: 'Video Required',
         );
-        throw Exception('A topic must contain at least 1 video');
+        return false;
       }
 
       final updatedTopic = topic.copyWith(
@@ -377,14 +394,13 @@ class TopicManagementController extends BaseController {
         updatedAt: DateTime.now(),
       );
 
-      await _firestore
-          .collection(FirestoreCollections.topics)
-          .doc(topic.id)
-          .update(updatedTopic.toMap());
+      final batch = _firestore.batch();
+      batch.update(
+        _firestore.collection(FirestoreCollections.topics).doc(topic.id),
+        updatedTopic.toMap(),
+      );
 
       final currentLinkedVideos = await fetchTopicVideos(topic.slug);
-
-      final batch = _firestore.batch();
 
       // Videos that were unlinked: remove topicId and topics entry
       for (final videoId in currentLinkedVideos) {
@@ -394,7 +410,7 @@ class TopicManagementController extends BaseController {
               .doc(videoId);
           batch.update(videoRef, {
             'topicId': FieldValue.delete(),
-            'topics': FieldValue.arrayRemove([topic.slug]),
+            'topics': FieldValue.arrayRemove([topic.slug, topic.routePathParameter, topic.id]),
           });
         }
       }
@@ -407,21 +423,32 @@ class TopicManagementController extends BaseController {
               .doc(videoId);
           batch.update(videoRef, {
             'topicId': topic.slug,
-            'topics': FieldValue.arrayUnion([topic.slug]),
+            'topics': FieldValue.arrayUnion([topic.slug, topic.routePathParameter, topic.id]),
           });
         }
       }
 
       await batch.commit();
 
-      AppSnackbar.success(
-        'Topic updated successfully.',
-      );
+      // Immediately sync with local controller reactive list
+      final index = topicsList.indexWhere((t) => t.id == topic.id);
+      if (index != -1) {
+        topicsList[index] = updatedTopic;
+        topicsList.refresh();
+      }
+
+      if (showSuccessFeedback) {
+        AppSnackbar.success(
+          'Topic updated successfully.',
+        );
+      }
+      return true;
     } catch (e) {
       ErrorHandler.log(e);
       AppSnackbar.error(
         'Unable to update topic. Please try again.',
       );
+      return false;
     }
   }
 
@@ -466,20 +493,19 @@ class TopicManagementController extends BaseController {
 
   /// Destructive Confirmation Dialog for deleting topic
   void deleteTopicWithConfirmation(BuildContext context, Topic topic) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     Get.dialog(
       AlertDialog(
-        backgroundColor: isDark
-            ? const Color(0xFF161B22)
-            : AppColors.textPrimary,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: AppColors.bgSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: AppColors.bgDivider),
+        ),
         title: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.error.withValues(alpha: 0.12),
+              decoration: const BoxDecoration(
+                color: AppColors.errorContainer,
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -489,15 +515,14 @@ class TopicManagementController extends BaseController {
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            const Expanded(
               child: Text(
                 'Delete Topic?',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: isDark
-                      ? AppColors.textPrimary
-                      : const Color(0xFF111827),
+                  fontFamily: TWTypography.brandFamily,
+                  color: AppColors.textPrimary,
                 ),
               ),
             ),
@@ -509,20 +534,18 @@ class TopicManagementController extends BaseController {
           children: [
             Text(
               'Are you sure you want to delete "${topic.title}"?',
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
+                color: AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: 8),
-            Text(
+            const Text(
               'This will remove the topic knowledge hub from your studio. Linked videos will remain safe on your channel.',
               style: TextStyle(
                 fontSize: 13,
-                color: isDark
-                    ? const Color(0xFF9CA3AF)
-                    : const Color(0xFF6B7280),
+                color: AppColors.textSecondary,
                 height: 1.4,
               ),
             ),
@@ -531,10 +554,10 @@ class TopicManagementController extends BaseController {
         actions: [
           TextButton(
             onPressed: Get.back,
-            child: Text(
+            child: const Text(
               'Cancel',
               style: TextStyle(
-                color: isDark ? AppColors.textSecondary : AppColors.bgPage54,
+                color: AppColors.textSecondary,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -544,14 +567,14 @@ class TopicManagementController extends BaseController {
               Get.back();
               deleteTopic(topic);
             },
-            icon: const Icon(Icons.delete_rounded, size: 16),
+            icon: const Icon(Icons.delete_rounded, size: 16, color: Colors.white),
             label: const Text(
               'Delete Topic',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
             ),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.error,
-              foregroundColor: AppColors.textPrimary,
+              foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
               ),

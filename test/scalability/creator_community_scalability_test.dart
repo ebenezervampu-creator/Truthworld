@@ -330,7 +330,7 @@ void main() {
 
     test('SpendableBalance.canAfford evaluates 10,000 queries in under 30 ms', () {
       const balance = SpendableBalance(
-        trialCreditRemaining: 15.0,
+        fundedBalance: 15.0,
         withdrawableRevenue: 50.0,
         lockedRevenue: 35.0,
       );
@@ -359,8 +359,8 @@ void main() {
           channelId: 'ch_${i % 50}',
           userId: 'usr_${i % 100}',
           amount: 5.0 + (i % 20),
-          trialCreditDeducted: (i % 2 == 0) ? 2.50 : 0.0,
-          revenueDeducted: (i % 2 == 0) ? 2.50 : 5.0 + (i % 20),
+          trialCreditDeducted: 0.0,
+          revenueDeducted: 5.0 + (i % 20),
           category: WalletTransactionCategory.aiDubbing,
           description: 'AI Dubbing Generation #$i',
           balanceBefore: 100.0,

@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/notifications/data/services/video_feed_notification_service.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -28,6 +29,9 @@ class VideoFeedNotificationController extends BaseController {
 
   String get userId {
     if (_currentUserId.isNotEmpty) return _currentUserId;
+    if (Get.isRegistered<AuthService>() && AuthService.to.user != null) {
+      return AuthService.to.user!.uid;
+    }
     return FirebaseAuth.instance.currentUser?.uid ?? 'guest_user';
   }
 
@@ -45,8 +49,11 @@ class VideoFeedNotificationController extends BaseController {
   }
 
   void _listenToAuthChanges() {
-    _authSubscription =
-        FirebaseAuth.instance.authStateChanges().listen(
+    final authStream = Get.isRegistered<AuthService>()
+        ? AuthService.to.currentUser.stream
+        : FirebaseAuth.instance.authStateChanges();
+
+    _authSubscription = authStream.listen(
       (user) {
         final newUid = user?.uid ?? '';
         if (newUid != _currentUserId) {
@@ -68,7 +75,9 @@ class VideoFeedNotificationController extends BaseController {
       ),
     );
 
-    final initialUser = FirebaseAuth.instance.currentUser;
+    final initialUser = Get.isRegistered<AuthService>()
+        ? AuthService.to.user
+        : FirebaseAuth.instance.currentUser;
     if (initialUser != null && !initialUser.isAnonymous) {
       _currentUserId = initialUser.uid;
       _listenToNotifications();

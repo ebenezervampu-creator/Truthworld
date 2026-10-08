@@ -23,26 +23,8 @@ export 'widgets/home_widgets.dart';
 class Home extends GetView<HomeController> {
   const Home({super.key});
 
-  void _preloadDeferredLibraries() {
-    if (Get.testMode) return;
-    subscriptions.loadLibrary().catchError(
-      (e) => debugPrint('Preload subscriptions error: $e'),
-    );
-    lib_feature.loadLibrary().catchError(
-      (e) => debugPrint('Preload library error: $e'),
-    );
-    explore_topics.loadLibrary().catchError(
-      (e) => debugPrint('Preload explore_topics error: $e'),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    // Preload deferred layouts to ensure zero-latency transitions
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _preloadDeferredLibraries();
-    });
-
     // Check if we need to open a playlist detail
     final args = Get.arguments;
     if (args != null && args['openPlaylist'] != null) {
@@ -151,6 +133,11 @@ class Home extends GetView<HomeController> {
     return Obx(() {
       final index = controller.sideNavSelectedIndex.value;
       final isCore = _isCoreTab(index);
+      final activeTabIndex = _mapIndexToTabIndex(index);
+      if (isCore) {
+        controller.markTabVisited(activeTabIndex);
+      }
+      final visited = controller.visitedTabIndices;
 
       return Stack(
         children: [
@@ -158,7 +145,7 @@ class Home extends GetView<HomeController> {
           Offstage(
             offstage: !isCore,
             child: IndexedStack(
-              index: _mapIndexToTabIndex(index),
+              index: activeTabIndex,
               children: [
                 // Tab 0: Home Feed
                 HomeMainContent(
@@ -170,36 +157,48 @@ class Home extends GetView<HomeController> {
                   appBarActionsBuilder: (ctx) =>
                       _buildAppBarActions(ctx, !isDesktop),
                 ),
-                // Tab 1: Subscriptions
-                DeferredWidget(
-                  key: const PageStorageKey('tab_subscriptions'),
-                  loader: subscriptions.loadLibrary,
-                  placeholder: const SubscriptionsShimmerPlaceholder(),
-                  builder: () =>
-                      subscriptions.SubscriptionsPage(isDashboard: true),
-                ),
-                // Tab 2: Discover Channel
-                DeferredWidget(
-                  key: const PageStorageKey('tab_discover'),
-                  loader: discover.loadLibrary,
-                  builder: () =>
-                      discover.DiscoverChannelsPage(isDashboard: true),
-                ),
-                // Tab 3: Explore Topics
-                DeferredWidget(
-                  key: const PageStorageKey('tab_explore_topics'),
-                  loader: explore_topics.loadLibrary,
-                  placeholder: const TopicsShimmerPlaceholder(),
-                  builder: () =>
-                      explore_topics.ExploreTopicsPage(isDashboard: true),
-                ),
-                // Tab 4: Library
-                DeferredWidget(
-                  key: const PageStorageKey('tab_library'),
-                  loader: lib_feature.loadLibrary,
-                  placeholder: const LibraryShimmerPlaceholder(),
-                  builder: () => lib_feature.LibraryScreen(isDashboard: true),
-                ),
+                // Tab 1: Subscriptions (Lazy initialized on first user visit)
+                if (visited.contains(1))
+                  DeferredWidget(
+                    key: const PageStorageKey('tab_subscriptions'),
+                    loader: subscriptions.loadLibrary,
+                    placeholder: const SubscriptionsShimmerPlaceholder(),
+                    builder: () =>
+                        subscriptions.SubscriptionsPage(isDashboard: true),
+                  )
+                else
+                  const SizedBox.shrink(key: PageStorageKey('tab_subscriptions_placeholder')),
+                // Tab 2: Discover Channel (Lazy initialized on first user visit)
+                if (visited.contains(2))
+                  DeferredWidget(
+                    key: const PageStorageKey('tab_discover'),
+                    loader: discover.loadLibrary,
+                    builder: () =>
+                        discover.DiscoverChannelsPage(isDashboard: true),
+                  )
+                else
+                  const SizedBox.shrink(key: PageStorageKey('tab_discover_placeholder')),
+                // Tab 3: Explore Topics (Lazy initialized on first user visit)
+                if (visited.contains(3))
+                  DeferredWidget(
+                    key: const PageStorageKey('tab_explore_topics'),
+                    loader: explore_topics.loadLibrary,
+                    placeholder: const TopicsShimmerPlaceholder(),
+                    builder: () =>
+                        explore_topics.ExploreTopicsPage(isDashboard: true),
+                  )
+                else
+                  const SizedBox.shrink(key: PageStorageKey('tab_explore_topics_placeholder')),
+                // Tab 4: Library (Lazy initialized on first user visit)
+                if (visited.contains(4))
+                  DeferredWidget(
+                    key: const PageStorageKey('tab_library'),
+                    loader: lib_feature.loadLibrary,
+                    placeholder: const LibraryShimmerPlaceholder(),
+                    builder: () => lib_feature.LibraryScreen(isDashboard: true),
+                  )
+                else
+                  const SizedBox.shrink(key: PageStorageKey('tab_library_placeholder')),
               ],
             ),
           ),

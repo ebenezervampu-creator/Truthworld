@@ -7,7 +7,6 @@ class HomeSidebarVisibility {
       'Home',
       'Discover Channel',
       'Explore Topics',
-      'Settings',
       'Help Center',
       'Feedback',
       'About Truthworld',
@@ -15,8 +14,6 @@ class HomeSidebarVisibility {
       'Terms & Conditions',
       'Community Guidelines',
       'Truthworld Studio',
-      'Admin Portal',
-      'Advertiser Portal',
     ];
 
     if (!isAuthenticated) {
@@ -25,6 +22,7 @@ class HomeSidebarVisibility {
 
     return [
       ...publicEntries,
+      'Settings',
       'Subscriptions',
       'Your channel',
       'History',

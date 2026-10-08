@@ -9,13 +9,23 @@ extension VideoStatusExtension on Video {
         status == VideoStatus.flagged ||
         status == VideoStatus.pending_review ||
         status == VideoStatus.draft ||
-        status == VideoStatus.uploading ||
-        status == VideoStatus.processing) {
+        status == VideoStatus.uploading) {
       return false;
     }
     if (geminiApproved == true || isApproved == true) return true;
     if (status == VideoStatus.ready) return true;
-    return false;
+    final hasPlayable = videoUrl.trim().isNotEmpty ||
+        originalUrl.trim().isNotEmpty ||
+        hlsUrl.trim().isNotEmpty ||
+        dashUrl.trim().isNotEmpty ||
+        adaptiveResolutions.any((r) => r.url.trim().isNotEmpty);
+    return hasPlayable;
+  }
+
+  /// Returns true if video visibility is set to Private.
+  bool get isPrivate {
+    final vis = visibility.trim().toLowerCase();
+    return vis == 'private' || vis == 'private_draft';
   }
 
   /// Returns true if video is considered a draft or in preliminary stage.
@@ -55,22 +65,32 @@ extension VideoStatusExtension on Video {
     return false;
   }
 
-  /// Returns true if video is currently uploading, transcoding, or pending review.
+  /// Returns true if video is currently uploading, transcoding, or pending review without playable media.
   bool get isUploadingOrProcessing {
     if (isDraft) return true;
     if (status == VideoStatus.uploading ||
-        status == VideoStatus.processing ||
         status == VideoStatus.draft ||
         status == VideoStatus.pending_review) {
+      return true;
+    }
+    final hasPlayable = videoUrl.trim().isNotEmpty ||
+        originalUrl.trim().isNotEmpty ||
+        hlsUrl.trim().isNotEmpty ||
+        dashUrl.trim().isNotEmpty ||
+        adaptiveResolutions.any((r) => r.url.trim().isNotEmpty);
+
+    if (status == VideoStatus.processing && !hasPlayable) {
       return true;
     }
     final statusName = status.name.toLowerCase();
     if (statusName == 'uploading' ||
         statusName == 'uploaded' ||
-        statusName == 'processing' ||
         statusName == 'draft' ||
         statusName == 'pending_review' ||
         statusName == 'pending') {
+      return true;
+    }
+    if (statusName == 'processing' && !hasPlayable) {
       return true;
     }
     return false;

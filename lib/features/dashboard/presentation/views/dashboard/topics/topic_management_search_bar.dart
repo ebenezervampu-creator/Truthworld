@@ -19,10 +19,10 @@ class TopicManagementSearchBar extends StatelessWidget {
       return Container(
         height: 44,
         decoration: BoxDecoration(
-          color: const Color(0xFF121212),
+          color: AppColors.bgInput,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: query.isNotEmpty ? Colors.white : const Color(0xFF27272A),
+            color: query.isNotEmpty ? AppColors.brand : AppColors.bgDivider,
             width: query.isNotEmpty ? 1.5 : 1.0,
           ),
         ),

@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:truthworld/core/utils/source_url_sanitizer.dart';
+import 'package:truthworld/features/video/data/models/credibility_report.dart';
 
 void main() {
   group('Video Credibility Claims & Real Sources Tests', () {
@@ -87,33 +89,34 @@ void main() {
           claim['references'];
       if (rawSources is List) {
         for (final s in rawSources) {
+          if (!SourceUrlSanitizer.isValidSource(s)) continue;
           if (s is Map) {
-            final url = (s['url'] ?? s['directUrl'] ?? s['link'])?.toString();
+            final sanitized = SourceUrlSanitizer.sanitizeSourceMap(Map<dynamic, dynamic>.from(s));
+            final url = sanitized['url']?.toString();
             if (url != null && url.isNotEmpty) {
-              realSources.add(Map<String, dynamic>.from(s));
+              realSources.add(Map<String, dynamic>.from(sanitized));
             } else {
-              final title =
-                  (s['title'] ?? s['author'] ?? s['domain'] ?? rawText)
-                      .toString();
+              final domain = sanitized['domain']?.toString();
+              if (domain != null &&
+                  domain.isNotEmpty &&
+                  domain != 'google.com' &&
+                  !domain.contains('google.com') &&
+                  !SourceUrlSanitizer.isDummyDomain(domain)) {
+                sanitized['url'] = domain.startsWith('http') ? domain : 'https://$domain';
+                sanitized['directUrl'] = sanitized['url'];
+                realSources.add(Map<String, dynamic>.from(sanitized));
+              }
+            }
+          } else if (s is String && s.trim().isNotEmpty) {
+            final clean = SourceUrlSanitizer.sanitizeUrl(s, title: s);
+            if (clean != null && clean.isNotEmpty) {
               realSources.add({
-                'title': title,
-                'url':
-                    'https://www.google.com/search?q=${Uri.encodeComponent(title)}',
-                'domain': 'google.com',
-                'snippet': s['snippet'] ?? 'Verified citation reference',
+                'title': s.trim(),
+                'url': clean,
+                'domain': SourceUrlSanitizer.resolveDisplayDomain(clean, title: s),
+                'snippet': 'Historical citation reference',
               });
             }
-          } else if (s is String && s.isNotEmpty) {
-            realSources.add({
-              'title': s,
-              'url': s.startsWith('http')
-                  ? s
-                  : 'https://www.google.com/search?q=${Uri.encodeComponent(s)}',
-              'domain': s.startsWith('http')
-                  ? (Uri.tryParse(s)?.host ?? '')
-                  : 'google.com',
-              'snippet': 'Historical citation reference',
-            });
           }
         }
       }
@@ -323,6 +326,64 @@ void main() {
       expect(r.response, equals('Explicit backend response'));
       expect(r.sources.first['title'], equals('Custom TRAI Paper'));
       expect(r.sources.first['url'], equals('https://trai.gov.in/custom-doc.pdf'));
+    });
+
+    test('Faith-based supernatural claim evaluation: Jesus walks on water it is 100% proved', () {
+      final claimMap = {
+        'claim': 'Jesus walks on water and it is 100% proved',
+        'verdict': 'FAITH-BASED CLAIM',
+        'claimDomain': 'RELIGIOUS',
+        'claimNature': 'SUPERNATURAL_CLAIM',
+        'classificationConfidence': 0.98,
+        'historicalEvidenceConfidence': 0.15,
+        'evidenceDetails': {
+          'scriptural': 'VERY_STRONG',
+          'historical': 'LIMITED',
+          'scientific': 'CONTRADICTED',
+        },
+        'consensusDetails': {
+          'theology': 'HIGH',
+          'historical': 'LOW',
+          'scientific': 'NONE',
+        },
+        'verdictBasis': [
+          'The account of Jesus walking on water (Matthew 14:22–33, John 6:16–21) is a religious miracle tradition of faith. While scripturally central to Christian theology, it is not an empirically or scientifically proven physical event, so asserting it as 100% proved fact is epistemically inaccurate.'
+        ],
+        'richSources': [
+          {
+            'title': 'Gospel of Matthew (Matthew 14:22-33)',
+            'sourceType': 'scripture',
+            'bookTitle': 'New Testament',
+            'chapter': 'Matthew 14',
+            'trustLevel': 'High',
+            'url': 'https://www.biblegateway.com/passage/?search=Matthew+14%3A22-33',
+            'domain': 'biblegateway.com',
+          },
+          {
+            'title': 'Miracles of Jesus - Academic & Theological Consensus',
+            'sourceType': 'encyclopedia',
+            'domain': 'en.wikipedia.org',
+            'url': 'https://en.wikipedia.org/wiki/Jesus_walking_on_water',
+          }
+        ]
+      };
+
+      final claimResult = ClaimResult.fromMap(claimMap);
+
+      expect(claimResult.text, equals('Jesus walks on water and it is 100% proved'));
+      expect(claimResult.verdict, equals('FAITH-BASED CLAIM'));
+      expect(claimResult.claimDomain, equals('RELIGIOUS'));
+      expect(claimResult.claimNature, equals('SUPERNATURAL_CLAIM'));
+      expect(claimResult.classificationConfidence, greaterThanOrEqualTo(0.95));
+      expect(claimResult.historicalEvidenceConfidence, lessThan(0.3));
+      expect(claimResult.evidenceDetails?['scriptural'], equals('VERY_STRONG'));
+      expect(claimResult.evidenceDetails?['historical'], equals('LIMITED'));
+      expect(claimResult.evidenceDetails?['scientific'], equals('CONTRADICTED'));
+      expect(claimResult.consensusDetails?['theology'], equals('HIGH'));
+      expect(claimResult.consensusDetails?['scientific'], equals('NONE'));
+      expect(claimResult.effectiveSources.length, equals(2));
+      expect(claimResult.effectiveSources.first.domain, equals('biblegateway.com'));
+      expect(claimResult.effectiveSources.last.domain, equals('en.wikipedia.org'));
     });
   });
 }

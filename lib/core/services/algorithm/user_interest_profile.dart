@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:truthworld/core/constants/app_categories.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 
 /// Inferred behavioral cognitive consumption styles
@@ -680,22 +681,9 @@ class UserInterestProfile {
 
   /// Get categories the user has NEVER or LEAST explored
   List<String> getUnexploredCategories([List<String> allAvailableCategories = const []]) {
-    const defaultCategories = [
-      'Science',
-      'Technology',
-      'Education',
-      'Philosophy',
-      'News',
-      'Documentary',
-      'Business & Finance',
-      'Health & Fitness',
-      'Travel',
-      'History',
-    ];
-
     final candidatePool = allAvailableCategories.isNotEmpty
         ? allAvailableCategories
-        : defaultCategories;
+        : AppCategories.allCategories;
 
     final unexplored = <String>[];
     for (final cat in candidatePool) {

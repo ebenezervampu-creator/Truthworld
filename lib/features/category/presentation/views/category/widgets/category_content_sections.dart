@@ -184,7 +184,7 @@ class CategoryNewReleasesSection extends StatelessWidget {
                   .map(Video.fromDocumentSnapshot)
                   .where(
                     (video) =>
-                        VideoVisibilityPolicy.isValidVideo(video) &&
+                        VideoVisibilityPolicy.isVisibleForFeed(video) &&
                         (query.isEmpty ||
                             video.title.toLowerCase().contains(query) ||
                             video.channelName.toLowerCase().contains(query)),
@@ -280,7 +280,7 @@ class CategoryTopContentSection extends StatelessWidget {
                   .map(Video.fromDocumentSnapshot)
                   .where(
                     (video) =>
-                        VideoVisibilityPolicy.isValidVideo(video) &&
+                        VideoVisibilityPolicy.isVisibleForFeed(video) &&
                         (query.isEmpty ||
                             video.title.toLowerCase().contains(query) ||
                             video.channelName.toLowerCase().contains(query)),

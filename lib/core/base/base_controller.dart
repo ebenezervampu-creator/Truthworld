@@ -30,6 +30,9 @@ class BaseController extends GetxController {
   final RxString _errorMessage = ''.obs;
   String get errorMessage => _errorMessage.value;
 
+  bool _isDisposed = false;
+  bool get isDisposed => _isDisposed || isClosed;
+
   bool get isLoading => state == ViewState.loading;
   bool get isRefreshing => state == ViewState.refreshing;
   bool get isPaginationLoading => state == ViewState.paginationLoading;
@@ -105,6 +108,7 @@ class BaseController extends GetxController {
   @override
   @mustCallSuper
   void onClose() {
+    _isDisposed = true;
     logDispose();
     _uiEventController.close();
     for (final worker in workers) {

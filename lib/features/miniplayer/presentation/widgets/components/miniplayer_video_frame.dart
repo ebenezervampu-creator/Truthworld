@@ -1,14 +1,16 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
+import 'package:truthworld/features/miniplayer/presentation/widgets/components/miniplayer_audio_stage.dart';
 import 'package:truthworld/features/miniplayer/presentation/widgets/components/miniplayer_overlay_controls.dart';
 import 'package:truthworld/features/miniplayer/presentation/widgets/components/miniplayer_video_progress_bar.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:video_player/video_player.dart';
 
-/// Video display frame with embedded overlay controls, subtitles, and progress bar.
+/// Video display frame with embedded overlay controls, subtitles, audio-only stage, and progress bar.
 class MiniplayerVideoFrame extends StatelessWidget {
   final MiniplayerController controller;
   final bool isMobile;
@@ -38,10 +40,24 @@ class MiniplayerVideoFrame extends StatelessWidget {
           );
         }),
 
-        // Actual video playback.
+        // Audio-Only Stage (when audio mode is active)
+        Obx(() {
+          final isAudio = controller.isAudioOnly.value;
+          if (!isAudio) return const SizedBox.shrink();
+          final isPlaying = controller.isPlaying.value;
+          final thumb = controller.videoInfo.value?.thumbnailUrl ?? '';
+          return MiniplayerAudioStage(
+            controller: controller,
+            isPlaying: isPlaying,
+            thumbnailUrl: thumb,
+          );
+        }),
+
+        // Actual video playback (kept offstage when in audio-only mode to maintain audio decoding).
         Obx(() {
           final isReady = controller.isVideoReady.value;
           final vpc = controller.videoPlayerController;
+          final isAudio = controller.isAudioOnly.value;
           if (vpc == null || !isReady) {
             return const SizedBox.shrink();
           }
@@ -59,13 +75,63 @@ class MiniplayerVideoFrame extends StatelessWidget {
           }
           if (w <= 0) w = 16;
           if (h <= 0) h = 9;
-          return FittedBox(
-            fit: BoxFit.cover,
-            clipBehavior: Clip.hardEdge,
-            child: SizedBox(
-              width: w,
-              height: h,
-              child: VideoPlayer(vpc),
+
+          return Offstage(
+            offstage: isAudio,
+            child: FittedBox(
+              fit: BoxFit.cover,
+              clipBehavior: Clip.hardEdge,
+              child: SizedBox(
+                width: w,
+                height: h,
+                child: VideoPlayer(vpc),
+              ),
+            ),
+          );
+        }),
+
+        // Clip Mode Indicator Pill (top-left)
+        Obx(() {
+          final clip = controller.activeClip.value;
+          if (clip == null) return const SizedBox.shrink();
+          return Positioned(
+            top: 8,
+            left: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.8),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: AppColors.brand.withValues(alpha: 0.6),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.4),
+                    blurRadius: 4,
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.content_cut_rounded,
+                    color: Colors.white,
+                    size: 11,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'CLIP',
+                    style: GoogleFonts.robotoMono(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         }),

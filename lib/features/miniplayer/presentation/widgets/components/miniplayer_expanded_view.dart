@@ -2,7 +2,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
+import 'package:truthworld/features/miniplayer/presentation/widgets/components/miniplayer_audio_stage.dart';
 import 'package:truthworld/features/miniplayer/presentation/widgets/components/miniplayer_expanded_details.dart';
 import 'package:truthworld/features/miniplayer/presentation/widgets/components/miniplayer_intents.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -203,10 +205,26 @@ class MiniplayerExpandedVideo extends StatelessWidget {
                     errorWidget: (_, _, _) => const SizedBox.shrink(),
                   );
                 }),
+                // Audio-Only Stage in Expanded View
+                Obx(() {
+                  final isAudio = controller.isAudioOnly.value;
+                  if (!isAudio) return const SizedBox.shrink();
+                  final isPlaying = controller.isPlaying.value;
+                  final thumb =
+                      controller.videoInfo.value?.thumbnailUrl ?? '';
+                  return MiniplayerAudioStage(
+                    controller: controller,
+                    isPlaying: isPlaying,
+                    thumbnailUrl: thumb,
+                    isCompact: false,
+                  );
+                }),
+                // Video Player in Expanded View
                 Obx(() {
                   final isReady = controller.isVideoReady.value;
                   final vpc = controller.videoPlayerController;
                   final hasErr = controller.error.value.isNotEmpty;
+                  final isAudio = controller.isAudioOnly.value;
                   if (hasErr) return const SizedBox.shrink();
                   if (vpc == null || !isReady) {
                     return const Center(
@@ -216,10 +234,61 @@ class MiniplayerExpandedVideo extends StatelessWidget {
                       ),
                     );
                   }
-                  return Center(
-                    child: AspectRatio(
-                      aspectRatio: vpc.value.aspectRatio,
-                      child: VideoPlayer(vpc),
+                  return Offstage(
+                    offstage: isAudio,
+                    child: Center(
+                      child: AspectRatio(
+                        aspectRatio: vpc.value.aspectRatio,
+                        child: VideoPlayer(vpc),
+                      ),
+                    ),
+                  );
+                }),
+                // Clip Badge in Expanded View
+                Obx(() {
+                  final clip = controller.activeClip.value;
+                  if (clip == null) return const SizedBox.shrink();
+                  return Positioned(
+                    top: 14,
+                    left: 14,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.8),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: AppColors.brand.withValues(alpha: 0.6),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.4),
+                            blurRadius: 6,
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.content_cut_rounded,
+                            color: Colors.white,
+                            size: 13,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            'CLIP MODE',
+                            style: GoogleFonts.robotoMono(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 }),

@@ -143,4 +143,65 @@ void main() {
       controller.onClose();
     });
   });
+
+  group('GoogleOnboardingController - Phone User & Username Handling', () {
+    late GoogleOnboardingController controller;
+
+    setUp(() {
+      controller = GoogleOnboardingController();
+    });
+
+    tearDown(() {
+      controller.onClose();
+    });
+
+    test('validates valid usernames correctly', () {
+      expect(controller.validateUsername(''), isNull);
+      expect(controller.validateUsername('alex'), isNull);
+      expect(controller.validateUsername('alex_rider'), isNull);
+      expect(controller.validateUsername('user.name_123'), isNull);
+      expect(controller.validateUsername('@alex_rider'), isNull);
+    });
+
+    test('rejects usernames with invalid characters or spaces', () {
+      expect(controller.validateUsername('alex rider'), contains('letters, numbers, underscores, and periods'));
+      expect(controller.validateUsername('alex!rider'), contains('letters, numbers, underscores, and periods'));
+      expect(controller.validateUsername('alex#123'), contains('letters, numbers, underscores, and periods'));
+    });
+
+    test('rejects usernames that are too short or too long', () {
+      expect(controller.validateUsername('ab'), contains('at least 3 characters'));
+      expect(controller.validateUsername('a' * 31), contains('cannot exceed 30 characters'));
+    });
+
+    test('rejects profane usernames', () {
+      final err = controller.validateUsername('fuck_you');
+      expect(err, isNotNull);
+      expect(err, contains('inappropriate language'));
+    });
+
+    test('clears usernameError when username text changes', () {
+      controller.usernameError.value = 'Invalid username';
+      expect(controller.usernameError.value, isNotNull);
+
+      controller.usernameController.text = 'valid_name';
+      expect(controller.usernameError.value, isNull);
+    });
+
+    test('does not prefill default @user_XXXX handle during reinitialize', () {
+      final auth = AuthService.to;
+      auth.userHandle.value = '@user_1234';
+
+      controller.reinitialize();
+      expect(controller.usernameController.text, isEmpty);
+    });
+
+    test('prefills custom handle during reinitialize', () {
+      final auth = AuthService.to;
+      auth.userHandle.value = '@custom_creator';
+
+      controller.reinitialize();
+      expect(controller.usernameController.text, 'custom_creator');
+    });
+  });
 }

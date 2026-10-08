@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:truthworld/theme/app_theme.dart';
 
-/// Shimmer skeleton loading state for playlists screen.
+/// Shimmer skeleton loading state matching the modern PlaylistScreenCard architecture.
 class PlaylistShimmerLoading extends StatelessWidget {
   const PlaylistShimmerLoading({
     required this.isListView,
@@ -19,114 +18,100 @@ class PlaylistShimmerLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final crossAxisCount = isMobile
-        ? 1
-        : isTablet
-            ? 2
-            : 3;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        int crossAxisCount;
+        if (width >= 1150) {
+          crossAxisCount = 4;
+        } else if (width >= 780) {
+          crossAxisCount = 3;
+        } else if (width >= 520) {
+          crossAxisCount = 2;
+        } else {
+          crossAxisCount = width >= 360 ? 2 : 1;
+        }
 
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: isListView || isMobile
-          ? ListView.builder(
-              itemCount: 6,
-              itemBuilder: (context, index) =>
-                  const PlaylistShimmerCard(isGrid: false),
-            )
-          : GridView.builder(
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: crossAxisCount,
-                childAspectRatio: 1.2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-              ),
-              itemCount: 6,
-              itemBuilder: (context, index) =>
-                  const PlaylistShimmerCard(isGrid: true),
-            ),
+        const horizontalPadding = 32.0;
+        const crossAxisSpacing = 16.0;
+        final availableWidth = width - horizontalPadding;
+        final cardWidth = (availableWidth - (crossAxisSpacing * (crossAxisCount - 1))) / crossAxisCount;
+        final thumbWidth = cardWidth - 24;
+        final thumbHeight = thumbWidth * (9.0 / 16.0);
+        final cardHeight = thumbHeight + 104;
+        final childAspectRatio = (cardWidth / cardHeight).clamp(0.65, 1.45);
+
+        return GridView.builder(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          physics: const NeverScrollableScrollPhysics(),
+          shrinkWrap: true,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            childAspectRatio: childAspectRatio,
+          ),
+          itemCount: 4,
+          itemBuilder: (context, index) => const PlaylistShimmerCard(),
+        );
+      },
     );
   }
 }
 
 class PlaylistShimmerCard extends StatelessWidget {
-  const PlaylistShimmerCard({required this.isGrid, super.key});
-
-  final bool isGrid;
+  const PlaylistShimmerCard({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Shimmer.fromColors(
-      baseColor: AppColors.bgSurfaceHover,
-      highlightColor: AppColors.bgSurface,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.bgSurface,
-          borderRadius: BorderRadius.circular(20),
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF141414),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFF242424),
         ),
-        child: isGrid
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: AppColors.bgSurfaceHover,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    height: 16,
-                    width: double.infinity,
-                    color: AppColors.bgSurfaceHover,
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    height: 12,
-                    width: 100,
-                    color: AppColors.bgSurfaceHover,
-                  ),
-                ],
-              )
-            : Row(
-                children: [
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: AppColors.bgSurfaceHover,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          height: 16,
-                          width: double.infinity,
-                          color: AppColors.bgSurfaceHover,
-                        ),
-                        const SizedBox(height: 8),
-                        Container(
-                          height: 12,
-                          width: 120,
-                          color: AppColors.bgSurfaceHover,
-                        ),
-                        const SizedBox(height: 8),
-                        Container(
-                          height: 12,
-                          width: 80,
-                          color: AppColors.bgSurfaceHover,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Shimmer.fromColors(
+        baseColor: const Color(0xFF1E1E1E),
+        highlightColor: const Color(0xFF2A2A2A),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 16:9 Thumbnail skeleton
+            AspectRatio(
+              aspectRatio: 16 / 9,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF222222),
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
+            ),
+            const SizedBox(height: 12),
+            // Title skeleton
+            Container(
+              height: 16,
+              width: 140,
+              decoration: BoxDecoration(
+                color: const Color(0xFF222222),
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            const SizedBox(height: 6),
+            // Subtitle skeleton
+            Container(
+              height: 12,
+              width: 90,
+              decoration: BoxDecoration(
+                color: const Color(0xFF222222),
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

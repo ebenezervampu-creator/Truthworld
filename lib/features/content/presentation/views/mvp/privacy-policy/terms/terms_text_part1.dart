@@ -255,7 +255,7 @@ We respect intellectual property rights and strictly comply with the Indian Copy
 **Copyright Infringement Reporting:**
 If you are a copyright owner or authorized agent and believe that content hosted on Truthworld infringes your intellectual property:
 1. **Online Takedown Form:** You can submit an official statutory takedown request directly via our public Copyright Infringement Form at `/copyright-complaint`.
-2. **Email Notice:** Alternatively, submit a formal written notice to: copyright@truthworld.in
+2. **Email Notice:** Alternatively, submit a formal written notice to: hello@truthworld.in
 3. Required notice contents:
 - Clear description of the copyrighted work claimed to be infringed
 - Exact URL(s) of the infringing content on Truthworld

@@ -63,7 +63,7 @@ class MainControls extends StatelessWidget {
           // Bottom gradient + controls — wrapped in GestureDetector to absorb
           // taps so the outer player GestureDetector (togglePlayPause) doesn't fire.
           Positioned(
-            bottom: -1,
+            bottom: 0,
             left: 0,
             right: 0,
             child: Center(

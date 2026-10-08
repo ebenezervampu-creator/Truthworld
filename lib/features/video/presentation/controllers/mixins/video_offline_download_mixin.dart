@@ -8,13 +8,13 @@ import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
+import 'package:truthworld/core/utils/web_platform_utils.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
 import 'package:truthworld/features/video/data/datasources/local/database_helpers.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/downloadcontroller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
-import 'package:universal_html/html.dart' as html;
 
 /// Mixin handling offline playback loading and video/audio downloading.
 mixin VideoOfflineDownloadMixin on GetxController {
@@ -69,8 +69,7 @@ mixin VideoOfflineDownloadMixin on GetxController {
         }
 
         final mime = isAudio ? 'audio/mpeg' : 'video/mp4';
-        final blob = html.Blob([bytes], mime);
-        offlineBlobUrl = html.Url.createObjectUrl(blob);
+        offlineBlobUrl = WebPlatformUtils.createBlobUrl(bytes, mime);
       } else {
         final proxyUrl = await getOfflinePlaybackUrl(video.id);
         if (proxyUrl != null && proxyUrl.isNotEmpty) {

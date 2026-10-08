@@ -210,5 +210,42 @@ void main() {
       expect(find.text('Truthworld Premium'), findsWidgets);
       expect(find.text(r'Ad-Free Audio ($0.50 / ₹40), Video ($2) & Fact-Checked ($3)'), findsOneWidget);
     });
+
+    testWidgets('renders Choose the plan that fits for you before All-Inclusive Benefits', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: PremiumPlansScreen(),
+        ),
+      );
+
+      final planHeaderFinder = find.text('Choose the plan that fits for you');
+      final benefitsHeaderFinder = find.text('All-Inclusive Benefits');
+
+      expect(planHeaderFinder, findsOneWidget);
+      expect(benefitsHeaderFinder, findsOneWidget);
+
+      final planHeaderY = tester.getTopLeft(planHeaderFinder).dy;
+      final benefitsHeaderY = tester.getTopLeft(benefitsHeaderFinder).dy;
+
+      expect(planHeaderY, lessThan(benefitsHeaderY));
+    });
+  });
+
+  group('PremiumDesktopSidebar Tests', () {
+    testWidgets('renders membership overview and does not render quick shortcuts', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PremiumDesktopSidebar(controller: controller),
+          ),
+        ),
+      );
+
+      expect(find.text('MEMBERSHIP OVERVIEW'), findsOneWidget);
+      expect(find.text('QUICK SHORTCUTS'), findsNothing);
+      expect(find.text('Watch History'), findsNothing);
+      expect(find.text('My Videos'), findsNothing);
+      expect(find.text('Offline Downloads'), findsNothing);
+    });
   });
 }

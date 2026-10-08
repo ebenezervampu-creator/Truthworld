@@ -1,9 +1,66 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:get/get.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
 /// Centralized single source of truth for video visibility policy and rules.
 class VideoVisibilityPolicy {
   static const VideoStatus publicStatus = VideoStatus.ready;
   static const String publicVisibilityString = 'Public';
+
+  /// Returns true if video visibility is set to Private.
+  static bool isPrivate(Video video) {
+    final vis = video.visibility.trim().toLowerCase();
+    return vis == 'private' || vis == 'private_draft';
+  }
+
+  /// Returns true if the viewer is authenticated and owns the video or channel.
+  static bool isOwner(Video video, {String? viewerUid, String? viewerChannelId}) {
+    var uid = viewerUid;
+    if (uid == null) {
+      try {
+        uid = FirebaseAuth.instance.currentUser?.uid;
+      } catch (_) {
+        uid = null;
+      }
+    }
+    final activeChannel =
+        Get.isRegistered<AuthService>() ? AuthService.to.userChannel : null;
+    final chId =
+        viewerChannelId ?? activeChannel?.channelId ?? activeChannel?.id;
+
+    if ((uid == null || uid.isEmpty) && (chId == null || chId.isEmpty)) {
+      return false;
+    }
+
+    // Check direct ownerId / uploader match
+    if (uid != null && uid.isNotEmpty && video.ownerId.isNotEmpty && video.ownerId == uid) {
+      return true;
+    }
+
+    // Check active channel match
+    if (chId != null && chId.isNotEmpty && video.channelId.isNotEmpty && chId == video.channelId) {
+      return true;
+    }
+    if (activeChannel != null &&
+        uid != null &&
+        activeChannel.ownerId.isNotEmpty &&
+        activeChannel.ownerId == uid &&
+        activeChannel.channelId == video.channelId) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /// Authoritative check: can this viewer view this video?
+  /// When a video is Private, ONLY the channel/video owner can view it.
+  static bool canViewVideo(Video video, {String? viewerUid, String? viewerChannelId}) {
+    if (isPrivate(video)) {
+      return isOwner(video, viewerUid: viewerUid, viewerChannelId: viewerChannelId);
+    }
+    return isValidVideo(video);
+  }
 
   /// Industry standard check: video must have at least one valid, non-empty media URL.
   static bool hasPlayableMedia(Video video) {
@@ -22,6 +79,7 @@ class VideoVisibilityPolicy {
     if (video.thumbnailUrl.trim().isNotEmpty) return true;
     if (video.thumbnailVariants.any((v) => v.trim().isNotEmpty)) return true;
     if (video.animatedPreviewUrl.trim().isNotEmpty) return true;
+    if (hasPlayableMedia(video)) return true;
     return false;
   }
 
@@ -41,8 +99,10 @@ class VideoVisibilityPolicy {
         statusName == 'rejected' ||
         statusName == 'draft' ||
         statusName == 'uploading' ||
-        statusName == 'uploaded' ||
-        statusName == 'processing') {
+        statusName == 'uploaded') {
+      return false;
+    }
+    if (statusName == 'processing' && !hasPlayableMedia(video)) {
       return false;
     }
 
@@ -88,7 +148,9 @@ class VideoVisibilityPolicy {
         statusStr == 'pending_review' ||
         statusStr == 'pending' ||
         pipelineStage == 'draft' ||
-        visibilityStr == 'draft') {
+        visibilityStr == 'draft' ||
+        visibilityStr == 'private' ||
+        visibilityStr == 'private_draft') {
       return false;
     }
 
@@ -146,8 +208,11 @@ class VideoVisibilityPolicy {
   /// Standard check for Home Feed, Trending, and Category carousels
   static bool isVisibleForFeed(Video video) {
     if (!isValidVideo(video)) return false;
-    if (video.visibility != publicVisibilityString &&
-        video.visibility != 'public') {
+    if (isPrivate(video)) return false;
+    final vis = video.visibility.trim().toLowerCase();
+    if (vis.isNotEmpty &&
+        vis != 'public' &&
+        vis != publicVisibilityString.toLowerCase()) {
       return false;
     }
     if (!hasValidThumbnail(video)) return false;
@@ -159,8 +224,11 @@ class VideoVisibilityPolicy {
   /// Search & Autocomplete visibility check
   static bool isVisibleForSearch(Video video) {
     if (!isValidVideo(video)) return false;
-    if (video.visibility != publicVisibilityString &&
-        video.visibility != 'public') {
+    if (isPrivate(video)) return false;
+    final vis = video.visibility.trim().toLowerCase();
+    if (vis.isNotEmpty &&
+        vis != 'public' &&
+        vis != publicVisibilityString.toLowerCase()) {
       return false;
     }
     if (!hasValidThumbnail(video)) return false;

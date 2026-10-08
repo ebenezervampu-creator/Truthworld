@@ -5,7 +5,7 @@ import 'package:truthworld/features/discover/presentation/views/channels/widgets
 
 export 'channels/widgets/discover_channels_barrel.dart';
 
-/// Modernized, declarative Discover Channels page.
+/// Modernized Discover Channels page matching exact visual architecture from Image 1 & Image 2.
 class DiscoverChannelsPage extends StatelessWidget {
   const DiscoverChannelsPage({super.key, this.isDashboard = false});
   final bool isDashboard;
@@ -18,13 +18,13 @@ class DiscoverChannelsPage extends StatelessWidget {
 
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 500),
       curve: Curves.easeOutCubic,
       builder: (context, value, child) {
         return Opacity(
           opacity: value,
           child: Transform.translate(
-            offset: Offset(0, 20 * (1.0 - value)),
+            offset: Offset(0, 16 * (1.0 - value)),
             child: child,
           ),
         );
@@ -49,21 +49,21 @@ class DiscoverChannelsPage extends StatelessWidget {
             context,
             controller: controller,
             isDesktop: true,
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
           );
         } else if (isTablet) {
           return _buildScaffold(
             context,
             controller: controller,
             isTablet: true,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           );
         } else {
           return _buildScaffold(
             context,
             controller: controller,
             isMobile: true,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           );
         }
       },
@@ -111,28 +111,38 @@ class DiscoverChannelsPage extends StatelessWidget {
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
       slivers: [
-        // Top Header in Dashboard Mode
+        // Top Header in Dashboard Mode (only when All categories are shown)
         if (isDashboard)
-          DiscoverChannelsDashboardHeader(
-            isDesktop: isDesktop,
-            isTablet: isTablet,
-            padding: padding,
-          ),
+          Obx(() {
+            if (controller.selectedCategory.value != 'All') {
+              return const SliverToBoxAdapter(child: SizedBox.shrink());
+            }
+            return DiscoverChannelsDashboardHeader(
+              isDesktop: isDesktop,
+              isTablet: isTablet,
+              padding: padding,
+            );
+          }),
 
-        // Search Bar
+        // Main Search Bar (Image 1) - only when All categories are shown
         SliverToBoxAdapter(
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              padding.left,
-              isDashboard ? 0 : 8,
-              padding.right,
-              12,
-            ),
-            child: DiscoverSearchBar(
-              controller: controller,
-              isMobile: isMobile,
-            ),
-          ),
+          child: Obx(() {
+            if (controller.selectedCategory.value != 'All') {
+              return const SizedBox.shrink();
+            }
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                padding.left,
+                isDashboard ? 0 : 8,
+                padding.right,
+                14,
+              ),
+              child: DiscoverSearchBar(
+                controller: controller,
+                isMobile: isMobile,
+              ),
+            );
+          }),
         ),
 
         // Active AI Query & Intent Banner (when AI search is active)
@@ -153,35 +163,116 @@ class DiscoverChannelsPage extends StatelessWidget {
           }),
         ),
 
-        // Categories Header / Grid
+        // Categories View or Category Detail Hero Header
         SliverPadding(
           padding: EdgeInsets.symmetric(horizontal: padding.left),
           sliver: Obx(() {
-            if (controller.searchQuery.value.trim().isNotEmpty) {
+            final isCategorySelected = controller.selectedCategory.value != 'All';
+            final hasSearch = controller.searchQuery.value.trim().isNotEmpty;
+
+            // When searching from main page, hide category grid to show results
+            if (!isCategorySelected && hasSearch) {
               return const SliverToBoxAdapter(child: SizedBox.shrink());
             }
-            return controller.selectedCategory.value == 'All'
-                ? DiscoverCategoryGrid(
-                    controller: controller,
-                    isDesktop: isDesktop,
-                    isTablet: isTablet,
-                  )
-                : DiscoverSelectedCategoryHeader(
-                    selectedCategory: controller.selectedCategory.value,
-                    onBack: () => controller.selectCategory('All'),
-                  );
+
+            // Image 2: Category Selected Detail View
+            if (isCategorySelected) {
+              return DiscoverSelectedCategoryHeader(
+                selectedCategory: controller.selectedCategory.value,
+                channelCount: controller.rxIsLoading.value
+                    ? null
+                    : controller.channels.length,
+                onBack: () {
+                  controller.clearSearch();
+                  controller.selectCategory('All');
+                },
+              );
+            }
+
+            // Image 1: Main Discover Channels Page
+            return SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Browse Categories',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: primaryText,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'Find channels that match your interests',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.white.withValues(alpha: 0.60),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            );
           }),
         ),
 
-        // Channels List
+        // Image 1: Category Grid (when on main page without search)
+        SliverPadding(
+          padding: EdgeInsets.symmetric(horizontal: padding.left),
+          sliver: Obx(() {
+            if (controller.selectedCategory.value != 'All' ||
+                controller.searchQuery.value.trim().isNotEmpty) {
+              return const SliverToBoxAdapter(child: SizedBox.shrink());
+            }
+
+            return DiscoverCategoryGrid(
+              controller: controller,
+              isDesktop: isDesktop,
+              isTablet: isTablet,
+            );
+          }),
+        ),
+
+        // Image 1: Creator CTA Banner (shown at bottom of main page)
+        SliverToBoxAdapter(
+          child: Obx(() {
+            if (controller.selectedCategory.value != 'All' ||
+                controller.searchQuery.value.trim().isNotEmpty) {
+              return const SizedBox.shrink();
+            }
+
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                padding.left,
+                24,
+                padding.right,
+                28,
+              ),
+              child: const DiscoverCreatorBanner(),
+            );
+          }),
+        ),
+
+        // Channels List (Shown when inside a Category [Image 2] OR when active search query)
         SliverPadding(
           padding: EdgeInsets.fromLTRB(
             padding.left,
-            16,
+            12,
             padding.right,
             32,
           ),
           sliver: Obx(() {
+            final isCategorySelected = controller.selectedCategory.value != 'All';
+            final hasSearch = controller.searchQuery.value.trim().isNotEmpty;
+
+            // Only show channels list when a category is selected OR when actively searching
+            if (!isCategorySelected && !hasSearch) {
+              return const SliverToBoxAdapter(child: SizedBox.shrink());
+            }
+
             if (controller.isLoading) {
               return const SliverFillRemaining(
                 hasScrollBody: false,

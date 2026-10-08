@@ -311,6 +311,23 @@ class Topic {
     );
   }
 
+  /// Computed video count giving priority to videoCount counter and falling back to featuredVideoIds length.
+  int get effectiveVideoCount =>
+      videoCount > 0 ? videoCount : featuredVideoIds.length;
+
+  /// Canonical identifier for topic deduplication across documents.
+  /// Strips any auto-generated UUID suffixes (e.g. "worship-music-a1b2c3" -> "worship-music")
+  /// and normalizes to lowercase.
+  String get canonicalKey {
+    var s = slug.trim().toLowerCase();
+    final uuidPattern = RegExp(r'-[a-f0-9]{6,8}$');
+    s = s.replaceAll(uuidPattern, '');
+    if (s.isNotEmpty) return s;
+    final t = title.trim().toLowerCase();
+    if (t.isNotEmpty) return t;
+    return id.toLowerCase();
+  }
+
   /// Check if the topic has valid content and metadata to be displayed in feeds/discovery.
   bool get isValidTopic {
     if (slug.trim().isEmpty) return false;
@@ -329,13 +346,26 @@ class Topic {
     if (lowerStatus == 'deleted' ||
         lowerStatus == 'archived' ||
         lowerStatus == 'trash' ||
-        lowerStatus == 'rejected' ||
-        lowerStatus == 'verificationrejected' ||
         lowerStatus == 'empty_archived' ||
         lowerStatus == 'deletion_pending') {
       return false;
     }
-    if (videoCount <= 0 && featuredVideoIds.isEmpty) return false;
+    if (lowerStatus == 'rejected' || lowerStatus == 'verificationrejected') {
+      // If falsely rejected due to asynchronous zero-video race condition or AI moderation timeout but has linked videos, allow recovery
+      final reason = moderationReason?.toLowerCase() ?? '';
+      final isRecoverableRejection = reason.contains('video') ||
+          reason.contains('at least 1') ||
+          reason.contains('0 video') ||
+          reason.contains('moderation check failed') ||
+          reason.contains('manual review') ||
+          reason.contains('invalid response format') ||
+          reason.isEmpty;
+      if (featuredVideoIds.isNotEmpty && isRecoverableRejection) {
+        return true;
+      }
+      return false;
+    }
+    if (effectiveVideoCount <= 0) return false;
     return true;
   }
 

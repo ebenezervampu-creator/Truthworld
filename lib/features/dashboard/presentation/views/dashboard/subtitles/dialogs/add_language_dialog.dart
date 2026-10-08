@@ -47,7 +47,7 @@ class AddLanguageDialog {
                   decoration: BoxDecoration(
                     color: isDarkMode
                         ? const Color(0xFF1E1E1E)
-                        : const Color(0xFFF1F5F9),
+                        : Colors.grey.shade200,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   padding: const EdgeInsets.all(4),
@@ -302,17 +302,17 @@ class AddLanguageDialog {
                               controller.showError('Unable to select file. Please try again.');
                             }
                           },
-                          icon: const Icon(Icons.file_open_rounded, size: 14, color: Colors.white),
+                          icon: const Icon(Icons.file_open_rounded, size: 14, color: Colors.black),
                           label: Text(
                             'Choose',
                             style: AppTextStyles.buttonText.copyWith(
                               fontSize: 12,
-                              color: Colors.white,
+                              color: Colors.black,
                             ),
                           ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF2563EB),
-                            foregroundColor: Colors.white,
+                            backgroundColor: AppColors.brand,
+                            foregroundColor: Colors.black,
                             padding: const EdgeInsets.symmetric(
                               horizontal: 12,
                               vertical: 8,
@@ -331,7 +331,7 @@ class AddLanguageDialog {
                         child: Text(
                           'Cancel',
                           style: AppTextStyles.buttonText.copyWith(
-                            color: Colors.white,
+                            color: isDarkMode ? Colors.white : Colors.black87,
                           ),
                         ),
                       ),
@@ -381,8 +381,8 @@ class AddLanguageDialog {
                                 );
                               },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2563EB),
-                          foregroundColor: Colors.white,
+                          backgroundColor: AppColors.brand,
+                          foregroundColor: Colors.black,
                         ),
                         child: controller.isUploadingFile.value
                             ? const SizedBox(
@@ -391,14 +391,14 @@ class AddLanguageDialog {
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
                                   valueColor: AlwaysStoppedAnimation<Color>(
-                                    Colors.white,
+                                    Colors.black,
                                   ),
                                 ),
                               )
                             : Text(
                                 'Upload & Save',
                                 style: AppTextStyles.buttonText.copyWith(
-                                  color: Colors.white,
+                                  color: Colors.black,
                                 ),
                               ),
                       ),

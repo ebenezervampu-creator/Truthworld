@@ -13,9 +13,9 @@ class CategoryInsightsSearchFilters extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF161618),
+        color: const Color(0xFF1E1E1E),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: AppColors.bgDivider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -23,23 +23,28 @@ class CategoryInsightsSearchFilters extends StatelessWidget {
           // Search Field
           Container(
             decoration: BoxDecoration(
-              color: const Color(0xFF121212),
+              color: AppColors.bgPage,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFF27272A)),
+              border: Border.all(color: AppColors.bgDivider),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: TextField(
               onChanged: (val) => controller.searchQuery.value = val,
-              style: const TextStyle(color: Colors.white, fontSize: 13),
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 13,
+                fontFamily: TWTypography.uiFamily,
+              ),
               decoration: const InputDecoration(
                 hintText: 'Search categories...',
                 hintStyle: TextStyle(
                   color: AppColors.textTertiary,
                   fontSize: 13,
+                  fontFamily: TWTypography.uiFamily,
                 ),
                 prefixIcon: Icon(
                   Icons.search,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   size: 18,
                 ),
                 prefixIconConstraints: BoxConstraints(
@@ -111,10 +116,10 @@ class CategoryInsightsSearchFilters extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFF27272A) : const Color(0xFF121212),
+            color: isSelected ? AppColors.bgSurfaceHover : AppColors.bgPage,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: isSelected ? const Color(0xFF3F3F46) : const Color(0xFF27272A),
+              color: isSelected ? AppColors.textSecondary : AppColors.bgDivider,
             ),
           ),
           child: Row(
@@ -123,7 +128,7 @@ class CategoryInsightsSearchFilters extends StatelessWidget {
               Icon(
                 icon,
                 size: 14,
-                color: Colors.white,
+                color: AppColors.textPrimary,
               ),
               const SizedBox(width: 6),
               Text(
@@ -131,7 +136,8 @@ class CategoryInsightsSearchFilters extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                  color: isSelected ? Colors.white : AppColors.textSecondary,
+                  color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
+                  fontFamily: TWTypography.uiFamily,
                 ),
               ),
             ],

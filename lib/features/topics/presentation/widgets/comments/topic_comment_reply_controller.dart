@@ -13,7 +13,13 @@ class TopicCommentsHeaderController extends GetxController {
   final RxBool isSortNewest = true.obs;
 
   List<Comment> sortComments(List<Comment> rawComments) {
-    final list = List<Comment>.from(rawComments);
+    final seen = <String>{};
+    final list = <Comment>[];
+    for (final c in rawComments) {
+      if (seen.add(c.id)) {
+        list.add(c);
+      }
+    }
     if (isSortNewest.value) {
       list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     } else {
@@ -27,6 +33,7 @@ class TopicCommentsHeaderController extends GetxController {
 class TopicCommentReplyController extends GetxController {
   final RxBool isReplying = false.obs;
   final RxString replyText = ''.obs;
+  final RxBool isSubmitting = false.obs;
 
   late final TextEditingController replyController;
   late final FocusNode replyFocusNode;
@@ -74,7 +81,7 @@ class TopicCommentReplyController extends GetxController {
     required TopicInteractionController controller,
   }) async {
     final text = replyController.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty || isSubmitting.value) return;
 
     final validation = ContentValidator.validate(
       text,
@@ -93,6 +100,7 @@ class TopicCommentReplyController extends GetxController {
       return;
     }
 
+    isSubmitting.value = true;
     try {
       await controller.addReply(topicId, commentId, text);
       replyController.clear();
@@ -101,6 +109,8 @@ class TopicCommentReplyController extends GetxController {
     } catch (e) {
       ErrorHandler.log(e, context: 'TopicCommentsSection.postReply');
       AppSnackbar.error('Unable to post reply. Please try again.');
+    } finally {
+      isSubmitting.value = false;
     }
   }
 }

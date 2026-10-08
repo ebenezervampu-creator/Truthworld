@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/services/image_verification_service.dart';
 import 'package:truthworld/core/services/video_visibility_policy.dart';
@@ -18,10 +19,15 @@ import 'package:truthworld/theme/app_theme.dart';
 
 mixin ChannelDetailsMixin on ChannelControllerBase {
   void fetchChannel(String channelId) {
+    final cleanId = channelId.trim();
+    if (cleanId.isEmpty) {
+      rxIsLoading.value = false;
+      return;
+    }
     rxIsLoading.value = true;
     firestore
         .collection(ChannelControllerBase.channelsCol)
-        .doc(channelId)
+        .doc(cleanId)
         .get()
         .then((doc) {
           if (doc.exists) {
@@ -295,12 +301,19 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
         query = query.orderBy('uploadedAt', descending: true);
       }
 
+      final currentUser = auth.currentUser;
+      final isChannelOwner = currentUser != null &&
+          (selectedChannel.value?.ownerId == currentUser.uid ||
+           (selectedChannel.value?.channelId != null &&
+            selectedChannel.value!.channelId == AuthService.to.userChannel?.channelId));
+
       final snapshot = await query.limit(12).get();
 
       if (snapshot.docs.isNotEmpty) {
         videos.value = snapshot.docs
             .map(Video.fromDocumentSnapshot)
             .where(VideoVisibilityPolicy.isValidVideo)
+            .where((v) => isChannelOwner || !v.isPrivate)
             .toList();
         lastVideoDocument.value = snapshot.docs.last;
         hasVideos.value = videos.isNotEmpty;
@@ -337,6 +350,12 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
     }
     isLoadingMore.value = true;
     try {
+      final currentUser = auth.currentUser;
+      final isChannelOwner = currentUser != null &&
+          (selectedChannel.value?.ownerId == currentUser.uid ||
+           (selectedChannel.value?.channelId != null &&
+            selectedChannel.value!.channelId == AuthService.to.userChannel?.channelId));
+
       var query = firestore
           .collection(FirestoreCollections.videos)
           .where('channelId', isEqualTo: selectedChannel.value!.channelId);
@@ -368,6 +387,7 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
           snapshot.docs
               .map(Video.fromDocumentSnapshot)
               .where(VideoVisibilityPolicy.isValidVideo)
+              .where((v) => isChannelOwner || !v.isPrivate)
               .toList(),
         );
         lastVideoDocument.value = snapshot.docs.last;
@@ -418,12 +438,33 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
 
   Future<void> fetchChannelVideoCount(String channelId) async {
     try {
-      final countSnap = await firestore
-          .collection(FirestoreCollections.videos)
-          .where('channelId', isEqualTo: channelId)
-          .count()
-          .get();
-      channelVideoCount.value = countSnap.count ?? 0;
+      final currentUser = auth.currentUser;
+      final isOwner = currentUser != null &&
+          (selectedChannel.value?.ownerId == currentUser.uid ||
+           (selectedChannel.value?.channelId != null &&
+            selectedChannel.value!.channelId == AuthService.to.userChannel?.channelId));
+
+      if (isOwner) {
+        final countSnap = await firestore
+            .collection(FirestoreCollections.videos)
+            .where('channelId', isEqualTo: channelId)
+            .count()
+            .get();
+        channelVideoCount.value = countSnap.count ?? 0;
+      } else {
+        try {
+          final countSnap = await firestore
+              .collection(FirestoreCollections.videos)
+              .where('channelId', isEqualTo: channelId)
+              .where('visibility', isEqualTo: 'Public')
+              .count()
+              .get();
+          channelVideoCount.value = countSnap.count ?? 0;
+        } catch (_) {
+          channelVideoCount.value =
+              videos.where((v) => !v.isPrivate).length;
+        }
+      }
     } catch (e, stackTrace) {
       ErrorHandler.log(
         e,
@@ -436,9 +477,10 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
   Future<void> checkChannelContent(String channelId) async {
     try {
       final currentUser = auth.currentUser;
-      final isOwner =
-          currentUser != null &&
-          selectedChannel.value?.ownerId == currentUser.uid;
+      final isOwner = currentUser != null &&
+          (selectedChannel.value?.ownerId == currentUser.uid ||
+           (selectedChannel.value?.channelId != null &&
+            selectedChannel.value!.channelId == AuthService.to.userChannel?.channelId));
 
       var postQuery = firestore
           .collection(FirestoreCollections.community)
@@ -454,7 +496,7 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
         firestore
             .collection(FirestoreCollections.videos)
             .where('channelId', isEqualTo: channelId)
-            .limit(1)
+            .limit(10)
             .get(),
         firestore
             .collection('public_playlists')
@@ -470,7 +512,14 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
             .get(),
       ]);
 
-      hasVideos.value = results[0].docs.isNotEmpty;
+      final videoDocs = results[0].docs;
+      final hasAnyVisibleVideo = videoDocs.any((doc) {
+        final data = doc.data() as Map<String, dynamic>?;
+        if (data == null) return false;
+        final vis = (data['visibility'] as String?)?.toLowerCase() ?? 'public';
+        return isOwner || (vis != 'private' && vis != 'draft');
+      });
+      hasVideos.value = hasAnyVisibleVideo;
       hasPlaylists.value = results[1].docs.isNotEmpty;
       hasPosts.value = results[2].docs.isNotEmpty;
       hasTopics.value = results[3].docs.any((doc) {

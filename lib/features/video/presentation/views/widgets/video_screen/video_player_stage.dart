@@ -35,31 +35,32 @@ class VideoPlayerStage extends StatelessWidget {
             final screenHeight = mediaQuery.size.height;
             final maxWidth = constraints.maxWidth;
 
-            final height = maxWidth / ratio;
-            final isDesktop = mediaQuery.size.width > 1050;
+            // Align desktop breakpoint with TWBreakpoints.desktop / widescreen 2-column layout (>= 900)
+            final isDesktop = mediaQuery.size.width >= 900;
+            // On desktop, the left column width is already constrained, so let the player comfortably
+            // fill the column width up to 80% screen height (at least 480px, up to screenHeight - 80px)
+            // so standard 16:9 desktop videos fit full column width without shrinking.
             final maxHeight = isDesktop
-                ? screenHeight * 0.65
+                ? (screenHeight * 0.80).clamp(480.0, (screenHeight - 80.0).clamp(320.0, 1600.0))
                 : screenHeight * 0.55;
 
-            var finalHeight = height;
-            var finalRatio = ratio;
-
-            if (height > maxHeight) {
-              finalHeight = maxHeight;
-              finalRatio = maxWidth / finalHeight;
-            }
-
-            final finalWidth = finalHeight * finalRatio;
+            final validRatio = ratio.isFinite && ratio > 0 ? ratio : 16 / 9;
+            final height = maxWidth / validRatio;
+            final finalHeight = height > maxHeight ? maxHeight : height;
+            final finalWidth = (finalHeight * validRatio).clamp(0.0, maxWidth);
 
             return Stack(
               clipBehavior: Clip.none,
               alignment: Alignment.center,
               children: [
-                // Ambient Mode Glow
+                // Ambient Mode Glow - softly illuminates above and to the sides of the player,
+                // smoothly dissolving to transparent before reaching the bottom edge to ensure
+                // zero hard borders, color bleeding, or seam artifacts below the player controls.
                 if (controller.video.thumbnailUrl.isNotEmpty)
                   Positioned(
-                    width: finalWidth * 1.3,
-                    height: finalHeight,
+                    top: -24,
+                    bottom: 0,
+                    width: finalWidth + 48,
                     child: IgnorePointer(
                       child: Obx(() {
                         if (controller.isFullScreen.value) {
@@ -68,11 +69,24 @@ class VideoPlayerStage extends StatelessWidget {
                         return AnimatedOpacity(
                           duration: const Duration(milliseconds: 1000),
                           opacity: controller.showThumbnail.value ? 0.08 : 0.18,
-                          child: ClipRect(
+                          child: ShaderMask(
+                            shaderCallback: (bounds) {
+                              return const LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                stops: [0.0, 0.65, 0.95],
+                                colors: [
+                                  Colors.white,
+                                  Colors.white,
+                                  Colors.transparent,
+                                ],
+                              ).createShader(bounds);
+                            },
+                            blendMode: BlendMode.dstIn,
                             child: ImageFiltered(
                               imageFilter: ui.ImageFilter.blur(
-                                sigmaX: 65,
-                                sigmaY: 65,
+                                sigmaX: 55,
+                                sigmaY: 55,
                                 tileMode: TileMode.decal,
                               ),
                               child: CachedNetworkImage(
@@ -90,10 +104,9 @@ class VideoPlayerStage extends StatelessWidget {
                   ),
 
                 // Video Player Container
-                AspectRatio(
-                  aspectRatio: finalRatio.isFinite && finalRatio > 0
-                      ? finalRatio
-                      : 16 / 9,
+                SizedBox(
+                  width: finalWidth,
+                  height: finalHeight,
                   child: ColoredBox(
                     color: Colors.black,
                     child: ClipRect(
@@ -242,37 +255,6 @@ class VideoPlayerView extends StatelessWidget {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.brand.withValues(alpha: 0.8),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.verified_rounded,
-                                  color: Colors.black,
-                                  size: 10,
-                                ),
-                                const SizedBox(width: 3),
-                                Text(
-                                  'TRUTHWORLD WATERMARK',
-                                  style: GoogleFonts.roboto(
-                                    color: Colors.black,
-                                    fontSize: 8,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
                         ],
                       ),
                     ),
@@ -324,7 +306,7 @@ class VideoPlayerView extends StatelessWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.6),
+                    color: Colors.black.withValues(alpha: 0.65),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.white24),
                   ),
@@ -332,17 +314,18 @@ class VideoPlayerView extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const Icon(
-                        Icons.water_drop_rounded,
+                        Icons.play_circle_fill_rounded,
                         color: Colors.white,
-                        size: 12,
+                        size: 13,
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 5),
                       Text(
-                        'Truthworld Watermark',
+                        'Truthworld',
                         style: GoogleFonts.roboto(
                           color: Colors.white,
-                          fontSize: 10,
+                          fontSize: 11,
                           fontWeight: FontWeight.bold,
+                          letterSpacing: 0.3,
                         ),
                       ),
                     ],

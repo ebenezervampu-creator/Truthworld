@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/place_holder_screen.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -26,13 +27,11 @@ class DashboardDesktopSidebar extends StatelessWidget {
       builder: (context, child) {
         return Container(
           width: controller.isDrawerExpanded.value ? 280 : 80,
-          decoration: BoxDecoration(
-            color: isDarkMode ? AppColors.bgInput : AppColors.textPrimary,
+          decoration: const BoxDecoration(
+            color: AppColors.bgPage,
             border: Border(
               right: BorderSide(
-                color: isDarkMode
-                    ? const Color(0xFF374151)
-                    : AppColors.bgDivider,
+                color: AppColors.bgDivider,
               ),
             ),
           ),
@@ -72,34 +71,58 @@ class DashboardSidebarHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Obx(
       () => Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: controller.isDrawerExpanded.value
             ? Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  IconButton(
-                    icon: Icon(
-                      Icons.chevron_left_rounded,
-                      color: isDarkMode
-                          ? AppColors.textSecondary
-                          : Colors.black,
+                  const Expanded(
+                    child: Text(
+                      'STUDIO NAVIGATION',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textTertiary,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ),
+                  Semantics(
+                    button: true,
+                    label: 'Collapse navigation sidebar',
+                    child: IconButton(
+                      tooltip: 'Collapse sidebar',
+                      icon: const Icon(
+                        Icons.chevron_left_rounded,
+                        color: AppColors.textSecondary,
+                        size: 20,
+                      ),
+                      onPressed: () {
+                        controller.toggleDrawer();
+                        HapticFeedback.lightImpact();
+                      },
+                    ),
+                  ),
+                ],
+              )
+            : Center(
+                child: Semantics(
+                  button: true,
+                  label: 'Expand navigation sidebar',
+                  child: IconButton(
+                    tooltip: 'Expand sidebar',
+                    icon: const Icon(
+                      Icons.chevron_right_rounded,
+                      color: AppColors.textSecondary,
+                      size: 20,
                     ),
                     onPressed: () {
                       controller.toggleDrawer();
                       HapticFeedback.lightImpact();
                     },
                   ),
-                ],
-              )
-            : Center(
-                child: IconButton(
-                  icon: Icon(
-                    Icons.chevron_right_rounded,
-                    color: isDarkMode ? AppColors.textSecondary : Colors.black,
-                  ),
-                  onPressed: () {
-                    controller.toggleDrawer();
-                    HapticFeedback.lightImpact();
-                  },
                 ),
               ),
       ),
@@ -126,28 +149,18 @@ class DashboardSidebarMenu extends StatelessWidget {
       {
         'icon': Icons.grid_view_rounded,
         'label': 'Studio Home',
-        'color': const Color(0xFF6366F1),
         'action': 'select',
         'target': 1,
       },
       {
         'icon': Icons.video_library_rounded,
         'label': 'Content',
-        'color': const Color(0xFF10B981),
         'action': 'select',
         'target': 2,
       },
       {
-        'icon': Icons.drafts_rounded,
-        'label': 'Drafts',
-        'color': const Color(0xFFF59E0B),
-        'action': 'select',
-        'target': 20,
-      },
-      {
         'icon': Icons.upload_rounded,
         'label': 'Upload',
-        'color': const Color(0xFFF59E0B),
         'action': 'route',
         'route': '/upload',
       },
@@ -156,35 +169,30 @@ class DashboardSidebarMenu extends StatelessWidget {
       {
         'icon': Icons.insights_rounded,
         'label': 'Analytics',
-        'color': const Color(0xFF3B82F6),
         'action': 'select',
         'target': 3,
       },
       {
         'icon': Icons.auto_awesome_rounded,
         'label': 'Creator Intelligence',
-        'color': const Color(0xFF8B5CF6),
         'action': 'select',
         'target': 16,
       },
       {
         'icon': Icons.category_rounded,
         'label': 'Category Insights',
-        'color': const Color(0xFF6366F1),
         'action': 'select',
         'target': 19,
       },
       {
         'icon': Icons.forum_rounded,
         'label': 'Comments',
-        'color': const Color(0xFF8B5CF6),
         'action': 'select',
         'target': 4,
       },
       {
         'icon': Icons.people_rounded,
         'label': 'Audience',
-        'color': const Color(0xFF14B8A6),
         'action': 'select',
         'target': 12,
       },
@@ -193,21 +201,18 @@ class DashboardSidebarMenu extends StatelessWidget {
       {
         'icon': Icons.attach_money_rounded,
         'label': 'Earnings',
-        'color': const Color(0xFF059669),
         'action': 'select',
         'target': 5,
       },
       {
         'icon': Icons.stars_rounded,
         'label': 'Memberships',
-        'color': const Color(0xFFF59E0B),
         'action': 'select',
         'target': 18,
       },
       {
         'icon': Icons.copyright_rounded,
         'label': 'Copyright & Matches',
-        'color': const Color(0xFFDC2626),
         'action': 'select',
         'target': 9,
       },
@@ -216,60 +221,50 @@ class DashboardSidebarMenu extends StatelessWidget {
       {
         'icon': Icons.playlist_play_rounded,
         'label': 'Playlists',
-        'color': const Color(0xFF3B82F6),
         'action': 'select',
         'target': 17,
       },
       {
         'icon': Icons.spatial_audio_rounded,
         'label': 'Audio Tracks & Dubs',
-        'color': const Color(0xFF10B981),
         'action': 'select',
         'target': 7,
       },
       {
         'icon': Icons.view_timeline_rounded,
         'label': 'Chapters',
-        'color': const Color(0xFF3B82F6),
         'action': 'select',
         'target': 11,
       },
       {
         'icon': Icons.color_lens_rounded,
         'label': 'Customization',
-        'color': const Color(0xFFEC4899),
         'action': 'select',
         'target': 6,
       },
       {
         'icon': Icons.edit_note_rounded,
         'label': 'Subtitles',
-        'color': const Color(0xFF7C3AED),
         'action': 'select',
         'target': 10,
       },
       {
+        'icon': Icons.delete_outline_rounded,
+        'label': 'Trash & Recovery',
+        'action': 'select',
+        'target': 13,
+      },
+      {
         'icon': Icons.topic_rounded,
-        'label': 'Topics',
-        'color': const Color(0xFFE11D48),
+        'label': 'Topic Management',
         'action': 'select',
         'target': 14,
       },
       {
-        'icon': Icons.verified_user_rounded,
-        'label': 'Fact Verification',
-        'color': const Color(0xFF10B981),
+        'icon': Icons.verified_rounded,
+        'label': 'Truth Verification',
         'action': 'select',
         'target': 15,
-      },
-
-      // System & Recovery
-      {
-        'icon': Icons.auto_delete_outlined,
-        'label': 'Trash & Restore',
-        'color': const Color(0xFF94A3B8),
-        'action': 'select',
-        'target': 13,
       },
     ];
 
@@ -278,16 +273,14 @@ class DashboardSidebarMenu extends StatelessWidget {
       final isDrawerExpanded = controller.isDrawerExpanded.value;
 
       return ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         itemCount: menuItems.length + 3,
         itemBuilder: (context, index) {
           if (index == menuItems.length) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
               child: Divider(
-                color: isDarkMode
-                    ? const Color(0xFF374151)
-                    : const Color(0xFFE5E7EB),
+                color: AppColors.bgDivider,
                 thickness: 1,
                 height: 1,
               ),
@@ -298,7 +291,6 @@ class DashboardSidebarMenu extends StatelessWidget {
             return DashboardSidebarItem(
               icon: Icons.settings_rounded,
               label: 'Settings',
-              color: const Color(0xFF6B7280),
               isSelected: selectedIdx == 8,
               onTap: () => controller.setSelectedIndex(8),
               isDarkMode: isDarkMode,
@@ -310,7 +302,7 @@ class DashboardSidebarMenu extends StatelessWidget {
             return DashboardSidebarItem(
               icon: Icons.logout_rounded,
               label: 'Sign Out',
-              color: const Color(0xFFEF4444),
+              isDestructive: true,
               isSelected: false,
               onTap: () {
                 HapticFeedback.lightImpact();
@@ -325,7 +317,6 @@ class DashboardSidebarMenu extends StatelessWidget {
           final action = item['action'] as String? ?? 'select';
           final icon = item['icon']! as IconData;
           final label = item['label']! as String;
-          final color = item['color']! as Color;
 
           VoidCallback onTapCallback;
           var isSelected = false;
@@ -356,7 +347,6 @@ class DashboardSidebarMenu extends StatelessWidget {
           return DashboardSidebarItem(
             icon: icon,
             label: label,
-            color: color,
             isSelected: isSelected,
             onTap: onTapCallback,
             isDarkMode: isDarkMode,
@@ -371,8 +361,8 @@ class DashboardSidebarMenu extends StatelessWidget {
 class DashboardSidebarItem extends StatelessWidget {
   final IconData icon;
   final String label;
-  final Color color;
   final bool isSelected;
+  final bool isDestructive;
   final VoidCallback onTap;
   final bool isDarkMode;
   final bool isDrawerExpanded;
@@ -380,22 +370,30 @@ class DashboardSidebarItem extends StatelessWidget {
   const DashboardSidebarItem({
     required this.icon,
     required this.label,
-    required this.color,
     required this.isSelected,
     required this.onTap,
     required this.isDarkMode,
     required this.isDrawerExpanded,
+    this.isDestructive = false,
     super.key,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final fgColor = isDestructive
+        ? AppColors.error
+        : (isSelected ? AppColors.textPrimary : AppColors.textSecondary);
+
+    final bgColor = isSelected
+        ? const Color(0xFF1E1E1E)
+        : Colors.transparent;
+
+    final itemWidget = Container(
       margin: const EdgeInsets.symmetric(vertical: 2),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           onTap: () {
             onTap();
             HapticFeedback.lightImpact();
@@ -403,15 +401,13 @@ class DashboardSidebarItem extends StatelessWidget {
           child: Container(
             padding: EdgeInsets.symmetric(
               horizontal: 12,
-              vertical: isDrawerExpanded ? 12 : 16,
+              vertical: isDrawerExpanded ? 10 : 14,
             ),
             decoration: BoxDecoration(
-              color: isSelected
-                  ? color.withValues(alpha: 0.1)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(12),
+              color: bgColor,
+              borderRadius: BorderRadius.circular(10),
               border: isSelected
-                  ? Border.all(color: color.withValues(alpha: 0.3))
+                  ? Border.all(color: AppColors.bgDivider)
                   : null,
             ),
             child: isDrawerExpanded
@@ -419,7 +415,7 @@ class DashboardSidebarItem extends StatelessWidget {
                     children: [
                       Icon(
                         icon,
-                        color: AppColors.textPrimary,
+                        color: fgColor,
                         size: 20,
                       ),
                       const SizedBox(width: 12),
@@ -427,12 +423,10 @@ class DashboardSidebarItem extends StatelessWidget {
                         child: Text(
                           label,
                           style: TextStyle(
-                            color: isSelected
-                                ? color
-                                : (isDarkMode
-                                      ? AppColors.textPrimary
-                                      : Colors.black),
-                            fontWeight: FontWeight.w500,
+                            fontFamily: TWTypography.uiFamily,
+                            color: fgColor,
+                            fontWeight:
+                                isSelected ? FontWeight.w600 : FontWeight.w400,
                             fontSize: 14,
                           ),
                         ),
@@ -442,13 +436,27 @@ class DashboardSidebarItem extends StatelessWidget {
                 : Center(
                     child: Icon(
                       icon,
-                      color: AppColors.textPrimary,
+                      color: fgColor,
                       size: 20,
                     ),
                   ),
           ),
         ),
       ),
+    );
+
+    return Semantics(
+      button: true,
+      label: label,
+      selected: isSelected,
+      child: isDrawerExpanded
+          ? itemWidget
+          : Tooltip(
+              message: label,
+              preferBelow: false,
+              waitDuration: const Duration(milliseconds: 300),
+              child: itemWidget,
+            ),
     );
   }
 }
@@ -468,42 +476,43 @@ class DashboardMobileDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Drawer(
-      backgroundColor: isDarkMode ? AppColors.bgInput : AppColors.textPrimary,
+      backgroundColor: AppColors.bgPage,
       child: Column(
         children: [
-          DrawerHeader(
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 48, 20, 20),
             decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+              color: AppColors.appBarSurface,
+              border: Border(
+                bottom: BorderSide(color: AppColors.bgDivider),
               ),
             ),
-            child: Row(
+            child: const Row(
               children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: AppColors.textPrimary.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.dashboard_rounded,
-                    color: AppColors.textPrimary,
-                    size: 28,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                const Expanded(
-                  child: Text(
-                    'Creator Studio',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+                AppLogo(size: 36, borderRadius: 8),
+                SizedBox(width: 14),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Creator Studio',
+                      style: TextStyle(
+                        fontFamily: TWTypography.brandFamily,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
-                  ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Channel Management',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

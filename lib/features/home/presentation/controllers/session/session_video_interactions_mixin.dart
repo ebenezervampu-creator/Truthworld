@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
@@ -33,6 +34,11 @@ mixin SessionVideoInteractionsMixin on BaseController {
   /// Increments/decrements scalar `likeCount` on video document
   Future<void> likeVideo(String videoId, String userId) async {
     if (videoId.isEmpty || userId.isEmpty) return;
+
+    // Security: always use server-verified UID, never trust caller-supplied userId
+    final authenticatedUid = FirebaseAuth.instance.currentUser?.uid;
+    if (authenticatedUid == null || authenticatedUid.isEmpty) return;
+    if (authenticatedUid != userId) return;
 
     final operationKey = 'like:$videoId:$userId';
     if (_pendingLikeOperations.contains(operationKey)) {
@@ -108,6 +114,11 @@ mixin SessionVideoInteractionsMixin on BaseController {
   /// Increments/decrements scalar `dislikeCount` on video document
   Future<void> dislikeVideo(String videoId, String userId) async {
     if (videoId.isEmpty || userId.isEmpty) return;
+
+    // Security: always use server-verified UID, never trust caller-supplied userId
+    final authenticatedUid = FirebaseAuth.instance.currentUser?.uid;
+    if (authenticatedUid == null || authenticatedUid.isEmpty) return;
+    if (authenticatedUid != userId) return;
 
     final operationKey = 'dislike:$videoId:$userId';
     if (_pendingDislikeOperations.contains(operationKey)) {

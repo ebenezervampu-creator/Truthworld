@@ -537,4 +537,12 @@ class ChaptersController extends BaseController with ContentValidationMixin {
       isAnalyzing.value = false;
     }
   }
+
+  /// Reorders a chapter in the list with animated drag-and-drop feedback and sets unsaved changes flag.
+  void reorderChapter(int oldIndex, int newIndex) {
+    if (newIndex > oldIndex) newIndex -= 1;
+    final item = currentChapters.removeAt(oldIndex);
+    currentChapters.insert(newIndex, item);
+    hasUnsavedChanges.value = true;
+  }
 }

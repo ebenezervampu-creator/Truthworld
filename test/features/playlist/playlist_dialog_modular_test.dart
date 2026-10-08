@@ -120,6 +120,35 @@ void main() {
 
       ctrl.onClose();
     });
+
+    test('isPlaylistToggling tracks per-playlist toggle state', () {
+      final ctrl = PlaylistDialogController();
+      ctrl.onInit();
+
+      expect(ctrl.isPlaylistToggling('pl_abc'), isFalse);
+      ctrl.togglingPlaylistIds.add('pl_abc');
+      expect(ctrl.isPlaylistToggling('pl_abc'), isTrue);
+
+      ctrl.resetForm();
+      expect(ctrl.isPlaylistToggling('pl_abc'), isFalse);
+
+      ctrl.onClose();
+    });
+
+    test('createNewPlaylist rejects empty and invalid names gracefully', () async {
+      final ctrl = PlaylistDialogController();
+      ctrl.onInit();
+
+      ctrl.newPlaylistCtrl.text = '';
+      final result1 = await ctrl.createNewPlaylist('vid_001');
+      expect(result1, isFalse);
+
+      ctrl.newPlaylistCtrl.text = '   ';
+      final result2 = await ctrl.createNewPlaylist('vid_001');
+      expect(result2, isFalse);
+
+      ctrl.onClose();
+    });
   });
 
   group('ClaimSourceSubmissionController Tests', () {
@@ -137,7 +166,7 @@ void main() {
       final ctrl = ClaimSourceSubmissionController(video: sampleVideo);
       ctrl.onInit();
 
-      ctrl.urlController.text = 'https://example.com/fact-check-article';
+      ctrl.urlController.text = 'https://reuters.com/world/fact-check-article';
       expect(ctrl.validateForm(), isTrue);
 
       ctrl.resetForm();

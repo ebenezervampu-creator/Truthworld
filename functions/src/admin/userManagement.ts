@@ -10,7 +10,11 @@ if (!admin.apps.length) {
 
 export const searchUsers = onRequest(
   {
-    cors: true,
+    cors: [
+      "https://admin.truthworld.in",
+      "https://admin.truthworld.app",
+      "http://localhost:5173",
+    ],
     region: "asia-south1",
     minInstances: 0,
     maxInstances: 5,
@@ -32,7 +36,18 @@ export const searchUsers = onRequest(
       }
       
       const snapshot = await firestoreQuery.get();
-      let users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      let users = snapshot.docs.map(doc => {
+        const d = doc.data();
+        return {
+          id: doc.id,
+          displayName: d.displayName || "",
+          email: d.email || "",
+          role: d.role || "user",
+          accountStatus: d.accountStatus || "ACTIVE",
+          hasChannel: d.hasChannel || false,
+          createdAt: d.createdAt || null,
+        };
+      });
 
       if (query) {
         const qLower = query.toLowerCase();
@@ -57,7 +72,11 @@ export const searchUsers = onRequest(
 
 export const getUserSafetyProfile = onRequest(
   {
-    cors: true,
+    cors: [
+      "https://admin.truthworld.in",
+      "https://admin.truthworld.app",
+      "http://localhost:5173",
+    ],
     region: "asia-south1",
     minInstances: 0,
     maxInstances: 5,
@@ -103,7 +122,11 @@ export const getUserSafetyProfile = onRequest(
 
 export const moderateUser = onRequest(
   {
-    cors: true,
+    cors: [
+      "https://admin.truthworld.in",
+      "https://admin.truthworld.app",
+      "http://localhost:5173",
+    ],
     region: "asia-south1",
     minInstances: 0,
     maxInstances: 5,
@@ -114,7 +137,14 @@ export const moderateUser = onRequest(
       if (!adminUser) return;
 
       const { userId, action, reason, duration, durationDays } = req.body;
-      if (!userId || !action) {
+      if (
+        !userId ||
+        !action ||
+        typeof userId !== "string" ||
+        typeof action !== "string" ||
+        !userId.trim() ||
+        !action.trim()
+      ) {
         res.status(400).json({ error: "Missing required fields (userId, action)" });
         return;
       }
@@ -221,7 +251,11 @@ export const moderateUser = onRequest(
 
 export const consolidateUserAccounts = onRequest(
   {
-    cors: true,
+    cors: [
+      "https://admin.truthworld.in",
+      "https://admin.truthworld.app",
+      "http://localhost:5173",
+    ],
     region: "asia-south1",
     minInstances: 0,
     maxInstances: 5,
@@ -231,83 +265,156 @@ export const consolidateUserAccounts = onRequest(
       const adminUser = await requireRecentAdmin(req, res, 3600);
       if (!adminUser) return;
 
-      const { email, primaryUid } = req.body;
-      if (!email) {
-        res.status(400).json({ error: "Missing required field: email" });
+      const { email, phoneNumber, primaryUid } = req.body;
+      if (!email && !phoneNumber) {
+        res.status(400).json({ error: "Missing required field: email or phoneNumber" });
         return;
       }
 
       const db = admin.firestore();
-      const usersSnap = await db.collection("users").where("email", "==", email).get();
+      const docsMap = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
 
-      if (usersSnap.empty || usersSnap.docs.length < 2) {
-        res.status(200).json({ message: "No duplicate user documents found for this email.", count: usersSnap.docs.length });
+      if (email) {
+        const emailSnap = await db.collection("users").where("email", "==", email).get();
+        for (const doc of emailSnap.docs) {
+          docsMap.set(doc.id, doc);
+        }
+      }
+
+      if (phoneNumber) {
+        const phoneSnapRoot = await db.collection("users").where("phoneNumber", "==", phoneNumber).get();
+        for (const doc of phoneSnapRoot.docs) {
+          docsMap.set(doc.id, doc);
+        }
+        const phoneSnapMeta = await db.collection("users").where("metadata.phoneNumber", "==", phoneNumber).get();
+        for (const doc of phoneSnapMeta.docs) {
+          docsMap.set(doc.id, doc);
+        }
+      }
+
+      const allDocs = Array.from(docsMap.values());
+
+      if (allDocs.length < 2) {
+        res.status(200).json({
+          message: "No duplicate user documents found.",
+          count: allDocs.length,
+        });
         return;
       }
 
-      let primaryDoc = primaryUid 
-        ? usersSnap.docs.find(d => d.id === primaryUid)
-        : usersSnap.docs.reduce((latest, current) => {
-            const latestTime = (latest.data().updatedAt as number) || 0;
-            const currentTime = (current.data().updatedAt as number) || 0;
-            return currentTime > latestTime ? current : latest;
+      if (primaryUid && !allDocs.some((d) => d.id === primaryUid)) {
+        res.status(400).json({
+          error: "The provided primaryUid does not match any duplicate user document.",
+        });
+        return;
+      }
+
+      // Select primary document (prefer document with explicit primaryUid, non-empty displayName or completed onboarding)
+      let primaryDoc = primaryUid
+        ? allDocs.find((d) => d.id === primaryUid)
+        : allDocs.reduce((best, curr) => {
+            const bestName = (best.data().displayName as string) || "";
+            const currName = (curr.data().displayName as string) || "";
+            const bestScore = (bestName.trim().length > 0 ? 2 : 0) + (best.data().hasCompletedOnboarding ? 1 : 0);
+            const currScore = (currName.trim().length > 0 ? 2 : 0) + (curr.data().hasCompletedOnboarding ? 1 : 0);
+            if (currScore !== bestScore) return currScore > bestScore ? curr : best;
+
+            const bestTime = (best.data().updatedAt as number) || (best.data().createdAt as number) || 0;
+            const currTime = (curr.data().updatedAt as number) || (curr.data().createdAt as number) || 0;
+            return currTime > bestTime ? curr : best;
           });
 
       if (!primaryDoc) {
-        primaryDoc = usersSnap.docs[0];
+        primaryDoc = allDocs[0];
       }
 
       const primaryId = primaryDoc.id;
-      const legacyDocs = usersSnap.docs.filter(d => d.id !== primaryId);
+      const legacyDocs = allDocs.filter((d) => d.id !== primaryId);
 
       let channelRestored = null;
+      const primaryData = primaryDoc.data();
+      const updateObj: Record<string, any> = {};
+
+      const fieldsToMerge = [
+        "channelId",
+        "displayName",
+        "name",
+        "username",
+        "handle",
+        "bio",
+        "photoURL",
+        "photoUrl",
+        "avatarUrl",
+        "avatarFileId",
+        "avatarStatus",
+        "avatarStatusReason",
+        "gender",
+        "age",
+        "ageGroup",
+        "birthdate",
+        "location",
+        "city",
+        "state",
+        "country",
+        "profession",
+        "interests",
+        "topicAffinities",
+        "topicExploreCounts",
+        "exploredTopicSlugs",
+      ];
 
       for (const legacyDoc of legacyDocs) {
         const legacyData = legacyDoc.data();
-        const legacyChannelId = legacyData.channelId;
+        const legacyChannelId = legacyData.channelId as string | undefined;
 
         if (legacyChannelId) {
           channelRestored = legacyChannelId;
           await db.collection("channels").doc(legacyChannelId).update({
             ownerId: primaryId,
             userId: primaryId,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           });
         }
 
-        const updateObj: Record<string, any> = {};
-        if (!primaryDoc.data().channelId && legacyChannelId) {
-          updateObj.channelId = legacyChannelId;
-        }
-        if (!primaryDoc.data().ageGroup && legacyData.ageGroup) {
-          updateObj.ageGroup = legacyData.ageGroup;
-        }
-        if (!primaryDoc.data().gender && legacyData.gender) {
-          updateObj.gender = legacyData.gender;
+        for (const field of fieldsToMerge) {
+          const currentVal = primaryData[field] ?? updateObj[field];
+          const legacyVal = legacyData[field];
+          if (
+            (currentVal === undefined || currentVal === null || (typeof currentVal === "string" && currentVal.trim() === "")) &&
+            legacyVal !== undefined && legacyVal !== null && (typeof legacyVal !== "string" || legacyVal.trim() !== "")
+          ) {
+            updateObj[field] = legacyVal;
+          }
         }
 
-        if (Object.keys(updateObj).length > 0) {
-          await primaryDoc.ref.update(updateObj);
+        if (legacyData.hasCompletedOnboarding && !primaryData.hasCompletedOnboarding) {
+          updateObj.hasCompletedOnboarding = true;
         }
 
         await legacyDoc.ref.delete();
       }
 
+      if (Object.keys(updateObj).length > 0) {
+        updateObj.updatedAt = admin.firestore.FieldValue.serverTimestamp();
+        await primaryDoc.ref.update(updateObj);
+      }
+
       await db.collection("admin_actions_log").add({
         adminId: adminUser.uid,
         action: "consolidate_duplicate_users",
-        email,
+        email: email || null,
+        phoneNumber: phoneNumber || null,
         primaryUid: primaryId,
-        mergedUids: legacyDocs.map(d => d.id),
+        mergedUids: legacyDocs.map((d) => d.id),
         channelRestored,
-        timestamp: admin.firestore.FieldValue.serverTimestamp()
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
       });
 
       res.status(200).json({
         success: true,
         primaryUid: primaryId,
         mergedCount: legacyDocs.length,
-        channelRestored
+        channelRestored,
       });
     } catch (error) {
       logger.error("[consolidateUserAccounts] Error:", error);

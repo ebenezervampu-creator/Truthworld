@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
@@ -173,13 +174,25 @@ class ModernVideoListCard extends StatelessWidget {
                         fit: BoxFit.cover,
                         width: double.infinity,
                         height: double.infinity,
-                        memCacheWidth: (24 *
-                                MediaQuery.of(context).devicePixelRatio)
-                            .toInt(),
+                        memCacheWidth: kIsWeb
+                            ? null
+                            : (24 * MediaQuery.of(context).devicePixelRatio)
+                                .toInt(),
                         placeholder: (context, url) =>
                             _buildChannelPlaceholder(context),
-                        errorWidget: (context, url, error) =>
-                            _buildChannelPlaceholder(context),
+                        errorWidget: (context, url, error) {
+                          if (kIsWeb) {
+                            return Image.network(
+                              video.channelImage.replaceAll(' ', '%20'),
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                              height: double.infinity,
+                              errorBuilder: (context, err, stack) =>
+                                  _buildChannelPlaceholder(context),
+                            );
+                          }
+                          return _buildChannelPlaceholder(context);
+                        },
                       )
                     : _buildChannelPlaceholder(context),
               ),

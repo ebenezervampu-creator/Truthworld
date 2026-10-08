@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/data/models/video_clip.dart';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // MINIPLAYER STATE — Immutable, granular state for optimal rebuilds
@@ -17,16 +18,33 @@ class MiniplayerVideoInfo {
     required this.thumbnailUrl,
     required this.videoUrl,
     required this.totalDuration,
+    this.clip,
+    this.isAudioOnly = false,
   });
 
-  factory MiniplayerVideoInfo.fromVideo(Video video) {
+  factory MiniplayerVideoInfo.fromVideo(
+    Video video, {
+    VideoClip? clip,
+    bool isAudioOnly = false,
+  }) {
     return MiniplayerVideoInfo(
       id: video.id,
-      title: video.title,
-      channelName: video.channelName,
-      thumbnailUrl: video.thumbnailUrl,
+      title: clip != null ? clip.title : video.title,
+      channelName: clip != null && clip.channelName.isNotEmpty
+          ? clip.channelName
+          : video.channelName,
+      thumbnailUrl: clip != null && clip.thumbnailUrl.isNotEmpty
+          ? clip.thumbnailUrl
+          : video.thumbnailUrl,
       videoUrl: video.videoUrl,
-      totalDuration: video.durationValue,
+      totalDuration: clip != null
+          ? Duration(
+              milliseconds:
+                  ((clip.endTime - clip.startTime) * 1000).toInt(),
+            )
+          : video.durationValue,
+      clip: clip,
+      isAudioOnly: isAudioOnly,
     );
   }
   final String id;
@@ -35,16 +53,23 @@ class MiniplayerVideoInfo {
   final String thumbnailUrl;
   final String videoUrl;
   final Duration totalDuration;
+  final VideoClip? clip;
+  final bool isAudioOnly;
+
+  bool get isClip => clip != null;
+  String? get clipTitle => clip?.title;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is MiniplayerVideoInfo &&
           runtimeType == other.runtimeType &&
-          id == other.id;
+          id == other.id &&
+          clip?.id == other.clip?.id &&
+          isAudioOnly == other.isAudioOnly;
 
   @override
-  int get hashCode => id.hashCode;
+  int get hashCode => Object.hash(id, clip?.id, isAudioOnly);
 }
 
 /// Enum representing the visual state of the miniplayer panel.

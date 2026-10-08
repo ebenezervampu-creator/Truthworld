@@ -29,6 +29,7 @@ import type { VertexAI } from "@google-cloud/vertexai";
 import { z } from "zod";
 import { PIPELINE_CONFIG } from "../config";
 import { getVertexAI } from "../utils/ai-client";
+import { extractCandidateText } from "../utils/ai-utils";
 
 // ─── Response Schema ─────────────────────────────────────────────────────────
 
@@ -548,7 +549,7 @@ export class VideoModerationService {
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
         const model = this.vertexAI.getGenerativeModel({
-          model: PIPELINE_CONFIG.GEMINI_MODELS.synthesis || "gemini-2.5-flash",
+          model: PIPELINE_CONFIG.GEMINI_MODELS?.moderation || PIPELINE_CONFIG.GEMINI_MODELS?.synthesis || "gemini-3.1-flash-lite",
           systemInstruction: MODERATION_SYSTEM_PROMPT,
           generationConfig: {
             responseMimeType: "application/json",
@@ -582,6 +583,7 @@ export class VideoModerationService {
         ]);
 
         const responseText =
+          extractCandidateText(result.response.candidates?.[0]) ||
           result.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
         // Parse and validate response

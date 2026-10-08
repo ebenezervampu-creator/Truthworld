@@ -1,11 +1,9 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/theme/app_colors.dart';
-import 'package:truthworld/theme/tw_radius.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Active video header banner and action toolbar for desktop & tablet.
 class AudioTracksWorkspaceHeader extends StatelessWidget {
@@ -109,10 +107,12 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
                       video.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
+                        fontFamily: TWTypography.brandFamily,
+                        fontFamilyFallback: TWTypography.fallbackFamilies,
                         fontSize: isMobile ? 15 : 17,
                         fontWeight: FontWeight.bold,
-                        color: textColor,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 5),
@@ -200,7 +200,7 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
                     side: BorderSide(
                       color: showPreviewPlayer.value
                           ? AppColors.brand
-                          : (isDarkMode ? const Color(0xFF333333) : AppColors.bgDivider),
+                          : AppColors.bgDivider,
                     ),
                     shape: RoundedRectangleBorder(borderRadius: TWRadius.mdBorderRadius),
                   ),
@@ -213,8 +213,8 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
                   icon: const Icon(Icons.cloud_upload_rounded, size: 16, color: Colors.white),
                   label: const Text('Upload Track', style: TextStyle(fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isDarkMode ? const Color(0xFF262626) : const Color(0xFFE5E7EB),
-                    foregroundColor: textColor,
+                    backgroundColor: AppColors.bgSurfaceHover,
+                    foregroundColor: AppColors.textPrimary,
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     shape: RoundedRectangleBorder(borderRadius: TWRadius.mdBorderRadius),
                   ),
@@ -238,7 +238,7 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
                   ),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    side: BorderSide(color: isDarkMode ? const Color(0xFF333333) : AppColors.bgDivider),
+                    side: const BorderSide(color: AppColors.bgDivider),
                     shape: RoundedRectangleBorder(borderRadius: TWRadius.mdBorderRadius),
                   ),
                 ),
@@ -274,7 +274,7 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
                         side: BorderSide(
                           color: showRequests
                               ? AppColors.brand
-                              : (isDarkMode ? const Color(0xFF333333) : AppColors.bgDivider),
+                              : AppColors.bgDivider,
                         ),
                         shape: RoundedRectangleBorder(borderRadius: TWRadius.mdBorderRadius),
                       ),

@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
@@ -281,8 +282,6 @@ class ModernChannelAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasImage = imageUrl != null && imageUrl!.isNotEmpty;
-
     return Container(
       decoration: BoxDecoration(
         shape: BoxShape.circle,
@@ -295,19 +294,33 @@ class ModernChannelAvatar extends StatelessWidget {
         backgroundColor:
             modernDarkProfessionalTheme.colorScheme.surfaceContainerHighest,
         child: ClipOval(
-          child: hasImage
-              ? CachedNetworkImage(
-                  imageUrl: imageUrl!,
-                  width: radius * 2,
-                  height: radius * 2,
-                  fit: BoxFit.cover,
-                  memCacheWidth:
-                      (radius * 2 * MediaQuery.of(context).devicePixelRatio)
-                          .toInt(),
-                  placeholder: (context, url) => _buildPlaceholder(),
-                  errorWidget: (context, url, error) => _buildPlaceholder(),
-                )
-              : _buildPlaceholder(),
+          child: () {
+            final cleanUrl = imageUrl?.trim() ?? '';
+            if (cleanUrl.isEmpty) return _buildPlaceholder();
+            final formattedUrl = cleanUrl.replaceAll(' ', '%20');
+            return CachedNetworkImage(
+              imageUrl: formattedUrl,
+              width: radius * 2,
+              height: radius * 2,
+              fit: BoxFit.cover,
+              memCacheWidth: kIsWeb
+                  ? null
+                  : (radius * 2 * MediaQuery.of(context).devicePixelRatio).toInt(),
+              placeholder: (context, url) => _buildPlaceholder(),
+              errorWidget: (context, url, error) {
+                if (kIsWeb) {
+                  return Image.network(
+                    formattedUrl,
+                    width: radius * 2,
+                    height: radius * 2,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, err, stack) => _buildPlaceholder(),
+                  );
+                }
+                return _buildPlaceholder();
+              },
+            );
+          }(),
         ),
       ),
     );

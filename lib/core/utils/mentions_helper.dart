@@ -28,6 +28,11 @@ class MentionsHelper {
     String? commentId,
     String? replyId,
   }) async {
+    // Top-level comments are already scanned and notified by backend onCommentCreated trigger
+    if (commentId != null && replyId == null) {
+      return;
+    }
+
     final handles = extractHandles(text);
     if (handles.isEmpty) return;
 

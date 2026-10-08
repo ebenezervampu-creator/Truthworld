@@ -615,16 +615,8 @@ export const triggerPremiumDistributionManual = onCall(
     const userId = request.auth?.uid;
     if (!userId) throw new HttpsError("unauthenticated", "Auth required.");
 
-    // Verify admin claim or admin Firestore role
-    const db = admin.firestore();
-    const userDoc = await db.collection("users").doc(userId).get();
-    const userData = userDoc.data() || {};
-    const isAdmin =
-      request.auth?.token?.admin === true ||
-      userData.role === "admin" ||
-      userData.role === "superadmin" ||
-      userData.isAdmin === true;
-
+    // Verify admin claim via server-minted token
+    const isAdmin = request.auth?.token?.admin === true;
     if (!isAdmin) {
       throw new HttpsError("permission-denied", "Admin access required.");
     }

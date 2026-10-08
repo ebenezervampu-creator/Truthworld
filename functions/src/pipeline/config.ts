@@ -13,8 +13,10 @@
 function requireEnv(name: string): string {
   const value = process.env[name];
   if (!value) {
-    // Warn at import time rather than crash — allows deployment health checks
-    // to pass. The actual key absence will fail at call time with a clear error.
+    const msg = `[PIPELINE_CONFIG] Missing required environment variable: ${name}`;
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(msg);
+    }
     console.warn(`[PIPELINE_CONFIG] ⚠️ Missing required env var: ${name}`);
     return "";
   }
@@ -39,24 +41,27 @@ export const PIPELINE_CONFIG = {
   VIDEO_BUCKET: "truthworld-1.firebasestorage.app",
 
   /**
-   * 🧠 ROLE-BASED MODEL SELECTION (Multi-Model Architecture v1)
+   * 🧠 ROLE-BASED MODEL SELECTION (Vertex AI Gemini 3 Cost-Effective Architecture)
    *
-   * Workers (Flash) → fast, cheap, high-throughput
-   * Judges (Pro)    → nuanced, accurate, truth arbitration
+   * Cost strategy:
+   * Workers (Flash-Lite: gemini-3.1-flash-lite)  → ultra-low-cost (~$0.25/1M in), high-throughput
+   * Truth Arbiter (3.5 Flash: gemini-3.5-flash)  → near-Pro reasoning with search grounding at Flash pricing
    *
-   * Cost strategy: ~85% Flash, ~15% Pro (sensitive claims only)
+   * Saves ~85% on bulk worker token spend while ensuring robust truth verification.
    */
   GEMINI_MODELS: {
-    extraction: "gemini-2.5-flash",     // Fast claim extraction (worker)
-    verification: "gemini-2.5-flash",   // Truth arbiter — Pro unavailable, using Flash
-    synthesis: "gemini-2.5-flash",     // Intelligence summaries (worker)
-    consistency: "gemini-2.5-flash",     // Internal contradiction detection (worker)
-    translation: "gemini-2.5-flash",     // Premium translation lane (worker)
-    profiling: "gemini-2.5-flash",     // Speaker profiling (worker)
+    extraction: "gemini-3.1-flash-lite",   // Ultra cost-effective claim extraction (worker)
+    verification: "gemini-3.5-flash",       // Cost-effective Truth arbiter (near-Pro intelligence at Flash price)
+    synthesis: "gemini-3.1-flash-lite",    // Ultra cost-effective intelligence summaries (worker)
+    consistency: "gemini-3.1-flash-lite",  // Ultra cost-effective contradiction detection (worker)
+    translation: "gemini-3.1-flash-lite",  // Cost-effective translation lane (worker)
+    profiling: "gemini-3.1-flash-lite",    // Speaker profiling (worker)
+    moderation: "gemini-3.1-flash-lite",   // Media, channel, and topic moderation (worker)
+    fastTier: "gemini-3.1-flash-lite",     // Instant lightweight verification
   },
 
   /** @deprecated Use GEMINI_MODELS[role] instead. Kept for backward compat. */
-  GEMINI_MODEL: "gemini-2.5-flash",
+  GEMINI_MODEL: "gemini-3.1-flash-lite",
 
   GROUNDING_MODE: "auto", // 'auto' | 'always' | 'never'
   CONSTRAINT_BASED_VERIFICATION: true, // v10.0: Prohibit AI training data in fact checks
@@ -66,14 +71,26 @@ export const PIPELINE_CONFIG = {
   /**
    * 🎯 SENSITIVE CLAIM DOMAINS (Risk-Based Dynamic Routing)
    *
-   * Claims in these domains are ALWAYS routed to Pro for verification,
-   * even when the global routing would use Flash.
+   * Claims in these domains are routed to verification model (gemini-3.5-flash).
    */
   SENSITIVE_DOMAINS: [
     "war", "election", "health", "death", "finance",
     "sanctions", "terrorism", "genocide", "nuclear",
     "pandemic", "assassination", "coup",
   ] as string[],
+
+  /**
+   * 📊 VERTEX AI & GEMINI QUOTA ARCHITECTURE
+   *
+   * Baseline Quota: 4,000,000 TPM (Tokens Per Minute) -> Supports ~26 10-min videos/min.
+   * Target High-Scale Quota: 20,000,000 TPM (5x Quota Request) -> Supports 130 10-min videos/min.
+   */
+  VERTEX_QUOTA: {
+    BASELINE_TPM: 4_000_000,
+    TARGET_HIGH_SCALE_TPM: 20_000_000,
+    ESTIMATED_TOKENS_PER_VIDEO_SEC: 258,
+    BURST_CAPACITY_VIDEOS_PER_MIN_AT_TARGET: 130,
+  },
 };
 
 // Deep Research Mode (v10.5)
@@ -82,7 +99,7 @@ export const DEEP_RESEARCH_CONFIG = {
   BATCH_SIZE_GROUNDING: 10,         // parallel claims per Gemini call
   MAX_CLAIMS_INSTITUTIONAL: 50,     // cost-conscious cap for institutional tier
   MAX_CLAIMS_STANDARD: 35,          // cost-conscious cap for standard tier
-  FORCE_PRO_MODEL: true,            // always use gemini-2.5-pro for verification
+  FORCE_PRO_MODEL: false,           // cost-effective: uses gemini-3.5-flash
   MIN_SOURCES_PER_CLAIM: 2,         // minimum sources required to mark a claim as grounded
   SOURCE_DIVERSITY_REQUIRED: true,  // reject results where all sources are the same domain
 } as const;

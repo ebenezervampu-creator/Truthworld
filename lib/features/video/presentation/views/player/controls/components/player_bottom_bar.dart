@@ -23,7 +23,7 @@ class PlayerBottomBar extends StatelessWidget {
           end: Alignment.topCenter,
           stops: const [0.0, 0.35, 0.75, 1.0],
           colors: [
-            Colors.black.withValues(alpha: 0.95),
+            Colors.black,
             Colors.black.withValues(alpha: 0.7),
             Colors.black.withValues(alpha: 0.25),
             Colors.transparent,

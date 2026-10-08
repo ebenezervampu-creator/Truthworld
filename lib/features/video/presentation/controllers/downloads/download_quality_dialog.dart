@@ -102,6 +102,7 @@ class DownloadQualityDialog {
                             DownloadResolutionManager.getResolutionBadge(
                           res.label,
                           res.height,
+                          fps: res.fps,
                         );
                         return ListTile(
                           leading: const Icon(

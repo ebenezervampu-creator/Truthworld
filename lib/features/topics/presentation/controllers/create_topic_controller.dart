@@ -26,7 +26,7 @@ class CreateTopicController extends BaseController with ContentValidationMixin {
   final TextEditingController tagsController = TextEditingController();
   final TextEditingController tagInputController = TextEditingController();
   final TextEditingController categoryController = TextEditingController(
-    text: 'Science & Technology',
+    text: 'Business',
   );
 
   // Form State
@@ -222,11 +222,18 @@ class CreateTopicController extends BaseController with ContentValidationMixin {
       }
     }
 
-    // Description validation
-    if (descriptionController.text.trim().isNotEmpty) {
+    // Description validation (compulsory: minimum 10 characters)
+    final descText = descriptionController.text.trim();
+    if (descText.isNotEmpty) {
+      if (descText.length < 10) {
+        profanityError.value = 'Description must be at least 10 characters.';
+        return false;
+      }
       final descResult = await validateContent(
         descriptionController.text,
         fieldName: 'Description',
+        minLength: 10,
+        maxLength: 500,
       );
       if (!descResult.isValid) {
         profanityError.value = descResult.message;
@@ -253,6 +260,25 @@ class CreateTopicController extends BaseController with ContentValidationMixin {
   /// Full pre-submit validation checking fields, profanity, and Vision AI status.
   Future<bool> validateFormBeforeSubmit() async {
     if (formKey.currentState != null && !formKey.currentState!.validate()) {
+      return false;
+    }
+
+    // Compulsory Description check: at least 10 characters
+    final desc = descriptionController.text.trim();
+    if (desc.isEmpty) {
+      profanityError.value = 'Description is required (minimum 10 characters).';
+      AppSnackbar.warning(
+        'Please enter a topic description of at least 10 characters.',
+        title: 'Description Required',
+      );
+      return false;
+    }
+    if (desc.length < 10) {
+      profanityError.value = 'Topic description must be at least 10 characters.';
+      AppSnackbar.warning(
+        'Topic description must be at least 10 characters.',
+        title: 'Description Too Short',
+      );
       return false;
     }
 
@@ -333,7 +359,7 @@ class CreateTopicController extends BaseController with ContentValidationMixin {
     descriptionController.clear();
     accessCodeController.clear();
     tagsController.clear();
-    categoryController.text = 'Technology';
+    categoryController.text = 'Business';
     selectedVisibility.value = TopicVisibilityType.public;
     obscureAccessCode.value = true;
     thumbnailSource.value = 'video';

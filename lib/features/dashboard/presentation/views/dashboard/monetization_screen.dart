@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization/monetization_components.dart';
@@ -49,9 +50,7 @@ class MonetizationScreen extends StatelessWidget {
         ),
       ),
       body: controller == null
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.brand),
-            )
+          ? _buildMonetizationSkeleton()
           : Obx(() {
               final channel = controller.currentChannel.value;
               final isCustom = channel?.channelType == ChannelType.custom;
@@ -80,6 +79,46 @@ class MonetizationScreen extends StatelessWidget {
                 ),
               );
             }),
+    );
+  }
+
+  Widget _buildMonetizationSkeleton() {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFF1E1E1E),
+      highlightColor: AppColors.bgSurfaceHover,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            Container(
+              height: 120,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.bgDivider),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              height: 140,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.bgDivider),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Container(
+              height: 180,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.bgDivider),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

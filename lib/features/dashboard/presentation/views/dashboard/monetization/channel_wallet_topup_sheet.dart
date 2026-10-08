@@ -99,7 +99,7 @@ class ChannelWalletTopupSheet {
                   children: [
                     const Icon(
                       Icons.stars_rounded,
-                      color: Color(0xFFF59E0B),
+                      color: AppColors.warning,
                       size: 20,
                     ),
                     const SizedBox(width: 10),

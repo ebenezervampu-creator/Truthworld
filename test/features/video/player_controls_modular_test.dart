@@ -1,4 +1,5 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -50,6 +51,8 @@ class FakeConnectivityService extends GetxService implements ConnectivityService
   bool get isWifi => true;
   @override
   Stream<List<ConnectivityResult>> get onConnectivityChanged => const Stream.empty();
+  @override
+  Stream<ConnectivityResult> get onConnectivityRestored => const Stream.empty();
   @override
   Future<ConnectivityService> init() async => this;
 }
@@ -264,67 +267,77 @@ void main() {
 
   group('Player CenterRow & BottomBar Widgets', () {
     testWidgets('CenterRow displays play/pause and skip buttons and reflects state', (tester) async {
-      ctrl.isPlaying.value = false;
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      try {
+        ctrl.isPlaying.value = false;
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: CenterRow(ctrl: ctrl, maxControlsWidth: 800),
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: CenterRow(ctrl: ctrl, maxControlsWidth: 800),
+            ),
           ),
-        ),
-      );
+        );
 
-      expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.replay_10_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.forward_10_rounded), findsOneWidget);
+        expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
+        expect(find.byIcon(Icons.replay_10_rounded), findsOneWidget);
+        expect(find.byIcon(Icons.forward_10_rounded), findsOneWidget);
 
-      // Reactively changes icon when isPlaying becomes true
-      ctrl.isPlaying.value = true;
-      await tester.pumpAndSettle();
-      expect(find.byIcon(Icons.pause_rounded), findsOneWidget);
+        // Reactively changes icon when isPlaying becomes true
+        ctrl.isPlaying.value = true;
+        await tester.pumpAndSettle();
+        expect(find.byIcon(Icons.pause_rounded), findsOneWidget);
 
-      await tester.pump(const Duration(seconds: 4));
+        await tester.pump(const Duration(seconds: 4));
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
     });
 
     testWidgets('CenterRow adapts button sizes responsively for desktop and mobile', (tester) async {
-      // Desktop (>= 600)
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: CenterRow(ctrl: ctrl, maxControlsWidth: 1024),
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      try {
+        // Desktop (>= 600)
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: CenterRow(ctrl: ctrl, maxControlsWidth: 1024),
+            ),
           ),
-        ),
-      );
+        );
 
-      final desktopButtons = tester.widgetList<CenterBtn>(find.byType(CenterBtn)).toList();
-      expect(desktopButtons.length, equals(3));
-      // Replay (skip), Play/Pause, Forward (skip)
-      expect(desktopButtons[0].buttonDiameter, equals(52.0));
-      expect(desktopButtons[0].size, equals(28.0));
-      expect(desktopButtons[1].buttonDiameter, equals(72.0));
-      expect(desktopButtons[1].size, equals(36.0));
-      expect(desktopButtons[2].buttonDiameter, equals(52.0));
-      expect(desktopButtons[2].size, equals(28.0));
+        final desktopButtons = tester.widgetList<CenterBtn>(find.byType(CenterBtn)).toList();
+        expect(desktopButtons.length, equals(3));
+        // Replay (skip), Play/Pause, Forward (skip)
+        expect(desktopButtons[0].buttonDiameter, equals(52.0));
+        expect(desktopButtons[0].size, equals(28.0));
+        expect(desktopButtons[1].buttonDiameter, equals(72.0));
+        expect(desktopButtons[1].size, equals(36.0));
+        expect(desktopButtons[2].buttonDiameter, equals(52.0));
+        expect(desktopButtons[2].size, equals(28.0));
 
-      // Mobile (< 600)
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: CenterRow(ctrl: ctrl, maxControlsWidth: 400),
+        // Mobile (< 600)
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: CenterRow(ctrl: ctrl, maxControlsWidth: 400),
+            ),
           ),
-        ),
-      );
+        );
 
-      final mobileButtons = tester.widgetList<CenterBtn>(find.byType(CenterBtn)).toList();
-      expect(mobileButtons.length, equals(3));
-      expect(mobileButtons[0].buttonDiameter, equals(48.0));
-      expect(mobileButtons[0].size, equals(24.0));
-      expect(mobileButtons[1].buttonDiameter, equals(64.0));
-      expect(mobileButtons[1].size, equals(32.0));
-      expect(mobileButtons[2].buttonDiameter, equals(48.0));
-      expect(mobileButtons[2].size, equals(24.0));
+        final mobileButtons = tester.widgetList<CenterBtn>(find.byType(CenterBtn)).toList();
+        expect(mobileButtons.length, equals(3));
+        expect(mobileButtons[0].buttonDiameter, equals(48.0));
+        expect(mobileButtons[0].size, equals(24.0));
+        expect(mobileButtons[1].buttonDiameter, equals(64.0));
+        expect(mobileButtons[1].size, equals(32.0));
+        expect(mobileButtons[2].buttonDiameter, equals(48.0));
+        expect(mobileButtons[2].size, equals(24.0));
 
-      await tester.pump(const Duration(seconds: 4));
+        await tester.pump(const Duration(seconds: 4));
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
     });
 
     testWidgets('MainControls smoke test renders correctly in non-fullscreen', (tester) async {

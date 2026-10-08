@@ -224,10 +224,6 @@ class ChannelMonetizationController extends GetxController {
 
     if (success) {
       final existingInfra = channel.infraConfig;
-      final newTrialRemaining = existingInfra != null
-          ? (existingInfra.trialCreditRemainingUSD - plan.priceUSD).clamp(0.0, 1000000.0)
-          : 0.0;
-
       final updatedInfra = CustomChannelInfraConfig(
         stripeConnectAccountId: existingInfra?.stripeConnectAccountId ?? '',
         subscriptionId: existingInfra?.subscriptionId ?? 'sub_${channel.id}',
@@ -235,7 +231,6 @@ class ChannelMonetizationController extends GetxController {
         storageQuotaBytes: plan.storageGB * 1024 * 1024 * 1024,
         bandwidthUsedBytesThisMonth: existingInfra?.bandwidthUsedBytesThisMonth ?? 0,
         bandwidthQuotaBytesThisMonth: plan.bandwidthGB * 1024 * 1024 * 1024,
-        trialCreditRemainingUSD: newTrialRemaining,
         planTier: plan.id,
         autoPay: autoPayEnabled.value,
       );
@@ -303,7 +298,6 @@ class ChannelMonetizationController extends GetxController {
         storageQuotaBytes: plan.storageGB * 1024 * 1024 * 1024,
         bandwidthUsedBytesThisMonth: existingInfra?.bandwidthUsedBytesThisMonth ?? 0,
         bandwidthQuotaBytesThisMonth: plan.bandwidthGB * 1024 * 1024 * 1024,
-        trialCreditRemainingUSD: existingInfra?.trialCreditRemainingUSD ?? 0.0,
         planTier: plan.id,
         autoPay: autoPayEnabled.value,
       );
@@ -386,10 +380,6 @@ class ChannelMonetizationController extends GetxController {
 
     if (success) {
       final existingInfra = channel.infraConfig;
-      final newTrialRemaining = existingInfra != null
-          ? (existingInfra.trialCreditRemainingUSD - plan.priceUSD).clamp(0.0, 1000000.0)
-          : 0.0;
-
       final updatedInfra = CustomChannelInfraConfig(
         stripeConnectAccountId: existingInfra?.stripeConnectAccountId ?? '',
         subscriptionId: existingInfra?.subscriptionId ?? 'sub_${channel.id}',
@@ -398,7 +388,6 @@ class ChannelMonetizationController extends GetxController {
         bandwidthUsedBytesThisMonth: existingInfra?.bandwidthUsedBytesThisMonth ?? 0,
         bandwidthQuotaBytesThisMonth: plan.bandwidthGB * 1024 * 1024 * 1024,
         flatPlatformFee: plan.priceUSD,
-        trialCreditRemainingUSD: newTrialRemaining,
         planTier: plan.id,
         autoPay: autoPayEnabled.value,
       );

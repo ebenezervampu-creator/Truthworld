@@ -308,3 +308,117 @@ class FollowingTopicsNoResultsState extends StatelessWidget {
     );
   }
 }
+
+/// Shimmer skeleton loader for responsive video grid.
+class FollowingTopicsGridSkeleton extends StatelessWidget {
+  const FollowingTopicsGridSkeleton({
+    required this.isMobile,
+    required this.crossAxisCount,
+    super.key,
+  });
+
+  final bool isMobile;
+  final int crossAxisCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 20, vertical: 8),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: crossAxisCount,
+          mainAxisSpacing: 16,
+          crossAxisSpacing: 16,
+          childAspectRatio: 1.18,
+        ),
+        itemCount: crossAxisCount * 2,
+        itemBuilder: (context, index) {
+          return Shimmer.fromColors(
+            baseColor: const Color(0xFF1E1E22),
+            highlightColor: const Color(0xFF2C2C30),
+            child: Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF161618),
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Empty state when no videos match the selected filter or topic.
+class FollowingTopicsNoVideosState extends StatelessWidget {
+  const FollowingTopicsNoVideosState({
+    this.filterName = 'Latest',
+    this.onResetFilter,
+    super.key,
+  });
+
+  final String filterName;
+  final VoidCallback? onResetFilter;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E22),
+                borderRadius: BorderRadius.circular(36),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: const Icon(
+                Icons.smart_display_outlined,
+                size: 36,
+                color: Color(0xFF8E8E93),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'No videos found',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'No videos currently available for "$filterName".',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Color(0xFF8E8E93),
+                fontSize: 13,
+              ),
+            ),
+            if (onResetFilter != null) ...[
+              const SizedBox(height: 16),
+              OutlinedButton(
+                onPressed: onResetFilter,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Colors.white24),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+                child: const Text('Show all videos'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}

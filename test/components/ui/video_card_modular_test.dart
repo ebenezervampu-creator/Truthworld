@@ -188,5 +188,58 @@ void main() {
       expect(find.text(sampleVideo.channelName), findsOneWidget);
       expect(find.byIcon(Icons.more_vert), findsOneWidget);
     });
+
+    testWidgets(
+        '10. VideoCard in grid mode enforces uniform card height regardless of title length',
+        (tester) async {
+      final shortTitleVideo = sampleVideo.copyWith(
+        id: 'vid_short_title',
+        title: 'Christian songs Redx Media',
+      );
+      final longTitleVideo = sampleVideo.copyWith(
+        id: 'vid_long_title',
+        title: "How ISRO Does More in Space for Less | India's Space Strategy",
+      );
+
+      await tester.pumpWidget(
+        wrapWithMaterial(
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 320,
+                child: VideoCard(
+                  video: shortTitleVideo,
+                  isGrid: true,
+                  disableHoverPreview: true,
+                  heroPrefix: 'test_short',
+                ),
+              ),
+              const SizedBox(width: 16),
+              SizedBox(
+                width: 320,
+                child: VideoCard(
+                  video: longTitleVideo,
+                  isGrid: true,
+                  disableHoverPreview: true,
+                  heroPrefix: 'test_long',
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+
+      final cardFinders = find.byType(VideoCard);
+      expect(cardFinders, findsNWidgets(2));
+
+      final shortCardSize = tester.getSize(cardFinders.first);
+      final longCardSize = tester.getSize(cardFinders.last);
+
+      expect(shortCardSize.height, equals(longCardSize.height));
+      expect(shortCardSize.width, equals(longCardSize.width));
+    });
   });
 }

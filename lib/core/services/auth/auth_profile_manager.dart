@@ -4,9 +4,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
+import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/components/ui/google_onboarding_sheet.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/data/models/channel.dart';
 
 /// Manages user profile fields, active fallback getters, and onboarding flow.
@@ -15,6 +18,7 @@ class AuthProfileManager {
   final RxnString userHandle = RxnString();
   final RxnString userBio = RxnString();
   final RxnString userPhotoUrl = RxnString();
+  final RxnString userEmail = RxnString();
   final RxnString userAvatarStatus = RxnString();
   final RxnString userAvatarStatusReason = RxnString();
   final RxnString userAvatarFileId = RxnString();
@@ -27,10 +31,83 @@ class AuthProfileManager {
   final RxnString userState = RxnString();
   final RxnString userCountry = RxnString();
   final RxnString userProfession = RxnString();
+  final RxnString userPhoneNumber = RxnString();
+  final RxBool isPhoneVerified = false.obs;
+  final RxBool isEmailVerified = false.obs;
   final RxBool needsOnboarding = false.obs;
 
   StreamSubscription? _userDocSubscription;
+  String? _subscribedUid;
   bool _isOnboardingPromptShowing = false;
+
+  /// Loads cached profile information synchronously from local storage.
+  void initCachedProfile(String? uid) {
+    if (uid == null || uid.isEmpty) return;
+    try {
+      final box = GetStorage();
+      final cachedName = box.read<String>('profile_name_$uid');
+      if (cachedName != null && cachedName.isNotEmpty) {
+        userDisplayName.value = cachedName;
+      }
+      final cachedHandle = box.read<String>('profile_handle_$uid');
+      if (cachedHandle != null && cachedHandle.isNotEmpty) {
+        userHandle.value = cachedHandle;
+      }
+      final cachedPhoto = box.read<String>('profile_photo_$uid');
+      if (cachedPhoto != null && cachedPhoto.isNotEmpty) {
+        userPhotoUrl.value = cachedPhoto;
+      }
+      final cachedBio = box.read<String>('profile_bio_$uid');
+      if (cachedBio != null && cachedBio.isNotEmpty) {
+        userBio.value = cachedBio;
+      }
+      final cachedEmail = box.read<String>('profile_email_$uid');
+      if (cachedEmail != null && cachedEmail.isNotEmpty) {
+        userEmail.value = cachedEmail;
+      }
+      final cachedPhone = box.read<String>('profile_phone_$uid');
+      if (cachedPhone != null && cachedPhone.isNotEmpty) {
+        userPhoneNumber.value = cachedPhone;
+        isPhoneVerified.value = true;
+      }
+      final cachedEmailVerified = box.read<bool>('profile_email_verified_$uid') ?? false;
+      isEmailVerified.value = cachedEmailVerified;
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'AuthProfileManager.initCachedProfile',
+      );
+    }
+  }
+
+  /// Persists profile details locally for instant rendering on page refresh.
+  void cacheProfile(String uid) {
+    try {
+      final box = GetStorage();
+      if (userDisplayName.value != null) {
+        box.write('profile_name_$uid', userDisplayName.value);
+      }
+      if (userHandle.value != null) {
+        box.write('profile_handle_$uid', userHandle.value);
+      }
+      if (userPhotoUrl.value != null) {
+        box.write('profile_photo_$uid', userPhotoUrl.value);
+      }
+      if (userBio.value != null) {
+        box.write('profile_bio_$uid', userBio.value);
+      }
+      if (userEmail.value != null) {
+        box.write('profile_email_$uid', userEmail.value);
+      }
+      if (userPhoneNumber.value != null) {
+        box.write('profile_phone_$uid', userPhoneNumber.value);
+      }
+      box.write('profile_email_verified_$uid', isEmailVerified.value);
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'AuthProfileManager.cacheProfile');
+    }
+  }
 
   /// Resolves display name prioritizing channel → user doc → Firebase user → fallback.
   String getActiveDisplayName({
@@ -90,9 +167,16 @@ class AuthProfileManager {
       final handle = userHandle.value!.trim();
       return handle.startsWith('@') ? handle : '@$handle';
     }
-    final email = user?.email ?? '';
-    if (user != null && !user.isAnonymous && email.isNotEmpty) {
+    final email = (user != null && !user.isAnonymous && user.email?.isNotEmpty == true)
+        ? user.email!
+        : (userEmail.value ?? '');
+    if (email.isNotEmpty) {
       return "@${email.split('@')[0]}";
+    }
+    final phone = user?.phoneNumber ?? '';
+    if (user != null && !user.isAnonymous && phone.isNotEmpty) {
+      final last4 = phone.length >= 4 ? phone.substring(phone.length - 4) : phone;
+      return '@user_$last4';
     }
     return '@user';
   }
@@ -120,13 +204,21 @@ class AuthProfileManager {
     required void Function(Map<String, dynamic> data) onUserData,
     required VoidCallback onUserDocMissingOrSignedOut,
   }) {
-    _userDocSubscription?.cancel();
-
     if (user == null) {
+      _subscribedUid = null;
+      _userDocSubscription?.cancel();
+      _userDocSubscription = null;
       clearProfile();
       onUserDocMissingOrSignedOut();
       return;
     }
+
+    if (_subscribedUid == user.uid && _userDocSubscription != null) {
+      return;
+    }
+
+    _subscribedUid = user.uid;
+    _userDocSubscription?.cancel();
 
     _userDocSubscription = FirebaseFirestore.instance
         .collection(FirestoreCollections.users)
@@ -162,11 +254,35 @@ class AuthProfileManager {
               userProfession.value = (data['profession'] as String?) ??
                   (data['occupation'] as String?);
 
+              final resolvedPhone = (data['phoneNumber'] as String?) ??
+                  ((data['metadata'] is Map)
+                      ? (data['metadata']['phoneNumber'] as String?)
+                      : null) ??
+                  user.phoneNumber;
+              if (resolvedPhone != null && resolvedPhone.isNotEmpty) {
+                userPhoneNumber.value = resolvedPhone;
+                isPhoneVerified.value = true;
+              } else {
+                userPhoneNumber.value = null;
+                isPhoneVerified.value = false;
+              }
+
+              final resolvedEmail = (data['email'] as String?) ?? user.email;
+              if (resolvedEmail != null && resolvedEmail.isNotEmpty) {
+                userEmail.value = resolvedEmail;
+                isEmailVerified.value = user.emailVerified ||
+                    (data['emailVerified'] as bool? ?? false) ||
+                    (data['isEmailVerified'] as bool? ?? false);
+              } else {
+                isEmailVerified.value = false;
+              }
+
               final hasCompletedOnboarding =
                   data['hasCompletedOnboarding'] as bool? ??
                   (data['birthdate'] != null &&
                       data['birthdate'].toString().isNotEmpty);
               needsOnboarding.value = !hasCompletedOnboarding;
+              cacheProfile(user.uid);
             } else {
               onUserDocMissingOrSignedOut();
               clearProfile();
@@ -188,6 +304,10 @@ class AuthProfileManager {
     userHandle.value = null;
     userBio.value = null;
     userPhotoUrl.value = null;
+    userEmail.value = null;
+    userPhoneNumber.value = null;
+    isPhoneVerified.value = false;
+    isEmailVerified.value = false;
     userAvatarStatus.value = null;
     userAvatarStatusReason.value = null;
     userAvatarFileId.value = null;
@@ -203,15 +323,20 @@ class AuthProfileManager {
     needsOnboarding.value = false;
   }
 
-  /// Updates profile with optional Age Group and optional Gender after Google Sign-In or Settings update.
+  /// Updates profile with optional Age Group, optional Gender, and optional Username/Handle after Sign-In or Settings update.
   Future<void> updateUserProfileOnboarding(
     User? currentUser, {
     String? ageGroup,
     String? gender,
+    String? username,
+    String? displayName,
   }) async {
     if (currentUser == null) return;
 
-    final updateData = <String, dynamic>{'hasCompletedOnboarding': true};
+    final updateData = <String, dynamic>{
+      'hasCompletedOnboarding': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
 
     if (ageGroup != null && ageGroup.trim().isNotEmpty) {
       final trimmedAge = ageGroup.trim();
@@ -229,6 +354,37 @@ class AuthProfileManager {
     } else {
       updateData['gender'] = FieldValue.delete();
       userGender.value = null;
+    }
+
+    if (username != null && username.trim().isNotEmpty) {
+      final rawUsername = username.trim().replaceAll('@', '');
+      final cleanUsername = ContentValidator.cleanProfanity(rawUsername);
+      final formattedHandle = '@$cleanUsername';
+      updateData['handle'] = formattedHandle;
+      updateData['username'] = cleanUsername;
+      userHandle.value = formattedHandle;
+
+      final nameToSet = (displayName != null && displayName.trim().isNotEmpty)
+          ? displayName.trim()
+          : (userDisplayName.value != null &&
+                  userDisplayName.value!.isNotEmpty &&
+                  !userDisplayName.value!.startsWith('User '))
+              ? userDisplayName.value!
+              : cleanUsername;
+
+      updateData['displayName'] = nameToSet;
+      updateData['name'] = nameToSet;
+      userDisplayName.value = nameToSet;
+
+      try {
+        await currentUser.updateDisplayName(nameToSet);
+      } catch (authErr, s) {
+        ErrorHandler.log(
+          authErr,
+          stackTrace: s,
+          tag: 'AuthProfileManager.updateUserProfileOnboarding.updateDisplayName',
+        );
+      }
     }
 
     await FirebaseFirestore.instance
@@ -268,7 +424,10 @@ class AuthProfileManager {
     // Only prompt if onboarding is actually flagged as needed (new signed user)
     if (!needsOnboarding.value) return;
 
-    final ctx = context ?? Get.context;
+    // If an authentication bottom sheet is currently open, defer prompt until it closes
+    if (AuthBottomSheet.isOpen) return;
+
+    final ctx = context ?? Get.key.currentContext ?? Get.context;
     if (ctx == null) return;
 
     if (ctx.mounted && !_isOnboardingPromptShowing) {
@@ -283,6 +442,7 @@ class AuthProfileManager {
 
   /// Cancels active Firestore user document subscription.
   void dispose() {
+    _subscribedUid = null;
     _userDocSubscription?.cancel();
     _userDocSubscription = null;
   }

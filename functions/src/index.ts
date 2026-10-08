@@ -31,7 +31,7 @@ import { setGlobalOptions } from "firebase-functions/v2";
 // ─── Global options ──────────────────────────────────────────────────────────
 setGlobalOptions({
   region: "asia-south1",
-  maxInstances: 1,
+  maxInstances: 100,
   cpu: "gcf_gen1",
 });
 
@@ -110,6 +110,16 @@ export {
   updateAlgorithmRemoteConfig,
 } from "./algorithm/remoteConfig";
 
+// ─── A/B Testing & Experimentation ────────────────────────────────────────
+export {
+  createExperiment,
+  recordExperimentMetric,
+  getActiveExperiments,
+  analyzeExperiments,
+  graduateExperiment,
+  manageExperiment,
+} from "./experiments/engine";
+
 // ─── Notifications & User Signals ─────────────────────────────────────────────
 export {
   getNotifications,
@@ -133,6 +143,8 @@ export { onUserDeleted, purgeUserAccount } from "./users/userLifecycle";
 export {
   addCommentNested,
   addReplyNested,
+  addTopicComment,
+  addTopicReply,
   toggleCommentInteraction,
   toggleReplyInteraction,
   deleteCommentNested,
@@ -183,6 +195,11 @@ export {
 } from "./economy/cashfreeFunctions";
 export { onPayoutRequestCreated } from "./economy/payouts";
 export { detectRevenueAnomalies, reviewFraudFlag } from "./economy/fraudDetection";
+export {
+  detectViewFraud,
+  cleanupExpiredFraudBlocks,
+  rollbackFraudulentViews,
+} from "./fraud/viewFraudDetection";
 export { onKycDocumentCreatedOrUpdated } from "./economy/kyc";
 export {
   distributePremiumRevenue,

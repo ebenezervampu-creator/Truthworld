@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
@@ -22,17 +23,31 @@ class EditVideoScreen extends StatelessWidget {
           appBar: AppBar(
             title: Text(
               'Edit Video',
-              style: AppTextStyles.titleLarge,
+              style: AppTextStyles.titleLarge.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.bold,
+                fontFamily: TWTypography.brandFamily,
+              ),
             ),
-            backgroundColor: AppColors.bgSurface,
+            backgroundColor: AppColors.bgPage,
             elevation: 0,
+            shape: const Border(
+              bottom: BorderSide(color: AppColors.bgDivider),
+            ),
+            leading: IconButton(
+              icon: const Icon(
+                Icons.arrow_back_rounded,
+                color: AppColors.textPrimary,
+              ),
+              onPressed: () => Get.back<void>(),
+            ),
             actions: [
               Padding(
                 padding: const EdgeInsets.only(right: 12),
                 child: ElevatedButton.icon(
                   onPressed: controller.save,
                   icon: const Icon(Icons.save, size: 18, color: Colors.black),
-                  label: Text('Save', style: AppTextStyles.buttonText.copyWith(color: Colors.black)),
+                  label: Text('Save', style: AppTextStyles.buttonText.copyWith(color: Colors.black, fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.brand,
                     foregroundColor: Colors.black,
@@ -51,6 +66,73 @@ class EditVideoScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Video Thumbnail & Context Header with Hero flight
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 24),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.bgSurface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.bgDivider),
+                    ),
+                    child: Row(
+                      children: [
+                        Hero(
+                          tag: 'video-thumb-${video.id}',
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: SizedBox(
+                              width: 110,
+                              height: 62,
+                              child: video.thumbnailUrl.isNotEmpty
+                                  ? CachedNetworkImage(
+                                      imageUrl: video.thumbnailUrl,
+                                      fit: BoxFit.cover,
+                                      errorWidget: (_, _, _) => const ColoredBox(
+                                        color: AppColors.bgInput,
+                                        child: Icon(
+                                          Icons.movie_outlined,
+                                          color: AppColors.textTertiary,
+                                        ),
+                                      ),
+                                    )
+                                  : const ColoredBox(
+                                      color: AppColors.bgInput,
+                                      child: Icon(
+                                        Icons.movie_outlined,
+                                        color: AppColors.textTertiary,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                video.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTextStyles.bodyLarge.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Duration: ${video.duration} • ${video.views} views • Visibility: ${video.visibility.capitalizeFirst}',
+                                style: AppTextStyles.caption.copyWith(
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   _buildTextField(
                     controller: controller.titleController,
                     label: 'Title',
@@ -113,11 +195,15 @@ class EditVideoScreen extends StatelessWidget {
         fillColor: AppColors.bgInput,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+          borderSide: const BorderSide(color: AppColors.bgDivider),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.bgDivider),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.brand, width: 2),
+          borderSide: const BorderSide(color: AppColors.brand, width: 1.5),
         ),
       ),
     );
@@ -152,7 +238,10 @@ class EditVideoScreen extends StatelessWidget {
               .map(
                 (opt) => DropdownMenuItem(
                   value: opt['value'],
-                  child: Text(opt['label']!, style: AppTextStyles.bodyMedium),
+                  child: Text(
+                    opt['label']!,
+                    style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimary),
+                  ),
                 ),
               )
               .toList(),
@@ -163,11 +252,15 @@ class EditVideoScreen extends StatelessWidget {
             fillColor: AppColors.bgInput,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
+              borderSide: const BorderSide(color: AppColors.bgDivider),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.bgDivider),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.brand, width: 2),
+              borderSide: const BorderSide(color: AppColors.brand, width: 1.5),
             ),
           ),
           dropdownColor: AppColors.bgSurface,
@@ -184,16 +277,21 @@ class EditVideoScreen extends StatelessWidget {
           () => SwitchListTile(
             title: Text(
               'Is this video "Made for Kids"?',
-              style: AppTextStyles.bodyMedium,
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             value: controller.isKidFriendly.value,
             onChanged: (value) {
               controller.isKidFriendly.value = value;
             },
-            activeThumbColor: AppColors.brand,
+            activeThumbColor: Colors.black,
+            activeTrackColor: AppColors.brand,
             tileColor: AppColors.bgSurface,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: AppColors.bgDivider),
             ),
           ),
         ),
@@ -202,7 +300,10 @@ class EditVideoScreen extends StatelessWidget {
           () => SwitchListTile(
             title: Text(
               'Show Like Count',
-              style: AppTextStyles.bodyMedium,
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             subtitle: Text(
               'Show how many viewers like this video',
@@ -214,10 +315,12 @@ class EditVideoScreen extends StatelessWidget {
             onChanged: (value) {
               controller.showLikeCount.value = value;
             },
-            activeThumbColor: AppColors.brand,
+            activeThumbColor: Colors.black,
+            activeTrackColor: AppColors.brand,
             tileColor: AppColors.bgSurface,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: AppColors.bgDivider),
             ),
           ),
         ),
@@ -226,7 +329,10 @@ class EditVideoScreen extends StatelessWidget {
           () => SwitchListTile(
             title: Text(
               'Show Dislike Count',
-              style: AppTextStyles.bodyMedium,
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             subtitle: Text(
               'Show how many viewers dislike this video',
@@ -238,10 +344,12 @@ class EditVideoScreen extends StatelessWidget {
             onChanged: (value) {
               controller.showDislikeCount.value = value;
             },
-            activeThumbColor: AppColors.brand,
+            activeThumbColor: Colors.black,
+            activeTrackColor: AppColors.brand,
             tileColor: AppColors.bgSurface,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: AppColors.bgDivider),
             ),
           ),
         ),
@@ -250,7 +358,10 @@ class EditVideoScreen extends StatelessWidget {
           () => SwitchListTile(
             title: Text(
               'Allow automatic chapters',
-              style: AppTextStyles.bodyMedium,
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             subtitle: Text(
               'When eligible and available. Adding description timestamps (e.g. 0:00 Intro, 0:10 Topic) will override automatic chapters.',
@@ -262,10 +373,12 @@ class EditVideoScreen extends StatelessWidget {
             onChanged: (value) {
               controller.autoChaptersEnabled.value = value;
             },
-            activeThumbColor: AppColors.brand,
+            activeThumbColor: Colors.black,
+            activeTrackColor: AppColors.brand,
             tileColor: AppColors.bgSurface,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: AppColors.bgDivider),
             ),
           ),
         ),

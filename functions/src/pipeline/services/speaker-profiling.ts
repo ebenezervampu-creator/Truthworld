@@ -9,6 +9,7 @@ import { PIPELINE_CONFIG } from "../config";
 import { Utterance } from "../types";
 import { logger } from "../utils/logger";
 import { getVertexAI } from "../utils/ai-client";
+import { extractCandidateText } from "../utils/ai-utils";
 
 const genAI = getVertexAI();
 
@@ -24,7 +25,7 @@ export interface SpeakerProfile {
 }
 
 export class SpeakerProfilingService {
-  private readonly model = genAI.getGenerativeModel({ model: PIPELINE_CONFIG.GEMINI_MODELS?.profiling || PIPELINE_CONFIG.GEMINI_MODEL || "gemini-2.5-flash" });
+  private readonly model = genAI.getGenerativeModel({ model: PIPELINE_CONFIG.GEMINI_MODELS?.profiling || PIPELINE_CONFIG.GEMINI_MODEL || "gemini-3.1-flash-lite" });
 
   /**
    * Profile all speakers in a transcript
@@ -59,7 +60,7 @@ Return a JSON object with:
 Return ONLY valid JSON.`;
 
         const result = await this.model.generateContent(prompt);
-        const text = result.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        const text = extractCandidateText(result.response.candidates?.[0]) || result.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         
         if (!jsonMatch) throw new Error("No JSON in speaker profile response");

@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <base href="/" />
+  <base href="$FLUTTER_BASE_HREF">
+
+  <!-- ── Google Sign-In (OAuth Client ID) ─────────────── -->
+  <meta name="google-signin-client_id" content="768266102263-f1bou7fgaqn2rkqh0cn5p6voksb163qt.apps.googleusercontent.com" />
 
   <!-- ── SEO ─────────────────────────────────────────── -->
   <title>Truthworld - Watch, Share & Create Verified Videos</title>
@@ -11,22 +14,37 @@
   <meta name="robots" content="index, follow" />
   <link rel="canonical" href="https://www.truthworld.in/" />
 
-  <!-- ── Open Graph (Discord / Facebook / LinkedIn) ──── -->
+  <!-- ── Open Graph (Google Messages / WhatsApp / Discord / LinkedIn) ──── -->
   <meta property="og:type"         content="website" />
   <meta property="og:url"          content="https://www.truthworld.in/" />
   <meta property="og:site_name"    content="Truthworld" />
   <meta property="og:title"        content="Truthworld - Watch, Share & Create Verified Videos" />
   <meta property="og:description"  content="Stream family-safe, verified videos in 70+ dubbed languages & 100+ subtitles. 100% revenue share for creators on custom Truthworld channels." />
-  <meta property="og:image"        content="https://www.truthworld.in/icons/og-image.png" />
+  <meta property="og:image"        content="https://www.truthworld.in/icons/Icon-512.png" />
+  <meta property="og:image:secure_url" content="https://www.truthworld.in/icons/Icon-512.png" />
+  <meta property="og:image:type"   content="image/png" />
+  <meta property="og:image:width"  content="512" />
+  <meta property="og:image:height" content="512" />
+  <meta property="og:image:alt"    content="Truthworld Logo" />
+  <meta property="og:image"        content="https://www.truthworld.in/icons/og-image.png?v=2" />
+  <meta property="og:image:secure_url" content="https://www.truthworld.in/icons/og-image.png?v=2" />
+  <meta property="og:image:type"   content="image/png" />
   <meta property="og:image:width"  content="1200" />
   <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt"    content="Truthworld Banner" />
+
+  <!-- ── App Links for Mobile Messaging Crawlers ──── -->
+  <meta property="al:android:url"  content="truthworld://home" />
+  <meta property="al:android:package" content="com.truthworld.app" />
+  <meta property="al:android:app_name" content="Truthworld" />
 
   <!-- ── Twitter Card ──────────────────────────────────── -->
   <meta name="twitter:card"        content="summary_large_image" />
   <meta name="twitter:site"        content="@truthworld" />
   <meta name="twitter:title"       content="Truthworld - Watch, Share & Create Verified Videos" />
   <meta name="twitter:description" content="Stream family-safe, verified videos in 70+ dubbed languages & 100+ subtitles. 100% revenue share for creators on custom Truthworld channels." />
-  <meta name="twitter:image"       content="https://www.truthworld.in/icons/og-image.png" />
+  <meta name="twitter:image"       content="https://www.truthworld.in/icons/Icon-512.png" />
+  <meta name="twitter:image:alt"   content="Truthworld Logo" />
 
   <!-- ── Structured Data (JSON-LD) ────────────────────── -->
   <script type="application/ld+json">
@@ -49,7 +67,7 @@
         "name": "Truthworld",
         "alternateName": ["Truth World", "Truthworld Platform"],
         "url": "https://www.truthworld.in/",
-        "logo": "https://www.truthworld.in/icons/Icon-192.png",
+        "logo": "https://www.truthworld.in/icons/Icon-192.png?v=2",
         "sameAs": [
           "https://twitter.com/truthworld",
           "https://facebook.com/truthworld",
@@ -61,7 +79,7 @@
         "name": "Truthworld",
         "alternateName": ["Truth World", "Truthworld Studio"],
         "url": "https://www.truthworld.in/",
-        "logo": "https://www.truthworld.in/icons/Icon-192.png"
+        "logo": "https://www.truthworld.in/icons/Icon-192.png?v=2"
       },
       {
         "@type": "ItemList",
@@ -133,12 +151,91 @@
     })();
   </script>
 
-  <!-- ── Performance Preload Hints ──────────────────────── -->
+  <!-- ── Host Environment Detection ───────────────────────────────── -->
+  <script>
+    var isLocalDevHost = window.location.hostname === 'localhost' ||
+                         window.location.hostname === '127.0.0.1' ||
+                         window.location.hostname === '0.0.0.0' ||
+                         window.location.hostname === '[::1]' ||
+                         window.location.hostname.endsWith('.local');
+  </script>
+
+  <!-- ── Resilient Flutter Web Asset Fetch Interceptor ──────────────── -->
+  <!-- Protects against Flutter ReleaseAssetServer & SPA 200 HTML fallbacks -->
+  <!-- for missing assets (FontManifest.json, AssetManifest.bin, images). -->
+  <script>
+    (function() {
+      var origFetch = window.fetch;
+      window.fetch = function(input, init) {
+        var urlStr = (typeof input === 'string') ? input : (input && input.url) ? input.url : '';
+        return origFetch.apply(this, arguments).then(function(response) {
+          var contentType = response.headers ? (response.headers.get('content-type') || '') : '';
+          var isHtml = contentType.toLowerCase().indexOf('text/html') !== -1;
+          if (isHtml) {
+            // Guard FontManifest.json: return empty font manifest array so JSON parser does not throw
+            if (urlStr.indexOf('FontManifest.json') !== -1) {
+              console.warn('[Truthworld Asset Guard] FontManifest received HTML fallback; returning empty manifest');
+              return new Response('[]', {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+              });
+            }
+            // Guard AssetManifest: return empty manifest object
+            if (urlStr.indexOf('AssetManifest.bin.json') !== -1 || urlStr.indexOf('AssetManifest.json') !== -1) {
+              console.warn('[Truthworld Asset Guard] AssetManifest received HTML fallback; returning empty manifest');
+              return new Response('{}', {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+              });
+            }
+            // Convert static media/binary/font/css/js asset HTML responses to 404
+            if (urlStr.indexOf('/assets/') !== -1 || urlStr.indexOf('canvaskit') !== -1 || /\.(wasm|bin|otf|ttf|woff|woff2|png|jpg|jpeg|svg|webp|ico|css|js|mjs)(\?.*)?$/i.test(urlStr)) {
+              return new Response(null, {
+                status: 404,
+                statusText: 'Not Found'
+              });
+            }
+          }
+          return response;
+        });
+      };
+    })();
+  </script>
+
+  <!-- ── Ultra-Low Latency Service Worker & Preloads ─── -->
+  <script>
+    if (!isLocalDevHost && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js', { scope: '/' })
+        .then(function(reg) {
+          reg.onupdatefound = function() {
+            var installingWorker = reg.installing;
+            if (installingWorker) {
+              installingWorker.onstatechange = function() {
+                if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  console.log('[Truthworld SW] New engine version ready.');
+                }
+              };
+            }
+          };
+        })
+        .catch(function(err) {
+          console.warn('[Truthworld SW] Registration failed:', err);
+        });
+    }
+  </script>
+
+  <!-- ── Performance Preload Hints (Wasm & Engine Chunks) ─ -->
+  <link rel="preload" href="flutter_bootstrap.js" as="script" />
+  <link rel="modulepreload" href="main.dart.mjs" />
+  <link rel="preload" href="main.dart.wasm" as="fetch" type="application/wasm" crossorigin="anonymous" />
   <link rel="preload" href="https://www.gstatic.com/flutter-canvaskit/0cd610717bde95fd88343c64f81c11ba4e5c0010/chromium/canvaskit.wasm" as="fetch" type="application/wasm" crossorigin="anonymous" />
 
   <!-- ── PWA & Icons ───────────────────────────────────── -->
-  <link rel="icon" type="image/png" href="favicon.png" />
-  <link rel="apple-touch-icon" href="icons/Icon-192.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/Icon-192.png?v=2" />
+  <link rel="icon" type="image/png" sizes="48x48" href="favicon-48x48.png?v=2" />
+  <link rel="icon" type="image/png" href="favicon.png?v=2" />
+  <link rel="shortcut icon" href="favicon.ico?v=2" />
+  <link rel="apple-touch-icon" href="icons/Icon-192.png?v=2" />
   <link rel="manifest" href="manifest.json" />
 
   <!-- ── Image Cropper (Web - Local First-Party with Resilient CDN Fallback) ── -->
@@ -261,6 +358,9 @@
       line-height: 1;
     }
   </style>
+
+  <!-- ── Google reCAPTCHA (Firebase Auth Phone Verification) ──────────── -->
+  <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 </head>
 <body>
   <!-- Mobile Smart App Banner -->
@@ -285,7 +385,7 @@
                          window.location.hostname === '[::1]' ||
                          window.location.hostname.endsWith('.local');
     if (isLocalDevHost) {
-      self.FIREBASE_APPCHECK_DEBUG_TOKEN = self.FIREBASE_APPCHECK_DEBUG_TOKEN || 'aeb2d92a-1f8d-4014-819d-b24f3ffefec3';
+      self.FIREBASE_APPCHECK_DEBUG_TOKEN = 'aeb2d92a-1f8d-4014-819d-b24f3ffefec3';
     }
 
     // Clean URL query parameters used for cache busting
@@ -310,24 +410,26 @@
       console.error('[Truthworld Web Unhandled Rejection]', e.reason);
     });
 
-    // Unregister legacy service workers and purge CacheStorage to prevent stale web builds
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(function(registrations) {
-        for (var registration of registrations) {
-          registration.unregister();
-        }
-      }).catch(function(err) {
-        console.warn('ServiceWorker cleanup error:', err);
-      });
-    }
-    if ('caches' in window) {
-      caches.keys().then(function(names) {
-        for (var name of names) {
-          caches.delete(name);
-        }
-      }).catch(function(err) {
-        console.warn('CacheStorage cleanup error:', err);
-      });
+    // Unregister legacy service workers and purge CacheStorage on local dev to prevent stale web builds
+    if (isLocalDevHost) {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for (var registration of registrations) {
+            registration.unregister();
+          }
+        }).catch(function(err) {
+          console.warn('ServiceWorker cleanup error:', err);
+        });
+      }
+      if ('caches' in window) {
+        caches.keys().then(function(names) {
+          for (var name of names) {
+            caches.delete(name);
+          }
+        }).catch(function(err) {
+          console.warn('CacheStorage cleanup error:', err);
+        });
+      }
     }
 
     // Evict stale topic and feed caches from GetStorage while strictly preserving user auth and preferences
@@ -374,112 +476,766 @@
       console.warn('Local feed cache cleanup error:', err);
     }
 
-    // Automatic Live Update Detector: Detects new deployments & auto-refreshes seamlessly
-    (function() {
-      var currentBuild = null;
-      function checkAppUpdate() {
-        fetch('version.json?_v=' + Date.now(), { cache: 'no-store' })
-          .then(function(response) {
-            if (!response.ok) return null;
-            return response.json();
-          })
-          .then(function(data) {
-            if (!data) return;
-            var buildSignature = (data.version || '') + '-' + (data.build_number || '');
-            if (currentBuild === null) {
-              currentBuild = buildSignature;
-            } else if (currentBuild !== buildSignature) {
-              console.log('[Truthworld] New deployment detected (' + buildSignature + '). Auto-refreshing to latest version...');
-              if ('caches' in window) {
-                caches.keys().then(function(names) {
-                  return Promise.all(names.map(function(name) { return caches.delete(name); }));
-                }).finally(function() {
-                  window.location.reload();
-                });
-              } else {
-                window.location.reload();
+    // ══════════════════════════════════════════════════════════════════
+    // GLOBAL FORCE-UPDATER: ensures every user worldwide always runs
+    // the latest deployed version — never an old cached build.
+    //
+    // Detection signals:
+    //   • Immediate check at cold start
+    //   • Page Visibility (tab switch / phone unlock)
+    //   • Window focus
+    //   • Network reconnect (online event)
+    //   • Periodic poll every 90 seconds
+    //
+    // Update flow:
+    //   1. Fetch version.json (no-store, cache-bust timestamp)
+    //   2. Compare build signature against the one stored at boot
+    //   3. On mismatch → show a gentle toast → wipe caches → reload
+    // ══════════════════════════════════════════════════════════════════
+    (function () {
+      var BOOT_SIGNATURE = null;          // set on first successful fetch
+      var RELOADING      = false;         // guard against double-reload
+      var POLL_MS        = 90000;         // 90-second background poll
+      var TOAST_MS       = 3000;          // toast visible before reload
+
+      // ── Friendly update toast ──────────────────────────────────────
+      function showUpdateToast(onDone) {
+        var toast = document.createElement('div');
+        toast.style.cssText = [
+          'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);',
+          'background:#1e1e2e;color:#fff;',
+          'padding:12px 20px;border-radius:12px;',
+          'box-shadow:0 8px 32px rgba(0,0,0,0.6);',
+          'font-family:Roboto,-apple-system,sans-serif;font-size:14px;',
+          'display:flex;align-items:center;gap:10px;',
+          'z-index:2147483647;white-space:nowrap;',
+          'animation:tw-fadein 0.25s ease;',
+        ].join('');
+        toast.innerHTML =
+          '<span style="width:8px;height:8px;border-radius:50%;background:#9B30FF;flex-shrink:0;display:inline-block;"></span>' +
+          'Updating Truthworld to the latest version\u2026';
+        // inject keyframe once
+        if (!document.getElementById('tw-fadein-kf')) {
+          var s = document.createElement('style');
+          s.id = 'tw-fadein-kf';
+          s.textContent = '@keyframes tw-fadein{from{opacity:0;transform:translateX(-50%) translateY(12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}';
+          document.head.appendChild(s);
+        }
+        document.body.appendChild(toast);
+        setTimeout(onDone, TOAST_MS);
+      }
+
+      // ── Hard reload: purge every cache layer then reload ───────────
+      function hardReload() {
+        if (RELOADING) return;
+        RELOADING = true;
+
+        function doReload() {
+          // localStorage clear (GetStorage stale feeds already cleared above;
+          // preserve auth keys by only removing tw_* cache keys)
+          try {
+            var toRemove = [];
+            for (var i = 0; i < localStorage.length; i++) {
+              var k = localStorage.key(i);
+              if (k && (k.indexOf('feed_') === 0 || k.indexOf('cache_') === 0)) {
+                toRemove.push(k);
               }
             }
-          })
-          .catch(function() {});
+            toRemove.forEach(function (k) { localStorage.removeItem(k); });
+          } catch (_) {}
+
+          // Wipe CacheStorage (service workers, fetch caches)
+          if ('caches' in window) {
+            caches.keys().then(function (names) {
+              return Promise.all(names.map(function (n) { return caches.delete(n); }));
+            }).then(function () {
+              window.location.reload();
+            }).catch(function () {
+              window.location.reload();
+            });
+          } else {
+            window.location.reload();
+          }
+        }
+
+        showUpdateToast(doReload);
       }
 
-      // Check when user returns or focuses the window
-      document.addEventListener('visibilitychange', function() {
-        if (document.visibilityState === 'visible') {
-          checkAppUpdate();
-        }
-      });
-      window.addEventListener('focus', checkAppUpdate);
+      // ── Fetch & compare build signature ───────────────────────────
+      function checkVersion() {
+        fetch('/version.json?_t=' + Date.now(), {
+          cache: 'no-store',
+          headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' }
+        })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+          if (!data) return;
+          var sig = (data.version || '') + '-' + (data.build_number || '');
+          if (!sig || sig === '-') return;
 
-      // Periodically check in background every 2 minutes
-      setInterval(checkAppUpdate, 120000);
-      checkAppUpdate();
+          if (BOOT_SIGNATURE === null) {
+            // First fetch at this page load — store as baseline
+            BOOT_SIGNATURE = sig;
+            // Also persist in sessionStorage: if user refreshes manually
+            // and gets a stale HTML (shouldn't happen with no-cache headers,
+            // but defense-in-depth), the next checkVersion will still detect
+            // the mismatch via the persisted cross-session localStorage copy.
+            try { localStorage.setItem('tw_last_build', sig); } catch (_) {}
+            return;
+          }
+
+          if (sig !== BOOT_SIGNATURE) {
+            console.info('[Truthworld] 🚀 New version detected: ' + sig + ' (was: ' + BOOT_SIGNATURE + ')');
+            hardReload();
+          }
+        })
+        .catch(function () {}); // silent — offline or server blip
+      }
+
+      // ── Cross-session stale-tab detection ─────────────────────────
+      // Users who leave a tab open for days will be caught here:
+      // on their first interaction we compare the persisted build against
+      // the live version.json — even before the 90s poll fires.
+      (function checkStaleSession() {
+        try {
+          var storedSig = localStorage.getItem('tw_last_build');
+          if (!storedSig) return; // first ever visit
+          fetch('/version.json?_t=' + Date.now(), { cache: 'no-store' })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (data) {
+            if (!data) return;
+            var liveSig = (data.version || '') + '-' + (data.build_number || '');
+            if (liveSig && liveSig !== '-' && liveSig !== storedSig) {
+              console.info('[Truthworld] 🚀 Stale session detected (' + storedSig + ' → ' + liveSig + ')');
+              hardReload();
+            } else if (liveSig) {
+              BOOT_SIGNATURE = liveSig; // sync baseline immediately
+              localStorage.setItem('tw_last_build', liveSig);
+            }
+          })
+          .catch(function () {});
+        } catch (_) {}
+      })();
+
+      // ── Bind all update-trigger signals ───────────────────────────
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'visible') checkVersion();
+      });
+      window.addEventListener('focus',  checkVersion);
+      window.addEventListener('online', checkVersion);   // reconnect after offline
+      window.addEventListener('pageshow', function (e) {
+        if (e.persisted) checkVersion(); // back/forward cache restoration
+      });
+
+      // ── Background periodic poll ───────────────────────────────────
+      setInterval(checkVersion, POLL_MS);
+
+      // ── Cold-start check immediately ──────────────────────────────
+      checkVersion();
     })();
+
   </script>
 
-  <!-- Mobile Deep Link & Smart App Banner Controller -->
+  <!-- ─────────────────────────────────────────────────────────────────────
+       Mobile Deep-Link Interceptor (YouTube-style instant native redirect)
+       ─────────────────────────────────────────────────────────────────────
+       On Android/iOS: detect deep-linkable paths and IMMEDIATELY redirect
+       to the native app — before Flutter loads — exactly as YouTube does.
+       For non-deep-link paths (home, trending, browse…): show the smart
+       app banner and load Flutter normally.
+       ───────────────────────────────────────────────────────────────────── -->
   <script>
-    (function() {
-      var isAndroid = /Android/i.test(navigator.userAgent);
-      var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-      if (!isAndroid && !isIOS) return;
+    (function () {
+      'use strict';
 
-      var banner = document.getElementById('tw-app-banner');
-      var openBtn = document.getElementById('tw-open-app-btn');
-      var closeBtn = document.getElementById('tw-close-app-btn');
+      // ── Platform detection ─────────────────────────────────────────────
+      var ua = navigator.userAgent || '';
+      var isAndroid = /Android/i.test(ua);
+      var isIOS     = /iPhone|iPad|iPod/i.test(ua);
+      if (!isAndroid && !isIOS) return; // desktop: load Flutter normally
 
-      if (banner && sessionStorage.getItem('tw_banner_dismissed') !== 'true') {
-        banner.style.display = 'flex';
-      }
+      // ── Path analysis ─────────────────────────────────────────────────
+      var pathname = window.location.pathname;   // e.g. "/@ebenezervampu"
+      var search   = window.location.search;     // e.g. "?v=abc123"
+      var hash     = window.location.hash;
+      var fullPath = pathname + search + hash;
+      var cleanPath = fullPath.replace(/^\/+/, '');
 
-      if (closeBtn) {
-        closeBtn.addEventListener('click', function() {
-          if (banner) banner.style.display = 'none';
-          sessionStorage.setItem('tw_banner_dismissed', 'true');
-        });
-      }
+      // Paths that should bypass Flutter web and open the native app directly
+      var deepLinkPrefixes = [
+        '/watch', '/v/', '/shorts/',
+        '/@',
+        '/channel/', '/c/', '/user/',
+        '/playlist/',
+        '/T/', '/t/', '/topic/', '/topics/',
+        '/clips/', '/clip/',
+        '/chapter/', '/chapters/',
+        '/post/', '/community/',
+      ];
 
-      var pathWithQuery = window.location.pathname + window.location.search + window.location.hash;
-      var cleanPath = pathWithQuery.replace(/^\/+/, '');
-      var deepLinkIntentUrl = isAndroid
-        ? 'intent://www.truthworld.in/' + cleanPath + '#Intent;scheme=https;package=com.truthworld.app;S.browser_fallback_url=' + encodeURIComponent(window.location.href) + ';end'
+      // Also match /watch?v= (query-only) and /:vanityHandle (single segment)
+      var isDeepLinkPath = (function () {
+        // /watch with ?v= query param
+        if (pathname === '/watch' && search.indexOf('v=') !== -1) return true;
+
+        // Prefix-based match
+        for (var i = 0; i < deepLinkPrefixes.length; i++) {
+          if (pathname === deepLinkPrefixes[i].replace(/\/$/, '') ||
+              pathname.indexOf(deepLinkPrefixes[i]) === 0) {
+            return true;
+          }
+        }
+
+        // Single-segment vanity handle: /<username> (not a reserved web route)
+        var reservedRoutes = [
+          '/', '/home', '/trending', '/browse', '/studio', '/search',
+          '/settings', '/about', '/privacy', '/terms', '/upload', '/create',
+          '/notifications', '/library', '/history', '/likedvideos',
+          '/watchlater', '/subscriptions', '/advertisements', '/advertiser',
+          '/ads', '/feedback', '/community-guidelines', '/copyright',
+          '/analytics', '/admin', '/explore', '/login', '/signup',
+        ];
+        var segs = pathname.split('/').filter(Boolean);
+        if (segs.length === 1) {
+          var seg = '/' + segs[0];
+          // Any single-segment path not in the reserved list is a vanity handle
+          var isReserved = false;
+          for (var j = 0; j < reservedRoutes.length; j++) {
+            if (reservedRoutes[j] === seg || reservedRoutes[j] === seg + '/') {
+              isReserved = true;
+              break;
+            }
+          }
+          if (!isReserved) return true;
+        }
+
+        return false;
+      })();
+
+      // ── Build deep-link intent URL ─────────────────────────────────────
+      var fallbackUrl = encodeURIComponent(window.location.href);
+      var intentUrl = isAndroid
+        ? 'intent://www.truthworld.in/' + cleanPath +
+          '#Intent;scheme=https;package=com.truthworld.app;' +
+          'S.browser_fallback_url=' + fallbackUrl + ';end'
         : 'truthworld://' + cleanPath;
 
-      if (openBtn) {
-        openBtn.setAttribute('href', deepLinkIntentUrl);
-        openBtn.addEventListener('click', function(e) {
-          e.preventDefault();
-          var freshPath = (window.location.pathname + window.location.search + window.location.hash).replace(/^\/+/, '');
-          var targetUrl = isAndroid
-            ? 'intent://www.truthworld.in/' + freshPath + '#Intent;scheme=https;package=com.truthworld.app;S.browser_fallback_url=' + encodeURIComponent(window.location.href) + ';end'
-            : 'truthworld://' + freshPath;
-          window.location.href = targetUrl;
+      // ── Smart App Banner (non-deep-link paths) ────────────────────────
+      // Wire up the smart banner for pages where we load Flutter normally
+      (function wireBanner() {
+        var banner   = document.getElementById('tw-app-banner');
+        var openBtn  = document.getElementById('tw-open-app-btn');
+        var closeBtn = document.getElementById('tw-close-app-btn');
+
+        if (banner && sessionStorage.getItem('tw_banner_dismissed') !== 'true') {
+          banner.style.display = 'flex';
+        }
+        if (closeBtn) {
+          closeBtn.addEventListener('click', function () {
+            if (banner) banner.style.display = 'none';
+            sessionStorage.setItem('tw_banner_dismissed', 'true');
+          });
+        }
+        if (openBtn) {
+          openBtn.setAttribute('href', intentUrl);
+          openBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            var fp = (window.location.pathname + window.location.search + window.location.hash).replace(/^\/+/, '');
+            var url = isAndroid
+              ? 'intent://www.truthworld.in/' + fp +
+                '#Intent;scheme=https;package=com.truthworld.app;' +
+                'S.browser_fallback_url=' + encodeURIComponent(window.location.href) + ';end'
+              : 'truthworld://' + fp;
+            window.location.href = url;
+          });
+        }
+      })();
+
+      // ── Non-deep-link path on mobile: show banner, load Flutter normally
+      if (!isDeepLinkPath) {
+        // Also auto-dispatch for in-app browsers (WhatsApp, Telegram, Instagram, etc.)
+        var isInApp = /FBAN|FBAV|Instagram|Twitter|Line|WhatsApp|Telegram|MicroMessenger/i.test(ua);
+        var isExternalRef = document.referrer && !document.referrer.includes('truthworld.in');
+        if ((isInApp || isExternalRef) && !sessionStorage.getItem('tw_app_launch_attempted')) {
+          sessionStorage.setItem('tw_app_launch_attempted', 'true');
+          setTimeout(function () { try { window.location.href = intentUrl; } catch (_) {} }, 300);
+        }
+        return; // load Flutter
+      }
+
+      // ════════════════════════════════════════════════════════════════════
+      // DEEP-LINK PATH ON MOBILE — YouTube-style instant redirect
+      // Block Flutter from loading. Show a minimal native redirect screen
+      // and immediately dispatch the intent to open the native app.
+      // ════════════════════════════════════════════════════════════════════
+
+      // Prevent Flutter bootstrap script from running
+      // (we cancel it by replacing the body before it appends the script tag)
+      document.addEventListener('DOMContentLoaded', function () {
+        // Belt-and-suspenders: cancel any Flutter bootstrap that snuck through
+        var scripts = document.querySelectorAll('script[src*="flutter_bootstrap"]');
+        for (var k = 0; k < scripts.length; k++) { scripts[k].remove(); }
+      });
+
+      // Replace the page body immediately with a native redirect screen
+      // This runs synchronously before Flutter bootstrap, so Flutter never loads
+      var storeUrl = isAndroid
+        ? 'https://play.google.com/store/apps/details?id=com.truthworld.app'
+        : 'https://apps.apple.com/app/truthworld/id6738912958';
+
+      // Inject redirect UI into the body
+      function renderRedirectScreen() {
+        document.body.style.cssText =
+          'margin:0;padding:0;background:#0D0014;font-family:Roboto,-apple-system,sans-serif;' +
+          'display:flex;flex-direction:column;align-items:center;justify-content:center;' +
+          'min-height:100vh;overflow:hidden;';
+
+        document.body.innerHTML =
+          '<div style="text-align:center;padding:32px 24px;max-width:360px;width:100%;">' +
+            '<img src="/icons/Icon-192.png" alt="Truthworld" ' +
+              'style="width:80px;height:80px;border-radius:20px;margin-bottom:24px;' +
+              'box-shadow:0 8px 32px rgba(0,0,0,0.5);"' +
+              'onerror="this.style.display=\'none\'">' +
+            '<h1 style="color:#ffffff;font-size:22px;font-weight:700;margin:0 0 8px;">' +
+              'Opening Truthworld&hellip;' +
+            '</h1>' +
+            '<p style="color:#a1a1aa;font-size:14px;margin:0 0 32px;line-height:1.5;">' +
+              'Redirecting you to the Truthworld app.' +
+            '</p>' +
+            '<div id="tw-spinner" style="' +
+              'width:36px;height:36px;border:3px solid rgba(255,255,255,0.15);' +
+              'border-top-color:#9B30FF;border-radius:50%;' +
+              'animation:tw-spin 0.8s linear infinite;margin:0 auto 32px;">' +
+            '</div>' +
+            '<button id="tw-open-native" ' +
+              'style="display:block;width:100%;padding:14px;background:#9B30FF;' +
+              'color:#ffffff;font-size:16px;font-weight:700;border:none;' +
+              'border-radius:12px;cursor:pointer;margin-bottom:12px;">' +
+              'Open in Truthworld App' +
+            '</button>' +
+            '<button id="tw-get-app" ' +
+              'style="display:none;width:100%;padding:14px;background:#ffffff;' +
+              'color:#000000;font-size:16px;font-weight:700;border:none;' +
+              'border-radius:12px;cursor:pointer;margin-bottom:12px;">' +
+              (isAndroid ? 'Get on Google Play' : 'Download on the App Store') +
+            '</button>' +
+            '<button id="tw-continue-web" ' +
+              'style="background:none;border:none;color:#71717a;font-size:13px;' +
+              'cursor:pointer;padding:8px;text-decoration:underline;">' +
+              'Continue in browser' +
+            '</button>' +
+          '</div>' +
+          '<style>@keyframes tw-spin{to{transform:rotate(360deg)}}</style>';
+
+        // Wire up buttons
+        var openNativeBtn = document.getElementById('tw-open-native');
+        var getAppBtn     = document.getElementById('tw-get-app');
+        var continueBtn   = document.getElementById('tw-continue-web');
+
+        if (openNativeBtn) {
+          openNativeBtn.addEventListener('click', function () {
+            window.location.href = intentUrl;
+          });
+        }
+        if (getAppBtn) {
+          getAppBtn.addEventListener('click', function () {
+            window.location.href = storeUrl;
+          });
+        }
+        if (continueBtn) {
+          continueBtn.addEventListener('click', function () {
+            // Reload the page but skip the interceptor this time
+            sessionStorage.setItem('tw_skip_redirect', '1');
+            window.location.reload();
+          });
+        }
+
+        // After 2.5 s without the app opening, show the "Get App" button
+        var showGetApp = setTimeout(function () {
+          var spinner = document.getElementById('tw-spinner');
+          if (spinner) { spinner.style.display = 'none'; }
+          if (getAppBtn) { getAppBtn.style.display = 'block'; }
+        }, 2500);
+
+        // Visibility change: user returned to browser → app is installed but
+        // may have already handled the link. Reset spinner so page looks clean.
+        document.addEventListener('visibilitychange', function () {
+          if (document.visibilityState === 'visible') {
+            clearTimeout(showGetApp);
+          }
         });
       }
 
-      // Auto-dispatch when opened inside mobile social messaging apps (WhatsApp, Telegram, Twitter, FB, IG)
-      var isInAppBrowser = /FBAN|FBAV|Instagram|Twitter|Line|WhatsApp|Telegram|MicroMessenger/i.test(navigator.userAgent);
-      var isReferrerExternal = document.referrer && !document.referrer.includes('truthworld.in');
-      var hasAutoLaunched = sessionStorage.getItem('tw_app_launch_attempted');
+      // ── Skip-redirect flag (user clicked "Continue in browser") ────────
+      if (sessionStorage.getItem('tw_skip_redirect') === '1') {
+        sessionStorage.removeItem('tw_skip_redirect');
+        // fall through → skeleton pre-render + Flutter load
+      } else {
+        // ── Fire the redirect ────────────────────────────────────────────
+        // Replace body immediately (synchronously) so Flutter never bootstraps
+        renderRedirectScreen();
 
-      if ((isInAppBrowser || isReferrerExternal) && !hasAutoLaunched) {
-        sessionStorage.setItem('tw_app_launch_attempted', 'true');
-        setTimeout(function() {
-          try {
-            window.location.href = deepLinkIntentUrl;
-          } catch (_) {}
-        }, 300);
+        // Dispatch intent after a tiny delay to let the browser paint the UI first
+        setTimeout(function () {
+          try { window.location.href = intentUrl; } catch (_) {}
+        }, 50);
+        return;
       }
     })();
   </script>
 
-  <!-- Flutter bootstrap with dynamic cache-busting -->
+  <!-- ─────────────────────────────────────────────────────────────────────
+       Low-Latency Content-Aware Skeleton Pre-Render (YouTube-style)
+       ─────────────────────────────────────────────────────────────────────
+       Runs synchronously for ALL users (desktop + mobile "Continue in browser").
+       Detects the URL type and instantly paints a matching shimmer skeleton
+       BEFORE Flutter's CanvasKit WASM downloads. Flutter mounts on top naturally.
+       ───────────────────────────────────────────────────────────────────── -->
   <script>
-    var script = document.createElement('script');
-    script.src = 'flutter_bootstrap.js?v=' + Date.now();
-    script.type = 'application/javascript';
-    document.body.appendChild(script);
+    (function () {
+      'use strict';
+
+      // ── URL classification ─────────────────────────────────────────────
+      var pn   = window.location.pathname;
+      var qs   = window.location.search;
+      var segs = pn.split('/').filter(Boolean);
+      var seg0 = segs[0] ? segs[0].toLowerCase() : '';
+      var host = (window.location.hostname || '').toLowerCase();
+
+      var isStudio = seg0 === 'studio' || host.startsWith('studio');
+      var isHome   = seg0 === '' || seg0 === 'home';
+
+      var isVideo    = seg0 === 'watch' || seg0 === 'v' || seg0 === 'shorts' ||
+                       seg0 === 'clip' || seg0 === 'clips' ||
+                       seg0 === 'chapter' || seg0 === 'chapters' ||
+                       (pn === '/watch' && qs.indexOf('v=') !== -1);
+      var isChannel  = seg0 === 'channel' || seg0 === 'c' || seg0 === 'user' ||
+                       (segs[0] && segs[0].startsWith('@')) ||
+                       (segs.length === 1 && !isVideo &&
+                        !['home','trending','browse','search','settings','about',
+                          'privacy','terms','studio','admin','upload','notifications',
+                          'library','history','likedvideos','watchlater',
+                          'subscriptions','advertisements','advertiser','ads',
+                          'explore','login','signup'].includes(seg0));
+      var isPlaylist = seg0 === 'playlist';
+      var isTopic    = seg0 === 't' || seg0 === 'topic' || seg0 === 'topics' || seg0 === 'T'.toLowerCase();
+
+      var hasSkeleton = !isHome && !isStudio && (isVideo || isChannel || isPlaylist || isTopic);
+
+      // ── Shared shimmer keyframe (injected only when a matching skeleton exists) ───
+      if (hasSkeleton) {
+        var styleEl = document.createElement('style');
+        styleEl.textContent = [
+          '@keyframes tw-shimmer{0%{background-position:-800px 0}100%{background-position:800px 0}}',
+          '.tw-sk{',
+            'background:linear-gradient(90deg,#1a1a2e 25%,#23234a 50%,#1a1a2e 75%);',
+            'background-size:800px 100%;',
+            'animation:tw-shimmer 1.4s infinite linear;',
+            'border-radius:4px;',
+          '}',
+          '.tw-sk-r8{border-radius:8px}',
+          '.tw-sk-r50{border-radius:50%}',
+          '.tw-sk-r12{border-radius:12px}',
+          /* Topnav */
+          '#tw-pre-sk{',
+            'position:fixed;inset:0;background:#0D0014;',
+            'display:flex;flex-direction:column;',
+            'overflow:hidden;z-index:1;',
+            'font-family:Roboto,-apple-system,sans-serif;',
+          '}',
+          '#tw-sk-nav{',
+            'height:56px;min-height:56px;',
+            'background:#0D0014;',
+            'border-bottom:1px solid rgba(255,255,255,0.06);',
+            'display:flex;align-items:center;',
+            'padding:0 20px;gap:16px;flex-shrink:0;',
+          '}',
+          '#tw-sk-body{flex:1;overflow:hidden;display:flex;}',
+        ].join('');
+        document.head.appendChild(styleEl);
+      }
+
+      // ── Shared nav skeleton ────────────────────────────────────────────
+      function nav() {
+        return '<div id="tw-sk-nav">' +
+          // Logo
+          '<div class="tw-sk tw-sk-r4" style="width:120px;height:22px;flex-shrink:0"></div>' +
+          '<div style="flex:1"></div>' +
+          // Search
+          '<div class="tw-sk tw-sk-r50" style="width:32px;height:32px;flex-shrink:0"></div>' +
+          '<div class="tw-sk tw-sk-r50" style="width:32px;height:32px;flex-shrink:0"></div>' +
+        '</div>';
+      }
+
+      // ── Shimmer rect helper ────────────────────────────────────────────
+      function sk(w, h, r, extra) {
+        r = r || '';
+        extra = extra || '';
+        return '<div class="tw-sk' + (r ? ' tw-sk-' + r : '') + '" ' +
+               'style="width:' + w + ';height:' + h + ';flex-shrink:0;' + extra + '"></div>';
+      }
+
+      // ── Video player skeleton ──────────────────────────────────────────
+      function videoSkeleton() {
+        var isMobile = window.innerWidth < 768;
+        if (isMobile) {
+          return '<div style="display:flex;flex-direction:column;width:100%;">' +
+            // Video area 16:9
+            '<div class="tw-sk" style="width:100%;padding-top:56.25%;border-radius:0;flex-shrink:0"></div>' +
+            '<div style="padding:16px;display:flex;flex-direction:column;gap:12px;">' +
+              // Title
+              sk('92%', '20px', 'r8') +
+              sk('70%', '20px', 'r8') +
+              // Meta row
+              '<div style="display:flex;gap:12px;align-items:center;margin-top:4px;">' +
+                sk('60px', '14px', 'r8') +
+                sk('4px', '14px') +
+                sk('80px', '14px', 'r8') +
+              '</div>' +
+              // Channel row
+              '<div style="display:flex;gap:12px;align-items:center;margin-top:8px;">' +
+                sk('40px', '40px', 'r50') +
+                '<div style="flex:1;display:flex;flex-direction:column;gap:6px;">' +
+                  sk('140px', '14px', 'r8') +
+                  sk('90px', '12px', 'r8') +
+                '</div>' +
+                sk('90px', '34px', 'r12') +
+              '</div>' +
+            '</div>' +
+          '</div>';
+        }
+        return '<div style="display:flex;width:100%;height:100%;gap:0;">' +
+          // Main column
+          '<div style="flex:1;min-width:0;padding:20px 24px;display:flex;flex-direction:column;gap:16px;overflow:hidden;">' +
+            // Player
+            '<div class="tw-sk" style="width:100%;padding-top:56.25%;border-radius:8px;flex-shrink:0"></div>' +
+            // Title
+            sk('88%', '24px', 'r8', 'margin-top:4px;') +
+            sk('60%', '24px', 'r8') +
+            // Meta + channel
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">' +
+              '<div style="display:flex;gap:12px;align-items:center;">' +
+                sk('50px', '14px', 'r8') +
+                sk('100px', '14px', 'r8') +
+              '</div>' +
+              '<div style="display:flex;gap:8px;">' +
+                sk('80px', '34px', 'r12') +
+                sk('80px', '34px', 'r12') +
+                sk('80px', '34px', 'r12') +
+              '</div>' +
+            '</div>' +
+            '<div style="display:flex;gap:12px;align-items:center;padding:12px 0;border-top:1px solid rgba(255,255,255,0.06);border-bottom:1px solid rgba(255,255,255,0.06);">' +
+              sk('48px', '48px', 'r50') +
+              '<div style="flex:1;display:flex;flex-direction:column;gap:6px;">' +
+                sk('180px', '16px', 'r8') +
+                sk('110px', '13px', 'r8') +
+              '</div>' +
+              sk('110px', '36px', 'r12') +
+            '</div>' +
+            // Description
+            sk('100%', '14px', 'r8') +
+            sk('96%', '14px', 'r8') +
+            sk('80%', '14px', 'r8') +
+          '</div>' +
+          // Sidebar
+          '<div style="width:402px;min-width:402px;padding:20px 24px 20px 0;display:flex;flex-direction:column;gap:4px;overflow:hidden;">' +
+            _videoCardList(8) +
+          '</div>' +
+        '</div>';
+      }
+
+      // ── Small video card rows (for sidebar / feed) ─────────────────────
+      function _videoCardList(count) {
+        var html = '';
+        for (var i = 0; i < count; i++) {
+          html += '<div style="display:flex;gap:8px;margin-bottom:8px;">' +
+            sk('168px', '94px', 'r8', 'flex-shrink:0;') +
+            '<div style="flex:1;display:flex;flex-direction:column;gap:6px;padding-top:2px;">' +
+              sk('100%', '14px', 'r8') +
+              sk('85%', '14px', 'r8') +
+              sk('60%', '12px', 'r8', 'margin-top:2px;') +
+              sk('50%', '12px', 'r8') +
+            '</div>' +
+          '</div>';
+        }
+        return html;
+      }
+
+      // ── Grid video card (for feed/channel/home) ────────────────────────
+      function _videoGrid(count, cols) {
+        cols = cols || (window.innerWidth < 600 ? 1 : window.innerWidth < 900 ? 2 : window.innerWidth < 1200 ? 3 : 4);
+        var pct = (100 / cols) + '%';
+        var html = '<div style="display:flex;flex-wrap:wrap;gap:16px;padding:16px 0;">';
+        for (var i = 0; i < count; i++) {
+          var aspPct = (1 / 1.777 * 100) + '%'; // 16:9 aspect
+          html += '<div style="width:calc(' + pct + ' - ' + Math.ceil(16 * (cols - 1) / cols) + 'px);flex-shrink:0;">' +
+            '<div class="tw-sk tw-sk-r8" style="width:100%;padding-top:' + aspPct + ';margin-bottom:12px;"></div>' +
+            '<div style="display:flex;gap:10px;">' +
+              sk('36px', '36px', 'r50', 'flex-shrink:0;') +
+              '<div style="flex:1;display:flex;flex-direction:column;gap:6px;">' +
+                sk('100%', '15px', 'r8') +
+                sk('80%', '15px', 'r8') +
+                sk('55%', '12px', 'r8', 'margin-top:2px;') +
+              '</div>' +
+            '</div>' +
+          '</div>';
+        }
+        html += '</div>';
+        return html;
+      }
+
+      // ── Channel skeleton ───────────────────────────────────────────────
+      function channelSkeleton() {
+        var isMobile = window.innerWidth < 768;
+        var pad = isMobile ? '0 16px' : '0 24px';
+        return '<div style="display:flex;flex-direction:column;width:100%;overflow-y:auto;">' +
+          // Banner
+          '<div class="tw-sk" style="width:100%;height:' + (isMobile ? '100px' : '176px') + ';border-radius:0;flex-shrink:0;"></div>' +
+          '<div style="padding:' + pad + ';display:flex;flex-direction:column;gap:0;">' +
+            // Avatar + info row
+            '<div style="display:flex;align-items:flex-end;gap:16px;margin-top:' + (isMobile ? '-24px' : '-40px') + ';margin-bottom:16px;">' +
+              sk(isMobile ? '72px' : '120px', isMobile ? '72px' : '120px', 'r50', 'flex-shrink:0;border:3px solid #0D0014;') +
+              '<div style="flex:1;display:flex;flex-direction:column;gap:8px;padding-bottom:4px;">' +
+                sk('200px', isMobile ? '18px' : '24px', 'r8') +
+                sk('130px', '14px', 'r8') +
+                sk('180px', '13px', 'r8') +
+              '</div>' +
+              (!isMobile ? sk('110px', '36px', 'r12') : '') +
+            '</div>' +
+            // Tabs
+            '<div style="display:flex;gap:4px;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:0;margin-bottom:20px;">' +
+              sk('60px', '36px', 'r8') + sk('60px', '36px', 'r8') +
+              sk('60px', '36px', 'r8') + sk('60px', '36px', 'r8') +
+            '</div>' +
+            // Video grid
+            _videoGrid(isMobile ? 4 : 12) +
+          '</div>' +
+        '</div>';
+      }
+
+      // ── Playlist skeleton ──────────────────────────────────────────────
+      function playlistSkeleton() {
+        var isMobile = window.innerWidth < 768;
+        if (isMobile) {
+          return '<div style="display:flex;flex-direction:column;width:100%;padding:16px;gap:16px;overflow-y:auto;">' +
+            sk('100%', '200px', 'r8') +
+            sk('80%', '22px', 'r8') +
+            sk('55%', '16px', 'r8') +
+            '<div style="display:flex;flex-direction:column;gap:12px;margin-top:8px;">' +
+              _videoCardList(6) +
+            '</div>' +
+          '</div>';
+        }
+        return '<div style="display:flex;width:100%;height:100%;overflow:hidden;">' +
+          '<div style="width:340px;min-width:340px;padding:20px;display:flex;flex-direction:column;gap:12px;border-right:1px solid rgba(255,255,255,0.06);">' +
+            sk('100%', '200px', 'r8') +
+            sk('90%', '22px', 'r8', 'margin-top:4px;') +
+            sk('65%', '16px', 'r8') +
+            sk('50%', '14px', 'r8') +
+            sk('100%', '40px', 'r12', 'margin-top:8px;') +
+          '</div>' +
+          '<div style="flex:1;padding:20px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;">' +
+            _videoCardList(10) +
+          '</div>' +
+        '</div>';
+      }
+
+      // ── Topic skeleton ─────────────────────────────────────────────────
+      function topicSkeleton() {
+        var isMobile = window.innerWidth < 768;
+        var pad = isMobile ? '16px' : '24px';
+        return '<div style="display:flex;flex-direction:column;width:100%;overflow-y:auto;">' +
+          '<div class="tw-sk" style="width:100%;height:' + (isMobile ? '140px' : '220px') + ';border-radius:0;"></div>' +
+          '<div style="padding:' + pad + ';display:flex;flex-direction:column;gap:16px;">' +
+            sk('260px', '28px', 'r8') +
+            sk('180px', '16px', 'r8') +
+            _videoGrid(isMobile ? 4 : 12) +
+          '</div>' +
+        '</div>';
+      }
+
+      // ── Render skeleton into body ──────────────────────────────────────
+      var skBody = hasSkeleton
+        ? (isVideo    ? videoSkeleton()    :
+           isChannel  ? channelSkeleton()  :
+           isPlaylist ? playlistSkeleton() :
+           isTopic    ? topicSkeleton()    :
+                        null)
+        : null;
+
+      function removePreElements() {
+        var sk = document.getElementById('tw-pre-sk');
+        if (sk) {
+          sk.style.transition = 'opacity 0.2s ease';
+          sk.style.opacity = '0';
+          setTimeout(function () {
+            var el = document.getElementById('tw-pre-sk');
+            if (el && el.parentNode) { el.parentNode.removeChild(el); }
+          }, 220);
+        }
+        var loader = document.getElementById('tw-pre-loader');
+        if (loader) {
+          loader.style.transition = 'opacity 0.2s ease';
+          loader.style.opacity = '0';
+          setTimeout(function () {
+            var el = document.getElementById('tw-pre-loader');
+            if (el && el.parentNode) { el.parentNode.removeChild(el); }
+          }, 220);
+        }
+      }
+
+      if (skBody) {
+        var skRoot = document.createElement('div');
+        skRoot.id = 'tw-pre-sk';
+        skRoot.innerHTML = nav() + '<div id="tw-sk-body">' + skBody + '</div>';
+        document.body.insertBefore(skRoot, document.body.firstChild);
+      } else {
+        var preLoader = document.createElement('div');
+        preLoader.id = 'tw-pre-loader';
+        preLoader.style.cssText = 'position:fixed;inset:0;background:#0D0014;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999998;';
+        preLoader.innerHTML = '<img src="/icons/Icon-192.png" alt="Truthworld" style="width:72px;height:72px;border-radius:18px;margin-bottom:20px;box-shadow:0 8px 32px rgba(0,0,0,0.6);" onerror="this.style.display=\'none\'">' +
+          '<div style="width:28px;height:28px;border:2.5px solid rgba(255,255,255,0.15);border-top-color:#ffffff;border-radius:50%;animation:tw-loader-spin 0.8s linear infinite;"></div>' +
+          '<style>@keyframes tw-loader-spin{to{transform:rotate(360deg)}}</style>';
+        document.body.insertBefore(preLoader, document.body.firstChild);
+      }
+
+      // ── Remove pre-loader/skeleton once Flutter mounts ───────────────────
+      // Flutter renders into a <flt-glass-pane> or <flutter-view> element.
+      // We watch for it and fade out the skeleton or loader.
+      var observer = new MutationObserver(function (mutations) {
+        for (var m = 0; m < mutations.length; m++) {
+          var nodes = mutations[m].addedNodes;
+          for (var n = 0; n < nodes.length; n++) {
+            var node = nodes[n];
+            if (node.nodeType === 1) {
+              var tag = (node.tagName || '').toLowerCase();
+              if (tag === 'flt-glass-pane' || tag === 'flutter-view' ||
+                  tag === 'canvas' || node.id === 'flutter_target') {
+                observer.disconnect();
+                removePreElements();
+                return;
+              }
+            }
+          }
+        }
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+
+      // Immediate check in case Flutter view mounted synchronously or early
+      if (document.querySelector('flt-glass-pane, flutter-view, canvas, #flutter_target')) {
+        observer.disconnect();
+        removePreElements();
+      }
+
+      // Safety fallback: remove skeleton/loader after 12s regardless
+      setTimeout(function () {
+        observer.disconnect();
+        removePreElements();
+      }, 12000);
+    })();
   </script>
+
+  <!-- Flutter bootstrap -->
+  <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

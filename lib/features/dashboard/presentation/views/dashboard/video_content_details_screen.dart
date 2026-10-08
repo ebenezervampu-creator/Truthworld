@@ -32,8 +32,11 @@ class VideoContentDetailsScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.bgPage,
       appBar: AppBar(
-        backgroundColor: AppColors.bgSurface,
+        backgroundColor: AppColors.bgPage,
         elevation: 0,
+        shape: const Border(
+          bottom: BorderSide(color: AppColors.bgDivider),
+        ),
         leading: IconButton(
           icon: const Icon(
             Icons.arrow_back_rounded,
@@ -46,12 +49,13 @@ class VideoContentDetailsScreen extends StatelessWidget {
           style: AppTextStyles.titleLarge.copyWith(
             color: AppColors.textPrimary,
             fontWeight: FontWeight.bold,
+            fontFamily: TWTypography.brandFamily,
           ),
         ),
         actions: [
           IconButton(
             tooltip: 'Change Visibility',
-            icon: const Icon(Icons.lock_open_rounded, color: Colors.white),
+            icon: const Icon(Icons.lock_open_rounded, color: AppColors.textPrimary),
             onPressed: () => _showChangeVisibilityDialog(context, video, controller),
           ),
         ],
@@ -72,32 +76,35 @@ class VideoContentDetailsScreen extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Video Thumbnail
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: SizedBox(
-                      width: 120,
-                      height: 68,
-                      child: video.thumbnailUrl.isNotEmpty
-                          ? CachedNetworkImage(
-                              imageUrl: video.thumbnailUrl,
-                              fit: BoxFit.cover,
-                              errorWidget: (context, url, error) =>
-                                  const ColoredBox(
-                                    color: AppColors.bgInput,
-                                    child: Icon(
-                                      Icons.movie_outlined,
-                                      color: AppColors.textTertiary,
+                  // Video Thumbnail with Hero flight
+                  Hero(
+                    tag: 'video-thumb-${video.id}',
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: SizedBox(
+                        width: 120,
+                        height: 68,
+                        child: video.thumbnailUrl.isNotEmpty
+                            ? CachedNetworkImage(
+                                imageUrl: video.thumbnailUrl,
+                                fit: BoxFit.cover,
+                                errorWidget: (context, url, error) =>
+                                    const ColoredBox(
+                                      color: AppColors.bgInput,
+                                      child: Icon(
+                                        Icons.movie_outlined,
+                                        color: AppColors.textTertiary,
+                                      ),
                                     ),
-                                  ),
-                            )
-                          : const ColoredBox(
-                              color: AppColors.bgInput,
-                              child: Icon(
-                                Icons.movie_outlined,
-                                color: AppColors.textTertiary,
+                              )
+                            : const ColoredBox(
+                                color: AppColors.bgInput,
+                                child: Icon(
+                                  Icons.movie_outlined,
+                                  color: AppColors.textTertiary,
+                                ),
                               ),
-                            ),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 14),
@@ -215,14 +222,15 @@ class VideoContentDetailsScreen extends StatelessWidget {
                 ),
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
+                    backgroundColor: AppColors.bgSurfaceHover,
                     foregroundColor: AppColors.textPrimary,
                     side: const BorderSide(color: AppColors.bgDivider),
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(20),
                     ),
                   ),
-                  icon: const Icon(Icons.analytics_outlined, size: 18, color: Colors.white),
+                  icon: const Icon(Icons.analytics_outlined, size: 18, color: AppColors.textPrimary),
                   label: Text(
                     'Analytics',
                     style: AppTextStyles.buttonText.copyWith(
@@ -243,14 +251,15 @@ class VideoContentDetailsScreen extends StatelessWidget {
                 ),
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
+                    backgroundColor: AppColors.bgSurfaceHover,
                     foregroundColor: AppColors.textPrimary,
                     side: const BorderSide(color: AppColors.bgDivider),
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(20),
                     ),
                   ),
-                  icon: const Icon(Icons.view_timeline_rounded, size: 18, color: Colors.white),
+                  icon: const Icon(Icons.view_timeline_rounded, size: 18, color: AppColors.textPrimary),
                   label: Text(
                     'Chapters',
                     style: AppTextStyles.buttonText.copyWith(
@@ -274,14 +283,15 @@ class VideoContentDetailsScreen extends StatelessWidget {
                 ),
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
+                    backgroundColor: AppColors.bgSurfaceHover,
                     foregroundColor: AppColors.textPrimary,
                     side: const BorderSide(color: AppColors.bgDivider),
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(20),
                     ),
                   ),
-                  icon: const Icon(Icons.edit_outlined, size: 18, color: Colors.white),
+                  icon: const Icon(Icons.edit_outlined, size: 18, color: AppColors.textPrimary),
                   label: Text(
                     'Edit',
                     style: AppTextStyles.buttonText.copyWith(
@@ -302,6 +312,7 @@ class VideoContentDetailsScreen extends StatelessWidget {
               style: AppTextStyles.titleMedium.copyWith(
                 color: AppColors.textPrimary,
                 fontWeight: FontWeight.bold,
+                fontFamily: TWTypography.brandFamily,
               ),
             ),
             const SizedBox(height: 4),
@@ -349,7 +360,7 @@ class VideoContentDetailsScreen extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 10, color: Colors.white),
+            Icon(icon, size: 10, color: color),
             const SizedBox(width: 4),
             Text(
               label,
@@ -374,45 +385,45 @@ class VideoContentDetailsScreen extends StatelessWidget {
         return (
           'PUBLIC',
           Icons.public_rounded,
-          const Color(0xFF10B981),
-          const Color(0xFF10B981).withValues(alpha: 0.15),
+          AppColors.success,
+          AppColors.successContainer,
         );
       case 'private':
         return (
           'PRIVATE',
           Icons.lock_outline_rounded,
-          const Color(0xFFEF4444),
-          const Color(0xFFEF4444).withValues(alpha: 0.15),
+          AppColors.error,
+          AppColors.errorContainer,
         );
       case 'members':
       case 'members_only':
         return (
           'MEMBERS ONLY',
           Icons.card_membership_rounded,
-          const Color(0xFF8B5CF6),
-          const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+          AppColors.info,
+          AppColors.infoContainer,
         );
       case 'subscribers':
       case 'subscribers_only':
         return (
           'SUBSCRIBERS ONLY',
           Icons.subscriptions_rounded,
-          const Color(0xFF3B82F6),
-          const Color(0xFF3B82F6).withValues(alpha: 0.15),
+          AppColors.info,
+          AppColors.infoContainer,
         );
       case 'unlisted':
         return (
           'UNLISTED',
           Icons.link_rounded,
-          const Color(0xFF94A3B8),
-          const Color(0xFF94A3B8).withValues(alpha: 0.15),
+          AppColors.textSecondary,
+          AppColors.bgSurfaceHover,
         );
       default:
         return (
           visibility.toUpperCase(),
           Icons.visibility_rounded,
-          const Color(0xFF10B981),
-          const Color(0xFF10B981).withValues(alpha: 0.15),
+          AppColors.success,
+          AppColors.successContainer,
         );
     }
   }
@@ -433,35 +444,35 @@ class VideoContentDetailsScreen extends StatelessWidget {
         title: 'Public',
         subtitle: 'Everyone can search for and watch this video on Truthworld',
         icon: Icons.public_rounded,
-        color: const Color(0xFF10B981),
+        color: AppColors.success,
       ),
       (
         value: 'private',
         title: 'Private',
         subtitle: 'Only you can view this video in your channel studio',
         icon: Icons.lock_outline_rounded,
-        color: const Color(0xFFEF4444),
+        color: AppColors.error,
       ),
       (
         value: 'members_only',
         title: 'Members Only',
         subtitle: 'Exclusive access for paid channel members with an active tier',
         icon: Icons.card_membership_rounded,
-        color: const Color(0xFF8B5CF6),
+        color: AppColors.info,
       ),
       (
         value: 'subscribers_only',
         title: 'Subscribers Only',
         subtitle: 'Exclusive access for users subscribed to your channel',
         icon: Icons.subscriptions_rounded,
-        color: const Color(0xFF3B82F6),
+        color: AppColors.info,
       ),
       (
         value: 'unlisted',
         title: 'Unlisted',
         subtitle: 'Anyone with the video link can watch (hidden from search & feed)',
         icon: Icons.link_rounded,
-        color: const Color(0xFF94A3B8),
+        color: AppColors.textSecondary,
       ),
     ];
 
@@ -484,12 +495,12 @@ class VideoContentDetailsScreen extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppColors.brand.withValues(alpha: 0.15),
+                      color: AppColors.bgSurfaceHover,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Icon(
                       Icons.lock_open_rounded,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       size: 22,
                     ),
                   ),
@@ -503,6 +514,7 @@ class VideoContentDetailsScreen extends StatelessWidget {
                           style: AppTextStyles.titleLarge.copyWith(
                             color: AppColors.textPrimary,
                             fontWeight: FontWeight.bold,
+                            fontFamily: TWTypography.brandFamily,
                             fontSize: 18,
                           ),
                         ),
@@ -561,13 +573,13 @@ class VideoContentDetailsScreen extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: color.withValues(alpha: 0.2),
+                                color: color.withValues(alpha: 0.15),
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
                                 icon,
                                 size: 18,
-                                color: Colors.white,
+                                color: color,
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -640,7 +652,13 @@ class VideoContentDetailsScreen extends StatelessWidget {
                       controller.changeVideoVisibility(video.id, selected.value);
                       Get.back<void>();
                     },
-                    child: const Text('Save Visibility'),
+                    child: const Text(
+                      'Save Visibility',
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ],
               ),

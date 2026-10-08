@@ -25,13 +25,15 @@ import {
 } from "./copyrightTypes";
 import { copyrightDetectionService } from "./copyrightDetection";
 import { v4 as uuidv4 } from "uuid";
+import { PIPELINE_CONFIG } from "../config";
+import { extractCandidateText } from "../utils/ai-utils";
 
 const db = () => admin.firestore();
 
 // Detector Versioning metadata constants
 const DETECTOR_VERSION = 2;
 const EMBEDDING_MODEL = "text-embedding-005";
-const GEMINI_MODEL = "gemini-2.5-flash";
+const GEMINI_MODEL = PIPELINE_CONFIG.GEMINI_MODELS?.moderation || PIPELINE_CONFIG.GEMINI_MODELS?.synthesis || "gemini-3.1-flash-lite";
 const PIPELINE_VERSION = "2026-07";
 
 export class CopyrightClaimsService {
@@ -354,7 +356,7 @@ Return JSON:
 }`;
 
       const result = await model.generateContent(prompt);
-      const text = result.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const text = extractCandidateText(result.response.candidates?.[0]) || result.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
       const parsed = JSON.parse(text);
 
       await db().collection("copyright_appeals").doc(appealId).update({

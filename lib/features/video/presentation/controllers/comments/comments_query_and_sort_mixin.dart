@@ -111,18 +111,28 @@ mixin CommentsQueryAndSortMixin on CommentsStateBase {
 
   @override
   void initializeComments() {
-    if (video == null) return;
+    if (video == null || video!.id.isEmpty) return;
 
     // Load user interactions in background
     loadUserInteractions();
 
-    // Stream comments
+    isLoadingComments.value = true;
+    hasMoreComments.value = true;
+    lastCommentDoc = null;
+
+    // Stream initial 25 comments
     trackSubscription(commentService
-        .getCommentsStream(
+        .getCommentsQuerySnapshotStream(
           videoId: video!.id,
         )
         .listen(
-          (loadedComments) async {
+          (snapshot) async {
+            if (snapshot.docs.isNotEmpty) {
+              lastCommentDoc = snapshot.docs.last;
+            }
+            final loadedComments =
+                snapshot.docs.map(Comment.fromDocumentSnapshot).toList();
+
             final targetId = targetCommentId.value;
             if (targetId != null && targetId.isNotEmpty) {
               final containsTarget = loadedComments.any(
@@ -147,11 +157,24 @@ mixin CommentsQueryAndSortMixin on CommentsStateBase {
               }
             }
 
-            comments.value = loadedComments;
+            final seenIds = <String>{};
+            final deduplicated =
+                loadedComments.where((c) => seenIds.add(c.id)).toList();
+
+            // Preserve loaded paged comments if more than first page is already loaded
+            if (comments.length > CommentsStateBase.commentsPerPage) {
+              final firstPageIds = deduplicated.map((c) => c.id).toSet();
+              final tail =
+                  comments.where((c) => !firstPageIds.contains(c.id)).toList();
+              comments.value = [...deduplicated, ...tail];
+            } else {
+              comments.value = deduplicated;
+            }
+
             sortComments(isSortNewest.value);
             isLoadingComments.value = false;
             hasMoreComments.value =
-                loadedComments.length >= CommentsStateBase.commentsPerPage;
+                snapshot.docs.length >= CommentsStateBase.commentsPerPage;
             commentsError.value = null;
           },
           onError: (e, stackTrace) {
@@ -167,13 +190,46 @@ mixin CommentsQueryAndSortMixin on CommentsStateBase {
         ));
   }
 
+  @override
   Future<void> loadMoreComments() async {
-    if (video == null || !hasMoreComments.value) return;
+    if (video == null ||
+        isLoadingMoreComments.value ||
+        !hasMoreComments.value ||
+        lastCommentDoc == null) {
+      return;
+    }
 
     try {
-      // Handled via Firestore real-time snapshot stream
-    } catch (e) {
-      commentsError.value = e.toString();
+      isLoadingMoreComments.value = true;
+      final nextSnap = await commentService.getCommentsPageSnapshot(
+        videoId: video!.id,
+        startAfter: lastCommentDoc,
+      );
+
+      if (nextSnap.docs.isNotEmpty) {
+        lastCommentDoc = nextSnap.docs.last;
+        final nextComments =
+            nextSnap.docs.map(Comment.fromDocumentSnapshot).toList();
+
+        final currentIds = comments.map((c) => c.id).toSet();
+        for (final c in nextComments) {
+          if (currentIds.add(c.id)) {
+            comments.add(c);
+          }
+        }
+        sortComments(isSortNewest.value);
+      }
+
+      hasMoreComments.value =
+          nextSnap.docs.length >= CommentsStateBase.commentsPerPage;
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'CommentsController.loadMoreComments',
+      );
+    } finally {
+      isLoadingMoreComments.value = false;
     }
   }
 }

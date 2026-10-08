@@ -236,7 +236,7 @@ class ShareClipCard extends StatelessWidget {
                 const SizedBox(width: 6),
                 const Expanded(
                   child: Text(
-                    '✨ Truthworld Watermarked Video Clip',
+                    '✨ Truthworld Video Clip',
                     style: TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 11,

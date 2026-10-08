@@ -1,3 +1,4 @@
+export 'audio_theme_panel.dart';
 export 'chapters_panel.dart';
 export 'language_panel.dart';
 export 'language_requests.dart';

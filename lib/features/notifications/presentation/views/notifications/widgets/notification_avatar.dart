@@ -8,6 +8,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/features/notifications/presentation/views/notifications/widgets/notification_models.dart';
 import 'package:truthworld/features/notifications/presentation/views/notifications/widgets/notification_navigation_handler.dart';
 
@@ -257,6 +258,19 @@ class DynamicNotificationAvatar extends StatelessWidget {
 
   Widget _buildPlaceholderAvatar() {
     final cleanName = displayName.trim().replaceAll('@', '');
+    final lowerName = cleanName.toLowerCase();
+    final alertType = item.alert?.type.toLowerCase() ?? '';
+
+    final isTruthWorld = lowerName == 'truthworld' ||
+        lowerName.contains('truthworld') ||
+        alertType == 'system' ||
+        alertType == 'announcement' ||
+        alertType == 'admin';
+
+    if (isTruthWorld) {
+      return const AppLogo(size: 40);
+    }
+
     final initial = cleanName.isNotEmpty ? cleanName[0].toUpperCase() : '';
     final bgColor = NotificationNavigationHandler.getAvatarColor(cleanName);
 

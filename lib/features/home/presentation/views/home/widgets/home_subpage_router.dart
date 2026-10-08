@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/widgets/deferred_widget.dart';
 import 'package:truthworld/features/about/presentation/views/About/about.dart'
     deferred as about;
@@ -50,78 +52,105 @@ class HomeSubPageRouter {
     switch (index) {
       case HomeController.indexTrending:
         return DeferredWidget(
+          key: const ValueKey('subpage_deferred_trending'),
           loader: trending.loadLibrary,
           builder: () => trending.TrendingVideosPage(isDashboard: true),
         );
       case HomeController.indexHistory:
         return DeferredWidget(
+          key: const ValueKey('subpage_deferred_history'),
           loader: history.loadLibrary,
           builder: () => history.WatchHistory(isDashboard: true),
         );
       case HomeController.indexWatchLater:
         return DeferredWidget(
+          key: const ValueKey('subpage_deferred_watch_later'),
           loader: watchlater.loadLibrary,
           builder: () => watchlater.WatchLaterScreen(isDashboard: true),
         );
       case HomeController.indexYourVideos:
         return DeferredWidget(
+          key: const ValueKey('subpage_deferred_my_videos'),
           loader: my_videos.loadLibrary,
           builder: () => my_videos.MyVideos(isDashboard: true),
         );
       case HomeController.indexLikedVideos:
         return DeferredWidget(
+          key: const ValueKey('subpage_deferred_liked_videos'),
           loader: liked_videos.loadLibrary,
           builder: () => liked_videos.LikedVideoScreen(isDashboard: true),
         );
       case HomeController.indexDownloads:
         return DeferredWidget(
+          key: const ValueKey('subpage_deferred_downloads'),
           loader: downloads.loadLibrary,
           builder: () => downloads.DownloadsPage(isDashboard: true),
         );
       case HomeController.indexPlaylists:
         return DeferredWidget(
+          key: const ValueKey('subpage_deferred_playlists'),
           loader: playlist.loadLibrary,
           builder: () => playlist.PlaylistScreen(isDashboard: true),
         );
       case HomeController.indexFollowingTopics:
         return DeferredWidget(
+          key: const ValueKey('subpage_deferred_following_topics'),
           loader: following_topics.loadLibrary,
           builder: () =>
               following_topics.FollowingTopicsPage(isDashboard: true),
         );
       case HomeController.indexClips:
         return DeferredWidget(
+          key: const ValueKey('subpage_deferred_clips'),
           loader: clips.loadLibrary,
           builder: () => clips.ClipsPage(isDashboard: true),
         );
       case HomeController.indexAbout:
         return DeferredWidget(
+          key: const ValueKey('subpage_deferred_about'),
           loader: about.loadLibrary,
           builder: () => about.AboutPage(isDashboard: true),
         );
       case HomeController.indexPrivacy:
         return DeferredWidget(
+          key: const ValueKey('subpage_deferred_privacy'),
           loader: privacy.loadLibrary,
           builder: () => privacy.PrivacyPolicyScreen(isDashboard: true),
         );
       case HomeController.indexTerms:
         return DeferredWidget(
+          key: const ValueKey('subpage_deferred_terms'),
           loader: terms.loadLibrary,
           builder: () => terms.TermsAndConditionsPage(isDashboard: true),
         );
       case HomeController.indexCommunityGuidelines:
         return DeferredWidget(
+          key: const ValueKey('subpage_deferred_community_guidelines'),
           loader: community_guidelines.loadLibrary,
           builder: () =>
               community_guidelines.CommunityGuidelinesPage(isDashboard: true),
         );
       case HomeController.indexSettings:
+        final isAuth = Get.isRegistered<AuthService>() &&
+            AuthService.to.isAuthenticated.value;
+        if (!isAuth) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (controller.sideNavSelectedIndex.value ==
+                HomeController.indexSettings) {
+              controller.sideNavSelectedIndex.value = HomeController.indexHome;
+              controller.showSignInSnackbar();
+            }
+          });
+          return const SizedBox.shrink();
+        }
         return DeferredWidget(
+          key: const ValueKey('subpage_deferred_settings'),
           loader: settings.loadLibrary,
           builder: () => settings.SettingsScreen(isDashboard: true),
         );
       case HomeController.indexFeedback:
         return DeferredWidget(
+          key: const ValueKey('subpage_deferred_feedback'),
           loader: feedback.loadLibrary,
           builder: () => feedback.SendFeedbackPage(isDashboard: true),
         );
@@ -129,24 +158,31 @@ class HomeSubPageRouter {
         final p = controller.selectedPlaylist.value;
         if (p == null) {
           return DeferredWidget(
+            key: const ValueKey('subpage_deferred_playlist_fallback'),
             loader: playlist.loadLibrary,
             builder: () => playlist.PlaylistScreen(isDashboard: true),
           );
         }
         return DeferredWidget(
+          key: ValueKey('subpage_deferred_playlist_${p.id}'),
           loader: playlist_detail.loadLibrary,
           builder: () =>
-              playlist_detail.PlaylistDetailScreen(key: ValueKey(p.id)),
+              playlist_detail.PlaylistDetailScreen(
+                key: ValueKey(p.id),
+                playlist: p,
+              ),
         );
       case HomeController.indexChannelDetail:
         final c = controller.selectedChannelForDetail.value;
         if (c == null) {
           return DeferredWidget(
+            key: const ValueKey('subpage_deferred_channel_fallback'),
             loader: discover.loadLibrary,
             builder: () => discover.DiscoverChannelsPage(isDashboard: true),
           );
         }
         return DeferredWidget(
+          key: ValueKey('subpage_deferred_channel_${c.channelId}'),
           loader: channel_details.loadLibrary,
           builder: () => channel_details.ChannelDetailsPage(
             key: ValueKey(c.channelId),

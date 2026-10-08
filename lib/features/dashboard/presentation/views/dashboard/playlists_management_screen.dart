@@ -3,11 +3,12 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/playlists_management_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/playlists/playlists_management_widgets.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 export 'package:truthworld/features/dashboard/presentation/views/dashboard/playlists/playlists_management_widgets.dart';
 
 /// Modernized Playlists Management Tab for Truthworld Studio.
-/// Visual architecture, fonts, colors, and layout fully aligned with Studio standards.
+/// Visual architecture, fonts, colors, and layout fully aligned with Consumer App standards.
 class PlaylistsManagementScreen
     extends GetView<PlaylistsManagementController> {
   const PlaylistsManagementScreen({
@@ -35,7 +36,7 @@ class PlaylistsManagementScreen
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0F),
+      backgroundColor: AppColors.bgPage,
       body: CustomScrollView(
         slivers: [
           // Studio Header, Summary Metrics & Search/Filter Bar

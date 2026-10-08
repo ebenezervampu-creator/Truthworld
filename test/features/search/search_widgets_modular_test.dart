@@ -228,6 +228,9 @@ void main() {
       expect(find.text('TOPIC'), findsOneWidget);
       expect(find.text('42 videos available'), findsOneWidget);
       expect(find.byType(FollowButton), findsOneWidget);
+      expect(find.text('Follow'), findsOneWidget);
+      final followText = tester.widget<Text>(find.text('Follow'));
+      expect(followText.style?.color, equals(Colors.black));
     });
 
     testWidgets('8. SearchBar manages text editing and clear actions reactively',

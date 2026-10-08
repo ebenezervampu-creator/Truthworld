@@ -81,11 +81,11 @@ class FollowingTopicSection extends StatelessWidget {
               ),
               Obx(() {
                 final setting =
-                    controller.topicNotificationSettings[topic.id] ?? 'all';
+                    controller.topicNotificationSettings[topic.id] ?? 'personalized';
                 final bellIcon = switch (setting) {
-                  'personalized' => Icons.notifications_outlined,
+                  'all' => Icons.notifications_active_rounded,
                   'none' => Icons.notifications_off_outlined,
-                  _ => Icons.notifications_active_rounded,
+                  _ => Icons.notifications_outlined,
                 };
                 return IconButton(
                   icon: Icon(bellIcon, color: AppColors.textPrimary, size: 20),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
@@ -254,7 +255,7 @@ void showCommunityPostReportModal(
     AppSnackbar.warning(
       'Please sign in to report posts.',
       actionLabel: 'SIGN IN',
-      onAction: AuthService.to.signInWithGoogle,
+      onAction: () => AuthBottomSheet.show(context),
     );
     return;
   }

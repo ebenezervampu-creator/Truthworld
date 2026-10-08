@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/constants/app_categories.dart';
 import 'package:truthworld/features/topics/presentation/controllers/create_topic_controller.dart';
 import 'package:truthworld/features/topics/presentation/widgets/create_topic/create_topic_widgets.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -52,26 +53,7 @@ class CreateTopicDialog extends StatelessWidget {
     );
   }
 
-  static const List<String> availableCategories = [
-    'Science & Technology',
-    'Technology',
-    'Education',
-    'Entertainment',
-    'Music',
-    'News',
-    'Sports',
-    'Science',
-    'Travel',
-    'Lifestyle',
-    'Comedy',
-    'Documentary',
-    'Movies',
-    'TV Shows',
-    'Vlogs',
-    'DIY & How-to',
-    'Health & Fitness',
-    'Fashion',
-  ];
+  static const List<String> availableCategories = AppCategories.allCategories;
 
   @override
   Widget build(BuildContext context) {

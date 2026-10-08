@@ -1,5 +1,49 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
+    <!-- Permit cleartext HTTP traffic to localhost/loopback for local video playback proxy streaming -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">127.0.0.1</domain>
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain>
+    </domain-config>
+
+    <!-- SSL / Public Key Certificate Pinning for Payment & Authentication Endpoints -->
+    <domain-config cleartextTrafficPermitted="false">
+        <!-- Cashfree Payment Gateway Domains -->
+        <domain includeSubdomains="true">cashfree.com</domain>
+        <domain includeSubdomains="true">api.cashfree.com</domain>
+        <domain includeSubdomains="true">payments.cashfree.com</domain>
+        <domain includeSubdomains="true">sandbox.cashfree.com</domain>
+
+        <!-- Firebase Authentication & Cloud Functions Endpoints -->
+        <domain includeSubdomains="true">identitytoolkit.googleapis.com</domain>
+        <domain includeSubdomains="true">securetoken.googleapis.com</domain>
+        <domain includeSubdomains="true">cloudfunctions.net</domain>
+
+        <!-- TruthWorld Authoritative Endpoints -->
+        <domain includeSubdomains="true">truthworld.app</domain>
+        <domain includeSubdomains="true">truthworld.in</domain>
+
+        <pin-set expiration="2028-12-31">
+            <!-- DigiCert Global Root CA (Cashfree / AWS / General) -->
+            <pin digest="SHA-256">r/mIkG3eEpVdm+u/ko/cwxzOMo1bk4TyHIlByibiA5E=</pin>
+            <!-- DigiCert Global Root G2 -->
+            <pin digest="SHA-256">i7BidTBmAuoGEavdm+/60dHfZPoZvzKujKcdfuiybPs=</pin>
+            <!-- Google Trust Services GTS Root R1 (Firebase / IdentityToolkit) -->
+            <pin digest="SHA-256">hxqRlPTuQZQXL0744K18t/qO7jG3j0K85uXFfR0+6w8=</pin>
+            <!-- Google Trust Services GTS Root R2 -->
+            <pin digest="SHA-256">Vfd95BwDeSQoo2MYYohCKOBheaYmDbYgSGuA6StIFvk=</pin>
+            <!-- GlobalSign Root CA - R2 -->
+            <pin digest="SHA-256">K87oWBWMECASfyTaQg/xwMtDwOxuzwr5tgf5gbTtkCQ=</pin>
+            <!-- Let's Encrypt ISRG Root X1 (Truthworld / Edge Proxies) -->
+            <pin digest="SHA-256">C5+lpZ7tcVwmwQIMcRtPbsQtWLABXhQzejna0wHFr8M=</pin>
+            <!-- Cloudflare Inc ECC CA-3 -->
+            <pin digest="SHA-256">x4QzPSC810K5/cMjb05Qm4k3Bw5zWDxzLQmxMHmx/Ew=</pin>
+            <!-- Amazon Root CA 1 -->
+            <pin digest="SHA-256">++MBgDH5WGvL9Bcn5Be30cRcL0f5O+NyoXuWtQdX1aI=</pin>
+        </pin-set>
+    </domain-config>
+
     <!-- Enforce HTTPS only (no cleartext HTTP) and restrict certificate trust to system CAs in release -->
     <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
@@ -7,7 +51,7 @@
         </trust-anchors>
     </base-config>
 
-    <!-- Permit local development, emulator proxies, and user certificates during debug mode -->
+    <!-- Permit local development, emulator proxies, and user certificates strictly during debug mode -->
     <debug-overrides>
         <trust-anchors>
             <certificates src="system" />

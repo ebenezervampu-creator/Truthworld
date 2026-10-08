@@ -92,12 +92,6 @@ class ChannelMonetizationDashboardView extends StatelessWidget {
                 const SizedBox(height: 16),
               ],
 
-              // Free Trial Credit Welcome Banner (Only if credit remaining)
-              if ((currentChannel.infraConfig?.trialCreditRemainingUSD ?? 0.0) > 0.0) ...[
-                ChannelFreeTrialBanner(controller: controller),
-                const SizedBox(height: 16),
-              ],
-
               // Channel Header Card (Shows Channel Type & Days Left To Switch)
               ChannelMonetizationHeaderCard(
                 controller: controller,

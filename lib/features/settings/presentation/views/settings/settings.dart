@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
 import 'package:truthworld/features/settings/presentation/views/settings/sections/sections.dart';
 import 'package:truthworld/features/settings/presentation/views/settings/widgets/settings_theme.dart';
+import 'package:truthworld/features/settings/presentation/views/settings/widgets/settings_unauthenticated_view.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 // Re-export extracted views, widgets, and sections for 100% backward compatibility
@@ -11,6 +13,7 @@ export 'package:truthworld/features/settings/presentation/views/settings/section
 export 'package:truthworld/features/settings/presentation/views/settings/watch_history_settings_view.dart';
 export 'package:truthworld/features/settings/presentation/views/settings/widgets/settings_section_card.dart';
 export 'package:truthworld/features/settings/presentation/views/settings/widgets/settings_theme.dart';
+export 'package:truthworld/features/settings/presentation/views/settings/widgets/settings_unauthenticated_view.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key, this.isDashboard = false});
@@ -18,24 +21,33 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    UserSettingsController.to;
+    return Obx(() {
+      final isAuth = Get.isRegistered<AuthService>() &&
+          AuthService.to.isAuthenticated.value;
 
-    return Theme(
-      data: getSettingsTheme(context),
-      child: Builder(
-        builder: (context) {
-          return ResponsiveBuilder(
-            builder: (context, deviceType) {
-              return Scaffold(
-                backgroundColor: context.colors.background,
-                appBar: _buildAppBar(context),
-                body: SafeArea(child: _buildBody(context)),
-              );
-            },
-          );
-        },
-      ),
-    );
+      if (!isAuth) {
+        return SettingsUnauthenticatedView(isDashboard: isDashboard);
+      }
+
+      UserSettingsController.to;
+
+      return Theme(
+        data: getSettingsTheme(context),
+        child: Builder(
+          builder: (context) {
+            return ResponsiveBuilder(
+              builder: (context, deviceType) {
+                return Scaffold(
+                  backgroundColor: context.colors.background,
+                  appBar: _buildAppBar(context),
+                  body: SafeArea(child: _buildBody(context)),
+                );
+              },
+            );
+          },
+        ),
+      );
+    });
   }
 
   PreferredSizeWidget _buildAppBar(BuildContext context) {

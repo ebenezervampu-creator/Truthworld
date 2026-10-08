@@ -17,9 +17,10 @@ void main() {
       expect(items, isNot(contains('Your channel')));
       expect(items, isNot(contains('History')));
       expect(items, isNot(contains('You')));
+      expect(items, isNot(contains('Settings')));
     });
 
-    test('signed-in user should see Subscriptions and user tabs', () {
+    test('signed-in user should see Subscriptions, Settings, and user tabs', () {
       final items = HomeSidebarVisibility.getVisibleEntries(
         isAuthenticated: true,
       );
@@ -27,18 +28,21 @@ void main() {
       expect(items, contains('Subscriptions'));
       expect(items, contains('Your channel'));
       expect(items, contains('History'));
+      expect(items, contains('Settings'));
     });
 
-    test('should include Advertiser Portal after Admin Portal for all users', () {
+    test('should not include Admin Portal or Advertiser Portal in home sidebar', () {
       final publicItems = HomeSidebarVisibility.getVisibleEntries(
         isAuthenticated: false,
       );
-      final adminIndex = publicItems.indexOf('Admin Portal');
-      final advertiserIndex = publicItems.indexOf('Advertiser Portal');
+      expect(publicItems, isNot(contains('Admin Portal')));
+      expect(publicItems, isNot(contains('Advertiser Portal')));
 
-      expect(adminIndex, isNot(equals(-1)));
-      expect(advertiserIndex, isNot(equals(-1)));
-      expect(advertiserIndex, equals(adminIndex + 1));
+      final privateItems = HomeSidebarVisibility.getVisibleEntries(
+        isAuthenticated: true,
+      );
+      expect(privateItems, isNot(contains('Admin Portal')));
+      expect(privateItems, isNot(contains('Advertiser Portal')));
     });
   });
 

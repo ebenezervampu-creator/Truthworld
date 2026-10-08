@@ -30,17 +30,20 @@ class VideoContentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: 14),
-      color: AppColors.bgSurface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: AppColors.bgDivider),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => showVideoActionOptionsModal(context, video, isDarkMode: isDarkMode, controller: controller),
+    return Semantics(
+      button: true,
+      label: 'Video: ${video.title}',
+      child: Card(
+        elevation: 0,
+        margin: const EdgeInsets.only(bottom: 14),
+        color: AppColors.bgSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: AppColors.bgDivider),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => showVideoActionOptionsModal(context, video, isDarkMode: isDarkMode, controller: controller),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(
@@ -50,44 +53,47 @@ class VideoContentCard extends StatelessWidget {
               // Thumbnail container with 16:9 ratio (Compact 96x54)
               InkWell(
                 onTap: () => showVideoActionOptionsModal(context, video, isDarkMode: isDarkMode, controller: controller),
-                child: Stack(
-                  children: [
-                    Container(
-                      width: 96,
-                      height: 54,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        color: AppColors.bgInput,
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: CachedNetworkImage(
-                          imageUrl: video.thumbnailUrl,
-                          fit: BoxFit.cover,
-                          errorWidget: (context, url, error) => const Icon(
-                            Icons.movie_outlined,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (video.status == VideoStatus.rejected || video.visibility == 'rejected')
+                child: Hero(
+                  tag: 'video-thumb-${video.id}',
+                  child: Stack(
+                    children: [
                       Container(
                         width: 96,
                         height: 54,
                         decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.65),
                           borderRadius: BorderRadius.circular(8),
+                          color: AppColors.bgInput,
                         ),
-                        child: const Center(
-                          child: Icon(
-                            Icons.block_rounded,
-                            color: Colors.white,
-                            size: 24,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: CachedNetworkImage(
+                            imageUrl: video.thumbnailUrl,
+                            fit: BoxFit.cover,
+                            errorWidget: (context, url, error) => const Icon(
+                              Icons.movie_outlined,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ),
-                  ],
+                      if (video.status == VideoStatus.rejected || video.visibility == 'rejected')
+                        Container(
+                          width: 96,
+                          height: 54,
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.65),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Center(
+                            child: Icon(
+                              Icons.block_rounded,
+                              color: Colors.white,
+                              size: 24,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -103,6 +109,7 @@ class VideoContentCard extends StatelessWidget {
                       style: AppTextStyles.videoTitleMedium.copyWith(
                         color: AppColors.textPrimary,
                         fontWeight: FontWeight.w600,
+                        fontFamily: TWTypography.brandFamily,
                       ),
                     ),
                     if (video.status == VideoStatus.rejected || video.visibility == 'rejected') ...[
@@ -117,7 +124,7 @@ class VideoContentCard extends StatelessWidget {
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.block_rounded, color: Colors.white, size: 12),
+                            Icon(Icons.block_rounded, color: AppColors.error, size: 12),
                             SizedBox(width: 4),
                             Text(
                               'REJECTED by Moderation',
@@ -423,6 +430,7 @@ class VideoContentCard extends StatelessWidget {
                     ),
                   ),
                 ],
+                tooltip: 'Video options',
                 icon: const Icon(
                   Icons.more_vert,
                   color: Colors.white,
@@ -433,6 +441,7 @@ class VideoContentCard extends StatelessWidget {
           ),
         ),
       ),
+    ),
     );
   }
 
@@ -470,7 +479,7 @@ class VisibilityBadge extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 10, color: Colors.white),
+            Icon(icon, size: 10, color: color),
             const SizedBox(width: 4),
             Text(
               label,
@@ -495,45 +504,45 @@ class VisibilityBadge extends StatelessWidget {
         return (
           'PUBLIC',
           Icons.public_rounded,
-          const Color(0xFF10B981),
-          const Color(0xFF10B981).withValues(alpha: 0.15),
+          AppColors.success,
+          AppColors.successContainer,
         );
       case 'private':
         return (
           'PRIVATE',
           Icons.lock_outline_rounded,
-          const Color(0xFFEF4444),
-          const Color(0xFFEF4444).withValues(alpha: 0.15),
+          AppColors.error,
+          AppColors.errorContainer,
         );
       case 'members':
       case 'members_only':
         return (
           'MEMBERS ONLY',
           Icons.card_membership_rounded,
-          const Color(0xFF8B5CF6),
-          const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+          AppColors.info,
+          AppColors.infoContainer,
         );
       case 'subscribers':
       case 'subscribers_only':
         return (
           'SUBSCRIBERS ONLY',
           Icons.subscriptions_rounded,
-          const Color(0xFF3B82F6),
-          const Color(0xFF3B82F6).withValues(alpha: 0.15),
+          AppColors.info,
+          AppColors.infoContainer,
         );
       case 'unlisted':
         return (
           'UNLISTED',
           Icons.link_rounded,
-          const Color(0xFF94A3B8),
-          const Color(0xFF94A3B8).withValues(alpha: 0.15),
+          AppColors.textSecondary,
+          AppColors.bgSurfaceHover,
         );
       default:
         return (
           visibility.toUpperCase(),
           Icons.visibility_rounded,
-          const Color(0xFF10B981),
-          const Color(0xFF10B981).withValues(alpha: 0.15),
+          AppColors.success,
+          AppColors.successContainer,
         );
     }
   }

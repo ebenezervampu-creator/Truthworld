@@ -58,7 +58,12 @@ class VideoCardController extends GetxController implements HoverPreviewClient {
   @override
   void onInit() {
     super.onInit();
-    realChannelAvatarUrl.value = video.channelAvatarUrl;
+    final initialAvatar = video.channelAvatarUrl.isNotEmpty
+        ? video.channelAvatarUrl
+        : video.channelImage;
+    if (initialAvatar.isNotEmpty) {
+      realChannelAvatarUrl.value = initialAvatar;
+    }
     realChannelName.value = video.channelName;
     loadRealChannelData();
 
@@ -76,13 +81,17 @@ class VideoCardController extends GetxController implements HoverPreviewClient {
   }
 
   Future<void> loadRealChannelData() async {
-    if (video.channelId.isEmpty) return;
+    final effectiveChannelId = video.channelId.trim().isNotEmpty
+        ? video.channelId.trim()
+        : video.ownerId.trim();
+    if (effectiveChannelId.isEmpty) return;
+
     if (realChannelAvatarUrl.value.isNotEmpty &&
         realChannelName.value.isNotEmpty) {
       return;
     }
 
-    final cached = _channelCache[video.channelId];
+    final cached = _channelCache[effectiveChannelId];
     if (cached != null) {
       if (cached['avatar']?.isNotEmpty ?? false) {
         realChannelAvatarUrl.value = cached['avatar']!;
@@ -90,26 +99,73 @@ class VideoCardController extends GetxController implements HoverPreviewClient {
       if (cached['name']?.isNotEmpty ?? false) {
         realChannelName.value = cached['name']!;
       }
-      return;
+      if (realChannelAvatarUrl.value.isNotEmpty &&
+          realChannelName.value.isNotEmpty) {
+        return;
+      }
     }
 
     try {
       final doc = await FirebaseFirestore.instance
           .collection(FirestoreCollections.channels)
-          .doc(video.channelId)
+          .doc(effectiveChannelId)
           .getCacheFirst();
-      if (doc.exists) {
-        final data = doc.data();
-        if (data != null) {
-          final avatar = data['avatarUrl'] as String? ?? '';
-          final name = data['name'] as String? ?? '';
-          if (avatar.isNotEmpty) {
-            realChannelAvatarUrl.value = avatar;
+
+      Map<String, dynamic>? data;
+      if (doc.exists && doc.data() != null) {
+        data = doc.data();
+      } else {
+        // Fallback: Query by ownerId if effectiveChannelId is a user UID
+        final querySnap = await FirebaseFirestore.instance
+            .collection(FirestoreCollections.channels)
+            .where('ownerId', isEqualTo: effectiveChannelId)
+            .limit(1)
+            .get();
+        if (querySnap.docs.isNotEmpty) {
+          data = querySnap.docs.first.data();
+        } else {
+          // Fallback: Query users collection if the creator's avatar is in their user profile
+          final userDoc = await FirebaseFirestore.instance
+              .collection(FirestoreCollections.users)
+              .doc(effectiveChannelId)
+              .getCacheFirst();
+          if (userDoc.exists && userDoc.data() != null) {
+            data = userDoc.data();
           }
-          if (name.isNotEmpty) {
-            realChannelName.value = name;
-          }
-          _channelCache[video.channelId] = {
+        }
+      }
+
+      if (data != null) {
+        final avatar = (data['avatarUrl'] as String?)?.trim().isNotEmpty == true
+            ? (data['avatarUrl'] as String).trim()
+            : (data['avatarImage'] as String?)?.trim().isNotEmpty == true
+                ? (data['avatarImage'] as String).trim()
+                : (data['channelAvatarUrl'] as String?)?.trim().isNotEmpty == true
+                    ? (data['channelAvatarUrl'] as String).trim()
+                    : (data['channelImage'] as String?)?.trim().isNotEmpty == true
+                        ? (data['channelImage'] as String).trim()
+                        : (data['photoUrl'] as String?)?.trim().isNotEmpty == true
+                            ? (data['photoUrl'] as String).trim()
+                            : (data['photoURL'] as String?)?.trim().isNotEmpty == true
+                                ? (data['photoURL'] as String).trim()
+                                : '';
+
+        final name = (data['name'] as String?)?.trim().isNotEmpty == true
+            ? (data['name'] as String).trim()
+            : (data['channelName'] as String?)?.trim().isNotEmpty == true
+                ? (data['channelName'] as String).trim()
+                : (data['displayName'] as String?)?.trim().isNotEmpty == true
+                    ? (data['displayName'] as String).trim()
+                    : '';
+
+        if (avatar.isNotEmpty) {
+          realChannelAvatarUrl.value = avatar;
+        }
+        if (name.isNotEmpty) {
+          realChannelName.value = name;
+        }
+        if (avatar.isNotEmpty || name.isNotEmpty) {
+          _channelCache[effectiveChannelId] = {
             'avatar': avatar,
             'name': name,
           };

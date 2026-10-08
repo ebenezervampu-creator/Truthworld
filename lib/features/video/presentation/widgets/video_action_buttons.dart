@@ -133,14 +133,6 @@ class VideoActionButtons {
                 _buildModernLikeDislikeGroup(context: context, controller: controller, mainController: mainController, isUserSignedIn: isUserSignedIn, onSignInPrompt: onSignInPrompt),
                 const SizedBox(width: 8),
 
-                // Insights & Media details button (icon only, before comments)
-                _buildModernCapsuleButton(
-                  icon: Icons.verified_user_outlined,
-                  label: '',
-                  onTap: () => _showAnalysisBottomSheet(context, controller),
-                ),
-                const SizedBox(width: 8),
-
                 // Comment (icon only)
                 _buildModernCapsuleButton(
                   icon: Icons.comment_rounded,
@@ -150,6 +142,27 @@ class VideoActionButtons {
                   },
                 ),
                 const SizedBox(width: 8),
+
+                // AI Credibility Check
+                Obx(() {
+                  final video = controller.rxVideo.value;
+                  final hasCredibility = video.hasAiCredibility ||
+                      controller.video.hasAiCredibility ||
+                      controller.factCheckData.isNotEmpty;
+                  if (!hasCredibility) return const SizedBox.shrink();
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildModernCapsuleButton(
+                        icon: Icons.verified_rounded,
+                        label: '',
+                        tooltip: 'AI Credibility Check',
+                        onTap: () => _showAnalysisBottomSheet(context, controller),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                  );
+                }),
 
                 // Super Thanks
                 _buildModernCapsuleButton(
@@ -193,7 +206,7 @@ class VideoActionButtons {
                 ),
                 const SizedBox(width: 8),
 
-                // Rating / Watch Later
+                // Save / Playlist / Watch Later
                 Obx(() {
                   controller.rxVideo.value;
                   final playlistCtrl = _getPlaylistController();
@@ -202,11 +215,13 @@ class VideoActionButtons {
                       playlistCtrl.isInWatchLater(
                         controller.video.id,
                       );
+                  final isSavedInAny = isInWatchLater ||
+                      playlistCtrl.playlists.any((p) => p.videoIds.contains(controller.video.id));
                   return _buildModernCapsuleButton(
-                    icon: isInWatchLater
-                        ? Icons.watch_later
-                        : Icons.watch_later_outlined,
-                    label: 'Watch Later',
+                    icon: isSavedInAny
+                        ? Icons.bookmark_added_rounded
+                        : Icons.bookmark_outline_rounded,
+                    label: isSavedInAny ? 'Saved' : 'Save',
                     onTap: () {
                       if (!isUserSignedIn) return onSignInPrompt();
                       showModernizedPlaylistDialog(
@@ -389,14 +404,6 @@ class VideoActionButtons {
                           _buildModernLikeDislikeGroup(context: context, controller: controller, mainController: mainController, isUserSignedIn: isUserSignedIn, onSignInPrompt: onSignInPrompt),
                           const SizedBox(width: 8),
 
-                          // Insights & Media details button (icon only, before comments)
-                          _buildModernCapsuleButton(
-                            icon: Icons.verified_user_outlined,
-                            label: '',
-                            onTap: () => _showAnalysisBottomSheet(context, controller),
-                          ),
-                          const SizedBox(width: 8),
-
                           // Comment (icon only)
                           if (_isMobilePlatform(context)) ...[
                             _buildModernCapsuleButton(
@@ -408,6 +415,27 @@ class VideoActionButtons {
                             ),
                             const SizedBox(width: 8),
                           ],
+
+                          // AI Credibility Check
+                          Obx(() {
+                            final video = controller.rxVideo.value;
+                            final hasCredibility = video.hasAiCredibility ||
+                                controller.video.hasAiCredibility ||
+                                controller.factCheckData.isNotEmpty;
+                            if (!hasCredibility) return const SizedBox.shrink();
+                            return Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildModernCapsuleButton(
+                                  icon: Icons.verified_rounded,
+                                  label: '',
+                                  tooltip: 'AI Credibility Check',
+                                  onTap: () => _showAnalysisBottomSheet(context, controller),
+                                ),
+                                const SizedBox(width: 8),
+                              ],
+                            );
+                          }),
 
                           // Super Thanks
                           _buildModernCapsuleButton(
@@ -452,7 +480,7 @@ class VideoActionButtons {
                           ),
                           const SizedBox(width: 8),
 
-                          // Rating / Watch Later
+                          // Save / Playlist / Watch Later
                           Obx(() {
                             controller.rxVideo.value;
                             final playlistCtrl = _getPlaylistController();
@@ -461,11 +489,13 @@ class VideoActionButtons {
                                 playlistCtrl.isInWatchLater(
                                   controller.video.id,
                                 );
+                            final isSavedInAny = isInWatchLater ||
+                                playlistCtrl.playlists.any((p) => p.videoIds.contains(controller.video.id));
                             return _buildModernCapsuleButton(
-                              icon: isInWatchLater
-                                  ? Icons.watch_later
-                                  : Icons.watch_later_outlined,
-                              label: 'Watch Later',
+                              icon: isSavedInAny
+                                  ? Icons.bookmark_added_rounded
+                                  : Icons.bookmark_outline_rounded,
+                              label: isSavedInAny ? 'Saved' : 'Save',
                               onTap: () {
                                 if (!isUserSignedIn) return onSignInPrompt();
                                 showModernizedPlaylistDialog(
@@ -638,9 +668,10 @@ class VideoActionButtons {
     required IconData icon,
     required String label,
     required VoidCallback onTap,
+    String? tooltip,
   }) {
     final hasLabel = label.isNotEmpty;
-    return Material(
+    final button = Material(
       color: AppColors.bgSurface,
       borderRadius: BorderRadius.circular(24),
       child: InkWell(
@@ -671,6 +702,10 @@ class VideoActionButtons {
         ),
       ),
     );
+    if (tooltip != null && tooltip.isNotEmpty) {
+      return Tooltip(message: tooltip, child: button);
+    }
+    return button;
   }
 
   static void _showAnalysisBottomSheet(
@@ -681,6 +716,7 @@ class VideoActionButtons {
     Get.bottomSheet(
       VideoAnalysisBottomSheet(
         video: controller.video,
+        controller: controller,
         initialTabIndex: initialTabIndex,
       ),
       isScrollControlled: true,

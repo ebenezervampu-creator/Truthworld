@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/data/models/offline.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/downloadcontroller.dart';
 import '../../test_helpers/mock_firebase.dart';
 
@@ -232,6 +233,101 @@ void main() {
       expect(controller.isListView.value, isTrue);
       controller.toggleView();
       expect(controller.isListView.value, isFalse);
+    });
+  });
+
+  group('Active Downloads & Offline Guard Tests', () {
+    late TestDownloadsController controller;
+
+    setUp(() {
+      controller = TestDownloadsController();
+    });
+
+    test('8. isVideoDownloaded correctly reflects saved offline videos', () {
+      expect(controller.isVideoDownloaded('v1'), isFalse);
+
+      controller.videos.add(
+        OfflineVideo(
+          id: 'v1',
+          title: 'Christian songs Redx Media',
+          channelName: 'Ebenezer Vampu',
+          channelImage: '',
+          views: '0',
+          thumbnailUrl: '',
+          downloadedAt: DateTime.now(),
+        ),
+      );
+
+      expect(controller.isVideoDownloaded('v1'), isTrue);
+      expect(controller.isVideoDownloaded('v2'), isFalse);
+    });
+
+    test('9. ActiveDownloadTask tracks progress and status dynamically', () {
+      final dummyVideo = Video(
+        id: 'v_active',
+        ownerId: 'user1',
+        title: 'How ISRO Does More in Space for Less',
+        description: 'Test Description',
+        videoUrl: 'https://example.com/video.mp4',
+        thumbnailUrl: 'https://example.com/thumb.jpg',
+        channelId: 'ch1',
+        channelName: 'Ebenezer Vampu',
+        channelAvatarUrl: '',
+        duration: '05:34',
+        category: 'Science',
+        tags: const ['space', 'isro'],
+        createdAt: DateTime.now(),
+      );
+
+      final task = ActiveDownloadTask(
+        video: dummyVideo,
+        isAudioOnly: false,
+        quality: '720p HD',
+      );
+
+      controller.activeDownloads['v_active'] = task;
+      controller.downloadProgressMap['v_active'] = 0.0;
+
+      expect(controller.isVideoDownloading('v_active'), isTrue);
+      expect(controller.activeDownloads.length, equals(1));
+      expect(controller.activeDownloads['v_active']!.quality, equals('720p HD'));
+
+      // Progress update
+      task.progress.value = 0.45;
+      task.status.value = 'Downloading 45%';
+
+      expect(controller.activeDownloads['v_active']!.progress.value, equals(0.45));
+      expect(controller.activeDownloads['v_active']!.status.value, equals('Downloading 45%'));
+
+      // Cancel task
+      controller.cancelDownload('v_active');
+      expect(controller.isVideoDownloading('v_active'), isFalse);
+      expect(controller.activeDownloads.isEmpty, isTrue);
+      expect(controller.downloadProgressMap.containsKey('v_active'), isFalse);
+    });
+
+    test('10. OfflineVideo.fromJson safely parses null and non-string numbers without throwing', () {
+      final safeItem = OfflineVideo.fromJson({
+        'id': 'v_robust',
+        'title': null,
+        'channelName': null,
+        'channelImage': null,
+        'views': 12345, // int instead of String
+        'thumbnailUrl': null,
+        'downloadedAt': null,
+        'isAudioOnly': null,
+        'quality': null,
+        'isEncrypted': null,
+      });
+
+      expect(safeItem.id, equals('v_robust'));
+      expect(safeItem.title, equals(''));
+      expect(safeItem.channelName, equals(''));
+      expect(safeItem.views, equals('12345'));
+      expect(safeItem.thumbnailUrl, equals(''));
+      expect(safeItem.isAudioOnly, isFalse);
+      expect(safeItem.isEncrypted, isTrue);
+      expect(safeItem.downloadedAt, isNotNull);
     });
   });
 }

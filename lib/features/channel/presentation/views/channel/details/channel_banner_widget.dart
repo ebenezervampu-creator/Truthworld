@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/data/models/channel.dart';
@@ -30,6 +31,10 @@ class ChannelBannerWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bannerHeight = isDesktop ? 220.0 : (isTablet ? 170.0 : 130.0);
+    final rawBannerUrl = channel.bannerImageUrl.isNotEmpty
+        ? channel.bannerImageUrl
+        : channel.bannerUrl;
+    final cleanBannerUrl = rawBannerUrl.trim().replaceAll(' ', '%20');
 
     return Container(
       margin: EdgeInsets.symmetric(
@@ -44,13 +49,23 @@ class ChannelBannerWidget extends StatelessWidget {
           child: Builder(
             builder: (context) => Stack(
               children: [
-                if (channel.bannerImageUrl.isNotEmpty) ...[
+                if (cleanBannerUrl.isNotEmpty) ...[
                   // Ambient background backdrop with blur for dynamic banner aspect ratios
                   Positioned.fill(
                     child: CachedNetworkImage(
-                      imageUrl: channel.bannerImageUrl,
+                      imageUrl: cleanBannerUrl,
                       fit: BoxFit.cover,
-                      errorWidget: (context, url, error) => const ColoredBox(color: ytSurface),
+                      errorWidget: (context, url, error) {
+                        if (kIsWeb) {
+                          return Image.network(
+                            cleanBannerUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, err, stack) =>
+                                const ColoredBox(color: ytSurface),
+                          );
+                        }
+                        return const ColoredBox(color: ytSurface);
+                      },
                     ),
                   ),
                   Positioned.fill(
@@ -62,7 +77,7 @@ class ChannelBannerWidget extends StatelessWidget {
                   // Primary full-bleed banner cover
                   Positioned.fill(
                     child: CachedNetworkImage(
-                      imageUrl: channel.bannerImageUrl,
+                      imageUrl: cleanBannerUrl,
                       fit: BoxFit.cover,
                       placeholder: (context, url) => const ColoredBox(
                         color: ytSurface,
@@ -73,15 +88,33 @@ class ChannelBannerWidget extends StatelessWidget {
                           ),
                         ),
                       ),
-                      errorWidget: (context, url, error) => const ColoredBox(
-                        color: ytSurface,
-                        child: Center(
-                          child: Icon(
-                            Icons.image_not_supported,
-                            color: ytTextTertiary,
+                      errorWidget: (context, url, error) {
+                        if (kIsWeb) {
+                          return Image.network(
+                            cleanBannerUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, err, stack) =>
+                                const ColoredBox(
+                              color: ytSurface,
+                              child: Center(
+                                child: Icon(
+                                  Icons.image_not_supported,
+                                  color: ytTextTertiary,
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+                        return const ColoredBox(
+                          color: ytSurface,
+                          child: Center(
+                            child: Icon(
+                              Icons.image_not_supported,
+                              color: ytTextTertiary,
+                            ),
                           ),
-                        ),
-                      ),
+                        );
+                      },
                     ),
                   ),
                 ] else

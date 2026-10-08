@@ -17,16 +17,18 @@ import type { VertexAI } from "@google-cloud/vertexai";
 import { logger } from "../utils/logger";
 import { z } from "zod";
 import { getVertexAI } from "../utils/ai-client";
+import { PIPELINE_CONFIG } from "../config";
+import { extractCandidateText } from "../utils/ai-utils";
 
 /** Fast tier configuration */
 export const FAST_TIER_CONFIG = {
   MAX_CLAIMS: 5,
   TIMEOUT_MS: 10_000,
-  MODEL: "gemini-2.5-flash",
+  MODEL: PIPELINE_CONFIG.GEMINI_MODELS?.fastTier || "gemini-3.1-flash-lite",
   ENABLE_GROUNDING: false,
   SIGNAL_THRESHOLDS: { green: 0.7, yellow: 0.4 }, // below 0.4 = red
   MAX_TEXT_LENGTH: 5000, // character limit for input text
-} as const;
+};
 
 /** Signal output from fast verification */
 export interface FastVerificationResult {
@@ -111,7 +113,7 @@ Return ONLY valid JSON matching this schema:
         ),
       ]);
 
-      const responseText = result.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const responseText = extractCandidateText(result.response.candidates?.[0]) || result.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
 
       if (!jsonMatch) {

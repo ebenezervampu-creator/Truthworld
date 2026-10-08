@@ -134,12 +134,8 @@ class AboutFooterSection extends StatelessWidget {
                 ),
               ),
               _buildFooterLink(
-                'support@truthworld.in',
-                () => onSendEmail('support@truthworld.in'),
-              ),
-              _buildFooterLink(
-                'ebenezervampu@truthworld.in',
-                () => onSendEmail('ebenezervampu@truthworld.in'),
+                'hello@truthworld.in',
+                () => onSendEmail('hello@truthworld.in'),
               ),
               _buildFooterLink('Terms of Service', () => Get.toNamed('/terms')),
               _buildFooterLink('Privacy Policy', () => Get.toNamed('/privacy')),

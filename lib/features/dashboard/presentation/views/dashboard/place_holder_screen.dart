@@ -19,46 +19,38 @@ class PlaceholderScreen extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: 120,
-            height: 120,
+            width: 100,
+            height: 100,
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppTheme.colors.textSecondary.withValues(alpha: 0.2),
-                  AppTheme.colors.textSecondary.withValues(alpha: 0.1),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+              color: AppColors.bgSurfaceHover,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: AppColors.bgDivider,
               ),
-              borderRadius: BorderRadius.circular(60),
             ),
             child: Icon(
               icon,
-              size: 60,
-              color: isDarkMode
-                  ? AppTheme.colors.textPrimary54
-                  : AppTheme.colors.textSecondary,
+              size: 48,
+              color: AppColors.textPrimary,
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
           Text(
             '$featureName Coming Soon',
-            style: TextStyle(
-              fontSize: 24,
+            style: const TextStyle(
+              fontFamily: TWTypography.brandFamily,
+              fontSize: 22,
               fontWeight: FontWeight.bold,
-              color: isDarkMode
-                  ? AppTheme.colors.textPrimary
-                  : AppTheme.colors.background,
+              color: AppColors.textPrimary,
             ),
           ),
-          const SizedBox(height: 12),
-          Text(
-            'This feature is currently under development.',
+          const SizedBox(height: 8),
+          const Text(
+            'This feature is currently under active development.',
             style: TextStyle(
-              fontSize: 16,
-              color: isDarkMode
-                  ? AppTheme.colors.textPrimary70
-                  : AppTheme.colors.textTertiary,
+              fontFamily: TWTypography.uiFamily,
+              fontSize: 14,
+              color: AppColors.textSecondary,
             ),
             textAlign: TextAlign.center,
           ),

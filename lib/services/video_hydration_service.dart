@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:truthworld/core/errors/error_handler.dart';
-import 'package:universal_html/js.dart' as js;
+import 'package:truthworld/core/utils/web_platform_utils.dart';
 
 /// Service to handle video data injection from prerendered HTML pages.
 ///
@@ -11,157 +10,23 @@ import 'package:universal_html/js.dart' as js;
 /// 4. Flutter app uses injected data for instant hydration (no loading)
 ///
 /// Only active on web - returns null on mobile.
-
 class VideoHydrationService {
   /// Check if video data was injected by the prerender system
-  ///
-  /// Returns true if:
-  /// - Running on web
-  /// - __VIDEO_DATA__ exists in window
-  /// - Data is not undefined
-  static bool hasInjectedData() {
-    try {
-      // Only available on web
-      if (!kIsWeb) {
-        return false;
-      }
-
-      final data = js.context['__VIDEO_DATA__'];
-      final isUndefined = data == null || data == js.context['undefined'];
-
-      if (!isUndefined) {
-        debugPrint('✅ Injected data detected');
-      }
-
-      return !isUndefined;
-    } catch (e, stackTrace) {
-      ErrorHandler.log(
-        e,
-        stackTrace: stackTrace,
-        tag: 'VideoHydrationService.hasInjectedData',
-      );
-      return false;
-    }
-  }
+  static bool hasInjectedData() => WebPlatformUtils.hasInjectedData();
 
   /// Get the injected video data as a Dart Map
-  ///
-  /// Returns null if:
-  /// - Not running on web
-  /// - Data not found
-  /// - Error reading from JS context
-  ///
-  /// Otherwise returns map with keys:
-  /// - id, title, description, thumbnail
-  /// - duration, uploadDate
-  /// - creatorId, creatorName
-  /// - viewCount, rating, ratingCount
-  /// - videoUrl, hlsUrl, dashUrl
-  /// - slug
-  static Map<String, dynamic>? getInjectedData() {
-    try {
-      if (!kIsWeb) {
-        return null;
-      }
-
-      final dynamic jsData = js.context['__VIDEO_DATA__'];
-
-      if (jsData == null || jsData == js.context['undefined']) {
-        return null;
-      }
-
-      // Convert JavaScript object to Dart Map
-      final data = <String, dynamic>{
-        'id': jsData['id'] as String?,
-        'title': jsData['title'] as String?,
-        'description': jsData['description'] as String?,
-        'thumbnail': jsData['thumbnail'] as String?,
-        'duration': (jsData['duration'] as num?)?.toInt(),
-        'uploadDate': jsData['uploadDate'] as String?,
-        'creatorId': jsData['creatorId'] as String?,
-        'creatorName': jsData['creatorName'] as String?,
-        'channelId': jsData['channelId'] as String?,
-        'category': jsData['category'] as String?,
-        'tags': jsData['tags'] as List?,
-        'viewCount': (jsData['viewCount'] as num?)?.toInt(),
-        'rating': (jsData['rating'] as num?)?.toDouble(),
-        'ratingCount': (jsData['ratingCount'] as num?)?.toInt(),
-        'videoUrl': jsData['videoUrl'] as String?,
-        'hlsUrl': jsData['hlsUrl'] as String?,
-        'dashUrl': jsData['dashUrl'] as String?,
-        'slug': jsData['slug'] as String?,
-      };
-
-      debugPrint('✅ Retrieved injected data: ${data['title']}');
-      return data;
-    } catch (e, stackTrace) {
-      ErrorHandler.log(
-        e,
-        stackTrace: stackTrace,
-        tag: 'VideoHydrationService.getInjectedData',
-      );
-      return null;
-    }
-  }
+  static Map<String, dynamic>? getInjectedData() =>
+      WebPlatformUtils.getInjectedData();
 
   /// Get a specific field from injected data
-  ///
-  /// Example: VideoHydrationService.getInjectedField('title')
-  static dynamic getInjectedField(String field) {
-    try {
-      if (!kIsWeb) {
-        return null;
-      }
-
-      final dynamic data = js.context['__VIDEO_DATA__'];
-      if (data == null || data == js.context['undefined']) {
-        return null;
-      }
-
-      return data[field];
-    } catch (e, stackTrace) {
-      ErrorHandler.log(
-        e,
-        stackTrace: stackTrace,
-        tag: 'VideoHydrationService.getInjectedField',
-      );
-      return null;
-    }
-  }
+  static dynamic getInjectedField(String field) =>
+      WebPlatformUtils.getInjectedField(field);
 
   /// Clean up injected data after it's been consumed
-  ///
-  /// Safe to call multiple times - doesn't error if data doesn't exist
-  static void clearInjectedData() {
-    try {
-      if (kIsWeb) {
-        js.context['__VIDEO_DATA__'] = null;
-        debugPrint('✅ Cleared injected data');
-      }
-    } catch (e, stackTrace) {
-      ErrorHandler.log(
-        e,
-        stackTrace: stackTrace,
-        tag: 'VideoHydrationService.clearInjectedData',
-      );
-    }
-  }
+  static void clearInjectedData() => WebPlatformUtils.clearInjectedData();
 
   /// Completely remove the __VIDEO_DATA__ from window
-  static void removeInjectedData() {
-    try {
-      if (kIsWeb) {
-        js.context.deleteProperty('__VIDEO_DATA__');
-        debugPrint('✅ Removed __VIDEO_DATA__ from window');
-      }
-    } catch (e, stackTrace) {
-      ErrorHandler.log(
-        e,
-        stackTrace: stackTrace,
-        tag: 'VideoHydrationService.removeInjectedData',
-      );
-    }
-  }
+  static void removeInjectedData() => WebPlatformUtils.removeInjectedData();
 
   /// Debug: Print all injected data to console
   static void debugPrintInjectedData() {

@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/utils/web_platform_utils.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -80,6 +82,27 @@ class PrivacyPolicyScreen extends StatelessWidget {
         curve: Curves.easeInOut,
       );
     }
+  }
+
+  void _navigateToPolicy(String route) {
+    if (isDashboard && Get.isRegistered<HomeController>()) {
+      final homeController = Get.find<HomeController>();
+      switch (route) {
+        case '/community-guidelines':
+          homeController.onSideNavItemSelect(
+            HomeController.indexCommunityGuidelines,
+          );
+        case '/privacy':
+          homeController.onSideNavItemSelect(HomeController.indexPrivacy);
+        case '/terms':
+          homeController.onSideNavItemSelect(HomeController.indexTerms);
+      }
+      if (kIsWeb) {
+        WebPlatformUtils.pushUrlHistory(route);
+      }
+      return;
+    }
+    Get.toNamed(route);
   }
 
   /// Builds the left-hand navigation menu
@@ -177,9 +200,13 @@ class PrivacyPolicyScreen extends StatelessWidget {
                       color: Colors.white,
                     ),
                     onPressed: () {
-                      if (isDashboard) {
-                        Get.find<HomeController>().sideNavSelectedIndex.value =
-                            HomeController.indexSettings;
+                      if (isDashboard && Get.isRegistered<HomeController>()) {
+                        Get.find<HomeController>().onSideNavItemSelect(
+                          HomeController.indexHome,
+                        );
+                        if (kIsWeb) {
+                          WebPlatformUtils.pushUrlHistory('/');
+                        }
                       } else {
                         Get.back();
                       }
@@ -194,18 +221,42 @@ class PrivacyPolicyScreen extends StatelessWidget {
               ),
             ),
             actions: [
-              TextButton(
-                onPressed: () {
-                  Get.toNamed('/terms');
-                },
-                child: Text(
-                  'Terms of Service',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w500,
-                    color: Theme.of(context).colorScheme.primary,
+              if (isDesktop) ...[
+                TextButton(
+                  onPressed: () => _navigateToPolicy('/terms'),
+                  child: Text(
+                    'Terms of Service',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w500,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
                 ),
-              ),
+                TextButton(
+                  onPressed: () => _navigateToPolicy('/community-guidelines'),
+                  child: Text(
+                    'Community Guidelines',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w500,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ),
+              ] else
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert, color: Colors.white),
+                  onSelected: _navigateToPolicy,
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: '/terms',
+                      child: Text('Terms of Service'),
+                    ),
+                    const PopupMenuItem(
+                      value: '/community-guidelines',
+                      child: Text('Community Guidelines'),
+                    ),
+                  ],
+                ),
               const SizedBox(width: 8),
             ],
           ),
@@ -464,7 +515,7 @@ Users in other regions may have similar rights under local privacy laws. We will
 6.4 Exercising Your Rights
 
 To exercise any of these rights:
-• Email us at: privacy@Truthworld.com
+• Email us at: hello@truthworld.in
 • Use the privacy settings in your account
 • Submit a request through our Help Center
 
@@ -547,7 +598,7 @@ If you are a parent or guardian, you have the right to:
 - Refuse further collection or use of your child's information
 - Withdraw consent at any time
 
-To exercise these rights or if you have concerns about your child's privacy, please contact us at: privacy@Truthworld.com or grievance@Truthworld.com.
+To exercise these rights or if you have concerns about your child's privacy, please contact us at: hello@truthworld.in.
 
 **Compliance:**
 We comply with the Children's Online Privacy Protection Act (COPPA) for U.S. users and the Digital Personal Data Protection Act (DPDPA), 2023 for Indian users, along with other applicable children's privacy laws worldwide.
@@ -595,9 +646,7 @@ For privacy-related questions, concerns, or rights requests, please contact us:
 
 TowerVSP Services (OPC) Private Limited
 Platform: Truthworld
-Email: privacy@truthworld.in
-Grievance Email: ebenezervampu@truthworld.in / grievance@truthworld.in
-Support Email: support@truthworld.in
+Email: hello@truthworld.in
 Phone: +91 9390617877
 
 Registered Office:
@@ -609,12 +658,12 @@ Telangana, India
 
 Grievance Officer (India & Global):
 Vampu Ebenezer
-Email: ebenezervampu@truthworld.in / grievance@truthworld.in
+Email: hello@truthworld.in
 Phone: +91 9390617877
 Support Hours: Mon – Fri, 9:00 AM – 6:00 PM IST
 
 Data Protection Officer (EU):
-dpo@truthworld.in
+hello@truthworld.in
 
 We will acknowledge inquiries within 24 hours and resolve them within 15 days in accordance with statutory guidelines.
 
@@ -662,8 +711,7 @@ Data Localization: Certain categories of sensitive personal data may be stored a
 Statutory Grievance Redressal:
 Grievance Officer: Vampu Ebenezer
 Entity: TowerVSP Services (OPC) Private Limited
-Email: ebenezervampu@truthworld.in / grievance@truthworld.in
-Customer Support: support@truthworld.in
+Email: hello@truthworld.in
 Phone: +91 9390617877
 Registered Office: Ramaram, Yadadri Bhuvanagiri, Telangana - 508116, India
 Support Hours: Mon – Fri, 9:00 AM – 6:00 PM IST

@@ -144,6 +144,22 @@ mixin MiniplayerPlaybackMixin on MiniplayerStateBase, MiniplayerSubtitlesMixin {
     );
   }
 
+  /// Clear active clip to switch back to full video playback.
+  @override
+  void clearActiveClip() {
+    activeClip.value = null;
+    if (currentVideo.value != null) {
+      videoInfo.value = MiniplayerVideoInfo.fromVideo(
+        currentVideo.value!,
+        isAudioOnly: isAudioOnly.value,
+      );
+      totalDuration.value = currentVideo.value!.durationValue;
+      if (internalVpc != null && internalVpc!.value.isInitialized) {
+        currentPosition.value = internalVpc!.value.position;
+      }
+    }
+  }
+
   /// Native VideoPlayerController listener.
   void vpcListener() {
     final vpc = internalVpc;
@@ -157,11 +173,36 @@ mixin MiniplayerPlaybackMixin on MiniplayerStateBase, MiniplayerSubtitlesMixin {
           aspectRatio: currentAspectRatio,
         );
       }
-      currentPosition.value = val.position;
       isBuffering.value = val.isBuffering;
-      if (val.duration > Duration.zero) {
-        totalDuration.value = val.duration;
+
+      // Clip loop and position tracking
+      if (activeClip.value != null) {
+        final clip = activeClip.value!;
+        final currentPosSec = val.position.inMilliseconds / 1000.0;
+        final startMs = (clip.startTime * 1000).toInt();
+        final endMs = (clip.endTime * 1000).toInt();
+        final clipDurMs = endMs - startMs;
+
+        if (currentPosSec >= clip.endTime) {
+          vpc.seekTo(Duration(milliseconds: startMs));
+          return;
+        }
+        if (currentPosSec < clip.startTime - 0.5) {
+          vpc.seekTo(Duration(milliseconds: startMs));
+          return;
+        }
+
+        final relMs =
+            (val.position.inMilliseconds - startMs).clamp(0, clipDurMs);
+        currentPosition.value = Duration(milliseconds: relMs);
+        totalDuration.value = Duration(milliseconds: clipDurMs);
+      } else {
+        currentPosition.value = val.position;
+        if (val.duration > Duration.zero) {
+          totalDuration.value = val.duration;
+        }
       }
+
       if (val.hasError) {
         final err = val.errorDescription;
         if (isIgnorablePlaybackError(err)) {
@@ -228,38 +269,151 @@ mixin MiniplayerPlaybackMixin on MiniplayerStateBase, MiniplayerSubtitlesMixin {
 
   Future<void> seekForward({int seconds = 10}) async {
     final vpc = internalVpc;
-    if (vpc == null) return;
-    final target = vpc.value.position + Duration(seconds: seconds);
-    final clamped = target > vpc.value.duration ? vpc.value.duration : target;
-    currentPosition.value = clamped;
-    await vpc.seekTo(clamped);
+    if (vpc == null) {
+      if (activeClip.value != null) {
+        final clip = activeClip.value!;
+        final clipDur = Duration(
+          milliseconds: ((clip.endTime - clip.startTime) * 1000).toInt(),
+        );
+        final target = currentPosition.value + Duration(seconds: seconds);
+        currentPosition.value = target > clipDur
+            ? clipDur
+            : (target < Duration.zero ? Duration.zero : target);
+      } else {
+        final target = currentPosition.value + Duration(seconds: seconds);
+        currentPosition.value = target > totalDuration.value
+            ? totalDuration.value
+            : (target < Duration.zero ? Duration.zero : target);
+      }
+      return;
+    }
+    if (activeClip.value != null) {
+      final clip = activeClip.value!;
+      final startMs = (clip.startTime * 1000).toInt();
+      final endMs = (clip.endTime * 1000).toInt();
+      final currentAbs = vpc.value.position;
+      final target = currentAbs + Duration(seconds: seconds);
+      final clamped = target > Duration(milliseconds: endMs)
+          ? Duration(milliseconds: endMs)
+          : (target < Duration(milliseconds: startMs)
+              ? Duration(milliseconds: startMs)
+              : target);
+      currentPosition.value =
+          Duration(milliseconds: clamped.inMilliseconds - startMs);
+      await vpc.seekTo(clamped);
+    } else {
+      final target = vpc.value.position + Duration(seconds: seconds);
+      final clamped =
+          target > vpc.value.duration ? vpc.value.duration : target;
+      currentPosition.value = clamped;
+      await vpc.seekTo(clamped);
+    }
   }
 
   Future<void> seekBackward({int seconds = 10}) async {
     final vpc = internalVpc;
-    if (vpc == null) return;
-    final target = vpc.value.position - Duration(seconds: seconds);
-    final clamped = target < Duration.zero ? Duration.zero : target;
-    currentPosition.value = clamped;
-    await vpc.seekTo(clamped);
+    if (vpc == null) {
+      if (activeClip.value != null) {
+        final clip = activeClip.value!;
+        final clipDur = Duration(
+          milliseconds: ((clip.endTime - clip.startTime) * 1000).toInt(),
+        );
+        final target = currentPosition.value - Duration(seconds: seconds);
+        currentPosition.value = target < Duration.zero
+            ? Duration.zero
+            : (target > clipDur ? clipDur : target);
+      } else {
+        final target = currentPosition.value - Duration(seconds: seconds);
+        currentPosition.value = target < Duration.zero
+            ? Duration.zero
+            : (target > totalDuration.value ? totalDuration.value : target);
+      }
+      return;
+    }
+    if (activeClip.value != null) {
+      final clip = activeClip.value!;
+      final startMs = (clip.startTime * 1000).toInt();
+      final endMs = (clip.endTime * 1000).toInt();
+      final currentAbs = vpc.value.position;
+      final target = currentAbs - Duration(seconds: seconds);
+      final clamped = target < Duration(milliseconds: startMs)
+          ? Duration(milliseconds: startMs)
+          : (target > Duration(milliseconds: endMs)
+              ? Duration(milliseconds: endMs)
+              : target);
+      currentPosition.value =
+          Duration(milliseconds: clamped.inMilliseconds - startMs);
+      await vpc.seekTo(clamped);
+    } else {
+      final target = vpc.value.position - Duration(seconds: seconds);
+      final clamped = target < Duration.zero ? Duration.zero : target;
+      currentPosition.value = clamped;
+      await vpc.seekTo(clamped);
+    }
   }
 
   Future<void> seekTo(Duration position) async {
     final vpc = internalVpc;
-    if (vpc == null) return;
-    currentPosition.value = position;
-    await vpc.seekTo(position);
+    if (vpc == null) {
+      if (activeClip.value != null) {
+        final clip = activeClip.value!;
+        final clipDur = Duration(
+          milliseconds: ((clip.endTime - clip.startTime) * 1000).toInt(),
+        );
+        final clamped = position < Duration.zero
+            ? Duration.zero
+            : (position > clipDur ? clipDur : position);
+        currentPosition.value = clamped;
+      } else {
+        final clamped = position < Duration.zero
+            ? Duration.zero
+            : (position > totalDuration.value ? totalDuration.value : position);
+        currentPosition.value = clamped;
+      }
+      return;
+    }
+    if (activeClip.value != null) {
+      final clip = activeClip.value!;
+      final startMs = (clip.startTime * 1000).toInt();
+      final endMs = (clip.endTime * 1000).toInt();
+      final targetAbsMs =
+          (startMs + position.inMilliseconds).clamp(startMs, endMs);
+      final targetAbs = Duration(milliseconds: targetAbsMs);
+      currentPosition.value =
+          Duration(milliseconds: targetAbsMs - startMs);
+      await vpc.seekTo(targetAbs);
+    } else {
+      final clamped = position < Duration.zero
+          ? Duration.zero
+          : (position > vpc.value.duration ? vpc.value.duration : position);
+      currentPosition.value = clamped;
+      await vpc.seekTo(clamped);
+    }
   }
 
   Future<void> seekToRatio(double ratio) async {
     final vpc = internalVpc;
-    if (vpc == null) return;
-    final totalMs = totalDuration.value.inMilliseconds;
-    if (totalMs <= 0) return;
-    final targetMs = (totalMs * ratio.clamp(0.0, 1.0)).toInt();
-    final targetDuration = Duration(milliseconds: targetMs);
-    currentPosition.value = targetDuration;
-    await vpc.seekTo(targetDuration);
+    if (activeClip.value != null) {
+      final clip = activeClip.value!;
+      final startMs = (clip.startTime * 1000).toInt();
+      final clipDurMs = ((clip.endTime - clip.startTime) * 1000).toInt();
+      if (clipDurMs <= 0) return;
+      final targetRelMs = (clipDurMs * ratio.clamp(0.0, 1.0)).toInt();
+      final targetAbs = Duration(milliseconds: startMs + targetRelMs);
+      currentPosition.value = Duration(milliseconds: targetRelMs);
+      if (vpc != null) {
+        await vpc.seekTo(targetAbs);
+      }
+    } else {
+      final totalMs = totalDuration.value.inMilliseconds;
+      if (totalMs <= 0) return;
+      final targetMs = (totalMs * ratio.clamp(0.0, 1.0)).toInt();
+      final targetDuration = Duration(milliseconds: targetMs);
+      currentPosition.value = targetDuration;
+      if (vpc != null) {
+        await vpc.seekTo(targetDuration);
+      }
+    }
   }
 
   void toggleMobileControls() {
@@ -301,8 +455,34 @@ mixin MiniplayerPlaybackMixin on MiniplayerStateBase, MiniplayerSubtitlesMixin {
           return;
         }
         isPlaying.value = val.isPlaying;
-        currentPosition.value = val.position;
         isBuffering.value = val.isBuffering;
+
+        if (activeClip.value != null) {
+          final clip = activeClip.value!;
+          final currentPosSec = val.position.inMilliseconds / 1000.0;
+          final startMs = (clip.startTime * 1000).toInt();
+          final endMs = (clip.endTime * 1000).toInt();
+          final clipDurMs = endMs - startMs;
+
+          if (currentPosSec >= clip.endTime) {
+            vpc.seekTo(Duration(milliseconds: startMs));
+            return;
+          }
+          if (currentPosSec < clip.startTime - 0.5) {
+            vpc.seekTo(Duration(milliseconds: startMs));
+            return;
+          }
+
+          final relMs =
+              (val.position.inMilliseconds - startMs).clamp(0, clipDurMs);
+          currentPosition.value = Duration(milliseconds: relMs);
+          totalDuration.value = Duration(milliseconds: clipDurMs);
+        } else {
+          currentPosition.value = val.position;
+          if (val.duration > Duration.zero) {
+            totalDuration.value = val.duration;
+          }
+        }
 
         // Subtitle lookup
         if (subtitlesEnabled.value && subtitleSegments.isNotEmpty) {

@@ -100,8 +100,8 @@ class ChaptersVideoListPane extends StatelessWidget {
             height: 40,
             decoration: BoxDecoration(
               color: isDarkMode
-                  ? const Color(0xFF242424)
-                  : const Color(0xFFF1F5F9),
+                  ? AppColors.bgInput
+                  : Colors.grey.shade200,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: borderColor),
             ),
@@ -110,19 +110,19 @@ class ChaptersVideoListPane extends StatelessWidget {
                 fontSize: 14,
                 color: textColor,
               ),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: 'Search videos...',
                 hintStyle: TextStyle(
                   fontSize: 14,
-                  color: Colors.white54,
+                  color: isDarkMode ? AppColors.textTertiary : Colors.black38,
                 ),
                 prefixIcon: Icon(
                   Icons.search_rounded,
                   size: 18,
-                  color: Colors.white,
+                  color: isDarkMode ? AppColors.textSecondary : Colors.black54,
                 ),
                 border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(
+                contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 10,
                 ),
@@ -218,17 +218,17 @@ class ChaptersVideoListPane extends StatelessWidget {
                     fit: BoxFit.cover,
                     placeholder: (context, url) => Container(
                       color: isDarkMode
-                          ? const Color(0xFF2A2A2A)
+                          ? AppColors.bgSurfaceHover
                           : AppColors.bgDivider,
                     ),
                     errorWidget: (context, url, error) => ColoredBox(
                       color: isDarkMode
-                          ? const Color(0xFF2A2A2A)
+                          ? AppColors.bgSurfaceHover
                           : AppColors.bgDivider,
-                      child: const Icon(
+                      child: Icon(
                         Icons.video_file_rounded,
                         size: 20,
-                        color: Colors.white,
+                        color: isDarkMode ? Colors.white : Colors.black87,
                       ),
                     ),
                   ),
@@ -295,7 +295,7 @@ class ChaptersVideoListPane extends StatelessWidget {
                         ),
                         decoration: BoxDecoration(
                           color: chapterCount > 0
-                              ? const Color(0xFF10B981).withValues(alpha: 0.15)
+                              ? AppColors.success.withValues(alpha: 0.15)
                               : textSecondaryColor.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(4),
                         ),
@@ -306,7 +306,7 @@ class ChaptersVideoListPane extends StatelessWidget {
                               Icons.bookmarks_rounded,
                               size: 10,
                               color: chapterCount > 0
-                                  ? const Color(0xFF10B981)
+                                  ? AppColors.success
                                   : textSecondaryColor,
                             ),
                             const SizedBox(width: 3),
@@ -316,7 +316,7 @@ class ChaptersVideoListPane extends StatelessWidget {
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
                                 color: chapterCount > 0
-                                    ? const Color(0xFF10B981)
+                                    ? AppColors.success
                                     : textSecondaryColor,
                               ),
                             ),

@@ -63,6 +63,14 @@ export class InputLayer {
     const channelType = partial.channelType ?? "standard";
     const langs = normalizeLanguageCodes(partial.languages ?? ["en"]);
 
+    let validatedDuration: number | undefined = undefined;
+    if (partial.duration !== undefined) {
+      const dur = Number(partial.duration);
+      if (isFinite(dur) && dur > 0 && dur <= 7200) {
+        validatedDuration = dur;
+      }
+    }
+
     return {
       userId,
       channelType,
@@ -72,7 +80,7 @@ export class InputLayer {
       generateDubbing: partial.generateDubbing ?? false,
       enableFactCheck: partial.enableFactCheck ?? true,
       priority: partial.priority ?? "normal",
-      duration: partial.duration,
+      duration: validatedDuration ?? partial.duration,
     };
   }
 
@@ -81,6 +89,13 @@ export class InputLayer {
    */
   validateConfig(config: UserConfig): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
+
+    if (config.duration !== undefined) {
+      const dur = Number(config.duration);
+      if (!isFinite(dur) || dur <= 0 || dur > 7200) {
+        errors.push("Video duration must be between 1 and 7200 seconds (2 hours)");
+      }
+    }
 
     if (config.channelType === "standard" && config.duration && config.duration > 600) {
       errors.push("Standard channel video duration cannot exceed 10 minutes (600 seconds)");
@@ -159,10 +174,16 @@ export class InputLayer {
 
   isFeatureAvailable(type: ChannelType, feature: string): boolean {
     switch (feature) {
-      case "voice_cloning": return true;
-      case "auxiliary": return true;
-      case "high_priority": return true;
-      default: return true;
+      case "voice_cloning":
+        return TYPE_LIMITS[type]?.voiceCloning ?? false;
+      case "auxiliary":
+        return true;
+      case "high_priority":
+        return type === "custom";
+      case "unlimited_duration":
+        return type === "custom";
+      default:
+        return false;
     }
   }
 

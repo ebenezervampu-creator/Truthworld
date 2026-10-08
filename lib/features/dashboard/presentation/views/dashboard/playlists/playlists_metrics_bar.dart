@@ -33,13 +33,13 @@ class PlaylistMetricSummaryCard extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
             color: isSelected
-                ? const Color(0xFF27272A)
-                : const Color(0xFF141417),
+                ? AppColors.bgSurfaceHover
+                : const Color(0xFF1E1E1E),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: isSelected
-                  ? const Color(0xFF52525B)
-                  : const Color(0xFF27272A),
+                  ? AppColors.textSecondary
+                  : AppColors.bgDivider,
               width: isSelected ? 1.5 : 1,
             ),
           ),
@@ -48,12 +48,12 @@ class PlaylistMetricSummaryCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF202024),
+                  color: AppColors.bgPage,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
                   icon,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   size: 18,
                 ),
               ),
@@ -69,6 +69,7 @@ class PlaylistMetricSummaryCard extends StatelessWidget {
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
                         color: AppColors.textSecondary,
+                        fontFamily: TWTypography.uiFamily,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -79,7 +80,8 @@ class PlaylistMetricSummaryCard extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
+                        fontFamily: TWTypography.brandFamily,
                       ),
                     ),
                   ],
@@ -106,9 +108,9 @@ class PlaylistsMetricsBar extends GetView<PlaylistsManagementController> {
   Widget build(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
-        color: Color(0xFF0F0F0F),
+        color: AppColors.bgPage,
         border: Border(
-          bottom: BorderSide(color: Color(0xFF27272A)),
+          bottom: BorderSide(color: AppColors.bgDivider),
         ),
       ),
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
@@ -128,8 +130,9 @@ class PlaylistsMetricsBar extends GetView<PlaylistsManagementController> {
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                         letterSpacing: -0.5,
+                        fontFamily: TWTypography.brandFamily,
                       ),
                     ),
                     const SizedBox(height: 3),
@@ -138,6 +141,7 @@ class PlaylistsMetricsBar extends GetView<PlaylistsManagementController> {
                       style: TextStyle(
                         fontSize: 13,
                         color: AppColors.textSecondary,
+                        fontFamily: TWTypography.uiFamily,
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -149,22 +153,20 @@ class PlaylistsMetricsBar extends GetView<PlaylistsManagementController> {
                       icon: const Icon(
                         Icons.add_rounded,
                         size: 18,
-                        color: Colors.white,
+                        color: Colors.black,
                       ),
                       label: const Text(
                         'New Playlist',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: Colors.black,
                           fontWeight: FontWeight.bold,
                           fontSize: 13,
+                          fontFamily: TWTypography.uiFamily,
                         ),
                       ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF27272A),
-                        foregroundColor: Colors.white,
-                        side: const BorderSide(
-                          color: Color(0xFF3F3F46),
-                        ),
+                        backgroundColor: AppColors.textPrimary,
+                        foregroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
                           vertical: 12,
@@ -191,8 +193,9 @@ class PlaylistsMetricsBar extends GetView<PlaylistsManagementController> {
                           style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                             letterSpacing: -0.5,
+                            fontFamily: TWTypography.brandFamily,
                           ),
                         ),
                         SizedBox(height: 3),
@@ -201,6 +204,7 @@ class PlaylistsMetricsBar extends GetView<PlaylistsManagementController> {
                           style: TextStyle(
                             fontSize: 13,
                             color: AppColors.textSecondary,
+                            fontFamily: TWTypography.uiFamily,
                           ),
                         ),
                       ],
@@ -215,22 +219,20 @@ class PlaylistsMetricsBar extends GetView<PlaylistsManagementController> {
                     icon: const Icon(
                       Icons.add_rounded,
                       size: 18,
-                      color: Colors.white,
+                      color: Colors.black,
                     ),
                     label: const Text(
                       'New Playlist',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: Colors.black,
                         fontWeight: FontWeight.bold,
                         fontSize: 13,
+                        fontFamily: TWTypography.uiFamily,
                       ),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF27272A),
-                      foregroundColor: Colors.white,
-                      side: const BorderSide(
-                        color: Color(0xFF3F3F46),
-                      ),
+                      backgroundColor: AppColors.textPrimary,
+                      foregroundColor: Colors.black,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 18,
                         vertical: 12,
@@ -299,7 +301,7 @@ class PlaylistsMetricsBar extends GetView<PlaylistsManagementController> {
 
           const SizedBox(height: 16),
 
-          // Studio Search & Control Bar
+          // Search & Filter Bar
           const PlaylistsSearchFilterBar(),
         ],
       ),

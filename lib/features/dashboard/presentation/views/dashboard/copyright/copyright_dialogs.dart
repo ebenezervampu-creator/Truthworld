@@ -24,12 +24,18 @@ class CopyrightDialogs {
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor:
-            isDarkMode ? AppColors.bgSurface : AppColors.textPrimary,
-        title: Text(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: AppColors.bgDivider),
+        ),
+        title: const Text(
           'Contact Channel Owner',
           style: TextStyle(
-            color: isDarkMode ? AppColors.textPrimary : Colors.black,
+            fontFamily: TWTypography.brandFamily,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary,
           ),
         ),
         content: Column(
@@ -39,20 +45,31 @@ class CopyrightDialogs {
               controller: messageController,
               inputFormatters: TruthworldTextInputFormatters.standard,
               maxLines: 4,
-              style: TextStyle(
-                color: isDarkMode ? AppColors.textPrimary : Colors.black,
+              style: const TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                color: AppColors.textPrimary,
+                fontSize: 14,
               ),
               decoration: InputDecoration(
                 labelText: 'Notice Message',
-                labelStyle: TextStyle(
-                  color: isDarkMode
-                      ? AppColors.textSecondary
-                      : Colors.black,
+                labelStyle: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  color: AppColors.textSecondary,
                 ),
                 filled: true,
-                fillColor: isDarkMode
-                    ? AppColors.bgInput
-                    : const Color(0xFFF1F5F9),
+                fillColor: AppColors.bgInput,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.bgDivider),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.bgDivider),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.brand),
+                ),
               ),
             ),
           ],
@@ -62,7 +79,10 @@ class CopyrightDialogs {
             onPressed: () => Navigator.pop(ctx),
             child: const Text(
               'Cancel',
-              style: TextStyle(color: AppColors.textSecondary),
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                color: AppColors.textSecondary,
+              ),
             ),
           ),
           ElevatedButton(
@@ -84,8 +104,17 @@ class CopyrightDialogs {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.brand,
               foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
-            child: const Text('Send Warning'),
+            child: const Text(
+              'Send Warning',
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -104,19 +133,28 @@ class CopyrightDialogs {
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor:
-            isDarkMode ? AppColors.bgSurface : AppColors.textPrimary,
-        title: Text(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: AppColors.bgDivider),
+        ),
+        title: const Text(
           'Submit DMCA Removal Request?',
           style: TextStyle(
-            color: isDarkMode ? AppColors.textPrimary : Colors.black,
+            fontFamily: TWTypography.brandFamily,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary,
           ),
         ),
         content: Text(
           'Filing a formal removal request for "$title" uploaded by $channelName '
           'will issue an official takedown notice under Truthworld Copyright Policy.',
-          style: TextStyle(
-            color: isDarkMode ? AppColors.textSecondary : Colors.black,
+          style: const TextStyle(
+            fontFamily: TWTypography.uiFamily,
+            fontSize: 14,
+            color: AppColors.textSecondary,
+            height: 1.4,
           ),
         ),
         actions: [
@@ -124,7 +162,10 @@ class CopyrightDialogs {
             onPressed: () => Navigator.pop(ctx),
             child: const Text(
               'Cancel',
-              style: TextStyle(color: AppColors.textSecondary),
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                color: AppColors.textSecondary,
+              ),
             ),
           ),
           ElevatedButton(
@@ -144,9 +185,18 @@ class CopyrightDialogs {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.error,
-              foregroundColor: AppColors.textPrimary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
-            child: const Text('File Removal Request'),
+            child: const Text(
+              'File Removal Request',
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),

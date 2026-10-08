@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/utils/web_platform_utils.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -98,6 +100,27 @@ class CommunityGuidelinesPage extends StatelessWidget {
         curve: Curves.easeInOut,
       );
     }
+  }
+
+  void _navigateToPolicy(String route) {
+    if (isDashboard && Get.isRegistered<HomeController>()) {
+      final homeController = Get.find<HomeController>();
+      switch (route) {
+        case '/community-guidelines':
+          homeController.onSideNavItemSelect(
+            HomeController.indexCommunityGuidelines,
+          );
+        case '/privacy':
+          homeController.onSideNavItemSelect(HomeController.indexPrivacy);
+        case '/terms':
+          homeController.onSideNavItemSelect(HomeController.indexTerms);
+      }
+      if (kIsWeb) {
+        WebPlatformUtils.pushUrlHistory(route);
+      }
+      return;
+    }
+    Get.toNamed(route);
   }
 
   /// Builds the left-hand navigation menu
@@ -299,9 +322,13 @@ class CommunityGuidelinesPage extends StatelessWidget {
                       color: Colors.white,
                     ),
                     onPressed: () {
-                      if (isDashboard) {
-                        Get.find<HomeController>().sideNavSelectedIndex.value =
-                            HomeController.indexSettings;
+                      if (isDashboard && Get.isRegistered<HomeController>()) {
+                        Get.find<HomeController>().onSideNavItemSelect(
+                          HomeController.indexHome,
+                        );
+                        if (kIsWeb) {
+                          WebPlatformUtils.pushUrlHistory('/');
+                        }
                       } else {
                         Get.back();
                       }
@@ -318,9 +345,7 @@ class CommunityGuidelinesPage extends StatelessWidget {
             actions: [
               if (isDesktop) ...[
                 TextButton(
-                  onPressed: () {
-                    Get.toNamed('/terms');
-                  },
+                  onPressed: () => _navigateToPolicy('/terms'),
                   child: Text(
                     'Terms of Service',
                     style: TextStyle(
@@ -330,9 +355,7 @@ class CommunityGuidelinesPage extends StatelessWidget {
                   ),
                 ),
                 TextButton(
-                  onPressed: () {
-                    Get.toNamed('/privacy');
-                  },
+                  onPressed: () => _navigateToPolicy('/privacy'),
                   child: Text(
                     'Privacy Policy',
                     style: TextStyle(
@@ -344,7 +367,7 @@ class CommunityGuidelinesPage extends StatelessWidget {
               ] else
                 PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert, color: Colors.white),
-                  onSelected: Get.toNamed,
+                  onSelected: _navigateToPolicy,
                   itemBuilder: (context) => [
                     const PopupMenuItem(
                       value: '/terms',
@@ -613,7 +636,7 @@ To help viewers evaluate statements and maintain truthfulness, Truthworld implem
 Truthworld respects the intellectual property rights of others and expects its creators to do the same. Uploading videos containing copyrighted material without permission or authorization violates our terms.
 
 **Copyright Reporting Form & Claims:**
-To submit a formal statutory copyright infringement claim, you can use our public online takedown form at `/copyright-complaint` or email our designated copyright team at copyright@truthworld.in (with copy to ebenezervampu@truthworld.in) with the following information (the "Copyright Reporting Form"):
+To submit a formal statutory copyright infringement claim, you can use our public online takedown form at `/copyright-complaint` or email our designated team at hello@truthworld.in with the following information (the "Copyright Reporting Form"):
 1. Your complete contact details (full name, email address, physical address, and phone number).
 2. A clear description of the copyrighted work you believe has been infringed.
 3. The exact URL(s) of the infringing content on Truthworld.
@@ -625,7 +648,7 @@ To submit a formal statutory copyright infringement claim, you can use our publi
 Upon receipt of a valid and complete copyright takedown notice:
 • **Prompt Removal:** We will promptly remove or disable access to the reported video.
 • **Uploader Notification:** We will notify the uploader of the takedown claim and explain that their video was removed.
-• **Counter-Notification:** If the uploader believes their content was removed in error (e.g., they have a license, fair use rights, or the work is public domain), they may submit a counter-notice to copyright@truthworld.in containing their contact details, video URL, good faith explanation, and consent to court jurisdiction.
+• **Counter-Notification:** If the uploader believes their content was removed in error (e.g., they have a license, fair use rights, or the work is public domain), they may submit a counter-notice to hello@truthworld.in containing their contact details, video URL, good faith explanation, and consent to court jurisdiction.
 • **Restoration:** If a valid counter-notice is received, we will forward it to the claimant. If the claimant does not notify us of a lawsuit within 10-14 business days, we may restore the video.
 
 **Repeat Infringer Policy (Three-Strikes System):**

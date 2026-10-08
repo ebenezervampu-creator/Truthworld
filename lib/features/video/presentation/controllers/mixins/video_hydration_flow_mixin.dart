@@ -9,6 +9,8 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
+import 'package:truthworld/core/services/video_visibility_policy.dart';
+import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/video/data/datasources/local/database_helpers.dart';
@@ -64,10 +66,13 @@ mixin VideoHydrationFlowMixin on GetxController {
   set videoSubscription(StreamSubscription<DocumentSnapshot>? s);
 
   VideoPlayerController? get videoPlayerController;
+  set videoPlayerController(VideoPlayerController? c);
   RxBool get videoError;
   bool get isAuthenticated;
   String get trafficSource;
   set trafficSource(String val);
+  bool get isAlreadyWatched;
+  set isAlreadyWatched(bool val);
 
   Future<void> attemptRecovery();
   Future<void> startPlaybackFlow({String? overrideUrl});
@@ -278,6 +283,15 @@ mixin VideoHydrationFlowMixin on GetxController {
         initialSeekPosition = parsedTime;
       }
     }
+    if (args?['isOffline'] == true) {
+      rxIsOffline.value = true;
+    }
+    if (args?['isAudioOnly'] == true) {
+      isAudioOnly.value = true;
+    } else if (args != null && args.containsKey('isAudioOnly') && args['isAudioOnly'] == false) {
+      isAudioOnly.value = false;
+      TowerPlayerPreferences.globalAudioOnly = false;
+    }
     if (args?['video'] != null) {
       final videoArg = args!['video'] as Video;
       rxVideo.value = videoArg;
@@ -288,7 +302,13 @@ mixin VideoHydrationFlowMixin on GetxController {
       fetchFirstPlaylistVideo(currentPlaylist.value!.videoIds.first);
       return;
     } else {
-      final videoId = Get.parameters['v'] ?? Get.parameters['videoId'] ?? Get.parameters['id'];
+      final videoId = args?['videoId'] as String? ??
+          args?['targetVideoId'] as String? ??
+          args?['video_id'] as String? ??
+          args?['id'] as String? ??
+          Get.parameters['v'] ??
+          Get.parameters['videoId'] ??
+          Get.parameters['id'];
       if (videoId != null && videoId.isNotEmpty) {
         _loadVideoFromDeepLink(videoId, args);
       } else {
@@ -376,6 +396,21 @@ mixin VideoHydrationFlowMixin on GetxController {
       _loadVideoFromDeepLink(videoId, args);
 
   void _initLoadedVideo(Map<String, dynamic>? args) {
+    if (video.isPrivate && !VideoVisibilityPolicy.isOwner(video)) {
+      videoError.value = true;
+      rxErrorMessage.value =
+          'This video is private. Only the channel owner can view this video.';
+      rxIsLoading.value = false;
+      showThumbnail.value = false;
+      return;
+    }
+
+    if (args?['isOffline'] == true) {
+      rxIsOffline.value = true;
+    }
+    if (args?['isAudioOnly'] == true) {
+      isAudioOnly.value = true;
+    }
     final tag = 'video_${video.id}';
     if (!Get.isRegistered<VideoEngagementController>(tag: tag)) {
       engagementController = Get.put(VideoEngagementController(), tag: tag);
@@ -388,6 +423,18 @@ mixin VideoHydrationFlowMixin on GetxController {
     } else {
       analyticsController = Get.find<VideoAnalyticsController>(tag: tag);
     }
+
+    final chTag = video.id.isNotEmpty ? video.id : 'video_channel';
+    if (!Get.isRegistered<ChannelController>(tag: chTag)) {
+      channelController = Get.put(ChannelController(), tag: chTag);
+    } else {
+      channelController = Get.find<ChannelController>(tag: chTag);
+    }
+
+    if (Get.isRegistered<WatchHistoryService>()) {
+      isAlreadyWatched = WatchHistoryService.to.isVideoFullyWatched(video.id);
+    }
+
     if (args?['clip'] != null) {
       activeClip.value = args!['clip'] as VideoClip;
       debugPrint(
@@ -451,6 +498,10 @@ mixin VideoHydrationFlowMixin on GetxController {
     if (VideoPlaybackHandoff.isActive(video.id) || args?['isFromMiniplayer'] == true) {
       rxIsLoading.value = false;
       showThumbnail.value = false;
+      final prewarmed = VideoPlaybackHandoff.peekController(video.id);
+      if (prewarmed != null) {
+        videoPlayerController = prewarmed;
+      }
     }
     final overrideUrl = args?['overrideUrl'] as String?;
     startPlaybackFlow(overrideUrl: overrideUrl);
@@ -497,8 +548,10 @@ mixin VideoHydrationFlowMixin on GetxController {
         rxVideo.refresh();
       });
 
-      channelController.listenSubscription(video.channelId);
-      channelController.fetchChannel(video.channelId);
+      if (video.channelId.trim().isNotEmpty) {
+        channelController.listenSubscription(video.channelId);
+        channelController.fetchChannel(video.channelId);
+      }
       if (isAuthenticated) {
         checkUserInteractions();
       }

@@ -25,6 +25,10 @@ void main() {
       expect(UserFeedbackSanitizer.sanitizeTitle('Failure'), isNull);
       expect(UserFeedbackSanitizer.sanitizeTitle('Failed'), isNull);
       expect(UserFeedbackSanitizer.sanitizeTitle('Exception'), isNull);
+      expect(UserFeedbackSanitizer.sanitizeTitle('internal'), isNull);
+      expect(UserFeedbackSanitizer.sanitizeTitle('INTERNAL'), isNull);
+      expect(UserFeedbackSanitizer.sanitizeTitle('internal error'), isNull);
+      expect(UserFeedbackSanitizer.sanitizeTitle('unavailable'), isNull);
     });
 
     test('returns null for null, empty, or whitespace titles', () {
@@ -122,6 +126,29 @@ void main() {
       );
     });
 
+    test('sanitizes raw "internal" and "unavailable" errors into friendly messages', () {
+      expect(
+        UserFeedbackSanitizer.sanitizeMessage('internal'),
+        equals('The service is temporarily unavailable. Please try again shortly.'),
+      );
+      expect(
+        UserFeedbackSanitizer.sanitizeMessage('internal', defaultActionContext: 'process payment'),
+        equals('Unable to process payment right now. Please try again in a few moments.'),
+      );
+      expect(
+        UserFeedbackSanitizer.sanitizeMessage('INTERNAL', defaultActionContext: 'process payment'),
+        equals('Unable to process payment right now. Please try again in a few moments.'),
+      );
+      expect(
+        UserFeedbackSanitizer.sanitizeMessage('unavailable', defaultActionContext: 'process payment'),
+        equals('Unable to process payment right now. Please try again in a few moments.'),
+      );
+      expect(
+        UserFeedbackSanitizer.sanitizeMessage('profile_inactive'),
+        equals('Payment service is temporarily unavailable. Please try again in a few moments or contact support.'),
+      );
+    });
+
     test('uses defaultActionContext when raw technical error lacks action context', () {
       const input = 'RangeError (index): Invalid value: Valid value range is empty: 0';
       final sanitized = UserFeedbackSanitizer.sanitizeMessage(
@@ -138,6 +165,18 @@ void main() {
       );
       final sanitized = UserFeedbackSanitizer.sanitizeMessage(exception);
       expect(sanitized, equals('Custom user friendly offline notification'));
+    });
+
+    test('sanitizes AppException with raw internal message', () {
+      const exception = ServerException(message: 'internal');
+      final sanitized = UserFeedbackSanitizer.sanitizeMessage(
+        exception,
+        defaultActionContext: 'join membership tier',
+      );
+      expect(
+        sanitized,
+        equals('Unable to join membership tier right now. Please try again in a few moments.'),
+      );
     });
 
     test('sanitizes native Exception via AppException.from', () {
@@ -230,6 +269,13 @@ void main() {
       );
       expect(storageEx, isA<StorageException>());
       expect(storageEx.code, equals('STORAGE_OBJECT-NOT-FOUND'));
+
+      // Internal / Cloud Functions plugin
+      final internalEx = AppException.from(
+        FirebaseException(plugin: 'cloud_functions', code: 'internal'),
+      );
+      expect(internalEx, isA<ServerException>());
+      expect(internalEx.displayMessage, equals('The service is temporarily unavailable. Please try again in a moment.'));
     });
 
     test('preserves existing AppException instances without re-wrapping', () {

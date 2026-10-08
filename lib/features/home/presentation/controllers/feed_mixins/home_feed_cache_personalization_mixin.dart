@@ -1,3 +1,5 @@
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/ad_service.dart';
@@ -7,6 +9,7 @@ import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
+import 'package:truthworld/core/widgets/truthworld_splash_screen.dart';
 import 'package:truthworld/features/home/data/services/feed_cache_manager.dart';
 import 'package:truthworld/features/home/presentation/controllers/feed_mixins/home_feed_controller_base.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -128,6 +131,8 @@ mixin HomeFeedCachePersonalizationMixin on HomeFeedControllerBase {
         }
         mixHomeFeed();
         isLoadingVideos.value = false;
+        precacheTopThumbnails(videos.take(4).toList());
+        TruthworldSplashScreen.dismiss();
       }
     } catch (e, stackTrace) {
       ErrorHandler.log(
@@ -136,6 +141,25 @@ mixin HomeFeedCachePersonalizationMixin on HomeFeedControllerBase {
         tag: 'HomeFeedController._loadCachedVideos',
       );
     }
+  }
+
+  /// Proactively pre-cache top video thumbnails into memory to eliminate render delay
+  void precacheTopThumbnails(List<Video> topVideos) {
+    if (topVideos.isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final context = Get.context;
+      if (context == null || !context.mounted) return;
+      for (final v in topVideos) {
+        if (v.thumbnailUrl.isNotEmpty) {
+          try {
+            precacheImage(
+              CachedNetworkImageProvider(v.thumbnailUrl, maxWidth: 720),
+              context,
+            );
+          } catch (_) {}
+        }
+      }
+    });
   }
 
   @override
@@ -166,6 +190,7 @@ mixin HomeFeedCachePersonalizationMixin on HomeFeedControllerBase {
         if (videosToCache.isNotEmpty) {
           final cacheKey = FeedCacheManager.cacheKeyForCategory(cat, userId: currentUserId);
           feedCacheManager.saveFeedToCache(cacheKey, videosToCache);
+          precacheTopThumbnails(videosToCache.take(4).toList());
         }
       }
     } catch (e, stackTrace) {

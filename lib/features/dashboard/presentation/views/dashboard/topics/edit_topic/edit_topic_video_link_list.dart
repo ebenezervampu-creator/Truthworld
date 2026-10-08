@@ -31,9 +31,9 @@ class EditTopicVideoLinkList extends StatelessWidget {
 
       return Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF121212),
+          color: AppColors.bgInput,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFF27272A)),
+          border: Border.all(color: AppColors.bgDivider),
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
@@ -47,7 +47,7 @@ class EditTopicVideoLinkList extends StatelessWidget {
             return Material(
               color: Colors.transparent,
               child: CheckboxListTile(
-                activeColor: Colors.white,
+                activeColor: AppColors.brand,
                 checkColor: Colors.black,
                 value: isSelected,
                 title: Text(
@@ -71,7 +71,7 @@ class EditTopicVideoLinkList extends StatelessWidget {
                           errorWidget: (c, o, s) => Container(
                             width: 44,
                             height: 25,
-                            color: const Color(0xFF27272A),
+                            color: AppColors.bgSurfaceHover,
                             child: const Icon(
                               Icons.video_library,
                               size: 14,
@@ -82,7 +82,7 @@ class EditTopicVideoLinkList extends StatelessWidget {
                       : Container(
                           width: 44,
                           height: 25,
-                          color: const Color(0xFF27272A),
+                          color: AppColors.bgSurfaceHover,
                           child: const Icon(
                             Icons.video_library,
                             size: 14,

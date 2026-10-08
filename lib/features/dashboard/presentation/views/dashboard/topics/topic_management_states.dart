@@ -17,8 +17,8 @@ class TopicShimmerGrid extends StatelessWidget {
     const childAspectRatio = 16 / 9;
 
     return Shimmer.fromColors(
-      baseColor: const Color(0xFF161618),
-      highlightColor: const Color(0xFF27272A),
+      baseColor: const Color(0xFF1E1E1E),
+      highlightColor: AppColors.bgSurfaceHover,
       child: GridView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
@@ -33,9 +33,9 @@ class TopicShimmerGrid extends StatelessWidget {
         itemBuilder: (context, index) {
           return Container(
             decoration: BoxDecoration(
-              color: const Color(0xFF161618),
+              color: const Color(0xFF1E1E1E),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFF27272A)),
+              border: Border.all(color: AppColors.bgDivider),
             ),
           );
         },
@@ -56,9 +56,9 @@ class TopicEmptyState extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
         padding: const EdgeInsets.all(32),
         decoration: BoxDecoration(
-          color: const Color(0xFF161618),
+          color: const Color(0xFF1E1E1E),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF27272A)),
+          border: Border.all(color: AppColors.bgDivider),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -66,9 +66,9 @@ class TopicEmptyState extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFF18181B),
+                color: AppColors.bgInput,
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF27272A)),
+                border: Border.all(color: AppColors.bgDivider),
               ),
               child: const Icon(
                 Icons.folder_special_rounded,
@@ -122,9 +122,9 @@ class TopicSearchEmptyState extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
         padding: const EdgeInsets.all(32),
         decoration: BoxDecoration(
-          color: const Color(0xFF161618),
+          color: const Color(0xFF1E1E1E),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF27272A)),
+          border: Border.all(color: AppColors.bgDivider),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -132,9 +132,9 @@ class TopicSearchEmptyState extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFF18181B),
+                color: AppColors.bgInput,
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF27272A)),
+                border: Border.all(color: AppColors.bgDivider),
               ),
               child: const Icon(
                 Icons.search_off_rounded,
@@ -180,8 +180,8 @@ class TopicSearchEmptyState extends StatelessWidget {
                 ),
               ),
               style: OutlinedButton.styleFrom(
-                backgroundColor: const Color(0xFF18181B),
-                side: const BorderSide(color: Color(0xFF27272A)),
+                backgroundColor: AppColors.bgSurfaceHover,
+                side: const BorderSide(color: AppColors.bgDivider),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 20,
                   vertical: 12,
@@ -218,9 +218,9 @@ class TopicErrorState extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 480),
           padding: const EdgeInsets.all(32),
           decoration: BoxDecoration(
-            color: const Color(0xFF161618),
+            color: const Color(0xFF1E1E1E),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF27272A)),
+            border: Border.all(color: AppColors.bgDivider),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -228,10 +228,10 @@ class TopicErrorState extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF450A0A),
+                  color: AppColors.errorContainer,
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: const Color(0xFFEF4444).withValues(alpha: 0.4),
+                    color: AppColors.error.withValues(alpha: 0.4),
                   ),
                 ),
                 child: const Icon(
@@ -269,20 +269,19 @@ class TopicErrorState extends StatelessWidget {
                 icon: const Icon(
                   Icons.refresh_rounded,
                   size: 18,
-                  color: Colors.white,
+                  color: Colors.black,
                 ),
                 label: const Text(
                   'Try Again',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: Colors.black,
                     fontWeight: FontWeight.bold,
                     fontSize: 13,
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF27272A),
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Color(0xFF3F3F46)),
+                  backgroundColor: AppColors.brand,
+                  foregroundColor: Colors.black,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 24,
                     vertical: 14,

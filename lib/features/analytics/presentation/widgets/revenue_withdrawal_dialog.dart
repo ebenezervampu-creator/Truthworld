@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/security/biometric_security_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/analytics/data/models/creator_bank_account.dart';
 import 'package:truthworld/features/analytics/presentation/controllers/revenue_analytics_controller.dart';
@@ -771,13 +772,15 @@ class RevenueWithdrawalDialog extends StatelessWidget {
       return;
     }
 
+    CreatorBankAccount? bankAccountToUse;
+    String? upiToUse;
+
     if (selectedMethod.value == 'Direct Bank Transfer') {
       final savedBank = controller.savedBankAccount.value;
       final useSaved = savedBank != null && !isEditingBankDetails.value;
 
-      CreatorBankAccount accountToUse;
       if (useSaved) {
-        accountToUse = savedBank;
+        bankAccountToUse = savedBank;
       } else {
         final holder = holderController.text.trim();
         final acc = accountNumberController.text.trim();
@@ -805,7 +808,7 @@ class RevenueWithdrawalDialog extends StatelessWidget {
           bank = CreatorBankAccount.inferBankName(ifsc);
         }
 
-        accountToUse = CreatorBankAccount(
+        bankAccountToUse = CreatorBankAccount(
           accountHolderName: holder,
           accountNumber: acc,
           ifscCode: ifsc,
@@ -813,26 +816,37 @@ class RevenueWithdrawalDialog extends StatelessWidget {
           accountType: selectedAccountType.value,
         );
       }
-
-      final success = await controller.submitDirectBankWithdrawal(
-        amount: parsedAmount,
-        bankAccount: accountToUse,
-        saveAsDefault: saveBankForFuture.value,
-      );
-      if (success) {
-        Get.back<void>();
-      }
     } else {
       final upi = upiController.text.trim();
       if (upi.isEmpty) {
         AppSnackbar.warning('Please enter your UPI ID.');
         return;
       }
+      upiToUse = upi;
+    }
 
+    // 🔐 Biometric & Device PIN Re-Authentication Guard
+    final authenticated = await BiometricSecurityService.to.authenticateForHighValueAction(
+      reason: 'Please authenticate with your fingerprint, face, or device PIN to confirm this ₹${parsedAmount.toStringAsFixed(2)} payout request.',
+    );
+    if (!authenticated) {
+      return;
+    }
+
+    if (selectedMethod.value == 'Direct Bank Transfer' && bankAccountToUse != null) {
+      final success = await controller.submitDirectBankWithdrawal(
+        amount: parsedAmount,
+        bankAccount: bankAccountToUse,
+        saveAsDefault: saveBankForFuture.value,
+      );
+      if (success) {
+        Get.back<void>();
+      }
+    } else if (upiToUse != null) {
       final success = await controller.submitWithdrawalRequest(
         amount: parsedAmount,
         paymentMethod: 'UPI',
-        accountDetails: upi,
+        accountDetails: upiToUse,
       );
       if (success) {
         Get.back<void>();

@@ -79,7 +79,7 @@ void showAddTeamMemberDialog(
                 style: const TextStyle(color: AppColors.textPrimary),
                 decoration: InputDecoration(
                   labelText: 'Member Email',
-                  hintText: 'e.g. moderator@towervsp.com',
+                  hintText: 'e.g. moderator@truthworld.in',
                   labelStyle: const TextStyle(color: AppColors.textSecondary),
                   filled: true,
                   fillColor: AppColors.bgInput,

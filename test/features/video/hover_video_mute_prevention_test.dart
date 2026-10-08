@@ -49,6 +49,8 @@ class FakeConnectivityService extends GetxService implements ConnectivityService
   @override
   Stream<List<ConnectivityResult>> get onConnectivityChanged => const Stream.empty();
   @override
+  Stream<ConnectivityResult> get onConnectivityRestored => const Stream.empty();
+  @override
   Future<ConnectivityService> init() async => this;
 }
 
@@ -79,6 +81,7 @@ void main() {
     test('Returns true when TowerPlayerController is registered and isMuted is true', () {
       final vpc = VideoPlayerController.networkUrl(Uri.parse('https://example.com/video.mp4'));
       final ctrl = Get.put(TowerPlayerController(videoPlayerController: vpc));
+      TowerPlayerRegistry.register(ctrl);
       ctrl.isMuted.value = true;
       expect(HoverPreviewCoordinator.isMainVideoMuted(), isTrue);
 
@@ -89,6 +92,7 @@ void main() {
     test('Returns true when TowerPlayerController is registered and volume is 0', () {
       final vpc = VideoPlayerController.networkUrl(Uri.parse('https://example.com/video.mp4'));
       final ctrl = Get.put(TowerPlayerController(videoPlayerController: vpc));
+      TowerPlayerRegistry.register(ctrl);
       ctrl.isMuted.value = false;
       ctrl.volume.value = 0.0;
       expect(HoverPreviewCoordinator.isMainVideoMuted(), isTrue);

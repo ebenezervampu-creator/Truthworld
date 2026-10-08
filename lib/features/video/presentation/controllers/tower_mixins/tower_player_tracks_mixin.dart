@@ -32,6 +32,7 @@ mixin TowerPlayerTracksMixin on GetxController {
   void showToast(String msg);
   void closeSettings();
   RxString get activePanel;
+  RxBool get showTranscriptPopup;
 
   final RxBool subtitlesEnabled = false.obs;
   final RxString activeSubLang = 'Off'.obs;
@@ -40,7 +41,19 @@ mixin TowerPlayerTracksMixin on GetxController {
   final RxBool isLoadingSubtitles = false.obs;
   final RxString currentSubtitle = ''.obs;
   final Rx<SubtitleSegment?> activeSubtitleSegment = Rx<SubtitleSegment?>(null);
+  final RxInt subtitleOffsetMs = 0.obs;
   Timer? subtitleSyncTimer;
+
+  void adjustSubtitleOffset(int deltaMs) {
+    subtitleOffsetMs.value += deltaMs;
+    final sign = subtitleOffsetMs.value > 0 ? '+' : '';
+    showToast('Subtitle sync: $sign${subtitleOffsetMs.value}ms');
+  }
+
+  void resetSubtitleOffset() {
+    subtitleOffsetMs.value = 0;
+    showToast('Subtitle sync reset to 0ms');
+  }
 
   final RxString activeAudioLang = 'English'.obs;
   final RxList<AudioTrack> audioTracks = <AudioTrack>[].obs;
@@ -62,10 +75,11 @@ mixin TowerPlayerTracksMixin on GetxController {
       return;
     }
     // Read directly from the VideoPlayerController for the most up-to-date
-    // position. Going through activePlayback.position uses VideoPlaybackSource
-    // which caches the value via a listener and can be up to ~200ms stale
-    // when the native platform position-update event hasn't fired yet.
-    final pos = videoPlayerController.value.position;
+    // position, shifted by any user-configured subtitle offset.
+    final rawPos = videoPlayerController.value.position;
+    final pos = subtitleOffsetMs.value == 0
+        ? rawPos
+        : rawPos + Duration(milliseconds: subtitleOffsetMs.value);
     final seg = SubtitleParser.findActiveSubtitle(subtitleSegments, pos);
     final text = seg?.text ?? '';
     if (currentSubtitle.value != text) {
@@ -73,7 +87,10 @@ mixin TowerPlayerTracksMixin on GetxController {
     }
     if (activeSubtitleSegment.value != seg) {
       activeSubtitleSegment.value = seg;
-      videoController?.transcriptController.updateActiveSegment(seg);
+    }
+    final vc = videoController;
+    if (vc != null && (vc.isTranscriptVisible.value || showTranscriptPopup.value)) {
+      vc.transcriptController.updateActiveSegment(seg, currentPos: pos);
     }
   }
 

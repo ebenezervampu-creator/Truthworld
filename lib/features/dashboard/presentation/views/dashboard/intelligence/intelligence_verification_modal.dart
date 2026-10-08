@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/creator_intelligence_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification_dashboard_page.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Fact verification audit report modal bottom sheet showing confidence score, flagged frames, and appeal button.
 class IntelligenceVerificationReportModal extends StatelessWidget {
@@ -43,15 +44,19 @@ class IntelligenceVerificationReportModal extends StatelessWidget {
           Text(
             label,
             style: const TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              fontFamilyFallback: TWTypography.fallbackFamilies,
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: Color(0xFF71717A),
+              color: AppColors.textTertiary,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             value,
             style: TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              fontFamilyFallback: TWTypography.fallbackFamilies,
               fontSize: 14,
               fontWeight: FontWeight.w600,
               color: valueColor,
@@ -72,10 +77,10 @@ class IntelligenceVerificationReportModal extends StatelessWidget {
         return Container(
           height: MediaQuery.of(context).size.height * 0.75,
           decoration: const BoxDecoration(
-            color: Color(0xFF161618),
+            color: AppColors.bgSurface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
             border: Border(
-              top: BorderSide(color: Color(0xFF27272A)),
+              top: BorderSide(color: AppColors.bgDivider),
             ),
           ),
           padding: const EdgeInsets.all(24),
@@ -87,7 +92,7 @@ class IntelligenceVerificationReportModal extends StatelessWidget {
                   width: 36,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF3F3F46),
+                    color: AppColors.bgDivider,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -98,10 +103,10 @@ class IntelligenceVerificationReportModal extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF064E3B),
+                      color: AppColors.successContainer,
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: const Color(0xFF10B981).withValues(alpha: 0.4),
+                        color: AppColors.success.withValues(alpha: 0.4),
                       ),
                     ),
                     child: const Icon(
@@ -115,9 +120,11 @@ class IntelligenceVerificationReportModal extends StatelessWidget {
                     child: Text(
                       'Fact Verification Audit Report',
                       style: TextStyle(
+                        fontFamily: TWTypography.brandFamily,
+                        fontFamilyFallback: TWTypography.fallbackFamilies,
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                         letterSpacing: -0.3,
                       ),
                     ),
@@ -125,14 +132,14 @@ class IntelligenceVerificationReportModal extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 16),
-              const Divider(color: Color(0xFF27272A)),
+              const Divider(color: AppColors.bgDivider),
               const SizedBox(height: 16),
               if (snapshot.connectionState == ConnectionState.waiting)
                 const Expanded(
                   child: Center(
                     child: CircularProgressIndicator(
                       strokeWidth: 2.5,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.textPrimary),
                     ),
                   ),
                 )
@@ -142,8 +149,10 @@ class IntelligenceVerificationReportModal extends StatelessWidget {
                     child: Text(
                       'Verification Report Details Available in Verification Tab.',
                       style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontFamilyFallback: TWTypography.fallbackFamilies,
                         fontSize: 14,
-                        color: Color(0xFFA1A1AA),
+                        color: AppColors.textSecondary,
                       ),
                     ),
                   ),
@@ -155,31 +164,31 @@ class IntelligenceVerificationReportModal extends StatelessWidget {
                       _buildAuditRow(
                         'Status',
                         (data['status'] ?? 'Rejected').toString().toUpperCase(),
-                        const Color(0xFFF87171),
+                        AppColors.error,
                       ),
                       _buildAuditRow(
                         'Primary Reason',
                         data['primaryReason'] as String? ??
                             'AI Synthetic Content Detected without disclosure',
-                        Colors.white,
+                        AppColors.textPrimary,
                       ),
                       _buildAuditRow(
                         'Confidence Score',
                         '${(((data['confidenceScore'] as num?) ?? 0.86) * 100).toInt()}%',
-                        const Color(0xFFFBBF24),
+                        AppColors.warning,
                       ),
                       _buildAuditRow(
                         'Detected Flagged Frames',
                         (data['flaggedFrames'] as List? ??
                                 ['00:45', '02:12', '05:31'])
                             .join(', '),
-                        const Color(0xFF38BDF8),
+                        AppColors.info,
                       ),
                       _buildAuditRow(
                         'Recommended Action',
                         data['recommendedFix'] as String? ??
                             'Enable AI Synthetic content label in video metadata settings or submit an appeal.',
-                        Colors.white,
+                        AppColors.textPrimary,
                       ),
                       const SizedBox(height: 24),
                       Row(
@@ -197,21 +206,24 @@ class IntelligenceVerificationReportModal extends StatelessWidget {
                               },
                               icon: const Icon(
                                 Icons.gavel_rounded,
-                                color: Colors.white,
+                                color: Colors.black,
                                 size: 16,
                               ),
                               label: const Text('Submit Appeal'),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF2563EB),
-                                foregroundColor: Colors.white,
+                                backgroundColor: AppColors.brand,
+                                foregroundColor: Colors.black,
                                 elevation: 0,
                                 padding: const EdgeInsets.all(14),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 textStyle: const TextStyle(
+                                  fontFamily: TWTypography.uiFamily,
+                                  fontFamilyFallback: TWTypography.fallbackFamilies,
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
+                                  color: Colors.black,
                                 ),
                               ),
                             ),

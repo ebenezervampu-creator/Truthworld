@@ -1,5 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/features/search/data/models/search_result.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -22,6 +24,8 @@ class SearchVideoResultItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cleanThumb = result.thumbnail.trim().replaceAll(' ', '%20');
+
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -47,19 +51,31 @@ class SearchVideoResultItem extends StatelessWidget {
                           aspectRatio: 16 / 9,
                           child: ColoredBox(
                             color: AppColors.textSecondary,
-                            child: result.thumbnail.isNotEmpty
+                            child: cleanThumb.isNotEmpty
                                 ? CachedNetworkImage(
-                                    imageUrl: result.thumbnail,
+                                    imageUrl: cleanThumb,
                                     fit: BoxFit.cover,
                                     placeholder: (context, url) =>
                                         const ColoredBox(
                                       color: AppColors.bgDivider,
                                     ),
-                                    errorWidget: (context, url, error) =>
-                                        const Icon(
-                                      Icons.play_circle_outline,
-                                      color: Colors.white,
-                                    ),
+                                    errorWidget: (context, url, error) {
+                                      if (kIsWeb) {
+                                        return Image.network(
+                                          cleanThumb,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, err, stack) =>
+                                              const Icon(
+                                            Icons.play_circle_outline,
+                                            color: Colors.white,
+                                          ),
+                                        );
+                                      }
+                                      return const Icon(
+                                        Icons.play_circle_outline,
+                                        color: Colors.white,
+                                      );
+                                    },
                                   )
                                 : const Icon(
                                     Icons.play_circle_outline,
@@ -125,29 +141,57 @@ class SearchVideoResultItem extends StatelessWidget {
                   // Channel row
                   Row(
                     children: [
-                      if (result.channelImage.isNotEmpty)
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: CachedNetworkImage(
-                            imageUrl: result.channelImage,
-                            width: 20,
-                            height: 20,
-                            fit: BoxFit.cover,
-                            placeholder: (context, url) =>
-                                Container(color: AppColors.bgDivider),
-                            errorWidget: (context, url, error) => const Icon(
-                              Icons.account_circle,
-                              size: 20,
-                              color: Colors.white,
+                      () {
+                        final rawChannelImg = result.channelImage.isNotEmpty
+                            ? result.channelImage
+                            : (DeepLinkService.instance
+                                    .getChannelFromCache(result.channelName)
+                                    ?.avatarUrl ??
+                                '');
+                        final cleanChannelImg =
+                            rawChannelImg.trim().replaceAll(' ', '%20');
+                        if (cleanChannelImg.isNotEmpty) {
+                          return ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: CachedNetworkImage(
+                              imageUrl: cleanChannelImg,
+                              width: 20,
+                              height: 20,
+                              fit: BoxFit.cover,
+                              memCacheWidth: kIsWeb ? null : 40,
+                              memCacheHeight: kIsWeb ? null : 40,
+                              placeholder: (context, url) =>
+                                  Container(color: AppColors.bgDivider),
+                              errorWidget: (context, url, error) {
+                                if (kIsWeb) {
+                                  return Image.network(
+                                    cleanChannelImg,
+                                    width: 20,
+                                    height: 20,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, err, stack) =>
+                                        const Icon(
+                                      Icons.account_circle,
+                                      size: 20,
+                                      color: Colors.white,
+                                    ),
+                                  );
+                                }
+                                return const Icon(
+                                  Icons.account_circle,
+                                  size: 20,
+                                  color: Colors.white,
+                                );
+                              },
                             ),
-                          ),
-                        )
-                      else
-                        const Icon(
+                          );
+                        }
+                        return const Icon(
                           Icons.account_circle,
                           size: 20,
                           color: Colors.white,
-                        ),
+                        );
+                      }(),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(

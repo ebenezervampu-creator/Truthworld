@@ -1,14 +1,34 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/components/ui/community_post_card.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/content/desktop_content_data_table.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/content/draft_scheduled_cards.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/content/video_content_card.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart' show DashboardController;
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/drafts_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
+
+Widget buildContentShimmerSkeleton() {
+  return Shimmer.fromColors(
+    baseColor: const Color(0xFF1E1E1E),
+    highlightColor: AppColors.bgSurfaceHover,
+    child: ListView.separated(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      itemCount: 7,
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
+      itemBuilder: (_, _) => Container(
+        height: 72,
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E1E1E),
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+    ),
+  );
+}
 
 class VideosTab extends StatelessWidget {
   const VideosTab({
@@ -26,11 +46,7 @@ class VideosTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return Obx(() {
       if (controller.isLoadingChannelVideos.value) {
-        return const Center(
-          child: CircularProgressIndicator(
-            color: AppColors.brand,
-          ),
-        );
+        return buildContentShimmerSkeleton();
       }
       if (controller.channelVideosError.value.isNotEmpty) {
         return Center(
@@ -147,12 +163,28 @@ class VideosTab extends StatelessWidget {
         );
       }
 
-      return ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        itemCount: videos.length,
-        itemBuilder: (context, index) {
-          final video = videos[index];
-          return VideoContentCard(video: video, controller: controller, isDarkMode: isDarkMode);
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth >= 1100) {
+            return DesktopContentDataTable(
+              videos: videos,
+              controller: controller,
+              isDarkMode: isDarkMode,
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            itemCount: videos.length,
+            itemBuilder: (context, index) {
+              final video = videos[index];
+              return VideoContentCard(
+                video: video,
+                controller: controller,
+                isDarkMode: isDarkMode,
+              );
+            },
+          );
         },
       );
     });
@@ -175,11 +207,7 @@ class PostsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return Obx(() {
       if (controller.isLoadingPosts.value) {
-        return const Center(
-          child: CircularProgressIndicator(
-            color: AppColors.brand,
-          ),
-        );
+        return buildContentShimmerSkeleton();
       }
       if (controller.postsError.value.isNotEmpty) {
         return Center(
@@ -315,11 +343,7 @@ class DraftsTab extends StatelessWidget {
     return Obx(() {
       if (controller.isLoadingChannelVideos.value ||
           controller.isLoadingPosts.value) {
-        return const Center(
-          child: CircularProgressIndicator(
-            color: AppColors.brand,
-          ),
-        );
+        return buildContentShimmerSkeleton();
       }
 
       final draftVideos = controller.channelVideos
@@ -370,16 +394,12 @@ class DraftsTab extends StatelessWidget {
               const SizedBox(height: 16),
               OutlinedButton.icon(
                 onPressed: () {
-                  if (Get.isRegistered<DashboardController>()) {
-                    Get.find<DashboardController>().setSelectedIndex(20);
-                  } else {
-                    Get.to<dynamic>(
-                      () => DraftsScreen(
-                        channelId: channelId,
-                        isDarkMode: isDarkMode,
-                      ),
-                    );
-                  }
+                  Get.to<dynamic>(
+                    () => DraftsScreen(
+                      channelId: channelId,
+                      isDarkMode: isDarkMode,
+                    ),
+                  );
                 },
                 icon: const Icon(
                   Icons.open_in_new_rounded,
@@ -439,16 +459,12 @@ class DraftsTab extends StatelessWidget {
                 ),
                 OutlinedButton.icon(
                   onPressed: () {
-                    if (Get.isRegistered<DashboardController>()) {
-                      Get.find<DashboardController>().setSelectedIndex(20);
-                    } else {
-                      Get.to<dynamic>(
-                        () => DraftsScreen(
-                          channelId: channelId,
-                          isDarkMode: isDarkMode,
-                        ),
-                      );
-                    }
+                    Get.to<dynamic>(
+                      () => DraftsScreen(
+                        channelId: channelId,
+                        isDarkMode: isDarkMode,
+                      ),
+                    );
                   },
                   icon: const Icon(
                     Icons.open_in_new_rounded,
@@ -513,11 +529,7 @@ class ScheduledTab extends StatelessWidget {
     return Obx(() {
       if (controller.isLoadingChannelVideos.value ||
           controller.isLoadingPosts.value) {
-        return const Center(
-          child: CircularProgressIndicator(
-            color: AppColors.brand,
-          ),
-        );
+        return buildContentShimmerSkeleton();
       }
 
       final scheduledVideos = controller.channelVideos

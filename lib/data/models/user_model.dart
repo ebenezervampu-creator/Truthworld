@@ -9,6 +9,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 /// Authentication provider types
 enum AuthProvider {
   google,
+  apple,
+  phone,
   email,
   anonymous;
 
@@ -16,6 +18,10 @@ enum AuthProvider {
     switch (this) {
       case AuthProvider.google:
         return 'google.com';
+      case AuthProvider.apple:
+        return 'apple.com';
+      case AuthProvider.phone:
+        return 'phone';
       case AuthProvider.email:
         return 'password';
       case AuthProvider.anonymous:
@@ -27,6 +33,10 @@ enum AuthProvider {
     switch (value) {
       case 'google.com':
         return AuthProvider.google;
+      case 'apple.com':
+        return AuthProvider.apple;
+      case 'phone':
+        return AuthProvider.phone;
       case 'password':
         return AuthProvider.email;
       default:
@@ -179,6 +189,9 @@ class UserModel {
       'metadata': metadata,
       'channelId': channelId,
       'hasCompletedOnboarding': hasCompletedOnboarding,
+      if (metadata['phoneNumber'] != null &&
+          (metadata['phoneNumber'] as String).isNotEmpty)
+        'phoneNumber': metadata['phoneNumber'],
       if (gender != null) 'gender': gender,
       if (age != null) 'age': age,
       if (birthdate != null) 'birthdate': birthdate,
@@ -201,6 +214,9 @@ class UserModel {
       'status': status.value,
       'channelId': channelId,
       'hasCompletedOnboarding': hasCompletedOnboarding,
+      if (metadata['phoneNumber'] != null &&
+          (metadata['phoneNumber'] as String).isNotEmpty)
+        'phoneNumber': metadata['phoneNumber'],
       if (gender != null) 'gender': gender,
       if (age != null) 'age': age,
       if (birthdate != null) 'birthdate': birthdate,

@@ -57,3 +57,42 @@
     java.lang.Object writeReplace();
     java.lang.Object readResolve();
 }
+
+# -----------------------------------------------------------------------------
+# Security & Anti-Reverse Engineering Hardening
+# -----------------------------------------------------------------------------
+# Strip non-critical Android logging in release builds to prevent information leakage
+-assumenosideeffects class android.util.Log {
+    public static boolean isLoggable(java.lang.String, int);
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+}
+
+# R8 Optimization & Method inlining
+-allowaccessmodification
+-renamesourcefileattribute SourceFile
+-keepattributes SourceFile,LineNumberTable
+
+# Preserve RASP Security Manager entry points for Flutter MethodChannel
+-keep class com.example.truthworld.security.RaspSecurityManager {
+    public static *** checkSecurityThreats(...);
+    public static *** terminateApp(...);
+    public static *** isSignatureValid(...);
+    public static *** isFridaDetected(...);
+    public static *** isDebuggerAttached(...);
+    public static *** isHookingFrameworkDetected(...);
+    public static *** isRootDetected(...);
+}
+
+# Google Play Core & Flutter Deferred Components
+-dontwarn com.google.android.play.core.**
+-dontwarn com.google.android.play.core.splitcompat.**
+-dontwarn com.google.android.play.core.splitinstall.**
+-dontwarn com.google.android.play.core.tasks.**
+
+# Google Play Integrity & Firebase App Check
+-keep class com.google.android.play.core.integrity.** { *; }
+-dontwarn com.google.android.play.core.integrity.**
+
+

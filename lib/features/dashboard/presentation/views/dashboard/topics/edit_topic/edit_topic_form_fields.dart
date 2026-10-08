@@ -33,7 +33,7 @@ class EditTopicFieldLabel extends StatelessWidget {
           const Text(
             ' *',
             style: TextStyle(
-              color: Color(0xFFEF4444),
+              color: AppColors.error,
               fontSize: 13,
               fontWeight: FontWeight.bold,
             ),
@@ -68,9 +68,9 @@ class EditTopicInputField extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF121212),
+        color: AppColors.bgInput,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: AppColors.bgDivider),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: TextField(
@@ -114,16 +114,16 @@ class EditTopicCategoryDropdown extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF121212),
+        color: AppColors.bgInput,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: AppColors.bgDivider),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: DropdownButtonHideUnderline(
         child: DropdownButtonFormField<String>(
           isExpanded: true,
           value: controller.categoryController.text,
-          dropdownColor: const Color(0xFF18181B),
+          dropdownColor: AppColors.bgSurface,
           style: const TextStyle(color: Colors.white, fontSize: 14),
           decoration: const InputDecoration(
             border: InputBorder.none,
@@ -167,16 +167,16 @@ class EditTopicVisibilityDropdown extends StatelessWidget {
         children: [
           Container(
             decoration: BoxDecoration(
-              color: const Color(0xFF121212),
+              color: AppColors.bgInput,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFF27272A)),
+              border: Border.all(color: AppColors.bgDivider),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: DropdownButtonHideUnderline(
               child: DropdownButtonFormField<TopicVisibilityType>(
                 isExpanded: true,
                 value: controller.selectedVisibility.value,
-                dropdownColor: const Color(0xFF18181B),
+                dropdownColor: AppColors.bgSurface,
                 style: const TextStyle(color: Colors.white, fontSize: 14),
                 decoration: const InputDecoration(
                   border: InputBorder.none,

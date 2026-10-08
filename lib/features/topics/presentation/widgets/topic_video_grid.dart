@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -59,16 +60,18 @@ class TopicVideoGrid extends StatelessWidget {
   }
 
   Widget _buildList() {
-    return ListView.builder(
+    return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: videos.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final video = videos[index];
 
         return RepaintBoundary(
           child: VideoCard(
             video: video,
+            isGrid: true,
             heroPrefix: heroPrefix,
           ),
         );
@@ -109,21 +112,41 @@ class TopicVideoGrid extends StatelessWidget {
   }
 
   Widget _buildGrid(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isMobile = screenWidth < 600 || (!isDesktop && !isTablet && screenWidth < 768);
+
+    if (isMobile) {
+      return ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: videos.length,
+        separatorBuilder: (context, index) => const SizedBox(height: 12),
+        itemBuilder: (context, index) {
+          final video = videos[index];
+
+          return RepaintBoundary(
+            child: VideoCard(
+              video: video,
+              isGrid: true,
+              heroPrefix: heroPrefix,
+            ),
+          );
+        },
+      );
+    }
+
     final config = calculateGridConfig(
       context,
       isDesktop: isDesktop,
       isTablet: isTablet,
     );
 
-    return GridView.builder(
+    return MasonryGridView.count(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: config.crossAxisCount,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        childAspectRatio: config.childAspectRatio,
-      ),
+      crossAxisCount: config.crossAxisCount,
+      crossAxisSpacing: 16,
+      mainAxisSpacing: 16,
       itemCount: videos.length,
       itemBuilder: (context, index) {
         final video = videos[index];
@@ -189,15 +212,50 @@ class TopicVideoGrid extends StatelessWidget {
 
   Widget _buildEndOfList() {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 24),
-      child: const Center(
-        child: Text(
-          'No more videos',
-          style: TextStyle(
-            fontSize: 14,
-            color: AppColors.textTertiary,
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(vertical: 24),
+      padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 24),
+      decoration: const BoxDecoration(
+        color: Color(0xFF161618),
+        borderRadius: BorderRadius.all(Radius.circular(16)),
+        border: Border.fromBorderSide(
+          BorderSide(
+            color: Color(0xFF28282C),
           ),
         ),
+      ),
+      child: const Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.play_circle_outline_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+              SizedBox(width: 8),
+              Text(
+                'No more videos',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 6),
+          Text(
+            'Check back later for more videos in this topic.',
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.normal,
+              color: Color(0xFFAAAAAA),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -215,6 +273,23 @@ class TopicVideoGridSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isMobile = screenWidth < 600 || (!isDesktop && !isTablet && screenWidth < 768);
+
+    if (isMobile) {
+      return Shimmer.fromColors(
+        baseColor: AppColors.bgSurfaceHover,
+        highlightColor: AppColors.bgDivider,
+        child: ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: 4,
+          separatorBuilder: (context, index) => const SizedBox(height: 12),
+          itemBuilder: (context, index) => _buildSkeletonCard(),
+        ),
+      );
+    }
+
     final config = TopicVideoGrid.calculateGridConfig(
       context,
       isDesktop: isDesktop,
@@ -224,70 +299,90 @@ class TopicVideoGridSkeleton extends StatelessWidget {
     return Shimmer.fromColors(
       baseColor: AppColors.bgSurfaceHover,
       highlightColor: AppColors.bgDivider,
-      child: GridView.builder(
+      child: MasonryGridView.count(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: config.crossAxisCount,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          childAspectRatio: config.childAspectRatio,
-        ),
+        crossAxisCount: config.crossAxisCount,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
         itemCount: 8,
-        itemBuilder: (context, index) {
-          return Container(
-            decoration: BoxDecoration(
-              color: AppColors.bgSurfaceContainerHighest,
-              borderRadius: BorderRadius.circular(12),
+        itemBuilder: (context, index) => _buildSkeletonCard(),
+      ),
+    );
+  }
+
+  Widget _buildSkeletonCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.bgSurfaceContainerHighest,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 16:9 Thumbnail placeholder
+          AspectRatio(
+            aspectRatio: 16 / 9,
+            child: Container(
+              decoration: const BoxDecoration(
+                color: AppColors.bgSurface,
+                borderRadius: BorderRadius.vertical(
+                  top: Radius.circular(16),
+                ),
+              ),
             ),
-            child: Column(
+          ),
+          // Info placeholder
+          Padding(
+            padding: const EdgeInsets.only(
+              left: 10,
+              right: 10,
+              top: 10,
+              bottom: 12,
+            ),
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Thumbnail placeholder
-                Expanded(
-                  flex: 3,
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      color: AppColors.bgSurface,
-                      borderRadius: BorderRadius.vertical(
-                        top: Radius.circular(12),
-                      ),
-                    ),
+                // Avatar circle
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: const BoxDecoration(
+                    color: AppColors.bgSurface,
+                    shape: BoxShape.circle,
                   ),
                 ),
-                // Info placeholder
+                const SizedBox(width: 8),
+                // Title and subtitle placeholder lines
                 Expanded(
-                  flex: 2,
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          height: 16,
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: AppColors.bgSurface,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        height: 14,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: AppColors.bgSurface,
+                          borderRadius: BorderRadius.circular(4),
                         ),
-                        const SizedBox(height: 8),
-                        Container(
-                          height: 12,
-                          width: 80,
-                          decoration: BoxDecoration(
-                            color: AppColors.bgSurface,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        height: 12,
+                        width: 140,
+                        decoration: BoxDecoration(
+                          color: AppColors.bgSurface,
+                          borderRadius: BorderRadius.circular(4),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }

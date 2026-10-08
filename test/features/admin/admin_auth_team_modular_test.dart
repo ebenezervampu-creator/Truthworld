@@ -39,10 +39,7 @@ void main() {
     });
 
     test('isPrimaryOwner recognizes authorized owner emails', () {
-      controller.currentAdminEmail.value = 'ebenezervampu@towervsp.com';
-      expect(controller.isPrimaryOwner, isTrue);
-
-      controller.currentAdminEmail.value = 'ebenezervampy@towervsp.com';
+      controller.currentAdminEmail.value = 'hello@truthworld.in';
       expect(controller.isPrimaryOwner, isTrue);
 
       controller.currentAdminEmail.value = 'ebenezervampu4@gmail.com';
@@ -69,7 +66,7 @@ void main() {
 
     test('deleteTeamMember safeguards primary owner account from deletion', () async {
       final result = await AdminTeamService.deleteTeamMember(
-        email: 'ebenezervampu@towervsp.com',
+        email: 'hello@truthworld.in',
         authorizedOwnerEmails: AdminRolesConfig.authorizedOwnerEmails,
       );
       expect(result, isFalse);
@@ -81,7 +78,7 @@ void main() {
       final result = await AdminPasswordService.changeAdminPassword(
         currentPassword: '12345',
         newPassword: '',
-        currentAdminEmail: 'ebenezervampu@towervsp.com'.obs,
+        currentAdminEmail: 'hello@truthworld.in'.obs,
         currentAdminRole: 'Super Admin'.obs,
         currentAdminRoles: <String>['Super Admin'].obs,
         authorizedOwnerEmails: AdminRolesConfig.authorizedOwnerEmails,
@@ -94,7 +91,7 @@ void main() {
       final result = await AdminPasswordService.changeAdminPassword(
         currentPassword: '12345',
         newPassword: 'abc',
-        currentAdminEmail: 'ebenezervampu@towervsp.com'.obs,
+        currentAdminEmail: 'hello@truthworld.in'.obs,
         currentAdminRole: 'Super Admin'.obs,
         currentAdminRoles: <String>['Super Admin'].obs,
         authorizedOwnerEmails: AdminRolesConfig.authorizedOwnerEmails,

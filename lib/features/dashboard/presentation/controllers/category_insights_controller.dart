@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/constants/app_categories.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 
@@ -58,39 +59,7 @@ class CategoryInsightsController extends BaseController {
   final RxString topLikedCategoryName = '-'.obs;
   final RxString fastestGrowingCategoryName = '-'.obs;
 
-  static const List<String> defaultCategories = [
-    'Education',
-    'Entertainment',
-    'Music',
-    'News',
-    'Sports',
-    'Technology',
-    'Science',
-    'Travel',
-    'Lifestyle',
-    'Comedy',
-    'Documentary',
-    'DIY & How-to',
-    'Health',
-    'Fitness',
-    'Fashion',
-    'Food',
-    'Business',
-    'Finance',
-    'Animation',
-    'History',
-    'Art',
-    'Automotive',
-    'Pets & Animals',
-    'Spirituality',
-    'Nature',
-    'People & Blogs',
-    'Kids & Family',
-    'Movies',
-    'TV Shows',
-    'Vlogs',
-    'Other',
-  ];
+  static const List<String> defaultCategories = AppCategories.allCategories;
 
   @override
   void onInit() {

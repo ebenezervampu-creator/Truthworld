@@ -23,6 +23,9 @@ mixin TowerPlayerNavigationMixin on GetxController {
   Future<void> seekTo(Duration pos);
   bool get hasEnded;
   set hasEnded(bool val);
+  RxBool get isFullScreen;
+  RxBool get showMoreVideos;
+  void openMoreVideos();
 
   // ── Playlist navigation ───────────────────────────────────
   bool get hasPreviousVideo {
@@ -195,8 +198,11 @@ mixin TowerPlayerNavigationMixin on GetxController {
 
     // Reset overlay hidden state so it shows initially
     isEndScreenOverlayHidden.value = false;
-    // Show End Screen overlay
-    showEndScreen.value = true;
+    if (isFullScreen.value) {
+      openMoreVideos();
+    } else {
+      showEndScreen.value = true;
+    }
 
     if (isAutoplay.value) {
       if (Get.isRegistered<DigitalWellbeingService>() &&
@@ -231,6 +237,7 @@ mixin TowerPlayerNavigationMixin on GetxController {
     autoplayTimer?.cancel();
     autoplayTimer = null;
     showEndScreen.value = false;
+    showMoreVideos.value = false;
     isEndScreenOverlayHidden.value = false;
     playNext();
   }
@@ -239,6 +246,7 @@ mixin TowerPlayerNavigationMixin on GetxController {
     autoplayTimer?.cancel();
     autoplayTimer = null;
     showEndScreen.value = false;
+    showMoreVideos.value = false;
     isEndScreenOverlayHidden.value = false;
     hasEnded = false;
     seekTo(Duration.zero);

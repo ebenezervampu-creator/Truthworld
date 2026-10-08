@@ -508,5 +508,5 @@ class ChannelWalletPricing {
     return double.parse(cost.toStringAsFixed(2));
   }
 
-  /// Calculates the creator's live spendable balance combining funded wallet balance, trial credits, rollover credits, and channel revenues
+  /// Calculates the creator's live spendable balance combining funded wallet balance, rollover credits, and channel revenues
 }

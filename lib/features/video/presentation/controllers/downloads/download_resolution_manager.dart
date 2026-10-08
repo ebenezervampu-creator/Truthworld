@@ -46,6 +46,8 @@ class DownloadResolutionManager {
                   height: (variantData['height'] as num?)?.toInt() ??
                       inferHeightFromLabel(label),
                   bitrate: (variantData['bitrateKbps'] as num?)?.toInt() ?? 0,
+                  fps: (variantData['fps'] as num?)?.toInt() ??
+                      VideoResolutionV2.inferFpsFromLabel(label),
                 ),
               );
             } else if (outputPath != null &&
@@ -74,6 +76,8 @@ class DownloadResolutionManager {
                     height: (variantData['height'] as num?)?.toInt() ??
                         inferHeightFromLabel(label),
                     bitrate: (variantData['bitrateKbps'] as num?)?.toInt() ?? 0,
+                    fps: (variantData['fps'] as num?)?.toInt() ??
+                        VideoResolutionV2.inferFpsFromLabel(label),
                   );
                 } catch (e, s) {
                   ErrorHandler.log(
@@ -115,7 +119,13 @@ class DownloadResolutionManager {
     // 3. Probe Firebase Storage for standard progressive video files if nothing found yet
     if (resolvedResolutions.isEmpty) {
       final probePaths = [
+        'videos/${video.id}/2160p60.mp4',
+        'videos/${video.id}/2160p.mp4',
+        'videos/${video.id}/1440p60.mp4',
+        'videos/${video.id}/1440p.mp4',
+        'videos/${video.id}/1080p60.mp4',
         'videos/${video.id}/1080p.mp4',
+        'videos/${video.id}/720p60.mp4',
         'videos/${video.id}/720p.mp4',
         'videos/${video.id}/480p.mp4',
         'videos/${video.id}/360p.mp4',
@@ -128,14 +138,17 @@ class DownloadResolutionManager {
           final url = await FirebaseStorage.instance.ref(path).getDownloadURL();
           if (url.isNotEmpty) {
             final filename = path.split('/').last;
-            final label = filename.replaceAll('.mp4', '').toUpperCase();
+            final label = filename.replaceAll('.mp4', '');
+            final height = inferHeightFromLabel(label);
+            final fps = VideoResolutionV2.inferFpsFromLabel(label);
             resolvedResolutions.add(
               VideoResolutionV2(
-                label: label.contains('P') ? label : '$label (Standard)',
+                label: label.toLowerCase().contains('p') ? label : '$label (Standard)',
                 url: url,
                 width: 0,
-                height: inferHeightFromLabel(label),
+                height: height,
                 bitrate: 0,
+                fps: fps,
               ),
             );
           }
@@ -206,23 +219,46 @@ class DownloadResolutionManager {
         ),
       ]);
     } else {
-      // Sort by height descending
-      resolvedResolutions.sort((a, b) => b.height.compareTo(a.height));
+      // Sort by height descending, then fps descending
+      resolvedResolutions.sort((a, b) {
+        final cmp = b.height.compareTo(a.height);
+        if (cmp != 0) return cmp;
+        return b.fps.compareTo(a.fps);
+      });
     }
 
     return resolvedResolutions;
   }
 
-  /// Parses numeric height from resolution labels (e.g. "1080p" -> 1080).
+  /// Parses numeric height from resolution labels (e.g. "1080p" -> 1080, "1080p60" -> 1080).
   static int inferHeightFromLabel(String label) {
+    final upper = label.toUpperCase();
+    if (upper.contains('4K') || upper.contains('2160')) return 2160;
+    if (upper.contains('2K') || upper.contains('1440')) return 1440;
+    final match = RegExp(r'(\d{3,4})[pP]').firstMatch(label);
+    if (match != null) {
+      return int.tryParse(match.group(1)!) ?? 720;
+    }
     final clean = label.replaceAll(RegExp('[^0-9]'), '');
     return int.tryParse(clean) ?? 720;
   }
 
   /// Returns user-friendly badge text for resolution chips.
-  static String getResolutionBadge(String label, int height) {
-    if (label.contains('1080') || height >= 1080) return 'Full HD';
-    if (label.contains('720') || height >= 720) return 'HD';
+  static String getResolutionBadge(String label, int height, {int fps = 30}) {
+    final is60 = fps >= 50 || label.toLowerCase().contains('60');
+
+    if (label.contains('2160') || height >= 2160 || label.toUpperCase().contains('4K')) {
+      return is60 ? '4K 60FPS' : '4K UHD';
+    }
+    if (label.contains('1440') || height >= 1440 || label.toUpperCase().contains('2K') || label.toUpperCase().contains('QHD')) {
+      return is60 ? '2K 60FPS' : '2K QHD';
+    }
+    if (label.contains('1080') || height >= 1080) {
+      return is60 ? 'FHD 60FPS' : 'Full HD';
+    }
+    if (label.contains('720') || height >= 720) {
+      return is60 ? 'HD 60FPS' : 'HD';
+    }
     if (label.contains('480') || height >= 480) return 'SD';
     if (label.contains('360') || height >= 360) return 'Medium';
     if (label.contains('240') || height >= 240) return 'Low';

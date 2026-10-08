@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_comments_controller.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Inline Reply Drawer for Studio Comments
 /// Provides quick suggestion chips, formatted text input, and submission as channel identity.
@@ -32,10 +32,10 @@ class DashboardCommentReplyDrawer extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF181818),
+        color: const Color(0xFF1E1E1E),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: const Color(0xFF333333),
+          color: AppColors.bgDivider,
         ),
       ),
       child: Column(
@@ -50,10 +50,12 @@ class DashboardCommentReplyDrawer extends StatelessWidget {
                   padding: const EdgeInsets.only(right: 6, bottom: 8),
                   child: ActionChip(
                     label: Text(qr),
-                    backgroundColor: const Color(0xFF252525),
-                    labelStyle: GoogleFonts.roboto(
+                    backgroundColor: AppColors.bgSurface,
+                    labelStyle: const TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      fontFamilyFallback: TWTypography.fallbackFamilies,
                       fontSize: 11,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       fontWeight: FontWeight.w600,
                     ),
                     padding: const EdgeInsets.symmetric(
@@ -78,25 +80,29 @@ class DashboardCommentReplyDrawer extends StatelessWidget {
             maxLines: 3,
             minLines: 1,
             autofocus: true,
-            style: GoogleFonts.roboto(
+            style: const TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              fontFamilyFallback: TWTypography.fallbackFamilies,
               fontSize: 13,
-              color: Colors.white,
+              color: AppColors.textPrimary,
             ),
             decoration: InputDecoration(
               hintText: 'Reply publicly as channel...',
-              hintStyle: GoogleFonts.roboto(
+              hintStyle: const TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                fontFamilyFallback: TWTypography.fallbackFamilies,
                 fontSize: 12,
-                color: const Color(0xFF888888),
+                color: AppColors.textTertiary,
               ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
                 borderSide: const BorderSide(
-                  color: Color(0xFF383838),
+                  color: AppColors.bgDivider,
                 ),
               ),
               focusedBorder: const OutlineInputBorder(
                 borderRadius: BorderRadius.all(Radius.circular(8)),
-                borderSide: BorderSide(color: Colors.white),
+                borderSide: BorderSide(color: AppColors.brand),
               ),
               contentPadding: const EdgeInsets.all(10),
             ),
@@ -108,11 +114,13 @@ class DashboardCommentReplyDrawer extends StatelessWidget {
             children: [
               TextButton(
                 onPressed: () => controller.closeReplyBox(comment.id),
-                child: Text(
+                child: const Text(
                   'Cancel',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontFamilyFallback: TWTypography.fallbackFamilies,
                     fontSize: 12,
-                    color: const Color(0xFFAAAAAA),
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ),
@@ -167,11 +175,14 @@ class DashboardCommentReplyDrawer extends StatelessWidget {
                           size: 14,
                           color: Colors.black,
                         ),
-                  label: Text(
-                    isSubmitting ? 'Sending...' : 'Reply',
-                    style: GoogleFonts.roboto(
+                  label: const Text(
+                    'Reply',
+                    style: TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      fontFamilyFallback: TWTypography.fallbackFamilies,
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
+                      color: Colors.black,
                     ),
                   ),
                   style: ElevatedButton.styleFrom(

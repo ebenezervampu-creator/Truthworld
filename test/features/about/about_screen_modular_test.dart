@@ -166,8 +166,7 @@ void main() {
       expect(find.text('TOWERVSP SERVICES (OPC) PRIVATE LIMITED'), findsOneWidget);
       expect(find.text('U63111TS2025OPC207488'), findsOneWidget);
       expect(find.text('Active'), findsOneWidget);
-      expect(find.text('ebenezervampu@truthworld.in'), findsOneWidget);
-      expect(find.text('support@truthworld.in'), findsOneWidget);
+      expect(find.text('hello@truthworld.in'), findsWidgets);
     });
 
     testWidgets('AboutCTASection renders movement invitation banner and button', (tester) async {
@@ -205,8 +204,8 @@ void main() {
 
       expect(find.text('TOWERVSP SERVICES (OPC) PRIVATE LIMITED'), findsOneWidget);
 
-      await tester.tap(find.text('support@truthworld.in'));
-      expect(sentEmail, 'support@truthworld.in');
+      await tester.tap(find.text('hello@truthworld.in'));
+      expect(sentEmail, 'hello@truthworld.in');
 
       await tester.tap(find.text('LinkedIn'));
       expect(launchedUrl, contains('linkedin.com'));

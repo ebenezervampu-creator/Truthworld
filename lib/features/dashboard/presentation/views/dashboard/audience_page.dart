@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audience_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audience/audience_components.dart';
@@ -26,29 +27,17 @@ class AudiencePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final surfaceColor = isDarkMode
-        ? AppColors.bgInput
-        : AppColors.textPrimary;
-    final backgroundColor = isDarkMode
-        ? AppColors.bgPage
-        : AppColors.bgPage;
-    final textColor = isDarkMode
-        ? AppColors.textPrimary
-        : Colors.black;
-    final subtitleColor = isDarkMode
-        ? AppColors.textSecondary
-        : Colors.black;
-    final borderColor = isDarkMode
-        ? const Color(0xFF2A2A2A)
-        : AppColors.bgDivider;
+    const surfaceColor = Color(0xFF1E1E1E);
+    const backgroundColor = AppColors.bgPage;
+    const textColor = AppColors.textPrimary;
+    const subtitleColor = AppColors.textSecondary;
+    const borderColor = AppColors.bgDivider;
 
     return Scaffold(
       backgroundColor: backgroundColor,
       body: Obx(() {
         if (controller.state == ViewState.loading) {
-          return const Center(
-            child: CircularProgressIndicator(color: AppColors.brand),
-          );
+          return _buildAudienceSkeleton();
         }
 
         if (controller.state == ViewState.error) {
@@ -59,21 +48,34 @@ class AudiencePage extends StatelessWidget {
                 const Icon(
                   Icons.error_outline_rounded,
                   size: 48,
-                  color: Colors.white,
+                  color: AppColors.error,
                 ),
                 const SizedBox(height: 16),
                 Text(
                   controller.errorMessage,
-                  style: TextStyle(color: textColor, fontSize: 16),
+                  style: const TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    color: textColor,
+                    fontSize: 16,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.brand,
                     foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                   onPressed: () => controller.fetchAudienceData(),
-                  child: const Text('Retry'),
+                  child: const Text(
+                    'Retry',
+                    style: TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -96,33 +98,36 @@ class AudiencePage extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: AppColors.brand.withValues(alpha: 0.1),
+                            color: AppColors.bgSurfaceHover,
                             borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: borderColor),
                           ),
                           child: const Icon(
                             Icons.public_rounded,
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                             size: 24,
                           ),
                         ),
                         const SizedBox(width: 16),
-                        Expanded(
+                        const Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 'Audience Geography & Insights',
                                 style: TextStyle(
+                                  fontFamily: TWTypography.brandFamily,
                                   fontSize: 24,
                                   fontWeight: FontWeight.bold,
                                   color: textColor,
                                   letterSpacing: -0.5,
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              SizedBox(height: 4),
                               Text(
                                 'Track global audience reach and localized subscriber conversions by country.',
                                 style: TextStyle(
+                                  fontFamily: TWTypography.uiFamily,
                                   fontSize: 14,
                                   color: subtitleColor,
                                 ),
@@ -134,7 +139,7 @@ class AudiencePage extends StatelessWidget {
                           tooltip: 'Refresh Metrics',
                           icon: const Icon(
                             Icons.refresh_rounded,
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                           ),
                           onPressed: () => controller.fetchAudienceData(),
                         ),
@@ -185,9 +190,10 @@ class AudiencePage extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
+                        const Text(
                           'Global Performance Matrix (Countries)',
                           style: TextStyle(
+                            fontFamily: TWTypography.brandFamily,
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
                             color: textColor,
@@ -197,7 +203,8 @@ class AudiencePage extends StatelessWidget {
                           countryItems.length == 1
                               ? 'Showing 1 country'
                               : 'Showing ${countryItems.length} countries',
-                          style: TextStyle(
+                          style: const TextStyle(
+                            fontFamily: TWTypography.uiFamily,
                             fontSize: 13,
                             color: subtitleColor,
                           ),
@@ -219,14 +226,18 @@ class AudiencePage extends StatelessWidget {
                       const Icon(
                         Icons.public_off_rounded,
                         size: 48,
-                        color: Colors.white,
+                        color: AppColors.textTertiary,
                       ),
                       const SizedBox(height: 12),
                       Text(
                         controller.searchQuery.value.trim().isNotEmpty
                             ? 'No matching countries found.'
                             : 'No country viewer data recorded yet.',
-                        style: TextStyle(color: subtitleColor, fontSize: 15),
+                        style: const TextStyle(
+                          fontFamily: TWTypography.uiFamily,
+                          color: subtitleColor,
+                          fontSize: 15,
+                        ),
                       ),
                     ],
                   ),
@@ -259,6 +270,72 @@ class AudiencePage extends StatelessWidget {
           ],
         );
       }),
+    );
+  }
+
+  Widget _buildAudienceSkeleton() {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFF1E1E1E),
+      highlightColor: AppColors.bgSurfaceHover,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header skeleton
+            Container(
+              height: 48,
+              width: 220,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            const SizedBox(height: 24),
+            // Top Summary matrix cards
+            Row(
+              children: List.generate(
+                3,
+                (index) => Expanded(
+                  child: Container(
+                    height: 100,
+                    margin: EdgeInsets.only(right: index < 2 ? 14 : 0),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E1E1E),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.bgDivider),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            // Demographics matrix cards
+            Container(
+              height: 200,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.bgDivider),
+              ),
+            ),
+            const SizedBox(height: 24),
+            // Geography cards
+            ...List.generate(
+              2,
+              (index) => Container(
+                height: 72,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E1E1E),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.bgDivider),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

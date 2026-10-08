@@ -1,7 +1,10 @@
+export 'explore_category_detail_view.dart';
 export 'explore_topics_ai_banner.dart';
+export 'explore_topics_all_categories_grid.dart';
 export 'explore_topics_category_section.dart';
 export 'explore_topics_constants.dart';
 export 'explore_topics_empty_states.dart';
+export 'explore_topics_featured_section.dart';
 export 'explore_topics_filter_bar.dart';
 export 'explore_topics_page_view.dart';
 export 'explore_topics_search_bar.dart';

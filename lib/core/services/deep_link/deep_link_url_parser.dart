@@ -176,9 +176,14 @@ class DeepLinkUrlParser {
 
     // 1. VIDEO PATTERNS:
     // /watch?v=VIDEO_ID or /watch/VIDEO_ID or /v/VIDEO_ID or /shorts/VIDEO_ID
+    // /clip/VIDEO_ID or /clips/VIDEO_ID or /chapter/VIDEO_ID or /chapters/VIDEO_ID
     if (firstSegment == 'watch' ||
         firstSegment == 'v' ||
-        firstSegment == 'shorts') {
+        firstSegment == 'shorts' ||
+        firstSegment == 'clip' ||
+        firstSegment == 'clips' ||
+        firstSegment == 'chapter' ||
+        firstSegment == 'chapters') {
       String? videoId;
       final vParam = queryParams['v'];
       if (vParam != null && vParam.isNotEmpty) {
@@ -292,7 +297,7 @@ class DeepLinkUrlParser {
       );
     }
 
-    // 7. SETTINGS / ABOUT / ETC.
+    // 7. SETTINGS / ABOUT / POLICY / LEGAL ROUTES
     if (firstSegment == 'settings') {
       return ParsedTruthworldUrl(
         type: TruthworldUrlType.settings,
@@ -301,7 +306,22 @@ class DeepLinkUrlParser {
       );
     }
 
-    if (firstSegment.isEmpty) {
+    if (firstSegment == 'community-guidelines' ||
+        firstSegment == 'terms' ||
+        firstSegment == 'privacy' ||
+        firstSegment == 'about' ||
+        firstSegment == 'copyright-complaint' ||
+        firstSegment == 'dmca' ||
+        firstSegment == 'feedback') {
+      return ParsedTruthworldUrl(
+        type: TruthworldUrlType.policy,
+        id: firstSegment,
+        rawUrl: rawUrl,
+        queryParameters: queryParams,
+      );
+    }
+
+    if (firstSegment.isEmpty || firstSegment == 'home') {
       return ParsedTruthworldUrl(
         type: TruthworldUrlType.home,
         rawUrl: rawUrl,
@@ -309,21 +329,58 @@ class DeepLinkUrlParser {
       );
     }
 
+    // Reserved routes that must NEVER be hijacked as vanity creator handles
+    const reservedRoutes = {
+      'home',
+      'explore',
+      'explore-topics',
+      'following-topics',
+      'trending',
+      'library',
+      'history',
+      'likedvideos',
+      'watchlater',
+      'subscriptions',
+      'discover',
+      'about',
+      'privacy',
+      'terms',
+      'community-guidelines',
+      'copyright-complaint',
+      'dmca',
+      'feedback',
+      'settings',
+      'studio',
+      'admin',
+      'advertiser',
+      'advertisements',
+      'ads',
+      'search',
+      'notifications',
+      'downloads',
+      'playlists',
+      'playlistscreen',
+      'clips',
+      'premium',
+      'upload',
+      'uploadscreen',
+      'create-post',
+      'create-playlist',
+      'create-topic',
+      'myvideos',
+      'saved-community-posts',
+      'saved-comments',
+      'wallet',
+      'user-wallet',
+      'analytics',
+      'browse',
+      'login',
+      'signup',
+    };
+
     // Vanity Handle Fallback: /ebenezervampu
     if (pathSegments.length == 1 &&
-        ![
-          'home',
-          'explore',
-          'trending',
-          'library',
-          'history',
-          'likedvideos',
-          'watchlater',
-          'subscriptions',
-          'about',
-          'privacy',
-          'terms',
-        ].contains(firstSegment)) {
+        !reservedRoutes.contains(firstSegment.toLowerCase())) {
       return ParsedTruthworldUrl(
         type: TruthworldUrlType.channel,
         handle: '@$firstSegment',

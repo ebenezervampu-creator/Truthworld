@@ -1,11 +1,12 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:truthworld/core/network/ssl_pinning_manager.dart';
 
-/// 🌐 Persistent HTTP Client with Connection Pooling & Keep-Alive
+/// 🌐 Persistent HTTP Client with Connection Pooling, Keep-Alive, & SSL Pinning
 ///
 /// Eliminates per-request TCP connection & TLS handshake latency overhead (100–300ms)
-/// by maintaining an active connection pool for outgoing HTTP requests.
+/// while enforcing SSL / Certificate Pinning against proxy tampering (Burp Suite, Charles Proxy).
 class AppHttpClient {
   AppHttpClient._();
   static final AppHttpClient instance = AppHttpClient._();
@@ -14,8 +15,9 @@ class AppHttpClient {
 
   http.Client? _customClient;
 
-  /// Lazy initialized persistent client instance.
-  http.Client get client => _customClient ??= http.Client();
+  /// Lazy initialized persistent client instance with SSL certificate pinning.
+  http.Client get client =>
+      _customClient ??= SslPinningManager.instance.createPinnedHttpClient();
 
   /// Visible for testing: inject a custom or mock HTTP client.
   @visibleForTesting

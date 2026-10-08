@@ -4,6 +4,7 @@ import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/creator_intelligence_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/customization_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/intelligence/intelligence_issue_card.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Helper builders for channel avatar and banner verification status notices.
 class IntelligenceBrandingIssues {
@@ -40,7 +41,7 @@ class IntelligenceBrandingIssues {
               ),
               label: const Text('Change Avatar'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFEF4444),
+                backgroundColor: AppColors.error,
                 foregroundColor: Colors.white,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(
@@ -51,6 +52,8 @@ class IntelligenceBrandingIssues {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 textStyle: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -66,8 +69,8 @@ class IntelligenceBrandingIssues {
               label: const Text('Request Manual Review'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: Colors.white,
-                side: const BorderSide(color: Color(0xFF3F3F46)),
-                backgroundColor: const Color(0xFF18181B),
+                side: const BorderSide(color: AppColors.bgDivider),
+                backgroundColor: AppColors.bgSurfaceHover,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
                   vertical: 8,
@@ -76,6 +79,8 @@ class IntelligenceBrandingIssues {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 textStyle: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -90,8 +95,12 @@ class IntelligenceBrandingIssues {
               ),
               label: const Text('Bypass (Debug)'),
               style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFFA1A1AA),
-                textStyle: const TextStyle(fontSize: 12),
+                foregroundColor: AppColors.textSecondary,
+                textStyle: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
+                  fontSize: 12,
+                ),
               ),
             ),
           ],
@@ -120,7 +129,7 @@ class IntelligenceBrandingIssues {
               ),
               label: const Text('Change Avatar'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFF59E0B),
+                backgroundColor: AppColors.warning,
                 foregroundColor: Colors.white,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(
@@ -131,6 +140,8 @@ class IntelligenceBrandingIssues {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 textStyle: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -146,8 +157,8 @@ class IntelligenceBrandingIssues {
               label: const Text('Request Manual Review'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: Colors.white,
-                side: const BorderSide(color: Color(0xFF3F3F46)),
-                backgroundColor: const Color(0xFF18181B),
+                side: const BorderSide(color: AppColors.bgDivider),
+                backgroundColor: AppColors.bgSurfaceHover,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
                   vertical: 8,
@@ -156,6 +167,8 @@ class IntelligenceBrandingIssues {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 textStyle: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -193,8 +206,12 @@ class IntelligenceBrandingIssues {
               ),
               label: const Text('Bypass (Debug)'),
               style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFFA1A1AA),
-                textStyle: const TextStyle(fontSize: 12),
+                foregroundColor: AppColors.textSecondary,
+                textStyle: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
+                  fontSize: 12,
+                ),
               ),
             ),
           ],
@@ -238,7 +255,7 @@ class IntelligenceBrandingIssues {
               ),
               label: const Text('Change Banner'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFEF4444),
+                backgroundColor: AppColors.error,
                 foregroundColor: Colors.white,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(
@@ -249,6 +266,8 @@ class IntelligenceBrandingIssues {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 textStyle: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -264,8 +283,8 @@ class IntelligenceBrandingIssues {
               label: const Text('Request Manual Review'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: Colors.white,
-                side: const BorderSide(color: Color(0xFF3F3F46)),
-                backgroundColor: const Color(0xFF18181B),
+                side: const BorderSide(color: AppColors.bgDivider),
+                backgroundColor: AppColors.bgSurfaceHover,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
                   vertical: 8,
@@ -274,6 +293,8 @@ class IntelligenceBrandingIssues {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 textStyle: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -288,8 +309,12 @@ class IntelligenceBrandingIssues {
               ),
               label: const Text('Bypass (Debug)'),
               style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFFA1A1AA),
-                textStyle: const TextStyle(fontSize: 12),
+                foregroundColor: AppColors.textSecondary,
+                textStyle: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
+                  fontSize: 12,
+                ),
               ),
             ),
           ],
@@ -318,7 +343,7 @@ class IntelligenceBrandingIssues {
               ),
               label: const Text('Change Banner'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFF59E0B),
+                backgroundColor: AppColors.warning,
                 foregroundColor: Colors.white,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(
@@ -329,6 +354,8 @@ class IntelligenceBrandingIssues {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 textStyle: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -344,8 +371,8 @@ class IntelligenceBrandingIssues {
               label: const Text('Request Manual Review'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: Colors.white,
-                side: const BorderSide(color: Color(0xFF3F3F46)),
-                backgroundColor: const Color(0xFF18181B),
+                side: const BorderSide(color: AppColors.bgDivider),
+                backgroundColor: AppColors.bgSurfaceHover,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
                   vertical: 8,
@@ -354,6 +381,8 @@ class IntelligenceBrandingIssues {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 textStyle: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -391,8 +420,12 @@ class IntelligenceBrandingIssues {
               ),
               label: const Text('Bypass (Debug)'),
               style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFFA1A1AA),
-                textStyle: const TextStyle(fontSize: 12),
+                foregroundColor: AppColors.textSecondary,
+                textStyle: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
+                  fontSize: 12,
+                ),
               ),
             ),
           ],

@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks_controller.dart';
-import 'package:truthworld/theme/app_colors.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Language dub layers manager for exploring catalog and configuring available language streams.
 class AudioTracksLanguagesManager extends StatelessWidget {
@@ -32,11 +31,19 @@ class AudioTracksLanguagesManager extends StatelessWidget {
       children: [
         Row(
           children: [
-            Text(
-              'Configured Language Dub Layers',
-              style: GoogleFonts.roboto(fontSize: 16, fontWeight: FontWeight.bold, color: textColor),
+            const Expanded(
+              child: Text(
+                'Configured Language Dub Layers',
+                style: TextStyle(
+                  fontFamily: TWTypography.brandFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
             ),
-            const Spacer(),
+            const SizedBox(width: 8),
             ElevatedButton.icon(
               onPressed: onAddLanguage,
               icon: const Icon(Icons.add_rounded, size: 16, color: Colors.black),
@@ -64,7 +71,7 @@ class AudioTracksLanguagesManager extends StatelessWidget {
               final name = controller.getLanguageName(code);
               return Chip(
                 avatar: const Icon(Icons.language_rounded, size: 16, color: Colors.white),
-                label: Text(name, style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
+                label: Text(name, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
                 backgroundColor: surfaceColor,
                 side: BorderSide(color: borderColor),
               );
@@ -73,9 +80,15 @@ class AudioTracksLanguagesManager extends StatelessWidget {
         }),
 
         const SizedBox(height: 28),
-        Text(
+        const Text(
           'Supported Language Catalog (Click to add Dub Track)',
-          style: GoogleFonts.roboto(fontSize: 15, fontWeight: FontWeight.bold, color: textColor),
+          style: TextStyle(
+            fontFamily: TWTypography.brandFamily,
+            fontFamilyFallback: TWTypography.fallbackFamilies,
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary,
+          ),
         ),
         const SizedBox(height: 12),
         Wrap(
@@ -92,11 +105,12 @@ class AudioTracksLanguagesManager extends StatelessWidget {
               label: Text(lang.name),
               backgroundColor: isConfigured
                   ? AppColors.brand.withValues(alpha: 0.15)
-                  : (isDarkMode ? const Color(0xFF1E1E1E) : const Color(0xFFF1F5F9)),
+                  : const Color(0xFF1E1E1E),
+              side: const BorderSide(color: AppColors.bgDivider),
               labelStyle: TextStyle(
                 fontSize: 12,
                 fontWeight: isConfigured ? FontWeight.bold : FontWeight.normal,
-                color: isConfigured ? AppColors.textPrimary : textColor,
+                color: isConfigured ? AppColors.textPrimary : AppColors.textPrimary,
               ),
               onPressed: () {
                 if (!isConfigured) {
@@ -149,9 +163,15 @@ class AudioTracksRequestsGrid extends StatelessWidget {
       return ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text(
-            'Viewer Audio Dubbing Requests (${reqs.length})',
-            style: GoogleFonts.roboto(fontSize: 16, fontWeight: FontWeight.bold, color: textColor),
+          const Text(
+            'Viewer Audio Dubbing Requests',
+            style: TextStyle(
+              fontFamily: TWTypography.brandFamily,
+              fontFamilyFallback: TWTypography.fallbackFamilies,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
           ),
           const SizedBox(height: 12),
           ...reqs.map((req) {

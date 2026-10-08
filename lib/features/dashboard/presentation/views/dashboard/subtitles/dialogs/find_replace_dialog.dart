@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class FindReplaceDialog {
   static void show(BuildContext context, SubtitlesController controller) {
@@ -11,11 +11,12 @@ class FindReplaceDialog {
 
     Get.dialog<void>(
       AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
         title: const Row(
           children: [
             Icon(Icons.find_replace_rounded, size: 20, color: Colors.white),
             SizedBox(width: 8),
-            Text('Find and Replace'),
+            Text('Find and Replace', style: TextStyle(color: AppColors.textPrimary)),
           ],
         ),
         content: Column(
@@ -68,8 +69,8 @@ class FindReplaceDialog {
               controller.replaceTextInCues(find, replace);
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2563EB),
-              foregroundColor: Colors.white,
+              backgroundColor: AppColors.brand,
+              foregroundColor: Colors.black,
             ),
             child: const Text('Replace All'),
           ),

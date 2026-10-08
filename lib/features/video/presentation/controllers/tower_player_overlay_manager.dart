@@ -14,6 +14,7 @@ enum TowerPlayerOverlay {
   subtitles,
   share,
   statsForNerds,
+  moreVideos,
 }
 
 /// Orchestration component for video player overlays and modal side-sheets.
@@ -56,6 +57,8 @@ class TowerPlayerOverlayManager {
   bool get isShareOpen => activeOverlay.value == TowerPlayerOverlay.share;
   bool get isStatsForNerdsOpen =>
       activeOverlay.value == TowerPlayerOverlay.statsForNerds;
+  bool get isMoreVideosOpen =>
+      activeOverlay.value == TowerPlayerOverlay.moreVideos;
 
   // ── State Transitions ──────────────────────────────────────
 

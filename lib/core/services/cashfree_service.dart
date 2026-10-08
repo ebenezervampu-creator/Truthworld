@@ -1,15 +1,15 @@
 import 'dart:async';
+
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_cashfree_pg_sdk/api/cferrorresponse/cferrorresponse.dart';
-import 'package:flutter_cashfree_pg_sdk/api/cfpayment/cfwebcheckoutpayment.dart';
-import 'package:flutter_cashfree_pg_sdk/api/cfpaymentgateway/cfpaymentgatewayservice.dart';
-import 'package:flutter_cashfree_pg_sdk/api/cfsession/cfsession.dart';
-import 'package:flutter_cashfree_pg_sdk/api/cftheme/cftheme.dart';
-import 'package:flutter_cashfree_pg_sdk/utils/cfenums.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/network/ssl_pinning_manager.dart';
+import 'package:truthworld/core/security/rasp_security_service.dart';
+import 'package:truthworld/core/security/screen_security_service.dart';
+import 'package:truthworld/core/services/android_installer_detector.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/cashfree/cashfree_adapter.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -45,7 +45,7 @@ class CashfreePaymentService extends GetxService {
     region: 'asia-south1',
   );
 
-  final CFPaymentGatewayService _cfGateway = CFPaymentGatewayService();
+  final CashfreeGatewayAdapter _cfGateway = CashfreeGatewayAdapter();
   final RxBool isProcessing = false.obs;
   final RxString activeOrderId = ''.obs;
 
@@ -66,9 +66,9 @@ class CashfreePaymentService extends GetxService {
     if (!isMobile) return;
 
     try {
-      _cfGateway.setCallback(
-        _onPaymentVerify,
-        _onPaymentError,
+      _cfGateway.initCallbacks(
+        onVerify: _onPaymentVerify,
+        onError: _onPaymentError,
       );
     } catch (e, stackTrace) {
       ErrorHandler.log(
@@ -79,9 +79,27 @@ class CashfreePaymentService extends GetxService {
     }
   }
 
+  static const _trustedPaymentHosts = {
+    'payments.cashfree.com',
+    'api.cashfree.com',
+    'checkout.cashfree.com',
+    'sandbox.cashfree.com',
+    'truthworld.app',
+    'www.truthworld.in',
+    'truthworld.in',
+  };
+
+  static bool _isTrustedPaymentUrl(Uri uri) {
+    if (uri.scheme != 'https') return false;
+    final host = uri.host.toLowerCase();
+    return _trustedPaymentHosts.contains(host) || host.endsWith('.cashfree.com');
+  }
+
   /// Triggered by Cashfree SDK when payment flow completes native verification
   Future<void> _onPaymentVerify(String orderId) async {
-    debugPrint('[CashfreePaymentService] SDK Callback verified order: $orderId');
+    if (kDebugMode) {
+      debugPrint('[CashfreePaymentService] SDK Callback verified order: $orderId');
+    }
     try {
       final verifyResult = await verifyOrderOnServer(orderId);
       if (verifyResult.success) {
@@ -114,11 +132,12 @@ class CashfreePaymentService extends GetxService {
   }
 
   /// Triggered by Cashfree SDK when payment is cancelled or failed
-  void _onPaymentError(CFErrorResponse errorResponse, String orderId) {
-    final rawMsg = errorResponse.getMessage() ?? '';
-    debugPrint(
-      '[CashfreePaymentService] Payment error: $rawMsg for order: $orderId',
-    );
+  void _onPaymentError(String rawMsg, String orderId) {
+    if (kDebugMode) {
+      debugPrint(
+        '[CashfreePaymentService] Payment error: $rawMsg for order: $orderId',
+      );
+    }
 
     // If native checkout fails due to Android debug/sideload integrity checks (installer_package_not_approved)
     // or missing native component, gracefully fallback to TruthWorld's secure hosted checkout link.
@@ -131,19 +150,33 @@ class CashfreePaymentService extends GetxService {
         lowerMsg.contains('activity not found');
 
     if (isInstallerOrIntegrityError && _activePaymentLink != null && _activePaymentLink!.isNotEmpty) {
-      debugPrint(
-        '[CashfreePaymentService] Native SDK rejected installer in debug/sideloaded build ($rawMsg). '
-        'Gracefully launching hosted checkout fallback.',
-      );
+      if (kDebugMode) {
+        debugPrint(
+          '[CashfreePaymentService] Native SDK rejected installer in debug/sideloaded build ($rawMsg). '
+          'Gracefully launching hosted checkout fallback.',
+        );
+      }
       _launchExternalCheckout(_activePaymentLink!, orderId);
       return;
+    }
+
+    var sanitizedErr = UserFeedbackSanitizer.sanitizeMessage(
+      rawMsg.isNotEmpty ? rawMsg : 'Payment could not be completed.',
+      defaultActionContext: 'process payment',
+    );
+    final lowerSanitized = sanitizedErr.trim().toLowerCase();
+    if (lowerSanitized == 'internal' ||
+        lowerSanitized == 'unavailable' ||
+        lowerSanitized == 'internal error' ||
+        lowerSanitized.isEmpty) {
+      sanitizedErr = 'Payment could not be completed. Please try again.';
     }
 
     _resolveActivePayment(
       CashfreePaymentResult(
         success: false,
         orderId: orderId,
-        errorMessage: rawMsg.isNotEmpty ? rawMsg : 'Payment could not be completed.',
+        errorMessage: sanitizedErr,
       ),
     );
   }
@@ -151,6 +184,7 @@ class CashfreePaymentService extends GetxService {
   void _resolveActivePayment(CashfreePaymentResult result) {
     isProcessing.value = false;
     _activePaymentLink = null;
+    unawaited(ScreenSecurityService.to.disableSecureMode());
     if (_activeCompleter != null && !_activeCompleter!.isCompleted) {
       _activeCompleter!.complete(result);
     }
@@ -192,8 +226,46 @@ class CashfreePaymentService extends GetxService {
 
     final sanitizedAmount = double.parse(amount.toStringAsFixed(2));
 
+    // Verify runtime integrity (RASP) & SSL certificate pinning
+    if (!kIsWeb) {
+      try {
+        final isSecure = await RaspSecurityService.to.isEnvironmentSecure();
+        if (!isSecure && kReleaseMode) {
+          await RaspSecurityService.to.enforceAppIntegrity();
+          AppSnackbar.warning(
+            'Unable to process transaction due to security integrity violation.',
+          );
+          return const CashfreePaymentResult(
+            success: false,
+            orderId: '',
+            errorMessage: 'Security integrity violation detected.',
+          );
+        }
+
+        final isSslSecure =
+            await SslPinningManager.instance.validatePaymentEndpoints();
+        if (!isSslSecure && kReleaseMode) {
+          AppSnackbar.warning(
+            'Secure connection could not be verified. Please check your network and try again.',
+          );
+          return const CashfreePaymentResult(
+            success: false,
+            orderId: '',
+            errorMessage: 'SSL Pinning verification failed.',
+          );
+        }
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'CashfreePaymentService.securityValidation',
+        );
+      }
+    }
+
     try {
       isProcessing.value = true;
+      unawaited(ScreenSecurityService.to.enableSecureMode());
 
       // 1. Authoritatively create order on server
       final createCallable = _functions.httpsCallable('createCashfreeOrder');
@@ -226,6 +298,22 @@ class CashfreePaymentService extends GetxService {
       if (isSubscription && authLink != null && authLink.isNotEmpty) {
         // Industry-Standard Cashfree Subscriptions Auto Pay Flow (UPI Autopay / e-Mandate)
         final uri = Uri.parse(authLink);
+        if (!_isTrustedPaymentUrl(uri)) {
+          ErrorHandler.log(
+            ArgumentError('Blocked untrusted subscription mandate URL: ${uri.host}'),
+            stackTrace: StackTrace.current,
+            tag: 'CashfreePaymentService.startPayment',
+          );
+          _resolveActivePayment(
+            CashfreePaymentResult(
+              success: false,
+              orderId: orderId,
+              errorMessage: 'Untrusted payment link blocked for your security.',
+            ),
+          );
+          return _activeCompleter!.future;
+        }
+
         try {
           final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
           if (launched) {
@@ -251,49 +339,38 @@ class CashfreePaymentService extends GetxService {
         }
       } else if (isMobile && paymentSessionId != null && paymentSessionId.isNotEmpty) {
         // Native Mobile Flow via Cashfree PG SDK
-        final cfEnv = envString == 'PRODUCTION'
-            ? CFEnvironment.PRODUCTION
-            : CFEnvironment.SANDBOX;
 
         // Cashfree native Android SDK enforces strict Google Play Store installer verification
-        // in PRODUCTION mode ('installer_package_not_approved'). During development/debug builds (kDebugMode),
-        // or when running on an emulator or sideloaded APK with PRODUCTION credentials,
-        // bypass the native installer restriction by launching the secure TruthWorld hosted checkout link.
-        final shouldBypassNativeInDebug = kDebugMode &&
-            defaultTargetPlatform == TargetPlatform.android &&
-            cfEnv == CFEnvironment.PRODUCTION &&
+        // ('installer_package_not_approved') regardless of SANDBOX or PRODUCTION environment.
+        // Two cases must bypass the native SDK and use the hosted checkout link instead:
+        //   1. Debug/emulator builds (kDebugMode = true) — always sideloaded by definition.
+        //   2. Sideloaded release APKs (downloaded directly, not via Play/Galaxy/Amazon Store).
+        final isSideloaded = defaultTargetPlatform == TargetPlatform.android &&
+            await AndroidInstallerDetector.isSideloaded();
+
+        final shouldBypassNativeSdk = defaultTargetPlatform == TargetPlatform.android &&
+            (kDebugMode || isSideloaded) &&
             paymentLink != null &&
             paymentLink.isNotEmpty;
 
-        if (shouldBypassNativeInDebug) {
-          debugPrint(
-            '[CashfreePaymentService] Android debug mode detected with PRODUCTION Cashfree environment. '
-            'Bypassing native Play Store installer check and launching secure hosted checkout.',
-          );
+        if (shouldBypassNativeSdk) {
+          if (kDebugMode) {
+            debugPrint(
+              '[CashfreePaymentService] Android non-Play-Store build detected '
+              '(debug=$kDebugMode, sideloaded=$isSideloaded, env=$envString). '
+              'Bypassing native installer check — launching secure hosted checkout.',
+            );
+          }
           await _launchExternalCheckout(paymentLink, orderId);
         } else {
           try {
             _initGatewayCallbacks();
 
-            final session = CFSessionBuilder()
-                .setEnvironment(cfEnv)
-                .setOrderId(orderId)
-                .setPaymentSessionId(paymentSessionId)
-                .build();
-
-            final theme = CFThemeBuilder()
-                .setPrimaryTextColor('#FFFFFF')
-                .setBackgroundColor('#161618')
-                .setButtonBackgroundColor('#FFFFFF')
-                .setButtonTextColor('#000000')
-                .build();
-
-            final cfPayment = CFWebCheckoutPaymentBuilder()
-                .setSession(session)
-                .setTheme(theme)
-                .build();
-
-            _cfGateway.doPayment(cfPayment);
+            _cfGateway.doPayment(
+              orderId: orderId,
+              paymentSessionId: paymentSessionId,
+              isProduction: envString == 'PRODUCTION',
+            );
           } catch (nativeErr, stackTrace) {
             ErrorHandler.log(
               nativeErr,
@@ -301,9 +378,11 @@ class CashfreePaymentService extends GetxService {
               tag: 'CashfreePaymentService.nativePayment',
             );
             if (paymentLink != null && paymentLink.isNotEmpty) {
-              debugPrint(
-                '[CashfreePaymentService] Native payment invocation failed ($nativeErr). Falling back to hosted checkout.',
-              );
+              if (kDebugMode) {
+                debugPrint(
+                  '[CashfreePaymentService] Native payment invocation failed ($nativeErr). Falling back to hosted checkout.',
+                );
+              }
               await _launchExternalCheckout(paymentLink, orderId);
             } else {
               _resolveActivePayment(
@@ -320,33 +399,11 @@ class CashfreePaymentService extends GetxService {
         // Web / Desktop / Fallback flow: launch hosted checkout URL
         await _launchExternalCheckout(paymentLink, orderId);
       } else if (kIsWeb && paymentSessionId != null && paymentSessionId.isNotEmpty) {
-        // Web direct checkout fallback when SDK is present
-        try {
-          final cfEnv = envString == 'PRODUCTION'
-              ? CFEnvironment.PRODUCTION
-              : CFEnvironment.SANDBOX;
-
-          final session = CFSessionBuilder()
-              .setEnvironment(cfEnv)
-              .setOrderId(orderId)
-              .setPaymentSessionId(paymentSessionId)
-              .build();
-
-          final cfPayment = CFWebCheckoutPaymentBuilder()
-              .setSession(session)
-              .build();
-
-          _cfGateway.doPayment(cfPayment);
-        } catch (webErr, ws) {
-          ErrorHandler.log(webErr, stackTrace: ws, tag: 'CashfreePaymentService.webCheckout');
-          _resolveActivePayment(
-            CashfreePaymentResult(
-              success: false,
-              orderId: orderId,
-              errorMessage: 'Unable to launch web checkout session. Please try again.',
-            ),
-          );
-        }
+        // Web direct hosted checkout fallback
+        final checkoutUrl = envString == 'PRODUCTION'
+            ? 'https://payments.cashfree.com/order/#$paymentSessionId'
+            : 'https://payments-test.cashfree.com/order/#$paymentSessionId';
+        await _launchExternalCheckout(checkoutUrl, orderId);
       } else {
         _resolveActivePayment(
           CashfreePaymentResult(
@@ -364,20 +421,59 @@ class CashfreePaymentService extends GetxService {
       isProcessing.value = false;
       ErrorHandler.log(e, stackTrace: stackTrace, tag: 'CashfreePaymentService.startPayment');
 
-      var friendlyError = UserFeedbackSanitizer.sanitizeMessage(
-        e,
-        defaultActionContext: 'process payment',
-      );
+      final errString = e.toString().toLowerCase();
+      String? code;
+      String? rawMsg;
       if (e is FirebaseFunctionsException) {
-        if (e.code == 'failed-precondition' || (e.message?.contains('configured') ?? false)) {
-          friendlyError = 'Payment service is currently undergoing maintenance. Please check back shortly.';
-        } else if (e.code == 'unauthenticated') {
-          friendlyError = 'Please sign in to proceed with your payment.';
-        } else if (e.message != null && e.message!.isNotEmpty) {
-          friendlyError = UserFeedbackSanitizer.sanitizeMessage(e.message);
-        }
+        code = e.code.toLowerCase();
+        rawMsg = (e.message ?? '').toLowerCase();
+      } else {
+        try {
+          final dynamic dyn = e;
+          if (dyn.code != null) code = dyn.code.toString().toLowerCase();
+          if (dyn.message != null) rawMsg = dyn.message.toString().toLowerCase();
+        } catch (_) {}
       }
 
+      String friendlyError;
+      if (code == 'failed-precondition' || (rawMsg != null && rawMsg.contains('configured'))) {
+        friendlyError = 'Payment service is currently undergoing maintenance. Please check back shortly.';
+      } else if (code == 'unauthenticated') {
+        friendlyError = 'Please sign in to proceed with your payment.';
+      } else if ((code != null &&
+              (code.contains('internal') ||
+                  code.contains('unavailable') ||
+                  code == 'unknown')) ||
+          (rawMsg != null &&
+              (rawMsg.contains('internal') ||
+                  rawMsg.contains('unavailable') ||
+                  rawMsg.contains('profile_inactive'))) ||
+          errString.contains('internal') ||
+          errString.contains('unavailable') ||
+          errString.contains('profile_inactive')) {
+        friendlyError = 'Unable to connect to the payment gateway right now. Please try again in a few moments.';
+      } else if (rawMsg != null && rawMsg.isNotEmpty) {
+        friendlyError = UserFeedbackSanitizer.sanitizeMessage(
+          rawMsg,
+          defaultActionContext: 'process payment',
+        );
+      } else {
+        friendlyError = UserFeedbackSanitizer.sanitizeMessage(
+          e,
+          defaultActionContext: 'process payment',
+        );
+      }
+
+      // Hard defensive check: ensure friendlyError is never a raw technical error
+      final lowerFriendly = friendlyError.trim().toLowerCase();
+      if (lowerFriendly == 'internal' ||
+          lowerFriendly == 'unavailable' ||
+          lowerFriendly == 'internal error' ||
+          lowerFriendly.isEmpty) {
+        friendlyError = 'Unable to process payment right now. Please try again in a few moments.';
+      }
+
+      unawaited(ScreenSecurityService.to.disableSecureMode());
       return CashfreePaymentResult(
         success: false,
         orderId: activeOrderId.value,
@@ -451,6 +547,22 @@ class CashfreePaymentService extends GetxService {
   /// Launches hosted web checkout in external application (browser/custom tab)
   Future<void> _launchExternalCheckout(String link, String orderId) async {
     final uri = Uri.parse(link);
+    if (!_isTrustedPaymentUrl(uri)) {
+      ErrorHandler.log(
+        ArgumentError('Blocked untrusted external checkout URL: ${uri.host}'),
+        stackTrace: StackTrace.current,
+        tag: 'CashfreePaymentService._launchExternalCheckout',
+      );
+      _resolveActivePayment(
+        CashfreePaymentResult(
+          success: false,
+          orderId: orderId,
+          errorMessage: 'Untrusted payment link blocked for your security.',
+        ),
+      );
+      return;
+    }
+
     try {
       final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (launched) {

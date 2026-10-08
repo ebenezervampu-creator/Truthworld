@@ -1,13 +1,23 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
-import 'package:truthworld/theme/app_theme.dart';
 
-/// Preview card displaying a channel with banner, avatar, title, verified badge, handle, and subscriber stats.
+/// High-fidelity preview card displaying a channel according to TruthWorld social preview architecture:
+/// - Channel Banner at top (16:9 widescreen)
+/// - Circular Avatar with subtle ring
+/// - Channel Name (bold, white)
+/// - Channel Handle (@handle)
+/// - Subscriber count (e.g. 1.2M subscribers)
+/// - Two lines of channel description (truncated with ellipsis)
+/// - Truthworld text at the end with link icon & chevron
+/// - Interactive tap to navigate directly to Truthworld channel
 class ShareChannelCard extends StatelessWidget {
   const ShareChannelCard({
     required this.title,
     super.key,
+    this.url,
     this.thumbnailUrl,
     this.bannerUrl,
     this.subtitle,
@@ -15,9 +25,11 @@ class ShareChannelCard extends StatelessWidget {
     this.videoCount,
     this.subscriberCount,
     this.handle,
+    this.onTap,
   });
 
   final String title;
+  final String? url;
   final String? thumbnailUrl;
   final String? bannerUrl;
   final String? subtitle;
@@ -25,6 +37,20 @@ class ShareChannelCard extends StatelessWidget {
   final int? videoCount;
   final int? subscriberCount;
   final String? handle;
+  final VoidCallback? onTap;
+
+  void _handleNavigate() {
+    if (onTap != null) {
+      onTap!();
+      return;
+    }
+    if (Get.isBottomSheetOpen ?? false) {
+      Get.back<void>();
+    }
+    if (url != null && url!.isNotEmpty) {
+      DeepLinkService.instance.handleDeepLink(url!);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,256 +68,250 @@ class ShareChannelCard extends StatelessWidget {
         ? (handle!.startsWith('@') ? handle! : '@${handle!}')
         : '@channel';
 
-    final hasBanner = effectiveBanner != null && effectiveBanner.isNotEmpty;
+    final subText = subscriberCount != null && subscriberCount! > 0
+        ? '${FormatUtils.formatCount(subscriberCount!)} subscribers'
+        : 'Truthworld Channel';
 
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.bgSurfaceHover,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.brand.withValues(alpha: 0.3),
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.4),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (hasBanner)
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                // Banner Image (16:9 widescreen header)
-                SizedBox(
-                  height: 90,
-                  width: double.infinity,
-                  child: CachedNetworkImage(
-                    imageUrl: effectiveBanner,
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) => const ColoredBox(
-                      color: AppColors.bgInput,
-                      child: Center(
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                    errorWidget: (context, url, err) => Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            AppColors.brand.withValues(alpha: 0.6),
-                            AppColors.bgSurface,
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                // Gradient Shadow Overlay on Banner bottom
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withValues(alpha: 0.7),
-                        ],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                      ),
-                    ),
-                  ),
-                ),
-                // Channel Badge in Top Right
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.75),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        width: 0.5,
-                      ),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.tv_rounded, color: Colors.white, size: 11),
-                        SizedBox(width: 4),
-                        Text(
-                          'CHANNEL',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.6,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+    final cleanDescription = (subtitle != null && subtitle!.trim().isNotEmpty)
+        ? subtitle!.trim()
+        : 'Watch family-safe, verified videos on Truthworld. Epistemic clarity and high quality content.';
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _handleNavigate,
+        borderRadius: BorderRadius.circular(20),
+        splashColor: Colors.white.withValues(alpha: 0.08),
+        highlightColor: Colors.white.withValues(alpha: 0.04),
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF161719),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.1),
             ),
-
-          // Channel Details Body
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                // Circular Avatar
-                Container(
-                  padding: const EdgeInsets.all(2),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.bgSurface,
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.8),
-                      width: 1.5,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.4),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(24),
-                    child: Container(
-                      width: 46,
-                      height: 46,
-                      color: AppColors.bgInput,
-                      child: effectiveAvatar != null &&
-                              effectiveAvatar.isNotEmpty
-                          ? CachedNetworkImage(
-                              imageUrl: effectiveAvatar,
-                              fit: BoxFit.cover,
-                              placeholder: (context, url) =>
-                                  Container(color: AppColors.bgInput),
-                              errorWidget: (context, url, err) => const Icon(
-                                Icons.person_rounded,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.5),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 1. Channel Banner (Widescreen Top Section)
+              SizedBox(
+                height: 125,
+                width: double.infinity,
+                child: effectiveBanner != null && effectiveBanner.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: effectiveBanner,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => const ColoredBox(
+                          color: Color(0xFF140521),
+                          child: Center(
+                            child: SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
                                 color: Colors.white,
-                                size: 28,
                               ),
-                            )
-                          : const Icon(
-                              Icons.person_rounded,
-                              color: Colors.white,
-                              size: 28,
                             ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
+                          ),
+                        ),
+                        errorWidget: (context, url, err) => _buildBannerFallback(),
+                      )
+                    : _buildBannerFallback(),
+              ),
 
-                // Text Info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              title,
-                              style: const TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.bold,
+              // 2. Channel Info & Two Lines of Description
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Avatar + Name/Handle/Subscribers Row
+                    Row(
+                      children: [
+                        // Circular Avatar with Ring
+                        Container(
+                          width: 58,
+                          height: 58,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.15),
+                              width: 1.5,
+                            ),
+                            color: const Color(0xFF27272A),
+                          ),
+                          child: ClipOval(
+                            child: effectiveAvatar != null && effectiveAvatar.isNotEmpty
+                                ? CachedNetworkImage(
+                                    imageUrl: effectiveAvatar,
+                                    fit: BoxFit.cover,
+                                    placeholder: (context, url) => const ColoredBox(
+                                      color: Color(0xFF27272A),
+                                    ),
+                                    errorWidget: (context, url, err) => _buildAvatarFallback(),
+                                  )
+                                : _buildAvatarFallback(),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+
+                        // Channel Text Header
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                title,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: -0.2,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          const Icon(
-                            Icons.check_circle_rounded,
-                            color: Colors.white,
-                            size: 14,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          Text(
-                            cleanHandle,
-                            style: const TextStyle(
-                              color: AppColors.brand,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(width: 6),
-                          Container(
-                            width: 3,
-                            height: 3,
-                            decoration: const BoxDecoration(
-                              color: AppColors.textSecondary,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              '${subscriberCount != null ? '${FormatUtils.formatCount(subscriberCount!)} subscribers' : 'Channel'} • ${videoCount != null ? '$videoCount videos' : 'TruthWorld'}',
-                              style: const TextStyle(
-                                color: AppColors.textSecondary,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
+                              const SizedBox(height: 2),
+                              Text(
+                                cleanHandle,
+                                style: const TextStyle(
+                                  color: Color(0xFF8E8E93),
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                              const SizedBox(height: 2),
+                              Text(
+                                subText,
+                                style: const TextStyle(
+                                  color: Color(0xFF8E8E93),
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                      if (subtitle != null && subtitle!.trim().isNotEmpty) ...[
-                        const SizedBox(height: 3),
-                        Text(
-                          subtitle!.trim(),
-                          style: const TextStyle(
-                            color: AppColors.textTertiary,
-                            fontSize: 11,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
-                    ],
-                  ),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    // Two Lines of Channel Description
+                    Text(
+                      cleanDescription,
+                      style: const TextStyle(
+                        color: Color(0xFF9CA3AF),
+                        fontSize: 13,
+                        height: 1.4,
+                        fontWeight: FontWeight.w400,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Truthworld Footer with Link Icon & Chevron
+                    Container(
+                      padding: const EdgeInsets.only(top: 12),
+                      decoration: BoxDecoration(
+                        border: Border(
+                          top: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.08),
+                          ),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.link_rounded,
+                            color: Colors.white,
+                            size: 19,
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Truthworld',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                          const Spacer(),
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            color: Colors.white.withValues(alpha: 0.8),
+                            size: 20,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBannerFallback() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Color(0xFF1E1035),
+            Color(0xFF2D1254),
+            Color(0xFF0F051D),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        'TRUTHWORLD',
+        style: TextStyle(
+          color: Colors.white.withValues(alpha: 0.18),
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 3.0,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAvatarFallback() {
+    final initial = title.trim().isNotEmpty ? title.trim().substring(0, 1).toUpperCase() : 'T';
+    return Container(
+      color: const Color(0xFF2A1B40),
+      alignment: Alignment.center,
+      child: Text(
+        initial,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 22,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }

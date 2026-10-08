@@ -46,11 +46,17 @@ class WatchHistoryService extends GetxService {
     _handleAuthChanged(AuthService.to.user);
   }
 
-  void _handleAuthChanged(dynamic user) {
+  void clearHistorySubscriptions() {
     _historySubscription?.cancel();
+    _historySubscription = null;
     _rtdbResumeSubscription?.cancel();
+    _rtdbResumeSubscription = null;
     _watchProgress.clear();
     _lastPositions.clear();
+  }
+
+  void _handleAuthChanged(dynamic user) {
+    clearHistorySubscriptions();
 
     if (user != null) {
       final userId = AuthService.to.uid;
@@ -249,6 +255,41 @@ class WatchHistoryService extends GetxService {
   Set<String> get allWatchedVideoIds {
     final set = <String>{..._watchProgress.keys, ..._lastPositions.keys};
     return set;
+  }
+
+  /// Check if a video has been fully watched (>= 90% true watch time or marked completed)
+  bool isVideoFullyWatched(String videoId) {
+    if (videoId.isEmpty) return false;
+    final pct = getProgress(videoId);
+    if (pct >= 90.0) return true;
+    try {
+      final local = _storage.read<Map<String, dynamic>>('resume_$videoId');
+      if (local != null && local['isCompleted'] == true) return true;
+      final watchedFlag = _storage.read<bool>('fully_watched_$videoId');
+      if (watchedFlag == true) return true;
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'WatchHistoryService.isVideoFullyWatched',
+      );
+    }
+    return false;
+  }
+
+  /// Mark video as fully watched so repeat views never count watch time again
+  void markVideoFullyWatched(String videoId) {
+    if (videoId.isEmpty) return;
+    try {
+      _storage.write('fully_watched_$videoId', true);
+      _watchProgress[videoId] = 100.0;
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'WatchHistoryService.markVideoFullyWatched',
+      );
+    }
   }
 
   @override

@@ -1,5 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/features/search/data/models/search_result.dart';
 import 'package:truthworld/features/search/presentation/widgets/items/search_subscribe_button.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -19,6 +21,15 @@ class SearchChannelResultItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final rawThumbnail = result.thumbnail.isNotEmpty
+        ? result.thumbnail
+        : (result.channelImage.isNotEmpty
+            ? result.channelImage
+            : (DeepLinkService.instance.getChannelFromCache(result.id)?.avatarUrl ??
+                DeepLinkService.instance.getChannelFromCache(result.channelName)?.avatarUrl ??
+                ''));
+    final cleanThumbnail = rawThumbnail.trim().replaceAll(' ', '%20');
+
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -30,22 +41,41 @@ class SearchChannelResultItem extends StatelessWidget {
               child: Container(
                 width: 80,
                 height: 80,
-                color: AppColors.textSecondary,
-                child: result.thumbnail.isNotEmpty
+                color: AppColors.bgSurface,
+                child: cleanThumbnail.isNotEmpty
                     ? CachedNetworkImage(
-                        imageUrl: result.thumbnail,
+                        imageUrl: cleanThumbnail,
+                        width: 80,
+                        height: 80,
                         fit: BoxFit.cover,
+                        memCacheWidth: kIsWeb ? null : 160,
+                        memCacheHeight: kIsWeb ? null : 160,
                         placeholder: (context, url) =>
                             Container(color: AppColors.bgDivider),
-                        errorWidget: (context, url, error) => const Icon(
-                          Icons.account_circle,
-                          size: 40,
-                          color: Colors.white,
-                        ),
+                        errorWidget: (context, url, error) {
+                          if (kIsWeb) {
+                            return Image.network(
+                              cleanThumbnail,
+                              width: 80,
+                              height: 80,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, err, stack) => const Icon(
+                                Icons.account_circle,
+                                size: 48,
+                                color: Colors.white,
+                              ),
+                            );
+                          }
+                          return const Icon(
+                            Icons.account_circle,
+                            size: 48,
+                            color: Colors.white,
+                          );
+                        },
                       )
                     : const Icon(
                         Icons.account_circle,
-                        size: 40,
+                        size: 48,
                         color: Colors.white,
                       ),
               ),

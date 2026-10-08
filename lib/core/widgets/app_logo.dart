@@ -34,12 +34,12 @@ class AppLogo extends StatelessWidget {
         width: size,
         height: size,
         decoration: BoxDecoration(
-          color: const Color(0xFF38BDF8),
+          color: const Color(0xFF0B0F1A),
           borderRadius: BorderRadius.circular(borderRadius ?? (size * 0.25)),
         ),
         child: Icon(
           Icons.play_arrow_rounded,
-          color: Colors.white,
+          color: const Color(0xFF14EAB2),
           size: size * 0.6,
         ),
       ),

@@ -120,18 +120,56 @@ mixin CommentStudioQueriesMixin on CommentServiceBase {
         });
   }
 
-  /// Get all comments for a video (studio view)
-  Stream<List<Comment>> getVideoCommentsForStudio(String videoId) {
+  /// Get comments for a video with limit (studio view)
+  Stream<List<Comment>> getVideoCommentsForStudio(
+    String videoId, {
+    int limit = 25,
+  }) {
     return firestore
         .collection(videosCollection)
         .doc(videoId)
         .collection(commentsCollection)
         .orderBy('createdAt', descending: true)
+        .limit(limit)
         .snapshots()
         .map(
           (snapshot) =>
               snapshot.docs.map(Comment.fromDocumentSnapshot).toList(),
         );
+  }
+
+  /// Get initial stream of comment query snapshots for studio video comments cursor tracking
+  Stream<QuerySnapshot<Map<String, dynamic>>>
+      getVideoCommentsQuerySnapshotStreamForStudio(
+    String videoId, {
+    int limit = 25,
+  }) {
+    return firestore
+        .collection(videosCollection)
+        .doc(videoId)
+        .collection(commentsCollection)
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .snapshots();
+  }
+
+  /// Get cursor-paginated comments snapshot for studio video comments (25 per page)
+  Future<QuerySnapshot<Map<String, dynamic>>>
+      getVideoCommentsPageSnapshotForStudio({
+    required String videoId,
+    DocumentSnapshot? startAfter,
+    int limit = 25,
+  }) async {
+    var query = firestore
+        .collection(videosCollection)
+        .doc(videoId)
+        .collection(commentsCollection)
+        .orderBy('createdAt', descending: true);
+
+    if (startAfter != null) {
+      query = query.startAfterDocument(startAfter);
+    }
+    return query.limit(limit).get();
   }
 
   /// Get comment count for a video
@@ -198,12 +236,20 @@ mixin CommentStudioQueriesMixin on CommentServiceBase {
   /// Mark comment as having creator reply
   Future<void> markCommentAsAnswered(String videoId, String commentId) async {
     try {
-      await firestore
+      final commentRef = firestore
           .collection(videosCollection)
           .doc(videoId)
           .collection(commentsCollection)
-          .doc(commentId)
-          .update({'hasCreatorReply': true});
+          .doc(commentId);
+      final doc = await commentRef.get();
+      if (doc.exists) {
+        await commentRef.update({'hasCreatorReply': true});
+      } else {
+        logger.warning(
+          'Cannot mark non-existent comment $commentId on video $videoId as answered',
+          tag: 'COMMENTS',
+        );
+      }
     } catch (e) {
       logger.error('Failed to mark comment as answered: $e', tag: 'COMMENTS');
       rethrow;

@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/features/dashboard/data/models/draft_model.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/drafts_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -37,83 +38,84 @@ class DraftsScreen extends StatelessWidget {
         ? Get.find<DraftsController>()
         : Get.put(DraftsController(channelId: channelId));
 
-    return Scaffold(
-      backgroundColor: AppTheme.colors.background,
-      body: SafeArea(
-        child: DefaultTabController(
-          length: 2,
-          child: Column(
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor: AppColors.bgPage,
+        appBar: AppBar(
+          backgroundColor: AppColors.bgPage,
+          elevation: 0,
+          leading: Navigator.canPop(context)
+              ? IconButton(
+                  icon: const Icon(
+                    Icons.arrow_back_rounded,
+                    color: AppColors.textPrimary,
+                  ),
+                  onPressed: () => Navigator.of(context).pop(),
+                )
+              : null,
+          title: Row(
             children: [
-              Container(
-                color: AppTheme.colors.background,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  children: [
-                    if (Navigator.canPop(context)) ...[
-                      IconButton(
-                        icon: const Icon(
-                          Icons.arrow_back_rounded,
-                          color: Colors.white,
-                        ),
-                        onPressed: () => Navigator.of(context).pop(),
-                      ),
-                      const SizedBox(width: 8),
-                    ],
-                    const Icon(
-                      Icons.drafts_rounded,
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Drafts Manager',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                  ],
+              const Icon(
+                Icons.drafts_rounded,
+                color: AppColors.textPrimary,
+                size: 22,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Drafts Manager',
+                style: AppTextStyles.titleLarge.copyWith(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: TWTypography.brandFamily,
+                  color: AppColors.textPrimary,
                 ),
               ),
-              ColoredBox(
-                color: AppTheme.colors.background,
-                child: const TabBar(
-                  indicatorColor: AppColors.brand,
-                  labelColor: AppColors.textPrimary,
-                  unselectedLabelColor: AppColors.textSecondary,
-                  tabs: [
-                    Tab(
-                      icon: Icon(
-                        Icons.video_library_rounded,
-                        color: AppColors.textPrimary,
-                      ),
-                      text: 'Video Drafts',
-                    ),
+            ],
+          ),
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(48),
+            child: Container(
+              decoration: const BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(color: AppColors.bgDivider),
+                ),
+              ),
+              child: TabBar(
+                indicatorColor: AppColors.brand,
+                indicatorWeight: 3,
+                labelColor: AppColors.textPrimary,
+                unselectedLabelColor: AppColors.textSecondary,
+                labelStyle: AppTextStyles.titleMedium.copyWith(
+                  fontWeight: FontWeight.bold,
+                  fontFamily: TWTypography.brandFamily,
+                ),
+                unselectedLabelStyle: AppTextStyles.titleMedium.copyWith(
+                  fontWeight: FontWeight.normal,
+                ),
+                tabs: const [
                   Tab(
-                    icon: Icon(
-                      Icons.article_rounded,
-                      color: AppColors.textPrimary,
-                    ),
+                    icon: Icon(Icons.video_library_rounded, size: 18),
+                    text: 'Video Drafts',
+                  ),
+                  Tab(
+                    icon: Icon(Icons.article_rounded, size: 18),
                     text: 'Community Drafts',
                   ),
                 ],
               ),
             ),
-            Expanded(
-              child: TabBarView(
-                children: [
-                  _buildDraftsTab(context, controller, isVideo: true),
-                  _buildDraftsTab(context, controller, isVideo: false),
-                ],
-              ),
-            ),
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            _buildDraftsTab(context, controller, isVideo: true),
+            _buildDraftsTab(context, controller, isVideo: false),
           ],
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildDraftsTab(
     BuildContext context,
@@ -122,9 +124,20 @@ class DraftsScreen extends StatelessWidget {
   }) {
     return Obx(() {
       if (controller.isLoading) {
-        return const Center(
-          child: CircularProgressIndicator(
-            color: AppColors.brand,
+        return Shimmer.fromColors(
+          baseColor: const Color(0xFF1E1E1E),
+          highlightColor: AppColors.bgSurfaceHover,
+          child: ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: 4,
+            separatorBuilder: (_, _) => const SizedBox(height: 12),
+            itemBuilder: (_, _) => Container(
+              height: 100,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
           ),
         );
       }
@@ -298,27 +311,32 @@ class DraftsScreen extends StatelessWidget {
               // Action buttons
               Column(
                 children: [
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.bgSurfaceHigh,
-                      foregroundColor: Colors.white,
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: AppColors.bgSurfaceHover,
+                      foregroundColor: AppColors.textPrimary,
+                      side: const BorderSide(color: AppColors.bgDivider),
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
+                        horizontal: 14,
                         vertical: 8,
                       ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(20),
                       ),
                     ),
                     onPressed: () => controller.resumeDraft(draft),
                     icon: const Icon(
                       Icons.edit_rounded,
-                      size: 16,
-                      color: Colors.white,
+                      size: 15,
+                      color: AppColors.textPrimary,
                     ),
                     label: const Text(
                       'Resume',
-                      style: TextStyle(fontSize: 12, color: Colors.white),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -348,9 +366,17 @@ class DraftsScreen extends StatelessWidget {
     Get.dialog<void>(
       AlertDialog(
         backgroundColor: AppColors.bgSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: AppColors.bgDivider),
+        ),
         title: const Text(
           'Delete Draft',
-          style: TextStyle(color: AppColors.textPrimary),
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.bold,
+            fontFamily: TWTypography.brandFamily,
+          ),
         ),
         content: Text(
           'Are you sure you want to delete "${draft.title.isEmpty ? 'Untitled Draft' : draft.title}"?',
@@ -364,14 +390,24 @@ class DraftsScreen extends StatelessWidget {
               style: TextStyle(color: AppColors.textSecondary),
             ),
           ),
-          TextButton(
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
             onPressed: () {
               Get.back<void>();
               controller.deleteDraft(draft.id);
             },
             child: const Text(
               'Delete',
-              style: TextStyle(color: AppColors.error),
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],

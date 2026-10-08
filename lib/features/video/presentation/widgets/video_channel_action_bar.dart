@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -91,12 +92,31 @@ class VideoChannelActionBar {
                                         ),
                                       ),
                                     ),
-                                    errorWidget: (context, url, error) =>
-                                        const Icon(
-                                          Icons.person,
-                                          size: 16,
-                                          color: Colors.white70,
-                                        ),
+                                    errorWidget: (context, url, error) {
+                                      if (kIsWeb) {
+                                        final targetUrl = (channel.avatarUrl.isNotEmpty
+                                                ? channel.avatarUrl
+                                                : channel.bannerImageUrl)
+                                            .replaceAll(' ', '%20');
+                                        return Image.network(
+                                          targetUrl,
+                                          width: 36,
+                                          height: 36,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, err, stack) =>
+                                              const Icon(
+                                            Icons.person,
+                                            size: 16,
+                                            color: Colors.white70,
+                                          ),
+                                        );
+                                      }
+                                      return const Icon(
+                                        Icons.person,
+                                        size: 16,
+                                        color: Colors.white70,
+                                      );
+                                    },
                                     fit: BoxFit.cover,
                                     width: 36,
                                     height: 36,
@@ -216,17 +236,17 @@ class VideoChannelActionBar {
                             );
                           }
                         },
-                        borderRadius: BorderRadius.circular(18),
+                        borderRadius: BorderRadius.circular(20),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 6,
+                            horizontal: 18,
+                            vertical: 8,
                           ),
                           decoration: BoxDecoration(
                             color: isSubbed
                                 ? Colors.white.withValues(alpha: 0.15)
                                 : Colors.white,
-                            borderRadius: BorderRadius.circular(18),
+                            borderRadius: BorderRadius.circular(20),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -235,8 +255,8 @@ class VideoChannelActionBar {
                                 isSubbed ? 'Subscribed' : 'Subscribe',
                                 style: GoogleFonts.roboto(
                                   color: isSubbed ? Colors.white : Colors.black,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13.5,
                                 ),
                               ),
                               if (isSubbed) ...[
@@ -244,7 +264,7 @@ class VideoChannelActionBar {
                                 const Icon(
                                   Icons.keyboard_arrow_down_rounded,
                                   color: Colors.white,
-                                  size: 16,
+                                  size: 18,
                                 ),
                               ],
                             ],
@@ -260,9 +280,9 @@ class VideoChannelActionBar {
                             channelName: channel.channelName,
                             channelController: channelController,
                           ),
-                          borderRadius: BorderRadius.circular(18),
+                          borderRadius: BorderRadius.circular(20),
                           child: Container(
-                            padding: const EdgeInsets.all(6),
+                            padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.15),
                               shape: BoxShape.circle,
@@ -270,7 +290,7 @@ class VideoChannelActionBar {
                             child: Icon(
                               bellIcon,
                               color: Colors.white,
-                              size: 16,
+                              size: 18,
                             ),
                           ),
                         ),
@@ -362,12 +382,31 @@ class VideoChannelActionBar {
                                       ),
                                     ),
                                   ),
-                                  errorWidget: (context, url, error) =>
-                                      const Icon(
-                                        Icons.person,
-                                        size: 20,
-                                        color: Colors.white70,
-                                      ),
+                                  errorWidget: (context, url, error) {
+                                    if (kIsWeb) {
+                                      final targetUrl = (channel.avatarUrl.isNotEmpty
+                                              ? channel.avatarUrl
+                                              : channel.bannerImageUrl)
+                                          .replaceAll(' ', '%20');
+                                      return Image.network(
+                                        targetUrl,
+                                        width: 40,
+                                        height: 40,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, err, stack) =>
+                                            const Icon(
+                                          Icons.person,
+                                          size: 20,
+                                          color: Colors.white70,
+                                        ),
+                                      );
+                                    }
+                                    return const Icon(
+                                      Icons.person,
+                                      size: 20,
+                                      color: Colors.white70,
+                                    );
+                                  },
                                   fit: BoxFit.cover,
                                   width: 40,
                                   height: 40,
@@ -494,14 +533,12 @@ class VideoChannelActionBar {
                               ? Colors.white
                               : Colors.black,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(22),
                           ),
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 10,
+                            horizontal: 22,
                           ),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          minimumSize: const Size(0, 40),
                           elevation: 0,
                         ),
                         child: Row(
@@ -511,16 +548,16 @@ class VideoChannelActionBar {
                               isSubscribed ? 'Subscribed' : 'Subscribe',
                               style: GoogleFonts.roboto(
                                 color: isSubscribed ? Colors.white : Colors.black,
-                                fontWeight: FontWeight.w500,
-                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
                               ),
                             ),
                             if (isSubscribed) ...[
-                              const SizedBox(width: 4),
+                              const SizedBox(width: 5),
                               const Icon(
                                 Icons.keyboard_arrow_down_rounded,
                                 color: Colors.white,
-                                size: 18,
+                                size: 20,
                               ),
                             ],
                           ],
@@ -538,12 +575,12 @@ class VideoChannelActionBar {
                           icon: Icon(
                             bellIcon,
                             color: Colors.white,
+                            size: 20,
                           ),
                           style: IconButton.styleFrom(
                             backgroundColor: Colors.grey.shade800,
-                            padding: const EdgeInsets.all(8),
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            padding: const EdgeInsets.all(10),
+                            minimumSize: const Size(40, 40),
                           ),
                         ),
                       ],

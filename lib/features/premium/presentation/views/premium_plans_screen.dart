@@ -208,14 +208,7 @@ class PremiumPlansScreen extends StatelessWidget {
               ),
               const SizedBox(height: 32),
 
-              // 2. Feature Cards Grid
-              PremiumFeaturesGrid(
-                isDesktop: isDesktop,
-                isTablet: isTablet,
-              ),
-              const SizedBox(height: 32),
-
-              // 3. User Membership Status & Sandbox Panel (on Mobile/Tablet)
+              // 2. User Membership Status & Sandbox Panel (on Mobile/Tablet)
               if (!isDesktop) ...[
                 PremiumMembershipStatusCard(
                   isPremium: isPremium,
@@ -225,11 +218,18 @@ class PremiumPlansScreen extends StatelessWidget {
                 const SizedBox(height: 32),
               ],
 
-              // 4. Plan Selector & Upgrades
+              // 3. Plan Selector & Upgrades ("Choose the plan that fits for you")
               PremiumPlanSelectorSection(
                 isDesktop: isDesktop,
                 isTablet: isTablet,
                 controller: controller,
+              ),
+              const SizedBox(height: 48),
+
+              // 4. Feature Cards Grid ("All-Inclusive Benefits")
+              PremiumFeaturesGrid(
+                isDesktop: isDesktop,
+                isTablet: isTablet,
               ),
               const SizedBox(height: 48),
 

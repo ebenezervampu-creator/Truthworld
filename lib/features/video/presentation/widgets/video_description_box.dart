@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:timeago/timeago.dart' as timeago;
@@ -189,6 +190,15 @@ class VideoDescriptionBox extends StatelessWidget {
                     final nextVisible = !showTranscript;
                     controller.isTranscriptVisible.value = nextVisible;
                     if (nextVisible) {
+                      final playerCtrl = TowerPlayerController.getForTagOrActive(controller.video.id);
+                      playerCtrl?.startSubtitleSyncTimer();
+                      final currentPos = playerCtrl?.videoPlayerController.value.position ??
+                          controller.currentPosition;
+                      controller.transcriptController.autoScrollEnabled.value = true;
+                      controller.transcriptController.syncToCurrentPosition(
+                        currentPos,
+                        forceScroll: true,
+                      );
                       controller.loadTranscriptForVideo();
                     }
                   },
@@ -478,17 +488,68 @@ class VideoDescriptionBox extends StatelessWidget {
         );
       }
 
+      // Ensure list jumps to active position after layout
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (controller.isTranscriptVisible.value &&
+            controller.transcriptController.activeSegmentIndex.value != -1) {
+          controller.transcriptController.scrollToSegmentIndex(
+            controller.transcriptController.activeSegmentIndex.value,
+          );
+        }
+      });
+
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'TIMESTAMPED TRANSCRIPT',
-            style: GoogleFonts.roboto(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: Colors.white54,
-              letterSpacing: 1.0,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'TIMESTAMPED TRANSCRIPT',
+                style: GoogleFonts.roboto(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white54,
+                  letterSpacing: 1.0,
+                ),
+              ),
+              Obx(() {
+                final isAuto = controller.transcriptController.autoScrollEnabled.value;
+                if (isAuto) return const SizedBox.shrink();
+                return InkWell(
+                  onTap: () {
+                    controller.transcriptController.autoScrollEnabled.value = true;
+                    final pos = playerCtrl?.videoPlayerController.value.position ??
+                        controller.currentPosition;
+                    controller.transcriptController.syncToCurrentPosition(pos, forceScroll: true);
+                  },
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.brand.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.brand.withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.sync_rounded, size: 12, color: Colors.white),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Resume auto-scroll',
+                          style: GoogleFonts.roboto(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ],
           ),
           const SizedBox(height: 8),
           Container(
@@ -500,18 +561,28 @@ class VideoDescriptionBox extends StatelessWidget {
                 color: Colors.white.withValues(alpha: 0.08),
               ),
             ),
-            child: ListView.builder(
-              controller: controller.transcriptController.transcriptScrollController,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              itemCount: segments.length,
-              itemBuilder: (context, index) {
-                final seg = segments[index];
-                return TranscriptSegmentTile(
-                  seg: seg,
-                  playerCtrl: playerCtrl,
-                  videoId: controller.video.id,
-                );
+            child: NotificationListener<UserScrollNotification>(
+              onNotification: (notification) {
+                if (notification.direction != ScrollDirection.idle) {
+                  controller.transcriptController.autoScrollEnabled.value = false;
+                }
+                return false;
               },
+              child: ListView.builder(
+                controller: controller.transcriptController.transcriptScrollController,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                itemCount: segments.length,
+                itemBuilder: (context, index) {
+                  final seg = segments[index];
+                  return TranscriptSegmentTile(
+                    seg: seg,
+                    playerCtrl: playerCtrl,
+                    videoId: controller.video.id,
+                    segmentIndex: index,
+                    transcriptCtrl: controller.transcriptController,
+                  );
+                },
+              ),
             ),
           ),
         ],

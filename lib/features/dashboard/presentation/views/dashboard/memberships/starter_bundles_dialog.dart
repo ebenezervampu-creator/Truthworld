@@ -43,7 +43,7 @@ void showStarterBundlesDialog({
               ),
               const SizedBox(height: 6),
               Text(
-                'Launch standard creator membership setups with 1 click.',
+                'Launch standard creator membership setups with 1 click (up to 3 tiers).',
                 style: TextStyle(
                   fontSize: 13,
                   color: isDarkMode ? AppColors.textSecondary : Colors.black54,

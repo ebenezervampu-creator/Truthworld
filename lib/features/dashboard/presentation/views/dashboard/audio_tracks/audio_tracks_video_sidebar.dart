@@ -1,11 +1,10 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks_controller.dart';
-import 'package:truthworld/theme/app_colors.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Video selection sidebar for Audio Tracks & Dubbing Studio.
 class AudioTracksVideoSidebar extends StatelessWidget {
@@ -50,10 +49,12 @@ class AudioTracksVideoSidebar extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   'Select Video',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
+                    fontFamily: TWTypography.brandFamily,
+                    fontFamilyFallback: TWTypography.fallbackFamilies,
                     fontSize: compact ? 16 : 18,
                     fontWeight: FontWeight.bold,
-                    color: textColor,
+                    color: AppColors.textPrimary,
                   ),
                 ),
                 const Spacer(),
@@ -89,13 +90,15 @@ class AudioTracksVideoSidebar extends StatelessWidget {
                 hintStyle: TextStyle(color: textSecondaryColor, fontSize: 13),
                 prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Colors.white),
                 filled: true,
-                fillColor: isDarkMode
-                    ? const Color(0xFF1E1E1E)
-                    : const Color(0xFFF1F5F9),
+                fillColor: const Color(0xFF1E1E1E),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
+                  borderSide: const BorderSide(color: AppColors.bgDivider),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AppColors.bgDivider),
                 ),
               ),
             ),

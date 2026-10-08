@@ -81,18 +81,16 @@ import 'package:truthworld/theme/app_theme.dart';
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF59E0B)
-                                .withValues(alpha: 0.15),
+                            color: AppColors.warningContainer,
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(
-                              color: const Color(0xFFF59E0B)
-                                  .withValues(alpha: 0.4),
+                              color: AppColors.warning.withValues(alpha: 0.4),
                             ),
                           ),
                           child: Text(
                             'DRAFT',
                             style: AppTextStyles.bodySmall.copyWith(
-                              color: const Color(0xFFF59E0B),
+                              color: AppColors.warning,
                               fontWeight: FontWeight.bold,
                               fontSize: 10,
                             ),
@@ -108,13 +106,14 @@ import 'package:truthworld/theme/app_theme.dart';
                       style: AppTextStyles.videoTitleMedium.copyWith(
                         color: AppColors.textPrimary,
                         fontWeight: FontWeight.w600,
+                        fontFamily: TWTypography.brandFamily,
                       ),
                     ),
                   ],
                 ),
               ),
               PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert, color: Colors.white),
+                icon: const Icon(Icons.more_vert, color: AppColors.textPrimary),
                 onSelected: (value) {
                   if (value == 'edit') {
                     Get.toNamed(
@@ -231,12 +230,10 @@ import 'package:truthworld/theme/app_theme.dart';
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF6366F1)
-                              .withValues(alpha: 0.15),
+                          color: AppColors.infoContainer,
                           borderRadius: BorderRadius.circular(6),
                           border: Border.all(
-                            color: const Color(0xFF6366F1)
-                                .withValues(alpha: 0.4),
+                            color: AppColors.info.withValues(alpha: 0.4),
                           ),
                         ),
                         child: Row(
@@ -245,13 +242,13 @@ import 'package:truthworld/theme/app_theme.dart';
                             const Icon(
                               Icons.schedule_rounded,
                               size: 12,
-                              color: Color(0xFF818CF8),
+                              color: AppColors.info,
                             ),
                             const SizedBox(width: 4),
                             Text(
                               'SCHEDULED: $scheduledText',
                               style: AppTextStyles.bodySmall.copyWith(
-                                color: const Color(0xFF818CF8),
+                                color: AppColors.info,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 10,
                               ),
@@ -269,13 +266,14 @@ import 'package:truthworld/theme/app_theme.dart';
                     style: AppTextStyles.videoTitleMedium.copyWith(
                       color: AppColors.textPrimary,
                       fontWeight: FontWeight.w600,
+                      fontFamily: TWTypography.brandFamily,
                     ),
                   ),
                 ],
               ),
             ),
             PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert, color: Colors.white),
+              icon: const Icon(Icons.more_vert, color: AppColors.textPrimary),
               onSelected: (value) {
                 if (value == 'publish') {
                   controller.updateVideo(video.id, {

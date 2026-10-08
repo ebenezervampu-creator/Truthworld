@@ -254,6 +254,9 @@ mixin HomeFeedAlgorithmTabsMixin on HomeFeedControllerBase {
         stackTrace: stackTrace,
         tag: 'HomeFeedController._fetchNewTabVideos.uploadedAt',
       );
+    }
+
+    if (results == null || results.docs.isEmpty) {
       try {
         results = await firestore
             .collection('videos')
@@ -266,15 +269,18 @@ mixin HomeFeedAlgorithmTabsMixin on HomeFeedControllerBase {
           stackTrace: stackTrace2,
           tag: 'HomeFeedController._fetchNewTabVideos.createdAt',
         );
-        try {
-          results = await firestore.collection('videos').limit(limit).get();
-        } catch (e3, stackTrace3) {
-          ErrorHandler.log(
-            e3,
-            stackTrace: stackTrace3,
-            tag: 'HomeFeedController._fetchNewTabVideos.unconstrainedFallback',
-          );
-        }
+      }
+    }
+
+    if (results == null || results.docs.isEmpty) {
+      try {
+        results = await firestore.collection('videos').limit(limit).get();
+      } catch (e3, stackTrace3) {
+        ErrorHandler.log(
+          e3,
+          stackTrace: stackTrace3,
+          tag: 'HomeFeedController._fetchNewTabVideos.unconstrainedFallback',
+        );
       }
     }
 
@@ -322,12 +328,31 @@ mixin HomeFeedAlgorithmTabsMixin on HomeFeedControllerBase {
         stackTrace: stackTrace,
         tag: 'HomeFeedController._fetchUnexploredTabVideos.uploadedAt',
       );
+    }
+
+    if (results == null || results.docs.isEmpty) {
       try {
-        results = await firestore.collection('videos').limit(limit).get();
+        results = await firestore
+            .collection('videos')
+            .orderBy('createdAt', descending: true)
+            .limit(limit)
+            .get();
       } catch (e2, stackTrace2) {
         ErrorHandler.log(
           e2,
           stackTrace: stackTrace2,
+          tag: 'HomeFeedController._fetchUnexploredTabVideos.createdAt',
+        );
+      }
+    }
+
+    if (results == null || results.docs.isEmpty) {
+      try {
+        results = await firestore.collection('videos').limit(limit).get();
+      } catch (e3, stackTrace3) {
+        ErrorHandler.log(
+          e3,
+          stackTrace: stackTrace3,
           tag: 'HomeFeedController._fetchUnexploredTabVideos.unconstrainedFallback',
         );
       }
@@ -418,12 +443,31 @@ mixin HomeFeedAlgorithmTabsMixin on HomeFeedControllerBase {
         stackTrace: stackTrace,
         tag: 'HomeFeedController._fetchFlipCoinTabVideos.uploadedAt',
       );
+    }
+
+    if (results == null || results.docs.isEmpty) {
       try {
-        results = await firestore.collection('videos').limit(limit).get();
+        results = await firestore
+            .collection('videos')
+            .orderBy('createdAt', descending: true)
+            .limit(limit)
+            .get();
       } catch (e2, stackTrace2) {
         ErrorHandler.log(
           e2,
           stackTrace: stackTrace2,
+          tag: 'HomeFeedController._fetchFlipCoinTabVideos.createdAt',
+        );
+      }
+    }
+
+    if (results == null || results.docs.isEmpty) {
+      try {
+        results = await firestore.collection('videos').limit(limit).get();
+      } catch (e3, stackTrace3) {
+        ErrorHandler.log(
+          e3,
+          stackTrace: stackTrace3,
           tag: 'HomeFeedController._fetchFlipCoinTabVideos.unconstrainedFallback',
         );
       }

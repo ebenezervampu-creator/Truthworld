@@ -3,6 +3,7 @@ import 'dart:async' show unawaited;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/config/app_flavor.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 
@@ -53,10 +54,17 @@ class AuthGuard extends GetMiddleware {
 
     final cleanRoute = route?.split('?').first;
     final isProtected =
-        (cleanRoute != null && protectedRoutes.contains(cleanRoute)) ||
-        (route != null && protectedRoutes.contains(route));
+        (cleanRoute != null &&
+            (protectedRoutes.contains(cleanRoute) ||
+                cleanRoute == '/settings' ||
+                cleanRoute.startsWith('/settings/'))) ||
+        (route != null &&
+            (protectedRoutes.contains(route) ||
+                route == '/settings' ||
+                route.startsWith('/settings/')));
 
-    final isAuthed = _authService?.isAuthenticated.value ?? false;
+    final isAuthed = (_authService?.isAuthenticated.value ?? false) ||
+        (GetStorage().read<bool>('auth_has_active_session') ?? false);
     if (isProtected && !isAuthed) {
       if (AppFlavor.isStudio) {
         return const RouteSettings(name: '/studio');
@@ -187,8 +195,10 @@ class RouteProtection {
   /// Check if user is authenticated before navigating to protected route
   static Future<bool> checkAuthBeforeNavigate(String routeName) async {
     final authService = Get.find<AuthService>();
+    final isAuthed = authService.isAuthenticated.value ||
+        (GetStorage().read<bool>('auth_has_active_session') ?? false);
 
-    if (!authService.isAuthenticated.value) {
+    if (!isAuthed) {
       // User is not authenticated
       AuthGuard._showAuthRequiredDialog();
       return false;
@@ -200,8 +210,10 @@ class RouteProtection {
   /// Check if user has access to Studio (authenticated and has channel)
   static Future<bool> checkStudioAccessBeforeNavigate() async {
     final authService = Get.find<AuthService>();
+    final isAuthed = authService.isAuthenticated.value ||
+        (GetStorage().read<bool>('auth_has_active_session') ?? false);
 
-    if (!authService.isAuthenticated.value) {
+    if (!isAuthed) {
       AuthGuard._showAuthRequiredDialog();
       return false;
     }

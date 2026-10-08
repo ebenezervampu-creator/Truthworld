@@ -1,10 +1,12 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/customization_controller.dart';
-import 'package:truthworld/theme/app_colors.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class ChannelCustomizationPage extends StatelessWidget {
   const ChannelCustomizationPage({
@@ -46,6 +48,8 @@ class _CustomizationView extends StatelessWidget {
         title: const Text(
           'Channel Customization',
           style: TextStyle(
+            fontFamily: TWTypography.brandFamily,
+            fontFamilyFallback: TWTypography.fallbackFamilies,
             color: AppColors.textPrimary,
             fontWeight: FontWeight.bold,
             fontSize: 20,
@@ -59,6 +63,8 @@ class _CustomizationView extends StatelessWidget {
           labelColor: AppColors.brand,
           unselectedLabelColor: AppColors.textSecondary,
           labelStyle: const TextStyle(
+            fontFamily: TWTypography.uiFamily,
+            fontFamilyFallback: TWTypography.fallbackFamilies,
             fontSize: 13,
             fontWeight: FontWeight.bold,
           ),
@@ -92,8 +98,16 @@ class _CustomizationView extends StatelessWidget {
                       controller.saveChanges();
                     }
                   },
-                  icon: const Icon(Icons.save_rounded, size: 16),
-                  label: const Text('Save'),
+                  icon: const Icon(Icons.save_rounded, size: 16, color: Colors.black),
+                  label: const Text(
+                    'Save',
+                    style: TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      fontFamilyFallback: TWTypography.fallbackFamilies,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.brand,
                     foregroundColor: Colors.black,
@@ -113,11 +127,7 @@ class _CustomizationView extends StatelessWidget {
       ),
       body: Obx(() {
         if (controller.isLoading) {
-          return const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.brand),
-            ),
-          );
+          return _buildCustomizationSkeleton();
         } else {
           return Form(
             key: controller.formKey,
@@ -205,6 +215,8 @@ class _CustomizationView extends StatelessWidget {
                 Text(
                   title,
                   style: TextStyle(
+                    fontFamily: TWTypography.brandFamily,
+                    fontFamilyFallback: TWTypography.fallbackFamilies,
                     color: bannerColor,
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
@@ -214,6 +226,8 @@ class _CustomizationView extends StatelessWidget {
                 Text(
                   subtitle,
                   style: const TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontFamilyFallback: TWTypography.fallbackFamilies,
                     color: AppColors.textSecondary,
                     fontSize: 13,
                     height: 1.4,
@@ -237,7 +251,12 @@ class _CustomizationView extends StatelessWidget {
           const SizedBox(height: 6),
           const Text(
             'Recommended size: 2560 x 1440 pixels (Displays across mobile, desktop & TV feeds)',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            style: TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              fontFamilyFallback: TWTypography.fallbackFamilies,
+              color: AppColors.textSecondary,
+              fontSize: 12,
+            ),
           ),
           const SizedBox(height: 16),
           Obx(
@@ -261,7 +280,12 @@ class _CustomizationView extends StatelessWidget {
           const SizedBox(height: 6),
           const Text(
             'Recommended size: 800 x 800 pixels',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            style: TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              fontFamilyFallback: TWTypography.fallbackFamilies,
+              color: AppColors.textSecondary,
+              fontSize: 12,
+            ),
           ),
           const SizedBox(height: 16),
           Center(
@@ -330,7 +354,7 @@ class _CustomizationView extends StatelessWidget {
           ? reason
           : 'This image has been flagged for potential review. You can upload a new image or request manual admin review.';
     } else if (status == 'MANUAL_REVIEW') {
-      color = const Color(0xFF8B5CF6);
+      color = AppColors.info;
       icon = Icons.rate_review_rounded;
       title = '${isBanner ? "Banner" : "Avatar"} Under Manual Review';
       subtitle =
@@ -370,6 +394,8 @@ class _CustomizationView extends StatelessWidget {
                 Text(
                   title,
                   style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontFamilyFallback: TWTypography.fallbackFamilies,
                     color: color,
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -379,6 +405,8 @@ class _CustomizationView extends StatelessWidget {
                 Text(
                   subtitle,
                   style: const TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontFamilyFallback: TWTypography.fallbackFamilies,
                     color: AppColors.textSecondary,
                     fontSize: 12,
                     height: 1.3,
@@ -396,7 +424,11 @@ class _CustomizationView extends StatelessWidget {
                     ),
                     label: const Text(
                       'Request Manual Review',
-                      style: TextStyle(fontSize: 12),
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontFamilyFallback: TWTypography.fallbackFamilies,
+                        fontSize: 12,
+                      ),
                     ),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.textPrimary,
@@ -422,6 +454,8 @@ class _CustomizationView extends StatelessWidget {
                     label: const Text(
                       'Bypass Verification (Local Dev/Test)',
                       style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontFamilyFallback: TWTypography.fallbackFamilies,
                         color: AppColors.textSecondary,
                         fontSize: 11,
                         decoration: TextDecoration.underline,
@@ -470,6 +504,8 @@ class _CustomizationView extends StatelessWidget {
             prefix: const Text(
               '@',
               style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                fontFamilyFallback: TWTypography.fallbackFamilies,
                 color: AppColors.brand,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -615,6 +651,8 @@ class _CustomizationView extends StatelessWidget {
         Text(
           title,
           style: const TextStyle(
+            fontFamily: TWTypography.brandFamily,
+            fontFamilyFallback: TWTypography.fallbackFamilies,
             color: AppColors.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.bold,
@@ -642,7 +680,12 @@ class _CustomizationView extends StatelessWidget {
       keyboardType: keyboardType,
       inputFormatters: inputFormatters ?? TruthworldTextInputFormatters.standard,
       validator: validator,
-      style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+      style: const TextStyle(
+        fontFamily: TWTypography.uiFamily,
+        fontFamilyFallback: TWTypography.fallbackFamilies,
+        color: AppColors.textPrimary,
+        fontSize: 14,
+      ),
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
@@ -652,11 +695,20 @@ class _CustomizationView extends StatelessWidget {
             ? Icon(prefixIcon, color: Colors.white, size: 20)
             : null,
         labelStyle: const TextStyle(
+          fontFamily: TWTypography.uiFamily,
+          fontFamilyFallback: TWTypography.fallbackFamilies,
           color: AppColors.textSecondary,
           fontSize: 13,
         ),
-        hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 13),
+        hintStyle: const TextStyle(
+          fontFamily: TWTypography.uiFamily,
+          fontFamilyFallback: TWTypography.fallbackFamilies,
+          color: AppColors.textTertiary,
+          fontSize: 13,
+        ),
         helperStyle: const TextStyle(
+          fontFamily: TWTypography.uiFamily,
+          fontFamilyFallback: TWTypography.fallbackFamilies,
           color: AppColors.textSecondary,
           fontSize: 11,
         ),
@@ -699,33 +751,69 @@ class _CustomizationView extends StatelessWidget {
     if (newBytes != null) {
       imageWidget = Image.memory(newBytes, fit: BoxFit.cover);
     } else if (currentUrl.isNotEmpty) {
+      final cleanUrl = currentUrl.trim().replaceAll(' ', '%20');
       imageWidget = CachedNetworkImage(
-        imageUrl: currentUrl,
+        imageUrl: cleanUrl,
         fit: BoxFit.cover,
-        placeholder: (context, url) => const Center(
-          child: CircularProgressIndicator(
-            color: Colors.white,
-            strokeWidth: 2,
-          ),
+        placeholder: (context, url) => Shimmer.fromColors(
+          baseColor: const Color(0xFF1E1E1E),
+          highlightColor: AppColors.bgSurfaceHover,
+          child: const ColoredBox(color: Color(0xFF1E1E1E)),
         ),
-        errorWidget: (context, url, error) => const ColoredBox(
-          color: AppColors.bgSurface,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.broken_image_rounded,
-                size: 40,
-                color: Colors.white,
+        errorWidget: (context, url, error) {
+          if (kIsWeb) {
+            return Image.network(
+              cleanUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (context, err, stack) => const ColoredBox(
+                color: AppColors.bgSurface,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.broken_image_rounded,
+                      size: 40,
+                      color: Colors.white,
+                    ),
+                    SizedBox(height: 6),
+                    Text(
+                      'Failed to load image',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontFamilyFallback: TWTypography.fallbackFamilies,
+                        color: AppColors.textTertiary,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              SizedBox(height: 6),
-              Text(
-                'Failed to load image',
-                style: TextStyle(color: AppColors.textTertiary, fontSize: 11),
-              ),
-            ],
-          ),
-        ),
+            );
+          }
+          return const ColoredBox(
+            color: AppColors.bgSurface,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.broken_image_rounded,
+                  size: 40,
+                  color: Colors.white,
+                ),
+                SizedBox(height: 6),
+                Text(
+                  'Failed to load image',
+                  style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontFamilyFallback: TWTypography.fallbackFamilies,
+                    color: AppColors.textTertiary,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       );
     } else {
       imageWidget = ColoredBox(
@@ -744,6 +832,8 @@ class _CustomizationView extends StatelessWidget {
             Text(
               'Upload $label',
               style: const TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                fontFamilyFallback: TWTypography.fallbackFamilies,
                 color: AppColors.textSecondary,
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
@@ -753,6 +843,8 @@ class _CustomizationView extends StatelessWidget {
             const Text(
               'Tap to select image',
               style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                fontFamilyFallback: TWTypography.fallbackFamilies,
                 color: AppColors.textTertiary,
                 fontSize: 11,
               ),
@@ -806,7 +898,7 @@ class _CustomizationView extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: const Color(0xFF27272A),
+                color: AppColors.bgSurfaceHover,
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
@@ -865,18 +957,65 @@ class _CustomizationView extends StatelessWidget {
         title: Text(
           title,
           style: const TextStyle(
+            fontFamily: TWTypography.uiFamily,
+            fontFamilyFallback: TWTypography.fallbackFamilies,
             color: AppColors.textPrimary,
             fontWeight: FontWeight.w600,
           ),
         ),
         subtitle: Text(
           subtitle,
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+          style: const TextStyle(
+            fontFamily: TWTypography.uiFamily,
+            fontFamilyFallback: TWTypography.fallbackFamilies,
+            color: AppColors.textSecondary,
+            fontSize: 12,
+          ),
         ),
         value: value,
         onChanged: onChanged,
         activeThumbColor: AppColors.brand,
         activeTrackColor: AppColors.brand.withValues(alpha: 0.4),
+      ),
+    );
+  }
+
+  Widget _buildCustomizationSkeleton() {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFF1E1E1E),
+      highlightColor: AppColors.bgSurfaceHover,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              height: 48,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Container(
+              height: 160,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.bgDivider),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Container(
+              height: 120,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.bgDivider),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

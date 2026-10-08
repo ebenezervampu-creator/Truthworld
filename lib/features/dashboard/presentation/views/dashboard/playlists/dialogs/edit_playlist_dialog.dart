@@ -34,10 +34,10 @@ class EditPlaylistDialog extends StatelessWidget {
     final isSaving = false.obs;
 
     return Dialog(
-      backgroundColor: const Color(0xFF141417),
+      backgroundColor: const Color(0xFF1E1E1E),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFF27272A)),
+        side: const BorderSide(color: AppColors.bgDivider),
       ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 500),
@@ -55,13 +55,14 @@ class EditPlaylistDialog extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
+                      fontFamily: TWTypography.brandFamily,
                     ),
                   ),
                   IconButton(
                     icon: const Icon(
                       Icons.close_rounded,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       size: 20,
                     ),
                     onPressed: () => Navigator.pop(context),
@@ -72,21 +73,30 @@ class EditPlaylistDialog extends StatelessWidget {
               TextField(
                 controller: titleController,
                 inputFormatters: TruthworldTextInputFormatters.standard,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 14,
+                  fontFamily: TWTypography.uiFamily,
+                ),
                 decoration: InputDecoration(
                   labelText: 'Playlist Title',
                   labelStyle: const TextStyle(
                     color: AppColors.textSecondary,
+                    fontFamily: TWTypography.uiFamily,
                   ),
                   filled: true,
-                  fillColor: const Color(0xFF0F0F0F),
+                  fillColor: AppColors.bgPage,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFF27272A)),
+                    borderSide: const BorderSide(color: AppColors.bgDivider),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFF27272A)),
+                    borderSide: const BorderSide(color: AppColors.bgDivider),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.textSecondary),
                   ),
                 ),
               ),
@@ -95,21 +105,30 @@ class EditPlaylistDialog extends StatelessWidget {
                 controller: descController,
                 inputFormatters: TruthworldTextInputFormatters.standard,
                 maxLines: 3,
-                style: const TextStyle(color: Colors.white, fontSize: 13),
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                  fontFamily: TWTypography.uiFamily,
+                ),
                 decoration: InputDecoration(
                   labelText: 'Description',
                   labelStyle: const TextStyle(
                     color: AppColors.textSecondary,
+                    fontFamily: TWTypography.uiFamily,
                   ),
                   filled: true,
-                  fillColor: const Color(0xFF0F0F0F),
+                  fillColor: AppColors.bgPage,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFF27272A)),
+                    borderSide: const BorderSide(color: AppColors.bgDivider),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFF27272A)),
+                    borderSide: const BorderSide(color: AppColors.bgDivider),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.textSecondary),
                   ),
                 ),
               ),
@@ -117,25 +136,36 @@ class EditPlaylistDialog extends StatelessWidget {
               Obx(() {
                 return DropdownButtonFormField<PlaylistVisibility>(
                   value: selectedVisibility.value,
-                  dropdownColor: const Color(0xFF1E1E22),
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  dropdownColor: const Color(0xFF1E1E1E),
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                    fontFamily: TWTypography.uiFamily,
+                  ),
                   decoration: InputDecoration(
                     labelText: 'Visibility',
                     labelStyle: const TextStyle(
                       color: AppColors.textSecondary,
+                      fontFamily: TWTypography.uiFamily,
                     ),
                     filled: true,
-                    fillColor: const Color(0xFF0F0F0F),
+                    fillColor: AppColors.bgPage,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: const BorderSide(
-                        color: Color(0xFF27272A),
+                        color: AppColors.bgDivider,
                       ),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: const BorderSide(
-                        color: Color(0xFF27272A),
+                        color: AppColors.bgDivider,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(
+                        color: AppColors.textSecondary,
                       ),
                     ),
                   ),
@@ -158,7 +188,10 @@ class EditPlaylistDialog extends StatelessWidget {
                     onPressed: () => Navigator.pop(context),
                     child: const Text(
                       'Cancel',
-                      style: TextStyle(color: AppColors.textSecondary),
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontFamily: TWTypography.uiFamily,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -206,9 +239,8 @@ class EditPlaylistDialog extends StatelessWidget {
                               }
                             },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF27272A),
-                        foregroundColor: Colors.white,
-                        side: const BorderSide(color: Color(0xFF3F3F46)),
+                        backgroundColor: AppColors.textPrimary,
+                        foregroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 20,
                           vertical: 12,
@@ -216,6 +248,7 @@ class EditPlaylistDialog extends StatelessWidget {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
+                        elevation: 0,
                       ),
                       child: isSaving.value
                           ? const SizedBox(
@@ -223,12 +256,16 @@ class EditPlaylistDialog extends StatelessWidget {
                               height: 18,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: Colors.white,
+                                color: Colors.black,
                               ),
                             )
                           : const Text(
                               'Save Changes',
-                              style: TextStyle(fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black,
+                                fontFamily: TWTypography.uiFamily,
+                              ),
                             ),
                     );
                   }),

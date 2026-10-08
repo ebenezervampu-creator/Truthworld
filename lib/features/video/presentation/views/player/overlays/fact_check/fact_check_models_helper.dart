@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/utils/source_url_sanitizer.dart';
 import 'package:truthworld/features/video/data/models/claim_verdict_helper.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
-import 'package:url_launcher/url_launcher.dart';
 
   Map<String, dynamic> normalizeClaim(dynamic rawClaim) {
     if (rawClaim is ClaimResult) {
@@ -192,18 +191,13 @@ void playClaimAt(
   ctrl.playClaim(claimResult);
 }
 
-Future<void> openSourceUrl(String? url) async {
+Future<void> openSourceUrl(String? url, {String? title, String? domain}) async {
   if (url != null && url.isNotEmpty) {
-    try {
-      final uri = Uri.parse(url.startsWith('http') ? url : 'https://$url');
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } catch (e, s) {
-      ErrorHandler.log(
-        e,
-        stackTrace: s,
-        tag: 'openSourceUrl',
-      );
-    }
+    await SourceUrlSanitizer.launchSourceUrl(
+      url: url,
+      title: title,
+      domain: domain,
+    );
   }
 }
 
@@ -271,73 +265,58 @@ Future<void> openSourceUrl(String? url) async {
         claim['effectiveSources'];
     if (rawSources is List) {
       for (final s in rawSources) {
-        if (s is Map) {
-          final url = (s['url'] ?? s['directUrl'] ?? s['link'])?.toString();
+        if (!SourceUrlSanitizer.isValidSource(s)) continue;
+        if (s is UISource) {
+          realSources.add(SourceUrlSanitizer.sanitizeSourceMap(s.toMap()));
+        } else if (s is Map) {
+          final sanitized = SourceUrlSanitizer.sanitizeSourceMap(Map<dynamic, dynamic>.from(s));
+          final url = sanitized['url']?.toString();
           if (url != null && url.isNotEmpty) {
-            realSources.add(s);
+            realSources.add(sanitized);
           } else {
-            final title =
-                (s['title'] ?? s['author'] ?? s['domain'] ?? rawText)
-                    .toString();
+            final fallbackUrl = SourceUrlSanitizer.resolveFallbackUrl(
+              domain: sanitized['domain']?.toString(),
+              publisher: sanitized['publisher']?.toString(),
+              title: sanitized['title']?.toString(),
+            );
+            if (fallbackUrl != null && fallbackUrl.isNotEmpty) {
+              sanitized['url'] = fallbackUrl;
+              sanitized['directUrl'] = fallbackUrl;
+              realSources.add(sanitized);
+            }
+          }
+        } else if (s is String && s.trim().isNotEmpty) {
+          final clean = SourceUrlSanitizer.sanitizeUrl(s, title: s);
+          if (clean != null && clean.isNotEmpty) {
             realSources.add({
-              'title': title,
-              'url':
-                  'https://www.google.com/search?q=${Uri.encodeComponent(title)}',
-              'domain': 'google.com',
-              'snippet': s['snippet'] ?? 'Verified citation reference',
+              'title': s.trim(),
+              'url': clean,
+              'directUrl': clean,
+              'domain': SourceUrlSanitizer.resolveDisplayDomain(clean, title: s),
+              'snippet': 'Citation reference',
             });
           }
-        } else if (s is String && s.isNotEmpty) {
-          realSources.add({
-            'title': s,
-            'url': s.startsWith('http')
-                ? s
-                : 'https://www.google.com/search?q=${Uri.encodeComponent(s)}',
-            'domain': s.startsWith('http')
-                ? (Uri.tryParse(s)?.host ?? '')
-                : 'google.com',
-            'snippet': 'Historical citation reference',
-          });
         }
       }
     }
 
     for (final s in allSources) {
-      if (s is Map) {
-        final sTitle = (s['title'] ?? s['author'] ?? s['domain'] ?? '')
+      if (!SourceUrlSanitizer.isValidSource(s)) continue;
+      final sMap = s is UISource
+          ? SourceUrlSanitizer.sanitizeSourceMap(s.toMap())
+          : (s is Map ? SourceUrlSanitizer.sanitizeSourceMap(Map<dynamic, dynamic>.from(s)) : null);
+      if (sMap != null) {
+        final sTitle = (sMap['title'] ?? sMap['author'] ?? sMap['domain'] ?? '')
             .toString()
             .toLowerCase();
         final keywords =
             rawText.toLowerCase().split(' ').where((w) => w.length > 3);
         if (keywords.any(sTitle.contains)) {
-          if (!realSources.any((existing) => existing['title'] == s['title'])) {
-            realSources.add(s);
+          if (!realSources.any((existing) => existing['title'] == sMap['title'])) {
+            realSources.add(sMap);
           }
         }
       }
-    }
-
-    if (realSources.isEmpty) {
-      realSources.addAll([
-        {
-          'title': 'Google Scholar Research: $rawText',
-          'url':
-              'https://scholar.google.com/scholar?q=${Uri.encodeComponent(rawText)}',
-          'domain': 'scholar.google.com',
-          'snippet':
-              'Academic literature, empirical datasets, and verified publications.',
-          'sourceType': 'journal',
-        },
-        {
-          'title': 'Wikipedia Reference & Citation Index',
-          'url':
-              'https://en.wikipedia.org/w/index.php?search=${Uri.encodeComponent(rawText)}',
-          'domain': 'en.wikipedia.org',
-          'snippet':
-              'Encyclopedic reference material and background citations.',
-          'sourceType': 'encyclopedia',
-        },
-      ]);
     }
 
     return (

@@ -835,7 +835,8 @@ class ClipShareService {
   static Future<Directory> _getSafeTempDir() async {
     try {
       return await getTemporaryDirectory();
-    } catch (_) {
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'ClipShareService');
       return Directory.systemTemp;
     }
   }

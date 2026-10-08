@@ -183,5 +183,10 @@ void main() {
       expect(controller.currentTier.height, lessThanOrEqualTo(1040));
       expect(controller.currentTier.label, '1040p');
     });
+
+    test('CMAF Ultra-Low Latency (ULL) mode is enabled for sub-second chunking', () {
+      final controller = AdaptiveBitrateController();
+      expect(controller.isCmafUllEnabled, isTrue);
+    });
   });
 }

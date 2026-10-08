@@ -24,50 +24,61 @@ class VideoCardGridInfo extends StatelessWidget {
 
     return Obx(() {
       final avatarUrl = controller.realChannelAvatarUrl.value;
-      final channelName = controller.realChannelName.value;
+      final channelName = controller.realChannelName.value.isNotEmpty
+          ? controller.realChannelName.value
+          : video.channelName;
 
       return Padding(
-        padding: const EdgeInsets.only(
-          left: 10,
-          right: 10,
-          top: 10,
-          bottom: 12,
-        ),
+        padding: const EdgeInsets.fromLTRB(16, 14, 12, 16),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             VideoCardAvatar(
               imageUrl: avatarUrl,
-              radius: 16,
-              placeholderText: channelName.isEmpty
-                  ? '?'
-                  : channelName.substring(0, 1).toUpperCase(),
+              radius: 22,
+              placeholderText: channelName.isEmpty ? '?' : channelName,
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    video.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      height: 1.25,
-                      fontSize: 14,
+                  SizedBox(
+                    height: 40,
+                    child: Align(
+                      alignment: Alignment.topLeft,
+                      child: Text(
+                        video.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          height: 1.25,
+                          fontSize: 15,
+                          letterSpacing: -0.1,
+                        ),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '$channelName · ${VideoCardFormatters.formatViews(video.views)} views · ${VideoCardFormatters.formatTimestamp(video.uploadedAt)}',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontSize: 11,
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    height: 18,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '$channelName  •  ${VideoCardFormatters.formatViews(video.views)} ${video.views == 1 ? 'view' : 'views'}  •  ${VideoCardFormatters.formatTimestamp(video.uploadedAt)}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: const Color(0xFFAAAAAA),
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.normal,
+                          height: 1.2,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
@@ -75,8 +86,8 @@ class VideoCardGridInfo extends StatelessWidget {
             IconButton(
               icon: const Icon(
                 Icons.more_vert,
-                size: 18,
-                color: AppColors.textPrimary,
+                size: 20,
+                color: Colors.white,
               ),
               onPressed: () => VideoOptionsSheet.show(context, video),
               padding: EdgeInsets.zero,
@@ -133,9 +144,7 @@ class VideoCardListInfo extends StatelessWidget {
                       VideoCardAvatar(
                         imageUrl: avatarUrl,
                         radius: 10,
-                        placeholderText: channelName.isEmpty
-                            ? '?'
-                            : channelName.substring(0, 1).toUpperCase(),
+                        placeholderText: channelName.isEmpty ? '?' : channelName,
                       ),
                       const SizedBox(width: 6),
                       Expanded(

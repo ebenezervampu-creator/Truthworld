@@ -8,6 +8,7 @@ import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/sections/dashboard_sidebar.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/trash_restore_screen.dart';
+import 'package:truthworld/theme/app_theme.dart';
 import '../../test_helpers/mock_firebase.dart';
 
 void main() {
@@ -74,15 +75,16 @@ void main() {
         ),
       );
 
-      expect(find.text('Creator Studio'), findsOneWidget);
+      expect(find.text('Access Creator Studio'), findsOneWidget);
       expect(
-        find.text('Please sign in to access your Creator Studio dashboard.'),
+        find.text(
+            'Sign in to manage your channel, publish content, view analytics, and monetize your creations.'),
         findsOneWidget,
       );
       expect(find.text('Sign In with Google'), findsOneWidget);
 
       final icon = tester.widget<Icon>(find.byIcon(Icons.dashboard_rounded));
-      expect(icon.color, equals(Colors.white));
+      expect(icon.color, equals(AppColors.textPrimary));
 
       await tester.tap(find.text('Sign In with Google'));
       await tester.pump();

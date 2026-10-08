@@ -32,26 +32,41 @@ function assert(condition: boolean, testName: string, errorDetails?: any) {
 function testFcmTokenExtraction() {
   console.log("\n--- [Feature 1] Testing FCM Token Extraction ---");
 
-  function extractTokens(fcmTokensMap: Record<string, any> | undefined) {
-    if (!fcmTokensMap) return [];
-    const deviceEntries: { deviceId: string; token: string }[] = [];
+  function extractTokens(fcmTokensMap: Record<string, any> | undefined): {
+    tokens: string[];
+    duplicateDeviceIds: string[];
+    entries: { deviceId: string; token: string }[];
+  } {
+    if (!fcmTokensMap) return { tokens: [], duplicateDeviceIds: [], entries: [] };
+    const tokenToDeviceMap = new Map<string, string>();
+    const duplicateDeviceIds: string[] = [];
+
     for (const [deviceId, val] of Object.entries(fcmTokensMap)) {
       let tokenStr = "";
       if (typeof val === "string") {
-        tokenStr = val;
+        tokenStr = val.trim();
       } else if (val && typeof val === "object" && typeof val.token === "string") {
-        tokenStr = val.token;
+        tokenStr = val.token.trim();
       }
-      if (tokenStr.trim().length > 0) {
-        deviceEntries.push({ deviceId, token: tokenStr });
+      if (tokenStr.length > 0) {
+        if (tokenToDeviceMap.has(tokenStr)) {
+          duplicateDeviceIds.push(deviceId);
+        } else {
+          tokenToDeviceMap.set(tokenStr, deviceId);
+        }
       }
     }
-    return deviceEntries;
+    return {
+      tokens: Array.from(tokenToDeviceMap.keys()),
+      duplicateDeviceIds,
+      entries: Array.from(tokenToDeviceMap.entries()).map(([token, deviceId]) => ({ deviceId, token })),
+    };
   }
 
   // Case A: Mixed tokens (both plain string and object representation)
   const sampleTokensMap = {
     "device_android_1": "token_android_abc123",
+    "device_android_duplicate": "token_android_abc123", // Duplicate token from reinstall/token refresh
     "device_ios_2": {
       token: "token_ios_def456",
       platform: "ios",
@@ -64,13 +79,14 @@ function testFcmTokenExtraction() {
   };
 
   const extracted = extractTokens(sampleTokensMap);
-  assert(extracted.length === 2, "Extracts exactly 2 valid tokens from mixed map");
-  assert(extracted.some(e => e.deviceId === "device_android_1" && e.token === "token_android_abc123"), "Extracts plain string token");
-  assert(extracted.some(e => e.deviceId === "device_ios_2" && e.token === "token_ios_def456"), "Extracts token nested in object");
+  assert(extracted.tokens.length === 2, "Deduplicates tokens to exactly 2 unique tokens (prevents double notifications)");
+  assert(extracted.duplicateDeviceIds.length === 1 && extracted.duplicateDeviceIds[0] === "device_android_duplicate", "Identifies duplicate device token key for pruning");
+  assert(extracted.entries.some(e => e.deviceId === "device_android_1" && e.token === "token_android_abc123"), "Extracts plain string token");
+  assert(extracted.entries.some(e => e.deviceId === "device_ios_2" && e.token === "token_ios_def456"), "Extracts token nested in object");
 
   // Case B: Undefined map
   const emptyExtracted = extractTokens(undefined);
-  assert(emptyExtracted.length === 0, "Handles undefined fcmTokens map safely");
+  assert(emptyExtracted.tokens.length === 0, "Handles undefined fcmTokens map safely");
 }
 
 // ----------------------------------------------------------------------
@@ -114,6 +130,7 @@ function testFcmPayloadBuilding() {
       data: dataPayload,
       android: {
         priority: "high" as const,
+        collapseKey: String(params.notificationId),
         notification: {
           sound: "default",
           channelId: "truthworld_notifications",
@@ -121,12 +138,14 @@ function testFcmPayloadBuilding() {
           priority: "max" as const,
           notificationPriority: "PRIORITY_MAX" as const,
           visibility: "public" as const,
+          tag: String(params.notificationId),
         },
       },
       apns: {
         headers: {
           "apns-priority": "10",
           "apns-push-type": "alert",
+          "apns-collapse-id": String(params.notificationId),
         },
         payload: {
           aps: {
@@ -155,14 +174,17 @@ function testFcmPayloadBuilding() {
     }
   });
 
-  // Verify Android heads-up config
+  // Verify Android heads-up config & deduplication tags
   assert(payload.android.priority === "high", "Android priority is 'high'");
+  assert(payload.android.collapseKey === "notif_123", "Android collapseKey is notificationId");
   assert(payload.android.notification.channelId === "truthworld_notifications", "Android channelId is 'truthworld_notifications'");
   assert(payload.android.notification.notificationPriority === "PRIORITY_MAX", "Android notificationPriority is 'PRIORITY_MAX'");
   assert(payload.android.notification.visibility === "public", "Android visibility is 'public'");
+  assert(payload.android.notification.tag === "notif_123", "Android notification tag is set to notificationId for OS-level deduplication");
 
   // Verify APNS config
   assert(payload.apns.headers["apns-priority"] === "10", "APNS priority is 10");
+  assert(payload.apns.headers["apns-collapse-id"] === "notif_123", "APNS collapse ID is set to notificationId");
   assert(payload.apns.payload.aps.badge === 1, "APNS badge is 1");
   assert(payload.apns.payload.aps["mutable-content"] === 1, "APNS mutable-content is 1");
 
@@ -319,17 +341,33 @@ function testChannelNotificationPreferences() {
   }
 
   // Helper matching subscriber fan-out filter logic
-  function shouldNotifySubscriber(subDoc: {
-    userId?: string;
-    notificationsEnabled?: boolean;
-    notificationOption?: string;
-    notificationPreference?: string;
-  }, creatorId: string): { notify: boolean; effectiveOption: string; deliverFeedInbox: boolean } {
+  function shouldNotifySubscriber(
+    subDoc: {
+      userId?: string;
+      notificationsEnabled?: boolean;
+      notificationOption?: string;
+      notificationPreference?: string;
+    },
+    creatorId: string,
+    video: any = { isFactChecked: true } // default to highlight if not specified
+  ): { notify: boolean; effectiveOption: string; deliverFeedInbox: boolean } {
     if (!subDoc.userId || subDoc.userId === creatorId) {
       return { notify: false, effectiveOption: "none", deliverFeedInbox: false };
     }
     const effectiveOption = (subDoc.notificationOption || subDoc.notificationPreference || (subDoc.notificationsEnabled === false ? "none" : "personalized")).toLowerCase();
-    const notify = subDoc.notificationsEnabled !== false && effectiveOption !== "none";
+    
+    // Check if video is personalized-eligible highlight
+    const isVerified = video.isFactChecked === true || video.factCheckStatus === "verified";
+    const isFeatured = video.featured === true || video.isFeatured === true;
+    const isHighTruth = typeof video.truthScore === "number" && video.truthScore >= 75;
+    const isHighTrust = typeof video.trustScore === "number" && video.trustScore >= 75;
+    const isHighlight = video.isHighlight === true;
+    const isPersonalizedEligible = isVerified || isFeatured || isHighTruth || isHighTrust || isHighlight;
+
+    const notify = subDoc.notificationsEnabled !== false &&
+      effectiveOption !== "none" &&
+      (effectiveOption === "all" || isPersonalizedEligible);
+
     return { notify, effectiveOption, deliverFeedInbox: true };
   }
 
@@ -350,33 +388,46 @@ function testChannelNotificationPreferences() {
 
   // 3. Fan-out filtering tests
   const creatorId = "creator_123";
+  const routineVideo = { title: "Routine vlog", isFactChecked: false, truthScore: 50, featured: false };
+  const verifiedHighlight = { title: "Verified Fact-Check Investigation", factCheckStatus: "verified", truthScore: 92 };
 
   // Creator uploading own video
-  const creatorCheck = shouldNotifySubscriber({ userId: creatorId, notificationOption: "all" }, creatorId);
+  const creatorCheck = shouldNotifySubscriber({ userId: creatorId, notificationOption: "all" }, creatorId, verifiedHighlight);
   assert(creatorCheck.notify === false && creatorCheck.deliverFeedInbox === false, "Skips notifying creator of their own video");
 
-  // Subscriber with 'personalized' (Default)
-  const personalizedSub = shouldNotifySubscriber({ userId: "sub_1", notificationsEnabled: true, notificationOption: "personalized" }, creatorId);
-  assert(personalizedSub.notify === true && personalizedSub.effectiveOption === "personalized", "Delivers push notification to personalized subscriber");
-  assert(personalizedSub.deliverFeedInbox === true, "Delivers video to personalized subscriber's feed inbox");
+  // Subscriber with 'none': really not sending notifications
+  const noneSubRoutine = shouldNotifySubscriber({ userId: "sub_none", notificationsEnabled: false, notificationOption: "none" }, creatorId, routineVideo);
+  assert(noneSubRoutine.notify === false && noneSubRoutine.effectiveOption === "none", "When 'none', really not sending notification for routine video");
+  assert(noneSubRoutine.deliverFeedInbox === true, "When 'none', still delivers video to user's feed inbox");
 
-  // Subscriber with 'all'
-  const allSubscriber = shouldNotifySubscriber({ userId: "sub_2", notificationsEnabled: true, notificationOption: "all" }, creatorId);
-  assert(allSubscriber.notify === true && allSubscriber.effectiveOption === "all", "Delivers push notification to 'all' subscriber");
-  assert(allSubscriber.deliverFeedInbox === true, "Delivers video to 'all' subscriber's feed inbox");
+  const noneSubHighlight = shouldNotifySubscriber({ userId: "sub_none", notificationsEnabled: false, notificationOption: "none" }, creatorId, verifiedHighlight);
+  assert(noneSubHighlight.notify === false && noneSubHighlight.effectiveOption === "none", "When 'none', really not sending notification even for verified highlight video");
 
-  // Subscriber with 'none'
-  const noneSubscriber = shouldNotifySubscriber({ userId: "sub_3", notificationsEnabled: false, notificationOption: "none" }, creatorId);
-  assert(noneSubscriber.notify === false && noneSubscriber.effectiveOption === "none", "Suppresses push notification when subscriber selected 'none'");
-  assert(noneSubscriber.deliverFeedInbox === true, "Still delivers video to feed inbox when push notifications are 'none'");
+  // Subscriber with 'personalized': sends ONLY personalized highlights
+  const persRoutine = shouldNotifySubscriber({ userId: "sub_pers", notificationsEnabled: true, notificationOption: "personalized" }, creatorId, routineVideo);
+  assert(persRoutine.notify === false && persRoutine.effectiveOption === "personalized", "When 'personalized', does NOT send notification for routine unverified video");
+  assert(persRoutine.deliverFeedInbox === true, "When 'personalized', routine video still appears in feed inbox");
 
-  // Legacy subscriber doc with only notificationsEnabled: false
-  const legacyMuted = shouldNotifySubscriber({ userId: "sub_4", notificationsEnabled: false }, creatorId);
-  assert(legacyMuted.notify === false && legacyMuted.effectiveOption === "none", "Suppresses push notification for legacy muted doc");
+  const persHighlight = shouldNotifySubscriber({ userId: "sub_pers", notificationsEnabled: true, notificationOption: "personalized" }, creatorId, verifiedHighlight);
+  assert(persHighlight.notify === true && persHighlight.effectiveOption === "personalized", "When 'personalized', DOES send notification for verified highlight video");
+
+  // Subscriber with 'all': receives notifications for ALL videos
+  const allRoutine = shouldNotifySubscriber({ userId: "sub_all", notificationsEnabled: true, notificationOption: "all" }, creatorId, routineVideo);
+  assert(allRoutine.notify === true && allRoutine.effectiveOption === "all", "When 'all', sends notification for routine video");
+
+  const allHighlight = shouldNotifySubscriber({ userId: "sub_all", notificationsEnabled: true, notificationOption: "all" }, creatorId, verifiedHighlight);
+  assert(allHighlight.notify === true && allHighlight.effectiveOption === "all", "When 'all', sends notification for highlight video");
+
+  // Legacy subscriber doc with only notificationsEnabled: false (None)
+  const legacyMuted = shouldNotifySubscriber({ userId: "sub_legacy_muted", notificationsEnabled: false }, creatorId, verifiedHighlight);
+  assert(legacyMuted.notify === false && legacyMuted.effectiveOption === "none", "Suppresses push notification for legacy muted doc even on highlight");
 
   // Legacy subscriber doc with no notificationOption field (defaults to 'personalized')
-  const legacyDefault = shouldNotifySubscriber({ userId: "sub_5", notificationsEnabled: true }, creatorId);
-  assert(legacyDefault.notify === true && legacyDefault.effectiveOption === "personalized", "Defaults legacy active subscriber to 'personalized'");
+  const legacyDefaultRoutine = shouldNotifySubscriber({ userId: "sub_legacy_def", notificationsEnabled: true }, creatorId, routineVideo);
+  assert(legacyDefaultRoutine.notify === false && legacyDefaultRoutine.effectiveOption === "personalized", "Legacy subscriber defaults to 'personalized' (skips routine video)");
+
+  const legacyDefaultHighlight = shouldNotifySubscriber({ userId: "sub_legacy_def", notificationsEnabled: true }, creatorId, verifiedHighlight);
+  assert(legacyDefaultHighlight.notify === true && legacyDefaultHighlight.effectiveOption === "personalized", "Legacy subscriber defaults to 'personalized' (receives highlight video)");
 }
 
 // ----------------------------------------------------------------------
@@ -454,7 +505,7 @@ function testTopicNotificationPreferences() {
     const uid = follower.userId;
     if (!uid || notifiedUserIds.has(uid) || uid === creatorId) return false;
 
-    const setting = (follower.notificationSetting || "all").toLowerCase();
+    const setting = (follower.notificationSetting || "personalized").toLowerCase();
     if (setting === "none" || setting === "unfollow") return false;
     if (setting === "personalized" && !isPersonalizedEligible(video)) return false;
 
@@ -484,6 +535,10 @@ function testTopicNotificationPreferences() {
   // 'personalized' setting skips routine video
   const resPersonalizedRoutine = shouldNotifyTopicFollower({ userId: "user_pers_1", notificationSetting: "personalized" }, { truthScore: 50 }, notifiedSet, creatorUid);
   assert(resPersonalizedRoutine === false, "Skips notifying 'personalized' follower for routine video");
+
+  // default follower setting (no notificationSetting specified) defaults to 'personalized' (skips routine video)
+  const resDefaultRoutine = shouldNotifyTopicFollower({ userId: "user_default_1" }, { truthScore: 50 }, notifiedSet, creatorUid);
+  assert(resDefaultRoutine === false, "Defaults topic follower to 'personalized' (skips routine video)");
 
   // 'personalized' setting receives notification for verified highlight video
   const resPersonalizedVerified = shouldNotifyTopicFollower({ userId: "user_pers_2", notificationSetting: "personalized" }, { factCheckStatus: "verified" }, notifiedSet, creatorUid);

@@ -1,6 +1,8 @@
 import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/multi_audio_player_controller.dart';
 import 'package:truthworld/theme/app_colors.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -42,6 +44,7 @@ class _VideoPlayerWithAudioTracksState
     extends State<VideoPlayerWithAudioTracks> {
   late final MultiAudioPlayerController _ctrl;
   final GlobalKey<State<StatefulWidget>> _controlsKey = GlobalKey();
+  final FocusNode _playerFocusNode = FocusNode();
 
   @override
   void initState() {
@@ -59,10 +62,70 @@ class _VideoPlayerWithAudioTracksState
 
   @override
   void dispose() {
+    _playerFocusNode.dispose();
     Get.delete<MultiAudioPlayerController>(
       tag: widget.videoUrl.hashCode.toString(),
     );
     super.dispose();
+  }
+
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+
+    // Never intercept if focus is currently typing inside an input field
+    final primaryFocus = FocusManager.instance.primaryFocus;
+    if (primaryFocus != null && primaryFocus.context?.widget is EditableText) {
+      return KeyEventResult.ignored;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.space ||
+        event.logicalKey == LogicalKeyboardKey.keyK) {
+      _ctrl.flashControls();
+      if (_ctrl.isPlaying.value) {
+        _ctrl.pause();
+      } else {
+        _ctrl.play();
+      }
+      return KeyEventResult.handled;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.keyJ) {
+      _ctrl.flashControls();
+      final newPos = _ctrl.position.value - const Duration(seconds: 10);
+      _ctrl.seekTo(newPos < Duration.zero ? Duration.zero : newPos);
+      return KeyEventResult.handled;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.keyL) {
+      _ctrl.flashControls();
+      final maxDur = _ctrl.duration.value;
+      final newPos = _ctrl.position.value + const Duration(seconds: 10);
+      _ctrl.seekTo(newPos > maxDur ? maxDur : newPos);
+      return KeyEventResult.handled;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+      _ctrl.flashControls();
+      final newPos = _ctrl.position.value - const Duration(seconds: 5);
+      _ctrl.seekTo(newPos < Duration.zero ? Duration.zero : newPos);
+      return KeyEventResult.handled;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+      _ctrl.flashControls();
+      final maxDur = _ctrl.duration.value;
+      final newPos = _ctrl.position.value + const Duration(seconds: 5);
+      _ctrl.seekTo(newPos > maxDur ? maxDur : newPos);
+      return KeyEventResult.handled;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.keyM) {
+      _ctrl.flashControls();
+      _ctrl.toggleMute();
+      return KeyEventResult.handled;
+    }
+
+    return KeyEventResult.ignored;
   }
 
   @override
@@ -71,10 +134,18 @@ class _VideoPlayerWithAudioTracksState
       if (_ctrl.isInitializing.value) {
         return AspectRatio(
           aspectRatio: widget.aspectRatio,
-          child: const ColoredBox(
-            color: AppColors.bgPage,
-            child: Center(
-              child: CircularProgressIndicator(color: AppColors.textPrimary),
+          child: Shimmer.fromColors(
+            baseColor: const Color(0xFF1E1E1E),
+            highlightColor: AppColors.bgSurfaceHover,
+            child: const ColoredBox(
+              color: Color(0xFF1E1E1E),
+              child: Center(
+                child: Icon(
+                  Icons.play_circle_outline_rounded,
+                  size: 48,
+                  color: AppColors.bgSurfaceHover,
+                ),
+              ),
             ),
           ),
         );
@@ -109,63 +180,68 @@ class _VideoPlayerWithAudioTracksState
         );
       }
 
-      return AspectRatio(
-        aspectRatio: widget.aspectRatio,
-        child: Stack(
-          children: [
-            // ── Video layer ──────────────────────────────────────────────────
-            Positioned.fill(
-              child: GestureDetector(
-                onTap: () {
-                  _ctrl.flashControls();
-                  if (_ctrl.isPlaying.value) {
-                    _ctrl.pause();
-                  } else {
-                    _ctrl.play();
-                  }
-                },
-                child:
-                    _ctrl.videoController != null &&
-                        _ctrl.chewieController != null
-                    ? Chewie(controller: _ctrl.chewieController!)
-                    : const SizedBox.shrink(),
-              ),
-            ),
-
-            // ── Track-changing overlay ───────────────────────────────────────
-            if (_ctrl.isChangingTrack.value)
-              const Positioned.fill(
-                child: ColoredBox(
-                  color: AppColors.bgPage54,
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircularProgressIndicator(color: AppColors.textPrimary),
-                        SizedBox(height: 12),
-                        Text(
-                          'Switching audio track…',
-                          style: TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+      return Focus(
+        focusNode: _playerFocusNode,
+        onKeyEvent: _handleKeyEvent,
+        child: AspectRatio(
+          aspectRatio: widget.aspectRatio,
+          child: Stack(
+            children: [
+              // ── Video layer ──────────────────────────────────────────────────
+              Positioned.fill(
+                child: GestureDetector(
+                  onTap: () {
+                    _playerFocusNode.requestFocus();
+                    _ctrl.flashControls();
+                    if (_ctrl.isPlaying.value) {
+                      _ctrl.pause();
+                    } else {
+                      _ctrl.play();
+                    }
+                  },
+                  child:
+                      _ctrl.videoController != null &&
+                          _ctrl.chewieController != null
+                      ? Chewie(controller: _ctrl.chewieController!)
+                      : const SizedBox.shrink(),
                 ),
               ),
 
-            // ── Controls overlay ─────────────────────────────────────────────
-            Obx(() {
-              if (!_ctrl.showControls.value && _ctrl.isPlaying.value) {
-                return const SizedBox.shrink();
-              }
-              return Positioned.fill(
-                child: _PlayerControls(key: _controlsKey, ctrl: _ctrl),
-              );
-            }),
-          ],
+              // ── Track-changing overlay ───────────────────────────────────────
+              if (_ctrl.isChangingTrack.value)
+                const Positioned.fill(
+                  child: ColoredBox(
+                    color: AppColors.bgPage54,
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(color: AppColors.textPrimary),
+                          SizedBox(height: 12),
+                          Text(
+                            'Switching audio track…',
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+              // ── Controls overlay ─────────────────────────────────────────────
+              Obx(() {
+                if (!_ctrl.showControls.value && _ctrl.isPlaying.value) {
+                  return const SizedBox.shrink();
+                }
+                return Positioned.fill(
+                  child: _PlayerControls(key: _controlsKey, ctrl: _ctrl),
+                );
+              }),
+            ],
+          ),
         ),
       );
     });
@@ -486,8 +562,8 @@ class _AudioTrackSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? const Color(0xFF1E1E1E) : AppColors.textPrimary;
-    final textColor = isDark ? AppColors.textPrimary : Colors.black;
+    final bg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final textColor = isDark ? AppColors.textPrimary : Colors.black87;
 
     return Container(
       margin: const EdgeInsets.all(16),
@@ -519,9 +595,9 @@ class _AudioTrackSheet extends StatelessWidget {
                     color: AppColors.brand.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.spatial_audio_rounded,
-                    color: AppColors.textPrimary,
+                    color: isDark ? AppColors.textPrimary : Colors.black87,
                     size: 20,
                   ),
                 ),
@@ -597,8 +673,8 @@ class _AudioTrackSheet extends StatelessWidget {
                             color: isSelected
                                 ? AppColors.brand
                                 : (isDark
-                                      ? const Color(0xFF2A2A2A)
-                                      : const Color(0xFFF1F5F9)),
+                                      ? AppColors.bgSurfaceHover
+                                      : Colors.grey.shade200),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Center(
@@ -610,10 +686,10 @@ class _AudioTrackSheet extends StatelessWidget {
                                 fontSize: 13,
                                 fontWeight: FontWeight.bold,
                                 color: isSelected
-                                    ? AppColors.textPrimary
+                                    ? Colors.black
                                     : (isDark
                                           ? AppColors.textSecondary
-                                          : Colors.black),
+                                          : Colors.black87),
                               ),
                             ),
                           ),
@@ -703,8 +779,8 @@ class _SpeedSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? const Color(0xFF1E1E1E) : AppColors.textPrimary;
-    final textColor = isDark ? AppColors.textPrimary : Colors.black;
+    final bg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final textColor = isDark ? AppColors.textPrimary : Colors.black87;
 
     return Container(
       margin: const EdgeInsets.all(16),
@@ -728,7 +804,7 @@ class _SpeedSheet extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
             child: Row(
               children: [
-                const Icon(Icons.speed_rounded, color: Colors.white),
+                Icon(Icons.speed_rounded, color: textColor),
                 const SizedBox(width: 12),
                 Text(
                   'Playback Speed',
@@ -744,7 +820,7 @@ class _SpeedSheet extends StatelessWidget {
           const Divider(height: 1),
           Obx(
             () => Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
               child: Wrap(
                 spacing: 10,
                 runSpacing: 10,
@@ -764,8 +840,8 @@ class _SpeedSheet extends StatelessWidget {
                         color: isSelected
                             ? AppColors.brand
                             : (isDark
-                                  ? const Color(0xFF2A2A2A)
-                                  : const Color(0xFFF1F5F9)),
+                                  ? AppColors.bgSurfaceHover
+                                  : Colors.grey.shade200),
                         borderRadius: BorderRadius.circular(24),
                       ),
                       child: Text(
@@ -774,10 +850,10 @@ class _SpeedSheet extends StatelessWidget {
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
                           color: isSelected
-                              ? AppColors.textPrimary
+                              ? Colors.black
                               : (isDark
                                     ? AppColors.textSecondary
-                                    : Colors.black),
+                                    : Colors.black87),
                         ),
                       ),
                     ),

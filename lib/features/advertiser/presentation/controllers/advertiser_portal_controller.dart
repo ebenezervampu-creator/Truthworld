@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
@@ -127,6 +128,9 @@ class AdvertiserPortalController extends BaseController
         title: 'Welcome Back',
       );
     } catch (e) {
+      if (e is GoogleSignInException && e.code == 'redirecting') {
+        return;
+      }
       ErrorHandler.log(e);
       AppSnackbar.error(
         'Unable to complete Google sign-in. Please try again.',

@@ -56,8 +56,8 @@ class ChapterDialogs {
               Container(
                 decoration: BoxDecoration(
                   color: isDarkMode
-                      ? const Color(0xFF141414)
-                      : const Color(0xFFF1F5F9),
+                      ? AppColors.bgInput
+                      : Colors.grey.shade200,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color:

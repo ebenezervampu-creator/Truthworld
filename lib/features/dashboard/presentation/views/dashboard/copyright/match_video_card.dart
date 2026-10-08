@@ -30,17 +30,12 @@ class MatchVideoCard extends StatelessWidget {
       data['uploadedAt'] ?? data['createdAt'],
     );
 
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 14),
-      elevation: 0,
-      color: isDarkMode ? AppColors.bgSurface : AppColors.textPrimary,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: isDarkMode
-              ? AppColors.bgDivider
-              : Colors.grey.withValues(alpha: 0.2),
-        ),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.bgDivider),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -55,29 +50,29 @@ class MatchVideoCard extends StatelessWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.red.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(4),
+                    color: AppColors.errorContainer,
+                    borderRadius: BorderRadius.circular(6),
                     border: Border.all(
-                      color: Colors.red.withValues(alpha: 0.5),
+                      color: AppColors.error.withValues(alpha: 0.3),
                     ),
                   ),
                   child: Text(
                     '$matchPercent% MATCH',
                     style: const TextStyle(
+                      fontFamily: TWTypography.uiFamily,
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
-                      color: Colors.red,
+                      color: AppColors.error,
                     ),
                   ),
                 ),
                 const Spacer(),
                 Text(
                   'Uploaded: $uploadedAt',
-                  style: TextStyle(
+                  style: const TextStyle(
+                    fontFamily: TWTypography.uiFamily,
                     fontSize: 12,
-                    color: isDarkMode
-                        ? AppColors.textTertiary
-                        : AppColors.textSecondary,
+                    color: AppColors.textTertiary,
                   ),
                 ),
               ],
@@ -85,20 +80,20 @@ class MatchVideoCard extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               title,
-              style: TextStyle(
+              style: const TextStyle(
+                fontFamily: TWTypography.brandFamily,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: isDarkMode ? AppColors.textPrimary : Colors.black,
+                color: AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: 4),
             Text(
               'Re-uploaded on channel: $channelName • $views views',
-              style: TextStyle(
+              style: const TextStyle(
+                fontFamily: TWTypography.uiFamily,
                 fontSize: 13,
-                color: isDarkMode
-                    ? AppColors.textSecondary
-                    : Colors.black,
+                color: AppColors.textSecondary,
               ),
             ),
             const SizedBox(height: 16),
@@ -114,18 +109,23 @@ class MatchVideoCard extends StatelessWidget {
                     videoTitle: title,
                     isDarkMode: isDarkMode,
                   ),
-                  icon: Icon(
+                  icon: const Icon(
                     Icons.email_outlined,
-                    color: isDarkMode ? Colors.white : Colors.black87,
+                    color: AppColors.textPrimary,
                     size: 16,
                   ),
-                  label: const Text('Contact Uploader'),
+                  label: const Text(
+                    'Contact Uploader',
+                    style: TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: isDarkMode
-                        ? AppColors.textPrimary
-                        : Colors.black,
-                    side: BorderSide(
-                      color: isDarkMode ? AppColors.bgDivider : Colors.grey,
+                    foregroundColor: AppColors.textPrimary,
+                    side: const BorderSide(color: AppColors.bgDivider),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
                 ),
@@ -144,10 +144,19 @@ class MatchVideoCard extends StatelessWidget {
                     color: Colors.white,
                     size: 16,
                   ),
-                  label: const Text('Request Video Removal'),
+                  label: const Text(
+                    'Request Video Removal',
+                    style: TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.error,
-                    foregroundColor: AppColors.textPrimary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                 ),
               ],

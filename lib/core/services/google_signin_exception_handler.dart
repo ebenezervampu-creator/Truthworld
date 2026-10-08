@@ -1,6 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:google_sign_in/google_sign_in.dart' as gsi;
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart'
     show
         GoogleSignInException,
@@ -30,7 +32,56 @@ final class GoogleSignInExceptionHandler {
   static GoogleSignInException from(
     dynamic exception,
   ) {
+    if (exception is gsi.GoogleSignInException) {
+      switch (exception.code) {
+        case gsi.GoogleSignInExceptionCode.canceled:
+          return const GoogleSignInException(
+            message: 'Sign-in was cancelled.',
+            code: 'user-cancelled',
+            isRetryable: true,
+          );
+        case gsi.GoogleSignInExceptionCode.clientConfigurationError:
+        case gsi.GoogleSignInExceptionCode.providerConfigurationError:
+          return GoogleSignInException(
+            message:
+                'Google Sign-In configuration error. Please verify the SHA-1 fingerprint and package configuration in Firebase Console.',
+            code: 'configuration-error',
+            originalException: exception,
+          );
+        case gsi.GoogleSignInExceptionCode.uiUnavailable:
+          return GoogleSignInException(
+            message: 'Google Sign-In screen could not be displayed. Please try again.',
+            code: 'ui-unavailable',
+            isRetryable: true,
+            originalException: exception,
+          );
+        case gsi.GoogleSignInExceptionCode.interrupted:
+          return GoogleSignInException(
+            message: 'Google Sign-In was interrupted. Please try again.',
+            code: 'interrupted',
+            isRetryable: true,
+            originalException: exception,
+          );
+        default:
+          return GoogleSignInException(
+            message: exception.description?.isNotEmpty == true
+                ? exception.description!
+                : 'Google Sign-In encountered an error. Please try again.',
+            code: 'sign-in-failed',
+            isRetryable: true,
+            originalException: exception,
+          );
+      }
+    }
+
     final str = exception.toString().toLowerCase();
+    if (str.contains('redirecting')) {
+      return const GoogleSignInException(
+        message: 'Redirecting to Google Sign-In...',
+        code: 'redirecting',
+      );
+    }
+
     if (str.contains('canceled') ||
         str.contains('cancelled') ||
         str.contains('popup_closed_by_user') ||
@@ -61,20 +112,23 @@ final class GoogleSignInExceptionHandler {
       final PlatformException e => _fromPlatformException(e),
       final GoogleSignInUserCancelledException e => _fromUserCancelled(e),
       final GoogleSignInFailedException e => _fromGoogleSignInFailed(e),
-      _ => GoogleSignInException(
-        message: 'An unexpected error occurred: $exception',
-        code: 'unknown',
-        isRetryable: true,
-        originalException: exception,
-      ),
+      _ => () {
+            ErrorHandler.log(exception, context: 'GoogleSignInExceptionHandler.fromUnknown');
+            return GoogleSignInException(
+              message: 'An unexpected error occurred during sign-in. Please try again.',
+              code: 'unknown',
+              isRetryable: true,
+              originalException: exception,
+            );
+          }(),
     };
   }
 
   /// Logs the [exception] with an optional [stackTrace].
   static void log(GoogleSignInException exception, {StackTrace? stackTrace}) {
     if (kDebugMode) {
-      if (exception.code == 'user-cancelled') {
-        debugPrint('ℹ️ [GoogleSignIn/user-cancelled] ${exception.message}');
+      if (exception.code == 'user-cancelled' || exception.code == 'redirecting') {
+        debugPrint('ℹ️ [GoogleSignIn/${exception.code}] ${exception.message}');
       } else {
         debugPrint('❌ [GoogleSignIn/${exception.code}] ${exception.message}');
         if (stackTrace != null) {
@@ -92,6 +146,17 @@ final class GoogleSignInExceptionHandler {
         code: 'user-cancelled',
         isRetryable: true,
       ),
+      'popup-blocked' => const GoogleSignInException(
+        message: 'Popup was blocked by your browser. Please allow popups for this site.',
+        code: 'popup-blocked',
+        isRetryable: true,
+      ),
+      'unauthorized-domain' => GoogleSignInException(
+        message:
+            'This domain is not authorized for Google Sign-In. Please add your domain to Firebase Console -> Authentication -> Authorized domains.',
+        code: e.code,
+        originalException: e,
+      ),
       'account-exists-with-different-credential' => GoogleSignInException(
         message:
             'This email is already associated with another sign-in method.',
@@ -101,6 +166,8 @@ final class GoogleSignInExceptionHandler {
       'internal-error' => GoogleSignInException(
         message:
             'Internal Firebase error. Please verify that Google Sign-In is enabled in your Firebase Console and your SHA-1/SHA-256 fingerprints are correctly configured.',
+        userMessage:
+            'Unable to connect to Google authentication services. Please check your connection and try again.',
         code: e.code,
         isRetryable: true,
         originalException: e,
@@ -222,19 +289,54 @@ final class GoogleSignInExceptionHandler {
   }
 
   static GoogleSignInException _fromPlatformException(PlatformException e) {
-    if (e.code == 'CANCELED' || e.code == 'sign_in_canceled') {
+    final code = e.code.toUpperCase();
+    final message = (e.message ?? '').toLowerCase();
+
+    if (code == 'CANCELED' ||
+        code == 'SIGN_IN_CANCELED' ||
+        code == '12501' ||
+        code == '16' ||
+        message.contains('cancel')) {
       return GoogleSignInException(
         message: 'Sign-in was cancelled by the user.',
+        userMessage: 'Sign-in was cancelled.',
         code: 'user-cancelled',
         isRetryable: true,
         originalException: e,
       );
     }
 
-    if (e.code == 'NETWORK_ERROR') {
+    if (code == 'NETWORK_ERROR' || code == '7' || message.contains('network')) {
       return GoogleSignInException(
-        message: 'Network error during sign-in. Please check your connection.',
+        message: 'Network error during sign-in: ${e.message}',
+        userMessage:
+            'Network error during sign-in. Please check your internet connection and try again.',
         code: 'network-error',
+        isRetryable: true,
+        originalException: e,
+      );
+    }
+
+    if (code == '10' ||
+        code == 'DEVELOPER_ERROR' ||
+        message.contains('developer_error')) {
+      return GoogleSignInException(
+        message: 'Google Sign-In configuration mismatch (code 10): ${e.message}',
+        userMessage:
+            'Google Sign-In is temporarily unavailable on this device. Please try another sign-in method.',
+        code: 'developer-error',
+        originalException: e,
+      );
+    }
+
+    if (code == '12500' ||
+        code == 'SIGN_IN_FAILED' ||
+        message.contains('sign_in_failed')) {
+      return GoogleSignInException(
+        message: 'Google Sign-In failed (code 12500): ${e.message}',
+        userMessage:
+            'Unable to complete Google sign-in. Please ensure Google Play Services is updated and try again.',
+        code: 'sign-in-failed',
         isRetryable: true,
         originalException: e,
       );
@@ -242,6 +344,7 @@ final class GoogleSignInExceptionHandler {
 
     return GoogleSignInException(
       message: e.message ?? 'Google Sign-In failed [${e.code}]',
+      userMessage: 'Unable to complete Google sign-in. Please try again.',
       code: e.code,
       isRetryable: true,
       originalException: e,

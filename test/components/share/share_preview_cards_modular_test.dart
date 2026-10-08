@@ -96,17 +96,48 @@ void main() {
       expect(find.text('12:34'), findsOneWidget);
     });
 
-    testWidgets('4. ShareChannelCard renders handle, title, subscriber count and channel badge',
+    testWidgets('3b. ShareVideoCard renders exact architecture with title, 2-line description, Truthworld footer, and tap navigation',
         (tester) async {
+      var didTap = false;
       await tester.pumpWidget(
-        const MaterialApp(
+        MaterialApp(
+          home: Scaffold(
+            body: ShareVideoCard(
+              title: '🚨 BANNED Antibiotics in UNBRANDED Eggs? 🥚 🔬\nLab Test Results || Part 2',
+              subtitle: 'Instagram : https://instagram.com/trustified.in?igshid=YmMyMTA2M2Y=...',
+              url: 'https://www.truthworld.in/watch/v_12345',
+              onTap: () => didTap = true,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('🚨 BANNED Antibiotics in UNBRANDED Eggs? 🥚 🔬\nLab Test Results || Part 2'), findsOneWidget);
+      expect(find.text('Instagram : https://instagram.com/trustified.in?igshid=YmMyMTA2M2Y=...'), findsOneWidget);
+      expect(find.text('Truthworld'), findsOneWidget);
+      expect(find.byIcon(Icons.link_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.chevron_right_rounded), findsOneWidget);
+
+      await tester.tap(find.byType(ShareVideoCard));
+      await tester.pump();
+      expect(didTap, isTrue);
+    });
+
+    testWidgets('4. ShareChannelCard renders exact architecture with banner, avatar, title, handle, subscriber count, description, Truthworld footer, and tap navigation',
+        (tester) async {
+      var didTap = false;
+      await tester.pumpWidget(
+        MaterialApp(
           home: Scaffold(
             body: ShareChannelCard(
               title: 'TruthWorld Official',
               handle: 'truthworld',
               subscriberCount: 2500000,
               videoCount: 340,
-              subtitle: 'The AI-powered fact checking platform',
+              subtitle: 'The AI-powered fact checking platform with epistemic clarity and verification.',
+              url: 'https://www.truthworld.in/@truthworld',
+              onTap: () => didTap = true,
             ),
           ),
         ),
@@ -115,9 +146,15 @@ void main() {
 
       expect(find.text('TruthWorld Official'), findsOneWidget);
       expect(find.text('@truthworld'), findsOneWidget);
-      expect(find.text('2.5M subscribers • 340 videos'), findsOneWidget);
-      expect(find.text('The AI-powered fact checking platform'), findsOneWidget);
-      expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
+      expect(find.text('2.5M subscribers'), findsOneWidget);
+      expect(find.text('The AI-powered fact checking platform with epistemic clarity and verification.'), findsOneWidget);
+      expect(find.text('Truthworld'), findsOneWidget);
+      expect(find.byIcon(Icons.link_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.chevron_right_rounded), findsOneWidget);
+
+      await tester.tap(find.byType(ShareChannelCard));
+      await tester.pump();
+      expect(didTap, isTrue);
     });
 
     testWidgets('5. SharePlaylistCard renders playlist badge, video count overlay and title',
@@ -143,27 +180,46 @@ void main() {
       expect(find.byIcon(Icons.playlist_play_rounded), findsWidgets);
     });
 
-    testWidgets('6. ShareTopicCard renders hashtag handle, follower count, and explore icon',
+    testWidgets('6. ShareTopicCard renders exact architecture with banner, followers, videos, url pill, and tap navigation without follow button or verified badge',
         (tester) async {
+      var didTap = false;
       await tester.pumpWidget(
-        const MaterialApp(
+        MaterialApp(
           home: Scaffold(
             body: ShareTopicCard(
               title: 'Artificial Intelligence',
               handle: 'ai_technology',
               followerCount: 84000,
-              videoCount: 1520,
+              videoCount: 320,
+              subtitle: 'Explore the frontiers of deep learning, neural networks and automated verification systems.',
+              url: 'https://truthworld.in/T/ai_technology',
+              onTap: () => didTap = true,
             ),
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('TOPIC'), findsOneWidget);
       expect(find.text('Artificial Intelligence'), findsOneWidget);
-      expect(find.text('#ai_technology'), findsOneWidget);
-      expect(find.text('84.0K followers • 1520 videos'), findsOneWidget);
-      expect(find.byIcon(Icons.explore_rounded), findsOneWidget);
+      expect(find.text('@ ai_technology'), findsOneWidget);
+      expect(find.text('84.0K Followers'), findsOneWidget);
+      expect(find.text('320 Videos'), findsOneWidget);
+      expect(find.text('Explore the frontiers of deep learning, neural networks and automated verification systems.'), findsOneWidget);
+      expect(find.text('https://truthworld.in/T/ai_technology'), findsOneWidget);
+      expect(find.text('Truthworld'), findsWidgets);
+      expect(find.byIcon(Icons.link_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.chevron_right_rounded), findsOneWidget);
+
+      // Gold verified badge must be removed as per specification
+      expect(find.byIcon(Icons.check_rounded), findsNothing);
+
+      // Follow option must be removed as per specification
+      expect(find.text('Follow'), findsNothing);
+      expect(find.text('+ Follow'), findsNothing);
+
+      await tester.tap(find.byType(ShareTopicCard));
+      await tester.pump();
+      expect(didTap, isTrue);
     });
 
     testWidgets('7. SharePreviewCard dispatcher routes correctly by contentType',

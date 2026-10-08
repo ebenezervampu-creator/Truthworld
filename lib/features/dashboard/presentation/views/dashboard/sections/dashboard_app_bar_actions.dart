@@ -7,6 +7,7 @@ import 'package:truthworld/theme/app_theme.dart';
 
 class DashboardSearchField extends StatelessWidget {
   final TextEditingController searchController;
+  final FocusNode? focusNode;
   final bool isDarkMode;
   final ValueChanged<String>? onChanged;
   final VoidCallback? onClear;
@@ -14,6 +15,7 @@ class DashboardSearchField extends StatelessWidget {
   const DashboardSearchField({
     required this.searchController,
     required this.isDarkMode,
+    this.focusNode,
     this.onChanged,
     this.onClear,
     super.key,
@@ -21,31 +23,38 @@ class DashboardSearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 300,
-      height: 40,
+    return Semantics(
+      textField: true,
+      label: 'Search studio content',
+      child: Container(
+        width: 320,
+        height: 40,
       decoration: BoxDecoration(
-        color: AppColors.bgSurfaceContainerHighest.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(AppTokens.radius.lg),
+        color: AppColors.bgInput,
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: AppColors.bgSurfaceContainerHighest,
+          color: AppColors.bgDivider,
         ),
       ),
       child: TextField(
         controller: searchController,
-        style: TextStyle(
-          color: isDarkMode ? AppColors.textPrimary : Colors.black,
+        focusNode: focusNode,
+        style: const TextStyle(
+          fontFamily: TWTypography.uiFamily,
+          color: AppColors.textPrimary,
           fontSize: 14,
         ),
         onChanged: onChanged,
         decoration: InputDecoration(
-          hintText: 'Search your content...',
-          hintStyle: TextStyle(
-            color: isDarkMode ? AppColors.textSecondary : Colors.black,
+          hintText: 'Search studio content... (/)',
+          hintStyle: const TextStyle(
+            fontFamily: TWTypography.uiFamily,
+            color: AppColors.textTertiary,
+            fontSize: 14,
           ),
-          prefixIcon: Icon(
+          prefixIcon: const Icon(
             Icons.search_rounded,
-            color: isDarkMode ? AppColors.textSecondary : Colors.black,
+            color: AppColors.textSecondary,
             size: 20,
           ),
           suffixIcon: ValueListenableBuilder<TextEditingValue>(
@@ -53,9 +62,9 @@ class DashboardSearchField extends StatelessWidget {
             builder: (context, value, _) {
               if (value.text.isEmpty) return const SizedBox.shrink();
               return IconButton(
-                icon: Icon(
+                icon: const Icon(
                   Icons.clear_rounded,
-                  color: isDarkMode ? AppColors.textSecondary : Colors.black,
+                  color: AppColors.textSecondary,
                   size: 18,
                 ),
                 onPressed: () {
@@ -67,11 +76,12 @@ class DashboardSearchField extends StatelessWidget {
           ),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
+            horizontal: 14,
             vertical: 10,
           ),
         ),
       ),
+    ),
     );
   }
 }
@@ -96,71 +106,70 @@ class DashboardActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = isPrimary
-        ? const Color(0xFF6366F1)
-        : (isDarkMode ? AppTheme.colors.surface : const Color(0xFFF1F5F9));
-    final textColor = isPrimary
-        ? AppColors.textPrimary
-        : (isDarkMode ? AppColors.textPrimary : Colors.black);
+    // Zero White-on-White Policy: On white/brand surface, text and icon MUST be black!
+    final bgColor = isPrimary ? AppColors.brand : const Color(0xFF1E1E1E);
+    final fgColor = isPrimary ? Colors.black : AppColors.textPrimary;
+    final iconColor = isPrimary ? Colors.black : Colors.white;
 
     if (label.isEmpty) {
-      return Tooltip(
-        message: tooltip ?? '',
-        child: Material(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(12),
-          elevation: isPrimary ? 2 : 0,
-          shadowColor: isPrimary
-              ? const Color(0xFF6366F1).withValues(alpha: 0.3)
-              : Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: () {
-              onPressed();
-              HapticFeedback.lightImpact();
-            },
-            child: Container(
-              width: 40,
-              height: 40,
-              alignment: Alignment.center,
-              child: Icon(icon, color: Colors.white, size: 20),
+      return Semantics(
+        button: true,
+        label: tooltip ?? 'Action button',
+        child: Tooltip(
+          message: tooltip ?? '',
+          child: Material(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(10),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () {
+                onPressed();
+                HapticFeedback.lightImpact();
+              },
+              child: Container(
+                width: 40,
+                height: 40,
+                alignment: Alignment.center,
+                child: Icon(icon, color: iconColor, size: 20),
+              ),
             ),
           ),
         ),
       );
     }
 
-    return Tooltip(
-      message: tooltip ?? label,
-      child: Material(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(20),
-        elevation: isPrimary ? 2 : 0,
-        shadowColor: isPrimary
-            ? const Color(0xFF6366F1).withValues(alpha: 0.3)
-            : Colors.transparent,
-        child: InkWell(
+    return Semantics(
+      button: true,
+      label: tooltip ?? label,
+      child: Tooltip(
+        message: tooltip ?? label,
+        child: Material(
+          color: bgColor,
           borderRadius: BorderRadius.circular(20),
-          onTap: () {
-            onPressed();
-            HapticFeedback.lightImpact();
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, color: Colors.white, size: 18),
-                const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: textColor,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: () {
+              onPressed();
+              HapticFeedback.lightImpact();
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, color: iconColor, size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      color: fgColor,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -184,44 +193,42 @@ class DashboardGoogleAccountSelector extends StatelessWidget {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      return Tooltip(
-        message: 'Sign in with Google',
-        child: Material(
-          color: AppColors.textPrimary,
-          borderRadius: BorderRadius.circular(20),
-          elevation: 2,
-          shadowColor: AppColors.bgPage.withValues(alpha: 0.1),
-          child: InkWell(
+      return Semantics(
+        button: true,
+        label: 'Sign in with Google',
+        child: Tooltip(
+          message: 'Sign in with Google',
+          child: Material(
+            color: AppColors.brand,
             borderRadius: BorderRadius.circular(20),
-            onTap: () {
-              HapticFeedback.lightImpact();
-              onSignIn();
-            },
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Image.asset(
-                    'assets/google_logo.png',
-                    width: 18,
-                    height: 18,
-                    errorBuilder: (context, error, stackTrace) => const Icon(
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () {
+                HapticFeedback.lightImpact();
+                onSignIn();
+              },
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
                       Icons.account_circle,
-                      color: AppColors.textPrimary,
+                      color: Colors.black,
                       size: 18,
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Sign in',
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
+                    SizedBox(width: 8),
+                    Text(
+                      'Sign in',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        color: Colors.black,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -229,27 +236,33 @@ class DashboardGoogleAccountSelector extends StatelessWidget {
       );
     }
 
-    return Tooltip(
-      message: AuthService.to.activeDisplayName.isNotEmpty
-          ? ' ()'
-          : (user.email ?? 'Account'),
-      child: Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: isDarkMode ? AppTheme.colors.surface : const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(50),
-          border: Border.all(
-            color: isDarkMode ? const Color(0xFF374151) : AppColors.bgDivider,
-            width: 2,
+    final accountLabel = AuthService.to.activeDisplayName.isNotEmpty
+        ? AuthService.to.activeDisplayName
+        : (user.email ?? 'Account');
+
+    return Semantics(
+      button: true,
+      label: 'Account: $accountLabel',
+      child: Tooltip(
+        message: accountLabel,
+        child: Container(
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E1E1E),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: AppColors.bgDivider,
+              width: 1.5,
+            ),
           ),
-        ),
-        child: UserAvatar(
-          radius: 16,
-          photoUrl: AuthService.to.activePhotoUrl,
-          displayName: AuthService.to.activeDisplayName.isNotEmpty
-              ? AuthService.to.activeDisplayName
-              : (user.email ?? 'U'),
-          showBorder: false,
+          child: UserAvatar(
+            radius: 16,
+            photoUrl: AuthService.to.activePhotoUrl,
+            displayName: AuthService.to.activeDisplayName.isNotEmpty
+                ? AuthService.to.activeDisplayName
+                : (user.email ?? 'U'),
+            showBorder: false,
+          ),
         ),
       ),
     );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/features/channel/data/models/channel_loyalty_badge.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/memberships_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -44,19 +45,10 @@ class MembershipTierCard extends StatelessWidget {
             // Top Header Row
             Row(
               children: [
-                Container(
-                  width: 16,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    color: tier.badgeColor,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: tier.badgeColor.withValues(alpha: 0.4),
-                        blurRadius: 6,
-                      ),
-                    ],
-                  ),
+                ChannelLoyaltyBadgeWidget(
+                  milestone: ChannelLoyaltyMilestone.newMember,
+                  tierName: tier.name,
+                  compact: true,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -365,7 +357,7 @@ class EmptyTiersView extends StatelessWidget {
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 540),
             child: Text(
-              r'Set up membership levels (e.g. Bronze $2/mo, Silver VIP $5/mo, Gold Patron $10/mo) so fans can support your channel directly with 0% platform commission.',
+              r'Set up up to 3 membership levels (e.g. Bronze $2/mo, Silver VIP $5/mo, Gold Patron $10/mo) so fans can support your channel directly with 0% platform commission.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 13,

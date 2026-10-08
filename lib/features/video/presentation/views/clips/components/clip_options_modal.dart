@@ -59,7 +59,7 @@ class ClipOptionsModal {
             ),
             _buildOptionItem(
               icon: Icons.share_rounded,
-              label: 'Share clip with Truthworld Watermark',
+              label: 'Share Clip with Truthworld',
               onTap: () {
                 Get.back<void>();
                 ShareBottomSheet.show(
@@ -68,7 +68,7 @@ class ClipOptionsModal {
                   thumbnailUrl: clip.thumbnailUrl,
                   subtitle:
                       '🎬 Watch clip: "${clip.title}" [${clip.startTime.toInt()}s - ${clip.endTime.toInt()}s]\n'
-                      '✨ Truthworld Watermark\n'
+                      '✨ Truthworld\n'
                       '👇 Tap to watch in Truthworld App:\n'
                       '$clipUrl',
                   channelName: clip.channelName,

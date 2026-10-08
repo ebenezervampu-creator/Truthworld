@@ -24,6 +24,13 @@ mixin VideoFactCheckMixin on GetxController {
   String? _lastAttemptedFactCheckUrl;
 
   Future<void> loadFactCheckData([String? overrideUrl, bool force = false]) async {
+    if (!video.hasAiCredibility) {
+      factCheckData.clear();
+      hasFactCheckError.value = false;
+      hasAttemptedFactCheck.value = true;
+      return;
+    }
+
     var rawUrl = (overrideUrl != null && overrideUrl.isNotEmpty)
         ? overrideUrl
         : video.factCheckUrl;
@@ -47,8 +54,7 @@ mixin VideoFactCheckMixin on GetxController {
       if (cached != null &&
           (cached.uiReport != null ||
               cached.claims.isNotEmpty ||
-              cached.summary.isNotEmpty ||
-              cached.trustScore > 0)) {
+              (cached.trustScore > 0 && video.isFactChecked))) {
         factCheckData.value = cached.toMap();
         hasFactCheckError.value = false;
         hasAttemptedFactCheck.value = true;

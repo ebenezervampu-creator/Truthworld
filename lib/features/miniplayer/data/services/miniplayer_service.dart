@@ -2,6 +2,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/data/models/video_clip.dart';
 
 /// Thin service layer providing a clean public API for the miniplayer.
 ///
@@ -29,12 +30,16 @@ class MiniplayerService extends GetxService {
   /// If [resumeFromPosition] is provided, playback will seek to that position
   /// after initialization (useful for seamless video-screen → miniplayer
   /// transitions).
+  /// If [clip] is provided, playback and timeline will be scoped strictly to the clip bounds.
+  /// If [isAudioOnly] is true, the miniplayer renders in audio-only mode.
   ///
   /// Throws [MiniplayerException] if operation fails critically.
   Future<void> showWithVideo(
     Video video, {
     Duration? resumeFromPosition,
     String? overrideUrl,
+    VideoClip? clip,
+    bool isAudioOnly = false,
   }) async {
     try {
       if (video.id.isEmpty) {
@@ -49,10 +54,14 @@ class MiniplayerService extends GetxService {
         video,
         resumeFromPosition: resumeFromPosition,
         overrideUrl: overrideUrl,
+        clip: clip,
+        isAudioOnly: isAudioOnly,
       );
       _logEvent('miniplayer_shown', {
         'video_id': video.id,
         'resume_position': resumeFromPosition?.inSeconds ?? 0,
+        if (clip != null) 'clip_id': clip.id,
+        if (isAudioOnly) 'audio_only': true,
       });
     } catch (e, stackTrace) {
       logger.error(
@@ -134,6 +143,8 @@ class MiniplayerService extends GetxService {
     required Video video,
     Duration? currentPosition,
     String? overrideUrl,
+    VideoClip? clip,
+    bool isAudioOnly = false,
     bool shouldShow = true,
   }) async {
     try {
@@ -149,6 +160,8 @@ class MiniplayerService extends GetxService {
         video,
         resumeFromPosition: currentPosition,
         overrideUrl: overrideUrl,
+        clip: clip,
+        isAudioOnly: isAudioOnly,
       );
       logger.info(
         'Miniplayer shown on navigation from video',

@@ -1,7 +1,10 @@
+import 'dart:math';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
@@ -16,25 +19,17 @@ void showModernizedPlaylistDialog({
     context: context,
     barrierDismissible: true,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-    barrierColor: AppTheme.colors.background54,
-    transitionDuration: const Duration(milliseconds: 300),
+    barrierColor: Colors.black.withValues(alpha: 0.7),
+    transitionDuration: const Duration(milliseconds: 250),
     pageBuilder: (context, animation, secondaryAnimation) {
-      return Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF8B5CF6),
-            brightness: Theme.of(context).brightness,
-          ),
-        ),
-        child: _ModernizedPlaylistDialog(
-          videoId: videoId,
-          animation: animation,
-        ),
+      return _ModernizedPlaylistDialog(
+        videoId: videoId,
+        animation: animation,
       );
     },
     transitionBuilder: (context, animation, secondaryAnimation, child) {
       return SlideTransition(
-        position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
+        position: Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero)
             .animate(
               CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
             ),
@@ -75,11 +70,10 @@ class _ModernizedPlaylistDialogView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final screenSize = MediaQuery.of(context).size;
     final isTablet = screenSize.width > 600;
-    final dialogWidth = isTablet ? 500.0 : screenSize.width * 0.9;
+    final dialogWidth = isTablet ? 480.0 : min(screenSize.width * 0.92, 440.0);
+    final dialogMaxHeight = min(screenSize.height * 0.85, 620.0);
     final playlistController = Get.isRegistered<PlaylistController>()
         ? Get.find<PlaylistController>()
         : Get.put(PlaylistController());
@@ -92,40 +86,42 @@ class _ModernizedPlaylistDialogView extends StatelessWidget {
           child: Container(
             width: dialogWidth,
             constraints: BoxConstraints(
-              maxHeight: screenSize.height * 0.8,
-              minHeight: 400,
+              maxHeight: dialogMaxHeight,
             ),
-            margin: const EdgeInsets.all(20),
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
             decoration: BoxDecoration(
-              color: colorScheme.surface,
-              borderRadius: BorderRadius.circular(28),
+              color: AppColors.bgSurface,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.12),
+              ),
               boxShadow: [
                 BoxShadow(
-                  color: colorScheme.primary.withValues(alpha: 0.1),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8),
+                  color: Colors.black.withValues(alpha: 0.6),
+                  blurRadius: 32,
+                  offset: const Offset(0, 12),
                 ),
               ],
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildHeader(context, colorScheme, isTablet),
-                Flexible(
-                  child: _buildContent(
-                    context,
-                    colorScheme,
-                    playlistController,
-                    isTablet,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildHeader(context, isTablet),
+                  const Divider(height: 1, color: AppColors.bgDivider),
+                  Flexible(
+                    child: _buildScrollableBody(
+                      context,
+                      playlistController,
+                      isTablet,
+                    ),
                   ),
-                ),
-                _buildActions(
-                  context,
-                  colorScheme,
-                  playlistController,
-                  isTablet,
-                ),
-              ],
+                  const Divider(height: 1, color: AppColors.bgDivider),
+                  _buildFooter(context, playlistController, isTablet),
+                ],
+              ),
             ),
           ),
         ),
@@ -135,50 +131,50 @@ class _ModernizedPlaylistDialogView extends StatelessWidget {
 
   Widget _buildHeader(
     BuildContext context,
-    ColorScheme colorScheme,
     bool isTablet,
   ) {
-    return Container(
-      padding: EdgeInsets.all(isTablet ? 24 : 20),
-      decoration: BoxDecoration(
-        color: colorScheme.primaryContainer.withValues(alpha: 0.4),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: isTablet ? 24 : 18,
+        vertical: isTablet ? 18 : 16,
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: colorScheme.primary.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(16),
+              color: AppColors.bgSurfaceHover,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.08),
+              ),
             ),
-            child: Icon(
+            child: const Icon(
               Icons.playlist_add_rounded,
               color: AppColors.textPrimary,
-              size: isTablet ? 28 : 24,
+              size: 22,
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Add to Playlist',
-                  style: TextStyle(
-                    fontSize: isTablet ? 22 : 20,
-                    fontWeight: FontWeight.w500,
-                    color: colorScheme.onPrimaryContainer,
+                  'Save to playlist',
+                  style: GoogleFonts.roboto(
+                    fontSize: isTablet ? 18 : 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
-                  'Choose a playlist or create a new one',
-                  style: TextStyle(
-                    fontSize: isTablet ? 14 : 12,
-                    color: colorScheme.onPrimaryContainer.withValues(
-                      alpha: 0.8,
-                    ),
+                  'Select playlists or create a new one',
+                  style: GoogleFonts.roboto(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ],
@@ -189,14 +185,15 @@ class _ModernizedPlaylistDialogView extends StatelessWidget {
             icon: const Icon(
               Icons.close_rounded,
               color: AppColors.textPrimary,
+              size: 20,
             ),
             style: IconButton.styleFrom(
-              backgroundColor: colorScheme.primaryContainer.withValues(
-                alpha: 0.3,
-              ),
+              backgroundColor: AppColors.bgSurfaceHover,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(12),
               ),
+              padding: const EdgeInsets.all(8),
+              minimumSize: const Size(36, 36),
             ),
           ),
         ],
@@ -204,59 +201,71 @@ class _ModernizedPlaylistDialogView extends StatelessWidget {
     );
   }
 
-  Widget _buildContent(
+  Widget _buildScrollableBody(
     BuildContext context,
-    ColorScheme colorScheme,
     PlaylistController playlistController,
     bool isTablet,
   ) {
-    return Padding(
-      padding: EdgeInsets.all(isTablet ? 24 : 20),
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: EdgeInsets.all(isTablet ? 20 : 16),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
           // Create new playlist section
-          _buildCreatePlaylistSection(context, colorScheme, isTablet),
+          _buildCreatePlaylistSection(context, isTablet),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 14),
 
-          // Divider with text
-          Row(
-            children: [
-              Expanded(
-                child: Divider(
-                  color: colorScheme.secondary.withValues(alpha: 0.3),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  'Or choose existing',
-                  style: TextStyle(
-                    fontSize: isTablet ? 14 : 12,
-                    color: colorScheme.onSurface.withValues(alpha: 0.7),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Divider(
-                  color: colorScheme.secondary.withValues(alpha: 0.3),
-                ),
-              ),
-            ],
-          ),
+          // Playlists List
+          Obx(() {
+            final userPrivatePlaylists = playlistController.playlists.toList();
+            final userPublicPlaylists = playlistController.publicPlaylists
+                .where((p) => p.ownerId == uid)
+                .toList();
 
-          const SizedBox(height: 16),
+            final allPlaylists = <PlaylistModel>[];
+            final seenIds = <String>{};
 
-          // Existing playlists
-          Flexible(
-            child: _buildPlaylistsList(
-              colorScheme,
-              playlistController,
-              isTablet,
-            ),
-          ),
+            // Watch Later always at top of list
+            if (uid.isNotEmpty) {
+              final watchLaterPlaylist =
+                  playlistController.getWatchLaterPlaylist();
+              if (watchLaterPlaylist != null) {
+                allPlaylists.add(watchLaterPlaylist);
+                seenIds.add('watchlater');
+              }
+            }
+
+            for (final p in [...userPrivatePlaylists, ...userPublicPlaylists]) {
+              if (seenIds.add(p.id)) {
+                allPlaylists.add(p);
+              }
+            }
+
+            if (allPlaylists.isEmpty) {
+              return _buildEmptyState(isTablet);
+            }
+
+            return ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: allPlaylists.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final playlist = allPlaylists[index];
+                return _buildPlaylistItem(
+                  playlist,
+                  playlistController,
+                  isTablet,
+                  index,
+                );
+              },
+            );
+          }),
         ],
       ),
     );
@@ -264,210 +273,235 @@ class _ModernizedPlaylistDialogView extends StatelessWidget {
 
   Widget _buildCreatePlaylistSection(
     BuildContext context,
-    ColorScheme colorScheme,
     bool isTablet,
   ) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colorScheme.secondaryContainer.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: colorScheme.secondary.withValues(alpha: 0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.add_circle_outline_rounded,
-                color: AppColors.textPrimary,
-                size: isTablet ? 24 : 20,
+    return Obx(() {
+      final isExpanded = controller.showCreateForm.value;
+
+      if (!isExpanded) {
+        return Material(
+          color: AppColors.bgSurfaceHover,
+          borderRadius: BorderRadius.circular(16),
+          child: InkWell(
+            onTap: controller.toggleCreateForm,
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.add_rounded,
+                    color: AppColors.textPrimary,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Create new playlist',
+                    style: GoogleFonts.roboto(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const Spacer(),
+                  const Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    color: AppColors.textSecondary,
+                    size: 20,
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Text(
-                'Create New Playlist',
-                style: TextStyle(
-                  fontSize: isTablet ? 16 : 14,
-                  fontWeight: FontWeight.w500,
-                  color: colorScheme.onSecondaryContainer,
-                ),
-              ),
-            ],
+            ),
           ),
-          const SizedBox(height: 12),
-          Obx(() {
-            final isPublic = controller.isPublicNewPlaylist.value;
-            return Row(
+        );
+      }
+
+      final isPublic = controller.isPublicNewPlaylist.value;
+      final isCreating = controller.isCreatingPlaylist.value;
+
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.bgSurfaceHover,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.12),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Privacy: ',
-                  style: TextStyle(
-                    fontSize: isTablet ? 14 : 12,
-                    color: colorScheme.onSurface.withValues(alpha: 0.7),
+                  'New playlist',
+                  style: GoogleFonts.roboto(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                IconButton(
+                  onPressed: controller.toggleCreateForm,
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    size: 18,
+                    color: AppColors.textSecondary,
+                  ),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller.newPlaylistCtrl,
+              inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 14,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Enter playlist title...',
+                hintStyle: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14,
+                ),
+                filled: true,
+                fillColor: AppColors.bgPage,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.12),
+                  ),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.12),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(
+                    color: AppColors.brand,
+                    width: 1.5,
+                  ),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+              ),
+              onSubmitted: (_) async {
+                await controller.createNewPlaylist(videoId);
+              },
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Text(
+                  'Privacy:',
+                  style: GoogleFonts.roboto(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
                 const SizedBox(width: 8),
                 ChoiceChip(
-                  label: const Text('Private'),
+                  label: Text(
+                    'Private',
+                    style: TextStyle(
+                      color: !isPublic ? Colors.black : AppColors.textPrimary,
+                      fontWeight:
+                          !isPublic ? FontWeight.bold : FontWeight.normal,
+                      fontSize: 12,
+                    ),
+                  ),
                   selected: !isPublic,
+                  selectedColor: Colors.white,
+                  backgroundColor: AppColors.bgPage,
+                  side: BorderSide(
+                    color: !isPublic
+                        ? Colors.white
+                        : Colors.white.withValues(alpha: 0.15),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   onSelected: (val) {
                     if (val) controller.isPublicNewPlaylist.value = false;
                   },
-                  selectedColor: colorScheme.secondaryContainer,
                 ),
                 const SizedBox(width: 8),
                 ChoiceChip(
-                  label: const Text('Public'),
+                  label: Text(
+                    'Public',
+                    style: TextStyle(
+                      color: isPublic ? Colors.black : AppColors.textPrimary,
+                      fontWeight:
+                          isPublic ? FontWeight.bold : FontWeight.normal,
+                      fontSize: 12,
+                    ),
+                  ),
                   selected: isPublic,
+                  selectedColor: Colors.white,
+                  backgroundColor: AppColors.bgPage,
+                  side: BorderSide(
+                    color: isPublic
+                        ? Colors.white
+                        : Colors.white.withValues(alpha: 0.15),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   onSelected: (val) {
                     if (val) controller.isPublicNewPlaylist.value = true;
                   },
-                  selectedColor: colorScheme.secondaryContainer,
                 ),
-              ],
-            );
-          }),
-          const SizedBox(height: 12),
-          TextField(
-            controller: controller.newPlaylistCtrl,
-            inputFormatters: [TruthworldTextInputFormatters.englishOnly],
-            decoration: InputDecoration(
-              hintText: 'Enter playlist name',
-              hintStyle: TextStyle(
-                color: colorScheme.onSurface.withValues(alpha: 0.5),
-              ),
-              filled: true,
-              fillColor: colorScheme.surface,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(
-                  color: colorScheme.outline.withValues(alpha: 0.3),
-                ),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(
-                  color: colorScheme.outline.withValues(alpha: 0.3),
-                ),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(
-                  color: colorScheme.secondary,
-                  width: 1.5,
-                ),
-              ),
-              contentPadding: EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: isTablet ? 16 : 12,
-              ),
-              suffixIcon: Obx(
-                () => AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  child: controller.isCreatingPlaylist.value
-                      ? Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: colorScheme.secondary,
-                            ),
+                const Spacer(),
+                ElevatedButton(
+                  onPressed: isCreating
+                      ? null
+                      : () async {
+                          await controller.createNewPlaylist(videoId);
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.brand,
+                    foregroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: isCreating
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.black,
                           ),
                         )
-                      : IconButton(
-                          onPressed: () async {
-                            final success =
-                                await controller.createNewPlaylist(videoId);
-                            if (success && context.mounted) {
-                              Navigator.of(context).pop();
-                            }
-                          },
-                          icon: const Icon(
-                            Icons.add_rounded,
-                            color: AppColors.textPrimary,
-                          ),
-                          style: IconButton.styleFrom(
-                            backgroundColor: colorScheme.secondary.withValues(
-                              alpha: 0.1,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
+                      : Text(
+                          'Create',
+                          style: GoogleFonts.roboto(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
                           ),
                         ),
                 ),
-              ),
+              ],
             ),
-            style: TextStyle(
-              fontSize: isTablet ? 16 : 14,
-              color: colorScheme.onSurface,
-            ),
-            onSubmitted: (_) async {
-              final success = await controller.createNewPlaylist(videoId);
-              if (success && context.mounted) {
-                Navigator.of(context).pop();
-              }
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPlaylistsList(
-    ColorScheme colorScheme,
-    PlaylistController playlistController,
-    bool isTablet,
-  ) {
-    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-    return Obx(() {
-      final userPrivatePlaylists = playlistController.playlists.toList();
-      final userPublicPlaylists = playlistController.publicPlaylists
-          .where((p) => p.ownerId == uid)
-          .toList();
-
-      final allPlaylists = <PlaylistModel>[];
-      final seenIds = <String>{};
-
-      // Watch Later playlist included at top of private playlists
-      if (uid.isNotEmpty) {
-        final watchLaterPlaylist = playlistController.getWatchLaterPlaylist();
-        if (watchLaterPlaylist != null) {
-          allPlaylists.add(watchLaterPlaylist);
-          seenIds.add('watchlater');
-        }
-      }
-
-      for (final p in [...userPrivatePlaylists, ...userPublicPlaylists]) {
-        if (seenIds.add(p.id)) {
-          allPlaylists.add(p);
-        }
-      }
-
-      if (allPlaylists.isEmpty) {
-        return _buildEmptyState(colorScheme, isTablet);
-      }
-
-      return FadeTransition(
-        opacity: controller.listAnimation,
-        child: ListView.separated(
-          shrinkWrap: true,
-          itemCount: allPlaylists.length,
-          separatorBuilder: (context, index) => const SizedBox(height: 8),
-          itemBuilder: (context, index) {
-            final playlist = allPlaylists[index];
-            return _buildPlaylistItem(
-              playlist,
-              colorScheme,
-              playlistController,
-              isTablet,
-              index,
-            );
-          },
+          ],
         ),
       );
     });
@@ -475,148 +509,163 @@ class _ModernizedPlaylistDialogView extends StatelessWidget {
 
   Widget _buildPlaylistItem(
     PlaylistModel playlist,
-    ColorScheme colorScheme,
     PlaylistController playlistController,
     bool isTablet,
     int index,
   ) {
     return Obx(() {
-      final isSelected =
-          controller.selectedPlaylistId.value == playlist.id;
-
       final isWatchLater = playlist.id == 'watchlater';
       final isInPlaylist = isWatchLater
           ? playlistController.isInWatchLater(videoId)
           : playlist.videoIds.contains(videoId);
 
-      final videoCountText = isWatchLater
-          ? '${playlistController.watchLaterVideoIds.length} videos'
-          : '${playlist.videoCount} videos';
+      final isToggling = controller.isPlaylistToggling(playlist.id);
 
-      final subtitle =
-          '$videoCountText • ${playlist.isPublic ? "Public" : "Private"}${isInPlaylist ? " • Added" : ""}';
+      final videoCount = isWatchLater
+          ? playlistController.watchLaterVideoIds.length
+          : playlist.videoCount;
+      final videoCountText =
+          '$videoCount ${videoCount == 1 ? "video" : "videos"}';
+      final visibilityText = playlist.isPublic ? 'Public' : 'Private';
 
-      return AnimatedContainer(
-        duration: Duration(milliseconds: 200 + (index * 50)),
-        curve: Curves.easeOutCubic,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () => controller.selectPlaylist(playlist),
-            borderRadius: BorderRadius.circular(16),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: EdgeInsets.all(isTablet ? 16 : 12),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? colorScheme.tertiaryContainer.withValues(alpha: 0.3)
-                    : colorScheme.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: isSelected
-                      ? colorScheme.tertiary
-                      : colorScheme.outline.withValues(alpha: 0.2),
-                  width: isSelected ? 1.5 : 1,
-                ),
+      return Material(
+        color: isInPlaylist
+            ? Colors.white.withValues(alpha: 0.08)
+            : AppColors.bgSurfaceHover.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: isToggling
+              ? null
+              : () async {
+                  controller.selectPlaylist(playlist);
+                  await controller.togglePlaylistMembership(
+                    playlist: playlist,
+                    videoId: videoId,
+                  );
+                },
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: isTablet ? 16 : 14,
+              vertical: isTablet ? 14 : 12,
+            ),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isInPlaylist
+                    ? Colors.white.withValues(alpha: 0.3)
+                    : Colors.white.withValues(alpha: 0.06),
               ),
-              child: Row(
-                children: [
-                  // Playlist icon / thumbnail
-                  Container(
-                    width: isTablet ? 40 : 36,
-                    height: isTablet ? 40 : 36,
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? colorScheme.tertiary.withValues(alpha: 0.2)
-                          : AppTheme.colors.surfaceContainerHighest.withValues(
-                              alpha: 0.5,
-                            ),
-                      borderRadius: BorderRadius.circular(12),
-                      image: (!isWatchLater && playlist.thumbnailUrl.isNotEmpty)
-                          ? DecorationImage(
-                              image: CachedNetworkImageProvider(
-                                playlist.thumbnailUrl,
-                              ),
-                              fit: BoxFit.cover,
-                              onError: (exception, stackTrace) {},
-                            )
-                          : null,
+            ),
+            child: Row(
+              children: [
+                // Icon or thumbnail
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.bgPage,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.08),
                     ),
-                    child: isSelected
-                        ? Container(
-                            decoration: BoxDecoration(
-                              color: colorScheme.tertiary.withValues(
-                                alpha: 0.4,
-                              ),
-                              borderRadius: BorderRadius.circular(12),
+                    image: (!isWatchLater && playlist.thumbnailUrl.isNotEmpty)
+                        ? DecorationImage(
+                            image: CachedNetworkImageProvider(
+                              playlist.thumbnailUrl,
                             ),
-                            child: const Icon(
-                              Icons.check_rounded,
-                              color: AppColors.textPrimary,
-                              size: 20,
-                            ),
+                            fit: BoxFit.cover,
+                            onError: (_, _) {},
                           )
-                        : Icon(
-                            isWatchLater
-                                ? Icons.watch_later_outlined
-                                : Icons.playlist_play_rounded,
-                            color: AppColors.textPrimary,
-                            size: isTablet ? 24 : 20,
-                          ),
+                        : null,
                   ),
-
-                  const SizedBox(width: 12),
-
-                  // Playlist info
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          playlist.playlistName,
-                          style: TextStyle(
-                            fontSize: isTablet ? 16 : 14,
-                            fontWeight: FontWeight.w500,
-                            color: isSelected
-                                ? colorScheme.tertiary
-                                : colorScheme.onSurface,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                  child: (!isWatchLater && playlist.thumbnailUrl.isNotEmpty)
+                      ? null
+                      : Icon(
+                          isWatchLater
+                              ? Icons.watch_later_rounded
+                              : Icons.playlist_play_rounded,
+                          color: AppColors.textPrimary,
+                          size: 22,
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          subtitle,
-                          style: TextStyle(
-                            fontSize: isTablet ? 12 : 10,
-                            color: colorScheme.onSurface.withValues(alpha: 0.6),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                ),
 
-                  // Selection / Checkmark indicator
-                  AnimatedScale(
-                    scale: isSelected ? 1.0 : (isInPlaylist ? 0.8 : 0.0),
-                    duration: const Duration(milliseconds: 200),
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? colorScheme.tertiary
-                            : colorScheme.secondary.withValues(alpha: 0.5),
-                        shape: BoxShape.circle,
+                const SizedBox(width: 14),
+
+                // Playlist title and metadata
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        playlist.playlistName,
+                        style: GoogleFonts.roboto(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      child: const Icon(
-                        Icons.check_rounded,
-                        color: AppColors.textPrimary,
-                        size: 16,
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          Icon(
+                            playlist.isPublic
+                                ? Icons.public_rounded
+                                : Icons.lock_outline_rounded,
+                            size: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '$visibilityText • $videoCountText',
+                            style: GoogleFonts.roboto(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(width: 10),
+
+                // Interactive Checkbox / Loading Indicator
+                if (isToggling)
+                  const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.textPrimary,
+                    ),
+                  )
+                else
+                  Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: isInPlaylist ? Colors.white : Colors.transparent,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: isInPlaylist
+                            ? Colors.white
+                            : Colors.white.withValues(alpha: 0.4),
+                        width: 1.8,
                       ),
                     ),
+                    child: isInPlaylist
+                        ? const Icon(
+                            Icons.check_rounded,
+                            size: 18,
+                            color: Colors.black,
+                          )
+                        : null,
                   ),
-                ],
-              ),
+              ],
             ),
           ),
         ),
@@ -624,39 +673,43 @@ class _ModernizedPlaylistDialogView extends StatelessWidget {
     });
   }
 
-  Widget _buildEmptyState(ColorScheme colorScheme, bool isTablet) {
-    return SizedBox(
-      height: 200,
+  Widget _buildEmptyState(bool isTablet) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: colorScheme.tertiaryContainer.withValues(alpha: 0.3),
+              color: AppColors.bgSurfaceHover,
               shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.08),
+              ),
             ),
-            child: Icon(
-              Icons.playlist_add_outlined,
-              size: isTablet ? 48 : 40,
+            child: const Icon(
+              Icons.playlist_play_rounded,
+              size: 32,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'No playlists found',
+            style: GoogleFonts.roboto(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
               color: AppColors.textPrimary,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 4),
           Text(
-            'No playlists yet',
-            style: TextStyle(
-              fontSize: isTablet ? 18 : 16,
-              fontWeight: FontWeight.w500,
-              color: colorScheme.onSurface.withValues(alpha: 0.7),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Create your first playlist above',
-            style: TextStyle(
-              fontSize: isTablet ? 14 : 12,
-              color: colorScheme.onSurface.withValues(alpha: 0.5),
+            'Create a new playlist above to organize your videos.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.roboto(
+              fontSize: 12,
+              color: AppColors.textSecondary,
             ),
           ),
         ],
@@ -664,105 +717,40 @@ class _ModernizedPlaylistDialogView extends StatelessWidget {
     );
   }
 
-  Widget _buildActions(
+  Widget _buildFooter(
     BuildContext context,
-    ColorScheme colorScheme,
     PlaylistController playlistController,
     bool isTablet,
   ) {
-    return Container(
-      padding: EdgeInsets.all(isTablet ? 24 : 20),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28)),
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: isTablet ? 24 : 18,
+        vertical: isTablet ? 16 : 14,
       ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          Expanded(
-            child: OutlinedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              style: OutlinedButton.styleFrom(
-                padding: EdgeInsets.symmetric(vertical: isTablet ? 16 : 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                side: BorderSide(
-                  color: colorScheme.outline.withValues(alpha: 0.5),
-                ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.brand,
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 28,
+                vertical: 12,
               ),
-              child: Text(
-                'Cancel',
-                style: TextStyle(
-                  fontSize: isTablet ? 16 : 14,
-                  fontWeight: FontWeight.w500,
-                ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
               ),
+              elevation: 0,
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            flex: 2,
-            child: Obx(
-              () {
-                final selectedId = controller.selectedPlaylistId.value;
-                final isSelected = selectedId.isNotEmpty;
-                final isWatchLater = selectedId == 'watchlater';
-                final isInWatchLater =
-                    isWatchLater &&
-                    playlistController.isInWatchLater(videoId);
-                final isInPlaylist =
-                    !isWatchLater &&
-                    isSelected &&
-                    (controller.selectedPlaylist?.videoIds.contains(videoId) ??
-                        false);
-
-                var buttonText = 'Add Video';
-                if (isWatchLater) {
-                  buttonText = isInWatchLater
-                      ? 'Remove from Watch Later'
-                      : 'Add to Watch Later';
-                } else if (isInPlaylist) {
-                  buttonText = 'Remove from Playlist';
-                }
-
-                return ElevatedButton(
-                  onPressed:
-                      isSelected && !controller.isAddingToPlaylist.value
-                      ? () async {
-                          final success =
-                              await controller.addVideoToPlaylist(videoId);
-                          if (success && context.mounted) {
-                            Navigator.of(context).pop();
-                          }
-                        }
-                      : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: colorScheme.primary,
-                    foregroundColor: colorScheme.onPrimary,
-                    padding: EdgeInsets.symmetric(vertical: isTablet ? 16 : 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: controller.isAddingToPlaylist.value
-                      ? SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: colorScheme.onPrimary,
-                          ),
-                        )
-                      : Text(
-                          buttonText,
-                          style: TextStyle(
-                            fontSize: isTablet ? 16 : 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                );
-              },
+            child: Text(
+              'Done',
+              style: GoogleFonts.roboto(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
             ),
           ),
         ],

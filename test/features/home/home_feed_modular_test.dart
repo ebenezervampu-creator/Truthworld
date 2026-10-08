@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/home/presentation/controllers/feed_mixins/feed_mixins.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -95,6 +96,54 @@ void main() {
 
     test('Firestore collection constants align with requirements', () {
       expect(FirestoreCollections.community, equals('Community'));
+    });
+
+    test('Video.fromMap parses published, ready, active and playable processing status as VideoStatus.ready', () {
+      final docPublished = Video.fromMap({
+        'title': 'Awesome Truth Video',
+        'status': 'published',
+        'videoUrl': 'https://example.com/stream.mp4',
+      }, 'vid_pub');
+      expect(docPublished.status, equals(VideoStatus.ready));
+
+      final docActive = Video.fromMap({
+        'title': 'Active Truth Video',
+        'status': 'active',
+        'videoUrl': 'https://example.com/stream.mp4',
+      }, 'vid_act');
+      expect(docActive.status, equals(VideoStatus.ready));
+
+      final docProcessingPlayable = Video.fromMap({
+        'title': 'Processing but Playable Video',
+        'status': 'processing',
+        'videoUrl': 'https://example.com/stream.mp4',
+      }, 'vid_proc');
+      expect(docProcessingPlayable.status, equals(VideoStatus.ready));
+    });
+
+    test('VideoVisibilityPolicy accepts playable video even with empty thumbnailUrl and case-variant visibility', () {
+      final playableNoThumb = Video.fromMap({
+        'title': 'Playable Stream',
+        'status': 'published',
+        'visibility': 'Public',
+        'thumbnailUrl': '',
+        'videoUrl': 'https://example.com/video.mp4',
+      }, 'vid_playable');
+
+      expect(VideoVisibilityPolicy.hasPlayableMedia(playableNoThumb), isTrue);
+      expect(VideoVisibilityPolicy.hasValidThumbnail(playableNoThumb), isTrue);
+      expect(VideoVisibilityPolicy.isValidVideo(playableNoThumb), isTrue);
+      expect(VideoVisibilityPolicy.isVisibleForFeed(playableNoThumb), isTrue);
+    });
+
+    test('VideoStatusExtension.isApprovedByGeminiOrManual permits playable ready videos', () {
+      final video = Video.fromMap({
+        'title': 'Valid Playable Video',
+        'status': 'ready',
+        'videoUrl': 'https://example.com/video.mp4',
+      }, 'vid_ready');
+
+      expect(video.isApprovedByGeminiOrManual, isTrue);
     });
   });
 }

@@ -572,8 +572,8 @@ class CopyrightComplaintScreen extends GetView<CopyrightComplaintController> {
           ),
           SizedBox(height: 8),
           Text(
-            'Copyright Designated Agent: copyright@truthworld.in\n'
-            'Grievance Officer: Vampu Ebenezer (ebenezervampu@truthworld.in | +91 9390617877)\n'
+            'Copyright Designated Agent: hello@truthworld.in\n'
+            'Grievance Officer: Vampu Ebenezer (hello@truthworld.in | +91 9390617877)\n'
             'Entity: TowerVSP Services (OPC) Private Limited (CIN: U63111TS2025OPC207488)\n'
             'Registered Office: Ramaram, Yadadri Bhuvanagiri, Telangana - 508116, India\n'
             'Appeals Portal: Grievance Appellate Committee (https://gac.gov.in)',

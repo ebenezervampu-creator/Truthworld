@@ -64,19 +64,32 @@ export interface ResolutionProfile {
   fps: number;
 }
 
+/** Standard channel audio bitrate: 192 kbps (broadcast-standard transparent AAC stereo across all tiers) */
+export const STANDARD_AUDIO_BITRATE_KBPS = 192;
+
+/** Custom channel audio bitrate: 256 kbps (studio-grade high-fidelity AAC stereo across all tiers) */
+export const CUSTOM_AUDIO_BITRATE_KBPS = 256;
+
 export const STANDARD_RESOLUTION_LADDER: ResolutionProfile[] = [
-  { height: 2160, width: 3840, label: "2160p", bitrateKbps: 15000, audioBitrateKbps: 192, fps: 30 },
-  { height: 1440, width: 2560, label: "1440p", bitrateKbps: 10000, audioBitrateKbps: 160, fps: 30 },
-  { height: 1080, width: 1920, label: "1080p", bitrateKbps: 4500, audioBitrateKbps: 128, fps: 30 },
-  { height: 720, width: 1280, label: "720p", bitrateKbps: 2500, audioBitrateKbps: 128, fps: 30 },
-  { height: 480, width: 854, label: "480p", bitrateKbps: 1200, audioBitrateKbps: 96, fps: 30 },
-  { height: 360, width: 640, label: "360p", bitrateKbps: 800, audioBitrateKbps: 64, fps: 30 },
-  { height: 240, width: 426, label: "240p", bitrateKbps: 400, audioBitrateKbps: 48, fps: 24 },
-  { height: 144, width: 256, label: "144p", bitrateKbps: 200, audioBitrateKbps: 32, fps: 15 },
+  { height: 2160, width: 3840, label: "2160p", bitrateKbps: 15000, audioBitrateKbps: STANDARD_AUDIO_BITRATE_KBPS, fps: 30 },
+  { height: 1440, width: 2560, label: "1440p", bitrateKbps: 10000, audioBitrateKbps: STANDARD_AUDIO_BITRATE_KBPS, fps: 30 },
+  { height: 1080, width: 1920, label: "1080p", bitrateKbps: 4500, audioBitrateKbps: STANDARD_AUDIO_BITRATE_KBPS, fps: 30 },
+  { height: 720, width: 1280, label: "720p", bitrateKbps: 2500, audioBitrateKbps: STANDARD_AUDIO_BITRATE_KBPS, fps: 30 },
+  { height: 480, width: 854, label: "480p", bitrateKbps: 1200, audioBitrateKbps: STANDARD_AUDIO_BITRATE_KBPS, fps: 30 },
+  { height: 360, width: 640, label: "360p", bitrateKbps: 800, audioBitrateKbps: STANDARD_AUDIO_BITRATE_KBPS, fps: 30 },
+  { height: 240, width: 426, label: "240p", bitrateKbps: 400, audioBitrateKbps: STANDARD_AUDIO_BITRATE_KBPS, fps: 24 },
+  { height: 144, width: 256, label: "144p", bitrateKbps: 200, audioBitrateKbps: STANDARD_AUDIO_BITRATE_KBPS, fps: 15 },
 ];
 
 export const CUSTOM_RESOLUTION_LADDER: ResolutionProfile[] = [
-  ...STANDARD_RESOLUTION_LADDER,
+  { height: 2160, width: 3840, label: "2160p", bitrateKbps: 15000, audioBitrateKbps: CUSTOM_AUDIO_BITRATE_KBPS, fps: 30 },
+  { height: 1440, width: 2560, label: "1440p", bitrateKbps: 10000, audioBitrateKbps: CUSTOM_AUDIO_BITRATE_KBPS, fps: 30 },
+  { height: 1080, width: 1920, label: "1080p", bitrateKbps: 4500, audioBitrateKbps: CUSTOM_AUDIO_BITRATE_KBPS, fps: 30 },
+  { height: 720, width: 1280, label: "720p", bitrateKbps: 2500, audioBitrateKbps: CUSTOM_AUDIO_BITRATE_KBPS, fps: 30 },
+  { height: 480, width: 854, label: "480p", bitrateKbps: 1200, audioBitrateKbps: CUSTOM_AUDIO_BITRATE_KBPS, fps: 30 },
+  { height: 360, width: 640, label: "360p", bitrateKbps: 800, audioBitrateKbps: CUSTOM_AUDIO_BITRATE_KBPS, fps: 30 },
+  { height: 240, width: 426, label: "240p", bitrateKbps: 400, audioBitrateKbps: CUSTOM_AUDIO_BITRATE_KBPS, fps: 24 },
+  { height: 144, width: 256, label: "144p", bitrateKbps: 200, audioBitrateKbps: CUSTOM_AUDIO_BITRATE_KBPS, fps: 15 },
 ];
 
 const VALID_VIDEO_EXTENSIONS = new Set([
@@ -85,28 +98,106 @@ const VALID_VIDEO_EXTENSIONS = new Set([
   ".dnxhr", ".prores", ".cineform", ".hevc"
 ]);
 
-/** Helper to probe media dimensions and codec with ffprobe */
-function probeVideoFile(filePath: string): Promise<{ width: number; height: number; codec: string }> {
+const VALID_AUDIO_EXTENSIONS = new Set([
+  ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".wma"
+]);
+
+export interface MediaProbeInfo {
+  width: number;
+  height: number;
+  codec: string;
+  fps: number;
+  hasVideo: boolean;
+  hasAudio: boolean;
+  audioCodec: string;
+  audioChannels: number;
+  audioSampleRate: number;
+  audioBitrateKbps: number;
+}
+
+/** Helper to probe media dimensions, video codec, and audio stream properties with ffprobe */
+function probeVideoFile(filePath: string): Promise<MediaProbeInfo> {
   return new Promise((resolve) => {
     try {
       getFFmpegInstance().ffprobe(filePath, (err: any, metadata: any) => {
         if (err || !metadata || !metadata.streams) {
-          resolve({ width: 0, height: 0, codec: "unknown" });
+          resolve({
+            width: 0,
+            height: 0,
+            codec: "unknown",
+            fps: 30,
+            hasVideo: false,
+            hasAudio: false,
+            audioCodec: "none",
+            audioChannels: 2,
+            audioSampleRate: 48000,
+            audioBitrateKbps: 0,
+          });
           return;
         }
+
         const videoStream = metadata.streams.find((s: any) => s.codec_type === "video");
+        const audioStream = metadata.streams.find((s: any) => s.codec_type === "audio");
+
+        const width = videoStream ? Number(videoStream.width) || 0 : 0;
+        const height = videoStream ? Number(videoStream.height) || 0 : 0;
+        const codec = videoStream ? String(videoStream.codec_name || "unknown") : "unknown";
+
+        let fps = 30;
         if (videoStream) {
-          resolve({
-            width: Number(videoStream.width) || 0,
-            height: Number(videoStream.height) || 0,
-            codec: String(videoStream.codec_name || "unknown"),
-          });
-        } else {
-          resolve({ width: 0, height: 0, codec: "unknown" });
+          if (videoStream.r_frame_rate) {
+            const parts = String(videoStream.r_frame_rate).split("/");
+            if (parts.length === 2) {
+              const num = parseFloat(parts[0]);
+              const den = parseFloat(parts[1]);
+              if (den > 0) fps = Math.round(num / den);
+            } else {
+              fps = Math.round(parseFloat(videoStream.r_frame_rate)) || 30;
+            }
+          } else if (videoStream.avg_frame_rate) {
+            const parts = String(videoStream.avg_frame_rate).split("/");
+            if (parts.length === 2) {
+              const num = parseFloat(parts[0]);
+              const den = parseFloat(parts[1]);
+              if (den > 0) fps = Math.round(num / den);
+            }
+          }
         }
+
+        const hasAudio = !!audioStream;
+        const audioCodec = audioStream ? String(audioStream.codec_name || "unknown").toLowerCase() : "none";
+        const audioChannels = audioStream ? Math.max(1, Number(audioStream.channels) || 2) : 2;
+        const audioSampleRate = audioStream ? Number(audioStream.sample_rate) || 48000 : 48000;
+        const audioBitrateKbps = audioStream && audioStream.bit_rate
+          ? Math.round(Number(audioStream.bit_rate) / 1000)
+          : 0;
+
+        resolve({
+          width,
+          height,
+          codec,
+          fps,
+          hasVideo: !!videoStream,
+          hasAudio,
+          audioCodec,
+          audioChannels,
+          audioSampleRate,
+          audioBitrateKbps,
+        });
       });
     } catch {
-      resolve({ width: 0, height: 0, codec: "unknown" });
+      resolve({
+        width: 0,
+        height: 0,
+        codec: "unknown",
+        fps: 30,
+        hasVideo: false,
+        hasAudio: false,
+        audioCodec: "none",
+        audioChannels: 2,
+        audioSampleRate: 48000,
+        audioBitrateKbps: 0,
+      });
     }
   });
 }
@@ -142,18 +233,26 @@ export const onVideoUploadedForResolution = onObjectFinalized(
       return;
     }
 
-    // Validate content type
+    // Validate content type for both video and audio assets
     const fileName = filePath.split("/").pop() ?? "";
     const ext = fileName.toLowerCase().slice(fileName.lastIndexOf("."));
-    if (!VALID_VIDEO_EXTENSIONS.has(ext) && !contentType.startsWith("video/")) {
-      console.log(`[Resolution] Skipping non-video file: ${fileName}`);
+    const isVideo = VALID_VIDEO_EXTENSIONS.has(ext) || contentType.startsWith("video/");
+    const isAudio = VALID_AUDIO_EXTENSIONS.has(ext) || contentType.startsWith("audio/");
+    if (!isVideo && !isAudio) {
+      console.log(`[Resolution] Skipping non-media file: ${fileName}`);
       return;
     }
 
-    // Extract videoId from path: videos/{videoId}/original.mp4
+    // Extract videoId from path: videos/{videoId}/original.<ext>
     const pathParts = filePath.split("/");
     if (pathParts.length < 3) {
       console.error(`[Resolution] Unexpected path structure: ${filePath}`);
+      return;
+    }
+
+    // Prevent non-primary sub-path assets (e.g., videos/{videoId}/tracks/...) from triggering resolution pipeline
+    if (pathParts.length > 3) {
+      console.log(`[Resolution] Skipping subfolder asset: ${filePath}`);
       return;
     }
 
@@ -193,6 +292,7 @@ export const onVideoUploadedForResolution = onObjectFinalized(
       const [metadata] = await admin.storage().bucket(bucket).file(filePath).getMetadata();
       const sourceHeight = parseInt(String(metadata.metadata?.height ?? "0"), 10);
       const sourceWidth = parseInt(String(metadata.metadata?.width ?? "0"), 10);
+      const sourceFps = parseInt(String(metadata.metadata?.fps ?? metadata.metadata?.framerate ?? "30"), 10);
       const fileSize = parseInt(String(metadata.size ?? "0"), 10);
       const codec = String(metadata.metadata?.codec ?? "unknown");
 
@@ -202,11 +302,24 @@ export const onVideoUploadedForResolution = onObjectFinalized(
 
       // Determine effective source resolution
       const effectiveHeight = sourceHeight > 0 ? Math.min(sourceHeight, maxLadderHeight) : maxLadderHeight;
+      const is60Fps = sourceFps >= 50;
 
       // Build applicable resolution ladder (only resolutions ≤ source height)
-      const applicableResolutions = baseLadder.filter(
-        (r) => r.height <= effectiveHeight
-      );
+      // When source is 60fps, preserve native 60fps for high-definition tiers (≥ 720p).
+      // Lower tiers (480p, 360p, 240p, 144p) remain at 30 fps to save mobile data.
+      const applicableResolutions = baseLadder
+        .filter((r) => r.height <= effectiveHeight)
+        .map((r) => {
+          if (is60Fps && r.height >= 720) {
+            return {
+              ...r,
+              label: `${r.height}p60`,
+              fps: 60,
+              bitrateKbps: Math.round(r.bitrateKbps * 1.5),
+            };
+          }
+          return r;
+        });
 
       if (applicableResolutions.length === 0) {
         console.warn(`[Resolution] No applicable resolutions for height=${sourceHeight}`);
@@ -520,11 +633,11 @@ export const handleResolution = onMessagePublished(
         console.log(`[Resolution Worker] Downloading source: ${sourcePath} (${(sourceSizeBytes / (1024 * 1024)).toFixed(1)} MB)`, { videoId });
         await bucket.file(sourcePath).download({ destination: localSourcePath });
 
-        // Probe downloaded file directly with ffprobe for accurate dimensions
+        // Probe downloaded file directly with ffprobe for accurate dimensions and audio streams
         const probed = await probeVideoFile(localSourcePath);
         const actualSourceHeight = probed.height > 0 ? probed.height : initialSourceHeight;
         const actualSourceWidth = probed.width > 0 ? probed.width : 0;
-        console.log(`[Resolution Worker] Source probed: ${actualSourceWidth}x${actualSourceHeight}, codec=${probed.codec}`, { videoId });
+        console.log(`[Resolution Worker] Source probed: ${actualSourceWidth}x${actualSourceHeight}, videoCodec=${probed.codec}, hasAudio=${probed.hasAudio}, audioCodec=${probed.audioCodec}, audioChannels=${probed.audioChannels}, audioRate=${probed.audioSampleRate}Hz, audioBitrate=${probed.audioBitrateKbps}kbps`, { videoId });
 
         const variantRef = db.collection("resolution_jobs").doc(videoId);
 
@@ -577,7 +690,8 @@ export const handleResolution = onMessagePublished(
                 getFFmpegInstance()(localSourcePath)
                   .outputOptions([
                     "-c copy",
-                    "-movflags +faststart",
+                    "-movflags", "+faststart+dash+frag_custom+empty_moov+default_base_moof",
+                    "-frag_duration", "500000",
                   ])
                   .output(localOutputPath)
                   .on("end", () => resolve())
@@ -585,27 +699,68 @@ export const handleResolution = onMessagePublished(
                   .run();
               });
             } else {
-              // Execute FFmpeg Transcode with standard web profile (H.264 Main + AAC + YUV420p)
+              // Build audio processing options based on probed source audio
+              const audioOptions: string[] = [];
+
+              if (!probed.hasAudio) {
+                // Video is silent / contains no audio stream
+                audioOptions.push("-an");
+              } else if (
+                probed.audioCodec === "aac" &&
+                probed.audioChannels <= 2 &&
+                (probed.audioSampleRate === 44100 || probed.audioSampleRate === 48000)
+              ) {
+                // ⚡ ZERO-GENERATION-LOSS PASSTHROUGH:
+                // Source audio is already AAC stereo/mono at standard broadcast sample rate.
+                // Stream-copy audio directly without re-compression to preserve 100% master audio quality across all resolution tiers.
+                audioOptions.push("-c:a", "copy");
+              } else {
+                // Re-encode audio to high-fidelity AAC (192 kbps Standard, 256 kbps Custom)
+                const targetSampleRate = probed.audioSampleRate >= 44100 && probed.audioSampleRate <= 96000
+                  ? probed.audioSampleRate
+                  : 48000;
+
+                audioOptions.push("-c:a", "aac");
+                audioOptions.push("-b:a", `${targetVariant.audioBitrateKbps}k`);
+                audioOptions.push("-ar", String(targetSampleRate));
+
+                // Multi-channel surround downmix protection:
+                // Dolby Pro Logic II / matrix downmix keeps center dialogue clean and loud
+                if (probed.audioChannels > 2) {
+                  audioOptions.push("-af", "aresample=matrix_encoding=dplii");
+                  audioOptions.push("-ac", "2");
+                } else if (probed.audioChannels === 1) {
+                  audioOptions.push("-ac", "1");
+                } else {
+                  audioOptions.push("-ac", "2");
+                }
+              }
+
+              // Execute FFmpeg Transcode with CMAF Ultra-Low Latency (ULL) Profile:
+              // - Fixed Closed-GOP aligned keyframes across all resolution tiers (-g, -keyint_min, -sc_threshold 0)
+              // - Sub-second CMAF chunks (500ms fragments via empty_moov + default_base_moof + frag_custom)
+              // - Enables near-instantaneous quality shifts matching YouTube without frame freezing
               await new Promise<void>((resolve, reject) => {
                 getFFmpegInstance()(localSourcePath)
                   .outputOptions([
-                    "-c:v libx264",
-                    "-pix_fmt yuv420p",
-                    "-crf 23",
-                    `-maxrate ${targetVariant.bitrateKbps}k`,
-                    `-bufsize ${targetVariant.bitrateKbps * 2}k`,
-                    "-preset veryfast",
-                    `-vf scale=-2:${targetVariant.height}`,
-                    "-c:a aac",
-                    `-b:a ${targetVariant.audioBitrateKbps}k`,
-                    "-ar 44100",
-                    "-ac 2",
-                    `-r ${targetVariant.fps}`,
-                    "-threads 2",
-                    "-movflags +faststart",
+                    "-c:v", "libx264",
+                    "-pix_fmt", "yuv420p",
+                    "-crf", "23",
+                    "-maxrate", `${targetVariant.bitrateKbps}k`,
+                    "-bufsize", `${targetVariant.bitrateKbps * 2}k`,
+                    "-preset", "veryfast",
+                    "-g", String(targetVariant.fps),            // Fixed 1-second GOP strictly aligned across tiers
+                    "-keyint_min", String(targetVariant.fps),   // Closed GOP minimum keyframe interval
+                    "-sc_threshold", "0",                       // Disable scene detection keyframe variance to enforce strict GOP alignment
+                    "-vf", `scale=-2:${targetVariant.height}`,
+                    ...audioOptions,
+                    "-r", String(targetVariant.fps),
+                    "-threads", "2",
+                    "-movflags", "+faststart+dash+frag_custom+empty_moov+default_base_moof",
+                    "-frag_duration", "500000",                 // 500ms sub-second CMAF chunks
                   ])
                   .output(localOutputPath)
-                  .on("start", (cmd: string) => console.log(`[FFmpeg] ${variantLabel}: ${cmd}`))
+                  .on("start", (cmd: string) => console.log(`[FFmpeg CMAF ULL] ${variantLabel}: ${cmd}`))
                   .on("end", () => resolve())
                   .on("error", (err: Error) => reject(err))
                   .run();
@@ -687,7 +842,7 @@ export const handleResolution = onMessagePublished(
                 });
               }
 
-              if (!finalJobData.storyboardGenerated && fs.existsSync(localSourcePath)) {
+              if (!finalJobData.storyboardGenerated && fs.existsSync(localSourcePath) && probed.hasVideo) {
                 generatedStoryboardUrls = await generateStoryboardSpriteSheets(localSourcePath, videoId, bucket, tempDir).catch(err => {
                   console.warn(`[Resolution Worker] Storyboard generation failed (non-fatal):`, err);
                   return [];

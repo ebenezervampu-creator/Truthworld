@@ -201,21 +201,22 @@ class VideoOptionsSheet extends StatelessWidget {
                       );
                     },
                   ),
-                  _buildMenuItem(
-                    context,
-                    icon: const Icon(
-                      Icons.verified_outlined,
-                      color: AppColors.textPrimary,
-                      size: 24,
+                  if (!video.isNonCredibilityCategory)
+                    _buildMenuItem(
+                      context,
+                      icon: const Icon(
+                        Icons.verified_outlined,
+                        color: AppColors.textPrimary,
+                        size: 24,
+                      ),
+                      title: video.hasAiCredibility
+                          ? 'View Fact-Check analysis'
+                          : 'Fact-Check this video',
+                      onTap: () {
+                        Get.back();
+                        _handleFactCheckAction(context, video);
+                      },
                     ),
-                    title: video.isFactChecked
-                        ? 'View Fact-Check analysis'
-                        : 'Fact-Check this video',
-                    onTap: () {
-                      Get.back();
-                      _handleFactCheckAction(context, video);
-                    },
-                  ),
                   _buildMenuItem(
                     context,
                     icon: Transform.flip(

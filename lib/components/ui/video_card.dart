@@ -31,7 +31,18 @@ class VideoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!VideoVisibilityPolicy.isValidVideo(video)) {
+    final hasPlayable = VideoVisibilityPolicy.hasPlayableMedia(video);
+    final isExplicitlyHidden = video.isDraft ||
+        video.status == VideoStatus.deleted ||
+        video.status == VideoStatus.rejected ||
+        video.visibility.trim().toLowerCase() == 'draft' ||
+        (video.isPrivate && !VideoVisibilityPolicy.isOwner(video)) ||
+        !hasPlayable;
+
+    if (isExplicitlyHidden) {
+      return const SizedBox.shrink();
+    }
+    if (!VideoVisibilityPolicy.isValidVideo(video) && !hasPlayable) {
       return const SizedBox.shrink();
     }
     if (Get.isRegistered<UserPreferencesService>() &&
@@ -39,7 +50,6 @@ class VideoCard extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final theme = Theme.of(context);
     final tag = 'video_card_${video.id}_$heroPrefix';
     final controller = Get.isRegistered<VideoCardController>(tag: tag)
         ? Get.find<VideoCardController>(tag: tag)
@@ -76,15 +86,12 @@ class VideoCard extends StatelessWidget {
                   : EdgeInsets.only(bottom: AppTheme.spacing.md),
               decoration: isGrid
                   ? BoxDecoration(
-                      color: theme.colorScheme.surface,
+                      color: const Color(0xFF0F0F11),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: theme.colorScheme.outline.withValues(alpha: 0.1),
-                      ),
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.bgPage.withValues(alpha: 0.1),
-                          blurRadius: 8,
+                          color: Colors.black.withValues(alpha: 0.25),
+                          blurRadius: 10,
                           offset: const Offset(0, 4),
                         ),
                       ],
@@ -92,6 +99,7 @@ class VideoCard extends StatelessWidget {
                   : const BoxDecoration(
                       color: Colors.transparent,
                     ),
+              clipBehavior: isGrid ? Clip.antiAlias : Clip.none,
               child: Material(
                 color: Colors.transparent,
                 child: InkWell(

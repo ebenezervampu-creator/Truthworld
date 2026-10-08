@@ -185,34 +185,65 @@ Future<void> saveOfflineVideoBytes(
 
 Future<List<Map<String, dynamic>>> getAllVideosData() async {
   if (kIsWeb) {
-    final db = await _getWebDatabase();
-    if (db == null) return [];
-    final txn = db.transaction('videos', 'readonly');
-    final store = txn.objectStore('videos');
-    final result = await store.getAll();
-    await txn.completed;
-    return List<Map<String, dynamic>>.from(result);
-  } else {
-    final dir = await _getOfflineDir();
-    final results = <Map<String, dynamic>>[];
-    final entities = await dir.list().toList();
+    try {
+      final db = await _getWebDatabase();
+      if (db == null) return [];
+      final txn = db.transaction('videos', 'readonly');
+      final store = txn.objectStore('videos');
+      final result = await store.getAll();
+      await txn.completed;
 
-    for (final entity in entities) {
-      if (entity is File && entity.path.endsWith('.json')) {
-        try {
-          final content = await entity.readAsString();
-          final metaJson = jsonDecode(content) as Map<String, dynamic>;
-          results.add({'meta': metaJson});
-        } catch (e, s) {
-          ErrorHandler.log(
-            e,
-            stackTrace: s,
-            tag: 'database_helpers.getAllVideosData',
-          );
+      final list = <Map<String, dynamic>>[];
+      for (final item in result) {
+        if (item is Map) {
+          final itemMap = Map<String, dynamic>.from(item);
+          if (itemMap['meta'] is Map) {
+            itemMap['meta'] = Map<String, dynamic>.from(itemMap['meta'] as Map);
+          }
+          list.add(itemMap);
         }
       }
+      return list;
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'database_helpers.getAllVideosData.web',
+      );
+      return [];
     }
-    return results;
+  } else {
+    try {
+      final dir = await _getOfflineDir();
+      final results = <Map<String, dynamic>>[];
+      final entities = await dir.list().toList();
+
+      for (final entity in entities) {
+        if (entity is File && entity.path.endsWith('.json')) {
+          try {
+            final content = await entity.readAsString();
+            final metaJson = jsonDecode(content);
+            if (metaJson is Map) {
+              results.add({'meta': Map<String, dynamic>.from(metaJson)});
+            }
+          } catch (e, s) {
+            ErrorHandler.log(
+              e,
+              stackTrace: s,
+              tag: 'database_helpers.getAllVideosData.item',
+            );
+          }
+        }
+      }
+      return results;
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'database_helpers.getAllVideosData.native',
+      );
+      return [];
+    }
   }
 }
 
@@ -357,15 +388,21 @@ Future<OfflineVideo?> getOfflineVideoMetadata(String id) async {
     final data = await store.getObject(id) as Map?;
     await txn.completed;
     if (data == null || data['meta'] == null) return null;
-    return OfflineVideo.fromJson(Map<String, dynamic>.from(data['meta']));
+    final meta = data['meta'];
+    if (meta is Map) {
+      return OfflineVideo.fromJson(Map<String, dynamic>.from(meta));
+    }
+    return null;
   } else {
     final dir = await _getOfflineDir();
     final metaFile = File('${dir.path}/$id.json');
     if (await metaFile.exists()) {
       try {
         final content = await metaFile.readAsString();
-        final metaJson = jsonDecode(content) as Map<String, dynamic>;
-        return OfflineVideo.fromJson(metaJson);
+        final metaJson = jsonDecode(content);
+        if (metaJson is Map) {
+          return OfflineVideo.fromJson(Map<String, dynamic>.from(metaJson));
+        }
       } catch (e, s) {
         ErrorHandler.log(
           e,

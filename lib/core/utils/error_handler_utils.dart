@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -74,7 +75,10 @@ void setupGlobalErrorHandlers() {
 /// that should not crash the user's application session.
 bool _isTransientError(Object error, String errorStr) {
   if (error is SocketException ||
+      error is TimeoutException ||
       errorStr.contains('SocketException') ||
+      errorStr.contains('TimeoutException') ||
+      errorStr.contains('TIMEOUT') ||
       errorStr.contains('Failed host lookup') ||
       errorStr.contains('Connection refused') ||
       errorStr.contains('Network is unreachable') ||
@@ -100,6 +104,8 @@ bool _isTransientError(Object error, String errorStr) {
       errorStr.contains('DiagnosticsNode') ||
       errorStr.contains('debugTransformDebugCreator') ||
       errorStr.contains('visibility_detector') ||
+      errorStr.contains('redirecting') ||
+      errorStr.contains('user-cancelled') ||
       errorStr.contains('_timer!.isActive')) {
     return true;
   }

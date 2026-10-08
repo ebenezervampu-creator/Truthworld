@@ -31,6 +31,9 @@ class TestTowerPlayerController extends GetxController with TowerPlayerAbrMixin 
   RxString get activePanel => ''.obs;
 
   @override
+  RxBool get isAudioOnly => false.obs;
+
+  @override
   void closeSettings() {}
 
   @override

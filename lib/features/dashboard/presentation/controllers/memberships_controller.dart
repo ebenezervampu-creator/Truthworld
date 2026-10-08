@@ -20,7 +20,7 @@ class ChannelMembershipTier {
     required this.price,
     required this.perks,
     this.currency = 'USD',
-    this.badgeColorHex = '0xFFF59E0B',
+    this.badgeColorHex = '0xFF10B981',
     this.badgeIcon = 'star',
     this.description = '',
     this.isEnabled = true,
@@ -44,7 +44,7 @@ class ChannelMembershipTier {
       price: rawPrice,
       currency: inferredCurrency,
       perks: List<String>.from(map['perks'] ?? []),
-      badgeColorHex: map['badgeColorHex'] ?? '0xFFF59E0B',
+      badgeColorHex: map['badgeColorHex'] ?? '0xFF10B981',
       badgeIcon: map['badgeIcon'] ?? 'star',
       description: map['description'] ?? '',
       isEnabled: map['isEnabled'] ?? true,
@@ -54,6 +54,9 @@ class ChannelMembershipTier {
       updatedAt: rawUpdated is Timestamp ? rawUpdated.toDate() : (rawUpdated is DateTime ? rawUpdated : null),
     );
   }
+
+  /// Maximum number of membership tiers allowed per channel according to industry standards.
+  static const int maxTiersPerChannel = 3;
 
   static const double minPriceINR = 10.0;
   static const double minPriceUSD = 1.0;
@@ -308,8 +311,8 @@ class MembershipsController extends BaseController with ContentValidationMixin {
     {'hex': '0xFFF59E0B', 'color': Color(0xFFF59E0B)},
     {'hex': '0xFF3B82F6', 'color': Color(0xFF3B82F6)},
     {'hex': '0xFF10B981', 'color': Color(0xFF10B981)},
-    {'hex': '0xFF8B5CF6', 'color': Color(0xFF8B5CF6)},
-    {'hex': '0xFFEC4899', 'color': Color(0xFFEC4899)},
+    {'hex': '0xFFFFFFFF', 'color': Color(0xFFFFFFFF)},
+    {'hex': '0xFFE0E0E0', 'color': Color(0xFFE0E0E0)},
     {'hex': '0xFFEF4444', 'color': Color(0xFFEF4444)},
   ];
   static List<Map<String, dynamic>> get availableColors => presetBadgeColors;
@@ -566,6 +569,18 @@ class MembershipsController extends BaseController with ContentValidationMixin {
 
   int get activeTiersCount => tiers.where((t) => t.isEnabled).length;
 
+  /// Maximum number of membership tiers allowed per channel according to industry standards (3).
+  static const int maxTiersPerChannel = ChannelMembershipTier.maxTiersPerChannel;
+
+  /// Whether the channel has reached the maximum allowed membership tiers (3).
+  bool get hasReachedMaxTiers => tiers.length >= maxTiersPerChannel;
+
+  /// Number of tier slots remaining for this channel (out of 3).
+  int get remainingTierSlots => (maxTiersPerChannel - tiers.length).clamp(0, maxTiersPerChannel);
+
+  /// User-friendly label for current tier capacity (e.g. "2/3 tiers").
+  String get tierLimitLabel => '${tiers.length}/$maxTiersPerChannel tiers';
+
   List<ChannelMember> get filteredMembers {
     var list = members.toList();
     if (selectedTierFilter.value != 'all') {
@@ -627,7 +642,7 @@ class MembershipsController extends BaseController with ContentValidationMixin {
     required double price,
     required List<String> perks,
     String currency = 'USD',
-    String badgeColorHex = '0xFFF59E0B',
+    String badgeColorHex = '0xFF10B981',
     String badgeIcon = 'star',
     String description = '',
     bool isEnabled = true,
@@ -636,6 +651,13 @@ class MembershipsController extends BaseController with ContentValidationMixin {
     final activeId = _channelId.value;
     if (activeId.isEmpty) {
       AppSnackbar.warning('Unable to resolve channel ID. Please refresh.');
+      return false;
+    }
+
+    if (tiers.length >= maxTiersPerChannel) {
+      AppSnackbar.warning(
+        'Channels can have up to 3 membership tiers only. Please edit or remove an existing tier to add a new one.',
+      );
       return false;
     }
 
@@ -830,6 +852,12 @@ class MembershipsController extends BaseController with ContentValidationMixin {
   }
 
   Future<void> duplicateTier(ChannelMembershipTier tier) async {
+    if (tiers.length >= maxTiersPerChannel) {
+      AppSnackbar.warning(
+        'Channels can have up to 3 membership tiers only. Please edit or remove an existing tier to duplicate one.',
+      );
+      return;
+    }
     final copyName = '${tier.name} (Copy)';
     await createTier(
       name: copyName,
@@ -905,7 +933,6 @@ class MembershipsController extends BaseController with ContentValidationMixin {
           id: 'tier_fan_club',
           name: 'Channel Fan Club',
           price: 3.0,
-          badgeColorHex: '0xFF10B981',
           badgeIcon: 'heart',
           description: 'Directly support the channel and get exclusive member perks.',
           perks: [
@@ -920,8 +947,8 @@ class MembershipsController extends BaseController with ContentValidationMixin {
     ),
     StarterTierBundle(
       type: StarterTierBundleType.elite4Tier,
-      title: 'Creator VIP (4-Tier Progression)',
-      subtitle: 'Complete creator ladder including high-tier Executive Producer.',
+      title: 'Creator VIP (3-Tier Progression)',
+      subtitle: 'Complete creator ladder up to high-tier Executive Producer.',
       tiers: [
         ChannelMembershipTier(
           id: 'tier_supporter',
@@ -936,32 +963,19 @@ class MembershipsController extends BaseController with ContentValidationMixin {
           ],
         ),
         ChannelMembershipTier(
-          id: 'tier_insider',
-          name: 'Insider',
-          price: 5.0,
-          badgeColorHex: '0xFF3B82F6',
-          description: 'Early access and member-only updates.',
-          perks: [
-            'All Supporter perks included',
-            'Early access to videos',
-            'Member-only community posts',
-          ],
-          order: 1,
-        ),
-        ChannelMembershipTier(
           id: 'tier_vip_elite',
           name: 'VIP Elite',
           price: 10.0,
-          badgeColorHex: '0xFF8B5CF6',
+          badgeColorHex: '0xFFFFFFFF',
           badgeIcon: 'diamond',
           description: 'Behind the scenes and live Q&A access.',
           perks: [
-            'All Insider perks included',
+            'All Supporter perks included',
             'Monthly live stream Q&A',
             'Priority replies to comments',
             'Exclusive BTS content & wallpapers',
           ],
-          order: 2,
+          order: 1,
         ),
         ChannelMembershipTier(
           id: 'tier_producer',
@@ -976,7 +990,7 @@ class MembershipsController extends BaseController with ContentValidationMixin {
             'Direct input on upcoming video topics',
             'Private Discord/Community VIP role',
           ],
-          order: 3,
+          order: 2,
         ),
       ],
     ),
@@ -987,6 +1001,11 @@ class MembershipsController extends BaseController with ContentValidationMixin {
     final activeId = _channelId.value;
     if (activeId.isEmpty) return;
 
+    if (bundle.tiers.length > maxTiersPerChannel) {
+      AppSnackbar.warning('Membership bundles cannot exceed 3 tiers.');
+      return;
+    }
+
     isSaving.value = true;
     try {
       final batch = _firestore.batch();
@@ -994,6 +1013,11 @@ class MembershipsController extends BaseController with ContentValidationMixin {
           .collection(FirestoreCollections.channels)
           .doc(activeId)
           .collection('membership_tiers');
+
+      // Clear existing tiers first to guarantee channel stays within 3-tier limit
+      for (final existing in tiers) {
+        batch.delete(collection.doc(existing.id));
+      }
 
       for (var i = 0; i < bundle.tiers.length; i++) {
         final t = bundle.tiers[i];

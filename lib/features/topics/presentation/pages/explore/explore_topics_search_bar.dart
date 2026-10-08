@@ -38,9 +38,14 @@ class ExploreTopicsSearchBar extends StatelessWidget {
                 controller: controller.searchController,
                 style: const TextStyle(color: primaryText, fontSize: 14),
                 decoration: InputDecoration(
+                  icon: const Icon(
+                    Icons.auto_awesome_outlined,
+                    color: secondaryText,
+                    size: 18,
+                  ),
                   hintText: isMobile
-                      ? 'Ask AI (e.g. "Quantum physics", "AI robotics", "Fact-checked history")...'
-                      : 'Ask AI or explore topics (e.g. "Quantum physics & space", "Trending AI breakthroughs", "Fact-checked global history")...',
+                      ? 'Ask AI or explore topics (e.g. "Peace of mind", "Bible study")...'
+                      : 'Ask AI or explore topics (e.g. "Peace of mind", "Bible study", "Science and faith")...',
                   hintStyle: const TextStyle(
                     color: secondaryText,
                     fontSize: 14,

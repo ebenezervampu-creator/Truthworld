@@ -4,10 +4,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/utils/web_platform_utils.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player/tower_player_registry.dart';
-import 'package:universal_html/html.dart' as html;
-import 'package:universal_html/js.dart' as js;
 
 /// Core service coordinating system Picture-in-Picture (PiP) and background
 /// playback state across mobile, desktop, and web.
@@ -141,12 +140,7 @@ class PipService extends GetxService {
   /// Check whether Picture-in-Picture is supported by the current device OS.
   Future<bool> isPipSupported() async {
     if (kIsWeb) {
-      try {
-        final docJs = js.JsObject.fromBrowserObject(html.document);
-        return docJs['pictureInPictureEnabled'] == true;
-      } catch (_) {
-        return false;
-      }
+      return WebPlatformUtils.isPipSupported();
     }
 
     try {
@@ -163,12 +157,7 @@ class PipService extends GetxService {
   /// Check whether native platform activity is currently in Picture-in-Picture mode.
   Future<bool> isNativeInPip() async {
     if (kIsWeb) {
-      try {
-        final docJs = js.JsObject.fromBrowserObject(html.document);
-        return docJs['pictureInPictureElement'] != null;
-      } catch (_) {
-        return false;
-      }
+      return WebPlatformUtils.isDocumentInPip();
     }
 
     try {
@@ -180,32 +169,18 @@ class PipService extends GetxService {
   }
 
   bool _enterPipWeb() {
-    try {
-      final video = html.document.querySelector('video') as html.VideoElement?;
-      if (video == null) return false;
-      final docJs = js.JsObject.fromBrowserObject(html.document);
-      if (docJs['pictureInPictureElement'] == null) {
-        js.JsObject.fromBrowserObject(video).callMethod('requestPictureInPicture', []);
-        isPiP.value = true;
-        return true;
-      }
-    } catch (e, s) {
-      ErrorHandler.log(e, stackTrace: s, tag: 'PipService.enterPipWeb');
+    final success = WebPlatformUtils.enterPip();
+    if (success) {
+      isPiP.value = true;
     }
-    return false;
+    return success;
   }
 
   bool _exitPipWeb() {
-    try {
-      final docJs = js.JsObject.fromBrowserObject(html.document);
-      if (docJs['pictureInPictureElement'] != null) {
-        docJs.callMethod('exitPictureInPicture', []);
-        isPiP.value = false;
-        return true;
-      }
-    } catch (e, s) {
-      ErrorHandler.log(e, stackTrace: s, tag: 'PipService.exitPipWeb');
+    final success = WebPlatformUtils.exitPip();
+    if (success) {
+      isPiP.value = false;
     }
-    return false;
+    return success;
   }
 }

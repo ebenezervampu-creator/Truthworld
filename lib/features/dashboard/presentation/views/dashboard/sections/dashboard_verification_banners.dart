@@ -56,10 +56,10 @@ class DashboardTruthworldIssuesNotice extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 24),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+        color: AppColors.error.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: const Color(0xFFEF4444).withValues(alpha: 0.3),
+          color: AppColors.error.withValues(alpha: 0.3),
           width: 1.5,
         ),
       ),
@@ -69,7 +69,7 @@ class DashboardTruthworldIssuesNotice extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: const Color(0xFFEF4444).withValues(alpha: 0.2),
+              color: AppColors.error.withValues(alpha: 0.2),
               shape: BoxShape.circle,
             ),
             child: const Icon(
@@ -87,7 +87,7 @@ class DashboardTruthworldIssuesNotice extends StatelessWidget {
                 const Text(
                   'Truthworld Notices & Action Required',
                   style: TextStyle(
-                    color: Color(0xFFEF4444),
+                    color: AppColors.error,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
@@ -113,7 +113,7 @@ class DashboardTruthworldIssuesNotice extends StatelessWidget {
                   ),
                   label: const Text('Open Creator Intelligence'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEF4444),
+                    backgroundColor: AppColors.error,
                     foregroundColor: Colors.white,
                     elevation: 0,
                     shape: RoundedRectangleBorder(
@@ -158,7 +158,7 @@ class DashboardImageVerificationBanner extends StatelessWidget {
           title: 'Avatar Verification Pending',
           subtitle:
               'Google Vision AI is currently validating your channel avatar image. Creation is complete and your channel is fully accessible.',
-          color: const Color(0xFF3B82F6),
+          color: AppColors.info,
           icon: Icons.sync_rounded,
           isPending: true,
           onOpenCustomization: onOpenCustomization,
@@ -200,7 +200,7 @@ class DashboardImageVerificationBanner extends StatelessWidget {
           title: 'Avatar Image Rejected',
           subtitle:
               'Your uploaded avatar image did not pass automated content verification guidelines. Change image or request a manual admin review if you believe it complies with guidelines.',
-          color: const Color(0xFFEF4444),
+          color: AppColors.error,
           icon: Icons.error_outline_rounded,
           showCustomizationButton: true,
           onOpenCustomization: onOpenCustomization,
@@ -231,7 +231,7 @@ class DashboardImageVerificationBanner extends StatelessWidget {
           title: 'Avatar Review Needed',
           subtitle:
               'Your avatar image was flagged for potential guidelines review. You may upload a new image or request manual admin review.',
-          color: const Color(0xFFF59E0B),
+          color: AppColors.warning,
           icon: Icons.warning_amber_rounded,
           showCustomizationButton: true,
           onOpenCustomization: onOpenCustomization,
@@ -262,7 +262,7 @@ class DashboardImageVerificationBanner extends StatelessWidget {
           title: 'Avatar Under Manual Review',
           subtitle:
               'Your avatar appeal has been received. Our moderation team is reviewing your image.',
-          color: const Color(0xFF8B5CF6),
+          color: AppColors.info,
           icon: Icons.rate_review_rounded,
           onOpenCustomization: onOpenCustomization,
         ),
@@ -277,7 +277,7 @@ class DashboardImageVerificationBanner extends StatelessWidget {
           title: 'Banner Verification Pending',
           subtitle:
               'Google Vision AI is currently validating your channel banner image. Creation is complete and your channel is fully accessible.',
-          color: const Color(0xFF3B82F6),
+          color: AppColors.info,
           icon: Icons.sync_rounded,
           isPending: true,
           onOpenCustomization: onOpenCustomization,
@@ -319,7 +319,7 @@ class DashboardImageVerificationBanner extends StatelessWidget {
           title: 'Banner Image Rejected',
           subtitle:
               'Your uploaded banner image did not pass automated content verification guidelines. Change image or request a manual admin review if you believe it complies with guidelines.',
-          color: const Color(0xFFEF4444),
+          color: AppColors.error,
           icon: Icons.error_outline_rounded,
           showCustomizationButton: true,
           onOpenCustomization: onOpenCustomization,
@@ -350,7 +350,7 @@ class DashboardImageVerificationBanner extends StatelessWidget {
           title: 'Banner Review Needed',
           subtitle:
               'Your banner image was flagged for potential guidelines review. You may upload a new image or request manual admin review.',
-          color: const Color(0xFFF59E0B),
+          color: AppColors.warning,
           icon: Icons.warning_amber_rounded,
           showCustomizationButton: true,
           onOpenCustomization: onOpenCustomization,
@@ -381,7 +381,7 @@ class DashboardImageVerificationBanner extends StatelessWidget {
           title: 'Banner Under Manual Review',
           subtitle:
               'Your banner appeal has been received. Our moderation team is reviewing your image.',
-          color: const Color(0xFF8B5CF6),
+          color: AppColors.info,
           icon: Icons.rate_review_rounded,
           onOpenCustomization: onOpenCustomization,
         ),
@@ -447,7 +447,7 @@ class DashboardVerificationAlertCard extends StatelessWidget {
               height: 24,
               child: CircularProgressIndicator(
                 strokeWidth: 2.5,
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3B82F6)),
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.brand),
               ),
             )
           else
@@ -527,7 +527,7 @@ class DashboardVerificationAlertCard extends StatelessWidget {
                           style: OutlinedButton.styleFrom(
                             foregroundColor: isDarkMode
                                 ? AppColors.textPrimary
-                                : const Color(0xFF2D3748),
+                                : Colors.black,
                             side: BorderSide(
                               color: color,
                               width: 1.5,
@@ -601,13 +601,13 @@ class DashboardModerationStatusBanner extends StatelessWidget {
     var showButton = false;
 
     if (channel.status == ChannelStatus.underReview) {
-      bannerColor = const Color(0xFF3B82F6);
+      bannerColor = AppColors.info;
       icon = Icons.sync_rounded;
       title = 'Branding Under Verification System Review';
       subtitle =
           'Our Verification System is checking your channel details (name, description, tags) against our community guidelines. This usually takes just a few seconds.';
     } else if (channel.status == ChannelStatus.verificationRejected) {
-      bannerColor = const Color(0xFFEF4444);
+      bannerColor = AppColors.error;
       icon = Icons.error_outline_rounded;
       title = 'Branding Verification Rejected';
       subtitle = channel.moderationReason != null &&
@@ -640,7 +640,7 @@ class DashboardModerationStatusBanner extends StatelessWidget {
               height: 24,
               child: CircularProgressIndicator(
                 strokeWidth: 2.5,
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3B82F6)),
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.brand),
               ),
             )
           else
@@ -722,7 +722,7 @@ class DashboardApprovalBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const bannerColor = Color(0xFF10B981);
+    const bannerColor = AppColors.success;
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 24),

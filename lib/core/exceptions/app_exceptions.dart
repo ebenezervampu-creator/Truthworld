@@ -161,6 +161,15 @@ abstract class AppException implements Exception {
           originalException: e,
           stackTrace: stackTrace,
         );
+      case 'internal':
+      case 'unknown':
+        return ServerException(
+          message: e.message ?? 'Internal server error.',
+          userMessage: 'The service is temporarily unavailable. Please try again in a moment.',
+          code: 'SERVICE_UNAVAILABLE',
+          originalException: e,
+          stackTrace: stackTrace,
+        );
       case 'already-exists':
         return ValidationException(
           message: e.message ?? 'Document already exists.',
@@ -196,8 +205,18 @@ abstract class AppException implements Exception {
             stackTrace: stackTrace,
           );
         }
+        if (e.plugin == 'cloud_functions' || e.toString().contains('FirebaseFunctionsException')) {
+          return ServerException(
+            message: e.message ?? 'Cloud functions error: ${e.code}',
+            userMessage: 'The service is temporarily unavailable. Please try again in a moment.',
+            code: 'FUNCTIONS_${e.code.toUpperCase()}',
+            originalException: e,
+            stackTrace: stackTrace,
+          );
+        }
         return FirestoreException(
           message: e.message ?? 'Firestore error [${e.code}]',
+          userMessage: 'Unable to complete the operation. Please try again.',
           code: 'FIRESTORE_${e.code.toUpperCase()}',
           originalException: e,
           stackTrace: stackTrace,
@@ -314,6 +333,30 @@ class GoogleSignInFailedException extends AuthException {
          isRetryable: true,
          stackTrace: stackTrace,
        );
+}
+
+/// Apple Sign-In specific exception
+class AppleSignInException extends AuthException {
+  const AppleSignInException({
+    required super.message,
+    super.userMessage,
+    super.code = 'APPLE_SIGNIN_ERROR',
+    super.isRetryable = false,
+    super.originalException,
+    super.stackTrace,
+  });
+}
+
+/// Phone Authentication specific exception
+class PhoneAuthException extends AuthException {
+  const PhoneAuthException({
+    required super.message,
+    super.userMessage,
+    super.code = 'PHONE_AUTH_ERROR',
+    super.isRetryable = false,
+    super.originalException,
+    super.stackTrace,
+  });
 }
 
 /// Resource not found (404) exception
@@ -453,7 +496,7 @@ class FirestoreException extends AppException {
 class ServerException extends AppException {
   const ServerException({
     required super.message,
-    super.userMessage = 'Server error. Our engineers have been notified.',
+    super.userMessage = 'The service is temporarily unavailable. Please try again shortly.',
     super.code = 'SERVER_ERROR',
     super.isRetryable = true,
     super.severity = ErrorSeverity.error,

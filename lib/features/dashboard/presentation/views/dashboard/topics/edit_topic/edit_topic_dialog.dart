@@ -23,23 +23,53 @@ class EditTopicDialog extends StatelessWidget {
     super.key,
   });
 
-  @override
-  Widget build(BuildContext context) {
-    final editCtrl = Get.put(
-      EditTopicController(
+  /// Static helper to display the Edit Topic dialog and safely manage controller lifecycle.
+  static Future<void> show({
+    required BuildContext context,
+    required Topic topic,
+    required String channelId,
+    required bool isDarkMode,
+    required TopicManagementController controller,
+  }) async {
+    if (Get.isRegistered<EditTopicController>(tag: topic.slug)) {
+      Get.delete<EditTopicController>(tag: topic.slug, force: true);
+    }
+
+    await Get.dialog<void>(
+      EditTopicDialog(
         topic: topic,
         channelId: channelId,
-        managementController: controller,
+        isDarkMode: isDarkMode,
+        controller: controller,
       ),
-      tag: topic.slug,
     );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (Get.isRegistered<EditTopicController>(tag: topic.slug)) {
+        Get.delete<EditTopicController>(tag: topic.slug, force: true);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final editCtrl = Get.isRegistered<EditTopicController>(tag: topic.slug)
+        ? Get.find<EditTopicController>(tag: topic.slug)
+        : Get.put(
+            EditTopicController(
+              topic: topic,
+              channelId: channelId,
+              managementController: controller,
+            ),
+            tag: topic.slug,
+          );
 
     return Obx(() {
       return Dialog(
-        backgroundColor: const Color(0xFF161618),
+        backgroundColor: const Color(0xFF1E1E1E),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: Color(0xFF27272A)),
+          side: const BorderSide(color: AppColors.bgDivider),
         ),
         insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
         child: ConstrainedBox(
@@ -53,7 +83,7 @@ class EditTopicDialog extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                 decoration: const BoxDecoration(
                   border: Border(
-                    bottom: BorderSide(color: Color(0xFF27272A)),
+                    bottom: BorderSide(color: AppColors.bgDivider),
                   ),
                 ),
                 child: Row(
@@ -72,7 +102,13 @@ class EditTopicDialog extends StatelessWidget {
                       icon: const Icon(Icons.close_rounded, color: Colors.white, size: 20),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
-                      onPressed: () => Get.back<void>(),
+                      onPressed: () {
+                        if (Navigator.of(context).canPop()) {
+                          Navigator.of(context).pop();
+                        } else {
+                          Get.back<void>();
+                        }
+                      },
                     ),
                   ],
                 ),
@@ -146,14 +182,20 @@ class EditTopicDialog extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                 decoration: const BoxDecoration(
                   border: Border(
-                    top: BorderSide(color: Color(0xFF27272A)),
+                    top: BorderSide(color: AppColors.bgDivider),
                   ),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     TextButton(
-                      onPressed: () => Get.back<void>(),
+                      onPressed: () {
+                        if (Navigator.of(context).canPop()) {
+                          Navigator.of(context).pop();
+                        } else {
+                          Get.back<void>();
+                        }
+                      },
                       style: TextButton.styleFrom(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       ),
@@ -169,7 +211,9 @@ class EditTopicDialog extends StatelessWidget {
                     const SizedBox(width: 10),
                     if (!editCtrl.isLoading.value)
                       ElevatedButton(
-                        onPressed: editCtrl.isSaving.value ? null : editCtrl.submitUpdate,
+                        onPressed: editCtrl.isSaving.value
+                            ? null
+                            : () => editCtrl.submitUpdate(context: context),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,
                           foregroundColor: Colors.black,

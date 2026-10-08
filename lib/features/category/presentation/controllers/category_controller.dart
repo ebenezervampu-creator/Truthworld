@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/constants/app_categories.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 
 class CategoryController extends BaseController
@@ -398,7 +399,20 @@ class CategoryController extends BaseController
   };
 
   List<String> _getGenresForCategory(String cat) {
-    return _categoryToGenres[cat.toLowerCase()] ?? ['All'];
+    final lower = cat.toLowerCase().trim();
+    if (_categoryToGenres.containsKey(lower)) {
+      return _categoryToGenres[lower]!;
+    }
+    final normalized = AppCategories.normalizeCategory(cat).toLowerCase();
+    if (_categoryToGenres.containsKey(normalized)) {
+      return _categoryToGenres[normalized]!;
+    }
+    for (final entry in _categoryToGenres.entries) {
+      if (entry.key.contains(lower) || lower.contains(entry.key)) {
+        return entry.value;
+      }
+    }
+    return ['All'];
   }
 
   String get sortField {

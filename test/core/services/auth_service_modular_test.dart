@@ -302,5 +302,72 @@ void main() {
         completes,
       );
     });
+
+    test('synchronous session cache initializes isAuthenticated and uid immediately on boot', () async {
+      final box = GetStorage();
+      box.write('auth_has_active_session', true);
+      box.write('auth_session_uid', 'usr_cached_session_123');
+      box.write('profile_name_usr_cached_session_123', 'Cached User');
+      box.write('profile_handle_usr_cached_session_123', '@cacheduser');
+      box.write('profile_email_usr_cached_session_123', 'cached@example.com');
+
+      // Instantiate a new AuthService to simulate browser refresh / app restart
+      final newService = AuthService();
+      newService.onInit();
+
+      expect(newService.isAuthenticated.value, isTrue);
+      expect(newService.isUserSignedIn, isTrue);
+      expect(newService.uid, equals('usr_cached_session_123'));
+      expect(newService.activeDisplayName, equals('Cached User'));
+      expect(newService.activeHandle, equals('@cacheduser'));
+      expect(newService.email, equals('cached@example.com'));
+
+      // Verify sign out cleanly purges the session cache
+      await newService.signOut();
+      expect(newService.isAuthenticated.value, isFalse);
+      expect(newService.uid, isEmpty);
+      expect(box.read<bool>('auth_has_active_session'), isFalse);
+      expect(box.read<String>('auth_session_uid'), isNull);
+    });
+
+    test('initial null authStateChanges tick on page refresh preserves cached session', () async {
+      final box = GetStorage();
+      box.write('auth_has_active_session', true);
+      box.write('auth_session_uid', 'usr_cached_persist_999');
+
+      final newService = AuthService();
+      newService.onInit();
+
+      expect(newService.isAuthenticated.value, isTrue);
+      expect(newService.uid, equals('usr_cached_persist_999'));
+
+      // Verify the cached session remains intact in GetStorage
+      expect(box.read<bool>('auth_has_active_session'), isTrue);
+      expect(box.read<String>('auth_session_uid'), equals('usr_cached_persist_999'));
+      expect(newService.isAuthenticated.value, isTrue);
+
+      await newService.signOut();
+      expect(box.read<bool>('auth_has_active_session'), isFalse);
+    });
+
+    test('active session survives onInit and caches profile without premature purge', () async {
+      final box = GetStorage();
+      box.write('auth_has_active_session', true);
+      box.write('auth_session_uid', 'usr_cached_persist_888');
+      box.write('profile_name_usr_cached_persist_888', 'Persisted User');
+      box.write('profile_email_usr_cached_persist_888', 'persist@example.com');
+
+      final newService = AuthService();
+      newService.onInit();
+
+      expect(newService.isAuthenticated.value, isTrue);
+      expect(newService.uid, equals('usr_cached_persist_888'));
+      expect(newService.activeDisplayName, equals('Persisted User'));
+      expect(newService.email, equals('persist@example.com'));
+      expect(box.read<bool>('auth_has_active_session'), isTrue);
+
+      await newService.signOut();
+      expect(box.read<bool>('auth_has_active_session'), isFalse);
+    });
   });
 }

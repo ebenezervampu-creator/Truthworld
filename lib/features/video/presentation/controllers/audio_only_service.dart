@@ -11,8 +11,7 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
-import 'package:universal_html/html.dart' as html;
-import 'package:universal_html/js.dart' show JsObject, context;
+import 'package:truthworld/core/utils/web_platform_utils.dart';
 
 /// Audio-Only playback service for true background & low-bandwidth playback.
 /// Bypasses video decoding for maximum battery and data efficiency.
@@ -36,9 +35,8 @@ class AudioOnlyService extends GetxService {
   StreamSubscription? _positionSub;
   StreamSubscription? _durationSub;
 
-  // ── Web Audio API objects ──────────────────────────────────
-  dynamic _audioElement;
-  html.MediaSession? _mediaSession;
+  // ── Web Audio API Adapter ──────────────────────────────────
+  WebAudioPlayerAdapter? _webAudioPlayer;
   Timer? _positionTimer;
 
   // ── Equalizer state ────────────────────────────────────────
@@ -59,53 +57,38 @@ class AudioOnlyService extends GetxService {
 
   // ── Native Initialization ──────────────────────────────────
 
-  void _initNativeAudio() {
+  Future<void> _initNativeAudio() async {
     try {
       _nativePlayer = AudioPlayer();
 
-      _playerStateSub = _nativePlayer!.playerStateStream.listen(
-        (state) {
-          isPlaying.value = state.playing;
-          isBuffering.value = state.processingState == ProcessingState.buffering ||
-              state.processingState == ProcessingState.loading;
-
-          if (state.processingState == ProcessingState.completed) {
+      _playerStateSub = _nativePlayer!.playerStateStream.listen((state) {
+        isPlaying.value = state.playing;
+        switch (state.processingState) {
+          case ProcessingState.idle:
+            isBuffering.value = false;
+          case ProcessingState.loading:
+          case ProcessingState.buffering:
+            isBuffering.value = true;
+          case ProcessingState.ready:
+            isBuffering.value = false;
+          case ProcessingState.completed:
             isPlaying.value = false;
+            isBuffering.value = false;
             _onTrackEnded();
-          }
-        },
-        onError: (e, stackTrace) => ErrorHandler.log(
-          e,
-          stackTrace: stackTrace,
-          tag: 'AudioOnlyService.playerStateStream',
-        ),
-      );
+        }
+      });
 
-      _positionSub = _nativePlayer!.positionStream.listen(
-        (pos) {
-          position.value = pos.inMilliseconds / 1000.0;
-        },
-        onError: (e, stackTrace) => ErrorHandler.log(
-          e,
-          stackTrace: stackTrace,
-          tag: 'AudioOnlyService.positionStream',
-        ),
-      );
+      _positionSub = _nativePlayer!.positionStream.listen((pos) {
+        position.value = pos.inMilliseconds / 1000.0;
+      });
 
-      _durationSub = _nativePlayer!.durationStream.listen(
-        (dur) {
-          if (dur != null) {
-            duration.value = dur.inMilliseconds / 1000.0;
-          }
-        },
-        onError: (e, stackTrace) => ErrorHandler.log(
-          e,
-          stackTrace: stackTrace,
-          tag: 'AudioOnlyService.durationStream',
-        ),
-      );
+      _durationSub = _nativePlayer!.durationStream.listen((dur) {
+        if (dur != null) {
+          duration.value = dur.inMilliseconds / 1000.0;
+        }
+      });
 
-      debugPrint('[AudioOnly] Native AudioPlayer initialized successfully');
+      debugPrint('[AudioOnly] Native just_audio player initialized');
     } catch (e, stackTrace) {
       ErrorHandler.log(
         e,
@@ -121,30 +104,28 @@ class AudioOnlyService extends GetxService {
     if (!kIsWeb) return;
 
     try {
-      _audioElement = html.AudioElement()
-        ..preload = 'auto'
-        ..crossOrigin = 'anonymous';
+      _webAudioPlayer = WebPlatformUtils.createAudioPlayer();
+      _webAudioPlayer!.init(
+        onPlay: () => isPlaying.value = true,
+        onPause: () => isPlaying.value = false,
+        onEnded: () {
+          isPlaying.value = false;
+          _onTrackEnded();
+        },
+        onWaiting: () => isBuffering.value = true,
+        onCanPlay: () => isBuffering.value = false,
+        onError: (err) {
+          error.value = 'Unable to play audio. Please check your connection and try again.';
+          ErrorHandler.log(
+            'Audio element error: $err',
+            tag: 'AudioOnlyService.webAudio',
+          );
+        },
+        onDurationChange: (dur) {
+          duration.value = dur;
+        },
+      );
 
-      _audioElement!.onPlay.listen((_) => isPlaying.value = true);
-      _audioElement!.onPause.listen((_) => isPlaying.value = false);
-      _audioElement!.onEnded.listen((_) {
-        isPlaying.value = false;
-        _onTrackEnded();
-      });
-      _audioElement!.onWaiting.listen((_) => isBuffering.value = true);
-      _audioElement!.onCanPlay.listen((_) => isBuffering.value = false);
-      _audioElement!.onError.listen((e) {
-        error.value = 'Unable to play audio. Please check your connection and try again.';
-        ErrorHandler.log(
-          'Audio element error: ${_audioElement?.error?.message ?? "Unknown"}',
-          tag: 'AudioOnlyService.webAudio',
-        );
-      });
-      _audioElement!.onDurationChange.listen((_) {
-        duration.value = (_audioElement?.duration ?? 0).toDouble();
-      });
-
-      html.document.body?.append(_audioElement!);
       debugPrint('[AudioOnly] Web Audio API initialized');
     } catch (e, stackTrace) {
       ErrorHandler.log(
@@ -156,18 +137,16 @@ class AudioOnlyService extends GetxService {
   }
 
   void _setupMediaSessionAPI() {
-    if (!kIsWeb) return;
+    if (!kIsWeb || _webAudioPlayer == null) return;
 
     try {
-      _mediaSession = html.window.navigator.mediaSession;
-      if (_mediaSession == null) return;
-
-      _registerMediaSessionAction('play', play);
-      _registerMediaSessionAction('pause', pause);
-      _registerMediaSessionAction('seekbackward', () => seekRelative(-10));
-      _registerMediaSessionAction('seekforward', () => seekRelative(10));
-      _registerMediaSessionAction('previoustrack', _onPreviousTrack);
-      _registerMediaSessionAction('nexttrack', _onNextTrack);
+      _webAudioPlayer!.setupMediaSession(
+        onPlay: play,
+        onPause: pause,
+        onSeekRelative: (sec) => seekRelative(sec.toInt()),
+        onPreviousTrack: _onPreviousTrack,
+        onNextTrack: _onNextTrack,
+      );
 
       debugPrint('[AudioOnly] Media Session API registered');
     } catch (e, stackTrace) {
@@ -175,22 +154,6 @@ class AudioOnlyService extends GetxService {
         e,
         stackTrace: stackTrace,
         tag: 'AudioOnlyService.setupMediaSessionAPI',
-      );
-    }
-  }
-
-  void _registerMediaSessionAction(String action, Function handler) {
-    try {
-      final dynamic nav = context['navigator'];
-      nav['mediaSession'].callMethod('setActionHandler', [
-        action,
-        handler,
-      ]);
-    } catch (e, stackTrace) {
-      ErrorHandler.log(
-        e,
-        stackTrace: stackTrace,
-        tag: 'AudioOnlyService.registerMediaSessionAction.$action',
       );
     }
   }
@@ -207,30 +170,26 @@ class AudioOnlyService extends GetxService {
     bool autoPlay = true,
   }) async {
     isBackgroundPlayback.value = true;
-    await activateAudioOnly(
+    await activate(
       videoUrl: mediaUrl,
       title: title,
       artworkUrl: artworkUrl,
       startPosition: startPosition,
     );
-    if (autoPlay) {
-      await play();
+    if (!autoPlay) {
+      await pause();
     }
   }
 
-  Duration deactivateBackgroundPlayback() {
-    isBackgroundPlayback.value = false;
-    return deactivate();
-  }
-
-  Future<void> activateAudioOnly({
+  Future<void> activate({
     required String videoUrl,
     required String title,
     required String artworkUrl,
     Duration? startPosition,
+    String? audioStreamUrl,
   }) async {
-    isAudioOnly.value = true;
     isActive.value = true;
+    isAudioOnly.value = true;
     currentTrackTitle.value = title;
     currentArtwork.value = artworkUrl;
     error.value = '';
@@ -239,14 +198,15 @@ class AudioOnlyService extends GetxService {
 
     if (kIsWeb) {
       try {
-        _audioElement?.src = audioUrl;
-        _audioElement?.load();
+        _webAudioPlayer?.loadAndPlay(
+          audioUrl,
+          volume: volume.value,
+        );
 
         if (startPosition != null && startPosition > Duration.zero) {
-          _audioElement?.currentTime = startPosition.inMilliseconds / 1000.0;
+          _webAudioPlayer?.seek(startPosition.inMilliseconds / 1000.0);
         }
 
-        await _audioElement?.play();
         _startPositionTracking();
         _updateMediaSessionMetadata(title: title, artworkUrl: artworkUrl);
 
@@ -257,26 +217,22 @@ class AudioOnlyService extends GetxService {
         ErrorHandler.log(
           e,
           stackTrace: stackTrace,
-          tag: 'AudioOnlyService.playAudioUrlWeb',
+          tag: 'AudioOnlyService.activate.web',
         );
       }
     } else {
       try {
-        if (_nativePlayer == null) {
-          _initNativeAudio();
-        }
-        if (audioUrl.startsWith('http://') || audioUrl.startsWith('https://')) {
-          await _nativePlayer?.setUrl(audioUrl);
-        } else {
-          final filePath = audioUrl.startsWith('file://')
-              ? audioUrl.replaceFirst('file://', '')
-              : audioUrl;
-          await _nativePlayer?.setFilePath(filePath);
-        }
+        if (_nativePlayer == null) await _initNativeAudio();
+
+        await _nativePlayer!.setUrl(audioUrl);
+
         if (startPosition != null && startPosition > Duration.zero) {
-          await _nativePlayer?.seek(startPosition);
+          await _nativePlayer!.seek(startPosition);
         }
-        await _nativePlayer?.play();
+
+        await _nativePlayer!.setVolume(volume.value);
+        await _nativePlayer!.play();
+
         debugPrint('[AudioOnly] Native Audio Playing: $audioUrl');
       } catch (e, stackTrace) {
         error.value =
@@ -284,20 +240,23 @@ class AudioOnlyService extends GetxService {
         ErrorHandler.log(
           e,
           stackTrace: stackTrace,
-          tag: 'AudioOnlyService.playAudioUrlNative',
+          tag: 'AudioOnlyService.activate.native',
         );
       }
     }
   }
 
   String _resolveAudioUrl(String videoUrl) {
+    if (videoUrl.contains('.m3u8')) {
+      return videoUrl;
+    }
     return videoUrl;
   }
 
   Future<void> play() async {
     try {
       if (kIsWeb) {
-        await _audioElement?.play();
+        _webAudioPlayer?.play();
       } else {
         await _nativePlayer?.play();
       }
@@ -313,7 +272,7 @@ class AudioOnlyService extends GetxService {
   Future<void> pause() async {
     try {
       if (kIsWeb) {
-        _audioElement?.pause();
+        _webAudioPlayer?.pause();
       } else {
         await _nativePlayer?.pause();
       }
@@ -328,8 +287,8 @@ class AudioOnlyService extends GetxService {
 
   Future<void> seekTo(Duration pos) async {
     if (kIsWeb) {
-      if (_audioElement == null) return;
-      _audioElement!.currentTime = pos.inMilliseconds / 1000.0;
+      if (_webAudioPlayer == null) return;
+      _webAudioPlayer!.seek(pos.inMilliseconds / 1000.0);
     } else {
       await _nativePlayer?.seek(pos);
     }
@@ -337,12 +296,12 @@ class AudioOnlyService extends GetxService {
 
   Future<void> seekRelative(int seconds) async {
     if (kIsWeb) {
-      if (_audioElement == null) return;
-      final newTime = (_audioElement!.currentTime + seconds).clamp(
+      if (_webAudioPlayer == null) return;
+      final newTime = (_webAudioPlayer!.currentTime + seconds).clamp(
         0.0,
-        _audioElement!.duration,
+        _webAudioPlayer!.duration,
       );
-      _audioElement!.currentTime = newTime;
+      _webAudioPlayer!.seek(newTime);
     } else {
       final cur = _nativePlayer?.position ?? Duration.zero;
       final target = cur + Duration(seconds: seconds);
@@ -353,9 +312,7 @@ class AudioOnlyService extends GetxService {
   void setVolume(double vol) {
     volume.value = vol.clamp(0.0, 1.0);
     if (kIsWeb) {
-      if (_audioElement != null) {
-        _audioElement!.volume = volume.value;
-      }
+      _webAudioPlayer?.setVolume(volume.value);
     } else {
       _nativePlayer?.setVolume(volume.value);
     }
@@ -364,9 +321,7 @@ class AudioOnlyService extends GetxService {
   void toggleMute() {
     isMuted.value = !isMuted.value;
     if (kIsWeb) {
-      if (_audioElement != null) {
-        _audioElement!.muted = isMuted.value;
-      }
+      _webAudioPlayer?.setMuted(isMuted.value);
     } else {
       _nativePlayer?.setVolume(isMuted.value ? 0.0 : volume.value);
     }
@@ -374,8 +329,8 @@ class AudioOnlyService extends GetxService {
 
   void syncPosition(Duration pos) {
     if (kIsWeb) {
-      if (_audioElement == null) return;
-      _audioElement!.currentTime = pos.inMilliseconds / 1000.0;
+      if (_webAudioPlayer == null) return;
+      _webAudioPlayer!.seek(pos.inMilliseconds / 1000.0);
     } else {
       _nativePlayer?.seek(pos);
     }
@@ -383,7 +338,7 @@ class AudioOnlyService extends GetxService {
 
   Duration get currentPosition {
     if (kIsWeb) {
-      final secs = _audioElement?.currentTime ?? position.value;
+      final secs = _webAudioPlayer?.currentTime ?? position.value;
       return Duration(milliseconds: (secs * 1000).round());
     } else {
       return _nativePlayer?.position ?? Duration(milliseconds: (position.value * 1000).round());
@@ -393,26 +348,26 @@ class AudioOnlyService extends GetxService {
   Duration deactivate() {
     final currentPos = currentPosition;
     if (kIsWeb) {
-      _audioElement?.pause();
+      _webAudioPlayer?.pause();
       _stopPositionTracking();
     } else {
       _nativePlayer?.pause();
     }
-    isAudioOnly.value = false;
     isActive.value = false;
-    debugPrint(
-      '[AudioOnly] Deactivated at $currentPos, returning to video mode',
-    );
+    isAudioOnly.value = false;
+    isBackgroundPlayback.value = false;
     return currentPos;
   }
+
+  Duration deactivateBackgroundPlayback() => deactivate();
 
   // ── Position Tracking (Web) ────────────────────────────────
 
   void _startPositionTracking() {
     _positionTimer?.cancel();
     _positionTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
-      if (_audioElement != null) {
-        position.value = _audioElement!.currentTime.toDouble();
+      if (_webAudioPlayer != null) {
+        position.value = _webAudioPlayer!.currentTime;
         _updateMediaSessionPositionState();
       }
     });
@@ -426,57 +381,20 @@ class AudioOnlyService extends GetxService {
     required String title,
     required String artworkUrl,
   }) {
-    if (!kIsWeb || _mediaSession == null) return;
-    try {
-      final dynamic nav = context['navigator'];
-      final dynamic mediaSession = nav?['mediaSession'];
-      final dynamic mediaMetadataConstructor = context['MediaMetadata'];
-      if (mediaSession != null && mediaMetadataConstructor != null) {
-        mediaSession['metadata'] = JsObject(
-          mediaMetadataConstructor,
-          [
-            JsObject.jsify({
-              'title': title,
-              'artist': 'Truthworld',
-              'album': '',
-              'artwork': [
-                {'src': artworkUrl, 'sizes': '512x512', 'type': 'image/jpeg'},
-              ],
-            }),
-          ],
-        );
-      }
-    } catch (e, stackTrace) {
-      ErrorHandler.log(
-        e,
-        stackTrace: stackTrace,
-        tag: 'AudioOnlyService.updateMediaSessionMetadata',
-      );
-    }
+    if (!kIsWeb || _webAudioPlayer == null) return;
+    _webAudioPlayer?.updateMediaSessionMetadata(
+      title: title,
+      artworkUrl: artworkUrl,
+    );
   }
 
   void _updateMediaSessionPositionState() {
-    if (!kIsWeb || _mediaSession == null) return;
-    try {
-      final dur = _audioElement?.duration ?? 0;
-      final pos = _audioElement?.currentTime ?? 0;
-      if (dur > 0) {
-        final dynamic nav = context['navigator'];
-        nav['mediaSession'].callMethod('setPositionState', [
-          JsObject.jsify({
-            'duration': dur,
-            'playbackRate': _audioElement?.playbackRate ?? 1.0,
-            'position': pos,
-          }),
-        ]);
-      }
-    } catch (e, stackTrace) {
-      ErrorHandler.log(
-        e,
-        stackTrace: stackTrace,
-        tag: 'AudioOnlyService.updateMediaSessionPositionState',
-      );
-    }
+    if (!kIsWeb || _webAudioPlayer == null) return;
+    _webAudioPlayer?.updateMediaSessionPositionState(
+      duration: duration.value,
+      position: position.value,
+      playbackRate: 1.0,
+    );
   }
 
   // ── Callbacks ──────────────────────────────────────────────
@@ -506,12 +424,10 @@ class AudioOnlyService extends GetxService {
     _durationSub?.cancel();
     _nativePlayer?.dispose();
     if (kIsWeb) {
-      _audioElement?.pause();
-      _audioElement?.remove();
+      _webAudioPlayer?.dispose();
     }
     super.onClose();
   }
 }
 
 typedef VoidCallback = void Function();
-

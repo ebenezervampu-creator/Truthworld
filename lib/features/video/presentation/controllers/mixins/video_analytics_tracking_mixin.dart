@@ -9,6 +9,7 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
 import 'package:truthworld/core/services/algorithm/user_signal_tracker.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/features/analytics/data/services/viewer_identity_service.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -30,6 +31,18 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
   String get viewerHash;
   set viewerHash(String val);
   MainController get mainController;
+  bool get isAlreadyWatched;
+  set isAlreadyWatched(bool val);
+
+  bool get isAlreadyWatchedVideo {
+    if (isAlreadyWatched) return true;
+    if (Get.isRegistered<WatchHistoryService>() &&
+        WatchHistoryService.to.isVideoFullyWatched(video.id)) {
+      isAlreadyWatched = true;
+      return true;
+    }
+    return false;
+  }
 
   String detectTrafficSource() {
     if (activeClip.value != null) {
@@ -109,6 +122,9 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
     if (delta > 0 && isVpcInitialized && videoPlayerController != null) {
       final totalDuration = videoPlayerController!.value.duration.inSeconds;
       lastPingWatchSeconds = currentWatchSeconds;
+      if (isAlreadyWatchedVideo) {
+        return; // Never count watch time again for already watched video!
+      }
       pingWatchEvent('watch_ping', currentWatchSeconds, totalDuration, delta);
     }
   }
@@ -120,6 +136,7 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
     int deltaSeconds,
   ) async {
     if (deltaSeconds <= 0 && eventType == 'watch_ping') return;
+    if (isAlreadyWatchedVideo) return; // Never record watch time for re-watching!
     final isSub = isSubscribed.value;
 
     mainController.trackWatchEvent(
@@ -190,9 +207,10 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
       }
     }
 
-    final delta = position - lastPingWatchSeconds;
+    final currentWatch = watchStopwatch.elapsed.inSeconds;
+    final delta = isAlreadyWatchedVideo ? 0 : (currentWatch - lastPingWatchSeconds);
     if (delta > 0) {
-      lastPingWatchSeconds = position;
+      lastPingWatchSeconds = currentWatch;
     }
 
     mainController.trackWatchEvent(
@@ -282,7 +300,8 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
             'videoDuration': totalDuration,
           }, SetOptions(merge: true));
 
-      if (Get.isRegistered<UserInterestProfileService>()) {
+      // Only mark video as watched in recommendation profile if user actually watched >= 80%
+      if (percentage >= 80 && Get.isRegistered<UserInterestProfileService>()) {
         Get.find<UserInterestProfileService>().markVideoWatched(
           video.id,
           category: video.category,

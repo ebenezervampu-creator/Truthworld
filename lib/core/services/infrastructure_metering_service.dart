@@ -371,7 +371,8 @@ class InfrastructureMeteringService {
 
     final isOverQuota = quotaBytes > 0 && bandwidthBytes > quotaBytes;
     final isOverBudget = currentPlan.infraBudgetUSD > 0 && infraCost > currentPlan.infraBudgetUSD;
-    final isWithdrawalHeld = infra?.isWithdrawalHeld == true || isOverQuota || isOverBudget;
+    final isWithdrawalHeld = infra?.isWithdrawalHeld == true ||
+        ((isOverQuota || isOverBudget) && lossMode != LossPreventionMode.autoScaled);
     final holdReason = (infra?.withdrawalHoldReason != null && infra!.withdrawalHoldReason.isNotEmpty)
         ? infra.withdrawalHoldReason
         : (isWithdrawalHeld

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
@@ -263,7 +264,7 @@ void showCommunityCommentsModal(
                           color: const Color(0xFF181818),
                           child: Center(
                             child: TextButton.icon(
-                              onPressed: AuthService.to.signInWithGoogle,
+                              onPressed: () => AuthBottomSheet.show(context),
                               icon: const Icon(
                                 Icons.login_rounded,
                                 size: 16,
@@ -327,7 +328,7 @@ void showCommunityCommentsModal(
                                   AppSnackbar.warning(
                                     'Please sign in to comment.',
                                     actionLabel: 'SIGN IN',
-                                    onAction: AuthService.to.signInWithGoogle,
+                                    onAction: () => AuthBottomSheet.show(context),
                                   );
                                   return;
                                 }

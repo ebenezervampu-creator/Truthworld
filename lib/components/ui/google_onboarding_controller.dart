@@ -12,6 +12,9 @@ class GoogleOnboardingController extends BaseController {
   final Rx<String?> selectedGender = Rx<String?>(null);
   final RxBool isSaving = false.obs;
   late final TextEditingController selfDescribeController = trackTextController(TextEditingController());
+  late final TextEditingController usernameController = trackTextController(TextEditingController());
+  final Rx<String?> usernameError = Rx<String?>(null);
+  bool _isClosing = false;
 
   static const List<String> ageGroupOptions = [
     'Under 13',
@@ -52,7 +55,31 @@ class GoogleOnboardingController extends BaseController {
     return false;
   }
 
+  /// Returns true if user signed up/in with phone auth or lacks an email address
+  bool get isPhoneUser {
+    try {
+      if (Get.isRegistered<AuthService>()) {
+        final auth = AuthService.to;
+        final u = auth.user;
+        if (u == null) return false;
+        final isPhoneProvider = auth.primaryAuthProvider == 'phone' ||
+            u.providerData.any((p) => p.providerId == 'phone');
+        final hasNoEmail = u.email == null || u.email!.trim().isEmpty;
+        final hasPhone = u.phoneNumber != null && u.phoneNumber!.trim().isNotEmpty;
+        return isPhoneProvider || (hasPhone && hasNoEmail);
+      }
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'GoogleOnboardingController.isPhoneUser',
+      );
+    }
+    return false;
+  }
+
   GoogleOnboardingController() {
+    usernameController.addListener(_onUsernameChanged);
     reinitialize();
   }
 
@@ -62,11 +89,26 @@ class GoogleOnboardingController extends BaseController {
     reinitialize();
   }
 
+  void _onUsernameChanged() {
+    if (usernameError.value != null) {
+      usernameError.value = null;
+    }
+  }
+
   /// Populates the selected state from AuthService
   void reinitialize() {
     try {
       if (!Get.isRegistered<AuthService>()) return;
       final auth = AuthService.to;
+
+      // 0. Initialize Username if phone user
+      final currentHandle = auth.userHandle.value ?? '';
+      if (currentHandle.isNotEmpty && !currentHandle.startsWith('@user_')) {
+        usernameController.text = currentHandle.replaceAll('@', '');
+      } else {
+        usernameController.text = '';
+      }
+      usernameError.value = null;
 
       // 1. Initialize Age Group
       final currentAgeGroup = auth.userAgeGroup.value;
@@ -161,10 +203,56 @@ class GoogleOnboardingController extends BaseController {
     selectedGender.value = gender;
   }
 
+  /// Validates username format, length, and profanity. Returns error message if invalid, null if valid.
+  String? validateUsername(String raw) {
+    final clean = raw.trim().replaceAll('@', '');
+    if (clean.isEmpty) return null; // Optional during onboarding
+    if (!RegExp(r'^[a-zA-Z0-9_.]+$').hasMatch(clean)) {
+      return 'Username can only contain letters, numbers, underscores, and periods';
+    }
+    if (clean.length < 3) {
+      return 'Username must be at least 3 characters';
+    }
+    if (clean.length > 30) {
+      return 'Username cannot exceed 30 characters';
+    }
+    final validation = ContentValidator.validate(
+      clean,
+      fieldName: 'Username',
+      minLength: 3,
+      maxLength: 30,
+    );
+    if (!validation.isValid) {
+      return validation.message;
+    }
+
+    final spacedClean = clean.replaceAll(RegExp('[_.]'), ' ');
+    if (ContentValidator.hasProfanity(spacedClean)) {
+      return 'Your Username contains inappropriate language. Please use respectful words.';
+    }
+
+    return null;
+  }
+
   Future<void> onSave(BuildContext context) async {
     final navigator = Navigator.of(context);
 
     try {
+      String? cleanUsername;
+      if (isPhoneUser) {
+        final rawUsername = usernameController.text.trim().replaceAll('@', '');
+        if (rawUsername.isNotEmpty) {
+          final err = validateUsername(rawUsername);
+          if (err != null) {
+            usernameError.value = err;
+            AppSnackbar.warning(err);
+            return;
+          }
+          cleanUsername = ContentValidator.cleanProfanity(rawUsername);
+          usernameError.value = null;
+        }
+      }
+
       String? genderValue;
       final selectedGenderVal = selectedGender.value;
       if (selectedGenderVal != null) {
@@ -194,16 +282,20 @@ class GoogleOnboardingController extends BaseController {
       await AuthService.to.updateUserProfileOnboarding(
         ageGroup: selectedAgeGroup.value,
         gender: genderValue,
+        username: cleanUsername,
       );
 
       if (context.mounted) {
+        _isClosing = true;
         navigator.pop();
       }
     } catch (e) {
       ErrorHandler.log(e);
       AppSnackbar.error('Unable to save your profile. Please try again.');
     } finally {
-      isSaving.value = false;
+      if (!_isClosing) {
+        isSaving.value = false;
+      }
     }
   }
 
@@ -216,6 +308,7 @@ class GoogleOnboardingController extends BaseController {
         await AuthService.to.skipUserOnboarding();
       }
       if (context.mounted) {
+        _isClosing = true;
         navigator.pop();
       }
     } catch (e, stackTrace) {
@@ -225,10 +318,13 @@ class GoogleOnboardingController extends BaseController {
         tag: 'GoogleOnboardingController.onSkip',
       );
       if (context.mounted) {
+        _isClosing = true;
         navigator.pop();
       }
     } finally {
-      isSaving.value = false;
+      if (!_isClosing) {
+        isSaving.value = false;
+      }
     }
   }
 

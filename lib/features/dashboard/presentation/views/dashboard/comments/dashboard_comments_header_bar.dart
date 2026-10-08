@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_comments_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Studio Header Bar for Channel Comments
 /// Displays header title, subtitle, and reactive tabs (Published vs Held for review).
@@ -19,10 +19,10 @@ class DashboardCommentsHeaderBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
-        color: Color(0xFF0F0F0F),
+        color: AppColors.bgPage,
         border: Border(
           bottom: BorderSide(
-            color: Color(0xFF282828),
+            color: AppColors.bgDivider,
           ),
         ),
       ),
@@ -40,15 +40,15 @@ class DashboardCommentsHeaderBar extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF242424),
+                    color: const Color(0xFF1E1E1E),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: const Color(0xFF333333),
+                      color: AppColors.bgDivider,
                     ),
                   ),
                   child: const Icon(
                     Icons.chat_bubble_rounded,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     size: 20,
                   ),
                 ),
@@ -61,21 +61,25 @@ class DashboardCommentsHeaderBar extends StatelessWidget {
                         'Channel comments',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
+                          fontFamily: TWTypography.brandFamily,
+                          fontFamilyFallback: TWTypography.fallbackFamilies,
                           fontSize: isMobile ? 18 : 22,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           letterSpacing: -0.3,
                         ),
                       ),
                       const SizedBox(height: 2),
-                      Text(
+                      const Text(
                         'Manage and reply to viewer comments across all your videos',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
+                          fontFamily: TWTypography.uiFamily,
+                          fontFamilyFallback: TWTypography.fallbackFamilies,
                           fontSize: 12,
-                          color: const Color(0xFFAAAAAA),
+                          color: AppColors.textSecondary,
                         ),
                       ),
                     ],
@@ -130,17 +134,19 @@ class DashboardCommentsHeaderBar extends StatelessWidget {
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(
-              color: isSelected ? Colors.white : Colors.transparent,
+              color: isSelected ? AppColors.brand : Colors.transparent,
               width: 3,
             ),
           ),
         ),
         child: Text(
           title,
-          style: GoogleFonts.roboto(
+          style: TextStyle(
+            fontFamily: TWTypography.uiFamily,
+            fontFamilyFallback: TWTypography.fallbackFamilies,
             fontSize: 14,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-            color: isSelected ? Colors.white : const Color(0xFFAAAAAA),
+            color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
           ),
         ),
       ),

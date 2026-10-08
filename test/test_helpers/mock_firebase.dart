@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
-// ignore: depend_on_referenced_packages
 import 'package:firebase_core_platform_interface/test.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -110,34 +109,30 @@ Future<void> setupMockFirebase() async {
     }
     return null;
   });
+  final tempDir = Directory.systemTemp.createTempSync('tw_test_').path;
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(
     const MethodChannel('plugins.flutter.io/path_provider'),
-    (methodCall) async => '.',
+    (methodCall) async => tempDir,
   );
   try {
     await GetStorage.init();
+    await GetStorage().erase();
   } catch (_) {}
 
   TestFirebaseCoreHostApi.setUp(MockFirebaseAppWithStorage());
 
-  try {
-    if (Firebase.apps.isNotEmpty) {
-      await Firebase.app().delete();
-    }
-  } catch (_) {}
-
-  try {
-    await Firebase.initializeApp(
-      options: const FirebaseOptions(
-        apiKey: 'mock-api-key',
-        appId: 'mock-app-id',
-        messagingSenderId: 'mock-sender-id',
-        projectId: 'mock-project-id',
-        storageBucket: 'truthworld.appspot.com',
-      ),
-    );
-  } catch (_) {
-    // Ignore if already initialized
+  if (Firebase.apps.isEmpty) {
+    try {
+      await Firebase.initializeApp(
+        options: const FirebaseOptions(
+          apiKey: 'mock-api-key',
+          appId: 'mock-app-id',
+          messagingSenderId: 'mock-sender-id',
+          projectId: 'mock-project-id',
+          storageBucket: 'truthworld.appspot.com',
+        ),
+      );
+    } catch (_) {}
   }
 }

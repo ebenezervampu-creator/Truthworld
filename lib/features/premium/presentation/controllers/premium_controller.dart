@@ -258,30 +258,10 @@ class PremiumController extends BaseController {
           box.write('cashfreeSubscriptionId', subId);
         }
 
-        // Authoritatively persist to Firestore users collection
-        final u = auth.user;
-        if (u != null) {
-          try {
-            final updateData = <String, dynamic>{
-              'isPremium': true,
-              'premiumPlanId': planId,
-              'premiumStartedAt': startedAtMs,
-              'premiumExpiresAt': expiresAtMs,
-              'isAutoPay': isAutoPay.value,
-              'autoPay': isAutoPay.value,
-              'updatedAt': FieldValue.serverTimestamp(),
-            };
-            if (subId != null) {
-              updateData['cashfreeSubscriptionId'] = subId;
-            }
-            await FirebaseFirestore.instance
-                .collection(FirestoreCollections.users)
-                .doc(u.uid)
-                .update(updateData);
-          } catch (fireErr, s) {
-            ErrorHandler.log(fireErr, stackTrace: s, tag: 'PremiumController.updateUserDoc');
-          }
-        }
+        // Server-side fulfillOrder webhook authoritatively activates premium status in Firestore
+        // upon verified payment gateway confirmation. Client-side Firestore writes to isPremium
+        // are blocked by security rules to prevent self-elevation.
+        await auth.forceRefreshToken();
 
         final autoPayNote = isAutoPay.value
             ? ' Auto Pay is active and will renew automatically.'
@@ -370,14 +350,18 @@ class PremiumController extends BaseController {
         }
       }
 
-      await FirebaseFirestore.instance
-          .collection(FirestoreCollections.users)
-          .doc(uid)
-          .update({
-        'isAutoPay': false,
-        'autoPay': false,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      try {
+        await FirebaseFirestore.instance
+            .collection(FirestoreCollections.users)
+            .doc(uid)
+            .update({
+          'isAutoPay': false,
+          'autoPay': false,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } catch (err, s) {
+        ErrorHandler.log(err, stackTrace: s, tag: 'PremiumController.cancelAutoPay.updateUser');
+      }
 
       box.write('isAutoPay', false);
       box.remove('cashfreeSubscriptionId');

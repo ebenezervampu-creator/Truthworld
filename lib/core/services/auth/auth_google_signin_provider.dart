@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart'
     hide GoogleSignInException;
 import 'package:truthworld/core/errors/error_handler.dart';
@@ -15,13 +16,48 @@ import 'package:truthworld/core/utils/isolate_compute_utils.dart';
 class AuthGoogleSignInProvider {
   final GoogleSignIn googleSignIn = GoogleSignIn.instance;
   Map<String, dynamic>? lastGooglePeopleData;
+  String? lastGoogleEmail;
+  bool _isInitialized = false;
+  Future<void>? _initFuture;
+
+  /// Retrieves an AuthCredential directly for linking or re-authenticating.
+  Future<AuthCredential> getGoogleAuthCredential() async {
+    if (kIsWeb) {
+      throw UnsupportedError(
+        'getGoogleAuthCredential is not supported on web. Use linkWithPopup or reauthenticateWithPopup with GoogleAuthProvider.',
+      );
+    } else {
+      await initialize();
+      try {
+        await googleSignIn.signOut();
+      } catch (_) {}
+      final googleUser = await googleSignIn.authenticate();
+      lastGoogleEmail = googleUser.email;
+      final googleAuth = googleUser.authentication;
+      final idToken = googleAuth.idToken;
+      if (idToken == null || idToken.isEmpty) {
+        throw const GoogleSignInException(
+          message: 'Unable to retrieve Google authentication token.',
+          code: 'missing-id-token',
+          isRetryable: true,
+        );
+      }
+      return GoogleAuthProvider.credential(idToken: idToken);
+    }
+  }
 
   /// Initializes the Google Sign-In plugin with the platform client id.
   Future<void> initialize() async {
+    if (_isInitialized) return;
+    _initFuture ??= _doInitialize();
+    return _initFuture;
+  }
+
+  Future<void> _doInitialize() async {
     try {
       if (kIsWeb) {
         debugPrint(
-          'AuthGoogleSignInProvider: Web platform detected. Skipping explicit GoogleSignIn initialization.',
+          'AuthGoogleSignInProvider: Web platform detected. Client ID handled via meta and Firebase Auth.',
         );
       } else {
         await googleSignIn.initialize(
@@ -29,6 +65,7 @@ class AuthGoogleSignInProvider {
               '768266102263-f1bou7fgaqn2rkqh0cn5p6voksb163qt.apps.googleusercontent.com',
         );
       }
+      _isInitialized = true;
     } catch (e, s) {
       ErrorHandler.log(
         e,
@@ -38,6 +75,15 @@ class AuthGoogleSignInProvider {
     }
   }
 
+  /// Detects whether the current runtime environment is WebAssembly (dart2wasm).
+  ///
+  /// In dart2wasm, Dart primitive types [int] and [double] are distinct Wasm types
+  /// (unlike dart2js where all numbers are standard JavaScript [Number] objects).
+  /// Therefore, `identical(0, 0.0)` evaluates to `false` in WebAssembly and `true` in JavaScript.
+  static bool get isWasm =>
+      kIsWeb &&
+      (const bool.fromEnvironment('dart.tool.dart2wasm') || !identical(0, 0.0));
+
   /// Initiates Google Sign-In flow across platforms with sanitized error handling.
   Future<UserCredential> signInWithGoogle(FirebaseAuth auth) async {
     try {
@@ -46,9 +92,9 @@ class AuthGoogleSignInProvider {
           : await signInWithGoogleMobile(auth);
     } catch (e, st) {
       final mapped = GoogleSignInExceptionHandler.from(e);
-      if (mapped.code == 'user-cancelled') {
+      if (mapped.code == 'user-cancelled' || mapped.code == 'redirecting') {
         if (kDebugMode) {
-          debugPrint('ℹ️ [GoogleSignIn] Sign-in cancelled by user.');
+          debugPrint('ℹ️ [GoogleSignIn] Event: ${mapped.message}');
         }
       } else {
         ErrorHandler.log(
@@ -62,40 +108,121 @@ class AuthGoogleSignInProvider {
     }
   }
 
-  /// Web popup authentication flow with required scopes.
-  Future<UserCredential> signInWithGoogleWeb(FirebaseAuth auth) async {
+  bool _isSigningInWeb = false;
+
+  /// Web authentication flow:
+  /// - In WebAssembly (dart2wasm), browsers enforce Cross-Origin Isolation (COOP: same-origin),
+  ///   which severs the window.opener reference on popup windows and causes signInWithPopup to hang or fail.
+  ///   Therefore, WASM mode directly and reliably utilizes signInWithRedirect.
+  /// - In standard Web (CanvasKit/HTML), signInWithPopup provides seamless authentication without page refresh,
+  ///   with automatic fallback to signInWithRedirect if popups are blocked by browser settings.
+  Future<UserCredential> signInWithGoogleWeb(
+    FirebaseAuth auth, {
+    @visibleForTesting bool? isWasmOverride,
+  }) async {
+    if (_isSigningInWeb) {
+      debugPrint('AuthGoogleSignInProvider: Web sign-in is already in progress.');
+      throw const GoogleSignInException(
+        message: 'Sign-in is already in progress.',
+        code: 'user-cancelled',
+      );
+    }
+    _isSigningInWeb = true;
+
     final provider = GoogleAuthProvider();
     provider.addScope('https://www.googleapis.com/auth/userinfo.email');
     provider.addScope('https://www.googleapis.com/auth/userinfo.profile');
-    provider.addScope('https://www.googleapis.com/auth/user.addresses.read');
     provider.setCustomParameters({'prompt': 'select_account'});
 
-    return auth.signInWithPopup(provider);
+    final runningOnWasm = isWasmOverride ?? isWasm;
+
+    try {
+      if (runningOnWasm) {
+        debugPrint(
+          'AuthGoogleSignInProvider: WASM environment detected. Using signInWithRedirect to guarantee authentication under cross-origin isolation.',
+        );
+        try {
+          final box = GetStorage();
+          box.write('auth_pending_redirect', true);
+          box.write(
+            'auth_pending_redirect_time',
+            DateTime.now().millisecondsSinceEpoch,
+          );
+        } catch (_) {}
+
+        await auth.signInWithRedirect(provider);
+        throw const GoogleSignInException(
+          message: 'Redirecting to Google Sign-In...',
+          code: 'redirecting',
+        );
+      }
+
+      try {
+        return await auth.signInWithPopup(provider);
+      } on FirebaseAuthException catch (e) {
+        // Fall back to redirect if popup was blocked or window opener was restricted
+        if (e.code == 'popup-blocked' ||
+            e.code == 'cancelled-popup-request' ||
+            e.code == 'operation-not-supported-in-this-environment') {
+          debugPrint(
+            'AuthGoogleSignInProvider: Popup unavailable (${e.code}). Falling back to signInWithRedirect.',
+          );
+          try {
+            final box = GetStorage();
+            box.write('auth_pending_redirect', true);
+            box.write(
+              'auth_pending_redirect_time',
+              DateTime.now().millisecondsSinceEpoch,
+            );
+          } catch (_) {}
+
+          await auth.signInWithRedirect(provider);
+          throw const GoogleSignInException(
+            message: 'Redirecting to Google Sign-In...',
+            code: 'redirecting',
+          );
+        }
+        rethrow;
+      }
+    } finally {
+      _isSigningInWeb = false;
+    }
   }
 
   /// Mobile Google Sign-In flow using GoogleSignInAccount credentials.
   Future<UserCredential> signInWithGoogleMobile(FirebaseAuth auth) async {
+    await initialize();
+
     try {
       await googleSignIn.signOut();
-    } catch (e, s) {
-      ErrorHandler.log(
-        e,
-        stackTrace: s,
-        tag: 'AuthGoogleSignInProvider.mobileSignOut',
-      );
-    }
+    } catch (_) {}
 
     final googleUser = await googleSignIn.authenticate();
     final googleAuth = googleUser.authentication;
+    final idToken = googleAuth.idToken;
 
-    // Fetch location from Google People API if accessible
-    lastGooglePeopleData = await fetchGooglePeopleData(googleUser);
+    if (idToken == null || idToken.isEmpty) {
+      throw const GoogleSignInException(
+        message: 'Unable to retrieve Google authentication token. Please verify Google Play Services and try again.',
+        code: 'missing-id-token',
+        isRetryable: true,
+      );
+    }
 
     final credential = GoogleAuthProvider.credential(
-      idToken: googleAuth.idToken,
+      idToken: idToken,
     );
 
-    return auth.signInWithCredential(credential);
+    final userCredential = await auth.signInWithCredential(credential);
+
+    // Fetch demographics non-blocking in background
+    unawaited(
+      fetchGooglePeopleData(googleUser).then((data) {
+        lastGooglePeopleData = data;
+      }).catchError((_) {}),
+    );
+
+    return userCredential;
   }
 
   /// Fetches optional user demographics and address from Google People API with IP fallback.
@@ -243,15 +370,61 @@ class AuthGoogleSignInProvider {
 
   /// Re-authenticates an existing user via Google provider to ensure fresh tokens
   /// before sensitive operations (such as account deletion).
-  Future<UserCredential> reauthenticateWithGoogle(User user) async {
+  Future<UserCredential> reauthenticateWithGoogle(
+    User user, {
+    @visibleForTesting bool? isWasmOverride,
+  }) async {
     try {
       if (kIsWeb) {
         final provider = GoogleAuthProvider();
         provider.addScope('https://www.googleapis.com/auth/userinfo.email');
         provider.addScope('https://www.googleapis.com/auth/userinfo.profile');
         provider.setCustomParameters({'prompt': 'select_account'});
-        return await user.reauthenticateWithPopup(provider);
+
+        final runningOnWasm = isWasmOverride ?? isWasm;
+
+        if (runningOnWasm) {
+          try {
+            final box = GetStorage();
+            box.write('auth_pending_redirect', true);
+            box.write(
+              'auth_pending_redirect_time',
+              DateTime.now().millisecondsSinceEpoch,
+            );
+          } catch (_) {}
+
+          await user.reauthenticateWithRedirect(provider);
+          throw const GoogleSignInException(
+            message: 'Redirecting to Google Sign-In...',
+            code: 'redirecting',
+          );
+        }
+
+        try {
+          return await user.reauthenticateWithPopup(provider);
+        } on FirebaseAuthException catch (e) {
+          if (e.code == 'popup-blocked' ||
+              e.code == 'cancelled-popup-request' ||
+              e.code == 'operation-not-supported-in-this-environment') {
+            try {
+              final box = GetStorage();
+              box.write('auth_pending_redirect', true);
+              box.write(
+                'auth_pending_redirect_time',
+                DateTime.now().millisecondsSinceEpoch,
+              );
+            } catch (_) {}
+
+            await user.reauthenticateWithRedirect(provider);
+            throw const GoogleSignInException(
+              message: 'Redirecting to Google Sign-In...',
+              code: 'redirecting',
+            );
+          }
+          rethrow;
+        }
       } else {
+        await initialize();
         try {
           await googleSignIn.signOut();
         } catch (e, s) {
@@ -264,16 +437,37 @@ class AuthGoogleSignInProvider {
 
         final googleUser = await googleSignIn.authenticate();
         final googleAuth = googleUser.authentication;
+        final idToken = googleAuth.idToken;
+
+        if (idToken == null || idToken.isEmpty) {
+          throw const GoogleSignInException(
+            message: 'Unable to retrieve Google credentials for re-authentication.',
+            code: 'missing-id-token',
+            isRetryable: true,
+          );
+        }
+
+        String? accessToken;
+        try {
+          final authz = await googleUser.authorizationClient.authorizationForScopes([
+            'openid',
+            'email',
+            'profile',
+          ]);
+          accessToken = authz?.accessToken;
+        } catch (_) {}
+
         final credential = GoogleAuthProvider.credential(
-          idToken: googleAuth.idToken,
+          idToken: idToken,
+          accessToken: accessToken,
         );
         return await user.reauthenticateWithCredential(credential);
       }
     } catch (e, st) {
       final mapped = GoogleSignInExceptionHandler.from(e);
-      if (mapped.code == 'user-cancelled') {
+      if (mapped.code == 'user-cancelled' || mapped.code == 'redirecting') {
         if (kDebugMode) {
-          debugPrint('ℹ️ [GoogleSignIn] Re-authentication cancelled by user.');
+          debugPrint('ℹ️ [GoogleSignIn] Re-authentication event: ${mapped.message}');
         }
       } else {
         ErrorHandler.log(
@@ -289,7 +483,11 @@ class AuthGoogleSignInProvider {
   /// Signs out from Google Sign-In SDK.
   Future<void> signOut() async {
     if (!kIsWeb) {
-      await googleSignIn.signOut();
+      try {
+        await googleSignIn.signOut();
+      } catch (e) {
+        debugPrint('AuthGoogleSignInProvider.signOut non-fatal error: $e');
+      }
     }
   }
 }

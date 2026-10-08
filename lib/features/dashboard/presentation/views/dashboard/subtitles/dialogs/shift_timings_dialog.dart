@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class ShiftTimingsDialog {
   static void show(BuildContext context, SubtitlesController controller) {
     final offsetController = TextEditingController(text: '1000');
     Get.dialog<void>(
       AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
         title: const Row(
           children: [
             Icon(Icons.timelapse_rounded, size: 20, color: Colors.white),
@@ -82,8 +83,8 @@ class ShiftTimingsDialog {
               controller.shiftAllCues(ms);
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2563EB),
-              foregroundColor: Colors.white,
+              backgroundColor: AppColors.brand,
+              foregroundColor: Colors.black,
             ),
             child: const Text('Apply Shift'),
           ),

@@ -2,10 +2,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/utils/route_redirect_middleware.dart';
+import 'package:truthworld/core/utils/web_platform_utils.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
-import 'package:universal_html/html.dart' as html;
 
 /// Encapsulates routing, auth checking, and web URL history updates for navigation rail.
 class NavRailActionHandler {
@@ -21,7 +22,9 @@ class NavRailActionHandler {
     required Function(int) onSelectItem,
     required VoidCallback onShowSignInSnackbar,
   }) {
-    if (requiresAuth && currentUser == null) {
+    final isAuth = (currentUser != null && !currentUser.isAnonymous) ||
+        (Get.isRegistered<AuthService>() && AuthService.to.isAuthenticated.value);
+    if (requiresAuth && !isAuth) {
       onShowSignInSnackbar();
       return;
     }
@@ -50,21 +53,13 @@ class NavRailActionHandler {
     if (isDashboardPage) {
       onSelectItem(index);
       if (kIsWeb && route != null && route.isNotEmpty) {
-        try {
-          html.window.history.pushState(null, '', route);
-        } catch (e, s) {
-          ErrorHandler.log(
-            e,
-            stackTrace: s,
-            tag: 'ModernSideNavigationRail.pushState',
-          );
-        }
+        WebPlatformUtils.pushUrlHistory(route);
       }
     } else {
       if (route != null && Get.currentRoute != route) {
         final isAtHome = Get.currentRoute == '/home' || Get.currentRoute == '/';
         if (index == HomeController.indexHome) {
-          Get.offAllNamed(route);
+          RouteStackObserver.navigateToHome();
         } else {
           if (isAtHome) {
             Get.toNamed(route);

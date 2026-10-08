@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:truthworld/core/constants/app_categories.dart';
 import 'package:truthworld/core/utils/timestamp_utils.dart';
 import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/domain/entities/video_entity.dart';
@@ -103,7 +104,11 @@ class Video {
         originalUrl = (originalUrl == null || originalUrl.isEmpty)
             ? (videoUrl ?? '')
             : originalUrl,
-        channelAvatarUrl = channelAvatarUrl ?? channelImage ?? '',
+        channelAvatarUrl = (channelAvatarUrl != null && channelAvatarUrl.isNotEmpty)
+            ? channelAvatarUrl
+            : (channelImage != null && channelImage.isNotEmpty)
+                ? channelImage
+                : '',
         viewCount = viewCount ??
             (views is int
                 ? views
@@ -358,6 +363,31 @@ class Video {
   Timestamp get uploadedAt => createdAt;
 
   Set<String>? _categoryTokens;
+
+  /// Non-factual or creative categories where AI credibility / fact-checking is not applicable.
+  static const Set<String> nonCredibilityCategories =
+      AppCategories.nonCredibilityTokens;
+
+  /// Returns true if the video is non-factual/creative content where AI credibility is not applicable.
+  bool get isNonCredibilityCategory {
+    final cat = (videoCategory ?? category).trim().toLowerCase();
+    if (cat.isNotEmpty &&
+        (nonCredibilityCategories.contains(cat) ||
+            nonCredibilityCategories.any(cat.contains))) {
+      return true;
+    }
+    return categoryTokens.any(nonCredibilityCategories.contains);
+  }
+
+  /// Returns true if this video is eligible for and actually has AI credibility / fact-checking enabled and present.
+  bool get hasAiCredibility {
+    if (isNonCredibilityCategory) return false;
+    return isFactChecked ||
+        factCheckUrl.isNotEmpty ||
+        (uiReport != null &&
+            (uiReport?.keyClaims.isNotEmpty == true ||
+                uiReport?.summary.rating != null));
+  }
 
   /// Lazily cached, pre-normalized tokens for O(1) category matching & search.
   Set<String> get categoryTokens {

@@ -1,6 +1,9 @@
+import 'dart:ui' show lerpDouble;
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/playlists_management_controller.dart';
@@ -27,10 +30,10 @@ class ManagePlaylistVideosModal extends StatelessWidget {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF141417),
+      backgroundColor: const Color(0xFF1E1E1E),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        side: BorderSide(color: Color(0xFF27272A)),
+        side: BorderSide(color: AppColors.bgDivider),
       ),
       builder: (_) => ManagePlaylistVideosModal(
         playlist: playlist,
@@ -71,7 +74,8 @@ class ManagePlaylistVideosModal extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
+                        fontFamily: TWTypography.brandFamily,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -82,6 +86,7 @@ class ManagePlaylistVideosModal extends StatelessWidget {
                       style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 12,
+                        fontFamily: TWTypography.uiFamily,
                       ),
                     ),
                   ],
@@ -90,7 +95,7 @@ class ManagePlaylistVideosModal extends StatelessWidget {
               IconButton(
                 icon: const Icon(
                   Icons.close_rounded,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                 ),
                 onPressed: () => Navigator.pop(context),
               ),
@@ -109,6 +114,7 @@ class ManagePlaylistVideosModal extends StatelessWidget {
                     color: AppColors.textSecondary,
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
+                    fontFamily: TWTypography.uiFamily,
                   ),
                 );
               }),
@@ -124,20 +130,21 @@ class ManagePlaylistVideosModal extends StatelessWidget {
                 icon: const Icon(
                   Icons.add_rounded,
                   size: 16,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                 ),
                 label: const Text(
                   'Add Channel Videos',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
+                    fontFamily: TWTypography.uiFamily,
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF27272A),
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Color(0xFF3F3F46)),
+                  backgroundColor: AppColors.bgSurfaceHover,
+                  foregroundColor: AppColors.textPrimary,
+                  side: const BorderSide(color: AppColors.bgDivider),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,
                     vertical: 8,
@@ -145,6 +152,7 @@ class ManagePlaylistVideosModal extends StatelessWidget {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
+                  elevation: 0,
                 ),
               ),
             ],
@@ -155,8 +163,20 @@ class ManagePlaylistVideosModal extends StatelessWidget {
           Expanded(
             child: Obx(() {
               if (isLoadingVideos.value) {
-                return const Center(
-                  child: CircularProgressIndicator(color: Colors.white),
+                return Shimmer.fromColors(
+                  baseColor: const Color(0xFF1E1E1E),
+                  highlightColor: AppColors.bgSurfaceHover,
+                  child: ListView.separated(
+                    itemCount: 5,
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (_, _) => Container(
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E1E1E),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
                 );
               }
 
@@ -168,15 +188,16 @@ class ManagePlaylistVideosModal extends StatelessWidget {
                       Icon(
                         Icons.video_library_outlined,
                         size: 48,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                       SizedBox(height: 12),
                       Text(
                         'No videos in this playlist yet.',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
+                          fontFamily: TWTypography.brandFamily,
                         ),
                       ),
                       SizedBox(height: 4),
@@ -185,6 +206,7 @@ class ManagePlaylistVideosModal extends StatelessWidget {
                         style: TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 12,
+                          fontFamily: TWTypography.uiFamily,
                         ),
                       ),
                     ],
@@ -193,7 +215,38 @@ class ManagePlaylistVideosModal extends StatelessWidget {
               }
 
               return ReorderableListView.builder(
+                buildDefaultDragHandles: false,
                 itemCount: rxLoadedVideos.length,
+                proxyDecorator: (child, index, animation) {
+                  return AnimatedBuilder(
+                    animation: animation,
+                    builder: (context, child) {
+                      final animValue = Curves.easeInOut.transform(animation.value);
+                      final elevation = lerpDouble(0, 8, animValue)!;
+                      final scale = lerpDouble(1, 1.02, animValue)!;
+                      return Transform.scale(
+                        scale: scale,
+                        child: Material(
+                          elevation: elevation,
+                          color: Colors.transparent,
+                          shadowColor: Colors.black.withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: AppColors.brand.withValues(alpha: 0.6),
+                                width: 1.5,
+                              ),
+                            ),
+                            child: child,
+                          ),
+                        ),
+                      );
+                    },
+                    child: child,
+                  );
+                },
                 onReorder: (oldIndex, newIndex) {
                   if (newIndex > oldIndex) newIndex -= 1;
                   final item = rxLoadedVideos.removeAt(oldIndex);
@@ -207,16 +260,29 @@ class ManagePlaylistVideosModal extends StatelessWidget {
                     margin: const EdgeInsets.only(bottom: 8),
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF0F0F0F),
+                      color: AppColors.bgPage,
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFF27272A)),
+                      border: Border.all(color: AppColors.bgDivider),
                     ),
                     child: Row(
                       children: [
-                        const Icon(
-                          Icons.drag_handle_rounded,
-                          color: Colors.white,
-                          size: 20,
+                        ReorderableDragStartListener(
+                          index: index,
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.grab,
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: AppColors.bgSurfaceHover,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Icon(
+                                Icons.drag_indicator_rounded,
+                                color: AppColors.textPrimary,
+                                size: 18,
+                              ),
+                            ),
+                          ),
                         ),
                         const SizedBox(width: 10),
                         Text(
@@ -225,6 +291,7 @@ class ManagePlaylistVideosModal extends StatelessWidget {
                             color: AppColors.textTertiary,
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
+                            fontFamily: TWTypography.uiFamily,
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -238,11 +305,11 @@ class ManagePlaylistVideosModal extends StatelessWidget {
                                     imageUrl: video.thumbnailUrl,
                                     fit: BoxFit.cover,
                                     errorWidget: (_, _, _) => Container(
-                                      color: const Color(0xFF27272A),
+                                      color: AppColors.bgSurfaceHover,
                                     ),
                                   )
                                 : Container(
-                                    color: const Color(0xFF27272A),
+                                    color: AppColors.bgSurfaceHover,
                                   ),
                           ),
                         ),
@@ -254,9 +321,10 @@ class ManagePlaylistVideosModal extends StatelessWidget {
                               Text(
                                 video.title,
                                 style: const TextStyle(
-                                  color: Colors.white,
+                                  color: AppColors.textPrimary,
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
+                                  fontFamily: TWTypography.uiFamily,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -267,6 +335,7 @@ class ManagePlaylistVideosModal extends StatelessWidget {
                                 style: const TextStyle(
                                   color: AppColors.textSecondary,
                                   fontSize: 11,
+                                  fontFamily: TWTypography.uiFamily,
                                 ),
                               ),
                             ],
@@ -276,7 +345,7 @@ class ManagePlaylistVideosModal extends StatelessWidget {
                           tooltip: 'Remove from playlist',
                           icon: const Icon(
                             Icons.remove_circle_outline_rounded,
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                             size: 18,
                           ),
                           onPressed: () {
@@ -315,13 +384,13 @@ class ManagePlaylistVideosModal extends StatelessWidget {
                         }
                       },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF27272A),
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Color(0xFF3F3F46)),
+                  backgroundColor: AppColors.textPrimary,
+                  foregroundColor: Colors.black,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
+                  elevation: 0,
                 ),
                 child: isSaving.value
                     ? const SizedBox(
@@ -329,7 +398,7 @@ class ManagePlaylistVideosModal extends StatelessWidget {
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Colors.white,
+                          color: Colors.black,
                         ),
                       )
                     : const Text(
@@ -337,6 +406,8 @@ class ManagePlaylistVideosModal extends StatelessWidget {
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
+                          color: Colors.black,
+                          fontFamily: TWTypography.uiFamily,
                         ),
                       ),
               );

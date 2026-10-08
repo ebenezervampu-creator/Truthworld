@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:io' as io;
+
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -6,9 +8,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/utils/web_platform_utils.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/theme/app_theme.dart';
-import 'package:universal_html/html.dart' as html;
 import 'package:video_player/video_player.dart';
 
 /// Helper to pick a media file from user's device, validate length/size, and upload to storage.
@@ -128,28 +130,12 @@ Future<void> pickCampaignDeviceMediaFile({
             ].contains(ext)
                 ? 'audio/$ext'
                 : 'video/$ext';
-            final blob = html.Blob([pickedFile.bytes], mime);
-            final blobUrl = html.Url.createObjectUrlFromBlob(blob);
-            try {
-              final videoEl = html.VideoElement()
-                ..src = blobUrl
-                ..preload = 'metadata';
-              await videoEl.onLoadedMetadata.first.timeout(
-                const Duration(seconds: 3),
-                onTimeout: () => html.Event('timeout'),
-              );
-              final dur = videoEl.duration;
-              if (!dur.isNaN && !dur.isInfinite && dur > 0) {
-                extractedDurationSec = dur.toDouble();
-              }
-            } catch (webProbeErr, stackTrace) {
-              ErrorHandler.log(
-                webProbeErr,
-                stackTrace: stackTrace,
-                tag: 'CampaignWizardDevicePicker.webDurationProbe',
-              );
-            } finally {
-              html.Url.revokeObjectUrl(blobUrl);
+            final dur = await WebPlatformUtils.getVideoDurationFromBytes(
+              pickedFile.bytes!,
+              mime,
+            );
+            if (dur != null) {
+              extractedDurationSec = dur.inSeconds.toDouble();
             }
           }
         } else {

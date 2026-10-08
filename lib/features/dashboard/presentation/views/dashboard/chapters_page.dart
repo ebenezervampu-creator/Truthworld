@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/chapters_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/chapters/chapters_widgets.dart';
 import 'package:truthworld/theme/app_colors.dart';
@@ -38,21 +39,17 @@ class ChaptersPage extends StatelessWidget {
   Widget build(BuildContext context) {
     const bgColor = AppColors.bgPage;
     final surfaceColor =
-        isDarkMode ? AppColors.bgSurface : AppColors.textPrimary;
-    final textColor = isDarkMode ? AppColors.textPrimary : Colors.black;
+        isDarkMode ? AppColors.bgSurface : Colors.white;
+    final textColor = isDarkMode ? AppColors.textPrimary : Colors.black87;
     final textSecondaryColor =
-        isDarkMode ? AppColors.textSecondary : Colors.black;
+        isDarkMode ? AppColors.textSecondary : Colors.black54;
     const borderColor = AppColors.bgDivider;
 
     return Scaffold(
       backgroundColor: bgColor,
       body: Obx(() {
         if (controller.isLoading) {
-          return const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.brand),
-            ),
-          );
+          return _buildChaptersSkeleton();
         }
 
         if (controller.isError) {
@@ -175,7 +172,7 @@ class ChaptersPage extends StatelessWidget {
         // Right Column: Workspace
         Expanded(
           child: ColoredBox(
-            color: isDarkMode ? AppColors.bgPage : const Color(0xFFF1F5F9),
+            color: isDarkMode ? AppColors.bgPage : Colors.grey.shade100,
             child: ChaptersWorkspacePane(
               controller: controller,
               surfaceColor: surfaceColor,
@@ -224,9 +221,9 @@ class ChaptersPage extends StatelessWidget {
             child: Row(
               children: [
                 IconButton(
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.arrow_back,
-                    color: Colors.white,
+                    color: textColor,
                   ),
                   onPressed: () => controller.selectVideo(null),
                 ),
@@ -261,5 +258,39 @@ class ChaptersPage extends StatelessWidget {
         ],
       );
     });
+  }
+
+  Widget _buildChaptersSkeleton() {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFF1E1E1E),
+      highlightColor: AppColors.bgSurfaceHover,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            // Video list sidebar skeleton
+            Container(
+              width: 300,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.bgDivider),
+              ),
+            ),
+            const SizedBox(width: 16),
+            // Timeline and chapters workspace skeleton
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E1E1E),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.bgDivider),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

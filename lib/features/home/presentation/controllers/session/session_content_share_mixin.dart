@@ -61,7 +61,7 @@ mixin SessionContentShareMixin on BaseController {
     String? subtitle,
   }) async {
     try {
-      final url = DeepLinkService.channelUrl(channelId);
+      final url = DeepLinkService.channelUrl(channelId, handle: handle);
 
       ShareBottomSheet.show(
         title: channelName,

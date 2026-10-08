@@ -31,9 +31,10 @@ class DashboardRecentPerformanceSection extends StatelessWidget {
             Text(
               'Recent Performance',
               style: TextStyle(
-                fontSize: isMobile ? 20 : 24,
+                fontFamily: TWTypography.brandFamily,
+                fontSize: isMobile ? 18 : 22,
                 fontWeight: FontWeight.bold,
-                color: isDarkMode ? AppColors.textPrimary : Colors.black,
+                color: AppColors.textPrimary,
               ),
             ),
             Container(
@@ -42,14 +43,10 @@ class DashboardRecentPerformanceSection extends StatelessWidget {
                 vertical: 6,
               ),
               decoration: BoxDecoration(
-                color: isDarkMode
-                    ? AppTheme.colors.surface
-                    : const Color(0xFFF1F5F9),
+                color: const Color(0xFF1E1E1E),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: isDarkMode
-                      ? const Color(0xFF374151)
-                      : AppColors.bgDivider,
+                  color: AppColors.bgDivider,
                 ),
               ),
               child: const Row(
@@ -57,14 +54,15 @@ class DashboardRecentPerformanceSection extends StatelessWidget {
                 children: [
                   Icon(
                     Icons.date_range_rounded,
-                    color: Colors.white,
+                    color: AppColors.textSecondary,
                     size: 16,
                   ),
                   SizedBox(width: 6),
                   Text(
                     'Last 28 days',
                     style: TextStyle(
-                      color: Color(0xFF6366F1),
+                      fontFamily: TWTypography.uiFamily,
+                      color: AppColors.textPrimary,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                     ),
@@ -74,24 +72,16 @@ class DashboardRecentPerformanceSection extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
         Container(
           height: 300,
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: isDarkMode ? AppTheme.colors.surface : AppColors.textPrimary,
-            borderRadius: BorderRadius.circular(16),
+            color: const Color(0xFF1E1E1E),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isDarkMode ? const Color(0xFF374151) : AppColors.bgDivider,
+              color: AppColors.bgDivider,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: isDarkMode ? Colors.black26 : Colors.black38,
-                blurRadius: 20,
-                spreadRadius: 2,
-                offset: const Offset(0, 4),
-              ),
-            ],
           ),
           child: DashboardPerformanceChart(
             isDarkMode: isDarkMode,
@@ -130,11 +120,13 @@ class DashboardPerformanceChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (analyticsData.isEmpty) {
-      return Center(
+      return const Center(
         child: Text(
           'No analytics data yet.',
           style: TextStyle(
-            color: isDarkMode ? AppColors.textSecondary : Colors.black,
+            fontFamily: TWTypography.uiFamily,
+            color: AppColors.textSecondary,
+            fontSize: 14,
           ),
         ),
       );
@@ -142,25 +134,29 @@ class DashboardPerformanceChart extends StatelessWidget {
 
     return SfCartesianChart(
       plotAreaBorderWidth: 0,
-      primaryXAxis: DateTimeAxis(
-        majorGridLines: const MajorGridLines(width: 0),
+      primaryXAxis: const DateTimeAxis(
+        majorGridLines: MajorGridLines(width: 0),
         labelStyle: TextStyle(
-          color: isDarkMode ? AppColors.textSecondary : Colors.black,
+          fontFamily: TWTypography.uiFamily,
+          color: AppColors.textSecondary,
+          fontSize: 11,
         ),
         axisLine: AxisLine(
-          color: isDarkMode ? const Color(0xFF374151) : AppColors.bgDivider,
+          color: AppColors.bgDivider,
         ),
       ),
-      primaryYAxis: NumericAxis(
+      primaryYAxis: const NumericAxis(
         labelStyle: TextStyle(
-          color: isDarkMode ? AppColors.textSecondary : Colors.black,
+          fontFamily: TWTypography.uiFamily,
+          color: AppColors.textSecondary,
+          fontSize: 11,
         ),
-        axisLine: const AxisLine(width: 0),
-        majorTickLines: const MajorTickLines(width: 0),
+        axisLine: AxisLine(width: 0),
+        majorTickLines: MajorTickLines(width: 0),
         majorGridLines: MajorGridLines(
           width: 1,
-          color: isDarkMode ? const Color(0xFF374151) : AppColors.bgDivider,
-          dashArray: const [5, 5],
+          color: AppColors.bgDivider,
+          dashArray: [5, 5],
         ),
       ),
       tooltipBehavior: TooltipBehavior(enable: true),
@@ -171,14 +167,13 @@ class DashboardPerformanceChart extends StatelessWidget {
           yValueMapper: (data, _) => data.views,
           gradient: LinearGradient(
             colors: [
-              const Color(0xFF6366F1).withValues(alpha: 0.3),
-              const Color(0xFF6366F1).withValues(alpha: 0.1),
+              AppColors.brand.withValues(alpha: 0.25),
+              AppColors.brand.withValues(alpha: 0.02),
             ],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
-          borderWidth: 3,
-          borderColor: const Color(0xFF6366F1),
+          borderColor: AppColors.brand,
           name: 'Views',
         ),
       ],

@@ -8,8 +8,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/video_card.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
@@ -28,6 +30,7 @@ mixin VideoPlaybackEngineMixin on GetxController {
   VideoPlayerController? get videoPlayerController;
   set videoPlayerController(VideoPlayerController? c);
   Rx<VideoPlayerController?> get rxVideoPlayerController;
+  RxDouble get rxAspectRatio;
   ChewieController? get chewieController;
   set chewieController(ChewieController? c);
 
@@ -116,6 +119,15 @@ mixin VideoPlaybackEngineMixin on GetxController {
       rxIsLoading.value = false;
     }
 
+    if (video.isPrivate && !VideoVisibilityPolicy.isOwner(video)) {
+      videoError.value = true;
+      rxErrorMessage.value =
+          'This video is private. Only the channel owner can view this video.';
+      rxIsLoading.value = false;
+      showThumbnail.value = false;
+      return;
+    }
+
     if (video.status == VideoStatus.rejected ||
         video.visibility == 'rejected' ||
         video.channelStatus == 'rejected') {
@@ -127,21 +139,19 @@ mixin VideoPlaybackEngineMixin on GetxController {
     }
 
     try {
-      final targetUrl = (await resolvePlaybackTargetUrl(overrideUrl: overrideUrl))!;
-
-      debugPrint('[VideoController] Initializing player for: $targetUrl');
-
       final oldVpc = videoPlayerController;
       final oldCc = chewieController;
 
-      // Attempt to retrieve a pre-warmed/hovered controller for zero-latency startup
-      final handoffVpc = VideoPlaybackHandoff.retrieveController(video.id);
+      // Attempt to retrieve a pre-warmed/hovered controller from Google CDN for 0ms startup
+      final handoffVpc = (overrideUrl == null || overrideUrl.isEmpty)
+          ? VideoPlaybackHandoff.retrieveController(video.id)
+          : null;
       final VideoPlayerController newVpc;
       final wasHandoff = handoffVpc != null;
 
       if (wasHandoff) {
         debugPrint(
-          '[VideoController] Found active handoff controller for: ${video.id}',
+          '[VideoController] 🚀 Instant handoff from pre-warmed Google CDN player for: ${video.id}',
         );
         newVpc = handoffVpc;
         await newVpc.setLooping(
@@ -150,57 +160,86 @@ mixin VideoPlaybackEngineMixin on GetxController {
         await newVpc.setVolume(1); // Reset volume to unmute on watch screen
         rxIsLoading.value = false;
         showThumbnail.value = false;
-      } else if (!kIsWeb &&
-          rxIsOffline.value &&
-          !targetUrl.startsWith('http') &&
-          !targetUrl.startsWith('blob:')) {
-        newVpc = VideoPlayerController.file(
-          File(targetUrl),
-          videoPlayerOptions: VideoPlayerOptions(
-            mixWithOthers: true,
-            allowBackgroundPlayback: true,
-          ),
-        );
       } else {
-        final isHlsOrCmaf = targetUrl.contains('.m3u8') || targetUrl.contains('/cmaf/');
-        final networkHeaders = isHlsOrCmaf
-            ? const {
-                'Connection': 'keep-alive',
-                'Accept': 'application/vnd.apple.mpegurl, application/x-mpegURL, video/mp4;q=0.9, */*;q=0.8',
-                'Cache-Control': 'no-cache',
-              }
-            : const {
-                'Connection': 'keep-alive',
-                'Accept': '*/*',
-              };
+        final targetUrl = (await resolvePlaybackTargetUrl(overrideUrl: overrideUrl))!;
+        debugPrint('[VideoController] Initializing Google CDN player for: $targetUrl');
 
-        newVpc = (rxIsOffline.value && targetUrl.startsWith('blob:'))
-            ? VideoPlayerController.networkUrl(
-                Uri.parse(targetUrl),
-                videoPlayerOptions: VideoPlayerOptions(
-                  mixWithOthers: true,
-                  allowBackgroundPlayback: true,
-                ),
-              )
-            : VideoPlayerController.networkUrl(
-                Uri.parse(targetUrl),
-                httpHeaders: networkHeaders,
-                videoPlayerOptions: VideoPlayerOptions(
-                  mixWithOthers: true,
-                  allowBackgroundPlayback: true,
-                ),
-              );
+        if (!kIsWeb &&
+            rxIsOffline.value &&
+            !targetUrl.startsWith('http') &&
+            !targetUrl.startsWith('blob:')) {
+          newVpc = VideoPlayerController.file(
+            File(targetUrl),
+            videoPlayerOptions: VideoPlayerOptions(
+              mixWithOthers: true,
+              allowBackgroundPlayback: true,
+            ),
+          );
+        } else {
+          final isHlsOrCmaf = targetUrl.contains('.m3u8') || targetUrl.contains('/cmaf/');
+          final networkHeaders = isHlsOrCmaf
+              ? const {
+                  'Connection': 'keep-alive',
+                  'Accept': 'application/vnd.apple.mpegurl, application/x-mpegURL, video/mp4;q=0.9, */*;q=0.8',
+                  'Cache-Control': 'no-cache',
+                }
+              : const {
+                  'Connection': 'keep-alive',
+                  'Accept': '*/*',
+                };
+
+          newVpc = (rxIsOffline.value && targetUrl.startsWith('blob:'))
+              ? VideoPlayerController.networkUrl(
+                  Uri.parse(targetUrl),
+                  videoPlayerOptions: VideoPlayerOptions(
+                    mixWithOthers: true,
+                    allowBackgroundPlayback: true,
+                  ),
+                )
+              : VideoPlayerController.networkUrl(
+                  Uri.parse(targetUrl),
+                  httpHeaders: networkHeaders,
+                  videoPlayerOptions: VideoPlayerOptions(
+                    mixWithOthers: true,
+                    allowBackgroundPlayback: true,
+                  ),
+                );
+        }
       }
 
       HoverPreviewCoordinator.globalMute.value = true;
 
       if (!newVpc.value.isInitialized) {
-        await newVpc.initialize().timeout(
-          const Duration(seconds: 30),
-          onTimeout: () {
-            throw Exception('Video initialization timeout');
-          },
-        );
+        final handoffFuture =
+            VideoPlaybackHandoff.getInitializationFuture(video.id);
+        if (handoffFuture != null) {
+          try {
+            await handoffFuture.timeout(
+              const Duration(seconds: 30),
+              onTimeout: () => throw Exception('Video initialization timeout'),
+            );
+          } catch (e) {
+            debugPrint(
+              '[VideoController] Pre-warm handoff error ($e), checking player status',
+            );
+            if (!newVpc.value.isInitialized) {
+              await newVpc.initialize().timeout(
+                const Duration(seconds: 30),
+                onTimeout: () => throw Exception('Video initialization timeout'),
+              );
+            }
+          }
+        } else {
+          await newVpc.initialize().timeout(
+            const Duration(seconds: 30),
+            onTimeout: () => throw Exception('Video initialization timeout'),
+          );
+        }
+      }
+
+      // Sync aspect ratio reactively upon successful initialization
+      if (newVpc.value.isInitialized && newVpc.value.aspectRatio > 0) {
+        rxAspectRatio.value = newVpc.value.aspectRatio;
       }
 
       // Immediately wire new initialized controller to reactive state & clear loading/thumbnail
@@ -219,18 +258,28 @@ mixin VideoPlaybackEngineMixin on GetxController {
       newVpc.addListener(videoErrorListener);
       newVpc.addListener(videoListener);
 
-      // Sync active TowerPlayerController immediately so the video surface mounts
+      // Ensure TowerPlayerController is deterministically initialized and bound
       try {
-        if (Get.isRegistered<TowerPlayerController>(tag: video.id)) {
-          Get.find<TowerPlayerController>(tag: video.id).sync(newVpc);
-        } else if (Get.isRegistered<TowerPlayerController>()) {
-          Get.find<TowerPlayerController>().sync(newVpc);
+        final playerTag = video.id;
+        if (Get.isRegistered<TowerPlayerController>(tag: playerTag)) {
+          Get.find<TowerPlayerController>(tag: playerTag).sync(newVpc);
+        } else {
+          Get.put(
+            TowerPlayerController(
+              videoPlayerController: newVpc,
+              tag: playerTag,
+            ),
+            tag: playerTag,
+          );
         }
-      } catch (e) {
-        debugPrint('[VideoController] TowerPlayer sync error: $e');
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'VideoPlaybackEngineMixin.ensureTowerPlayer',
+        );
       }
 
-      // --- CLIP MODE & RESUME LOGIC (Seek BEFORE play to prevent 0:00 audio/video flash) ---
       if (wasHandoff) {
         // Handed off controller is already at the live playing frame!
         // Do NOT seek backwards to WatchHistoryService or initial position.
@@ -242,6 +291,14 @@ mixin VideoPlaybackEngineMixin on GetxController {
           try {
             await newVpc.play();
           } catch (_) {}
+        }
+        if (currentResolution.value == null && availableResolutions.isNotEmpty) {
+          final resHeight = newVpc.value.size.height.toInt();
+          final match = availableResolutions.firstWhereOrNull(
+                (r) => (resHeight > 0 && r.height == resHeight) || r.url == newVpc.dataSource,
+              ) ??
+              availableResolutions.first;
+          currentResolution.value = match;
         }
       } else {
         if (activeClip.value != null) {
@@ -447,6 +504,12 @@ mixin VideoPlaybackEngineMixin on GetxController {
     chewieController = null;
     try {
       analyticsController.stopTimer();
+    } catch (_) {}
+    try {
+      final playerTag = video.id;
+      if (playerTag.isNotEmpty && Get.isRegistered<TowerPlayerController>(tag: playerTag)) {
+        Get.delete<TowerPlayerController>(tag: playerTag, force: true);
+      }
     } catch (_) {}
     try {
       videoPlayerController?.dispose();

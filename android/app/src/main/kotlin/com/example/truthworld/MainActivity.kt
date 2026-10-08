@@ -6,12 +6,17 @@ import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.util.Rational
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import android.view.WindowManager
+import com.example.truthworld.security.RaspSecurityManager
 
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterFragmentActivity() {
     private val PIP_CHANNEL = "com.example.truthworld/pip"
+    private val INSTALLER_CHANNEL = "com.example.truthworld/installer"
+    private val RASP_CHANNEL = "com.example.truthworld/rasp"
+    private val SCREEN_SECURITY_CHANNEL = "com.example.truthworld/screen_security"
     private var pipChannel: MethodChannel? = null
     private var isAutoEnterPipEnabled = false
     private var pipAspectRatioWidth = 16
@@ -29,7 +34,7 @@ class MainActivity : FlutterActivity() {
             val channel = android.app.NotificationChannel(channelId, channelName, importance).apply {
                 description = channelDescription
                 enableLights(true)
-                lightColor = android.graphics.Color.RED
+                lightColor = android.graphics.Color.parseColor("#14EAB2")
                 enableVibration(true)
                 setShowBadge(true)
                 val audioAttributes = android.media.AudioAttributes.Builder()
@@ -49,22 +54,20 @@ class MainActivity : FlutterActivity() {
             val debugToken = if (tokenResId != 0) getString(tokenResId) else "26B7C98E-FC8F-4580-BA97-455ADBE131BC"
             val prefsKeys = mutableSetOf<String>()
 
-            // 1. Standard FirebaseApp.getInstance().persistenceKey via reflection (exact key used by Firebase SDK)
+            // 1. If FirebaseApp is already initialized, retrieve its persistenceKey via reflection
             try {
                 val firebaseAppClass = Class.forName("com.google.firebase.FirebaseApp")
                 val getAppsMethod = firebaseAppClass.getMethod("getApps", Context::class.java)
                 val apps = getAppsMethod.invoke(null, this) as List<*>
-                if (apps.isEmpty()) {
-                    val initializeAppMethod = firebaseAppClass.getMethod("initializeApp", Context::class.java)
-                    initializeAppMethod.invoke(null, this)
+                if (apps.isNotEmpty()) {
+                    val getInstanceMethod = firebaseAppClass.getMethod("getInstance")
+                    val app = getInstanceMethod.invoke(null)
+                    val getPersistenceKeyMethod = firebaseAppClass.getMethod("getPersistenceKey")
+                    val persistenceKey = getPersistenceKeyMethod.invoke(app) as String
+                    prefsKeys.add("com.google.firebase.appcheck.debug.store.$persistenceKey")
                 }
-                val getInstanceMethod = firebaseAppClass.getMethod("getInstance")
-                val app = getInstanceMethod.invoke(null)
-                val getPersistenceKeyMethod = firebaseAppClass.getMethod("getPersistenceKey")
-                val persistenceKey = getPersistenceKeyMethod.invoke(app) as String
-                prefsKeys.add("com.google.firebase.appcheck.debug.store.$persistenceKey")
             } catch (e: Throwable) {
-                android.util.Log.e("MainActivity", "Reflection getPersistenceKey failed: ${e.message}")
+                // Non-critical: keys are calculated dynamically below
             }
 
             // 2. Dynamic key variants based on google_app_id
@@ -108,6 +111,16 @@ class MainActivity : FlutterActivity() {
                 }
             }
         }
+
+        // Proactive native RASP & anti-repackaging check on release builds
+        if (!isDebug) {
+            if (RaspSecurityManager.isFridaDetected() ||
+                RaspSecurityManager.isDebuggerAttached() ||
+                !RaspSecurityManager.isSignatureValid(applicationContext)) {
+                android.util.Log.e("MainActivity", "Critical security integrity violation detected at launch. Terminating.")
+                RaspSecurityManager.terminateApp()
+            }
+        }
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -145,6 +158,90 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+
+        // Installer-source channel: lets Dart detect sideloaded APKs at runtime
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, INSTALLER_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "getInstallerSource" -> {
+                        try {
+                            val pkg = packageName
+                            val installer: String? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                packageManager.getInstallSourceInfo(pkg).installingPackageName
+                            } else {
+                                @Suppress("DEPRECATION")
+                                packageManager.getInstallerPackageName(pkg)
+                            }
+                            val source = when (installer) {
+                                "com.android.vending" -> "play_store"
+                                "com.sec.android.app.samsungapps" -> "samsung_galaxy_store"
+                                "com.amazon.venezia" -> "amazon_appstore"
+                                else -> "sideloaded"
+                            }
+                            result.success(source)
+                        } catch (e: Exception) {
+                            android.util.Log.w("MainActivity", "getInstallerSource error: ${e.message}")
+                            result.success("sideloaded")
+                        }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
+        // RASP security channel: anti-hooking, Frida detection, and execution termination
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, RASP_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "checkSecurityThreats" -> {
+                        try {
+                            val threats = RaspSecurityManager.checkSecurityThreats(applicationContext)
+                            result.success(threats)
+                        } catch (e: Exception) {
+                            android.util.Log.e("MainActivity", "checkSecurityThreats failed: ${e.message}")
+                            result.error("RASP_ERROR", e.message, null)
+                        }
+                    }
+                    "terminateApp" -> {
+                        RaspSecurityManager.terminateApp()
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
+        // Screen Security channel: FLAG_SECURE protection against screenshots, screen recording, and task switcher preview leaks
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SCREEN_SECURITY_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "enableSecureMode" -> {
+                        try {
+                            runOnUiThread {
+                                window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                            }
+                            result.success(true)
+                        } catch (e: Exception) {
+                            android.util.Log.e("MainActivity", "enableSecureMode failed: ${e.message}")
+                            result.error("FLAG_SECURE_ERROR", e.message, null)
+                        }
+                    }
+                    "disableSecureMode" -> {
+                        try {
+                            runOnUiThread {
+                                window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                            }
+                            result.success(true)
+                        } catch (e: Exception) {
+                            android.util.Log.e("MainActivity", "disableSecureMode failed: ${e.message}")
+                            result.error("FLAG_SECURE_ERROR", e.message, null)
+                        }
+                    }
+                    "isSecureModeEnabled" -> {
+                        val isSecure = (window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE) != 0
+                        result.success(isSecure)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
     }
 
     private fun enterPipMode(ratio: Double) {

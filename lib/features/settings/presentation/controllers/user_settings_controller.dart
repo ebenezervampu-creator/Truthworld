@@ -266,12 +266,20 @@ class UserSettingsController extends BaseController {
       final tempDir = await getTemporaryDirectory();
       if (await tempDir.exists()) {
         var totalBytes = 0;
-        await for (final entity in tempDir.list(
-          recursive: true,
-          followLinks: false,
-        )) {
+        await for (final entity in tempDir
+            .list(
+              recursive: true,
+              followLinks: false,
+            )
+            .handleError((_) {})) {
           if (entity is File) {
-            totalBytes += await entity.length();
+            try {
+              if (await entity.exists()) {
+                totalBytes += await entity.length();
+              }
+            } catch (_) {
+              // File was removed concurrently by image cache, safely ignore.
+            }
           }
         }
         cacheSizeMB.value = totalBytes / (1024 * 1024);

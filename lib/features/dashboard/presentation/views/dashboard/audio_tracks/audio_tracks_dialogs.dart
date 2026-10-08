@@ -1,10 +1,9 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/audio_tracks_video_sidebar.dart';
-import 'package:truthworld/theme/app_colors.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Modal dialogs and bottom sheets for Audio Tracks management.
 class AudioTracksDialogs {
@@ -20,14 +19,19 @@ class AudioTracksDialogs {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          backgroundColor: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text(
+          backgroundColor: const Color(0xFF1E1E1E),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: AppColors.bgDivider),
+          ),
+          title: const Text(
             'Add Audio Dub Language',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
+              fontFamily: TWTypography.brandFamily,
+              fontFamilyFallback: TWTypography.fallbackFamilies,
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: isDarkMode ? Colors.white : Colors.black,
+              color: AppColors.textPrimary,
             ),
           ),
           content: SizedBox(
@@ -47,7 +51,9 @@ class AudioTracksDialogs {
                     label: Text(lang.name),
                     backgroundColor: isAlreadyAdded
                         ? AppColors.brand.withValues(alpha: 0.2)
-                        : (isDarkMode ? const Color(0xFF141414) : const Color(0xFFF1F5F9)),
+                        : const Color(0xFF1E1E1E),
+                    side: const BorderSide(color: AppColors.bgDivider),
+                    labelStyle: const TextStyle(color: AppColors.textPrimary),
                     onPressed: () {
                       Navigator.of(dialogContext).pop();
                       controller.addLanguageLayer(lang.code);
@@ -60,7 +66,7 @@ class AudioTracksDialogs {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Close'),
+              child: const Text('Close', style: TextStyle(color: AppColors.textPrimary)),
             ),
           ],
         );
@@ -108,11 +114,17 @@ class AudioTracksDialogs {
           height: MediaQuery.of(sheetContext).size.height * 0.7,
           child: Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
+              const Padding(
+                padding: EdgeInsets.all(16),
                 child: Text(
                   'Select Video for Audio Workspace',
-                  style: GoogleFonts.roboto(fontSize: 16, fontWeight: FontWeight.bold, color: textColor),
+                  style: TextStyle(
+                    fontFamily: TWTypography.brandFamily,
+                    fontFamilyFallback: TWTypography.fallbackFamilies,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
               ),
               Expanded(
@@ -151,14 +163,19 @@ class AudioTracksDialogs {
         return Obx(() {
           final file = selectedFile.value;
           return AlertDialog(
-            backgroundColor: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: Text(
+            backgroundColor: const Color(0xFF1E1E1E),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: const BorderSide(color: AppColors.bgDivider),
+            ),
+            title: const Text(
               'Upload Audio Dub Track',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
+                fontFamily: TWTypography.brandFamily,
+                fontFamilyFallback: TWTypography.fallbackFamilies,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: isDarkMode ? Colors.white : Colors.black,
+                color: AppColors.textPrimary,
               ),
             ),
             content: SizedBox(
@@ -168,19 +185,19 @@ class AudioTracksDialogs {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Language Dropdown
-                  Text(
+                  const Text(
                     'Language',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: isDarkMode ? AppColors.textSecondary : const Color(0xFF4B5563),
+                      color: AppColors.textSecondary,
                     ),
                   ),
                   const SizedBox(height: 6),
                   DropdownButtonFormField<String>(
                     value: selectedLangCode.value,
-                    dropdownColor: isDarkMode ? const Color(0xFF262626) : Colors.white,
-                    style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
+                    dropdownColor: const Color(0xFF1E1E1E),
+                    style: const TextStyle(color: AppColors.textPrimary),
                     items: controller.supportedLanguages.map((lang) {
                       return DropdownMenuItem(value: lang.code, child: Text(lang.name));
                     }).toList(),
@@ -189,26 +206,33 @@ class AudioTracksDialogs {
                     },
                     decoration: InputDecoration(
                       filled: true,
-                      fillColor: isDarkMode ? const Color(0xFF141414) : const Color(0xFFF1F5F9),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      fillColor: const Color(0xFF1E1E1E),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: AppColors.bgDivider),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: AppColors.bgDivider),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 14),
 
                   // Track Type Dropdown
-                  Text(
+                  const Text(
                     'Track Type / Role',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: isDarkMode ? AppColors.textSecondary : const Color(0xFF4B5563),
+                      color: AppColors.textSecondary,
                     ),
                   ),
                   const SizedBox(height: 6),
                   DropdownButtonFormField<String>(
                     value: selectedRole.value,
-                    dropdownColor: isDarkMode ? const Color(0xFF262626) : Colors.white,
-                    style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
+                    dropdownColor: const Color(0xFF1E1E1E),
+                    style: const TextStyle(color: AppColors.textPrimary),
                     items: const [
                       DropdownMenuItem(value: 'Dubbed Audio', child: Text('Dubbed Audio Track')),
                       DropdownMenuItem(value: 'AI Voiceover', child: Text('AI Voiceover Stream')),
@@ -219,8 +243,15 @@ class AudioTracksDialogs {
                     },
                     decoration: InputDecoration(
                       filled: true,
-                      fillColor: isDarkMode ? const Color(0xFF141414) : const Color(0xFFF1F5F9),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      fillColor: const Color(0xFF1E1E1E),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: AppColors.bgDivider),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: AppColors.bgDivider),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -241,7 +272,7 @@ class AudioTracksDialogs {
                       width: double.infinity,
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: isDarkMode ? const Color(0xFF141414) : const Color(0xFFF1F5F9),
+                        color: const Color(0xFF1E1E1E),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
                           color: file != null ? AppColors.success : AppColors.brand.withValues(alpha: 0.5),
@@ -258,10 +289,10 @@ class AudioTracksDialogs {
                           const SizedBox(height: 8),
                           Text(
                             file != null ? file.name : 'Click to Pick Audio File (.mp3, .wav, .m4a)',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.bold,
-                              color: isDarkMode ? Colors.white : Colors.black,
+                              color: AppColors.textPrimary,
                             ),
                             textAlign: TextAlign.center,
                           ),
@@ -275,10 +306,10 @@ class AudioTracksDialogs {
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(dialogContext).pop(),
-                child: Text(
+                child: const Text(
                   'Cancel',
                   style: TextStyle(
-                    color: isDarkMode ? AppColors.textSecondary : const Color(0xFF6B7280),
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ),

@@ -4,6 +4,7 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { logger } from "firebase-functions/v2";
 import axios from "axios";
 import { applySecurityHeaders } from "../utils/securityHeaders";
+import { createHash } from "crypto";
 import { costEngine, CostEngine, CDN_RATE_CARDS } from "../pipeline/services/cost-engine";
 
 // â”€â”€â”€ Init â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -45,6 +46,7 @@ interface WatchEventPayload {
   platform?: string;
   networkType?: string;
   language?: string;
+  viewerHash?: string;
 }
 
 interface RawEvent extends WatchEventPayload {
@@ -114,23 +116,183 @@ async function resolveState(rawIp: string): Promise<string> {
   }
 }
 
-// Anti-spam: Max 40 raw writes per sessionId per minute.
-// Normal playback sends ~6-8 events/min (video_start, pings every 20s, milestones).
-async function isSpam(sessionId: string): Promise<boolean> {
-  try {
-    const oneMinAgo = admin.firestore.Timestamp.fromDate(
-      new Date(Date.now() - 60_000)
-    );
-    const snap = await db
-      .collection("watch_events")
-      .where("sessionId", "==", sessionId)
-      .where("createdAt", ">=", oneMinAgo)
-      .limit(41)
-      .get();
-    return snap.size >= 40;
-  } catch (err) {
-    logger.warn("isSpam check failed, failing open:", err);
+// Anti-spam: In-memory sliding window rate-limiter (0ms, 0 Firestore reads).
+// Normal playback sends ~1-2 pings/min (video_start, 60s pings, milestones). Max 30 writes per sessionId per minute.
+const sessionRateMap = new Map<string, { count: number; resetAt: number }>();
+
+function isSpam(sessionId: string): boolean {
+  const now = Date.now();
+  const entry = sessionRateMap.get(sessionId);
+
+  if (!entry || now > entry.resetAt) {
+    sessionRateMap.set(sessionId, { count: 1, resetAt: now + 60_000 });
+    if (sessionRateMap.size > 10_000) {
+      for (const [k, v] of sessionRateMap.entries()) {
+        if (now > v.resetAt) sessionRateMap.delete(k);
+      }
+    }
     return false;
+  }
+
+  entry.count++;
+  return entry.count > 30;
+}
+
+// ─── Bot Farm Defense: IP Hashing ──────────────────────────────────────────────
+function hashIP(ip: string): string {
+  return createHash("sha256").update(ip).digest("hex").substring(0, 16);
+}
+
+// ─── Bot Farm Defense: IP Rate Tracking ────────────────────────────────────────
+// Tracks IP activity in Firestore for clustering detection.
+// Returns true if the IP should be BLOCKED.
+async function trackAndCheckIP(
+  ipHash: string,
+  videoId: string,
+  isAnonymous: boolean
+): Promise<{ blocked: boolean; reason?: string }> {
+  if (!ipHash || ipHash === "unknown") return { blocked: false };
+
+  const now = Date.now();
+  const hourKey = new Date(now).toISOString().slice(0, 13); // "2026-10-01T09"
+  const trackerDocId = `${ipHash}_${hourKey}`;
+  const trackerRef = db.collection("view_ip_tracker").doc(trackerDocId);
+
+  try {
+    // Check if IP is already blocked
+    const blockRef = db.collection("blocked_ips").doc(ipHash);
+    const blockSnap = await blockRef.get();
+    if (blockSnap.exists) {
+      const blockData = blockSnap.data();
+      if (blockData?.expiresAt?.toMillis?.() > now) {
+        return { blocked: true, reason: "ip_blocked" };
+      }
+    }
+
+    // Increment counters atomically
+    const updateData: Record<string, any> = {
+      ipHash,
+      totalSessions: admin.firestore.FieldValue.increment(1),
+      lastSeenAt: admin.firestore.FieldValue.serverTimestamp(),
+      [`videoSessions.${videoId}`]: admin.firestore.FieldValue.increment(1),
+    };
+    if (isAnonymous) {
+      updateData.anonymousSessions = admin.firestore.FieldValue.increment(1);
+    }
+    await trackerRef.set(updateData, { merge: true });
+
+    // Read back to check thresholds
+    const trackerSnap = await trackerRef.get();
+    const trackerData = trackerSnap.data();
+    if (!trackerData) return { blocked: false };
+
+    const totalSessions = Number(trackerData.totalSessions || 0);
+    const videoSessionCount = Number(trackerData.videoSessions?.[videoId] || 0);
+    const anonymousSessions = Number(trackerData.anonymousSessions || 0);
+
+    // RULE: > 500 sessions from same IP across ALL videos in 1hr → BLOCK
+    if (totalSessions > 500) {
+      await blockRef.set({
+        ipHash,
+        reason: `global_session_flood_${totalSessions}_sessions_in_1hr`,
+        blockedAt: admin.firestore.FieldValue.serverTimestamp(),
+        expiresAt: admin.firestore.Timestamp.fromMillis(now + 3600000), // 1hr block
+      });
+      logger.warn(`[FraudDefense] BLOCKED IP ${ipHash}: ${totalSessions} global sessions in 1hr`);
+      return { blocked: true, reason: "ip_global_flood" };
+    }
+
+    // RULE: > 50 sessions from same IP watching SAME video in 1hr → BLOCK
+    if (videoSessionCount > 50) {
+      await blockRef.set({
+        ipHash,
+        reason: `video_session_cluster_${videoSessionCount}_sessions_on_${videoId}`,
+        blockedAt: admin.firestore.FieldValue.serverTimestamp(),
+        expiresAt: admin.firestore.Timestamp.fromMillis(now + 3600000),
+      });
+      logger.warn(`[FraudDefense] BLOCKED IP ${ipHash}: ${videoSessionCount} sessions on video ${videoId}`);
+      return { blocked: true, reason: "ip_video_cluster" };
+    }
+
+    // RULE: > 20 anonymous sessions from same IP in 10 min → BLOCK
+    if (isAnonymous && anonymousSessions > 20) {
+      await blockRef.set({
+        ipHash,
+        reason: `anonymous_flood_${anonymousSessions}_sessions`,
+        blockedAt: admin.firestore.FieldValue.serverTimestamp(),
+        expiresAt: admin.firestore.Timestamp.fromMillis(now + 3600000),
+      });
+      logger.warn(`[FraudDefense] BLOCKED anonymous IP ${ipHash}: ${anonymousSessions} anonymous sessions`);
+      return { blocked: true, reason: "anonymous_flood" };
+    }
+
+    return { blocked: false };
+  } catch (err) {
+    // Fail open — don't block legitimate users if tracker fails
+    logger.warn("[FraudDefense] IP tracking check failed, failing open:", err);
+    return { blocked: false };
+  }
+}
+
+// ─── Bot Farm Defense: Concurrent Session Limiter ──────────────────────────────
+// A single user should not be watching more than 3 videos simultaneously.
+async function checkConcurrentSessions(userId: string): Promise<{ exceeded: boolean; activeCount: number }> {
+  if (!userId || userId === "anonymous") return { exceeded: false, activeCount: 0 };
+
+  try {
+    const rtdb = admin.database();
+    const activeViewersSnap = await rtdb.ref("activeViewers").once("value");
+    if (!activeViewersSnap.exists()) return { exceeded: false, activeCount: 0 };
+
+    let activeVideoCount = 0;
+    const now = Date.now();
+    const STALE_MS = 120_000; // 2 minutes — sessions older than this are stale
+
+    activeViewersSnap.forEach((videoSnap) => {
+      videoSnap.forEach((sessionSnap) => {
+        const data = sessionSnap.val();
+        if (data?.uid === userId && data?.updatedAt && (now - data.updatedAt) < STALE_MS) {
+          activeVideoCount++;
+        }
+      });
+    });
+
+    return { exceeded: activeVideoCount > 3, activeCount: activeVideoCount };
+  } catch (err) {
+    logger.warn("[FraudDefense] Concurrent session check failed, failing open:", err);
+    return { exceeded: false, activeCount: 0 };
+  }
+}
+
+// ─── Bot Farm Defense: App Check Verification ──────────────────────────────────
+// Verifies Firebase App Check token. Returns true if valid or if check is unavailable.
+// Uses grace period: logs warnings but doesn't block if enforcement is disabled.
+const APP_CHECK_ENFORCEMENT_ENABLED = true; // Feature flag for gradual rollout
+
+async function verifyAppCheck(appCheckToken: string | undefined): Promise<{ valid: boolean; reason?: string }> {
+  // Test environment bypass when no token is explicitly sent
+  if (process.env.NODE_ENV === "test" && !appCheckToken) {
+    return { valid: true };
+  }
+
+  if (!appCheckToken) {
+    if (APP_CHECK_ENFORCEMENT_ENABLED) {
+      return { valid: false, reason: "missing_app_check_token" };
+    }
+    logger.warn("[FraudDefense] Missing App Check token (enforcement disabled, allowing)");
+    return { valid: true };
+  }
+
+  try {
+    await admin.appCheck().verifyToken(appCheckToken);
+    return { valid: true };
+  } catch (err) {
+    if (APP_CHECK_ENFORCEMENT_ENABLED) {
+      logger.warn("[FraudDefense] Invalid App Check token:", err);
+      return { valid: false, reason: "invalid_app_check_token" };
+    }
+    logger.warn("[FraudDefense] Invalid App Check token (enforcement disabled, allowing)");
+    return { valid: true };
   }
 }
 
@@ -155,7 +317,7 @@ export const trackWatchEvent = onRequest(
     // "Failed to fetch" errors, hiding the actual error from the client.
     res.set("Access-Control-Allow-Origin", "*");
     res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Firebase-AppCheck");
 
     // Handle preflight
     if (req.method === "OPTIONS") {
@@ -219,6 +381,39 @@ export const trackWatchEvent = onRequest(
         return;
       }
 
+      // ─── Bot Farm Defense Layer ──────────────────────────────────────────
+      // LAYER 1: App Check — reject requests without valid app attestation
+      const appCheckToken = req.headers["x-firebase-appcheck"] as string | undefined;
+      const appCheckResult = await verifyAppCheck(appCheckToken);
+      if (!appCheckResult.valid) {
+        logger.warn(`[FraudDefense] Rejected: ${appCheckResult.reason} userId=${body.userId} videoId=${body.videoId}`);
+        res.status(403).send({ error: "Request validation failed" });
+        return;
+      }
+
+      // LAYER 2: IP fraud detection — track IP and block known bot IPs
+      const clientIP = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim()
+        ?? req.socket.remoteAddress ?? "";
+      const ipHash = (clientIP && clientIP !== "::1" && !clientIP.startsWith("127."))
+        ? hashIP(clientIP) : "unknown";
+      const isAnonymous = body.userId === "anonymous";
+      const ipCheck = await trackAndCheckIP(ipHash, body.videoId!, isAnonymous);
+      if (ipCheck.blocked) {
+        logger.warn(`[FraudDefense] Blocked IP ${ipHash}: ${ipCheck.reason} videoId=${body.videoId}`);
+        res.status(429).send({ error: "Rate limit" });
+        return;
+      }
+
+      // LAYER 3: Concurrent session limit — max 3 simultaneous videos per user
+      if (body.eventType === "video_start" && body.userId !== "anonymous") {
+        const concurrentCheck = await checkConcurrentSessions(body.userId!);
+        if (concurrentCheck.exceeded) {
+          logger.warn(`[FraudDefense] Concurrent session limit exceeded: userId=${body.userId} active=${concurrentCheck.activeCount}`);
+          res.status(429).send({ error: "Too many simultaneous streams" });
+          return;
+        }
+      }
+
       // â”€â”€ Geo â”€â”€
       const rawIp =
         (req.headers["x-forwarded-for"] as string) ??
@@ -256,7 +451,8 @@ export const trackWatchEvent = onRequest(
       // This solves the 'permission-denied' issue by using the Admin SDK
       const { userId, videoId, sessionId } = body;
       const isAuth = userId && userId !== "anonymous";
-      const docId = isAuth ? `${userId}_${videoId}` : sessionId!;
+      const identityKey = isAuth ? userId : (body.viewerHash || sessionId!);
+      const docId = `${identityKey}_${videoId}`;
 
       // Check premium subscriber status for revenue distribution (server-side, cannot be spoofed)
       let isPremiumSubscriber = false;
@@ -267,23 +463,58 @@ export const trackWatchEvent = onRequest(
         } catch (_) { /* non-blocking */ }
       }
 
+      // Check existing session document to prevent duplicate watch time for re-watching
+      const sessionRef = db.collection("watch_sessions").doc(docId);
+      const sessionSnap = await sessionRef.get();
+      const existingSessionData = sessionSnap.exists ? sessionSnap.data() : null;
+
+      const currentWatchSeconds = Math.max(0, Number(existingSessionData?.watchTimeSeconds || 0));
+      const isAlreadyWatched = existingSessionData?.isAlreadyWatched === true ||
+        existingSessionData?.hasCompleted === true ||
+        (duration > 0 && currentWatchSeconds >= duration * 0.90);
+
+      if (isAlreadyWatched) {
+        // Transparent epistemic standard: If user already watched this video, never count watch time again!
+        logger.info(`[WatchTime] User ${identityKey} already watched video ${videoId}. Rejecting duplicate watch time.`);
+        res.status(200).send({
+          success: true,
+          processed: false,
+          reason: "already_watched",
+          trackingId: docId,
+        });
+        return;
+      }
+
       // ── LAYER 2: Heartbeat Delta Validation & Clamping (Anti-bot Watch Time Inflation) ─
-      // Standard heartbeat interval is 15 seconds with 15s tolerance = max 30s legitimate delta.
+      // Standard heartbeat interval is 60 seconds with 30s network buffer = max 90s legitimate delta.
       // Clamping prevents spoofed payloads from injecting millions of fake watch seconds.
-      const MAX_LEGITIMATE_DELTA_SECONDS = 30;
+      const MAX_LEGITIMATE_DELTA_SECONDS = 90;
       const rawDelta = body.watchTimeSecondsDelta ? Number(body.watchTimeSecondsDelta) : 0;
       const secondsDelta = Math.max(0, Math.round(rawDelta));
       const clampedDelta = Math.min(secondsDelta, MAX_LEGITIMATE_DELTA_SECONDS);
       const isSuspiciousHeartbeat = secondsDelta > MAX_LEGITIMATE_DELTA_SECONDS;
 
-      await db.collection("watch_sessions").doc(docId).set({
+      // Anti-inflation & transparency: Cap delta to remaining duration so a user can NEVER contribute more than the video duration!
+      const remainingSeconds = Math.max(0, duration - currentWatchSeconds);
+      const effectiveDelta = Math.min(clampedDelta, remainingSeconds);
+      const creditedDelta = isSuspiciousHeartbeat ? 0 : effectiveDelta;
+
+      const newTotalWatchSeconds = currentWatchSeconds + creditedDelta;
+      // Watch percentage MUST be based on true watched time, NEVER on scrub/drag position!
+      const actualWatchPercentage = duration > 0 ? Math.min(1.0, newTotalWatchSeconds / duration) : 0;
+      const hasWatchedEntireVideo = (newTotalWatchSeconds >= duration * 0.90);
+
+      await sessionRef.set({
         videoId,
         userId,
         sessionId,
         channelId: body.channelId || null,
-        watchTimeSeconds: admin.firestore.FieldValue.increment(clampedDelta),
+        watchTimeSeconds: newTotalWatchSeconds,
         videoDurationSeconds: duration,
-        watchPercentage: Math.min(1.0, position / duration),
+        watchPercentage: actualWatchPercentage,
+        hasCompleted: hasWatchedEntireVideo,
+        isAlreadyWatched: hasWatchedEntireVideo,
+        lastPlaybackPosition: position, // Preserves scrub position for cross-device resume ONLY
         issubscriber: body.issubscriber === true || body.issubscriber === "true",
         isNotsubscriber: body.isNotsubscriber === true || body.isNotsubscriber === "true",
         isPremiumSubscriber,
@@ -294,7 +525,7 @@ export const trackWatchEvent = onRequest(
         playerState: body.playerState ?? "normal",
         deviceModel: body.deviceModel ?? "unknown",
         platform: body.platform ?? "unknown",
-        estimatedCDNEgressGB: admin.firestore.FieldValue.increment(CostEngine.estimateEgressGB(clampedDelta, body.playbackQuality ?? "auto")),
+        estimatedCDNEgressGB: admin.firestore.FieldValue.increment(CostEngine.estimateEgressGB(creditedDelta, body.playbackQuality ?? "auto")),
         lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
 
@@ -303,15 +534,14 @@ export const trackWatchEvent = onRequest(
 
         // Increment suspicious counter on session doc (non-blocking)
         try {
-          const sessionRef = db.collection("watch_sessions").doc(docId);
           await sessionRef.set(
             { suspiciousHeartbeatCount: admin.firestore.FieldValue.increment(1) },
             { merge: true }
           );
 
           // Flag session if > 3 suspicious pulses in a row
-          const sessionSnap = await sessionRef.get();
-          const suspiciousCount = Number(sessionSnap.data()?.suspiciousHeartbeatCount || 0);
+          const refreshedSnap = await sessionRef.get();
+          const suspiciousCount = Number(refreshedSnap.data()?.suspiciousHeartbeatCount || 0);
           if (suspiciousCount >= 3) {
             await sessionRef.set({ flagged: true, flagReason: "excessive_heartbeat_delta" }, { merge: true });
             logger.warn(`[WatchTime] Session ${docId} flagged for excessive suspicious heartbeats (${suspiciousCount}).`);
@@ -330,52 +560,88 @@ export const trackWatchEvent = onRequest(
         }
       }
 
-      const eventId = body.eventId || `${body.sessionId}_${body.position}_${body.eventType}`;
+      // Security: always generate eventId server-side to prevent client bypass of idempotency.
+      // Never trust body.eventId — a malicious client could supply random IDs to defeat the duplicate check.
+      const eventId = `${body.sessionId}_${body.position}_${body.eventType}`;
       const eventRef = db.collection("processedWatchEvents").doc(eventId);
       let isDuplicate = false;
 
-      // Skip channel watch time credit for suspicious heartbeats (capped at max legitimate delta)
-      const creditedDelta = isSuspiciousHeartbeat ? 0 : secondsDelta;
+      // Credit channel and video watch time based strictly on valid, capped true watch delta
       if (creditedDelta > 0 && targetChannelId) {
-        const channelRef = db.collection("channels").doc(targetChannelId);
-        const videoRef = body.videoId ? db.collection("videos").doc(body.videoId) : null;
-
-        await db.runTransaction(async (transaction) => {
-          const eventSnap = await transaction.get(eventRef);
-          if (eventSnap.exists) {
-            isDuplicate = true;
-            return;
-          }
-
-          transaction.set(eventRef, {
+        // Atomic Idempotency via create() without acquiring cross-document transaction locks
+        try {
+          await eventRef.create({
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             sessionId: body.sessionId,
             videoId: body.videoId,
             channelId: targetChannelId,
             secondsDelta: creditedDelta,
           });
+        } catch (createErr: any) {
+          if (createErr.code === 6 || createErr.code === "already-exists" || createErr.message?.includes("ALREADY_EXISTS")) {
+            isDuplicate = true;
+          } else {
+            logger.warn("[WatchTime] Idempotency doc check failed, proceeding best-effort:", createErr);
+          }
+        }
 
-          if (videoRef) {
-            transaction.set(
-              videoRef,
-              {
+        if (!isDuplicate) {
+          // Distributed 20-shard subcollection writes (eliminates single-document contention on viral videos)
+          const shardId = Math.floor(Math.random() * 20).toString();
+
+          if (body.videoId) {
+            const videoShardRef = db
+              .collection("videos")
+              .doc(body.videoId)
+              .collection("shards")
+              .doc(shardId);
+
+            videoShardRef
+              .set(
+                {
+                  watchTimeSeconds: admin.firestore.FieldValue.increment(creditedDelta),
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                },
+                { merge: true }
+              )
+              .catch((err) => logger.warn("[WatchTime] Video shard write warning:", err));
+
+            // Best-effort update on parent video document for immediate UI reads without transaction lock
+            db.collection("videos")
+              .doc(body.videoId)
+              .update({
                 totalWatchTimeSeconds: admin.firestore.FieldValue.increment(creditedDelta),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              })
+              .catch(() => {});
+          }
+
+          const channelShardRef = db
+            .collection("channels")
+            .doc(targetChannelId)
+            .collection("shards")
+            .doc(shardId);
+
+          channelShardRef
+            .set(
+              {
+                watchTimeSeconds: admin.firestore.FieldValue.increment(creditedDelta),
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
               },
               { merge: true }
-            );
-          }
+            )
+            .catch((err) => logger.warn("[WatchTime] Channel shard write warning:", err));
 
-          transaction.set(
-            channelRef,
-            {
+          // Best-effort update on parent channel document for immediate UI reads without transaction lock
+          db.collection("channels")
+            .doc(targetChannelId)
+            .update({
               totalWatchTimeSeconds: admin.firestore.FieldValue.increment(creditedDelta),
               "metrics.totalWatchTimeMinutes": admin.firestore.FieldValue.increment(creditedDelta / 60),
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            },
-            { merge: true }
-          );
-        });
+            })
+            .catch(() => {});
+        }
       }
 
       if (isDuplicate) {
@@ -383,7 +649,7 @@ export const trackWatchEvent = onRequest(
         return;
       }
 
-      res.status(200).send({ success: true, processed: true, trackingId: docId });
+      res.status(200).send({ success: true, processed: true, trackingId: docId, creditedDelta });
     } catch (err) {
       logger.error("trackWatchEvent", err);
       res.status(500).send({ error: "Internal server error" });
@@ -479,15 +745,21 @@ export const aggregateWatchStats = onSchedule(
         case "watch_ping":
         case "pause":
         case "exit": {
-          // â”€â”€ FIX 3: True watch time via delta â”€â”€
-          // Client sends prevPosition. If missing, fall back to ping interval cap.
-          const prev =
-            e.prevPosition !== undefined
-              ? Number(e.prevPosition)
-              : s.lastPingPos;
-          const delta = Math.max(0, e.position - prev);
-          // Cap delta at 20 s to discard tab-background / seek jumps
-          const safeDelta = Math.min(delta, 20);
+          // ── FIX 3: True watch time via delta ──
+          // Client sends watchTimeSecondsDelta or prevPosition. If missing, fall back to ping interval cap.
+          const clientDelta = e.watchTimeSecondsDelta !== undefined ? Number(e.watchTimeSecondsDelta) : undefined;
+          let safeDelta = 0;
+          if (clientDelta !== undefined && !isNaN(clientDelta)) {
+            safeDelta = Math.min(Math.max(0, clientDelta), 20);
+          } else {
+            const prev =
+              e.prevPosition !== undefined
+                ? Number(e.prevPosition)
+                : s.lastPingPos;
+            const delta = Math.max(0, e.position - prev);
+            // Cap delta at 20 s to discard tab-background / seek jumps
+            safeDelta = Math.min(delta, 20);
+          }
           s.deltaSeconds += safeDelta;
           s.lastPingPos = e.position;
           s.maxPosition = Math.max(s.maxPosition, e.position);
@@ -495,22 +767,21 @@ export const aggregateWatchStats = onSchedule(
         }
 
         case "complete":
-          s.completed = true;
-          s.maxPosition = e.duration;
-          // Add final segment
-          const finalDelta = Math.max(0, e.duration - s.lastPingPos);
-          s.deltaSeconds += Math.min(finalDelta, 20);
+          // A completion is only legitimate if the session accumulated >= 85% of duration
+          if (s.duration > 0 && s.deltaSeconds >= s.duration * 0.85) {
+            s.completed = true;
+          }
+          s.lastPingPos = e.position;
           break;
 
         case "seek":
-          // On seek: reset delta baseline without counting gap
+          // On seek: reset delta baseline without adding gap
           s.lastPingPos = e.position;
-          s.maxPosition = Math.max(s.maxPosition, e.position);
           break;
       }
     });
 
-    // â”€â”€ Accumulate into per-video stats â”€â”€
+    // ── Accumulate into per-video stats ──
     const videoAcc = new Map<
       string,
       {
@@ -544,14 +815,32 @@ export const aggregateWatchStats = onSchedule(
       }
     >();
 
+    // User-video watch time tracker to prevent repeat viewings in same window from double/triple counting
+    const userWatchTimeMap = new Map<string, number>();
+
     for (const s of sessions.values()) {
+      // Transparent watch time deduplication: a user can only contribute up to the video's duration
+      if (s.userId && s.userId !== "anonymous" && s.duration > 0) {
+        const userVidKey = `${s.videoId}__${s.userId}`;
+        const previousUserSeconds = userWatchTimeMap.get(userVidKey) || 0;
+        if (previousUserSeconds >= s.duration * 0.90) {
+          // User already watched this video; never count watch time again!
+          s.deltaSeconds = 0;
+        } else {
+          const allowableSeconds = Math.max(0, s.duration - previousUserSeconds);
+          const credited = Math.min(s.deltaSeconds, allowableSeconds);
+          userWatchTimeMap.set(userVidKey, previousUserSeconds + credited);
+          s.deltaSeconds = credited;
+        }
+      }
+
       // ── Qualified View Threshold ──
-      // A session is only counted as a Qualified View if playback reached at least 10 seconds,
-      // 30% of video duration, or video completion.
+      // A session is only counted as a Qualified View if true elapsed playback reached at least 10 seconds,
+      // 30% of video duration, or genuine video completion (>= 85%).
       const isQualifiedView = s.started && (
         s.deltaSeconds >= 10 || 
         (s.duration > 0 && (s.deltaSeconds / s.duration) >= 0.3) || 
-        s.completed
+        (s.completed && s.duration > 0 && s.deltaSeconds >= s.duration * 0.85)
       );
 
       if (!isQualifiedView) continue;
@@ -596,16 +885,18 @@ export const aggregateWatchStats = onSchedule(
       if (s.areaType === "urban") v.urbanViewers += 1;
       else if (s.areaType === "rural") v.ruralViewers += 1;
 
-      const pct = s.duration > 0 ? (s.maxPosition / s.duration) * 100 : 0;
+      // True watch completion and retention based on REAL watch time, NOT scrub position!
+      const actualPct = s.duration > 0 ? (s.deltaSeconds / s.duration) * 100 : 0;
+      const isFull = actualPct >= 90 || (s.completed && actualPct >= 85);
 
-      if (pct >= 95 || s.completed) v.full++;
-      else if (pct >= 50) v.half++;
-      if (s.maxPosition < 20) v.under20++;
+      if (isFull) v.full++;
+      else if (actualPct >= 50) v.half++;
+      if (s.deltaSeconds < 20) v.under20++;
 
-      // Retention curve: mark which decile buckets this session reached
+      // Retention curve: mark which decile buckets this session reached based on actual watch percentage
       for (let i = 0; i < 10; i++) {
         const threshold = ((i + 1) / 10) * 100;
-        if (pct >= threshold) v.retentionBuckets[i]++;
+        if (actualPct >= threshold) v.retentionBuckets[i]++;
       }
 
       // Per-state

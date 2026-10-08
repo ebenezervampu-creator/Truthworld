@@ -51,11 +51,7 @@ class SeekPreviewTooltip extends StatelessWidget {
         }
       }
 
-      return Positioned(
-        bottom: 100,
-        left: 0,
-        right: 0,
-        child: LayoutBuilder(
+      return LayoutBuilder(
           builder: (_, c) {
             final xPx = (xPct * c.maxWidth).clamp(52.0, c.maxWidth - 52.0);
             final tooltipWidth = hoveredClaim != null
@@ -241,25 +237,28 @@ class SeekPreviewTooltip extends StatelessWidget {
                         children: [
                           thumbWidget,
                           const SizedBox(height: 6),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                _fmt(pos),
-                                style: TS.time.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _fmt(pos),
+                                  style: TS.time.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
                                 ),
-                              ),
-                              Text(
-                                ' · -${_fmt(remaining)}',
-                                style: TS.time.copyWith(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 11,
+                                Text(
+                                  ' · -${_fmt(remaining)}',
+                                  style: TS.time.copyWith(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 11,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                           if (activeChapter != null) ...[
                             const SizedBox(height: 2),
@@ -282,10 +281,9 @@ class SeekPreviewTooltip extends StatelessWidget {
               ),
             );
           },
-        ),
-      );
-    });
-  }
+        );
+      });
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

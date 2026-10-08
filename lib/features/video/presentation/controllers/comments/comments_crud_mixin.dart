@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
-import 'package:truthworld/core/utils/mentions_helper.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments/comments_state_base.dart';
 
@@ -62,6 +61,34 @@ mixin CommentsCrudMixin on CommentsStateBase {
       final finalChannelProfilePicUrl =
           channelProfilePicUrl ?? authService.activePhotoUrl;
 
+      // Channel Membership & Loyalty Badge lookup
+      var isMember = false;
+      Timestamp? memberSince;
+      String? memberTierName;
+      final targetChannelId = video?.channelId;
+      if (targetChannelId != null && targetChannelId.isNotEmpty) {
+        try {
+          final memDoc = await FirebaseFirestore.instance
+              .collection(FirestoreCollections.users)
+              .doc(currentUserId)
+              .collection('channel_memberships')
+              .doc(targetChannelId)
+              .get();
+          if (memDoc.exists && memDoc.data() != null) {
+            final data = memDoc.data()!;
+            final status =
+                (data['status'] ?? 'active').toString().toLowerCase();
+            if (status == 'active') {
+              isMember = true;
+              memberSince = data['joinedAt'] is Timestamp
+                  ? data['joinedAt'] as Timestamp
+                  : null;
+              memberTierName = data['tierName'] as String?;
+            }
+          }
+        } catch (_) {}
+      }
+
       final commentId = await commentService.addComment(
         videoId: video!.id,
         userId: currentUserId,
@@ -75,6 +102,9 @@ mixin CommentsCrudMixin on CommentsStateBase {
         donationCurrency: donationCurrency,
         isDonatedComment: isDonatedComment,
         donationColorHex: donationColorHex,
+        isMember: isMember,
+        memberSince: memberSince,
+        memberTierName: memberTierName,
       );
 
       if (donationAmount > 0 && video?.channelId.isNotEmpty == true) {
@@ -102,22 +132,8 @@ mixin CommentsCrudMixin on CommentsStateBase {
         }
       }
 
-      try {
-        await MentionsHelper.processAndNotifyMentions(
-          text: text.trim(),
-          videoId: video!.id,
-          videoTitle: video!.title,
-          videoThumbnailUrl: video!.thumbnailUrl,
-          videoChannelId: video!.channelId,
-          commentId: commentId,
-        );
-      } catch (e, stackTrace) {
-        ErrorHandler.log(
-          e,
-          stackTrace: stackTrace,
-          tag: 'CommentsController.processMentionsInComment',
-        );
-      }
+      // Note: Channel mentions for new comments are automatically processed and notified
+      // by the backend onCommentCreated Firestore trigger to prevent duplicate push notifications.
 
       commentError.value = null;
     } catch (e, stackTrace) {

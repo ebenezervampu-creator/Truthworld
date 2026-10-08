@@ -18,11 +18,17 @@ mixin AdSocialMixin on AdCampaignMixin {
   StreamSubscription? _likesSubscription;
   StreamSubscription? _savesSubscription;
 
-  void listenToUserInteractions() {
+  void clearUserInteractions() {
     _likesSubscription?.cancel();
+    _likesSubscription = null;
     _savesSubscription?.cancel();
+    _savesSubscription = null;
     likedAdIds.clear();
     savedAdIds.clear();
+  }
+
+  void listenToUserInteractions() {
+    clearUserInteractions();
 
     final uid = AuthService.to.uid;
     if (uid.isEmpty) return;

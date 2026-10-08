@@ -6,6 +6,7 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
+import 'package:truthworld/core/widgets/truthworld_splash_screen.dart';
 import 'package:truthworld/domain/repositories/home_repository.dart';
 import 'package:truthworld/features/home/data/services/feed_cache_manager.dart';
 import 'package:truthworld/features/home/presentation/controllers/feed_mixins/feed_mixins.dart';
@@ -111,7 +112,6 @@ class HomeFeedController extends HomeFeedControllerBase
         homeFeedItems.clear();
         if (Get.isRegistered<HomeDiscoveryController>()) {
           Get.find<HomeDiscoveryController>().fetchFeaturedTopics();
-          Get.find<HomeDiscoveryController>().fetchForYouTopics();
         }
         return;
       }
@@ -166,6 +166,7 @@ class HomeFeedController extends HomeFeedControllerBase
       }
 
       mixHomeFeed();
+      TruthworldSplashScreen.dismiss();
       if (Get.isRegistered<HomeDiscoveryController>()) {
         Get.find<HomeDiscoveryController>().fetchAvailableCategories();
       }
@@ -182,6 +183,8 @@ class HomeFeedController extends HomeFeedControllerBase
     }
   }
 
+  bool _isRefreshing = false;
+
   /// Manually refresh feed from network, bypassing stale cache and re-ranking
   Future<void> refreshFeed({bool forceNetwork = true}) async {
     final cat = selectedCategory;
@@ -191,7 +194,7 @@ class HomeFeedController extends HomeFeedControllerBase
     lastDocument = null;
     rxHasMore.value = true;
     if (cat == 'All' || cat.isEmpty) {
-      await fetchMainFeedVideos();
+      await fetchMainFeedVideos(forceNetwork: forceNetwork);
       if (authService.isAuthenticated.value) {
         fetchCommunityPosts().then((_) => mixHomeFeed());
       }
@@ -219,6 +222,8 @@ class HomeFeedController extends HomeFeedControllerBase
   }
 
   Future<void> refreshHomeFeed() async {
+    if (_isRefreshing) return;
+    _isRefreshing = true;
     try {
       final category = selectedCategory;
       if (category == 'Posts') {
@@ -232,13 +237,11 @@ class HomeFeedController extends HomeFeedControllerBase
         isLoadingVideos.value = false;
         if (Get.isRegistered<HomeDiscoveryController>()) {
           await Get.find<HomeDiscoveryController>().fetchFeaturedTopics();
-          await Get.find<HomeDiscoveryController>().fetchForYouTopics();
         }
       } else {
         await refreshFeed();
         if (category == 'All' && Get.isRegistered<HomeDiscoveryController>()) {
           await Get.find<HomeDiscoveryController>().fetchFeaturedTopics();
-          await Get.find<HomeDiscoveryController>().fetchForYouTopics();
         }
       }
     } catch (e, stackTrace) {
@@ -248,6 +251,7 @@ class HomeFeedController extends HomeFeedControllerBase
         tag: 'HomeFeedController.refreshHomeFeed',
       );
     } finally {
+      _isRefreshing = false;
       isLoadingVideos.value = false;
     }
   }

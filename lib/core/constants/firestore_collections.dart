@@ -62,4 +62,10 @@ class FirestoreCollections {
   static String communityLikes(String postId) => 'Community/$postId/likes';
   static String communityDislikes(String postId) =>
       'Community/$postId/dislikes';
+
+  // ── Topic Subcollections ──────────────────────────────────────────
+  static String topicComments(String topicId) => 'topics/$topicId/comments';
+  static String topicShards(String topicId) => 'topics/$topicId/shards';
+  static String videoCommentShards(String videoId) =>
+      'videos/$videoId/comment_shards';
 }

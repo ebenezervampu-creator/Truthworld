@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/utils/content_validator.dart';
 import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
@@ -79,13 +79,15 @@ class TruthVerificationDashboardPage extends StatelessWidget {
       builder: (context) => AlertDialog(
         backgroundColor: isDarkMode
             ? AppColors.bgSurface
-            : AppColors.textPrimary,
+            : Colors.white,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
         title: Text(
           'Attach Supporting Evidence / Citation',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
+            fontFamily: TWTypography.uiFamily,
+            fontFamilyFallback: TWTypography.fallbackFamilies,
             color: isDarkMode ? AppColors.textPrimary : Colors.black,
             fontSize: 18,
             fontWeight: FontWeight.bold,
@@ -97,12 +99,14 @@ class TruthVerificationDashboardPage extends StatelessWidget {
           children: [
             Text(
               'Claim: "${claim.text}"',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                fontFamilyFallback: TWTypography.fallbackFamilies,
                 fontSize: 13,
                 fontStyle: FontStyle.italic,
                 color: isDarkMode
                     ? AppColors.textSecondary
-                    : Colors.black,
+                    : Colors.black87,
               ),
             ),
             const SizedBox(height: 16),
@@ -114,13 +118,17 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
-                labelStyle: GoogleFonts.roboto(
+                labelStyle: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
                   color: isDarkMode
                       ? AppColors.textSecondary
-                      : Colors.black,
+                      : Colors.black54,
                 ),
               ),
-              style: GoogleFonts.roboto(
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                fontFamilyFallback: TWTypography.fallbackFamilies,
                 color: isDarkMode
                     ? AppColors.textPrimary
                     : Colors.black,
@@ -133,10 +141,12 @@ class TruthVerificationDashboardPage extends StatelessWidget {
             onPressed: () => Navigator.pop(context),
             child: Text(
               'Cancel',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                fontFamilyFallback: TWTypography.fallbackFamilies,
                 color: isDarkMode
                     ? AppColors.textSecondary
-                    : Colors.black,
+                    : Colors.black54,
               ),
             ),
           ),
@@ -146,9 +156,11 @@ class TruthVerificationDashboardPage extends StatelessWidget {
               size: 16,
               color: Colors.black,
             ),
-            label: Text(
+            label: const Text(
               'Submit Citation',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                fontFamilyFallback: TWTypography.fallbackFamilies,
                 color: Colors.black,
                 fontWeight: FontWeight.bold,
               ),
@@ -213,7 +225,7 @@ class TruthVerificationDashboardPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: isDarkMode
           ? AppColors.bgPage
-          : const Color(0xFFF8FAFC),
+          : Colors.white,
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('videos')
@@ -235,18 +247,18 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                         'Unable to load verification data. Please try again.',
                   ),
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.roboto(color: AppColors.error),
+                  style: const TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontFamilyFallback: TWTypography.fallbackFamilies,
+                    color: AppColors.error,
+                  ),
                 ),
               ),
             );
           }
 
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.brand),
-              ),
-            );
+            return _buildVerificationSkeleton();
           }
 
           final videoDocs = snapshot.data?.docs ?? [];
@@ -400,22 +412,26 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                         children: [
                           Text(
                             'Fact Verification Console',
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
+                              fontFamily: TWTypography.brandFamily,
+                              fontFamilyFallback: TWTypography.fallbackFamilies,
                               fontSize: 26,
                               fontWeight: FontWeight.bold,
                               color: isDarkMode
                                   ? AppColors.textPrimary
-                                  : const Color(0xFF0F172A),
+                                  : Colors.black87,
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             'Pre-publish review for Channel Videos & Fact-Check analysis',
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              fontFamilyFallback: TWTypography.fallbackFamilies,
                               fontSize: 13,
                               color: isDarkMode
                                   ? AppColors.textSecondary
-                                  : Colors.black,
+                                  : Colors.black54,
                             ),
                           ),
                         ],
@@ -423,24 +439,30 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                     ),
                     Obx(() {
                       final published = _isPublished.value;
+                      final btnBg = published ? AppColors.success : AppColors.brand;
+                      final btnFg = published ? Colors.white : Colors.black;
                       return ElevatedButton.icon(
                         icon: Icon(
                           published
                               ? Icons.visibility_rounded
                               : Icons.visibility_off_rounded,
                           size: 18,
-                          color: Colors.white,
+                          color: btnFg,
                         ),
                         label: Text(
                           published
                               ? 'Published to Player'
                               : 'Unpublished (Draft)',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontFamily: TWTypography.uiFamily,
+                            fontFamilyFallback: TWTypography.fallbackFamilies,
+                            fontWeight: FontWeight.bold,
+                            color: btnFg,
+                          ),
                         ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: published
-                              ? AppColors.success
-                              : AppColors.brand,
+                          backgroundColor: btnBg,
+                          foregroundColor: btnFg,
                           padding: const EdgeInsets.symmetric(
                             horizontal: 20,
                             vertical: 14,
@@ -472,12 +494,12 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: isDarkMode
                         ? AppColors.bgSurface
-                        : AppColors.textPrimary,
+                        : Colors.white,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: isDarkMode
                           ? AppColors.bgDivider
-                          : Colors.black12,
+                          : AppColors.brandVariant,
                     ),
                   ),
                   child: Row(
@@ -502,7 +524,9 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                             overallTruthScore > 0
                                 ? '${(overallTruthScore * 100).toInt()}%'
                                 : 'N/A',
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              fontFamilyFallback: TWTypography.fallbackFamilies,
                               fontSize: 22,
                               fontWeight: FontWeight.bold,
                               color: isDarkMode
@@ -523,7 +547,9 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                                   : (overallTruthScore >= 0.5
                                       ? 'Overall Credibility Rating: Moderate Confidence'
                                       : 'Overall Credibility Rating: Pending Verification'),
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
+                                fontFamily: TWTypography.uiFamily,
+                                fontFamilyFallback: TWTypography.fallbackFamilies,
                                 fontSize: 18,
                                 fontWeight: FontWeight.w700,
                                 color: overallTruthScore >= 0.5
@@ -536,11 +562,13 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                               allClaims.isNotEmpty
                                   ? '${allClaims.length} extracted claims analyzed across channel videos. ${allClaims.where((c) => c.status == ClaimStatus.verified).length} verified against academic & empirical databases.'
                                   : 'No claims extracted yet for this channel. Upload content to trigger automated AI fact-checking.',
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
+                                fontFamily: TWTypography.uiFamily,
+                                fontFamilyFallback: TWTypography.fallbackFamilies,
                                 fontSize: 13,
                                 color: isDarkMode
-                                    ? AppColors.textSecondary
-                                    : Colors.black,
+                                  ? AppColors.textSecondary
+                                  : Colors.black87,
                               ),
                             ),
                           ],
@@ -560,7 +588,9 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                   children: [
                     Text(
                       'Extracted Factual Claims & Citations',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
+                        fontFamily: TWTypography.brandFamily,
+                        fontFamilyFallback: TWTypography.fallbackFamilies,
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: isDarkMode
@@ -571,10 +601,10 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.filter_alt_outlined,
                           size: 16,
-                          color: Colors.white,
+                          color: isDarkMode ? Colors.white : Colors.black87,
                         ),
                         const SizedBox(width: 6),
                         Obx(() => DropdownButton<String>(
@@ -584,6 +614,8 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                                 : Colors.white,
                             underline: const SizedBox(),
                             style: TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              fontFamilyFallback: TWTypography.fallbackFamilies,
                               color: isDarkMode
                                   ? AppColors.textPrimary
                                   : Colors.black,
@@ -626,25 +658,27 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: isDarkMode
                           ? AppColors.bgSurface
-                          : AppColors.textPrimary,
+                          : Colors.white,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
                         color: isDarkMode
                             ? AppColors.bgDivider
-                            : Colors.black12,
+                            : AppColors.brandVariant,
                       ),
                     ),
                     child: Column(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.fact_check_outlined,
                           size: 48,
-                          color: Colors.white,
+                          color: isDarkMode ? Colors.white : Colors.black87,
                         ),
                         const SizedBox(height: 16),
                         Text(
                           'No Fact-Checked Claims Found',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
+                            fontFamily: TWTypography.brandFamily,
+                            fontFamilyFallback: TWTypography.fallbackFamilies,
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                             color: isDarkMode
@@ -656,11 +690,13 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                         Text(
                           'No claims matching the filter criteria exist for your channel videos. Upload videos with AI Fact Verification enabled to review live factual assertions here.',
                           textAlign: TextAlign.center,
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
+                            fontFamily: TWTypography.uiFamily,
+                            fontFamilyFallback: TWTypography.fallbackFamilies,
                             fontSize: 13,
                             color: isDarkMode
                                 ? AppColors.textSecondary
-                                : Colors.black,
+                                : Colors.black87,
                           ),
                         ),
                       ],
@@ -680,14 +716,14 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: isDarkMode
                               ? AppColors.bgSurface
-                              : AppColors.textPrimary,
+                              : Colors.white,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: claim.status == ClaimStatus.unverified
                                 ? AppColors.warning.withValues(alpha: 0.4)
                                 : (isDarkMode
                                     ? AppColors.bgDivider
-                                    : Colors.black12),
+                                    : AppColors.brandVariant),
                           ),
                         ),
                         child: Column(
@@ -713,7 +749,9 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                                     '${claim.videoTitle} • [${claim.timestamp}] • ${claim.category}',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: GoogleFonts.roboto(
+                                    style: const TextStyle(
+                                      fontFamily: TWTypography.uiFamily,
+                                      fontFamilyFallback: TWTypography.fallbackFamilies,
                                       fontSize: 12,
                                       color: AppColors.info,
                                       fontWeight: FontWeight.w600,
@@ -739,7 +777,9 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                                         : (claim.status == ClaimStatus.disputed
                                             ? 'Citation Under Review'
                                             : 'Needs Review'),
-                                    style: GoogleFonts.roboto(
+                                    style: TextStyle(
+                                      fontFamily: TWTypography.uiFamily,
+                                      fontFamilyFallback: TWTypography.fallbackFamilies,
                                       fontSize: 12,
                                       fontWeight: FontWeight.bold,
                                       color: claim.status == ClaimStatus.verified
@@ -753,7 +793,9 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                             const SizedBox(height: 12),
                             Text(
                               '"${claim.text}"',
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
+                                fontFamily: TWTypography.uiFamily,
+                                fontFamilyFallback: TWTypography.fallbackFamilies,
                                 fontSize: 15,
                                 fontWeight: FontWeight.w500,
                                 color: isDarkMode
@@ -770,15 +812,17 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Icon(
+                                    Icon(
                                       Icons.menu_book,
                                       size: 14,
-                                      color: Colors.white,
+                                      color: isDarkMode ? Colors.white : Colors.black54,
                                     ),
                                     const SizedBox(width: 6),
                                     Text(
                                       'Source: ${claim.sourceCitation}',
-                                      style: GoogleFonts.roboto(
+                                      style: const TextStyle(
+                                        fontFamily: TWTypography.uiFamily,
+                                        fontFamilyFallback: TWTypography.fallbackFamilies,
                                         fontSize: 12,
                                         color: AppColors.textSecondary,
                                       ),
@@ -789,11 +833,16 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                                   icon: const Icon(
                                     Icons.add_link,
                                     size: 14,
-                                    color: Colors.white,
+                                    color: AppColors.info,
                                   ),
-                                  label: Text(
+                                  label: const Text(
                                     'Add Citation / Contest',
-                                    style: GoogleFonts.roboto(fontSize: 12),
+                                    style: TextStyle(
+                                      fontFamily: TWTypography.uiFamily,
+                                      fontFamilyFallback: TWTypography.fallbackFamilies,
+                                      fontSize: 12,
+                                      color: AppColors.info,
+                                    ),
                                   ),
                                   onPressed: () => _showAddCitationDialog(claim),
                                 ),
@@ -808,6 +857,58 @@ class TruthVerificationDashboardPage extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildVerificationSkeleton() {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFF1E1E1E),
+      highlightColor: AppColors.bgSurfaceHover,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            Container(
+              height: 180,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.bgDivider),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: List.generate(
+                3,
+                (index) => Expanded(
+                  child: Container(
+                    height: 100,
+                    margin: EdgeInsets.only(right: index < 2 ? 14 : 0),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E1E1E),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.bgDivider),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            ...List.generate(
+              3,
+              (index) => Container(
+                height: 120,
+                margin: const EdgeInsets.only(bottom: 14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E1E1E),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.bgDivider),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

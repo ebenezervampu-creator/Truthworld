@@ -25,13 +25,17 @@ export const onVideoPublished = onDocumentUpdated(
     document: "videos/{videoId}",
     region: "asia-south1",
     retry: true,
-    memory: "256MiB",
-    maxInstances: 2,
+    memory: "512MiB",
+    maxInstances: 20,
   },
   async (event) => {
     const beforeData = event.data?.before.data();
     const afterData = event.data?.after.data();
     const videoId = event.params.videoId;
+    if (!videoId || !/^[a-zA-Z0-9_-]{5,64}$/.test(videoId)) {
+      logger.error("[PublishGate] Invalid videoId detected:", { videoId });
+      return;
+    }
 
     if (!afterData) return;
 
@@ -410,15 +414,26 @@ export const onVideoPublished = onDocumentUpdated(
         version: 1,
       };
 
-      const batch = db.batch();
-      batch.set(db.collection("video_jobs").doc(jobId), jobData);
-      batch.update(db.collection("videos").doc(videoId), {
-        jobId,
-        factCheckTier,
-        status: "processing",
-        updatedAt: now,
-      });
-      await batch.commit();
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const batch = db.batch();
+          batch.set(db.collection("video_jobs").doc(jobId), jobData);
+          batch.update(db.collection("videos").doc(videoId), {
+            jobId,
+            factCheckTier,
+            status: "processing",
+            updatedAt: now,
+          });
+          await batch.commit();
+          break;
+        } catch (commitErr) {
+          if (attempt < 3) {
+            await new Promise(r => setTimeout(r, 50 * attempt + Math.floor(Math.random() * 50)));
+            continue;
+          }
+          throw commitErr;
+        }
+      }
 
       logger.info("[PublishGate] Video job created from publish", {
         jobId,
@@ -568,6 +583,15 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
     notifiedUserIds.add(creatorId);
   }
 
+  // Determine whether this video qualifies for "personalized" subscriber & topic notifications:
+  // Notable highlights: verified fact checks, high truth/trust score (>=75), featured, or explicit highlight.
+  const isVerified = video.isFactChecked === true || video.factCheckStatus === "verified";
+  const isFeatured = video.featured === true || video.isFeatured === true;
+  const isHighTruth = typeof video.truthScore === "number" && video.truthScore >= 75;
+  const isHighTrust = typeof video.trustScore === "number" && video.trustScore >= 75;
+  const isHighlight = video.isHighlight === true;
+  const isPersonalizedEligible = isVerified || isFeatured || isHighTruth || isHighTrust || isHighlight;
+
   while (true) {
     let query = db.collection("subscriptions")
       .where("channelId", "==", channelId)
@@ -607,8 +631,13 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
       // Determine effective notification option: 'all' | 'personalized' (default) | 'none'
       const effectiveOption = (data.notificationOption || data.notificationPreference || (notificationsEnabled === false ? "none" : "personalized")).toLowerCase();
 
-      // Only notify if notifications are not disabled and option is not 'none'
-      if (notificationsEnabled !== false && effectiveOption !== "none") {
+      // Only notify if notifications are not disabled and option is not 'none'.
+      // When set to 'personalized', only send for personalized highlights (verified, high truth/trust score >= 75, featured).
+      const shouldNotifySubscriber = notificationsEnabled !== false &&
+        effectiveOption !== "none" &&
+        (effectiveOption === "all" || isPersonalizedEligible);
+
+      if (shouldNotifySubscriber) {
         notifiedUserIds.add(userId);
         notifications.push(
           notifyUser({
@@ -654,14 +683,6 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
   const uniqueTopicKeys = Array.from(new Set(rawTopicKeys));
 
   if (uniqueTopicKeys.length > 0) {
-    // Determine whether this video qualifies for "personalized" topic notifications:
-    // Notable highlights: verified fact checks, high truth/trust score (>=75), featured, or explicit highlight.
-    const isVerified = video.isFactChecked === true || video.factCheckStatus === "verified";
-    const isFeatured = video.featured === true || video.isFeatured === true;
-    const isHighTruth = typeof video.truthScore === "number" && video.truthScore >= 75;
-    const isHighTrust = typeof video.trustScore === "number" && video.trustScore >= 75;
-    const isHighlight = video.isHighlight === true;
-    const isPersonalizedEligible = isVerified || isFeatured || isHighTruth || isHighTrust || isHighlight;
 
     for (const topicKey of uniqueTopicKeys) {
       let topicDoc: FirebaseFirestore.DocumentSnapshot | null = null;
@@ -707,7 +728,7 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
         const uid = d.ref.parent?.parent?.id || d.ref.path.split("/")[1];
         if (!uid || notifiedUserIds.has(uid)) continue;
 
-        const setting = (savedData.notificationSetting || "all").toLowerCase();
+        const setting = (savedData.notificationSetting || "personalized").toLowerCase();
 
         // 1. "none": user explicitly muted notifications for this topic
         if (setting === "none") continue;

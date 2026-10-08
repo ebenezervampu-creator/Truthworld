@@ -70,7 +70,7 @@ abstract class HomeFeedControllerBase extends BaseController {
   Future<void> fetchMoreVideos();
   Future<void> fetchInitialVideos();
   Future<void> fetchInitialVideosInternal();
-  Future<void> fetchMainFeedVideos();
+  Future<void> fetchMainFeedVideos({bool forceNetwork = false});
   Future<void> fetchTrendingTabVideos();
   Future<void> fetchPopularTabVideos();
   Future<void> fetchNewTabVideos();

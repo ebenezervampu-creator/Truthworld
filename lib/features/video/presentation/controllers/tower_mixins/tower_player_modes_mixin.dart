@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/pip_service.dart';
+import 'package:truthworld/core/utils/web_platform_utils.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/video/data/services/storyboard_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/playback_source.dart';
@@ -14,7 +15,6 @@ import 'package:truthworld/features/video/presentation/controllers/tower_player_
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:truthworld/features/video/presentation/views/player/overlays/components/storyboard_thumbnail_widget.dart';
-import 'package:universal_html/html.dart' as html;
 import 'package:video_player/video_player.dart';
 
 mixin TowerPlayerModesMixin on GetxController {
@@ -40,6 +40,27 @@ mixin TowerPlayerModesMixin on GetxController {
   RxBool get isLooping;
   TimerBag get timers;
   ChewieController? get chewieController;
+  RxBool get showMoreVideos;
+  void showToast(String msg);
+
+  final RxBool isTheaterMode = false.obs;
+
+  void toggleMoreVideos() {
+    showMoreVideos.value = !showMoreVideos.value;
+  }
+
+  void openMoreVideos() {
+    showMoreVideos.value = true;
+  }
+
+  void closeMoreVideos() {
+    showMoreVideos.value = false;
+  }
+
+  void toggleTheaterMode() {
+    isTheaterMode.value = !isTheaterMode.value;
+    showToast(isTheaterMode.value ? 'Theater mode on (t)' : 'Default view (t)');
+  }
 
   final Rx<PlaybackMode> playbackMode = PlaybackMode.video.obs;
   final RxBool isAudioOnly = false.obs;
@@ -54,6 +75,11 @@ mixin TowerPlayerModesMixin on GetxController {
   // ignore: cancel_subscriptions
   StreamSubscription? webFullscreenSub;
 
+  Future<void> setAudioOnly(bool enabled) async {
+    if (isAudioOnly.value == enabled) return;
+    await toggleAudioOnly();
+  }
+
   Future<void> toggleAudioOnly({
     String? videoUrl,
     String? title,
@@ -67,7 +93,9 @@ mixin TowerPlayerModesMixin on GetxController {
         playbackMode.value = PlaybackMode.switchingToVideo;
 
         if (!videoPlayerController.value.isPlaying) {
-          await videoPlayerController.play();
+          try {
+            await videoPlayerController.play();
+          } catch (_) {}
         }
 
         playbackMode.value = PlaybackMode.video;
@@ -91,7 +119,9 @@ mixin TowerPlayerModesMixin on GetxController {
         playbackMode.value = PlaybackMode.switchingToAudio;
 
         if (!videoPlayerController.value.isPlaying) {
-          await videoPlayerController.play();
+          try {
+            await videoPlayerController.play();
+          } catch (_) {}
         }
 
         playbackMode.value = PlaybackMode.audio;
@@ -206,22 +236,14 @@ mixin TowerPlayerModesMixin on GetxController {
     }
 
     if (kIsWeb) {
-      try {
-        if (nextState) {
-          if (html.document.fullscreenElement == null) {
-            html.document.documentElement?.requestFullscreen();
-          }
-        } else {
-          if (html.document.fullscreenElement != null) {
-            html.document.exitFullscreen();
-          }
+      if (nextState) {
+        if (!WebPlatformUtils.isFullscreen()) {
+          WebPlatformUtils.requestFullscreen();
         }
-      } catch (e, s) {
-        ErrorHandler.log(
-          e,
-          stackTrace: s,
-          tag: 'TowerPlayerModesMixin.webFullscreen',
-        );
+      } else {
+        if (WebPlatformUtils.isFullscreen()) {
+          WebPlatformUtils.exitFullscreen();
+        }
       }
     } else {
       try {

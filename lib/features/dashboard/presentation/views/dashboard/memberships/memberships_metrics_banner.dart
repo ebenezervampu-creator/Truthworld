@@ -26,15 +26,15 @@ class CommissionNoticeBanner extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: isNoAdsActive
-                ? const [Color(0xFFB45309), Color(0xFFF59E0B)]
-                : const [Color(0xFF047857), Color(0xFF10B981)],
+                ? const [Color(0xFF92400E), AppColors.warning]
+                : const [Color(0xFF065F46), AppColors.success],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: (isNoAdsActive ? const Color(0xFFF59E0B) : const Color(0xFF10B981))
+              color: (isNoAdsActive ? AppColors.warning : AppColors.success)
                   .withValues(alpha: 0.25),
               blurRadius: 12,
               offset: const Offset(0, 4),
@@ -240,7 +240,7 @@ class MembershipMetricTile extends StatelessWidget {
             subtitle,
             style: const TextStyle(
               fontSize: 11,
-              color: Colors.green,
+              color: AppColors.success,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -311,7 +311,9 @@ class MembershipsSubTabBar extends StatelessWidget {
                       Icon(
                         item['icon'] as IconData,
                         size: 16,
-                        color: Colors.white,
+                        color: isDarkMode
+                            ? AppColors.textPrimary
+                            : (isSelected ? Colors.black87 : Colors.black54),
                       ),
                       const SizedBox(width: 8),
                       Flexible(

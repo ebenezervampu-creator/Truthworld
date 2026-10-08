@@ -10,6 +10,7 @@ enum TruthworldUrlType {
   settings,
   upload,
   home,
+  policy,
   external,
   unknown,
 }

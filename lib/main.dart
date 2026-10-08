@@ -11,6 +11,9 @@ import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/bindings/initial_binding.dart';
 import 'package:truthworld/core/config/app_flavor.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/security/biometric_security_service.dart';
+import 'package:truthworld/core/security/rasp_security_service.dart';
+import 'package:truthworld/core/security/screen_security_service.dart';
 import 'package:truthworld/core/services/app_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
@@ -85,10 +88,14 @@ void bootstrap({AppFlavor? flavor}) {
                 }
               }
               logger.info('Firebase initialized successfully', tag: 'Startup');
-              FirebaseFirestore.instance.settings = const Settings(
-                persistenceEnabled: true,
-                cacheSizeBytes: 100 * 1024 * 1024,
-              );
+              try {
+                FirebaseFirestore.instance.settings = const Settings(
+                  persistenceEnabled: true,
+                  cacheSizeBytes: 100 * 1024 * 1024,
+                );
+              } catch (settingsErr) {
+                logger.info('Firestore settings notice: $settingsErr', tag: 'Startup');
+              }
             })(),
             GetStorage.init().catchError((e) {
               logger.warning('GetStorage error: $e');
@@ -101,15 +108,23 @@ void bootstrap({AppFlavor? flavor}) {
             (() async {
               try {
                 await FirebaseAppCheck.instance.activate(
-                  webProvider: ReCaptchaEnterpriseProvider(
-                    '6LdsItgsAAAAADh75ccO7IQFSv77Hf4DYc-5G01G',
-                  ),
-                  androidProvider: kDebugMode
-                      ? AndroidProvider.debug
-                      : AndroidProvider.playIntegrity,
-                  appleProvider: kDebugMode
-                      ? AppleProvider.debug
-                      : AppleProvider.deviceCheck,
+                  providerWeb: kDebugMode
+                      ? WebDebugProvider(
+                          debugToken: 'aeb2d92a-1f8d-4014-819d-b24f3ffefec3',
+                        )
+                      : ReCaptchaEnterpriseProvider(
+                          '6LdsItgsAAAAADh75ccO7IQFSv77Hf4DYc-5G01G',
+                        ),
+                  providerAndroid: kDebugMode
+                      ? const AndroidDebugProvider(
+                          debugToken: 'aeb2d92a-1f8d-4014-819d-b24f3ffefec3',
+                        )
+                      : const AndroidPlayIntegrityProvider(),
+                  providerApple: kDebugMode
+                      ? const AppleDebugProvider(
+                          debugToken: 'aeb2d92a-1f8d-4014-819d-b24f3ffefec3',
+                        )
+                      : const AppleDeviceCheckProvider(),
                 );
 
                 // Safely test token retrieval. If attestation provider is pending registration
@@ -133,7 +148,7 @@ void bootstrap({AppFlavor? flavor}) {
                 } catch (tokenErr) {
                   logger.info(
                     'AppCheck token exchange unavailable in current environment (disabling auto-refresh): $tokenErr. '
-                    'If using debug mode, ensure debug token "26B7C98E-FC8F-4580-BA97-455ADBE131BC" is registered in Firebase Console -> App Check -> Apps for this flavor, or keep Authentication in Unenforce mode during development.',
+                    'If using debug mode, ensure your debug token is registered in Firebase Console -> App Check -> Apps for this flavor, or keep Authentication in Unenforce mode during development.',
                     tag: 'Startup',
                   );
                   await FirebaseAppCheck.instance
@@ -148,6 +163,9 @@ void bootstrap({AppFlavor? flavor}) {
             })(),
           );
 
+          Get.put(RaspSecurityService(), permanent: true);
+          Get.put(ScreenSecurityService(), permanent: true);
+          Get.put(BiometricSecurityService(), permanent: true);
           final authService = Get.put(AuthService(), permanent: true);
           Get.put<AppFlavor>(resolvedFlavor, permanent: true);
           Get.put(AppService(), permanent: true);
@@ -157,7 +175,7 @@ void bootstrap({AppFlavor? flavor}) {
           final currencyService =
               Get.put(CurrencyLocalizationService(), permanent: true);
 
-          // Non-blocking asynchronous Auth session & provider initialization
+          // Low-latency asynchronous Auth session & provider initialization
           final authInit = authService.init();
 
           // Set Crashlytics collection & user identifier on supported mobile platforms
@@ -185,6 +203,31 @@ void bootstrap({AppFlavor? flavor}) {
             );
           }
 
+          // If returning from a web auth redirect (e.g. WASM Google Sign-In) or restoring active session,
+          // wait briefly for auth hydration before Frame 1 so the app mounts authenticated.
+          if (kIsWeb) {
+            try {
+              final box = GetStorage();
+              final isPendingRedirect =
+                  box.read<bool>('auth_pending_redirect') ?? false;
+              final hasActiveSession =
+                  box.read<bool>('auth_has_active_session') ?? false;
+
+              if (isPendingRedirect) {
+                await authInit.timeout(
+                  const Duration(seconds: 6),
+                  onTimeout: () => authService,
+                );
+              } else if (hasActiveSession) {
+                // Give IndexedDB up to 1200ms to resolve live Firebase User before Frame 1
+                await authInit.timeout(
+                  const Duration(milliseconds: 1200),
+                  onTimeout: () => authService,
+                );
+              }
+            } catch (_) {}
+          }
+
           // Run the app immediately so first frame / splash paints in zero-wait time
           runApp(Truthworld(
             title: resolvedFlavor.appTitle,
@@ -193,18 +236,23 @@ void bootstrap({AppFlavor? flavor}) {
             overrideInitialRoute: kIsWeb ? null : resolvedFlavor.initialRoute,
           ));
 
-          // Non-critical service init in background
-          unawaited(
-            Future.wait([
-              Get.find<AppService>().init(),
-              Get.find<ConnectivityService>().init(),
-              Get.find<PushNotificationService>().init(),
-              DeepLinkService.instance.initAppLinks(),
-              currencyService.fetchRealtimeRate(),
-            ]).then((_) {
-              logger.info('All background services initialized', tag: 'Startup');
-            }),
-          );
+          // Non-critical background services deferred until after Frame 1 paints smoothly
+          // to eliminate main-thread contention and Choreographer skipped frames on mobile.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            Future.delayed(const Duration(milliseconds: 200), () {
+              unawaited(
+                Future.wait([
+                  Get.find<AppService>().init(),
+                  Get.find<ConnectivityService>().init(),
+                  Get.find<PushNotificationService>().init(),
+                  DeepLinkService.instance.initAppLinks(),
+                  currencyService.fetchRealtimeRate(),
+                ]).then((_) {
+                  logger.info('All background services initialized', tag: 'Startup');
+                }),
+              );
+            });
+          });
         } catch (error, stackTrace) {
           logger.wtf(
             'Fatal error during initialization',
@@ -212,7 +260,7 @@ void bootstrap({AppFlavor? flavor}) {
             stackTrace: stackTrace,
             tag: 'Startup',
           );
-          _notifyAppError('Initialization failed: $error');
+          _notifyAppError('App initialization failed. Please restart the application.');
 
           // Show error UI
           runApp(
@@ -255,10 +303,22 @@ void bootstrap({AppFlavor? flavor}) {
         }
       },
       (error, stackTrace) {
+        final errStr = error.toString().toLowerCase();
+        if (errStr.contains('user-cancelled') ||
+            errStr.contains('sign-in was cancelled') ||
+            errStr.contains('cancelled') ||
+            errStr.contains('canceled') ||
+            errStr.contains('redirecting') ||
+            errStr.contains('popup_closed_by_user')) {
+          // Normal user cancellation or redirect of authentication flow — not an unexpected runtime crash
+          return;
+        }
         // Catch ALL errors outside of Flutter's zone
-        debugPrint('Zone error caught: $error');
-        debugPrintStack(stackTrace: stackTrace);
-        _notifyAppError('Unhandled error: $error');
+        if (kDebugMode) {
+          debugPrint('Zone error caught: $error');
+          debugPrintStack(stackTrace: stackTrace);
+        }
+        _notifyAppError('An unexpected error occurred. Please restart the application.');
       },
     ),
   );

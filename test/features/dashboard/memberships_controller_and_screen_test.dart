@@ -250,6 +250,75 @@ void main() {
         contains('Channel Premium: Ad-free & 4K Ultra HD streaming'),
       );
     });
+
+    test('createTier blocks creating 4th tier when channel already has 3 tiers', () async {
+      controller.tiers.assignAll([
+        ChannelMembershipTier(id: 't1', name: 'T1', price: 2.0, perks: const ['P1']),
+        ChannelMembershipTier(id: 't2', name: 'T2', price: 5.0, perks: const ['P2']),
+        ChannelMembershipTier(id: 't3', name: 'T3', price: 10.0, perks: const ['P3']),
+      ]);
+
+      final created = await controller.createTier(
+        name: 'T4',
+        price: 15.0,
+        perks: const ['P4'],
+      );
+
+      expect(created, isFalse);
+      expect(controller.tiers.length, equals(3));
+    });
+
+    test('duplicateTier blocks duplicating when channel already has 3 tiers', () async {
+      final t1 = ChannelMembershipTier(id: 't1', name: 'T1', price: 2.0, perks: const ['P1']);
+      controller.tiers.assignAll([
+        t1,
+        ChannelMembershipTier(id: 't2', name: 'T2', price: 5.0, perks: const ['P2']),
+        ChannelMembershipTier(id: 't3', name: 'T3', price: 10.0, perks: const ['P3']),
+      ]);
+
+      await controller.duplicateTier(t1);
+
+      expect(controller.tiers.length, equals(3));
+    });
+
+    test('reactive tier limit getters report accurate capacity and thresholds', () {
+      controller.tiers.clear();
+
+      expect(controller.tiers.length, equals(0));
+      expect(controller.hasReachedMaxTiers, isFalse);
+      expect(controller.remainingTierSlots, equals(3));
+      expect(controller.tierLimitLabel, equals('0/3 tiers'));
+
+      controller.tiers.add(ChannelMembershipTier(
+        id: 't1',
+        name: 'Tier 1',
+        price: 2.0,
+        perks: const ['Perk 1'],
+      ));
+      expect(controller.hasReachedMaxTiers, isFalse);
+      expect(controller.remainingTierSlots, equals(2));
+      expect(controller.tierLimitLabel, equals('1/3 tiers'));
+
+      controller.tiers.add(ChannelMembershipTier(
+        id: 't2',
+        name: 'Tier 2',
+        price: 5.0,
+        perks: const ['Perk 2'],
+      ));
+      expect(controller.hasReachedMaxTiers, isFalse);
+      expect(controller.remainingTierSlots, equals(1));
+      expect(controller.tierLimitLabel, equals('2/3 tiers'));
+
+      controller.tiers.add(ChannelMembershipTier(
+        id: 't3',
+        name: 'Tier 3',
+        price: 10.0,
+        perks: const ['Perk 3'],
+      ));
+      expect(controller.hasReachedMaxTiers, isTrue);
+      expect(controller.remainingTierSlots, equals(0));
+      expect(controller.tierLimitLabel, equals('3/3 tiers'));
+    });
   });
 
   group('MembershipsScreen Widget Tests', () {
@@ -328,6 +397,36 @@ void main() {
       expect(find.text('Fan Funding & Revenue Projections'), findsOneWidget);
       expect(find.text('Creator Payout Terms'), findsOneWidget);
       expect(find.text('100% TO CREATOR'), findsOneWidget);
+    });
+
+    testWidgets('Displays 3/3 Tiers (Max) badge and 3/3 Tiers button when channel has 3 tiers', (tester) async {
+      tester.view.physicalSize = const Size(1280, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final controller = Get.put(MembershipsController(initialChannelId: 'test_channel_id'));
+      controller.isLoadingTiers.value = false;
+      controller.tiers.assignAll([
+        ChannelMembershipTier(id: 't1', name: 'Bronze', price: 2.0, perks: const ['P1']),
+        ChannelMembershipTier(id: 't2', name: 'Silver', price: 5.0, perks: const ['P2']),
+        ChannelMembershipTier(id: 't3', name: 'Gold', price: 10.0, perks: const ['P3']),
+      ]);
+
+      await tester.pumpWidget(
+        const GetMaterialApp(
+          home: MembershipsScreen(
+            channelId: 'test_channel_id',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Check header capacity badge
+      expect(find.text('3/3 Tiers (Max)'), findsOneWidget);
+
+      // Check buttons reflecting 3/3 capacity
+      expect(find.text('3/3 Tiers'), findsWidgets);
     });
   });
 }

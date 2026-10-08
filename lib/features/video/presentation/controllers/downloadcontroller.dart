@@ -16,6 +16,24 @@ import 'package:truthworld/theme/app_theme.dart';
 
 export 'package:truthworld/features/video/presentation/controllers/downloads/download_controller_barrel.dart';
 
+/// Represents an active in-flight video/audio download task.
+class ActiveDownloadTask {
+  ActiveDownloadTask({
+    required this.video,
+    required this.isAudioOnly,
+    this.quality = 'Standard',
+    double initialProgress = 0.0,
+    String initialStatus = 'Preparing download...',
+  })  : progress = initialProgress.obs,
+        status = initialStatus.obs;
+
+  final Video video;
+  final bool isAudioOnly;
+  final String quality;
+  final RxDouble progress;
+  final RxString status;
+}
+
 /// Central coordinator controller for managing offline video downloads, storage, and filtering.
 class DownloadsController extends BaseController {
   RxString searchQuery = ''.obs;
@@ -28,6 +46,10 @@ class DownloadsController extends BaseController {
   RxString rxErrorMessage = ''.obs;
   RxString selectedCategory = 'All'.obs;
   RxBool isListView = true.obs;
+
+  /// Active downloads tracking: videoId -> ActiveDownloadTask
+  final RxMap<String, ActiveDownloadTask> activeDownloads =
+      <String, ActiveDownloadTask>{}.obs;
 
   /// Active downloads progress tracking: videoId -> progress (0.0 to 1.0)
   final RxMap<String, double> downloadProgressMap = <String, double>{}.obs;
@@ -42,19 +64,36 @@ class DownloadsController extends BaseController {
   Future<void> loadVideos() async {
     rxIsLoading.value = true;
     rxErrorMessage.value = '';
+    clearError();
     try {
       final data = await getAllVideosData();
-      videos.value = data
-          .map((e) => OfflineVideo.fromJson(e['meta'] as Map<String, dynamic>))
-          .toList();
+      final loaded = <OfflineVideo>[];
+      for (final e in data) {
+        try {
+          final meta = e['meta'];
+          if (meta is Map) {
+            loaded.add(OfflineVideo.fromJson(Map<String, dynamic>.from(meta)));
+          }
+        } catch (itemErr, itemStack) {
+          ErrorHandler.log(
+            itemErr,
+            stackTrace: itemStack,
+            tag: 'DownloadsController.loadVideos.item',
+          );
+        }
+      }
+      videos.assignAll(loaded);
 
       // Sort locally based on downloadedAt
       videos.sort((a, b) => b.downloadedAt.compareTo(a.downloadedAt));
     } catch (e, s) {
       ErrorHandler.log(e, stackTrace: s, tag: 'DownloadsController.loadVideos');
-      rxErrorMessage.value = 'Unable to load offline videos. Please try again.';
+      const msg = 'Unable to load offline videos. Please try again.';
+      rxErrorMessage.value = msg;
+      setError(msg);
+    } finally {
+      rxIsLoading.value = false;
     }
-    rxIsLoading.value = false;
   }
 
   /// Deletes an offline video item from local storage.
@@ -127,6 +166,7 @@ class DownloadsController extends BaseController {
         'video': Video.fromOffline(offlineVideo),
         'isOffline': true,
         'isAudioOnly': offlineVideo.isAudioOnly,
+        'quality': offlineVideo.quality,
       },
     );
   }
@@ -172,6 +212,29 @@ class DownloadsController extends BaseController {
     );
   }
 
+  /// Checks if a video is currently being downloaded.
+  bool isVideoDownloading(String videoId) =>
+      downloadProgressMap.containsKey(videoId) ||
+      activeDownloads.containsKey(videoId);
+
+  /// Checks if a video is already saved in offline downloads.
+  bool isVideoDownloaded(String videoId) =>
+      videos.any((v) => v.id == videoId);
+
+  /// Retrieves offline video metadata for a given video ID if downloaded.
+  Future<OfflineVideo?> getOfflineVideo(String id) async {
+    final existing = videos.firstWhereOrNull((v) => v.id == id);
+    if (existing != null) return existing;
+    return getOfflineVideoMetadata(id);
+  }
+
+  /// Cancels an active download task.
+  void cancelDownload(String videoId) {
+    activeDownloads.remove(videoId);
+    downloadProgressMap.remove(videoId);
+    AppSnackbar.info('Download cancelled.');
+  }
+
   /// Downloads video or audio for offline playback.
   Future<bool> downloadVideoOffline({
     required Video video,
@@ -182,17 +245,48 @@ class DownloadsController extends BaseController {
   }) async {
     if (!DownloadPipelineExecutor.validateDownloadSettings()) return false;
 
-    if (downloadProgressMap.containsKey(video.id)) {
-      AppSnackbar.show(
-        'Download In Progress',
-        'This item is already being downloaded.',
-        snackPosition: SnackPosition.BOTTOM,
+    // 1. Check if already downloaded
+    if (isVideoDownloaded(video.id)) {
+      AppSnackbar.info(
+        "'${video.title}' is already saved in your downloads.",
+        title: 'Already Downloaded',
+      );
+      return true;
+    }
+
+    // 2. Check if currently in progress
+    if (isVideoDownloading(video.id)) {
+      AppSnackbar.info(
+        "'${video.title}' is currently downloading. Check the Downloads tab for live progress.",
+        title: 'Download In Progress',
       );
       return false;
     }
 
+    final qualityLabel = isAudioOnly
+        ? 'Audio only'
+        : (resolution?.label.isNotEmpty == true
+            ? resolution!.label
+            : 'Standard');
+
+    final task = ActiveDownloadTask(
+      video: video,
+      isAudioOnly: isAudioOnly,
+      quality: qualityLabel,
+      initialStatus: 'Starting download...',
+    );
+
+    activeDownloads[video.id] = task;
     downloadProgressMap[video.id] = 0.0;
     onProgress?.call(0.0);
+
+    void handleProgress(double prog) {
+      downloadProgressMap[video.id] = prog;
+      task.progress.value = prog;
+      final percent = (prog * 100).toInt();
+      task.status.value = percent > 0 ? 'Downloading $percent%' : 'Downloading...';
+      onProgress?.call(prog);
+    }
 
     // Provide immediate user feedback that download is starting
     AppSnackbar.show(
@@ -209,6 +303,7 @@ class DownloadsController extends BaseController {
     );
 
     try {
+      task.status.value = 'Connecting to stream...';
       final targetUrl = await resolveDownloadUrl(
         video,
         resolution: resolution,
@@ -220,12 +315,6 @@ class DownloadsController extends BaseController {
           'No direct media stream available to save offline for this video.',
         );
       }
-
-      final qualityLabel = isAudioOnly
-          ? 'Audio only'
-          : (resolution?.label.isNotEmpty == true
-              ? resolution!.label
-              : 'Standard');
 
       final offlineVideo = OfflineVideo(
         id: video.id,
@@ -245,13 +334,14 @@ class DownloadsController extends BaseController {
         quality: qualityLabel,
       );
 
+      task.status.value = 'Downloading media...';
       if (kIsWeb) {
         await DownloadPipelineExecutor.downloadWeb(
           video: video,
           targetUrl: targetUrl,
           offlineVideo: offlineVideo,
           progressMap: downloadProgressMap,
-          onProgress: onProgress,
+          onProgress: handleProgress,
         );
       } else {
         await DownloadPipelineExecutor.downloadNative(
@@ -259,10 +349,11 @@ class DownloadsController extends BaseController {
           targetUrl: targetUrl,
           offlineVideo: offlineVideo,
           progressMap: downloadProgressMap,
-          onProgress: onProgress,
+          onProgress: handleProgress,
         );
       }
 
+      task.status.value = 'Encrypting & saving...';
       await loadVideos();
 
       AppSnackbar.show(
@@ -286,6 +377,7 @@ class DownloadsController extends BaseController {
       );
       return false;
     } finally {
+      activeDownloads.remove(video.id);
       downloadProgressMap.remove(video.id);
       onProgress?.call(0.0);
     }

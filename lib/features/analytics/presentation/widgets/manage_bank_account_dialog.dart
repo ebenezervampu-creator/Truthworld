@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/security/biometric_security_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/analytics/data/models/creator_bank_account.dart';
 import 'package:truthworld/features/analytics/presentation/controllers/revenue_analytics_controller.dart';
@@ -252,6 +253,14 @@ class ManageBankAccountDialog extends StatelessWidget {
                               bankName: bank,
                               accountType: selectedAccountType.value,
                             );
+
+                            // 🔐 Biometric & Device PIN Re-Authentication Guard
+                            final authenticated = await BiometricSecurityService.to.authenticateForHighValueAction(
+                              reason: 'Please authenticate with your fingerprint, face, or device PIN to confirm updating your payout bank account.',
+                            );
+                            if (!authenticated) {
+                              return;
+                            }
 
                             final success = await controller.saveBankAccount(account);
                             if (success) {

@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/theme/app_colors.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Audio and commentary tracks list section displaying all configured tracks for active language.
 class AudioTracksListSection extends StatelessWidget {
@@ -39,7 +39,22 @@ class AudioTracksListSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Obx(() {
       if (controller.isLoadingTracks.value) {
-        return const Center(child: CircularProgressIndicator(color: AppColors.brand));
+        return Shimmer.fromColors(
+          baseColor: const Color(0xFF1E1E1E),
+          highlightColor: AppColors.bgSurfaceHover,
+          child: ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: 4,
+            separatorBuilder: (_, _) => const SizedBox(height: 12),
+            itemBuilder: (_, _) => Container(
+              height: 72,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        );
       }
 
       final audioList = controller.currentTracks;
@@ -53,15 +68,19 @@ class AudioTracksListSection extends StatelessWidget {
             children: [
               const Icon(Icons.record_voice_over_rounded, color: Colors.white, size: 20),
               const SizedBox(width: 8),
-              Text(
-                'Audio Dubbing & Voiceover Tracks (${audioList.length})',
-                style: GoogleFonts.roboto(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: textColor,
+              Expanded(
+                child: Text(
+                  'Audio Dubbing & Voiceover Tracks (${audioList.length})',
+                  style: const TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontFamilyFallback: TWTypography.fallbackFamilies,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               TextButton.icon(
                 onPressed: onAddDubTrack,
                 icon: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
@@ -103,15 +122,19 @@ class AudioTracksListSection extends StatelessWidget {
             children: [
               const Icon(Icons.subtitles_rounded, color: Colors.white, size: 20),
               const SizedBox(width: 8),
-              Text(
-                'Commentary & Alternate Video Tracks (${commentaryList.length})',
-                style: GoogleFonts.roboto(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: textColor,
+              Expanded(
+                child: Text(
+                  'Commentary & Alternate Video Tracks (${commentaryList.length})',
+                  style: const TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontFamilyFallback: TWTypography.fallbackFamilies,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               TextButton.icon(
                 onPressed: onAddCommentary,
                 icon: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
@@ -223,10 +246,12 @@ class AudioTrackCard extends StatelessWidget {
                         children: [
                           Text(
                             track.languageName,
-                            style: GoogleFonts.roboto(
+                            style: const TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              fontFamilyFallback: TWTypography.fallbackFamilies,
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              color: textColor,
+                              color: AppColors.textPrimary,
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -312,7 +337,7 @@ class AudioTrackCard extends StatelessWidget {
                 hintStyle: TextStyle(fontSize: 12, color: textSecondaryColor),
                 prefixIcon: const Icon(Icons.link_rounded, size: 18, color: Colors.white),
                 filled: true,
-                fillColor: isDarkMode ? const Color(0xFF1E1E1E) : const Color(0xFFF9FAFB),
+                fillColor: const Color(0xFF1E1E1E),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -377,10 +402,12 @@ class CommentaryTrackCard extends StatelessWidget {
               children: [
                 Text(
                   track.title,
-                  style: GoogleFonts.roboto(
+                  style: const TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontFamilyFallback: TWTypography.fallbackFamilies,
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
-                    color: textColor,
+                    color: AppColors.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 2),

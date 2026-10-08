@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "768266102263",
+    "firebase_url": "https://truthworld-1-default-rtdb.asia-southeast1.firebasedatabase.app",
     "project_id": "truthworld-1",
     "storage_bucket": "truthworld-1.firebasestorage.app"
   },
@@ -145,6 +146,14 @@
         }
       },
       "oauth_client": [
+        {
+          "client_id": "768266102263-jkjd1ikgqvcus88lod50hlsc3acd5rpq.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.truthworld.app",
+            "certificate_hash": "28832afaf149f0dc24d849513052520d2f693a40"
+          }
+        },
         {
           "client_id": "768266102263-r426vmdrda6lcrv150k2pbv8n01i1ust.apps.googleusercontent.com",
           "client_type": 1,

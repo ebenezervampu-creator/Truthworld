@@ -4,9 +4,10 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
-/// Centralized service for managing user content preferences (hidden videos, blocked channels).
+/// Centralized service for managing user content preferences (hidden videos, blocked channels, hidden topics).
 class UserPreferencesService extends GetxService {
   static UserPreferencesService get to {
     if (!Get.isRegistered<UserPreferencesService>()) {
@@ -18,6 +19,7 @@ class UserPreferencesService extends GetxService {
   static const String _keyHiddenVideos = 'hidden_video_ids';
   static const String _keyBlockedChannels = 'blocked_channel_ids';
   static const String _keyBlockedChannelNames = 'blocked_channel_names';
+  static const String _keyHiddenTopics = 'hidden_topic_ids';
 
   final GetStorage _storage = GetStorage();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -26,6 +28,7 @@ class UserPreferencesService extends GetxService {
   final RxSet<String> hiddenVideoIds = <String>{}.obs;
   final RxSet<String> blockedChannelIds = <String>{}.obs;
   final RxSet<String> blockedChannelNames = <String>{}.obs;
+  final RxSet<String> hiddenTopicIds = <String>{}.obs;
 
   @override
   void onInit() {
@@ -52,6 +55,11 @@ class UserPreferencesService extends GetxService {
       if (rawBlockedNames != null) {
         blockedChannelNames.assignAll(rawBlockedNames.map((e) => e.toString()));
       }
+
+      final rawHiddenTopics = _storage.read<List<dynamic>>(_keyHiddenTopics);
+      if (rawHiddenTopics != null) {
+        hiddenTopicIds.assignAll(rawHiddenTopics.map((e) => e.toString()));
+      }
     } catch (e, s) {
       ErrorHandler.log(e, stackTrace: s, tag: 'UserPreferencesService._loadFromStorage');
     }
@@ -65,6 +73,7 @@ class UserPreferencesService extends GetxService {
         _keyBlockedChannelNames,
         blockedChannelNames.toList(),
       );
+      await _storage.write(_keyHiddenTopics, hiddenTopicIds.toList());
     } catch (e, s) {
       ErrorHandler.log(e, stackTrace: s, tag: 'UserPreferencesService._saveToStorage');
     }
@@ -91,11 +100,17 @@ class UserPreferencesService extends GetxService {
           final fsBlockedNames = List<String>.from(
             data['blockedChannelNames'] ?? [],
           );
+          final fsHiddenTopics = List<String>.from(
+            data['notInterestedTopicIds'] ?? [],
+          );
 
           if (fsHidden.isNotEmpty) hiddenVideoIds.addAll(fsHidden);
           if (fsBlockedIds.isNotEmpty) blockedChannelIds.addAll(fsBlockedIds);
           if (fsBlockedNames.isNotEmpty) {
             blockedChannelNames.addAll(fsBlockedNames);
+          }
+          if (fsHiddenTopics.isNotEmpty) {
+            hiddenTopicIds.addAll(fsHiddenTopics);
           }
 
           _saveToStorage();
@@ -154,6 +169,77 @@ class UserPreferencesService extends GetxService {
         );
       }
     }
+  }
+
+  Future<void> hideTopic(String topicId, {String? topicSlug}) async {
+    if (topicId.isEmpty && (topicSlug == null || topicSlug.isEmpty)) return;
+    if (topicId.isNotEmpty) hiddenTopicIds.add(topicId);
+    if (topicSlug != null && topicSlug.isNotEmpty) hiddenTopicIds.add(topicSlug);
+    await _saveToStorage();
+
+    final user = _auth.currentUser;
+    if (user != null) {
+      try {
+        final idsToAdd = <String>[];
+        if (topicId.isNotEmpty) idsToAdd.add(topicId);
+        if (topicSlug != null && topicSlug.isNotEmpty) idsToAdd.add(topicSlug);
+        await _firestore
+            .collection(FirestoreCollections.users)
+            .doc(user.uid)
+            .set({
+              'notInterestedTopicIds': FieldValue.arrayUnion(idsToAdd),
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'UserPreferencesService.hideTopic',
+        );
+      }
+    }
+  }
+
+  Future<void> unhideTopic(String topicId, {String? topicSlug}) async {
+    if (topicId.isEmpty && (topicSlug == null || topicSlug.isEmpty)) return;
+    if (topicId.isNotEmpty) hiddenTopicIds.remove(topicId);
+    if (topicSlug != null && topicSlug.isNotEmpty) hiddenTopicIds.remove(topicSlug);
+    await _saveToStorage();
+
+    final user = _auth.currentUser;
+    if (user != null) {
+      try {
+        final idsToRemove = <String>[];
+        if (topicId.isNotEmpty) idsToRemove.add(topicId);
+        if (topicSlug != null && topicSlug.isNotEmpty) idsToRemove.add(topicSlug);
+        await _firestore
+            .collection(FirestoreCollections.users)
+            .doc(user.uid)
+            .set({
+              'notInterestedTopicIds': FieldValue.arrayRemove(idsToRemove),
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'UserPreferencesService.unhideTopic',
+        );
+      }
+    }
+  }
+
+  bool isTopicHidden(String topicId, {String? topicSlug}) {
+    if (topicId.isNotEmpty && hiddenTopicIds.contains(topicId)) return true;
+    if (topicSlug != null && topicSlug.isNotEmpty && hiddenTopicIds.contains(topicSlug)) {
+      return true;
+    }
+    return false;
+  }
+
+  List<Topic> filterTopics(List<Topic> topics) {
+    if (topics.isEmpty) return topics;
+    return topics.where((t) => !isTopicHidden(t.id, topicSlug: t.slug)).toList();
   }
 
   Future<void> blockChannel(String channelId, {String? channelName}) async {

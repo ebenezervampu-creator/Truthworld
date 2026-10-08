@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io' as io;
 import 'dart:io';
 
@@ -5,9 +6,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/utils/web_platform_utils.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_mixins/upload_controller_base.dart';
-import 'package:universal_html/html.dart' as html;
 import 'package:video_player/video_player.dart';
 
 mixin UploadMediaPickerMixin on UploadControllerBase {
@@ -100,15 +101,8 @@ mixin UploadMediaPickerMixin on UploadControllerBase {
 
         int duration;
         if (kIsWeb) {
-          final blob = html.Blob([pickedFile.bytes]);
-          final url = html.Url.createObjectUrlFromBlob(blob);
-          final video = html.VideoElement()
-            ..src = url
-            ..preload = 'metadata';
-
-          await video.onLoadedMetadata.first;
-          duration = video.duration.floor();
-          html.Url.revokeObjectUrl(url);
+          final dur = await WebPlatformUtils.getVideoDurationFromBytes(pickedFile.bytes!);
+          duration = dur?.inSeconds ?? 0;
         } else {
           final file = io.File(pickedFile.path!);
           final controller = VideoPlayerController.file(file);
@@ -182,8 +176,7 @@ mixin UploadMediaPickerMixin on UploadControllerBase {
 
     if (kIsWeb) {
       if (file.bytes == null) return;
-      final blob = html.Blob([file.bytes]);
-      final url = html.Url.createObjectUrlFromBlob(blob);
+      final url = WebPlatformUtils.createBlobUrl(file.bytes!);
       videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(url));
     } else {
       if (file.path == null || !File(file.path!).existsSync()) return;
@@ -209,20 +202,11 @@ mixin UploadMediaPickerMixin on UploadControllerBase {
   Future<String> getVideoDurationFormatted(PlatformFile videoFile) async {
     try {
       if (kIsWeb) {
-        final blob = html.Blob([videoFile.bytes]);
-        final url = html.Url.createObjectUrlFromBlob(blob);
-
-        final videoElement = html.VideoElement()
-          ..src = url
-          ..preload = 'metadata';
-
-        final durationInSeconds = await videoElement.onLoadedMetadata.first
-            .then((_) => videoElement.duration);
-
-        html.Url.revokeObjectUrl(url);
-
-        final duration = Duration(seconds: durationInSeconds.floor());
-        return _formatDuration(duration);
+        if (videoFile.bytes == null) {
+          return _formatDuration(Duration.zero);
+        }
+        final duration = await WebPlatformUtils.getVideoDurationFromBytes(videoFile.bytes!);
+        return _formatDuration(duration ?? Duration.zero);
       } else {
         final File tempFile;
         if (videoFile.path != null && File(videoFile.path!).existsSync()) {
@@ -253,36 +237,11 @@ mixin UploadMediaPickerMixin on UploadControllerBase {
         if (videoFile.bytes == null) {
           return videoPlayerController?.value.duration.inMilliseconds ?? 0;
         }
-        final blob = html.Blob([videoFile.bytes]);
-        final url = html.Url.createObjectUrlFromBlob(blob);
-
-        final videoElement = html.VideoElement()
-          ..src = url
-          ..preload = 'metadata';
-
-        try {
-          await videoElement.onLoadedMetadata.first.timeout(
-            const Duration(seconds: 4),
-          );
-        } catch (e, s) {
-          ErrorHandler.log(
-            e,
-            stackTrace: s,
-            tag: 'UploadController.onLoadedMetadata.timeout',
-          );
-        }
-
-        final durationInSeconds = videoElement.duration;
-
-        html.Url.revokeObjectUrl(url);
-
-        if (durationInSeconds.isNaN ||
-            durationInSeconds.isInfinite ||
-            durationInSeconds <= 0) {
+        final duration = await WebPlatformUtils.getVideoDurationFromBytes(videoFile.bytes!);
+        if (duration == null || duration <= Duration.zero) {
           return videoPlayerController?.value.duration.inMilliseconds ?? 0;
         }
-
-        return (durationInSeconds * 1000).floor();
+        return duration.inMilliseconds;
       } else {
         if (videoPlayerController != null &&
             videoPlayerController!.value.isInitialized &&

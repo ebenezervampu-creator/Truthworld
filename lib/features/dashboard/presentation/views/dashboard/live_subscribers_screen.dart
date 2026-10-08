@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart';
 import 'package:truthworld/theme/app_colors.dart';
 
@@ -47,9 +48,7 @@ class LiveSubscribersScreen extends StatelessWidget {
         ),
       ),
       body: controller == null
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.brand),
-            )
+          ? _buildLiveSubscribersSkeleton()
           : Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -138,6 +137,46 @@ class LiveSubscribersScreen extends StatelessWidget {
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _buildLiveSubscribersSkeleton() {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFF1E1E1E),
+      highlightColor: AppColors.bgSurfaceHover,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 120,
+              height: 36,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+            const SizedBox(height: 32),
+            Container(
+              width: 200,
+              height: 72,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Container(
+              width: 150,
+              height: 20,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

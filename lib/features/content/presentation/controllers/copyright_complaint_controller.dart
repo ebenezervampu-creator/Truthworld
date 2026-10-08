@@ -230,7 +230,7 @@ class CopyrightComplaintController extends BaseController {
     } catch (e) {
       ErrorHandler.log(e);
       AppSnackbar.error(
-        'Unable to submit complaint. You may also email directly to copyright@truthworld.in.',
+        'Unable to submit complaint. You may also email directly to hello@truthworld.in.',
       );
     } finally {
       isSubmitting.value = false;

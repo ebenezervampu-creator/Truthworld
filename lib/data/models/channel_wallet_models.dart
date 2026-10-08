@@ -22,9 +22,9 @@ class SpendableBalance {
   final double lockedRevenue;
 
   const SpendableBalance({
-    required this.trialCreditRemaining,
     required this.withdrawableRevenue,
     required this.lockedRevenue,
+    this.trialCreditRemaining = 0.0,
     this.fundedBalance = 0.0,
     this.rolloverCredit = 0.0,
   });

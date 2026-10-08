@@ -16,19 +16,8 @@ class StorageUtils {
     String result;
     if (pathOrGsUrl.startsWith('https://storage.googleapis.com/') ||
         pathOrGsUrl.startsWith('http://storage.googleapis.com/')) {
-      // Convert raw GCS URL to Firebase Storage URL format
-      final clean = pathOrGsUrl
-          .replaceFirst('https://storage.googleapis.com/', '')
-          .replaceFirst('http://storage.googleapis.com/', '');
-      final slashIdx = clean.indexOf('/');
-      final bucket = slashIdx != -1
-          ? clean.substring(0, slashIdx)
-          : DefaultFirebaseOptions.currentPlatform.storageBucket;
-      final path = slashIdx != -1 ? clean.substring(slashIdx + 1) : clean;
-      final cleanPath = path.startsWith('/') ? path.substring(1) : path;
-      final encodedPath = Uri.encodeComponent(cleanPath);
-      result =
-          'https://firebasestorage.googleapis.com/v0/b/$bucket/o/$encodedPath?alt=media';
+      // Direct Google Cloud CDN / GCS URL - preserve direct edge caching
+      result = pathOrGsUrl;
     } else if (pathOrGsUrl.startsWith('http://') ||
         pathOrGsUrl.startsWith('https://')) {
       if (pathOrGsUrl.contains('firebasestorage.googleapis.com') &&
@@ -55,27 +44,27 @@ class StorageUtils {
     return result;
   }
 
-  /// Asynchronously resolves authenticated signed download URLs for private Firebase Storage files.
+  /// Asynchronously resolves direct Google CDN or Firebase Storage HTTP download URLs.
+  /// Because TruthWorld uses Google CDN for media and video delivery, URLs are resolved
+  /// instantly in 0ms without blocking on slow metadata roundtrips.
   static Future<String> resolveUrl(String pathOrUrl) async {
     if (pathOrUrl.isEmpty) return '';
     final fast = getFastDownloadUrl(pathOrUrl);
-    if (fast.contains('token=')) return fast;
+    if (fast.isNotEmpty &&
+        (fast.startsWith('http://') || fast.startsWith('https://'))) {
+      return fast;
+    }
 
-    if (pathOrUrl.startsWith('gs://') ||
-        pathOrUrl.startsWith('https://storage.googleapis.com/') ||
-        (pathOrUrl.contains('firebasestorage.googleapis.com') &&
-            !pathOrUrl.contains('token='))) {
+    if (pathOrUrl.startsWith('gs://')) {
       try {
         final bucket = DefaultFirebaseOptions.currentPlatform.storageBucket;
-        final refUrl = pathOrUrl.startsWith('http')
+        final refUrl = pathOrUrl.startsWith('gs://')
             ? pathOrUrl
-            : (pathOrUrl.startsWith('gs://')
-                ? pathOrUrl
-                : 'gs://$bucket/$pathOrUrl');
+            : 'gs://$bucket/$pathOrUrl';
         final tokenUrl = await FirebaseStorage.instance
             .refFromURL(refUrl)
             .getDownloadURL()
-            .timeout(const Duration(seconds: 3));
+            .timeout(const Duration(seconds: 1));
         _fastUrlCache[pathOrUrl] = tokenUrl;
         return tokenUrl;
       } catch (e, s) {

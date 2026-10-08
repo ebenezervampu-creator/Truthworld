@@ -2,25 +2,20 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/constants/app_categories.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
+import 'package:truthworld/core/utils/get_instance_extensions.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_feed_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_navigation_controller.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
 
 class HomeDiscoveryController extends BaseController {
-  static const List<String> categories = [
-    'Education', 'Entertainment', 'Music', 'News', 'Sports',
-    'Technology', 'Science', 'Travel', 'Lifestyle', 'Comedy', 'Documentary',
-    'Movies', 'TV Shows', 'Vlogs', 'DIY & How-to', 'Health & Fitness',
-    'Fashion', 'Food & Cooking', 'Business & Finance', 'Animation',
-    'Short Films', 'Motivation', 'History', 'Art & Design', 'Automotive',
-    'Animals & Pets', 'Spirituality', 'Nature & Wildlife', 'Kids & Family',
-  ];
+  static const List<String> categories = AppCategories.allCategories;
 
   static const List<String> primaryFilterBars = [
     'All', 'Unexplored', 'Trending', 'From watch history', 'From Subscribed channels', 'Topics', 'Videos',
@@ -31,14 +26,10 @@ class HomeDiscoveryController extends BaseController {
   final AuthService _authService = Get.find<AuthService>();
 
   static const String _kFeaturedTopicsCacheKey = 'featured_topics_cache';
-  static const String _kForYouTopicsCacheKey = 'for_you_topics_cache';
   static const String _kQualifyingCategoriesCacheKey = 'qualifying_categories_cache';
   
   final RxList<Topic> featuredTopics = <Topic>[].obs;
   final RxBool isLoadingFeaturedTopics = true.obs;
-
-  final RxList<Topic> forYouTopics = <Topic>[].obs;
-  final RxBool isLoadingForYouTopics = true.obs;
 
   final RxString selectedCategory = 'All'.obs;
   final RxString activeFilterBar = 'All'.obs;
@@ -76,10 +67,8 @@ class HomeDiscoveryController extends BaseController {
   void onInit() {
     super.onInit();
     _loadCachedFeaturedTopics();
-    _loadCachedForYouTopics();
     _loadCachedQualifyingCategories();
     fetchFeaturedTopics();
-    fetchForYouTopics();
     addWorker(
       ever(_authService.isAuthenticated, (isAuth) {
         if (!isAuth) {
@@ -137,28 +126,6 @@ class HomeDiscoveryController extends BaseController {
     }
   }
 
-  void _loadCachedForYouTopics() {
-    try {
-      final cachedData = _storage.read<List>(_kForYouTopicsCacheKey);
-      if (cachedData != null && forYouTopics.isEmpty) {
-        final cachedTopics = cachedData
-            .map((data) => Topic.fromMap(Map<String, dynamic>.from(data)))
-            .where((t) => t.isValidTopic && t.videoCount > 0)
-            .toList();
-        if (cachedTopics.isNotEmpty) {
-          forYouTopics.assignAll(cachedTopics);
-          isLoadingForYouTopics.value = false;
-        }
-      }
-    } catch (e, stackTrace) {
-      ErrorHandler.log(
-        e,
-        stackTrace: stackTrace,
-        tag: 'HomeDiscoveryController._loadCachedForYouTopics',
-      );
-    }
-  }
-
   void saveFeaturedTopicsToCache() {
     try {
       final dataToCache = featuredTopics
@@ -171,22 +138,6 @@ class HomeDiscoveryController extends BaseController {
         e,
         stackTrace: stackTrace,
         tag: 'HomeDiscoveryController.saveFeaturedTopicsToCache',
-      );
-    }
-  }
-
-  void saveForYouTopicsToCache() {
-    try {
-      final dataToCache = forYouTopics
-          .where((t) => t.isValidTopic && t.videoCount > 0)
-          .map((t) => t.toCacheMap())
-          .toList();
-      _storage.write(_kForYouTopicsCacheKey, dataToCache);
-    } catch (e, stackTrace) {
-      ErrorHandler.log(
-        e,
-        stackTrace: stackTrace,
-        tag: 'HomeDiscoveryController.saveForYouTopicsToCache',
       );
     }
   }
@@ -267,12 +218,8 @@ class HomeDiscoveryController extends BaseController {
       if (topicsList.isNotEmpty) {
         featuredTopics.assignAll(topicsList);
         saveFeaturedTopicsToCache();
-        if (forYouTopics.isEmpty) {
-          forYouTopics.assignAll(topicsList);
-          saveForYouTopicsToCache();
-        }
-        if (Get.isRegistered<FollowingTopicsController>()) {
-          final followingCtrl = Get.find<FollowingTopicsController>();
+        final followingCtrl = Get.findIfInstantiated<FollowingTopicsController>();
+        if (followingCtrl != null) {
           for (final t in topicsList) {
             followingCtrl.updateTopicFollowerCount(t.id, t.followerCount);
             if (t.slug.isNotEmpty) {
@@ -300,85 +247,6 @@ class HomeDiscoveryController extends BaseController {
       );
     } finally {
       isLoadingFeaturedTopics.value = false;
-    }
-  }
-
-  Future<void> fetchForYouTopics() async {
-    try {
-      if (forYouTopics.isEmpty) isLoadingForYouTopics.value = true;
-      var topicsList = <Topic>[];
-
-      // Tier 1: Active status topics
-      try {
-        final snapshot = await _firestore
-            .collection('topics')
-            .where('status', isEqualTo: 'active')
-            .limit(20)
-            .get();
-        if (snapshot.docs.isNotEmpty) {
-          topicsList = snapshot.docs
-              .map(Topic.fromDocumentSnapshot)
-              .where((t) => t.isValidTopic && t.videoCount > 0)
-              .toList();
-        }
-      } catch (e, stackTrace) {
-        ErrorHandler.log(
-          e,
-          stackTrace: stackTrace,
-          tag: 'HomeDiscoveryController.fetchForYouTopics.activeStatus',
-        );
-      }
-
-      // Tier 2: General topics query
-      if (topicsList.isEmpty) {
-        try {
-          final generalSnapshot = await _firestore
-              .collection('topics')
-              .where('status', isEqualTo: 'active')
-              .limit(20)
-              .get();
-          if (generalSnapshot.docs.isNotEmpty) {
-            topicsList = generalSnapshot.docs
-                .map(Topic.fromDocumentSnapshot)
-                .where((t) => t.isValidTopic && t.videoCount > 0)
-                .toList();
-          }
-        } catch (e, stackTrace) {
-          ErrorHandler.log(
-            e,
-            stackTrace: stackTrace,
-            tag: 'HomeDiscoveryController.fetchForYouTopics.generalFallback',
-          );
-        }
-      }
-
-      if (topicsList.isNotEmpty) {
-        forYouTopics.assignAll(topicsList);
-        saveForYouTopicsToCache();
-        if (featuredTopics.isEmpty) {
-          featuredTopics.assignAll(topicsList.take(6).toList());
-          saveFeaturedTopicsToCache();
-        }
-      } else {
-        forYouTopics.clear();
-        try {
-          _storage.remove(_kForYouTopicsCacheKey);
-        } catch (e, stackTrace) {
-          ErrorHandler.log(
-            e,
-            stackTrace: stackTrace,
-            tag: 'HomeDiscoveryController.fetchForYouTopics.removeCache',
-          );
-        }
-      }
-    } catch (e, stackTrace) {
-      ErrorHandler.log(
-        e,
-        stackTrace: stackTrace,
-        tag: 'HomeDiscoveryController.fetchForYouTopics',
-      );
-    } finally {
-      isLoadingForYouTopics.value = false;
     }
   }
 
@@ -414,7 +282,6 @@ class HomeDiscoveryController extends BaseController {
     
     if (category == 'Topics' || category == 'Explore Topics') {
       if (featuredTopics.isEmpty) fetchFeaturedTopics();
-      if (forYouTopics.isEmpty) fetchForYouTopics();
     }
     
     if (Get.isRegistered<HomeNavigationController>()) {

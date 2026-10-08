@@ -147,7 +147,7 @@ void main() {
         ),
       );
 
-      expect(find.text('Claim details'), findsOneWidget);
+      expect(find.text('Claim Details'), findsOneWidget);
       expect(find.text('Documentary Ep 1'), findsOneWidget);
       expect(find.text('Video Fingerprint Match'), findsOneWidget);
       expect(find.text('Archive Films LLC'), findsOneWidget);

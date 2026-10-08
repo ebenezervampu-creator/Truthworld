@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/creator_intelligence_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/intelligence/intelligence_notification_card.dart';
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Sticky urgent notification section grouping all critical policy and moderation alerts.
 class IntelligenceCriticalSection extends StatelessWidget {
@@ -26,10 +27,10 @@ class IntelligenceCriticalSection extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF161618),
+        color: AppColors.bgSurface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: const Color(0xFFEF4444).withValues(alpha: 0.5),
+          color: AppColors.error.withValues(alpha: 0.5),
         ),
       ),
       child: Column(
@@ -40,10 +41,10 @@ class IntelligenceCriticalSection extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF450A0A),
+                  color: AppColors.errorContainer,
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(
-                    color: const Color(0xFFEF4444).withValues(alpha: 0.4),
+                    color: AppColors.error.withValues(alpha: 0.4),
                   ),
                 ),
                 child: const Icon(
@@ -56,10 +57,12 @@ class IntelligenceCriticalSection extends StatelessWidget {
               const Text(
                 'ACTION REQUIRED',
                 style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.1,
-                  color: Color(0xFFF87171),
+                  color: AppColors.error,
                 ),
               ),
             ],

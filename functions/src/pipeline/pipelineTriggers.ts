@@ -25,7 +25,7 @@ export const triggerVideoAIFeatures = onRequest(
     cors: true,
     region: "asia-south1",
     minInstances: 0,
-    maxInstances: 2,
+    maxInstances: 20,
     timeoutSeconds: 300,
     memory: "512MiB",
     secrets: ["GEMINI_API_KEY", "ASSEMBLYAI_KEY"],
@@ -244,7 +244,7 @@ export const onVideoUpload = onObjectFinalized(
   {
     bucket: "truthworld-1.firebasestorage.app",
     minInstances: 0,
-    maxInstances: 10,
+    maxInstances: 20,
     cpu: 0.5,
     memory: "512MiB",
     retry: true,
@@ -275,7 +275,7 @@ export const onVideoUpload = onObjectFinalized(
 /**
  * 🎤 Submit transcription — triggered by video-uploaded event
  *
- * CONFIG: minInstances=0, maxInstances=2, 256MiB, 120s timeout
+ * CONFIG: minInstances=0, maxInstances=20, 256MiB, 120s timeout
  */
 export const handleTranscription = onMessagePublished(
   {
@@ -284,7 +284,7 @@ export const handleTranscription = onMessagePublished(
     timeoutSeconds: 120,
     memory: "256MiB",
     minInstances: 0,
-    maxInstances: 5,
+    maxInstances: 20,
     retry: true,
     secrets: ["ASSEMBLYAI_KEY"],
   },
@@ -315,16 +315,16 @@ export const handleTranscription = onMessagePublished(
 /**
  * 🧠 Handle credibility processing (Path 1)
  *
- * CONFIG: minInstances=0, maxInstances=2, 1GiB, 540s timeout
+ * CONFIG: minInstances=0, maxInstances=15, 2GiB, 540s timeout
  */
 export const handleCredibility = onMessagePublished(
   {
     topic: "factcheck.requested",
     region: "asia-south1",
     timeoutSeconds: 540,
-    memory: "1GiB",
+    memory: "2GiB",
     minInstances: 0,
-    maxInstances: 5,
+    maxInstances: 15,
     retry: true,
     secrets: ["GEMINI_API_KEY"],
   },
@@ -363,9 +363,9 @@ export const handleDubbing = onMessagePublished(
     topic: "dubbing.requested",
     region: "asia-south1",
     timeoutSeconds: 540,
-    memory: "1GiB",
+    memory: "2GiB",
     minInstances: 0,
-    maxInstances: 5,
+    maxInstances: 20,
     retry: true,
     secrets: ["ELEVENLABS_API_KEY", "GOOGLE_TRANSLATION_API_KEY"],
   },
@@ -410,7 +410,7 @@ export const handleFactComplete = onMessagePublished(
     region: "asia-south1",
     timeoutSeconds: 60,
     minInstances: 0,
-    maxInstances: 5,
+    maxInstances: 20,
     retry: true,
     memory: "256MiB",
   },
@@ -453,7 +453,7 @@ export const handleDubbingComplete = onMessagePublished(
     region: "asia-south1",
     timeoutSeconds: 60,
     minInstances: 0,
-    maxInstances: 5,
+    maxInstances: 20,
     retry: true,
     memory: "256MiB",
   },
@@ -488,7 +488,7 @@ export const handleDubbingComplete = onMessagePublished(
 /**
  * 🛡️ Handle copyright checks (MD5 -> Embedding -> Transcript -> Gemini)
  *
- * CONFIG: minInstances=0, maxInstances=5, 1GiB, 540s timeout
+ * CONFIG: minInstances=0, maxInstances=10, 1GiB, 540s timeout
  */
 export const handleCopyrightCheck = onMessagePublished(
   {
@@ -497,7 +497,7 @@ export const handleCopyrightCheck = onMessagePublished(
     timeoutSeconds: 540,
     memory: "1GiB",
     minInstances: 0,
-    maxInstances: 5,
+    maxInstances: 10,
     retry: true,
     cpu: 0.5,
     secrets: ["GEMINI_API_KEY"],

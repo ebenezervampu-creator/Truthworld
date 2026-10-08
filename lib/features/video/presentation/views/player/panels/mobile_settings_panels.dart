@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
+import 'package:truthworld/features/video/presentation/views/player/panels/audio_theme_panel.dart';
 import 'package:truthworld/features/video/presentation/views/player/panels/language_panel.dart';
 import 'package:truthworld/features/video/presentation/views/player/panels/quality_panel.dart';
 import 'package:truthworld/features/video/presentation/views/player/panels/settings_tiles.dart';
@@ -73,6 +74,11 @@ class MobileSettingsBottomSheet extends StatelessWidget {
                   content = SizedBox(
                     height: 480,
                     child: AudioSettingsPanel(ctrl: ctrl),
+                  );
+                case 'audio_theme':
+                  content = SizedBox(
+                    height: 480,
+                    child: AudioThemePanel(ctrl: ctrl),
                   );
                 case 'zoom':
                   content = ZoomPanel(ctrl: ctrl);
@@ -332,6 +338,15 @@ class MorePanel extends StatelessWidget {
                     onChanged: (v) => ctrl.toggleAudioOnly(),
                   ),
                 ),
+                Obx(() {
+                  if (!ctrl.isAudioOnly.value) return const SizedBox.shrink();
+                  return MobileSettingsTile(
+                    icon: Icons.palette_outlined,
+                    title: 'Audio Theme',
+                    value: TowerPlayerPreferences.globalAudioTheme.value.displayName,
+                    onTap: () => ctrl.activePanel.value = 'audio_theme',
+                  );
+                }),
                 Obx(
                   () => MobileToggleTile(
                     icon: Icons.playlist_play_rounded,

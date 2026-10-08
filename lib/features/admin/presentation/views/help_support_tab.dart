@@ -342,7 +342,7 @@ class HelpSupportTab extends StatelessWidget {
                       ),
                       SizedBox(height: 8),
                       Text(
-                        'ebenezervampu4@gmail.com',
+                        'hello@truthworld.in',
                         style: TextStyle(
                           color: Color(0xFF42A5F5),
                           fontSize: 13,

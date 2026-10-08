@@ -398,6 +398,7 @@ import 'package:url_launcher/url_launcher.dart';
             url: url,
             title: title,
             domain: domain,
+            source: cleanSource,
           );
         },
         borderRadius: BorderRadius.circular(8),

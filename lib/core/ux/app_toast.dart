@@ -116,7 +116,17 @@ class AppToast {
     }
 
     final sanitizedTitle = UserFeedbackSanitizer.sanitizeTitle(title);
-    final sanitizedMessage = UserFeedbackSanitizer.sanitizeMessage(message);
+    var sanitizedMessage = UserFeedbackSanitizer.sanitizeMessage(message);
+
+    final lowerSanitized = sanitizedMessage.trim().toLowerCase();
+    if (lowerSanitized == 'internal' ||
+        lowerSanitized == 'unavailable' ||
+        lowerSanitized == 'internal error' ||
+        lowerSanitized == 'error' ||
+        lowerSanitized == 'failed' ||
+        lowerSanitized.isEmpty) {
+      sanitizedMessage = 'The service is temporarily unavailable. Please try again shortly.';
+    }
 
     // Determine if the title is redundant (e.g. empty or matches semantic name)
     final typeName = type.name.toLowerCase();

@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:truthworld/features/search/data/models/search_result.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -16,6 +17,8 @@ class SearchPlaylistResultItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cleanThumb = result.thumbnail.trim().replaceAll(' ', '%20');
+
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -34,19 +37,31 @@ class SearchPlaylistResultItem extends StatelessWidget {
                       aspectRatio: 16 / 9,
                       child: ColoredBox(
                         color: AppColors.textSecondary,
-                        child: result.thumbnail.isNotEmpty
+                        child: cleanThumb.isNotEmpty
                             ? CachedNetworkImage(
-                                imageUrl: result.thumbnail,
+                                imageUrl: cleanThumb,
                                 fit: BoxFit.cover,
                                 placeholder: (context, url) =>
                                     const ColoredBox(
                                   color: AppColors.bgDivider,
                                 ),
-                                errorWidget: (context, url, error) =>
-                                    const Icon(
-                                  Icons.playlist_play,
-                                  color: Colors.white,
-                                ),
+                                errorWidget: (context, url, error) {
+                                  if (kIsWeb) {
+                                    return Image.network(
+                                      cleanThumb,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, err, stack) =>
+                                          const Icon(
+                                        Icons.playlist_play,
+                                        color: Colors.white,
+                                      ),
+                                    );
+                                  }
+                                  return const Icon(
+                                    Icons.playlist_play,
+                                    color: Colors.white,
+                                  );
+                                },
                               )
                             : const Icon(
                                 Icons.playlist_play,

@@ -11,6 +11,7 @@ import 'package:truthworld/features/miniplayer/presentation/controllers/miniplay
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer/miniplayer_subtitles_mixin.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/data/models/video_clip.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
 import 'package:video_player/video_player.dart';
@@ -23,12 +24,15 @@ mixin MiniplayerHandoffMixin on
     MiniplayerGesturesMixin {
   /// Load a [video] into the miniplayer and begin playback.
   ///
-  /// If [resumeFromPosition] is provided the player will seek after init.
+  /// If [clip] is provided, playback and timeline are scoped strictly to the clip bounds.
+  /// If [isAudioOnly] is true, the miniplayer renders the audio-only visual stage.
   @override
   Future<void> showWithVideo(
     Video video, {
     Duration? resumeFromPosition,
     String? overrideUrl,
+    VideoClip? clip,
+    bool isAudioOnly = false,
   }) async {
     if (isControllerClosed) return;
 
@@ -36,8 +40,16 @@ mixin MiniplayerHandoffMixin on
     error.value = '';
     recoveryDebounceTimer?.cancel();
 
-    // If same video is already loaded and active, just ensure visibility and play
-    if (videoInfo.value?.id == video.id && internalVpc != null && isVideoReady.value) {
+    // Store active clip and audio only mode
+    activeClip.value = clip;
+    this.isAudioOnly.value = isAudioOnly;
+
+    // If same video and clip is already loaded and active, just ensure visibility and play
+    if (videoInfo.value?.id == video.id &&
+        videoInfo.value?.clip?.id == clip?.id &&
+        videoInfo.value?.isAudioOnly == isAudioOnly &&
+        internalVpc != null &&
+        isVideoReady.value) {
       mode.value = MiniplayerMode.collapsed;
       try {
         HoverPreviewCoordinator.globalMute.value = true;
@@ -75,15 +87,44 @@ mixin MiniplayerHandoffMixin on
     disposeVideoControllers();
 
     // Populate metadata first so the UI shows thumbnail immediately
-    videoInfo.value = MiniplayerVideoInfo.fromVideo(video);
+    videoInfo.value = MiniplayerVideoInfo.fromVideo(
+      video,
+      clip: clip,
+      isAudioOnly: isAudioOnly,
+    );
     currentVideo.value = video;
     mode.value = MiniplayerMode.collapsed;
     dragProgress.value = 0.0;
     isPlaying.value = false;
     isBuffering.value = true;
     isVideoReady.value = false;
-    currentPosition.value = resumeFromPosition ?? Duration.zero;
-    totalDuration.value = video.durationValue;
+
+    // Determine initial positions and duration based on clip vs full video
+    final Duration hardwareSeekTarget;
+    if (clip != null) {
+      final startMs = (clip.startTime * 1000).toInt();
+      final endMs = (clip.endTime * 1000).toInt();
+      final clipDur = Duration(
+        milliseconds: (endMs - startMs).clamp(0, 86400000),
+      );
+      totalDuration.value = clipDur;
+
+      if (resumeFromPosition != null &&
+          resumeFromPosition.inMilliseconds >= startMs &&
+          resumeFromPosition.inMilliseconds <= endMs) {
+        currentPosition.value = Duration(
+          milliseconds: resumeFromPosition.inMilliseconds - startMs,
+        );
+        hardwareSeekTarget = resumeFromPosition;
+      } else {
+        currentPosition.value = Duration.zero;
+        hardwareSeekTarget = Duration(milliseconds: startMs);
+      }
+    } else {
+      currentPosition.value = resumeFromPosition ?? Duration.zero;
+      totalDuration.value = video.durationValue;
+      hardwareSeekTarget = resumeFromPosition ?? Duration.zero;
+    }
 
     // Sync and load subtitles if global subtitles are enabled
     subtitlesEnabled.value = TowerPlayerController.globalSubtitlesEnabled;
@@ -165,16 +206,21 @@ mixin MiniplayerHandoffMixin on
       internalVpc = vpc;
       vpc.addListener(vpcListener);
 
-      totalDuration.value = vpc.value.duration;
+      if (clip != null) {
+        totalDuration.value = Duration(
+          milliseconds: ((clip.endTime - clip.startTime) * 1000).toInt(),
+        );
+      } else {
+        totalDuration.value = vpc.value.duration;
+      }
       isBuffering.value = false;
       isVideoReady.value = true;
 
-      // Seek to resume position if provided
-      if (resumeFromPosition != null &&
-          resumeFromPosition > Duration.zero &&
-          resumeFromPosition < vpc.value.duration) {
-        await vpc.seekTo(resumeFromPosition);
-        currentPosition.value = resumeFromPosition;
+      // Seek to hardware resume position if provided
+      if (hardwareSeekTarget > Duration.zero &&
+          (vpc.value.duration == Duration.zero ||
+              hardwareSeekTarget < vpc.value.duration)) {
+        await vpc.seekTo(hardwareSeekTarget);
       }
 
       // Explicitly start playback so the miniplayer plays when appearing
@@ -246,6 +292,8 @@ mixin MiniplayerHandoffMixin on
     mode.value = MiniplayerMode.dismissed;
     videoInfo.value = null;
     currentVideo.value = null;
+    activeClip.value = null;
+    isAudioOnly.value = false;
     isPlaying.value = false;
     isVideoReady.value = false;
     currentPosition.value = Duration.zero;
@@ -261,12 +309,19 @@ mixin MiniplayerHandoffMixin on
     final video = currentVideo.value;
     if (video == null) return;
 
-    // Capture the most accurate live position available from hardware or periodic tracker
-    var pos = currentPosition.value;
+    // Capture the most accurate live absolute position available from hardware or tracker
+    var absPos = Duration.zero;
     if (internalVpc != null &&
         internalVpc!.value.isInitialized &&
         internalVpc!.value.position > Duration.zero) {
-      pos = internalVpc!.value.position;
+      absPos = internalVpc!.value.position;
+    } else if (activeClip.value != null) {
+      final startMs = (activeClip.value!.startTime * 1000).toInt();
+      absPos = Duration(
+        milliseconds: startMs + currentPosition.value.inMilliseconds,
+      );
+    } else {
+      absPos = currentPosition.value;
     }
 
     mode.value = MiniplayerMode.transitioning;
@@ -285,13 +340,13 @@ mixin MiniplayerHandoffMixin on
       VideoPlaybackHandoff.registerActiveController(
         video.id,
         internalVpc!,
-        position: pos,
+        position: absPos,
       );
       // Set to null so dismiss() won't dispose it while handing over!
       internalVpc = null;
     } else {
       // On web or when controller is null, ensure exact resume position is registered
-      VideoPlaybackHandoff.registerResumePosition(video.id, pos);
+      VideoPlaybackHandoff.registerResumePosition(video.id, absPos);
       if (kIsWeb && internalVpc != null) {
         try {
           internalVpc!.pause();
@@ -301,9 +356,11 @@ mixin MiniplayerHandoffMixin on
 
     final args = <String, dynamic>{
       'video': video,
-      'resumePosition': pos.inMilliseconds,
-      'initialPosition': pos,
+      'resumePosition': absPos.inMilliseconds,
+      'initialPosition': absPos,
       'isFromMiniplayer': true,
+      if (activeClip.value != null) 'clip': activeClip.value,
+      'isAudioOnly': isAudioOnly.value,
       if (currentPlayingUrl != null && currentPlayingUrl!.isNotEmpty)
         'overrideUrl': currentPlayingUrl,
     };
@@ -311,7 +368,7 @@ mixin MiniplayerHandoffMixin on
     MiniplayerNavigationHelper.navigateToVideoScreen(
       video: video,
       routeArguments: args,
-      resumePosition: pos,
+      resumePosition: absPos,
     );
 
     // Give navigation transition 600ms to complete smoothly before cleaning up transitioning state.

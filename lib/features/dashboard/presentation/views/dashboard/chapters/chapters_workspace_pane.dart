@@ -1,3 +1,5 @@
+import 'dart:ui' show lerpDouble;
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -137,11 +139,11 @@ class ChaptersWorkspacePane extends StatelessWidget {
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFF59E0B)
+                                  color: AppColors.warning
                                       .withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(4),
                                   border: Border.all(
-                                    color: const Color(0xFFF59E0B)
+                                    color: AppColors.warning
                                         .withValues(alpha: 0.3),
                                   ),
                                 ),
@@ -150,7 +152,7 @@ class ChaptersWorkspacePane extends StatelessWidget {
                                   style: TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.bold,
-                                    color: Color(0xFFF59E0B),
+                                    color: AppColors.warning,
                                   ),
                                 ),
                               );
@@ -211,7 +213,7 @@ class ChaptersWorkspacePane extends StatelessWidget {
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                  AppColors.textPrimary,
+                                  Colors.black,
                                 ),
                               ),
                             )
@@ -287,31 +289,63 @@ class ChaptersWorkspacePane extends StatelessWidget {
                   );
                 }
 
-                return ListView.builder(
+                return ReorderableListView.builder(
+                  buildDefaultDragHandles: false,
                   padding: const EdgeInsets.all(24),
-                  itemCount: controller.currentChapters.length + 1,
+                  itemCount: controller.currentChapters.length,
+                  footer: ChaptersTimelineView.buildAddChapterButton(
+                    context,
+                    controller: controller,
+                    borderColor: borderColor,
+                    isDarkMode: isDarkMode,
+                  ),
+                  proxyDecorator: (child, index, animation) {
+                    return AnimatedBuilder(
+                      animation: animation,
+                      builder: (context, child) {
+                        final animValue = Curves.easeInOut.transform(animation.value);
+                        final elevation = lerpDouble(0, 8, animValue)!;
+                        final scale = lerpDouble(1, 1.02, animValue)!;
+                        return Transform.scale(
+                          scale: scale,
+                          child: Material(
+                            elevation: elevation,
+                            color: Colors.transparent,
+                            shadowColor: Colors.black.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: AppColors.brand.withValues(alpha: 0.6),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: child,
+                            ),
+                          ),
+                        );
+                      },
+                      child: child,
+                    );
+                  },
+                  onReorder: controller.reorderChapter,
                   itemBuilder: (context, index) {
-                    if (index == controller.currentChapters.length) {
-                      return ChaptersTimelineView.buildAddChapterButton(
+                    final chapter = controller.currentChapters[index];
+                    return KeyedSubtree(
+                      key: ValueKey('chapter_${chapter.startTime.inMilliseconds}_${chapter.title}_$index'),
+                      child: ChaptersTimelineView.buildTimelineRow(
                         context,
                         controller: controller,
+                        index: index,
+                        chapter: chapter,
+                        total: controller.currentChapters.length,
+                        textColor: textColor,
+                        textSecondaryColor: textSecondaryColor,
                         borderColor: borderColor,
+                        surfaceColor: surfaceColor,
                         isDarkMode: isDarkMode,
-                      );
-                    }
-
-                    final chapter = controller.currentChapters[index];
-                    return ChaptersTimelineView.buildTimelineRow(
-                      context,
-                      controller: controller,
-                      index: index,
-                      chapter: chapter,
-                      total: controller.currentChapters.length,
-                      textColor: textColor,
-                      textSecondaryColor: textSecondaryColor,
-                      borderColor: borderColor,
-                      surfaceColor: surfaceColor,
-                      isDarkMode: isDarkMode,
+                      ),
                     );
                   },
                 );
@@ -377,7 +411,7 @@ class ChaptersWorkspacePane extends StatelessWidget {
       decoration: BoxDecoration(
         color: isDarkMode
             ? AppColors.bgSurface.withValues(alpha: 0.6)
-            : const Color(0xFFF1F5F9),
+            : Colors.grey.shade200,
         border: Border(bottom: BorderSide(color: borderColor)),
       ),
       child: Row(
@@ -415,18 +449,18 @@ class ChaptersWorkspacePane extends StatelessWidget {
                       if (hasManual) {
                         badgeText = 'Manual Override Active';
                         badgeColor =
-                            const Color(0xFF10B981).withValues(alpha: 0.15);
-                        badgeTextColor = const Color(0xFF10B981);
+                            AppColors.success.withValues(alpha: 0.15);
+                        badgeTextColor = AppColors.success;
                       } else if (!isAutoOn) {
                         badgeText = 'Auto-Chapters Off';
                         badgeColor =
-                            const Color(0xFFEF4444).withValues(alpha: 0.15);
-                        badgeTextColor = const Color(0xFFEF4444);
+                            AppColors.error.withValues(alpha: 0.15);
+                        badgeTextColor = AppColors.error;
                       } else {
                         badgeText = 'AI Auto Fallback';
                         badgeColor =
-                            const Color(0xFF3B82F6).withValues(alpha: 0.15);
-                        badgeTextColor = const Color(0xFF3B82F6);
+                            AppColors.info.withValues(alpha: 0.15);
+                        badgeTextColor = AppColors.info;
                       }
 
                       return Container(

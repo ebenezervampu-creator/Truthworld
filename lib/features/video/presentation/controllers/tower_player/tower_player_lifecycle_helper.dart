@@ -6,12 +6,12 @@ import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/ad_service.dart';
+import 'package:truthworld/core/utils/web_platform_utils.dart';
 import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/playback_source.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player/tower_player_preferences.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
-import 'package:universal_html/html.dart' as html;
 import 'package:video_player/video_player.dart';
 
 /// Helper handling complex initialization routines for ads and web fullscreen listeners.
@@ -80,8 +80,7 @@ class TowerPlayerLifecycleHelper {
     required VoidCallback onInteraction,
   }) {
     if (!kIsWeb) return null;
-    return html.document.onFullscreenChange.listen((_) {
-      final isFs = html.document.fullscreenElement != null;
+    return WebPlatformUtils.onFullscreenChange((isFs) {
       if (isFullScreen.value != isFs) {
         isFullScreen.value = isFs;
         try {
@@ -213,14 +212,17 @@ class TowerPlayerLifecycleHelper {
     required RxBool isAudioOnly,
     required RxDouble playbackSpeed,
     required VideoPlayerController vpc,
-    required VoidCallback onToggleAudioOnly,
     required bool Function() isClosed,
+    void Function(bool)? onSetAudioOnly,
+    VoidCallback? onToggleAudioOnly,
+    bool initialAudioOnly = false,
   }) {
     subtitlesEnabled.value = TowerPlayerPreferences.globalSubtitlesEnabled;
     activeSubLang.value = TowerPlayerPreferences.globalActiveSubLang;
     final shouldAudioOnly =
-        arguments is Map && arguments['isAudioOnly'] == true;
+        initialAudioOnly || (arguments is Map && arguments['isAudioOnly'] == true);
     isAudioOnly.value = shouldAudioOnly;
+    TowerPlayerPreferences.globalAudioOnly = shouldAudioOnly;
     playbackSpeed.value = TowerPlayerPreferences.globalPlaybackSpeed;
 
     if (playbackSpeed.value != 1.0) {
@@ -239,7 +241,7 @@ class TowerPlayerLifecycleHelper {
     if (shouldAudioOnly) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!isClosed()) {
-          onToggleAudioOnly();
+          onToggleAudioOnly?.call();
         }
       });
     }

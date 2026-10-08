@@ -328,18 +328,34 @@ class UISource {
     final rawDomain = map['domain']?.toString();
     final publisher = (map['publisher'] ?? map['author'])?.toString();
 
-    final url = SourceUrlSanitizer.sanitizeUrl(
-      rawUrl,
-      title: title,
-      publisher: publisher,
-      domain: rawDomain,
-    );
-    final domain = SourceUrlSanitizer.resolveDisplayDomain(
-      rawUrl,
-      title: title,
-      explicitDomain: rawDomain,
-      publisher: publisher,
-    );
+    final sanitizedUrl = rawUrl != null
+        ? SourceUrlSanitizer.sanitizeUrl(
+            rawUrl,
+            title: title,
+            publisher: publisher,
+            domain: rawDomain,
+          )
+        : null;
+    final url = sanitizedUrl ??
+        SourceUrlSanitizer.resolveFallbackUrl(
+          domain: rawDomain,
+          publisher: publisher,
+          title: title,
+        );
+
+    final candidateHost = (rawUrl != null && !SourceUrlSanitizer.isGroundingRedirect(rawUrl))
+        ? Uri.tryParse(rawUrl.startsWith('http') ? rawUrl : 'https://$rawUrl')
+            ?.host
+            .replaceFirst(RegExp(r'^www\.'), '')
+        : null;
+    final domain = (SourceUrlSanitizer.isValidDomain(rawDomain) ? rawDomain : null) ??
+        (SourceUrlSanitizer.isValidDomain(candidateHost) ? candidateHost : null) ??
+        SourceUrlSanitizer.resolveDisplayDomain(
+          url ?? rawUrl,
+          title: title,
+          explicitDomain: rawDomain,
+          publisher: publisher,
+        );
     final trustLevel =
         (map['trustLevel'] ?? map['trust'] ?? 'Medium').toString();
     final type =
@@ -487,14 +503,16 @@ class ClaimResult {
             UISource.fromMap(Map<String, dynamic>.from(s)),
           );
         } else if (s is String && s.trim().isNotEmpty) {
-          final clean = SourceUrlSanitizer.sanitizeUrl(s, title: s);
+          final clean = SourceUrlSanitizer.sanitizeUrl(s, title: s) ??
+              SourceUrlSanitizer.resolveFallbackUrl(domain: s, title: s);
+          final domain = SourceUrlSanitizer.resolveDisplayDomain(clean ?? s, title: s);
           sourcesList.add(
             UISource(
               title: s.trim(),
               trustLevel: 'Medium',
               type: 'Supporting',
               url: clean,
-              domain: SourceUrlSanitizer.resolveDisplayDomain(clean, title: s),
+              domain: domain,
             ),
           );
         }

@@ -20,9 +20,9 @@ class ClaimDetailsBottomSheet extends StatelessWidget {
     final policy = (data['policy'] ?? 'Monetized by claimant').toString();
 
     return Container(
-      decoration: BoxDecoration(
-        color: isDarkMode ? AppColors.bgSurface : AppColors.textPrimary,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      decoration: const BoxDecoration(
+        color: Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -32,17 +32,19 @@ class ClaimDetailsBottomSheet extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Claim details',
-                style: AppTextStyles.headlineSmall.copyWith(
+              const Text(
+                'Claim Details',
+                style: TextStyle(
+                  fontFamily: TWTypography.brandFamily,
                   fontSize: 20,
-                  color: isDarkMode ? AppColors.textPrimary : Colors.black,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
                 ),
               ),
               IconButton(
-                icon: Icon(
+                icon: const Icon(
                   Icons.close,
-                  color: isDarkMode ? AppColors.textPrimary : Colors.black,
+                  color: AppColors.textPrimary,
                 ),
                 onPressed: () => Navigator.pop(context),
               ),
@@ -68,6 +70,7 @@ class ClaimDetailsBottomSheet extends StatelessWidget {
           Text(
             label,
             style: const TextStyle(
+              fontFamily: TWTypography.uiFamily,
               fontSize: 12,
               color: AppColors.textSecondary,
             ),
@@ -75,10 +78,11 @@ class ClaimDetailsBottomSheet extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             value,
-            style: TextStyle(
+            style: const TextStyle(
+              fontFamily: TWTypography.uiFamily,
               fontSize: 15,
               fontWeight: FontWeight.bold,
-              color: isDarkMode ? AppColors.textPrimary : Colors.black,
+              color: AppColors.textPrimary,
             ),
           ),
         ],

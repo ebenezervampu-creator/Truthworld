@@ -19,28 +19,49 @@ class SavedAdsPage extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Header Section
-              const Padding(
-                padding: EdgeInsets.fromLTRB(24, 24, 24, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 20, 24, 16),
+                child: Row(
                   children: [
-                    Text(
-                      'Interacted Ads',
-                      style: TextStyle(
-                        fontFamily: TWTypography.brandFamily,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
+                    IconButton(
+                      icon: const Icon(
+                        Icons.arrow_back_rounded,
                         color: Colors.white,
-                        letterSpacing: -0.5,
                       ),
+                      tooltip: 'Back',
+                      onPressed: () {
+                        if (Navigator.of(context).canPop()) {
+                          Navigator.of(context).pop();
+                        } else {
+                          Get.back<void>();
+                        }
+                      },
                     ),
-                    SizedBox(height: 4),
-                    Text(
-                      'Your liked and bookmarked advertiser sponsor layers',
-                      style: TextStyle(
-                        fontFamily: TWTypography.uiFamily,
-                        fontSize: 13,
-                        color: AppColors.textSecondary,
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Interacted Ads',
+                            style: TextStyle(
+                              fontFamily: TWTypography.brandFamily,
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Your liked and bookmarked advertiser sponsor layers',
+                            style: TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              fontSize: 13,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],

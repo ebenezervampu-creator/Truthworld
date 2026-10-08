@@ -12,12 +12,12 @@ class CategoryInsightsDetailCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF161618),
+        color: const Color(0xFF1E1E1E),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: item.isUntouched
-              ? const Color(0xFF38BDF8).withValues(alpha: 0.4)
-              : const Color(0xFF27272A),
+              ? AppColors.info.withValues(alpha: 0.5)
+              : AppColors.bgDivider,
           width: item.isUntouched ? 1.5 : 1.0,
         ),
       ),
@@ -38,32 +38,33 @@ class CategoryInsightsDetailCard extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
+                        fontFamily: TWTypography.brandFamily,
                       ),
                     ),
                     if (item.isUntouched)
                       _buildStatusBadge(
                         label: 'Untouched (0 Channels)',
                         icon: Icons.explore_off_rounded,
-                        badgeBg: const Color(0xFF1E293B),
-                        borderColor: const Color(0xFF38BDF8).withValues(alpha: 0.4),
-                        textColor: const Color(0xFF38BDF8),
+                        badgeBg: AppColors.infoContainer,
+                        borderColor: AppColors.info.withValues(alpha: 0.4),
+                        textColor: AppColors.info,
                       )
                     else if (item.opportunityIndex > 10.0)
                       _buildStatusBadge(
                         label: 'High Content Gap Demand',
                         icon: Icons.verified_rounded,
-                        badgeBg: const Color(0xFF064E3B),
-                        borderColor: const Color(0xFF10B981).withValues(alpha: 0.4),
-                        textColor: const Color(0xFF34D399),
+                        badgeBg: AppColors.successContainer,
+                        borderColor: AppColors.success.withValues(alpha: 0.4),
+                        textColor: AppColors.success,
                       )
                     else if (item.growthRate > 25.0)
                       _buildStatusBadge(
                         label: 'Fast Growing',
                         icon: Icons.bolt_rounded,
-                        badgeBg: const Color(0xFF1E293B),
-                        borderColor: const Color(0xFF38BDF8).withValues(alpha: 0.4),
-                        textColor: const Color(0xFF38BDF8),
+                        badgeBg: AppColors.warningContainer,
+                        borderColor: AppColors.warning.withValues(alpha: 0.4),
+                        textColor: AppColors.warning,
                       ),
                   ],
                 ),
@@ -74,9 +75,9 @@ class CategoryInsightsDetailCard extends StatelessWidget {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF121212),
+                  color: AppColors.bgPage,
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: const Color(0xFF27272A)),
+                  border: Border.all(color: AppColors.bgDivider),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -84,7 +85,7 @@ class CategoryInsightsDetailCard extends StatelessWidget {
                     const Icon(
                       Icons.bolt_rounded,
                       size: 13,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                     ),
                     const SizedBox(width: 4),
                     Text(
@@ -92,7 +93,8 @@ class CategoryInsightsDetailCard extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
+                        fontFamily: TWTypography.brandFamily,
                       ),
                     ),
                   ],
@@ -169,14 +171,15 @@ class CategoryInsightsDetailCard extends StatelessWidget {
           // Top Liked Videos Section (if available)
           if (item.topLikedVideos.isNotEmpty) ...[
             const SizedBox(height: 16),
-            const Divider(height: 1, color: Color(0xFF27272A)),
+            const Divider(height: 1, color: AppColors.bgDivider),
             const SizedBox(height: 12),
-            Text(
-              'Top User-Liked Videos in ${item.category}:',
-              style: const TextStyle(
+            const Text(
+              'Top User-Liked Videos in this Category:',
+              style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
                 color: AppColors.textTertiary,
+                fontFamily: TWTypography.uiFamily,
               ),
             ),
             const SizedBox(height: 8),
@@ -190,9 +193,9 @@ class CategoryInsightsDetailCard extends StatelessWidget {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF121212),
+                    color: AppColors.bgPage,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFF27272A)),
+                    border: Border.all(color: AppColors.bgDivider),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -200,7 +203,7 @@ class CategoryInsightsDetailCard extends StatelessWidget {
                       const Icon(
                         Icons.thumb_up_rounded,
                         size: 11,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                       const SizedBox(width: 6),
                       Text(
@@ -209,8 +212,9 @@ class CategoryInsightsDetailCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 12,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           fontWeight: FontWeight.w500,
+                          fontFamily: TWTypography.uiFamily,
                         ),
                       ),
                       const SizedBox(width: 6),
@@ -218,8 +222,9 @@ class CategoryInsightsDetailCard extends StatelessWidget {
                         '(${v['likes']} likes)',
                         style: const TextStyle(
                           fontSize: 11,
-                          color: Color(0xFF34D399),
+                          color: AppColors.success,
                           fontWeight: FontWeight.bold,
+                          fontFamily: TWTypography.uiFamily,
                         ),
                       ),
                     ],
@@ -242,16 +247,16 @@ class CategoryInsightsDetailCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF121212),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: AppColors.bgDivider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, size: 12, color: Colors.white),
+              Icon(icon, size: 12, color: AppColors.textPrimary),
               const SizedBox(width: 5),
               Expanded(
                 child: Text(
@@ -259,6 +264,7 @@ class CategoryInsightsDetailCard extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 11,
                     color: AppColors.textSecondary,
+                    fontFamily: TWTypography.uiFamily,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -272,7 +278,8 @@ class CategoryInsightsDetailCard extends StatelessWidget {
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.bold,
-              color: highlight ? const Color(0xFF38BDF8) : Colors.white,
+              color: highlight ? AppColors.info : AppColors.textPrimary,
+              fontFamily: TWTypography.uiFamily,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -299,7 +306,7 @@ class CategoryInsightsDetailCard extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: Colors.white),
+          Icon(icon, size: 12, color: AppColors.textPrimary),
           const SizedBox(width: 5),
           Text(
             label,
@@ -307,6 +314,7 @@ class CategoryInsightsDetailCard extends StatelessWidget {
               fontSize: 11,
               fontWeight: FontWeight.w600,
               color: textColor,
+              fontFamily: TWTypography.uiFamily,
             ),
           ),
         ],

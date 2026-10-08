@@ -74,13 +74,15 @@ export const onKycDocumentCreatedOrUpdated = onDocumentWritten(
     const bankAccountName = (data.bankAccountName || "").trim();
     const panDocUrl = data.panDocumentUrl || "";
     const idDocUrl = data.identityProofFrontUrl || "";
-
-    logger.info(`[KYC] Processing verification for channel ${channelId} (User: ${userId}, PAN: ${panNumber})`);
+    const maskedPan = panNumber.length >= 5
+      ? `${panNumber.slice(0, 2)}*****${panNumber.slice(-1)}`
+      : "[REDACTED]";
+    logger.info(`[KYC] Processing verification for channel ${channelId} (User: ${userId}, PAN: ${maskedPan})`);
 
     // 1. PAN Regex Validation (5 uppercase letters, 4 digits, 1 uppercase letter)
     const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
     if (!panRegex.test(panNumber)) {
-      logger.warn(`[KYC] Channel ${channelId} submitted invalid PAN format: ${panNumber}`);
+      logger.warn(`[KYC] Channel ${channelId} submitted invalid PAN format`);
       await after.ref.update({
         kycStatus: "rejected",
         rejectionReason: "Invalid Indian PAN format. A valid PAN consists of 5 letters, 4 digits, and 1 letter.",
@@ -111,9 +113,9 @@ export const onKycDocumentCreatedOrUpdated = onDocumentWritten(
 
     // 2. Name Matching between Bank Account and PAN Legal Name
     const nameScore = calculateNameSimilarity(bankAccountName, panLegalName);
-    const isMatched = nameScore >= 0.70;
+    const isMatched = nameScore >= 0.90;
 
-    logger.info(`[KYC] Name comparison for channel ${channelId}: Bank="${bankAccountName}" vs PAN="${panLegalName}" (Score: ${nameScore.toFixed(2)}, Matched: ${isMatched})`);
+    logger.info(`[KYC] Name comparison for channel ${channelId}: Score: ${nameScore.toFixed(2)}, Matched: ${isMatched}`);
 
     // 3. Automated Decision:
     // If PAN format is valid, documents are attached, and name matches bank account: Auto-Approve!
@@ -181,7 +183,7 @@ export const onKycDocumentCreatedOrUpdated = onDocumentWritten(
         isNameMatched: isMatched,
         nameMatchScore: Number(nameScore.toFixed(2)),
         auditNote: !isMatched
-          ? `Name discrepancy between Bank Account ('${bankAccountName}') and PAN ('${panLegalName}'). Flagged for compliance review.`
+          ? `Name discrepancy between Bank Account and PAN legal name (similarity: ${(nameScore * 100).toFixed(0)}%, threshold 90%). Flagged for compliance review.`
           : "Document image verification pending compliance officer sign-off.",
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });

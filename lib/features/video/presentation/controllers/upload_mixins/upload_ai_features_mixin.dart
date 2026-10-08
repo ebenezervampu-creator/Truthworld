@@ -1,5 +1,6 @@
 import 'package:collection/collection.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:truthworld/core/constants/app_categories.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/utils/source_url_sanitizer.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
@@ -8,19 +9,8 @@ import 'package:truthworld/features/video/presentation/controllers/upload_mixins
 
 mixin UploadAiFeaturesMixin on UploadControllerBase {
   /// Categories that are non-factual/creative where fact-checking is not needed
-  static const Set<String> categoriesWithoutFactCheck = {
-    'Music',
-    'Entertainment',
-    'Comedy',
-    'Animation',
-    'Movies',
-    'Lifestyle',
-    'Sports',
-    'Pets & Animals',
-    'Fashion',
-    'Food & Cooking',
-    'DIY & How-to',
-  };
+  static const Set<String> categoriesWithoutFactCheck =
+      AppCategories.categoriesWithoutFactCheck;
 
   /// Check whether fact checking is relevant for a given category name
   bool isFactCheckNeededForCategory(String category) {

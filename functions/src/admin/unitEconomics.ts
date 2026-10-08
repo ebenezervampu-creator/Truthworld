@@ -394,15 +394,15 @@ export const getUnitEconomicsDashboard = onCall(
       throw new HttpsError("unauthenticated", "Authentication required to access admin analytics.");
     }
 
-    const userDoc = await db().collection("users").doc(uid).get();
-    const userData = userDoc.data() || {};
-    const isAdmin = userData.isAdmin === true || userData.role === "admin" || request.auth?.token?.admin === true;
-
+    const isAdmin = request.auth?.token?.admin === true;
     if (!isAdmin) {
       throw new HttpsError("permission-denied", "Admin privileges required.");
     }
 
     const month = (request.data?.month as string) || undefined;
+    if (month && !/^\d{4}-\d{2}$/.test(month)) {
+      throw new HttpsError("invalid-argument", "Invalid month format. Expected YYYY-MM.");
+    }
     return await computeUnitEconomics(month);
   }
 );
@@ -413,7 +413,11 @@ export const getUnitEconomicsDashboard = onCall(
  */
 export const getUnitEconomicsReport = onRequest(
   {
-    cors: true,
+    cors: [
+      "https://admin.truthworld.in",
+      "https://admin.truthworld.app",
+      "http://localhost:5173",
+    ],
     region: "asia-south1",
     memory: "512MiB",
     timeoutSeconds: 60,
@@ -425,6 +429,10 @@ export const getUnitEconomicsReport = onRequest(
       if (!adminUser) return;
 
       const month = req.query.month as string | undefined;
+      if (month && !/^\d{4}-\d{2}$/.test(month)) {
+        res.status(400).json({ error: "Invalid month format. Expected YYYY-MM." });
+        return;
+      }
       const report = await computeUnitEconomics(month);
 
       res.status(200).json(report);

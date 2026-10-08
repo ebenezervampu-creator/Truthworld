@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Fallback login prompt displayed when an unauthenticated user navigates to Creator Studio.
+/// Matches 100% of the Consumer App Library unauthenticated styling.
 class DashboardFallbackLogin extends StatelessWidget {
   const DashboardFallbackLogin({
     required this.onSignIn,
@@ -13,63 +15,91 @@ class DashboardFallbackLogin extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0D0014),
+      backgroundColor: AppColors.bgPage,
       body: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.dashboard_rounded,
-                color: Colors.white,
-                size: 80,
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Creator Studio',
-                style: TextStyle(
-                  fontFamily: TWTypography.brandFamily,
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+        child: SingleChildScrollView(
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 500),
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    color: AppColors.bgSurfaceHover,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: AppColors.textPrimary.withValues(alpha: 0.1),
+                      width: 2,
+                    ),
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.dashboard_rounded,
+                      color: AppColors.textPrimary,
+                      size: 48,
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Please sign in to access your Creator Studio dashboard.',
-                style: TextStyle(
-                  fontFamily: TWTypography.uiFamily,
-                  fontSize: 16,
-                  color: AppColors.textSecondary,
+                const SizedBox(height: 28),
+                const Text(
+                  'Access Creator Studio',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: TWTypography.brandFamily,
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 32),
-              ElevatedButton.icon(
-                onPressed: onSignIn,
-                icon: const Icon(Icons.login_rounded, color: Colors.white),
-                label: const Text(
-                  'Sign In with Google',
+                const SizedBox(height: 12),
+                const Text(
+                  'Sign in to manage your channel, publish content, view analytics, and monetize your creations.',
+                  textAlign: TextAlign.center,
                   style: TextStyle(
                     fontFamily: TWTypography.uiFamily,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                    color: AppColors.textSecondary,
+                    height: 1.4,
                   ),
                 ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF6366F1),
-                  foregroundColor: AppColors.textPrimary,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 12,
+                const SizedBox(height: 36),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    onSignIn();
+                  },
+                  icon: const Icon(
+                    Icons.login_rounded,
+                    color: Colors.black,
+                    size: 20,
                   ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                  label: const Text(
+                    'Sign In to Continue',
+                    style: TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.brand,
+                    foregroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 32,
+                      vertical: 16,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(28),
+                    ),
+                    elevation: 0,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

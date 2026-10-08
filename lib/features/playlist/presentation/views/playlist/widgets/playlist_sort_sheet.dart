@@ -58,7 +58,7 @@ void showPlaylistSortBottomSheet({
                   ),
                   PlaylistSortOptionTile(
                     value: 'recent',
-                    label: 'Recent',
+                    label: 'Recently updated',
                     icon: Icons.access_time_rounded,
                     sortBy: controller.sortBy,
                     isAscending: controller.isAscending,

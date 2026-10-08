@@ -161,7 +161,7 @@ class TopicNotificationOptionsSheet extends StatelessWidget {
             // Options List with reactive selection state
             Obx(() {
               final option =
-                  controller.topicNotificationSettings[topic.id] ?? 'all';
+                  controller.topicNotificationSettings[topic.id] ?? 'personalized';
               final isAll = option == 'all';
               final isPersonalized = option == 'personalized';
               final isNone = option == 'none';

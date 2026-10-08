@@ -26,11 +26,13 @@ class PlayerTopBar extends StatelessWidget {
       if (Get.isRegistered<VideoController>(tag: ctrl.tag)) {
         vc = Get.find<VideoController>(tag: ctrl.tag);
         title = vc.video.title;
-        if (Get.isRegistered<ChannelSubscriptionController>(tag: ctrl.tag)) {
-          subCtrl = Get.find<ChannelSubscriptionController>(tag: ctrl.tag);
-        } else if (Get.isRegistered<ChannelSubscriptionController>()) {
-          subCtrl = Get.find<ChannelSubscriptionController>();
-        }
+        subCtrl = vc.channelController.subController;
+      } else if (Get.isRegistered<ChannelSubscriptionController>(tag: ctrl.tag)) {
+        subCtrl = Get.find<ChannelSubscriptionController>(tag: ctrl.tag);
+      } else if (Get.isRegistered<ChannelSubscriptionController>()) {
+        subCtrl = Get.find<ChannelSubscriptionController>();
+      } else {
+        subCtrl = ChannelSubscriptionController.to;
       }
     } catch (e, stackTrace) {
       ErrorHandler.log(
@@ -40,7 +42,7 @@ class PlayerTopBar extends StatelessWidget {
       );
     }
 
-    final isWide = MediaQuery.of(context).size.width > 680;
+    final isWide = MediaQuery.of(context).size.width > 540;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
@@ -105,7 +107,7 @@ class PlayerTopBar extends StatelessWidget {
             ),
           ),
 
-          // Right cluster: Channel Follow + Action Dock
+          // Right cluster: Channel Subscribe + Action Dock
           if (ctrl.isFullScreen.value && vc != null) ...[
             if (isWide && subCtrl != null) ...[
               const SizedBox(width: 14),
@@ -130,8 +132,8 @@ class PlayerTopBar extends StatelessWidget {
                       ),
               ),
               const SizedBox(width: 8),
-              // Follow Button & Notification Bell
-              _buildFollowButton(context, vc, subCtrl),
+              // Subscribe Button & Notification Bell
+              _buildSubscribeButton(context, vc, subCtrl),
             ],
             const SizedBox(width: 10),
             // Floating Action Dock (Like, Comments, Share, More ⋯)
@@ -148,9 +150,7 @@ class PlayerTopBar extends StatelessWidget {
     VideoController vc,
   ) {
     final video = vc.video;
-    final isFactChecked = video.isFactChecked ||
-        video.factCheckUrl.isNotEmpty ||
-        (video.uiReport != null && (video.uiReport?.keyClaims.isNotEmpty ?? false));
+    final isFactChecked = video.hasAiCredibility;
 
     if (!isFactChecked && !ctrl.isAnalyzingTruth) return const SizedBox.shrink();
 
@@ -208,7 +208,7 @@ class PlayerTopBar extends StatelessWidget {
     );
   }
 
-  Widget _buildFollowButton(
+  Widget _buildSubscribeButton(
     BuildContext context,
     VideoController vc,
     ChannelSubscriptionController subCtrl,
@@ -221,21 +221,23 @@ class PlayerTopBar extends StatelessWidget {
 
       IconData bellIcon;
       if (!notificationsEnabled || notificationOption == 'none') {
-        bellIcon = Icons.notifications_off;
+        bellIcon = Icons.notifications_off_outlined;
       } else if (notificationOption == 'personalized') {
         bellIcon = Icons.notifications_outlined;
       } else {
-        bellIcon = Icons.notifications_active;
+        bellIcon = Icons.notifications_active_outlined;
       }
 
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Subscribe / Subscribed Pill Button
           InkWell(
             onTap: () {
+              ctrl.startHideTimer();
               if (!AuthService.to.isAuthenticated.value) {
                 AppSnackbar.info(
-                  'Please sign in to follow channels.',
+                  'Please sign in to subscribe to channels.',
                   title: 'Sign In Required',
                   actionLabel: 'SIGN IN',
                   onAction: AuthService.to.signInWithGoogle,
@@ -253,7 +255,7 @@ class PlayerTopBar extends StatelessWidget {
                 subCtrl.subscribeToChannel(vc.video.channelId);
               }
             },
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
             child: Container(
               height: 28,
               padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -262,31 +264,48 @@ class PlayerTopBar extends StatelessWidget {
                 color: isSubbed
                     ? Colors.white.withValues(alpha: 0.12)
                     : Colors.white,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: isSubbed
                       ? Colors.white.withValues(alpha: 0.15)
                       : Colors.transparent,
                 ),
               ),
-              child: Text(
-                isSubbed ? 'Following' : '+ Follow',
-                style: TS.bold.copyWith(
-                  color: isSubbed ? Colors.white : Colors.black,
-                  fontSize: 12,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    isSubbed ? 'Subscribed' : 'Subscribe',
+                    style: TS.bold.copyWith(
+                      color: isSubbed ? Colors.white : Colors.black,
+                      fontSize: 12,
+                    ),
+                  ),
+                  if (isSubbed) ...[
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                  ],
+                ],
               ),
             ),
           ),
           if (isSubbed) ...[
             const SizedBox(width: 6),
+            // Notification Bell Options Toggle Pill
             InkWell(
-              onTap: () => PlayerNotificationsDialog.show(
-                context,
-                subCtrl,
-                vc.video.channelId,
-                channelName: vc.video.channelName,
-              ),
+              onTap: () {
+                ctrl.startHideTimer();
+                PlayerNotificationsDialog.show(
+                  context,
+                  subCtrl,
+                  vc.video.channelId,
+                  channelName: vc.video.channelName,
+                );
+              },
               borderRadius: BorderRadius.circular(14),
               child: Container(
                 width: 28,

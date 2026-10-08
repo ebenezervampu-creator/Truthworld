@@ -49,6 +49,8 @@ class FakeConnectivityService extends GetxService implements ConnectivityService
   @override
   Stream<List<ConnectivityResult>> get onConnectivityChanged => const Stream.empty();
   @override
+  Stream<ConnectivityResult> get onConnectivityRestored => const Stream.empty();
+  @override
   Future<ConnectivityService> init() async => this;
 }
 

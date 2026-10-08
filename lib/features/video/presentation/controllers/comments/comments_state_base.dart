@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
@@ -49,7 +50,9 @@ abstract class CommentsStateBase extends BaseController
   final userCommentInteractions = RxMap<String, Map<String, bool>>();
 
   // Pagination
-  static const int commentsPerPage = 20;
+  static const int commentsPerPage = 25;
+  final RxBool isLoadingMoreComments = false.obs;
+  DocumentSnapshot? lastCommentDoc;
 
   // Current user info
   String? currentUserIdOverride;
@@ -67,13 +70,13 @@ abstract class CommentsStateBase extends BaseController
         targetReplyId.value = Get.arguments['replyId'] as String?;
       }
     }
-    if (video != null && !isOffline) {
+    if (video != null && video!.id.isNotEmpty && !isOffline) {
       initializeComments();
     }
   }
 
   void enableOnlineMode() {
-    if (isOffline && video != null) {
+    if (isOffline && video != null && video!.id.isNotEmpty) {
       isOffline = false;
       initializeComments();
     }
@@ -89,4 +92,5 @@ abstract class CommentsStateBase extends BaseController
   // Cross-mixin contracts
   void initializeComments();
   void sortComments(bool newest);
+  Future<void> loadMoreComments();
 }

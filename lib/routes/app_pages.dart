@@ -114,8 +114,7 @@ class AppPages {
           final user = FirebaseAuth.instance.currentUser;
           final email = user?.email?.toLowerCase();
           final isOwner = email != null && (
-            email == 'ebenezervampy@towervsp.com' ||
-            email == 'ebenezervampu@towervsp.com' ||
+            email == 'hello@truthworld.in' ||
             email == 'ebenezervampu4@gmail.com' ||
             email == 'admin@truthworld.com'
           );
@@ -143,8 +142,7 @@ class AppPages {
             final user = FirebaseAuth.instance.currentUser;
             final email = user?.email?.toLowerCase();
             final isOwner = email != null && (
-              email == 'ebenezervampy@towervsp.com' ||
-              email == 'ebenezervampu@towervsp.com' ||
+              email == 'hello@truthworld.in' ||
               email == 'ebenezervampu4@gmail.com' ||
               email == 'admin@truthworld.com'
             );
@@ -343,6 +341,9 @@ class AppPages {
       page: () {
         final video = Get.arguments?['video'];
         final videoId = video?.id ??
+            (Get.arguments is Map ? (Get.arguments['videoId'] as String?) : null) ??
+            (Get.arguments is Map ? (Get.arguments['targetVideoId'] as String?) : null) ??
+            (Get.arguments is Map ? (Get.arguments['video_id'] as String?) : null) ??
             Get.parameters['v'] ??
             Get.parameters['videoId'] ??
             Get.parameters['id'];
@@ -361,6 +362,9 @@ class AppPages {
       page: () {
         final video = Get.arguments?['video'];
         final videoId = video?.id ??
+            (Get.arguments is Map ? (Get.arguments['videoId'] as String?) : null) ??
+            (Get.arguments is Map ? (Get.arguments['targetVideoId'] as String?) : null) ??
+            (Get.arguments is Map ? (Get.arguments['video_id'] as String?) : null) ??
             Get.parameters['v'] ??
             Get.parameters['videoId'] ??
             Get.parameters['id'];

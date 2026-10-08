@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/components/ui/auth/email_verification_sheet.dart';
+import 'package:truthworld/components/ui/auth/phone_verification_sheet.dart';
 import 'package:truthworld/components/ui/avatar_options_sheet.dart';
 import 'package:truthworld/components/ui/google_onboarding_sheet.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
@@ -15,17 +17,27 @@ class GeneralAccountSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SettingsSectionCard(
-      title: 'General & Account',
-      children: [
-        _buildUserInfoTile(context),
-        _buildAgeAndGenderTile(context),
-        _buildSubscriptionTile(context),
-        _buildWalletTile(context),
-        _buildAccountStatusTile(context),
-        _buildLogoutTile(context),
-      ],
-    );
+    return Obx(() {
+      final isAuth = Get.isRegistered<AuthService>() &&
+          AuthService.to.isAuthenticated.value;
+      if (!isAuth) {
+        return const SizedBox.shrink();
+      }
+
+      return SettingsSectionCard(
+        title: 'General & Account',
+        children: [
+          _buildUserInfoTile(context),
+          _buildPhoneVerificationTile(context),
+          _buildEmailVerificationTile(context),
+          _buildAgeAndGenderTile(context),
+          _buildSubscriptionTile(context),
+          _buildWalletTile(context),
+          _buildAccountStatusTile(context),
+          _buildLogoutTile(context),
+        ],
+      );
+    });
   }
 
   Widget _buildUserInfoTile(BuildContext context) {
@@ -257,6 +269,231 @@ class GeneralAccountSection extends StatelessWidget {
 
   void _showAvatarOptionsSheet(BuildContext context) {
     AvatarOptionsSheet.show(context);
+  }
+
+  Widget _buildPhoneVerificationTile(BuildContext context) {
+    final authService = AuthService.to;
+    return Obx(() {
+      final isVerified = authService.isPhoneVerified.value;
+      final phone = authService.userPhoneNumber.value;
+      final displayPhone = (phone != null && phone.trim().isNotEmpty)
+          ? phone.trim()
+          : (authService.user?.phoneNumber ?? '');
+
+      if (isVerified && displayPhone.isNotEmpty) {
+        return ListTile(
+          leading: const Icon(
+            Icons.phone_android_rounded,
+            color: Colors.white,
+          ),
+          title: const Text(
+            'Phone Number',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          subtitle: Text(
+            displayPhone,
+            style: TextStyle(
+              fontSize: 13,
+              color: context.colors.textSecondary,
+            ),
+          ),
+          trailing: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.green.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: Colors.green.withValues(alpha: 0.4),
+                width: 0.5,
+              ),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.check_circle_rounded,
+                  color: Colors.greenAccent,
+                  size: 14,
+                ),
+                SizedBox(width: 4),
+                Text(
+                  'Phone number verified',
+                  style: TextStyle(
+                    color: Colors.greenAccent,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          onTap: () => PhoneVerificationSheet.show(context),
+        );
+      }
+
+      final hasPhone = displayPhone.isNotEmpty;
+      return ListTile(
+        leading: const Icon(
+          Icons.phone_iphone_rounded,
+          color: AppColors.textPrimary,
+        ),
+        title: Text(
+          hasPhone ? 'Verify Phone Number' : 'Add Phone Number',
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        subtitle: Text(
+          hasPhone
+              ? '$displayPhone • Tap to verify'
+              : 'Add and verify mobile number for enhanced security',
+          style: TextStyle(
+            fontSize: 13,
+            color: context.colors.textSecondary,
+          ),
+        ),
+        trailing: ElevatedButton(
+          onPressed: () => PhoneVerificationSheet.show(context),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.white,
+            foregroundColor: Colors.black,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          child: Text(
+            hasPhone ? 'Verify' : 'Add',
+            style: const TextStyle(
+              color: Colors.black,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        onTap: () => PhoneVerificationSheet.show(context),
+      );
+    });
+  }
+
+  Widget _buildEmailVerificationTile(BuildContext context) {
+    final authService = AuthService.to;
+    return Obx(() {
+      final isVerified = authService.isEmailVerified.value;
+      final email = authService.userEmail.value;
+      final displayEmail = (email != null && email.trim().isNotEmpty)
+          ? email.trim()
+          : (authService.user?.email ?? '');
+
+      if (isVerified && displayEmail.isNotEmpty) {
+        return ListTile(
+          leading: const Icon(
+            Icons.mark_email_read_outlined,
+            color: Colors.white,
+          ),
+          title: const Text(
+            'Email Address',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          subtitle: Text(
+            displayEmail,
+            style: TextStyle(
+              fontSize: 13,
+              color: context.colors.textSecondary,
+            ),
+          ),
+          trailing: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.green.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: Colors.green.withValues(alpha: 0.4),
+                width: 0.5,
+              ),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.check_circle_rounded,
+                  color: Colors.greenAccent,
+                  size: 14,
+                ),
+                SizedBox(width: 4),
+                Text(
+                  'Email verified',
+                  style: TextStyle(
+                    color: Colors.greenAccent,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          onTap: () => EmailVerificationSheet.show(context),
+        );
+      }
+
+      return ListTile(
+        leading: const Icon(
+          Icons.mail_outline_rounded,
+          color: AppColors.textPrimary,
+        ),
+        title: const Text(
+          'Verify Email',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        subtitle: Text(
+          displayEmail.isNotEmpty
+              ? '$displayEmail • Tap to verify'
+              : 'Add and verify email address to secure your account',
+          style: TextStyle(
+            fontSize: 13,
+            color: context.colors.textSecondary,
+          ),
+        ),
+        trailing: ElevatedButton(
+          onPressed: () => EmailVerificationSheet.show(context),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.white,
+            foregroundColor: Colors.black,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          child: const Text(
+            'Verify',
+            style: TextStyle(
+              color: Colors.black,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        onTap: () => EmailVerificationSheet.show(context),
+      );
+    });
   }
 
   Widget _buildAgeAndGenderTile(BuildContext context) {
@@ -495,6 +732,11 @@ class GeneralAccountSection extends StatelessWidget {
   }
 
   Widget _buildLogoutTile(BuildContext context) {
+    final isAuth = Get.isRegistered<AuthService>() &&
+        AuthService.to.isAuthenticated.value;
+    if (!isAuth) {
+      return const SizedBox.shrink();
+    }
     return ListTile(
       leading: Icon(Icons.logout, color: context.colors.error),
       title: Text(

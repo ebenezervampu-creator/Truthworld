@@ -615,8 +615,6 @@ class ChannelSubscriptionController extends BaseController {
 
   RxBool isSubscribedTo(String channelId) {
     if (channelId.isEmpty) return false.obs;
-    final user = _auth.currentUser;
-    if (user == null) return false.obs;
 
     if (_subscribedMap.containsKey(channelId)) {
       return _subscribedMap[channelId]!;
@@ -624,6 +622,9 @@ class ChannelSubscriptionController extends BaseController {
 
     final rx = false.obs;
     _subscribedMap[channelId] = rx;
+
+    final user = _auth.currentUser;
+    if (user == null) return rx;
 
     final uid = user.uid;
 

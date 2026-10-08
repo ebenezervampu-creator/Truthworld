@@ -1,4 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:get/get.dart';
+import 'package:truthworld/core/services/distributed_counter_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/services/comments/comment_service_base.dart';
@@ -20,6 +22,9 @@ mixin CommentCrudMixin on CommentServiceBase {
     String donationCurrency = r'$',
     bool isDonatedComment = false,
     String? donationColorHex,
+    bool isMember = false,
+    Timestamp? memberSince,
+    String? memberTierName,
   }) async {
     // Input validation
     if (text.trim().isEmpty) {
@@ -37,7 +42,7 @@ mixin CommentCrudMixin on CommentServiceBase {
 
     try {
       final callable = functions.httpsCallable('addCommentNested');
-      final result = await callable.call({
+      final payload = <String, dynamic>{
         'videoId': videoId,
         'userName': userName,
         'userProfilePicUrl': userProfilePicUrl,
@@ -49,7 +54,15 @@ mixin CommentCrudMixin on CommentServiceBase {
         'donationCurrency': donationCurrency,
         'isDonatedComment': isDonatedComment,
         'donationColorHex': donationColorHex,
-      });
+        'isMember': isMember,
+      };
+      if (memberSince != null) {
+        payload['memberSince'] = memberSince.toDate().toIso8601String();
+      }
+      if (memberTierName != null) {
+        payload['memberTierName'] = memberTierName;
+      }
+      final result = await callable.call(payload);
 
       final data = result.data as Map<String, dynamic>;
       return data['commentId'] as String;
@@ -83,9 +96,17 @@ mixin CommentCrudMixin on CommentServiceBase {
           donationCurrency: donationCurrency,
           isDonatedComment: isDonatedComment,
           donationColorHex: donationColorHex,
+          isMember: isMember,
+          memberSince: memberSince,
+          memberTierName: memberTierName,
         );
 
         await docRef.set(newComment.toMap());
+        if (Get.isRegistered<DistributedCounterService>()) {
+          DistributedCounterService.to.incrementVideoComments(
+            videoId: videoId,
+          );
+        }
         return docRef.id;
       } catch (firestoreError) {
         logger.error(
@@ -97,10 +118,10 @@ mixin CommentCrudMixin on CommentServiceBase {
     }
   }
 
-  /// Get comments for a video with pagination
+  /// Get comments for a video with initial page stream
   Stream<List<Comment>> getCommentsStream({
     required String videoId,
-    int limit = 20,
+    int limit = 25,
   }) {
     return firestore
         .collection(videosCollection)
@@ -113,6 +134,39 @@ mixin CommentCrudMixin on CommentServiceBase {
           (snapshot) =>
               snapshot.docs.map(Comment.fromDocumentSnapshot).toList(),
         );
+  }
+
+  /// Get initial stream of comment query snapshots for cursor tracking
+  Stream<QuerySnapshot<Map<String, dynamic>>> getCommentsQuerySnapshotStream({
+    required String videoId,
+    int limit = 25,
+  }) {
+    return firestore
+        .collection(videosCollection)
+        .doc(videoId)
+        .collection(commentsCollection)
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .snapshots();
+  }
+
+  /// Get cursor-paginated comments snapshot (25 per page for millions scale)
+  Future<QuerySnapshot<Map<String, dynamic>>> getCommentsPageSnapshot({
+    required String videoId,
+    DocumentSnapshot? startAfter,
+    int limit = 25,
+  }) async {
+    var query = firestore
+        .collection(videosCollection)
+        .doc(videoId)
+        .collection(commentsCollection)
+        .orderBy('createdAt', descending: true);
+
+    if (startAfter != null) {
+      query = query.startAfterDocument(startAfter);
+    }
+
+    return query.limit(limit).get();
   }
 
   /// Get single comment

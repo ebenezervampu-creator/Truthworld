@@ -78,6 +78,7 @@ import 'package:truthworld/theme/app_theme.dart';
           url: directUrl ?? url,
           title: author ?? title,
           domain: domain,
+          source: cleanSource,
         );
       },
       child: Container(

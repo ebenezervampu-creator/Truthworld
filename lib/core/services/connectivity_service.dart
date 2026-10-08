@@ -19,6 +19,15 @@ class ConnectivityService extends GetxService {
   Stream<List<ConnectivityResult>> get onConnectivityChanged =>
       _connectivity.onConnectivityChanged;
 
+  final StreamController<ConnectivityResult> _restoredController =
+      StreamController<ConnectivityResult>.broadcast();
+
+  /// Dedicated recovery stream that emits ONLY when connectivity transitions
+  /// from an offline state (ConnectivityResult.none) to an active network.
+  /// Guarantees ZERO spurious reloads on cold application startup.
+  Stream<ConnectivityResult> get onConnectivityRestored =>
+      _restoredController.stream;
+
   late StreamSubscription<List<ConnectivityResult>> _subscription;
 
   Future<ConnectivityService> init() async {
@@ -61,6 +70,7 @@ class ConnectivityService extends GetxService {
         duration: const Duration(seconds: 5),
       );
     } else if (previousStatus == ConnectivityResult.none && !_isInitial) {
+      _restoredController.add(result);
       AppSnackbar.success(
         'Your connection has been restored.',
         title: 'Online',
@@ -75,6 +85,7 @@ class ConnectivityService extends GetxService {
   @override
   void onClose() {
     _subscription.cancel();
+    _restoredController.close();
     super.onClose();
   }
 }

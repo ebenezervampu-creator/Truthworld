@@ -298,10 +298,12 @@ class TopicController extends BaseController {
       }
 
       if (!topicData.isValidTopic) {
-        hasError.value = true;
-        rxErrorMessage.value = 'This topic is unavailable or contains no videos.';
-        rxIsLoading.value = false;
-        return;
+        if (topicData.effectiveVideoCount <= 0 && topicData.featuredVideoIds.isEmpty) {
+          hasError.value = true;
+          rxErrorMessage.value = 'This topic is unavailable or contains no videos.';
+          rxIsLoading.value = false;
+          return;
+        }
       }
 
       topic.value = topicData;
@@ -388,8 +390,46 @@ class TopicController extends BaseController {
         orderBy: sortBy.value,
       );
 
-      final newVideos = page.videos;
+      var newVideos = page.videos;
       _lastVideoDoc = page.lastDoc;
+
+      // Fallback strategies on initial load if query by topicSlug returned 0 videos
+      if (newVideos.isEmpty && reset && topic.value != null) {
+        if (topic.value!.id.isNotEmpty && topic.value!.id != topicSlug) {
+          final idPage = await _repository.getVideosPageByTopic(
+            topic.value!.id,
+            orderBy: sortBy.value,
+          );
+          if (idPage.videos.isNotEmpty) {
+            newVideos = idPage.videos;
+            _lastVideoDoc = idPage.lastDoc;
+          }
+        }
+
+        if (newVideos.isEmpty &&
+            topic.value!.routePathParameter.isNotEmpty &&
+            topic.value!.routePathParameter != topicSlug) {
+          final handlePage = await _repository.getVideosPageByTopic(
+            topic.value!.routePathParameter,
+            orderBy: sortBy.value,
+          );
+          if (handlePage.videos.isNotEmpty) {
+            newVideos = handlePage.videos;
+            _lastVideoDoc = handlePage.lastDoc;
+          }
+        }
+
+        if (newVideos.isEmpty && topic.value!.featuredVideoIds.isNotEmpty) {
+          if (featuredVideos.isNotEmpty) {
+            newVideos = List<Video>.from(featuredVideos);
+          } else {
+            final feat = await _repository.getFeaturedVideos(topic.value!.featuredVideoIds);
+            if (feat.isNotEmpty) {
+              newVideos = feat;
+            }
+          }
+        }
+      }
 
       if (newVideos.isEmpty) {
         hasMoreVideos.value = false;

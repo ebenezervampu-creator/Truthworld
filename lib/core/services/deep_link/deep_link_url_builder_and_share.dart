@@ -10,8 +10,16 @@ mixin DeepLinkUrlBuilderAndShare {
   static String videoUrl(String videoId) => '$baseUrl/watch/$videoId';
 
   /// Generates a shareable channel URL.
-  /// Pattern: https://www.truthworld.in/channel/{channelId}
-  static String channelUrl(String channelId) => '$baseUrl/channel/$channelId';
+  /// Pattern: https://www.truthworld.in/@{handle} or https://www.truthworld.in/channel/{channelId}
+  static String channelUrl(String channelId, {String? handle}) {
+    if (handle != null && handle.trim().isNotEmpty) {
+      final clean = handle.replaceAll(RegExp('^@'), '').trim();
+      if (clean.isNotEmpty) {
+        return '$baseUrl/@$clean';
+      }
+    }
+    return '$baseUrl/channel/$channelId';
+  }
 
   /// Generates a shareable playlist URL.
   /// Pattern: https://www.truthworld.in/playlist/{playlistId}

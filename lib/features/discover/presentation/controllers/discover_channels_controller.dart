@@ -5,7 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
-
+import 'package:truthworld/core/constants/app_categories.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/ai/ai_search_service.dart';
@@ -32,10 +32,24 @@ class DiscoverChannelsController extends BaseController {
   final RxList<Channel> broadenedChannels = <Channel>[].obs;
   final RxBool isBroadenedView = false.obs;
 
-
   // Subscription state tracking
   final RxSet<String> subscribedChannelIds = <String>{}.obs;
   final RxMap<String, int> channelSubscriberCounts = <String, int>{}.obs;
+
+  // Authentic real channel counts per category (Zero Mock Data Policy compliant)
+  final RxMap<String, int> categoryChannelCounts = <String, int>{}.obs;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _channelsSubscription;
+
+  int getCategoryCount(String categoryName) {
+    return categoryChannelCounts[categoryName] ?? 0;
+  }
+
+  String _formatCountDisplay(int count) {
+    if (count <= 0) return '0 channels';
+    if (count >= 1000000) return '${(count / 1000000).toStringAsFixed(1)}M channels';
+    if (count >= 1000) return '${(count / 1000).toStringAsFixed(1)}K channels';
+    return '$count ${count == 1 ? 'channel' : 'channels'}';
+  }
 
   final RxString searchQuery = ''.obs;
   TextEditingController _searchController = TextEditingController();
@@ -84,35 +98,23 @@ class DiscoverChannelsController extends BaseController {
     {'name': 'Health & Fitness', 'tag': 'health'},
   ];
 
+  /// Categorical catalog containing all 31 unified categories across TruthWorld.
   final List<Map<String, dynamic>> categories = [
     {'name': 'All', 'icon': 'All'},
-    {'name': 'Education', 'icon': 'school'},
-    {'name': 'Entertainment', 'icon': 'theater_comedy'},
-    {'name': 'Music', 'icon': 'music_note'},
-    {'name': 'News', 'icon': 'newspaper'},
-    {'name': 'Sports', 'icon': 'sports_soccer'},
-    {'name': 'Technology', 'icon': 'computer'},
-    {'name': 'Science', 'icon': 'science'},
-    {'name': 'Travel', 'icon': 'travel_explore'},
-    {'name': 'Lifestyle', 'icon': 'home'},
-    {'name': 'Comedy', 'icon': 'sentiment_very_satisfied'},
-    {'name': 'Documentary', 'icon': 'video_label'},
-    {'name': 'People & Blogs', 'icon': 'videocam'},
-    {'name': 'Movies', 'icon': 'movie'},
-    {'name': 'TV Shows', 'icon': 'tv'},
-    {'name': 'Vlogs', 'icon': 'video_camera_front'},
-    {'name': 'Kids & Family', 'icon': 'child_care'},
-    {'name': 'DIY & How-to', 'icon': 'build'},
-    {'name': 'Health & Fitness', 'icon': 'fitness_center'},
-    {'name': 'Fashion', 'icon': 'brush'},
-    {'name': 'Food & Cooking', 'icon': 'restaurant'},
-    {'name': 'Business & Finance', 'icon': 'business'},
+    ...AppCategories.allCategories.map(
+      (name) => {
+        'name': name,
+        'icon': AppCategories.getIconString(name),
+      },
+    ),
   ];
 
   @override
   void onInit() {
     super.onInit();
+    updateCategoryChannelCounts(<Channel>[]);
     fetchUserSubscriptions();
+    _initChannelsStream();
     loadChannels();
   }
 
@@ -262,7 +264,6 @@ class DiscoverChannelsController extends BaseController {
     _debounce = Timer(const Duration(milliseconds: 500), loadChannels);
   }
 
-
   void broadenSearch() {
     if (broadenedChannels.isNotEmpty) {
       isBroadenedView.value = true;
@@ -287,19 +288,122 @@ class DiscoverChannelsController extends BaseController {
     loadChannels();
   }
 
+  /// Real-time listener for authentic channel updates in Firestore.
+  void _initChannelsStream() {
+    try {
+      _channelsSubscription = _firestore
+          .collection(FirestoreCollections.channels)
+          .limit(300)
+          .snapshots()
+          .listen(
+        (snapshot) {
+          final allChannels = snapshot.docs
+              .map(Channel.fromDocumentSnapshot)
+              .where((c) =>
+                  c.status != ChannelStatus.deleted &&
+                  c.status != ChannelStatus.suspended)
+              .toList();
+          if (allChannels.isNotEmpty) {
+            updateCategoryChannelCounts(allChannels);
+          }
+        },
+        onError: (e) {
+          ErrorHandler.log(e, tag: 'DiscoverChannelsController.channelsStream');
+        },
+      );
+    } catch (e) {
+      ErrorHandler.log(e, tag: 'DiscoverChannelsController._initChannelsStream');
+    }
+  }
+
+  /// Evaluates whether a channel belongs to a specified category name.
+  /// Handles both list of categories and comma-separated/compound category strings.
+  bool channelMatchesCategory(Channel channel, String categoryName) {
+    final target = AppCategories.normalizeCategory(categoryName).toLowerCase().trim();
+    if (target.isEmpty) return false;
+
+    // 1. Direct check in categories array
+    for (final raw in channel.categories) {
+      final normalized = AppCategories.normalizeCategory(raw).toLowerCase().trim();
+      if (normalized == target || raw.toLowerCase().trim() == target) {
+        return true;
+      }
+    }
+
+    // 2. Direct or comma-separated check in category string
+    final rawMain = channel.category.trim();
+    if (rawMain.isNotEmpty) {
+      if (rawMain.contains(',')) {
+        final parts = rawMain.split(',').map((e) => e.trim());
+        for (final p in parts) {
+          final normalized = AppCategories.normalizeCategory(p).toLowerCase().trim();
+          if (normalized == target || p.toLowerCase().trim() == target) {
+            return true;
+          }
+        }
+      } else {
+        final normalized = AppCategories.normalizeCategory(rawMain).toLowerCase().trim();
+        if (normalized == target || rawMain.toLowerCase().trim() == target) {
+          return true;
+        }
+      }
+    }
+
+    // 3. Substring matching for compound names
+    final targetClean = target.replaceAll('&', '').replaceAll('  ', ' ').trim();
+    for (final raw in channel.categories) {
+      final cleanRaw = raw.toLowerCase().replaceAll('&', '').replaceAll('  ', ' ').trim();
+      if (cleanRaw.isNotEmpty && (cleanRaw == targetClean || cleanRaw.contains(targetClean) || targetClean.contains(cleanRaw))) {
+        return true;
+      }
+    }
+
+    if (rawMain.isNotEmpty) {
+      final cleanMain = rawMain.toLowerCase().replaceAll('&', '').replaceAll('  ', ' ').trim();
+      if (cleanMain == targetClean || cleanMain.contains(targetClean) || targetClean.contains(cleanMain)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /// Computes authentic real channel counts for all 31 categories.
+  void updateCategoryChannelCounts(List<Channel> allChannels) {
+    final counts = <String, int>{};
+    for (final cat in AppCategories.allCategories) {
+      final matchCount = allChannels.where((c) => channelMatchesCategory(c, cat)).length;
+      counts[cat] = matchCount;
+    }
+    categoryChannelCounts.assignAll(counts);
+
+    for (final map in categories) {
+      final name = map['name'] as String;
+      if (counts.containsKey(name)) {
+        final c = counts[name]!;
+        map['channelCount'] = c;
+        map['channelCountDisplay'] = _formatCountDisplay(c);
+      }
+    }
+  }
+
   Future<void> loadChannels() async {
     rxIsLoading.value = true;
     try {
       final rawQuery = searchQuery.value.trim();
       final query = _firestore
-          .collection(FirestoreCollections.channels)
-          .where('status', isEqualTo: 'active');
+          .collection(FirestoreCollections.channels);
 
-      final snapshot = await query.limit(rawQuery.isNotEmpty ? 100 : 50).get();
+      final snapshot = await query.limit(rawQuery.isNotEmpty ? 100 : 300).get();
       var loadedChannels = snapshot.docs
           .map(Channel.fromDocumentSnapshot)
+          .where((c) =>
+              c.status != ChannelStatus.deleted &&
+              c.status != ChannelStatus.suspended)
           .toList();
 
+      // Compute authentic real channel counts per category from all active channels
+      updateCategoryChannelCounts(loadedChannels);
 
       if (rawQuery.isNotEmpty) {
         isAiSearching.value = true;
@@ -310,7 +414,6 @@ class DiscoverChannelsController extends BaseController {
         activeAiIntent.value = intent;
 
         if (intent.hasCriteria) {
-          // Score and rank each channel
           final scored = <MapEntry<Channel, double>>[];
           for (final ch in loadedChannels) {
             final score = AiSearchService.instance.scoreChannel(ch, intent);
@@ -319,11 +422,9 @@ class DiscoverChannelsController extends BaseController {
             }
           }
 
-          // Sort by relevance score
           scored.sort((a, b) => b.value.compareTo(a.value));
           final matched = scored.map((e) => e.key).toList();
 
-          // If language was specified and count is low (e.g. <= 2), prepare broadened fallback
           if (intent.detectedLanguage != null && intent.broadenPrompt != null) {
             final broadIntent = intent.copyWith(clearLanguage: true);
             final broadScored = <MapEntry<Channel, double>>[];
@@ -340,13 +441,7 @@ class DiscoverChannelsController extends BaseController {
             broadenedChannels.clear();
           }
 
-          // Mode-specific sorting
           if (intent.resultMode == SearchResultMode.ranked) {
-            // Decoupled multi-signal ranking:
-            // 70% Semantic relevance
-            // 15% Verified / Quality signals
-            // 10% Engagement / Activity (catalog size)
-            //  5% Audience size (popularity)
             final maxSubs = loadedChannels.fold<int>(
               1,
               (max, c) =>
@@ -384,12 +479,9 @@ class DiscoverChannelsController extends BaseController {
           } else if (intent.resultMode == SearchResultMode.recent) {
             matched.sort((a, b) => b.createdAt.compareTo(a.createdAt));
           }
-          // Note: In exhaustive mode, all matched candidates are preserved
-          // in full without audience size bias, ordered purely by match relevance.
 
           loadedChannels = matched;
         } else {
-          // Plain keyword fallback
           final clean = rawQuery.toLowerCase();
           loadedChannels = loadedChannels.where((c) {
             return c.name.toLowerCase().contains(clean) ||
@@ -402,7 +494,7 @@ class DiscoverChannelsController extends BaseController {
         isBroadenedView.value = false;
         broadenedChannels.clear();
 
-        // 1. Topic Filter (if non-empty search)
+        // 1. Topic Filter
         if (selectedTopic.value != 'All Topics') {
           final topicItem = nicheTopics.firstWhere(
             (t) => t['name'] == selectedTopic.value,
@@ -436,45 +528,9 @@ class DiscoverChannelsController extends BaseController {
 
         // 3. Category Filter
         if (selectedCategory.value != 'All') {
-          final cat = selectedCategory.value.toLowerCase().trim();
-          final catTokens = cat
-              .split(RegExp(r'[\s&/,\-]+'))
-              .where((t) => t.length > 2)
+          loadedChannels = loadedChannels
+              .where((c) => channelMatchesCategory(c, selectedCategory.value))
               .toList();
-
-          loadedChannels = loadedChannels.where((c) {
-            final mainCat = c.category.toLowerCase().trim();
-            final cats =
-                c.categories.map((e) => e.toLowerCase().trim()).toList();
-            final name = c.name.toLowerCase();
-            final desc = c.description.toLowerCase();
-
-            // 1. Exact match on main category or categories list
-            if (mainCat == cat || cats.contains(cat)) return true;
-
-            // 2. Substring match on main category or any category in list
-            if (mainCat.isNotEmpty && mainCat != 'other') {
-              if (mainCat.contains(cat) || cat.contains(mainCat)) return true;
-            }
-            if (cats.any((e) => e.contains(cat) || (e.isNotEmpty && cat.contains(e)))) {
-              return true;
-            }
-
-            // 3. Name or description match with whole category
-            if (name.contains(cat) || desc.contains(cat)) return true;
-
-            // 4. Token match for compound categories (e.g. "Health & Fitness", "DIY & How-to")
-            if (catTokens.isNotEmpty) {
-              final matchesToken = catTokens.any((token) =>
-                  (mainCat.isNotEmpty && mainCat != 'other' && mainCat.contains(token)) ||
-                  cats.any((e) => e.contains(token)) ||
-                  name.contains(token) ||
-                  desc.contains(token));
-              if (matchesToken) return true;
-            }
-
-            return false;
-          }).toList();
         }
 
         // 4. Sort Filter
@@ -508,6 +564,7 @@ class DiscoverChannelsController extends BaseController {
         tag: 'DiscoverChannelsController.loadChannels',
       );
       rxErrorMessage.value = 'Unable to load channels. Please check your connection and try again.';
+      updateCategoryChannelCounts(channels);
     } finally {
       rxIsLoading.value = false;
       isAiSearching.value = false;
@@ -517,6 +574,7 @@ class DiscoverChannelsController extends BaseController {
   @override
   void onClose() {
     _debounce?.cancel();
+    _channelsSubscription?.cancel();
     _searchController.dispose();
     _isDisposed = true;
     super.onClose();

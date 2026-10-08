@@ -27,7 +27,7 @@ class AdminPasswordService {
     final email = currentAdminEmail.value.isNotEmpty
         ? currentAdminEmail.value
         : (FirebaseAuth.instance.currentUser?.email ??
-            'ebenezervampu@towervsp.com');
+            'hello@truthworld.in');
 
     final cleanNewPassword = newPassword.trim();
     final cleanCurrentPassword = currentPassword.trim();

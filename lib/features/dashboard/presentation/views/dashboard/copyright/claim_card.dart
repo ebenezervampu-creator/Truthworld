@@ -36,92 +36,90 @@ class ClaimCard extends StatelessWidget {
       data['date'] ?? data['createdAt'],
     );
 
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: isDarkMode
-              ? AppColors.bgDivider
-              : AppColors.textSecondary.withValues(alpha: 0.2),
-        ),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.bgDivider),
       ),
-      color: isDarkMode ? AppColors.bgSurface : AppColors.textPrimary,
-      child: InkWell(
-        onTap: () => _showClaimDetails(context),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 80,
-                    height: 45,
-                    decoration: BoxDecoration(
-                      color: isDarkMode
-                          ? AppColors.textPrimary.withValues(alpha: 0.05)
-                          : AppColors.bgPage.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(6),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => _showClaimDetails(context),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 80,
+                      height: 45,
+                      decoration: BoxDecoration(
+                        color: AppColors.bgSurfaceHover,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.bgDivider),
+                      ),
+                      child: const Icon(
+                        Icons.video_library_outlined,
+                        size: 20,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
-                    child: Icon(
-                      Icons.video_library_outlined,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            videoTitle,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontFamily: TWTypography.brandFamily,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            claimType,
+                            style: const TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              fontSize: 13,
+                              color: AppColors.error,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(
+                      Icons.chevron_right,
                       size: 20,
-                      color: isDarkMode ? Colors.white : Colors.black87,
+                      color: AppColors.textTertiary,
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          videoTitle,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTextStyles.titleMedium.copyWith(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                            color: isDarkMode
-                                ? AppColors.textPrimary
-                                : Colors.black,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          claimType,
-                          style: AppTextStyles.labelMedium.copyWith(
-                            fontSize: 13,
-                            color: AppColors.error,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(
-                    Icons.chevron_right,
-                    size: 20,
-                    color: isDarkMode ? Colors.white : Colors.black87,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              const Divider(height: 1, color: AppColors.bgDivider),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _buildMiniInfo('Claimant', claimant),
-                  _buildMiniInfo('Impact', impact),
-                  _buildMiniInfo('Date', date),
-                ],
-              ),
-            ],
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Divider(height: 1, color: AppColors.bgDivider),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _buildMiniInfo('Claimant', claimant),
+                    _buildMiniInfo('Impact', impact),
+                    _buildMiniInfo('Date', date),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -144,11 +142,10 @@ class ClaimCard extends StatelessWidget {
       children: [
         Text(
           label,
-          style: AppTextStyles.caption.copyWith(
+          style: const TextStyle(
+            fontFamily: TWTypography.uiFamily,
             fontSize: 11,
-            color: isDarkMode
-                ? AppColors.textTertiary
-                : AppColors.textSecondary,
+            color: AppColors.textTertiary,
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -159,9 +156,11 @@ class ClaimCard extends StatelessWidget {
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: AppTextStyles.bodySmall.copyWith(
+            style: const TextStyle(
+              fontFamily: TWTypography.uiFamily,
               fontSize: 12,
-              color: isDarkMode ? AppColors.textSecondary : Colors.black,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
             ),
           ),
         ),

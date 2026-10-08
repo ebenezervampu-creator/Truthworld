@@ -20,7 +20,7 @@ export function generateOrganizationSchema() {
       "name": "Truthworld",
       "alternateName": ["Truth World", "Truthworld Platform"],
       "url": DOMAIN,
-      "logo": `${DOMAIN}/icons/Icon-192.png`,
+      "logo": `${DOMAIN}/icons/Icon-192.png?v=2`,
       "sameAs": [
         "https://twitter.com/truthworld",
         "https://facebook.com/truthworld",
@@ -33,7 +33,7 @@ export function generateOrganizationSchema() {
       "name": "Truthworld",
       "alternateName": ["Truth World", "Truthworld Studio"],
       "url": DOMAIN,
-      "logo": `${DOMAIN}/icons/Icon-192.png`
+      "logo": `${DOMAIN}/icons/Icon-192.png?v=2`
     },
     {
       "@context": "https://schema.org",

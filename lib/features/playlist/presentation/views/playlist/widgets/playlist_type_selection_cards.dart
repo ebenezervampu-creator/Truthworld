@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:truthworld/theme/app_theme.dart';
 
-/// Selection cards allowing creators to switch between Private and Public channel playlists.
+/// Selection cards allowing users and creators to switch between Private and Public playlists.
 class PlaylistTypeSelectionCards extends StatelessWidget {
   const PlaylistTypeSelectionCards({
     required this.selectedType,
@@ -18,36 +17,69 @@ class PlaylistTypeSelectionCards extends StatelessWidget {
   Widget build(BuildContext context) {
     return Obx(() {
       final selected = selectedType.value;
-      return Container(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'Choose Playlist Type',
               style: GoogleFonts.roboto(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
               ),
             ),
-            const SizedBox(height: 12),
-            PlaylistSelectionCard(
-              type: 'private',
-              isSelected: selected == 'private',
-              icon: Icons.lock_outline_rounded,
-              title: 'Private Playlists',
-              subtitle: 'Personal saved playlists & private videos',
-              onTap: () => onTypeSelected('private'),
+            const SizedBox(height: 4),
+            Text(
+              'Select a type to view and manage your playlists',
+              style: GoogleFonts.roboto(
+                fontSize: 13.5,
+                fontWeight: FontWeight.normal,
+                color: const Color(0xFF8E8E93),
+              ),
             ),
-            const SizedBox(height: 12),
-            PlaylistSelectionCard(
-              type: 'public',
-              isSelected: selected == 'public',
-              icon: Icons.public_rounded,
-              title: 'Public Playlists',
-              subtitle: 'Public playlists hosted on your channel',
-              onTap: () => onTypeSelected('public'),
+            const SizedBox(height: 14),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isNarrow = constraints.maxWidth < 580;
+
+                final privateCard = PlaylistSelectionCard(
+                  type: 'private',
+                  isSelected: selected == 'private',
+                  icon: Icons.lock_outline_rounded,
+                  title: 'Private Playlists',
+                  subtitle: 'Personal saved playlists & private videos',
+                  onTap: () => onTypeSelected('private'),
+                );
+
+                final publicCard = PlaylistSelectionCard(
+                  type: 'public',
+                  isSelected: selected == 'public',
+                  icon: Icons.public_rounded,
+                  title: 'Public Playlists',
+                  subtitle: 'Public playlists hosted on your channel',
+                  onTap: () => onTypeSelected('public'),
+                );
+
+                if (isNarrow) {
+                  return Column(
+                    children: [
+                      privateCard,
+                      const SizedBox(height: 10),
+                      publicCard,
+                    ],
+                  );
+                }
+
+                return Row(
+                  children: [
+                    Expanded(child: privateCard),
+                    const SizedBox(width: 14),
+                    Expanded(child: publicCard),
+                  ],
+                );
+              },
             ),
           ],
         ),
@@ -74,6 +106,11 @@ class PlaylistSelectionCard extends StatelessWidget {
   final String subtitle;
   final VoidCallback onTap;
 
+  static const Color _goldAccent = Color(0xFFEAB308);
+  static const Color _goldBadge = Color(0xFFFBBF24);
+  static const Color _goldIconBg = Color(0xFF251E0E);
+  static const Color _goldBorder = Color(0xFF785618);
+
   @override
   Widget build(BuildContext context) {
     return InkWell(
@@ -81,74 +118,92 @@ class PlaylistSelectionCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: AppColors.bgSurface,
+          color: const Color(0xFF141414),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? AppColors.brand : AppColors.searchBorder,
-            width: isSelected ? 2 : 1,
+            color: isSelected ? _goldAccent : const Color(0xFF262626),
+            width: isSelected ? 1.8 : 1,
           ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: AppColors.brand.withValues(alpha: 0.2),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                ]
-              : [],
         ),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(12),
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
-                color: isSelected
-                    ? AppColors.brand.withValues(alpha: 0.2)
-                    : AppColors.bgSurfaceHover,
+                color: isSelected ? _goldIconBg : const Color(0xFF222222),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: isSelected ? AppColors.brand : Colors.transparent,
+                  color: isSelected ? _goldBorder : const Color(0xFF2C2C2C),
                 ),
               ),
-              child: Icon(
-                icon,
-                color: Colors.white,
-                size: 24,
+              child: Center(
+                child: Icon(
+                  icon,
+                  color: isSelected ? _goldBadge : Colors.white,
+                  size: 22,
+                ),
               ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     title,
                     style: GoogleFonts.roboto(
-                      fontSize: 16,
+                      fontSize: 15.5,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+                      color: Colors.white,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 3),
                   Text(
                     subtitle,
                     style: GoogleFonts.roboto(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w400,
-                      color: AppColors.textSecondary,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.normal,
+                      color: const Color(0xFF8E8E93),
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 8),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: Colors.white,
-              size: 22,
-            ),
+            const SizedBox(width: 12),
+            if (isSelected)
+              Container(
+                width: 22,
+                height: 22,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _goldBadge,
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.check_rounded,
+                    color: Colors.black,
+                    size: 15,
+                  ),
+                ),
+              )
+            else
+              Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: const Color(0xFF3E3E3E),
+                    width: 2,
+                  ),
+                ),
+              ),
           ],
         ),
       ),

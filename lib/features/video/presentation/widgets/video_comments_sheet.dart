@@ -231,16 +231,60 @@ class VideoCommentsSheet {
             ),
           );
         } else {
+          final hasLoadMore = commentsController.hasMoreComments.value;
           return SliverList(
             delegate: SliverChildBuilderDelegate((context, index) {
-              final comment = commentsController.comments[index];
-              return buildCommentItem(
-                comment: comment,
-                videoId: controller.video.id,
-                channelAvatarUrl: controller.video.channelAvatarUrl,
-                mainController: mainController,
+              if (index < commentsController.comments.length) {
+                final comment = commentsController.comments[index];
+                return buildCommentItem(
+                  comment: comment,
+                  videoId: controller.video.id,
+                  channelAvatarUrl: controller.video.channelAvatarUrl,
+                  mainController: mainController,
+                );
+              }
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Center(
+                  child: OutlinedButton(
+                    onPressed: commentsController.isLoadingMoreComments.value
+                        ? null
+                        : commentsController.loadMoreComments,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.textPrimary,
+                      side: BorderSide(
+                        color: AppColors.textSecondary.withValues(alpha: 0.3),
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
+                    ),
+                    child: commentsController.isLoadingMoreComments.value
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'Load more comments',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                  ),
+                ),
               );
-            }, childCount: commentsController.comments.length),
+            },
+            childCount: commentsController.comments.length +
+                (hasLoadMore ? 1 : 0)),
           );
         }
       }),
@@ -409,9 +453,14 @@ class VideoCommentsSheet {
                           ],
                         );
                       }
+                      final hasLoadMore = commentsController.hasMoreComments.value;
+                      final totalCount = commentsController.comments.length +
+                          (sponsorAd != null ? 1 : 0) +
+                          (hasLoadMore ? 1 : 0);
+
                       return ListView.builder(
                         controller: scrollController,
-                        itemCount: commentsController.comments.length + (sponsorAd != null ? 1 : 0),
+                        itemCount: totalCount,
                         itemBuilder: (context, index) {
                           if (sponsorAd != null && index == 0) {
                             return PinnedSponsorCommentCard(
@@ -420,13 +469,61 @@ class VideoCommentsSheet {
                               contextChannelId: controller.video.channelId,
                             );
                           }
-                          final commentIndex = sponsorAd != null ? index - 1 : index;
-                          final comment = commentsController.comments[commentIndex];
-                          return buildCommentItem(
-                            comment: comment,
-                            videoId: controller.video.id,
-                            channelAvatarUrl: controller.video.channelAvatarUrl,
-                            mainController: mainController,
+                          final effectiveIndex =
+                              sponsorAd != null ? index - 1 : index;
+                          if (effectiveIndex <
+                              commentsController.comments.length) {
+                            final comment =
+                                commentsController.comments[effectiveIndex];
+                            return buildCommentItem(
+                              comment: comment,
+                              videoId: controller.video.id,
+                              channelAvatarUrl:
+                                  controller.video.channelAvatarUrl,
+                              mainController: mainController,
+                            );
+                          }
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            child: Center(
+                              child: OutlinedButton(
+                                onPressed: commentsController
+                                        .isLoadingMoreComments.value
+                                    ? null
+                                    : commentsController.loadMoreComments,
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.textPrimary,
+                                  side: BorderSide(
+                                    color: AppColors.textSecondary
+                                        .withValues(alpha: 0.3),
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 12,
+                                  ),
+                                ),
+                                child: commentsController
+                                        .isLoadingMoreComments.value
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Text(
+                                        'Load more comments',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                              ),
+                            ),
                           );
                         },
                       );

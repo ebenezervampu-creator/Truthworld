@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/features/channel/data/models/channel_loyalty_badge.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/presentation/views/widgets/comments/comment_action_handler.dart';
 
-/// Header row displaying comment author, verified channel badge, timestamp, and creator heart.
+/// Header row displaying comment author, verified channel badge, loyalty badge, timestamp, and creator heart.
 class CommentAuthorHeader extends StatelessWidget {
   const CommentAuthorHeader({
     required this.comment,
@@ -28,48 +29,71 @@ class CommentAuthorHeader extends StatelessWidget {
 
     return Row(
       children: [
-        GestureDetector(
-          onTap: () => CommentActionHandler.navigateToChannel(comment.channelId),
-          child: MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: isChannelCreator
-                ? Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
+        Flexible(
+          child: GestureDetector(
+            onTap: () => CommentActionHandler.navigateToChannel(comment.channelId),
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: isChannelCreator
+                  ? Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              formattedUserName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(
+                            Icons.check,
+                            size: 12,
+                            color: Colors.white70,
+                          ),
+                        ],
+                      ),
+                    )
+                  : Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          formattedUserName,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                            color: Colors.white,
+                        Flexible(
+                          child: Text(
+                            formattedUserName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
-                        const SizedBox(width: 4),
-                        const Icon(
-                          Icons.check,
-                          size: 12,
-                          color: Colors.white70,
-                        ),
+                        if (comment.isMember) ...[
+                          const SizedBox(width: 6),
+                          ChannelLoyaltyBadgeWidget(
+                            milestone: comment.loyaltyMilestone ??
+                                ChannelLoyaltyMilestone.newMember,
+                            tierName: comment.memberTierName,
+                          ),
+                        ],
                       ],
                     ),
-                  )
-                : Text(
-                    formattedUserName,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                      color: Colors.white,
-                    ),
-                  ),
+            ),
           ),
         ),
         const SizedBox(width: 8),

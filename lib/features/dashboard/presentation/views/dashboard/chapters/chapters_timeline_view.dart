@@ -155,6 +155,28 @@ class ChaptersTimelineView {
                     padding: const EdgeInsets.all(16),
                     child: Row(
                       children: [
+                        // Reorder drag handle
+                        ReorderableDragStartListener(
+                          index: index,
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.grab,
+                            child: Container(
+                              margin: const EdgeInsets.only(right: 12),
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: AppColors.bgInput,
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: borderColor),
+                              ),
+                              child: Icon(
+                                Icons.drag_indicator_rounded,
+                                color: textSecondaryColor,
+                                size: 16,
+                              ),
+                            ),
+                          ),
+                        ),
+
                         // Timestamp block
                         Container(
                           padding: const EdgeInsets.symmetric(

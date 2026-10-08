@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:get/get.dart';
+import 'package:truthworld/features/discover/presentation/controllers/discover_channels_controller.dart';
 import 'package:truthworld/features/discover/presentation/views/channels/widgets/discover_channels_constants.dart';
-import 'package:truthworld/theme/app_theme.dart';
 
 /// App bar for standalone Discover Channels screen across desktop, tablet, and mobile.
+/// Matches exact visual architecture from Image 1.
 class DiscoverChannelsAppBar extends StatelessWidget implements PreferredSizeWidget {
   const DiscoverChannelsAppBar({
     required this.onRefresh,
@@ -17,51 +19,88 @@ class DiscoverChannelsAppBar extends StatelessWidget implements PreferredSizeWid
   final VoidCallback onRefresh;
 
   @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+  Size get preferredSize => const Size.fromHeight(72);
 
   @override
   Widget build(BuildContext context) {
+    final controller = Get.isRegistered<DiscoverChannelsController>()
+        ? Get.find<DiscoverChannelsController>()
+        : null;
+
+    if (controller != null) {
+      return Obx(() {
+        if (controller.selectedCategory.value != 'All') {
+          return const SizedBox.shrink();
+        }
+        return _buildBar(context);
+      });
+    }
+
+    return _buildBar(context);
+  }
+
+  Widget _buildBar(BuildContext context) {
     return AppBar(
-      backgroundColor: surfaceColor.withValues(alpha: 0.95),
+      backgroundColor: bgColor,
       elevation: 0,
       systemOverlayStyle: SystemUiOverlayStyle.light,
+      toolbarHeight: 72,
       title: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppColors.textPrimary,
-                  AppColors.textPrimary.withValues(alpha: 0.5),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+              color: const Color(0xFF222226),
               borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.08),
+              ),
             ),
-            child: const Icon(
-              Icons.explore_rounded,
-              color: Colors.white,
-              size: 24,
+            child: const Center(
+              child: Icon(
+                Icons.explore_rounded,
+                color: Colors.white,
+                size: 24,
+              ),
             ),
           ),
-          const SizedBox(width: 12),
-          Text(
-            'Discover Channels',
-            style: TextStyle(
-              fontSize: (isDesktop || isTablet) ? 24 : 20,
-              fontWeight: FontWeight.bold,
-              color: primaryText,
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Discover Channels',
+                  style: TextStyle(
+                    fontSize: (isDesktop || isTablet) ? 24 : 20,
+                    fontWeight: FontWeight.bold,
+                    color: primaryText,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Explore and follow amazing creators across different categories',
+                  style: TextStyle(
+                    fontSize: (isDesktop || isTablet) ? 13 : 11,
+                    color: Colors.white.withValues(alpha: 0.60),
+                    fontWeight: FontWeight.normal,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
           ),
         ],
       ),
       actions: [
         Container(
-          margin: const EdgeInsets.only(right: 8),
+          margin: const EdgeInsets.only(right: 12),
           child: Material(
-            color: buttonBg.withValues(alpha: 0.5),
+            color: const Color(0xFF1E1E22),
             borderRadius: BorderRadius.circular(12),
             child: InkWell(
               onTap: () {
@@ -71,16 +110,21 @@ class DiscoverChannelsAppBar extends StatelessWidget implements PreferredSizeWid
               borderRadius: BorderRadius.circular(12),
               child: Container(
                 padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.08),
+                  ),
+                ),
                 child: const Icon(
                   Icons.refresh_rounded,
                   color: Colors.white,
-                  size: 22,
+                  size: 20,
                 ),
               ),
             ),
           ),
         ),
-        const SizedBox(width: 8),
       ],
     );
   }
@@ -107,36 +151,54 @@ class DiscoverChannelsDashboardHeader extends StatelessWidget {
           padding.left,
           16,
           padding.right,
-          20,
+          16,
         ),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    AppColors.textPrimary,
-                    AppColors.textPrimary.withValues(alpha: 0.5),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+                color: const Color(0xFF222226),
                 borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.08),
+                ),
               ),
-              child: const Icon(
-                Icons.explore_rounded,
-                color: Colors.white,
-                size: 24,
+              child: const Center(
+                child: Icon(
+                  Icons.explore_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
               ),
             ),
-            const SizedBox(width: 12),
-            Text(
-              'Discover Channels',
-              style: TextStyle(
-                fontSize: (isDesktop || isTablet) ? 26 : 22,
-                fontWeight: FontWeight.bold,
-                color: primaryText,
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Discover Channels',
+                    style: TextStyle(
+                      fontSize: (isDesktop || isTablet) ? 26 : 22,
+                      fontWeight: FontWeight.bold,
+                      color: primaryText,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Explore and follow amazing creators across different categories',
+                    style: TextStyle(
+                      fontSize: (isDesktop || isTablet) ? 13 : 11,
+                      color: Colors.white.withValues(alpha: 0.60),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
             ),
           ],

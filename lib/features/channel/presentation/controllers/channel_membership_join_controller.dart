@@ -11,6 +11,7 @@ import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/cashfree_service.dart';
 import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/memberships_controller.dart';
@@ -299,7 +300,11 @@ class ChannelMembershipJoinController extends BaseController {
       if (!paymentResult.success) {
         if (paymentResult.errorMessage != null &&
             !paymentResult.errorMessage!.toLowerCase().contains('cancel')) {
-          AppSnackbar.error(paymentResult.errorMessage!);
+          final cleanErr = UserFeedbackSanitizer.sanitizeMessage(
+            paymentResult.errorMessage,
+            defaultActionContext: 'join membership tier',
+          );
+          AppSnackbar.error(cleanErr);
         }
         return;
       }

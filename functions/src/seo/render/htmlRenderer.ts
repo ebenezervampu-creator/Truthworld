@@ -1,6 +1,6 @@
 import { DOMAIN, SCHEMA_VERSION, escapeHtml, cleanJsonLd } from "../schema/schemaConfig";
 
-export const SNAPSHOT_VERSION = 5;
+export const SNAPSHOT_VERSION = 6;
 
 export interface HtmlRenderOptions {
   title: string;
@@ -48,7 +48,7 @@ export function truncateTranscriptToSentence(transcript?: string, maxChars: numb
 
 export function buildSemanticSsrHtml(options: HtmlRenderOptions): string {
   const robotsDirective = options.robots || "index, follow";
-  let rawImage = options.image || `${DOMAIN}/icons/og-image.png`;
+  let rawImage = options.image || `${DOMAIN}/icons/og-image.png?v=2`;
   if (rawImage.startsWith("/")) {
     rawImage = `${DOMAIN}${rawImage}`;
   }
@@ -278,10 +278,12 @@ export function buildSemanticSsrHtml(options: HtmlRenderOptions): string {
   ${headMetaTags}
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#9B30FF" />
-  <meta name="apple-itunes-app" content="app-id=com.truthworld.app, app-argument=${escapeHtml(canonicalUrl)}" />
-  <link rel="icon" type="image/png" href="favicon.png" />
-  <link rel="apple-touch-icon" href="icons/Icon-192.png" />
-  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" sizes="192x192" href="${DOMAIN}/icons/Icon-192.png?v=2" />
+  <link rel="icon" type="image/png" sizes="48x48" href="${DOMAIN}/favicon-48x48.png?v=2" />
+  <link rel="icon" type="image/png" href="${DOMAIN}/favicon.png?v=2" />
+  <link rel="shortcut icon" href="${DOMAIN}/favicon.ico?v=2" />
+  <link rel="apple-touch-icon" href="${DOMAIN}/icons/Icon-192.png?v=2" />
+  <link rel="manifest" href="${DOMAIN}/manifest.json" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { width: 100%; height: 100%; background: #0D0014; color: #f4f4f5; }

@@ -31,6 +31,8 @@ mixin TowerPlayerKeyboardMixin on GetxController {
   List<SubtitleTrack> get subtitleTracks;
   void setSubtitles({required bool enabled, SubtitleTrack? track});
   void toggleTheaterMode();
+  RxBool get showMoreVideos;
+  void closeMoreVideos();
 
   void handleKeyJ() => executeDoubleTapSeek(isLeft: true);
   void handleKeyL() => executeDoubleTapSeek(isLeft: false);
@@ -117,7 +119,11 @@ mixin TowerPlayerKeyboardMixin on GetxController {
     } else if (key == LogicalKeyboardKey.keyI) {
       togglePiP();
     } else if (key == LogicalKeyboardKey.escape) {
-      if (isFullScreenValue) toggleFullscreen();
+      if (showMoreVideos.value) {
+        closeMoreVideos();
+      } else if (isFullScreenValue) {
+        toggleFullscreen();
+      }
     } else if (key == LogicalKeyboardKey.slash) {
       if (HardwareKeyboard.instance.isShiftPressed) showShortcutsDialog();
     } else if (key == LogicalKeyboardKey.keyT) {

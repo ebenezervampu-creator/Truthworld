@@ -27,21 +27,29 @@ class VideoScreenRecommendationHeader extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Text(
-            'Recommended',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          const Expanded(
+            child: Text(
+              'Recommended',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
+          const SizedBox(width: 8),
           Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
                 'Autoplay',
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
               ),
+              const SizedBox(width: 4),
               Obx(
                 () => Switch(
                   value: controller.isAutoplay.value,
                   onChanged: (v) => controller.isAutoplay.value = v,
                   activeThumbColor: AppColors.brand,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
               ),
             ],
@@ -239,7 +247,9 @@ class VideoScreenLoadedBody extends StatelessWidget {
                 device.isUltraWide ||
                 (device.isTablet &&
                     MediaQuery.of(context).orientation ==
-                        Orientation.landscape);
+                        Orientation.landscape &&
+                    MediaQuery.sizeOf(context).shortestSide >=
+                        TWBreakpoints.tablet);
             return isDesktop
                 ? VideoScreenDesktopLayout(
                     controller: controller,

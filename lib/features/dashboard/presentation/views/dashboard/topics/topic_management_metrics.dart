@@ -28,10 +28,10 @@ class TopicMetricSummaryCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF18181B) : const Color(0xFF161618),
+          color: isSelected ? AppColors.bgSurfaceHover : const Color(0xFF1E1E1E),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? Colors.white : const Color(0xFF27272A),
+            color: isSelected ? AppColors.brand : AppColors.bgDivider,
             width: isSelected ? 1.5 : 1.0,
           ),
         ),
@@ -40,9 +40,9 @@ class TopicMetricSummaryCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: const Color(0xFF18181B),
+                color: AppColors.bgInput,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFF27272A)),
+                border: Border.all(color: AppColors.bgDivider),
               ),
               child: Icon(icon, color: Colors.white, size: 20),
             ),
@@ -57,7 +57,7 @@ class TopicMetricSummaryCard extends StatelessWidget {
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       letterSpacing: -0.5,
                     ),
                   ),

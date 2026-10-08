@@ -27,25 +27,21 @@ class DashboardQuickActionsSection extends StatelessWidget {
       {
         'title': 'Upload Video',
         'icon': Icons.cloud_upload_rounded,
-        'color': const Color(0xFF10B981),
         'onTap': () => Get.toNamed('/upload'),
       },
       {
         'title': 'Create Topic',
         'icon': Icons.topic_rounded,
-        'color': const Color(0xFFEF4444),
         'onTap': onCreateTopic,
       },
       {
         'title': 'Create Post',
         'icon': Icons.edit_rounded,
-        'color': const Color(0xFF3B82F6),
         'onTap': () => Get.toNamed('/upload/community'),
       },
       {
         'title': 'View Analytics',
         'icon': Icons.bar_chart_rounded,
-        'color': const Color(0xFF8B5CF6),
         'onTap': onViewAnalytics,
       },
     ];
@@ -56,12 +52,13 @@ class DashboardQuickActionsSection extends StatelessWidget {
         Text(
           'Quick Actions',
           style: TextStyle(
-            fontSize: isMobile ? 20 : 24,
+            fontFamily: TWTypography.brandFamily,
+            fontSize: isMobile ? 18 : 22,
             fontWeight: FontWeight.bold,
-            color: isDarkMode ? AppColors.textPrimary : Colors.black,
+            color: AppColors.textPrimary,
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
         LayoutBuilder(
           builder: (context, constraints) {
             final textScale = MediaQuery.textScalerOf(context).scale(1.0);
@@ -85,11 +82,11 @@ class DashboardQuickActionsSection extends StatelessWidget {
               itemBuilder: (context, index) {
                 final action = actions[index];
                 return TweenAnimationBuilder<double>(
-                  duration: Duration(milliseconds: 400 + (index * 100)),
+                  duration: Duration(milliseconds: 300 + (index * 80)),
                   tween: Tween(begin: 0, end: 1),
                   builder: (context, value, child) {
                     return Transform.scale(
-                      scale: 0.8 + (0.2 * value),
+                      scale: 0.9 + (0.1 * value),
                       child: Opacity(
                         opacity: value,
                         child: DashboardQuickActionCard(
@@ -123,24 +120,16 @@ class DashboardQuickActionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: isDarkMode ? AppTheme.colors.surface : AppColors.textPrimary,
-        borderRadius: BorderRadius.circular(16),
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isDarkMode ? const Color(0xFF374151) : AppColors.bgDivider,
+          color: AppColors.bgDivider,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: isDarkMode ? Colors.black26 : Colors.black38,
-            blurRadius: 20,
-            spreadRadius: 2,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           onTap: () {
             final onTap = action['onTap'];
             if (onTap is VoidCallback) {
@@ -149,7 +138,7 @@ class DashboardQuickActionCard extends StatelessWidget {
             HapticFeedback.lightImpact();
           },
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -157,24 +146,25 @@ class DashboardQuickActionCard extends StatelessWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: (action['color'] as Color).withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
+                    color: AppColors.bgSurfaceHover,
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
                     action['icon'] as IconData,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     size: 22,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text(
                     action['title'] as String,
-                    style: TextStyle(
+                    style: const TextStyle(
+                      fontFamily: TWTypography.uiFamily,
                       fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: isDarkMode ? AppColors.textPrimary : Colors.black,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
                     ),
                     textAlign: TextAlign.center,
                     maxLines: 1,

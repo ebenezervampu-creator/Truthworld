@@ -72,6 +72,10 @@ export class IngestionLayer {
       return null;
     }
     const videoId = pathParts[1]; // videos/[videoId]/...
+    if (!videoId || !/^[a-zA-Z0-9_-]{5,64}$/.test(videoId)) {
+      logger.error("[Ingestion] Invalid videoId detected:", { videoId, filePath });
+      return null;
+    }
 
     // 3. Look up userId from Firestore video document (created by Flutter app before upload)
     let userId: string;
@@ -95,11 +99,19 @@ export class IngestionLayer {
     }
 
     // 4. Read GCS object metadata (includes MD5 hash + size)
-    // Note: userId is already verified via Firestore video document lookup above.
-    // admin.auth().getUser() was removed because the Cloud Run compute SA lacks
-    // Firebase Auth Admin permissions, and the Firestore doc (created by an
-    // authenticated Flutter user) is sufficient proof of user identity.
     const meta = await this.fetchGCSMetadata(bucket, filePath);
+
+    // Enforce 10 GB maximum file size
+    const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024 * 1024; // 10 GB
+    if (meta.fileSize && meta.fileSize > MAX_FILE_SIZE_BYTES) {
+      logger.warn(`[Ingestion] File too large: ${meta.fileSize} bytes, videoId: ${videoId}`);
+      await db().collection("videos").doc(videoId).update({
+        status: "rejected",
+        rejectionReason: "File size exceeds maximum allowed limit (10 GB)",
+        updatedAt: Date.now(),
+      });
+      return null;
+    }
 
     // 5. Firestore dedup check — content hash based
     if (meta.md5Hash) {
@@ -357,11 +369,9 @@ export class IngestionLayer {
     }
   }
 
-  private isValidVideo(fileName: string, contentType: string): boolean {
+  private isValidVideo(fileName: string, _contentType: string): boolean {
     const ext = fileName.toLowerCase().slice(fileName.lastIndexOf("."));
-    if (VALID_EXTENSIONS.has(ext)) return true;
-    if (contentType?.startsWith("video/")) return true;
-    return false;
+    return VALID_EXTENSIONS.has(ext);
   }
 }
 

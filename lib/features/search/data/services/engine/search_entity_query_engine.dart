@@ -66,7 +66,7 @@ class SearchEntityQueryEngine {
               .limit(20)
               .get();
           for (final doc in s.docs) {
-            addResult(SearchResult.fromFirestore(doc));
+            addResult(SearchResult.fromFirestore(doc), doc.data());
           }
         } catch (e, s) {
           ErrorHandler.log(e, stackTrace: s, tag: 'SearchEntityQueryEngine.searchVideos.prefix');
@@ -124,6 +124,7 @@ class SearchEntityQueryEngine {
                   channelImage: v.channelAvatarUrl,
                   createdAt: v.createdAt,
                   durationMs: v.durationValue.inMilliseconds,
+                  visibility: v.visibility,
                 ),
               );
           localMatches.forEach(addResult);

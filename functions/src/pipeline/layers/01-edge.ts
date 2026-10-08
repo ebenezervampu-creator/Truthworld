@@ -66,6 +66,30 @@ export class EdgeLayer {
     const t0 = Date.now();
 
     try {
+      // ── 0. Security Validations ─────────────────────────────────────────────
+      if (!fileName || !/^[a-zA-Z0-9._\-\s]{1,255}$/.test(fileName)) {
+        return this.rejected("Invalid file name format");
+      }
+
+      const isValidGCSVideoUrl = (url: string): boolean => {
+        if (!url || typeof url !== "string") return false;
+        const normalized = url.trim();
+        const allowedPrefixes = [
+          "gs://truthworld-1.firebasestorage.app/videos/",
+          "gs://truthworld-1.appspot.com/videos/",
+          "https://storage.googleapis.com/truthworld-1.firebasestorage.app/videos/",
+          "https://storage.googleapis.com/truthworld-1.appspot.com/videos/",
+          "https://firebasestorage.googleapis.com/v0/b/truthworld-1.firebasestorage.app/o/videos",
+          "https://firebasestorage.googleapis.com/v0/b/truthworld-1.appspot.com/o/videos",
+        ];
+        const hasPrefix = allowedPrefixes.some((prefix) => normalized.startsWith(prefix));
+        return hasPrefix && !normalized.includes("..") && !normalized.toLowerCase().includes("%2e");
+      };
+
+      if (!isValidGCSVideoUrl(videoUrl)) {
+        return this.rejected("Invalid video URL. Must be a valid GCS path in the TruthWorld video bucket.");
+      }
+
       // ── 1. Validate ──────────────────────────────────────────────────────────
       const config = this.inputLayer.normalizeConfig(userId, userConfig);
       const validation = this.inputLayer.validateConfig(config);
@@ -283,11 +307,27 @@ export class EdgeLayer {
       fields[`stages.${stage}.${k}`] = v;
     }
 
-    try {
-      await db().collection("video_jobs").doc(jobId).update(fields);
-    } catch (err) {
-      logger.error("[Edge] Canonical stage update failed", { jobId, stage, err });
-      throw err;
+    let lastErr: any = null;
+    for (let attempt = 1; attempt <= 4; attempt++) {
+      try {
+        await db().collection("video_jobs").doc(jobId).update(fields);
+        return;
+      } catch (err) {
+        lastErr = err;
+        const errMsg = String((err as any)?.message || err);
+        const isContention = /contention|aborted|unavailable|resource_exhausted|deadline/i.test(errMsg);
+        if (isContention && attempt < 4) {
+          // Jittered backoff between 50ms and 300ms to resolve document write collisions
+          const backoff = 50 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 50);
+          await new Promise((res) => setTimeout(res, backoff));
+          continue;
+        }
+        logger.error("[Edge] Canonical stage update failed", { jobId, stage, err });
+        throw err;
+      }
+    }
+    if (lastErr) {
+      throw lastErr;
     }
   }
 
@@ -302,10 +342,20 @@ export class EdgeLayer {
       [`stages.${stage}.completedAt`]: now,
     };
 
-    try {
-      await db().collection("video_jobs").doc(jobId).update(fields);
-    } catch (err) {
-      logger.error("[Edge] Failed to mark job as failed", { jobId, stage, err });
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await db().collection("video_jobs").doc(jobId).update(fields);
+        return;
+      } catch (err) {
+        const errMsg = String((err as any)?.message || err);
+        const isContention = /contention|aborted|unavailable|resource_exhausted|deadline/i.test(errMsg);
+        if (isContention && attempt < 3) {
+          await new Promise((res) => setTimeout(res, 50 * attempt + Math.floor(Math.random() * 50)));
+          continue;
+        }
+        logger.error("[Edge] Failed to mark job as failed", { jobId, stage, err });
+        break;
+      }
     }
   }
 

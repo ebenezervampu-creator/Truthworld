@@ -11,6 +11,7 @@ import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/utils/timestamp_utils.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/services/comment_service.dart';
 
@@ -54,6 +55,12 @@ class DashboardCommentsController extends BaseController {
   final searchQuery = RxString('');
   final RxBool isLoadingComments = false.obs;
   final commentsError = Rx<String?>(null);
+
+  // Cursor Pagination (Industry Standard 25 per page)
+  static const int commentsPerPage = 25;
+  final RxBool hasMoreComments = true.obs;
+  final RxBool isLoadingMoreComments = false.obs;
+  DocumentSnapshot? lastStudioCommentDoc;
 
   /// Search text editing controller
   final TextEditingController searchController = TextEditingController();
@@ -277,15 +284,19 @@ class DashboardCommentsController extends BaseController {
       final channelId = userChannelId.value;
       final currentUid = _auth.currentUser?.uid ?? '';
 
-      QuerySnapshot<Map<String, dynamic>>? videosSnapshot;
+      // Collect documents from authenticated creator's channels and user accounts
+      final foundDocsMap = <String, DocumentSnapshot<Map<String, dynamic>>>{};
 
-      // 1. Primary Query: Try querying videos by channelId
+      // 1. Primary Query: Videos by channelId
       if (channelId.isNotEmpty) {
         try {
-          videosSnapshot = await _firestore
+          final snap = await _firestore
               .collection(FirestoreCollections.videos)
               .where('channelId', isEqualTo: channelId)
               .get();
+          for (final doc in snap.docs) {
+            foundDocsMap[doc.id] = doc;
+          }
         } catch (e) {
           logger.warning(
             'Primary video query by channelId failed: $e',
@@ -294,82 +305,80 @@ class DashboardCommentsController extends BaseController {
         }
       }
 
-      // 2. Secondary Query: Try querying videos by userId
-      if ((videosSnapshot == null || videosSnapshot.docs.isEmpty) &&
-          currentUid.isNotEmpty) {
+      // 2. Secondary Query: Videos by userId
+      if (currentUid.isNotEmpty) {
         try {
-          videosSnapshot = await _firestore
+          final snap = await _firestore
               .collection(FirestoreCollections.videos)
               .where('userId', isEqualTo: currentUid)
               .get();
+          for (final doc in snap.docs) {
+            foundDocsMap[doc.id] = doc;
+          }
         } catch (e) {
           logger.warning(
             'Secondary video query by userId failed: $e',
             tag: _tag,
           );
         }
-      }
 
-      // 3. Tertiary Fallback: Fetch top recent videos from database
-      if (videosSnapshot == null || videosSnapshot.docs.isEmpty) {
+        // 3. Query videos by ownerId
         try {
-          videosSnapshot = await _firestore
+          final snap = await _firestore
               .collection(FirestoreCollections.videos)
-              .limit(50)
+              .where('ownerId', isEqualTo: currentUid)
               .get();
+          for (final doc in snap.docs) {
+            foundDocsMap[doc.id] = doc;
+          }
         } catch (e) {
-          logger.warning('Fallback videos fetch failed: $e', tag: _tag);
+          logger.warning(
+            'Video query by ownerId failed: $e',
+            tag: _tag,
+          );
         }
       }
 
       final videos = <CreatorVideoWithComments>[];
 
-      if (videosSnapshot != null && videosSnapshot.docs.isNotEmpty) {
-        final filteredDocs = videosSnapshot.docs.where((doc) {
-          final data = doc.data();
-          final vChannelId = (data['channelId'] as String?) ?? '';
-          final vUserId =
-              (data['userId'] as String?) ??
-              (data['uploaderId'] as String?) ??
-              '';
-          return (channelId.isNotEmpty &&
-                  (vChannelId == channelId || vUserId == channelId)) ||
-              (currentUid.isNotEmpty && vUserId == currentUid);
-        }).toList();
+      for (final videoDoc in foundDocsMap.values) {
+        if (!videoDoc.exists || videoDoc.data() == null) continue;
+        final videoData = videoDoc.data()!;
 
-        final docsToUse = filteredDocs.isNotEmpty
-            ? filteredDocs
-            : videosSnapshot.docs;
-
-        for (final videoDoc in docsToUse) {
-          final videoData = videoDoc.data();
-          final commentCount = await _commentService.getCommentCount(
-            videoDoc.id,
-          );
-          final titleStr = (videoData['title'] as String?) ?? 'Untitled';
-          final thumbStr =
-              (videoData['thumbnailUrl'] as String?) ??
-              (videoData['thumbnail'] as String?) ??
-              '';
-          final rawDate = videoData['uploadedAt'] ?? videoData['createdAt'];
-          final dateVal =
-              TimestampUtils.parseToDateTime(rawDate) ?? DateTime.now();
-
-          videos.add(
-            CreatorVideoWithComments(
-              videoId: videoDoc.id,
-              title: titleStr,
-              thumbnail: thumbStr,
-              duration: videoData['duration']?.toString() ?? '0:00',
-              viewCount:
-                  (videoData['viewCount'] as int?) ??
-                  (videoData['views'] as int?) ??
-                  0,
-              commentCount: commentCount,
-              createdAt: dateVal,
-            ),
-          );
+        // Filter out phantom documents (documents without essential video fields)
+        final title = (videoData['title'] as String?)?.trim() ?? '';
+        final videoUrl = (videoData['videoUrl'] as String?)?.trim() ?? '';
+        if (title.isEmpty && videoUrl.isEmpty) {
+          // This is a phantom/metadata-free entry in videos collection, skip
+          continue;
         }
+
+        final commentCount = await _commentService.getCommentCount(
+          videoDoc.id,
+        );
+        final titleStr = title.isNotEmpty ? title : 'Untitled';
+        final thumbStr =
+            (videoData['thumbnailUrl'] as String?) ??
+            (videoData['thumbnail'] as String?) ??
+            '';
+        final rawDate = videoData['uploadedAt'] ?? videoData['createdAt'];
+        final dateVal =
+            TimestampUtils.parseToDateTime(rawDate) ?? DateTime.now();
+
+        videos.add(
+          CreatorVideoWithComments(
+            videoId: videoDoc.id,
+            title: titleStr,
+            thumbnail: thumbStr,
+            duration: videoData['duration']?.toString() ?? '0:00',
+            viewCount:
+                (videoData['viewCount'] as int?) ??
+                (videoData['views'] as int?) ??
+                0,
+            commentCount: commentCount,
+            createdAt: dateVal,
+          ),
+        );
       }
 
       // In-memory sort by recency
@@ -404,13 +413,14 @@ class DashboardCommentsController extends BaseController {
     selectedVideoId.value = null;
     isLoadingComments.value = true;
     commentsError.value = null;
-
-    final targetChannelId = userChannelId.value.isNotEmpty
-        ? userChannelId.value
-        : (_auth.currentUser?.uid ?? '');
+    lastStudioCommentDoc = null;
+    hasMoreComments.value = false;
 
     if (videosWithComments.isEmpty) {
-      _loadCommentsViaCollectionGroup(targetChannelId);
+      isLoadingComments.value = false;
+      allComments.clear();
+      answeredComments.clear();
+      unansweredComments.clear();
       return;
     }
 
@@ -448,74 +458,84 @@ class DashboardCommentsController extends BaseController {
           );
       _commentSubscriptions.add(sub);
     }
-
-    // Direct collectionGroup listener backup to catch all comments regardless of video array
-    _loadCommentsViaCollectionGroup(targetChannelId);
   }
 
-  void _loadCommentsViaCollectionGroup(String channelId) {
-    if (channelId.isEmpty) {
-      isLoadingComments.value = false;
+  /// Cursor pagination for creator studio comments (25 comments per page)
+  Future<void> loadMoreStudioComments() async {
+    if (isLoadingMoreComments.value ||
+        !hasMoreComments.value ||
+        lastStudioCommentDoc == null) {
       return;
     }
 
     try {
-      final sub = _firestore
-          .collectionGroup('comments')
-          .snapshots()
-          .listen(
-            (snapshot) {
-              final collectionGroupComments = <Comment>[];
-              for (final doc in snapshot.docs) {
-                try {
-                  final data = doc.data();
-                  final cChannelId = data['channelId'] ?? data['userId'] ?? '';
-                  final currentUid = _auth.currentUser?.uid ?? '';
-                  if (cChannelId == channelId || cChannelId == currentUid) {
-                    collectionGroupComments.add(
-                      Comment.fromDocumentSnapshot(doc),
-                    );
-                  }
-                } catch (e, stackTrace) {
-                  ErrorHandler.log(
-                    e,
-                    stackTrace: stackTrace,
-                    tag: 'DashboardCommentsController.stream.parseComment',
-                  );
-                }
-              }
+      isLoadingMoreComments.value = true;
+      final videoId = selectedVideoId.value;
 
-              if (collectionGroupComments.isNotEmpty) {
-                // Merge with existing comments without duplicating
-                final existingIds = _commentsByVideo.values
-                    .expand((l) => l)
-                    .map((c) => c.id)
-                    .toSet();
+      QuerySnapshot<Map<String, dynamic>> nextSnap;
+      if (videoId != null && videoId.isNotEmpty) {
+        nextSnap = await _commentService.getVideoCommentsPageSnapshotForStudio(
+          videoId: videoId,
+          startAfter: lastStudioCommentDoc,
+        );
+      } else {
+        nextSnap = await _firestore
+            .collectionGroup('comments')
+            .orderBy('createdAt', descending: true)
+            .startAfterDocument(lastStudioCommentDoc!)
+            .limit(commentsPerPage)
+            .get();
+      }
 
-                for (final c in collectionGroupComments) {
-                  if (!existingIds.contains(c.id)) {
-                    final vId = c.videoId.isNotEmpty
-                        ? c.videoId
-                        : 'channel_all';
-                    _commentsByVideo.putIfAbsent(vId, () => []).add(c);
-                  }
-                }
-                _updateMergedComments();
-              }
-              isLoadingComments.value = false;
-            },
-            onError: (Object e) {
-              logger.warning(
-                'CollectionGroup comments query notice: $e',
-                tag: _tag,
-              );
-              isLoadingComments.value = false;
-            },
-          );
-      _commentSubscriptions.add(sub);
-    } catch (e) {
-      logger.warning('CollectionGroup setup notice: $e', tag: _tag);
-      isLoadingComments.value = false;
+      if (nextSnap.docs.isNotEmpty) {
+        lastStudioCommentDoc = nextSnap.docs.last;
+        final creatorVideoIds =
+            videosWithComments.map((v) => v.videoId).toSet();
+
+        final newComments = <Comment>[];
+        for (final doc in nextSnap.docs) {
+          try {
+            // Strictly enforce that this document belongs to a video subcollection
+            final segments = doc.reference.path.split('/');
+            if (segments.length < 4 ||
+                segments[0] != FirestoreCollections.videos) {
+              continue;
+            }
+            final parentVid = segments[1];
+            if (videoId == null && !creatorVideoIds.contains(parentVid)) {
+              continue;
+            }
+            newComments.add(Comment.fromDocumentSnapshot(doc));
+          } catch (e, stackTrace) {
+            ErrorHandler.log(
+              e,
+              stackTrace: stackTrace,
+              tag: 'DashboardCommentsController.loadMore.parse',
+            );
+          }
+        }
+
+        final existingIds = allComments.map((c) => c.id).toSet();
+        for (final c in newComments) {
+          if (existingIds.add(c.id)) {
+            allComments.add(c);
+            final vId = c.videoId.isNotEmpty ? c.videoId : 'channel_all';
+            _commentsByVideo.putIfAbsent(vId, () => []).add(c);
+          }
+        }
+        allComments.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        _filterComments();
+      }
+
+      hasMoreComments.value = nextSnap.docs.length >= commentsPerPage;
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'DashboardCommentsController.loadMoreStudioComments',
+      );
+    } finally {
+      isLoadingMoreComments.value = false;
     }
   }
 
@@ -661,8 +681,21 @@ class DashboardCommentsController extends BaseController {
         return;
       }
 
+      var targetVideoId = videoId.trim();
+      if (targetVideoId.isEmpty || targetVideoId == 'channel_all') {
+        final found = allComments.firstWhereOrNull((c) => c.id == commentId);
+        if (found != null &&
+            found.videoId.isNotEmpty &&
+            found.videoId != 'channel_all') {
+          targetVideoId = found.videoId;
+        }
+      }
+      if (targetVideoId.isEmpty || targetVideoId == 'channel_all') {
+        return;
+      }
+
       await _commentService.likeComment(
-        videoId: videoId,
+        videoId: targetVideoId,
         commentId: commentId,
         userId: userId,
         asChannel: asChannel,
@@ -697,8 +730,21 @@ class DashboardCommentsController extends BaseController {
         return;
       }
 
+      var targetVideoId = videoId.trim();
+      if (targetVideoId.isEmpty || targetVideoId == 'channel_all') {
+        final found = allComments.firstWhereOrNull((c) => c.id == commentId);
+        if (found != null &&
+            found.videoId.isNotEmpty &&
+            found.videoId != 'channel_all') {
+          targetVideoId = found.videoId;
+        }
+      }
+      if (targetVideoId.isEmpty || targetVideoId == 'channel_all') {
+        return;
+      }
+
       await _commentService.dislikeComment(
-        videoId: videoId,
+        videoId: targetVideoId,
         commentId: commentId,
         userId: userId,
         asChannel: asChannel,
@@ -726,8 +772,21 @@ class DashboardCommentsController extends BaseController {
     required bool isHearted,
   }) async {
     try {
+      var targetVideoId = videoId.trim();
+      if (targetVideoId.isEmpty || targetVideoId == 'channel_all') {
+        final found = allComments.firstWhereOrNull((c) => c.id == commentId);
+        if (found != null &&
+            found.videoId.isNotEmpty &&
+            found.videoId != 'channel_all') {
+          targetVideoId = found.videoId;
+        }
+      }
+      if (targetVideoId.isEmpty || targetVideoId == 'channel_all') {
+        return;
+      }
+
       await _commentService.heartComment(
-        videoId: videoId,
+        videoId: targetVideoId,
         commentId: commentId,
         isHearted: isHearted,
         creatorName: userChannelName.value,
@@ -772,18 +831,75 @@ class DashboardCommentsController extends BaseController {
         return false;
       }
 
-      var targetVideoId = videoId;
-      if (targetVideoId.isEmpty) {
+      var targetVideoId = videoId.trim();
+      if (targetVideoId.isEmpty || targetVideoId == 'channel_all') {
         final found = allComments.firstWhereOrNull((c) => c.id == commentId);
-        if (found != null && found.videoId.isNotEmpty) {
+        if (found != null &&
+            found.videoId.isNotEmpty &&
+            found.videoId != 'channel_all') {
           targetVideoId = found.videoId;
-        } else if (videosWithComments.isNotEmpty) {
-          targetVideoId = videosWithComments.first.videoId;
         }
       }
 
-      if (targetVideoId.isEmpty) {
+      if (targetVideoId.isEmpty || targetVideoId == 'channel_all') {
         logger.warning('Cannot reply without a valid videoId', tag: _tag);
+        AppSnackbar.error('Unable to determine the video for this comment.');
+        return false;
+      }
+
+      // 1. Verify targetVideoId belongs to this creator and actually exists in videos collection
+      final isKnownVideo =
+          videosWithComments.any((v) => v.videoId == targetVideoId);
+      if (!isKnownVideo) {
+        final videoDoc = await _firestore
+            .collection(FirestoreCollections.videos)
+            .doc(targetVideoId)
+            .get();
+        if (!videoDoc.exists || videoDoc.data() == null) {
+          logger.error(
+            'Target video $targetVideoId does not exist in videos collection',
+            tag: _tag,
+          );
+          AppSnackbar.error('The video for this comment was not found.');
+          return false;
+        }
+        final vData = videoDoc.data()!;
+        final vChannelId = (vData['channelId'] as String?) ?? '';
+        final vUserId = (vData['userId'] as String?) ??
+            (vData['ownerId'] as String?) ??
+            (vData['uploaderId'] as String?) ??
+            '';
+        final currentUid = _auth.currentUser?.uid ?? '';
+        final chId = userChannelId.value;
+        final isOwner = (chId.isNotEmpty &&
+                (vChannelId == chId || vUserId == chId)) ||
+            (currentUid.isNotEmpty &&
+                (vUserId == currentUid || vChannelId == currentUid));
+        if (!isOwner) {
+          logger.error(
+            'Target video $targetVideoId does not belong to creator',
+            tag: _tag,
+          );
+          AppSnackbar.error(
+            'You do not have permission to reply as channel for this video.',
+          );
+          return false;
+        }
+      }
+
+      // 2. Verify target comment exists under this specific video
+      final commentDoc = await _firestore
+          .collection(FirestoreCollections.videos)
+          .doc(targetVideoId)
+          .collection('comments')
+          .doc(commentId)
+          .get();
+      if (!commentDoc.exists) {
+        logger.error(
+          'Target comment $commentId does not exist under video $targetVideoId',
+          tag: _tag,
+        );
+        AppSnackbar.error('This comment no longer exists.');
         return false;
       }
 

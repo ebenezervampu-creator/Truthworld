@@ -69,7 +69,7 @@ class ChannelFactCheckPricingSection extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Extract empirical claims, cross-reference verified citations, and earn TruthWorld Trust Badges. Deducted directly from your channel spendable balance or trial credit.',
+            'Extract empirical claims, cross-reference verified citations, and earn TruthWorld Trust Badges. Deducted directly from your channel spendable balance.',
             style: typography.bodySmall.copyWith(
               color: AppColors.textSecondary,
               height: 1.4,

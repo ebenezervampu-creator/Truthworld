@@ -60,42 +60,106 @@ export const publicFeedServer = onRequest(
 
     try {
       const path = (req.path || "").toLowerCase();
-      const category = (req.query.category as string | undefined)?.trim();
+      const rawCategory = req.query.category;
+      const category = typeof rawCategory === "string" ? rawCategory.trim() : undefined;
       const rawLimit = parseInt(req.query.limit as string, 10);
       const limit = isNaN(rawLimit) ? 24 : Math.min(Math.max(rawLimit, 1), 50);
 
       const db = admin.firestore();
-      let query: admin.firestore.Query = db
-        .collection("videos")
-        .where("status", "==", "published")
-        .where("visibility", "==", "public");
-
-      if (category && category !== "all" && category.length > 0) {
-        query = query.where("category", "==", category);
-      }
 
       if (path.includes("trending")) {
-        query = query.orderBy("viewCount", "desc");
+        // ═══════════════════════════════════════════════════════════════════
+        // TRENDING: Velocity-Based Ranking (not just lifetime view count!)
+        //
+        // Formula: TrendingScore = (views + 2×likes + 3×comments) / (ageHours + 2)^gravity
+        //   - Numerator rewards multi-signal engagement (comments > likes > views)
+        //   - Denominator decays older content with gravity factor 1.5
+        //   - "+2" prevents division-by-zero and gives new videos a brief boost window
+        //
+        // Candidate pool: Published videos from the last 7 days, scored in-memory.
+        // ═══════════════════════════════════════════════════════════════════
+        const TRENDING_GRAVITY = 1.5;
+        const TRENDING_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+        const cutoff = new Date(Date.now() - TRENDING_WINDOW_MS);
+
+        let trendQuery: admin.firestore.Query = db
+          .collection("videos")
+          .where("status", "==", "published")
+          .where("visibility", "==", "public")
+          .where("createdAt", ">=", cutoff)
+          .orderBy("createdAt", "desc")
+          .limit(200); // Fetch a broad candidate pool for in-memory scoring
+
+        if (category && category !== "all" && category.length > 0) {
+          trendQuery = trendQuery.where("category", "==", category);
+        }
+
+        const trendSnap = await trendQuery.get();
+        const now = Date.now();
+
+        const scored = trendSnap.docs.map((doc) => {
+          const data = doc.data();
+          const createdAt = data.createdAt?.toMillis
+            ? data.createdAt.toMillis()
+            : (data.createdAt || now);
+          const ageHours = Math.max(0, (now - createdAt) / 3600000);
+
+          const views = data.viewCount || 0;
+          const likes = data.likeCount || 0;
+          const comments = data.commentCount || 0;
+
+          // Velocity score: multi-signal numerator / time-decayed denominator
+          const numerator = views + (2 * likes) + (3 * comments);
+          const denominator = Math.pow(ageHours + 2, TRENDING_GRAVITY);
+          const trendingScore = numerator / denominator;
+
+          return {
+            id: doc.id,
+            ...data,
+            trendingScore,
+          };
+        });
+
+        // Sort by trending velocity and return top results
+        scored.sort((a, b) => b.trendingScore - a.trendingScore);
+        const trendingVideos = scored.slice(0, limit);
+
+        res.status(200).json({
+          feed: trendingVideos,
+          count: trendingVideos.length,
+          category: category || "All",
+          cachedAt: new Date().toISOString(),
+          edgeServed: true,
+        });
       } else {
+        // ═══════════════════════════════════════════════════════════════════
+        // DEFAULT FEED: Chronological (latest first)
+        // ═══════════════════════════════════════════════════════════════════
+        let query: admin.firestore.Query = db
+          .collection("videos")
+          .where("status", "==", "published")
+          .where("visibility", "==", "public");
+
+        if (category && category !== "all" && category.length > 0) {
+          query = query.where("category", "==", category);
+        }
+
         query = query.orderBy("createdAt", "desc");
-      }
 
-      const snapshot = await query.limit(limit).get();
-      const videos = snapshot.docs.map((doc) => {
-        const data = doc.data();
-        return {
+        const snapshot = await query.limit(limit).get();
+        const videos = snapshot.docs.map((doc) => ({
           id: doc.id,
-          ...data,
-        };
-      });
+          ...doc.data(),
+        }));
 
-      res.status(200).json({
-        feed: videos,
-        count: videos.length,
-        category: category || "All",
-        cachedAt: new Date().toISOString(),
-        edgeServed: true,
-      });
+        res.status(200).json({
+          feed: videos,
+          count: videos.length,
+          category: category || "All",
+          cachedAt: new Date().toISOString(),
+          edgeServed: true,
+        });
+      }
     } catch (error) {
       console.error("[publicFeedServer] Error serving edge feed:", error);
       res.status(500).json({

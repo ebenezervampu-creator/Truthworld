@@ -84,7 +84,6 @@ mixin CommentInteractionsMixin on CommentsStateBase {
           isVideoCreator: isVideoCreator,
         );
       } else {
-        triggerLikeNotification(comment);
         await commentService.likeComment(
           videoId: video!.id,
           commentId: commentId,

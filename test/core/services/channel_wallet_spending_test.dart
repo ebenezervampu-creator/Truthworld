@@ -116,9 +116,9 @@ void main() {
       expect(customBundle, equals(0.90));
     });
 
-    test('SpendableBalance combines trial credit and revenue correctly', () {
+    test('SpendableBalance combines rollover credit and revenue correctly', () {
       const balance = SpendableBalance(
-        trialCreditRemaining: 10.0,
+        rolloverCredit: 10.0,
         withdrawableRevenue: 25.0,
         lockedRevenue: 15.0,
       );
@@ -163,16 +163,17 @@ void main() {
       expect(pack1tb.bytes, equals(1000 * 1024 * 1024 * 1024));
     });
 
-    test('SpendableBalance combines funded balance, trial credit and revenue correctly', () {
+    test('SpendableBalance combines funded balance, rollover credit and revenue correctly', () {
       const balance = SpendableBalance(
         fundedBalance: 25.0,
-        trialCreditRemaining: 10.0,
+        rolloverCredit: 10.0,
         withdrawableRevenue: 20.0,
         lockedRevenue: 15.0,
       );
 
       expect(balance.fundedBalance, equals(25.0));
-      expect(balance.trialCreditRemaining, equals(10.0));
+      expect(balance.rolloverCredit, equals(10.0));
+      expect(balance.trialCreditRemaining, equals(0.0));
       expect(balance.totalRevenue, equals(35.0));
       expect(balance.totalSpendableBalance, equals(70.0));
       expect(balance.canAfford(60.0), isTrue);

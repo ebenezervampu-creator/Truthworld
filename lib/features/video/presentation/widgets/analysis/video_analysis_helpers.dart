@@ -129,16 +129,32 @@ class VideoAnalysisHelpers {
           realSources.add(SourceUrlSanitizer.sanitizeSourceMap(s.toMap()));
         } else if (s is Map) {
           final sanitized = SourceUrlSanitizer.sanitizeSourceMap(Map<dynamic, dynamic>.from(s));
-          realSources.add(sanitized);
+          final url = sanitized['url']?.toString();
+          if (url != null && url.isNotEmpty) {
+            realSources.add(sanitized);
+          } else {
+            final fallbackUrl = SourceUrlSanitizer.resolveFallbackUrl(
+              domain: sanitized['domain']?.toString(),
+              publisher: sanitized['publisher']?.toString(),
+              title: sanitized['title']?.toString(),
+            );
+            if (fallbackUrl != null && fallbackUrl.isNotEmpty) {
+              sanitized['url'] = fallbackUrl;
+              sanitized['directUrl'] = fallbackUrl;
+              realSources.add(sanitized);
+            }
+          }
         } else if (s is String && s.trim().isNotEmpty) {
           final clean = SourceUrlSanitizer.sanitizeUrl(s, title: s);
-          realSources.add({
-            'title': s.trim(),
-            'url': clean ?? '',
-            'directUrl': clean ?? '',
-            'domain': SourceUrlSanitizer.resolveDisplayDomain(clean, title: s),
-            'snippet': 'Historical citation reference',
-          });
+          if (clean != null && clean.isNotEmpty) {
+            realSources.add({
+              'title': s.trim(),
+              'url': clean,
+              'directUrl': clean,
+              'domain': SourceUrlSanitizer.resolveDisplayDomain(clean, title: s),
+              'snippet': 'Historical citation reference',
+            });
+          }
         }
       }
     }

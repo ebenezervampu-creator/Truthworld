@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/playback_source.dart';
 import 'package:truthworld/features/video/presentation/controllers/player_lock_controller.dart';
@@ -41,8 +42,10 @@ mixin TowerPlayerStateMixin on GetxController {
   final RxBool progressBarHovered = false.obs;
   final RxBool showCommentsPopup = false.obs;
   final RxBool showTranscriptPopup = false.obs;
+  final ScrollController overlayTranscriptScrollController = ScrollController();
   final RxBool showFactCheckPopup = false.obs;
   final RxBool showLiveChat = false.obs;
+  final RxBool showMoreVideos = false.obs;
   final RxBool isLooping = false.obs;
 
   // ── Focus & Timers ────────────────────────────────────────
@@ -51,6 +54,7 @@ mixin TowerPlayerStateMixin on GetxController {
   Timer? errorDebounceTimer;
   DateTime lastTrackSync = DateTime(2000);
   bool hasEnded = false;
+  bool hasShownNearEndMoreVideos = false;
 
   // ── Alternate Audio & Source References ───────────────────
   VideoPlayerController? audioTrackController;
@@ -70,16 +74,24 @@ mixin TowerPlayerStateMixin on GetxController {
   // ── Ad State Bridge ───────────────────────────────────────
   bool get isPremiumUser => TowerPlayerAdPolicyEvaluator.isPremiumUser();
   bool get shouldSuppressAds {
-    final vCtrl = videoController;
-    final isMember = vCtrl?.channelController.subController.isChannelMember.value ?? false;
-    final channel = vCtrl?.channelController.selectedChannel.value;
-    final channelNoAds = channel?.noAdsForMembers ?? false;
-
-    return TowerPlayerAdPolicyEvaluator.shouldSuppressAds(
-      isAudioOnly: isAudioOnly.value,
-      isChannelMember: isMember,
-      channelNoAdsForMembers: channelNoAds,
-    );
+    try {
+      final vCtrl = videoController;
+      final isMember = vCtrl?.channelController.subController.isChannelMember.value ?? false;
+      final channel = vCtrl?.channelController.selectedChannel.value;
+      final channelNoAds = channel?.noAdsForMembers ?? false;
+      return TowerPlayerAdPolicyEvaluator.shouldSuppressAds(
+        isAudioOnly: isAudioOnly.value,
+        isChannelMember: isMember,
+        channelNoAdsForMembers: channelNoAds,
+      );
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'TowerPlayerStateMixin.shouldSuppressAds',
+      );
+      return false;
+    }
   }
 
   // ── Bridge Hooks ──────────────────────────────────────────

@@ -23,6 +23,7 @@ import { onObjectFinalized } from "firebase-functions/v2/storage";
 import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { requireRecentAdmin } from "../utils/auth";
+import { PIPELINE_CONFIG } from "../pipeline/config";
 import { notifyUser } from "../notifications/notifications";
 
 const db = admin.firestore();
@@ -42,7 +43,7 @@ export const onVideoUploadedForModeration = onObjectFinalized(
     memory: "512MiB",      // No FFmpeg needed → less memory
     timeoutSeconds: 180,    // 3min — sized for videos up to 15min (Gemini internal timeout: 120s + retries)
     minInstances: 0,        // Scale-to-zero to optimize costs
-    maxInstances: 10,       // Scale up to 10 instances to handle burst uploads without 60s queue drop
+    maxInstances: 20,       // Scale up to 20 instances to handle burst uploads without queue drop
     retry: true,            // Auto-retry transient delivery failures
   },
   async (event) => {
@@ -74,6 +75,10 @@ export const onVideoUploadedForModeration = onObjectFinalized(
     }
 
     const videoId = pathParts[1];
+    if (!videoId || !/^[a-zA-Z0-9_-]{5,64}$/.test(videoId)) {
+      console.error("[VideoModeration] Invalid videoId detected:", { videoId, filePath });
+      return;
+    }
     console.log("[VideoModeration] Starting moderation for video:", { videoId, filePath });
 
     // ─── IDEMPOTENCY: Skip if already moderated ─────────────────────────
@@ -162,21 +167,50 @@ export const onVideoUploadedForModeration = onObjectFinalized(
       const { videoModerationService } = require("../pipeline/services/videoModerationService");
       let result: any = null;
       let lastErr: any = null;
-      for (let attempt = 1; attempt <= 3; attempt++) {
+      const MAX_MODERATION_ATTEMPTS = 5;
+
+      for (let attempt = 1; attempt <= MAX_MODERATION_ATTEMPTS; attempt++) {
         try {
           result = await videoModerationService.moderate(videoGcsUri, contentType);
           break;
         } catch (err: any) {
           lastErr = err;
-          console.warn(`[VideoModeration] Gemini moderation attempt ${attempt}/3 failed for ${videoId}:`, err?.message || err);
-          if (attempt < 3) {
-            await new Promise((res) => setTimeout(res, attempt * 2000));
+          const errMsg = String(err?.message || err);
+          console.warn(`[VideoModeration] Gemini moderation attempt ${attempt}/${MAX_MODERATION_ATTEMPTS} failed for ${videoId}:`, errMsg);
+
+          if (attempt < MAX_MODERATION_ATTEMPTS) {
+            // Full jitter exponential backoff: base 1000ms * 2^(attempt - 1) + jitter [0..1000ms]
+            const baseDelay = Math.min(1000 * Math.pow(2, attempt - 1), 16000);
+            const jitter = Math.floor(Math.random() * 1000);
+            const delay = baseDelay + jitter;
+            await new Promise((res) => setTimeout(res, delay));
           }
         }
       }
 
       if (!result) {
-        throw lastErr || new Error("Gemini moderation failed after 3 attempts");
+        const errMsg = String(lastErr?.message || lastErr);
+        const isQuotaOrRateLimit = /429|resource_exhausted|quota|overloaded|unavailable|503/i.test(errMsg);
+        if (isQuotaOrRateLimit) {
+          // Graceful degradation: never reject innocent creators due to upstream cloud vendor quota/rate limits
+          console.warn(`[VideoModeration] Upstream AI quota saturated for ${videoId}. Routing to review / queued retry.`);
+          result = {
+            approved: false,
+            topic: "pending_quota_recovery",
+            intent: "commentary",
+            policyAction: "manual_review",
+            riskLevel: "medium",
+            confidenceScore: 0.5,
+            policyReason: "Automated scan temporarily delayed due to platform peak load. Scheduled for verification review.",
+            explanation: "Vertex AI quota temporarily saturated; queued for graceful admin review or automatic background retry.",
+            violationReason: "Temporarily held for review during peak traffic.",
+            violationCategories: ["quota_backpressure_queued"],
+            summary: "Video verification in progress. Content held safely in review queue.",
+            processingTimeMs: 0,
+          };
+        } else {
+          throw lastErr || new Error("Gemini moderation failed after all attempts");
+        }
       }
 
       // ─── Determine moderation status from v3.0 policy action ──────
@@ -199,7 +233,7 @@ export const onVideoUploadedForModeration = onObjectFinalized(
         "moderation.detectedLanguage": result.detectedLanguage || "en",
         "moderation.processingTimeMs": result.processingTimeMs,
         "moderation.checkedAt": Date.now(),
-        "moderation.model": "gemini-2.5-flash",
+        "moderation.model": PIPELINE_CONFIG.GEMINI_MODELS?.moderation || PIPELINE_CONFIG.GEMINI_MODELS?.synthesis || "gemini-3.1-flash-lite",
         "moderation.version": "v3.0-intent-aware",
         category: (result.category && result.category !== "Other")
           ? result.category
@@ -361,11 +395,16 @@ export const onVideoUploadedForModeration = onObjectFinalized(
  */
 export const moderateVideoManual = onRequest(
   {
-    cors: true,
+    cors: [
+      "https://admin.truthworld.in",
+      "https://admin.truthworld.app",
+      "https://truthworld.in",
+      "http://localhost:5173",
+    ],
     region: REGION,
     timeoutSeconds: 60,
     memory: "256MiB",
-    maxInstances: 2,
+    maxInstances: 10,
   },
   async (req, res) => {
     try {
@@ -374,7 +413,7 @@ export const moderateVideoManual = onRequest(
 
       const { videoId, action, reason } = req.body;
 
-      if (!videoId || typeof videoId !== "string") {
+      if (!videoId || typeof videoId !== "string" || !/^[a-zA-Z0-9_-]{5,64}$/.test(videoId)) {
         res.status(400).json({ error: "Missing or invalid videoId." });
         return;
       }
@@ -530,7 +569,7 @@ export const moderateVideoManual = onRequest(
       }
     } catch (err) {
       console.error("[VideoModeration] Manual moderation failed:", err);
-      res.status(500).json({ error: "Internal server error.", details: String(err) });
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }
 );
@@ -620,7 +659,7 @@ export const scheduledVideoModerationRetry = onSchedule(
             "moderation.summary": result.summary,
             "moderation.processingTimeMs": result.processingTimeMs,
             "moderation.checkedAt": Date.now(),
-            "moderation.model": "gemini-2.5-flash",
+            "moderation.model": PIPELINE_CONFIG.GEMINI_MODELS?.moderation || PIPELINE_CONFIG.GEMINI_MODELS?.synthesis || "gemini-3.1-flash-lite",
             "moderation.version": "v3.0-intent-aware",
           });
 

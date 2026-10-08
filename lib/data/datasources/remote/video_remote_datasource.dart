@@ -117,48 +117,44 @@ class FirestoreVideoRemoteDataSource implements VideoRemoteDataSource {
 
   @override
   Future<void> toggleLike(String videoId, String userId) async {
-    final docRef = _firestore
-        .collection(FirestoreCollections.videos)
-        .doc(videoId)
-        .collection('likes')
-        .doc(userId);
-    final doc = await docRef.get();
-    if (doc.exists) {
-      await docRef.delete();
-      await _firestore
-          .collection(FirestoreCollections.videos)
-          .doc(videoId)
-          .update({'likeCount': FieldValue.increment(-1)});
-    } else {
-      await docRef.set({'likedAt': FieldValue.serverTimestamp()});
-      await _firestore
-          .collection(FirestoreCollections.videos)
-          .doc(videoId)
-          .update({'likeCount': FieldValue.increment(1)});
-    }
+    if (videoId.isEmpty || userId.isEmpty) return;
+    final videoRef = _firestore.collection(FirestoreCollections.videos).doc(videoId);
+    final userLikedRef = _firestore
+        .collection(FirestoreCollections.users)
+        .doc(userId)
+        .collection('likedVideos')
+        .doc(videoId);
+    await _firestore.runTransaction((tx) async {
+      final likedSnap = await tx.get(userLikedRef);
+      if (likedSnap.exists) {
+        tx.delete(userLikedRef);
+        tx.update(videoRef, {'likeCount': FieldValue.increment(-1)});
+      } else {
+        tx.set(userLikedRef, {'videoId': videoId, 'timestamp': FieldValue.serverTimestamp()});
+        tx.update(videoRef, {'likeCount': FieldValue.increment(1)});
+      }
+    });
   }
 
   @override
   Future<void> toggleDislike(String videoId, String userId) async {
-    final docRef = _firestore
-        .collection(FirestoreCollections.videos)
-        .doc(videoId)
-        .collection('dislikes')
-        .doc(userId);
-    final doc = await docRef.get();
-    if (doc.exists) {
-      await docRef.delete();
-      await _firestore
-          .collection(FirestoreCollections.videos)
-          .doc(videoId)
-          .update({'dislikeCount': FieldValue.increment(-1)});
-    } else {
-      await docRef.set({'dislikedAt': FieldValue.serverTimestamp()});
-      await _firestore
-          .collection(FirestoreCollections.videos)
-          .doc(videoId)
-          .update({'dislikeCount': FieldValue.increment(1)});
-    }
+    if (videoId.isEmpty || userId.isEmpty) return;
+    final videoRef = _firestore.collection(FirestoreCollections.videos).doc(videoId);
+    final userDislikedRef = _firestore
+        .collection(FirestoreCollections.users)
+        .doc(userId)
+        .collection('dislikedVideos')
+        .doc(videoId);
+    await _firestore.runTransaction((tx) async {
+      final dislikedSnap = await tx.get(userDislikedRef);
+      if (dislikedSnap.exists) {
+        tx.delete(userDislikedRef);
+        tx.update(videoRef, {'dislikeCount': FieldValue.increment(-1)});
+      } else {
+        tx.set(userDislikedRef, {'videoId': videoId, 'timestamp': FieldValue.serverTimestamp()});
+        tx.update(videoRef, {'dislikeCount': FieldValue.increment(1)});
+      }
+    });
   }
 
   @override
@@ -175,9 +171,8 @@ class FirestoreVideoRemoteDataSource implements VideoRemoteDataSource {
 
   @override
   Future<void> incrementViewCount(String videoId) async {
-    await _firestore
-        .collection(FirestoreCollections.videos)
-        .doc(videoId)
-        .update({'viewCount': FieldValue.increment(1)});
+    // View counting is handled exclusively by DistributedCounterService
+    // via sharded counters to prevent write contention and duplicate counting.
+    // Direct incrementViewCount calls on this datasource are intentionally no-ops.
   }
 }

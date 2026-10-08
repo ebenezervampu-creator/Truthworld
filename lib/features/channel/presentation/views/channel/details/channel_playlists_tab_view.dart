@@ -106,7 +106,10 @@ class ChannelPlaylistCard extends StatelessWidget {
       margin: const EdgeInsets.only(right: 12),
       child: InkWell(
         onTap: () {
-          Get.toNamed('/playlist-detail', arguments: {'playlist': playlist});
+          Get.toNamed(
+            '/playlist-detail?playlistId=${playlist.id}',
+            arguments: {'playlist': playlist},
+          );
         },
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

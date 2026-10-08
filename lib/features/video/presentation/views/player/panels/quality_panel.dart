@@ -94,6 +94,60 @@ class QualityPanel extends StatelessWidget {
         );
       }
 
+      if (ctrl.isAudioOnly.value) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            PanelHeader(
+              title: 'Audio Format',
+              onBack: () => ctrl.activePanel.value = '',
+              onClose: null,
+            ),
+            const PlayerDivider(),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: SelectTile(
+                label: 'Audio only',
+                sublabel:
+                    'Playing dedicated audio stream without video decoding',
+                selected: true,
+                badge: 'AUDIO',
+                onTap: () => ctrl.activePanel.value = '',
+              ),
+            ),
+          ],
+        );
+      }
+
+      final isOffline = ctrl.videoController?.rxIsOffline.value == true;
+      if (isOffline) {
+        final currentRes = ctrl.videoController?.currentResolution.value;
+        final resLabel = (currentRes != null && currentRes.label.isNotEmpty)
+            ? currentRes.label
+            : (avail.isNotEmpty ? avail.first.label : 'Offline');
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            PanelHeader(
+              title: 'Offline Quality',
+              onBack: () => ctrl.activePanel.value = '',
+              onClose: null,
+            ),
+            const PlayerDivider(),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: SelectTile(
+                label: resLabel,
+                sublabel: 'Locked to downloaded offline format',
+                selected: true,
+                badge: 'SAVED',
+                onTap: () => ctrl.activePanel.value = '',
+              ),
+            ),
+          ],
+        );
+      }
+
       final tiers = ctrl.abr.resolutionLadder;
       final isPremium = _isPremiumUser();
 
@@ -117,22 +171,31 @@ class QualityPanel extends StatelessWidget {
                     sublabel: 'Adapts to network speed',
                     selected: ctrl.abr.isAutoMode.value,
                     badge: ctrl.abr.isAutoMode.value
-                        ? (ctrl.abr.currentTier.height > 0 ? '${ctrl.abr.currentTier.height}p' : 'Auto')
+                        ? (ctrl.abr.currentTier.height > 0
+                            ? ctrl.abr.currentTier.label
+                            : 'Auto')
                         : null,
                     onTap: ctrl.selectAutoQuality,
                   ),
                   ...tiers.reversed
-                      .where((t) => avail.any((r) => r.height == t.height))
+                      .where((t) => avail.any((r) =>
+                          r.label.toLowerCase() == t.label.toLowerCase() ||
+                          (r.height == t.height &&
+                              (r.is60Fps == t.is60Fps ||
+                                  avail.where((x) => x.height == t.height).length == 1))))
                       .map((tier) {
-                        final idx = tiers.indexWhere((t) => t.height == tier.height);
+                        final idx = tiers.indexOf(tier);
                         final isPremiumRes = tier.height > 1040;
+                        final is60 = tier.is60Fps;
                         String? resBadge;
                         if (tier.height >= 2160) {
-                          resBadge = '4K UHD';
+                          resBadge = is60 ? '4K 60' : '4K UHD';
                         } else if (tier.height >= 1440) {
-                          resBadge = '2K QHD';
+                          resBadge = is60 ? '2K 60' : '2K QHD';
                         } else if (tier.height >= 1080) {
-                          resBadge = 'FHD';
+                          resBadge = is60 ? 'FHD 60' : 'FHD';
+                        } else if (is60) {
+                          resBadge = '60 FPS';
                         }
 
                         return SelectTile(
@@ -141,7 +204,9 @@ class QualityPanel extends StatelessWidget {
                           badge: resBadge,
                           selected:
                               !ctrl.abr.isAutoMode.value &&
-                              ctrl.abr.currentTier.height == tier.height,
+                              (ctrl.abr.currentTier.label == tier.label ||
+                                  (ctrl.abr.currentTier.height == tier.height &&
+                                      ctrl.abr.currentTier.fps == tier.fps)),
                           trailing: isPremiumRes && !isPremium
                               ? const Icon(
                                   Icons.lock_rounded,

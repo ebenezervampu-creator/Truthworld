@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/features/channel/data/models/channel_loyalty_badge.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/memberships_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -148,13 +149,11 @@ void showFanPreviewModal({
                               children: [
                                 Row(
                                   children: [
-                                    Container(
-                                      width: 14,
-                                      height: 14,
-                                      decoration: BoxDecoration(
-                                        color: tier.badgeColor,
-                                        shape: BoxShape.circle,
-                                      ),
+                                    ChannelLoyaltyBadgeWidget(
+                                      milestone:
+                                          ChannelLoyaltyMilestone.newMember,
+                                      tierName: tier.name,
+                                      compact: true,
                                     ),
                                     const SizedBox(width: 8),
                                     Text(

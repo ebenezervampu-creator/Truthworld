@@ -91,27 +91,55 @@ class MiniplayerTitleAndMeta extends StatelessWidget {
       children: [
         Obx(() {
           final info = controller.videoInfo.value;
-          return Text(
-            info?.title ?? '',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              height: 1.2,
-            ),
+          final clip = controller.activeClip.value;
+          final displayTitle = clip != null ? clip.title : (info?.title ?? '');
+
+          return Row(
+            children: [
+              if (clip != null) ...[
+                const Icon(
+                  Icons.content_cut_rounded,
+                  size: 12,
+                  color: AppColors.brand,
+                ),
+                const SizedBox(width: 4),
+              ],
+              Expanded(
+                child: Text(
+                  displayTitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    height: 1.2,
+                  ),
+                ),
+              ),
+            ],
           );
         }),
         const SizedBox(height: 2),
         Obx(() {
           final info = controller.videoInfo.value;
+          final clip = controller.activeClip.value;
+          final isAudio = controller.isAudioOnly.value;
+          final channel = clip != null && clip.channelName.isNotEmpty
+              ? clip.channelName
+              : (info?.channelName ?? '');
           final pos = controller.formatDuration(
             controller.currentPosition.value,
           );
           final dur = controller.formatDuration(controller.totalDuration.value);
+          final modeTag = clip != null ? 'CLIP' : (isAudio ? 'AUDIO' : null);
+
+          final metaText = modeTag != null
+              ? '$channel  •  $modeTag  •  $pos / $dur'
+              : '$channel  •  $pos / $dur';
+
           return Text(
-            '${info?.channelName ?? ''}  •  $pos / $dur',
+            metaText,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(

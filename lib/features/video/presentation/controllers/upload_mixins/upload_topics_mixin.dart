@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
@@ -31,20 +32,46 @@ mixin UploadTopicsMixin on UploadControllerBase {
           AuthService.to.currentUser.value?.uid ??
           '';
 
+      final allDocs = <QueryDocumentSnapshot>[];
       final snap = await firestore
           .collection('topics')
           .where('status', isEqualTo: 'active')
           .get();
+      allDocs.addAll(snap.docs);
+
+      if (currentUserId.isNotEmpty) {
+        try {
+          final userTopicsSnap = await firestore
+              .collection('topics')
+              .where('creatorId', isEqualTo: currentUserId)
+              .get();
+          for (final doc in userTopicsSnap.docs) {
+            if (!allDocs.any((d) => d.id == doc.id)) {
+              allDocs.add(doc);
+            }
+          }
+        } catch (_) {}
+      }
 
       final fetched = <Topic>[];
-      for (final doc in snap.docs) {
+      final seenCanonicalKeys = <String>{};
+      for (final doc in allDocs) {
         try {
           final t = Topic.fromDocumentSnapshot(doc);
-          if (!t.isValidTopic || t.videoCount <= 0) continue;
+          if (t.status == 'deleted' ||
+              t.status == 'archived' ||
+              t.status == 'empty_archived' ||
+              t.status == 'deletion_pending') {
+            continue;
+          }
+          if (seenCanonicalKeys.contains(t.canonicalKey)) {
+            continue;
+          }
           if (t.visibilityType == TopicVisibilityType.public ||
               (currentUserId.isNotEmpty && t.creatorId == currentUserId) ||
               (selectedChannel.value != null &&
-                  t.channelId == selectedChannel.value!.id)) {
+                  t.channelId == selectedChannel.value?.id)) {
+            seenCanonicalKeys.add(t.canonicalKey);
             fetched.add(t);
             // Pre-fetch channel metadata for public topics asynchronously
             if (t.channelId != null && t.channelId!.isNotEmpty) {

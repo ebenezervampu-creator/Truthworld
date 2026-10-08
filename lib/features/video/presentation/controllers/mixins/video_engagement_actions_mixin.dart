@@ -23,6 +23,7 @@ mixin VideoEngagementActionsMixin on GetxController {
   RxBool get isPlayingRx;
   RxBool get showThumbnail;
   RxBool get isSubscribed;
+  RxDouble get rxAspectRatio;
 
   VideoEngagementController get engagementController;
   VideoAnalyticsController get analyticsController;
@@ -38,6 +39,9 @@ mixin VideoEngagementActionsMixin on GetxController {
   bool get hasCountedQualifiedView;
   set hasCountedQualifiedView(bool val);
   String get viewerHash;
+  bool get isAlreadyWatched;
+  set isAlreadyWatched(bool val);
+  bool get isAlreadyWatchedVideo;
 
   void flushRemainingWatchTime();
   Future<void> syncWatchHistory(int watchSeconds, int totalDuration);
@@ -48,7 +52,8 @@ mixin VideoEngagementActionsMixin on GetxController {
   void handleVideoCompletion(VideoPlayerValue value);
 
   static const List<int> _milestoneThresholds = [25, 50, 75, 100];
-  static const int _watchPingIntervalSeconds = 20;
+  // Industry Standard: 60-second telemetry pulse (cuts network calls & invocations by 66% while capturing 100% of watch time on pause/exit via flushRemainingWatchTime)
+  static const int _watchPingIntervalSeconds = 60;
   static const int _crossDeviceResumeIntervalSeconds = 45;
 
   void videoListener() {
@@ -58,6 +63,13 @@ mixin VideoEngagementActionsMixin on GetxController {
       value = videoPlayerController!.value;
     } catch (_) {
       return;
+    }
+
+    // Keep aspect ratio reactively synchronized with actual stream dimensions
+    if (value.isInitialized && value.aspectRatio > 0) {
+      if ((rxAspectRatio.value - value.aspectRatio).abs() > 0.001) {
+        rxAspectRatio.value = value.aspectRatio;
+      }
     }
 
     // --- Clip Looping Logic ---
@@ -141,6 +153,7 @@ mixin VideoEngagementActionsMixin on GetxController {
         : 20;
 
     if (!hasCountedQualifiedView &&
+        !isAlreadyWatchedVideo &&
         currentWatchSeconds >= effectiveWatchThreshold &&
         effectiveWatchThreshold > 0) {
       if (canCountQualifiedView()) {
@@ -170,7 +183,7 @@ mixin VideoEngagementActionsMixin on GetxController {
     }
 
     // 2. Completion milestones (25%, 50%, 75%, 100%) — fire once each
-    if (totalDuration > 0) {
+    if (totalDuration > 0 && !isAlreadyWatchedVideo) {
       final currentPct = (currentWatchSeconds / totalDuration) * 100;
       for (final threshold in _milestoneThresholds) {
         final key = 'milestone_$threshold';
@@ -185,24 +198,35 @@ mixin VideoEngagementActionsMixin on GetxController {
     // 3. Cost-Effective Watch Time Heartbeat (every 20s) with auto-flush on pause/exit
     final unpingedSeconds = currentWatchSeconds - lastPingWatchSeconds;
     if (unpingedSeconds >= _watchPingIntervalSeconds) {
-      pingWatchEvent('watch_ping', currentWatchSeconds, totalDuration, unpingedSeconds);
+      if (!isAlreadyWatchedVideo) {
+        pingWatchEvent('watch_ping', currentWatchSeconds, totalDuration, unpingedSeconds);
+      }
       lastPingWatchSeconds = currentWatchSeconds;
     }
 
     // 4. Multi-tiered resume tracking (Local GetStorage every tick + RTDB cross-device sync every 45s)
     // Firestore is NOT touched here — it is only written once on pause, completion, or exit.
     final currentPos = value.position.inSeconds;
-    final progressPct = totalDuration > 0
-        ? ((currentPos / totalDuration) * 100).clamp(0, 100).toDouble()
+    // Transparent watch progress: percentage MUST reflect true watch time, NOT scrubbed position!
+    final actualWatchPct = totalDuration > 0
+        ? ((currentWatchSeconds / totalDuration) * 100).clamp(0, 100).toDouble()
         : 0.0;
 
     // Fast same-device local storage (0ms, works offline, 100% free)
-    WatchHistoryService.to.saveLocalPosition(video.id, currentPos, progressPct);
+    WatchHistoryService.to.saveLocalPosition(video.id, currentPos, actualWatchPct);
 
     // Cross-device RTDB resume sync (throttled to 45s - zero-cost operation)
     if (currentWatchSeconds - lastReportedWatchTime >= _crossDeviceResumeIntervalSeconds) {
-      WatchHistoryService.to.syncCrossDeviceResume(video.id, currentPos, progressPct);
+      WatchHistoryService.to.syncCrossDeviceResume(video.id, currentPos, actualWatchPct);
       lastReportedWatchTime = currentWatchSeconds;
+    }
+
+    // Auto-mark video as watched once user has actually watched >= 90% of duration
+    if (totalDuration > 0 && currentWatchSeconds >= (totalDuration * 0.90) && !isAlreadyWatched) {
+      isAlreadyWatched = true;
+      if (Get.isRegistered<WatchHistoryService>()) {
+        WatchHistoryService.to.markVideoFullyWatched(video.id);
+      }
     }
 
     // 5. Handle video completion for loop and autoplay next
@@ -222,7 +246,11 @@ mixin VideoEngagementActionsMixin on GetxController {
         debugPrint('[VideoController] 🎬 Applied Clip Mode: ${clip.title}');
         if (videoPlayerController != null &&
             videoPlayerController!.value.isInitialized) {
-          final startMs = (clip.startTime * 1000).toInt();
+          final resumeMs = args['resumePosition'] as int? ??
+              (args['initialPosition'] is Duration
+                  ? (args['initialPosition'] as Duration).inMilliseconds
+                  : null);
+          final startMs = resumeMs ?? (clip.startTime * 1000).toInt();
           videoPlayerController!.seekTo(Duration(milliseconds: startMs));
           videoPlayerController!.play();
         }

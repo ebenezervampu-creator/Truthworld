@@ -19,6 +19,7 @@ class SearchResult {
     this.relevanceScore = 0.0,
     this.language,
     this.category,
+    this.visibility = 'public',
   });
 
   /// Convert Firestore document to SearchResult
@@ -28,31 +29,53 @@ class SearchResult {
   }) {
     final data = doc.data()! as Map<String, dynamic>;
 
+    String firstNonEmpty(List<dynamic> items) {
+      for (final item in items) {
+        if (item is String && item.trim().isNotEmpty) {
+          return item.trim();
+        }
+      }
+      return '';
+    }
+
     switch (type) {
       case ResultType.channel:
-        final channelTitle = data['channelName'] as String? ??
-            data['name'] as String? ??
-            data['displayName'] as String? ??
-            'Channel';
-        final avatar = data['avatarUrl'] as String? ??
-            data['photoUrl'] as String? ??
-            data['channelImage'] as String? ??
-            data['profileImageUrl'] as String? ??
-            '';
+        final channelTitle = firstNonEmpty([
+          data['channelName'],
+          data['name'],
+          data['displayName'],
+        ]);
+        final finalTitle = channelTitle.isNotEmpty ? channelTitle : 'Channel';
+
+        final avatar = firstNonEmpty([
+          data['avatarUrl'],
+          data['avatarImage'],
+          data['channelAvatarUrl'],
+          data['channelImage'],
+          data['photoUrl'],
+          data['photoURL'],
+          data['profileImageUrl'],
+          data['avatar'],
+          data['imageUrl'],
+        ]);
         final subs = (data['subscriberCount'] as num?)?.toInt() ??
             (data['subscribers'] as num?)?.toInt() ??
             (data['subscriber_count'] as num?)?.toInt() ??
             0;
-        final handle = data['handle'] as String? ??
-            data['channelHandle'] as String? ??
-            (data['customUrl'] as String? ?? '');
+        final handle = firstNonEmpty([
+          data['handle'],
+          data['channelHandle'],
+          data['customUrl'],
+        ]);
 
         return SearchResult(
           id: doc.id,
-          title: channelTitle,
+          title: finalTitle,
           thumbnail: avatar,
           views: subs,
-          channelName: handle.isNotEmpty ? (handle.startsWith('@') ? handle : '@$handle') : channelTitle,
+          channelName: handle.isNotEmpty
+              ? (handle.startsWith('@') ? handle : '@$handle')
+              : finalTitle,
           channelImage: avatar,
           createdAt: TimestampUtils.parse(data['createdAt']),
           type: ResultType.channel,
@@ -60,29 +83,32 @@ class SearchResult {
           category: data['category'] as String?,
         );
       case ResultType.playlist:
-        final playlistTitle = data['name'] as String? ??
-            data['playlistName'] as String? ??
-            data['title'] as String? ??
-            '';
-        final playlistThumb = data['thumbnailUrl'] as String? ??
-            data['thumbnail'] as String? ??
-            data['coverUrl'] as String? ??
-            '';
+        final playlistTitle = firstNonEmpty([
+          data['name'],
+          data['playlistName'],
+          data['title'],
+        ]);
+        final playlistThumb = firstNonEmpty([
+          data['thumbnailUrl'],
+          data['thumbnail'],
+          data['coverUrl'],
+        ]);
         final vidCount = (data['videoCount'] as num?)?.toInt() ??
             (data['videosCount'] as num?)?.toInt() ??
             (data['videoIds'] as List?)?.length ??
             0;
-        final creator = data['creatorName'] as String? ??
-            data['channelName'] as String? ??
-            data['ownerName'] as String? ??
-            'Truthworld';
+        final creator = firstNonEmpty([
+          data['creatorName'],
+          data['channelName'],
+          data['ownerName'],
+        ]);
 
         return SearchResult(
           id: doc.id,
           title: playlistTitle,
           thumbnail: playlistThumb,
           views: vidCount,
-          channelName: creator,
+          channelName: creator.isNotEmpty ? creator : 'Truthworld',
           channelImage: '',
           createdAt: TimestampUtils.parse(data['createdAt']),
           type: ResultType.playlist,
@@ -90,24 +116,26 @@ class SearchResult {
         );
       case ResultType.topic:
         final slugVal = (data['slug'] as String?)?.trim() ?? '';
-        final rawTitle = (data['title'] as String?)?.trim() ??
-            (data['name'] as String?)?.trim() ??
-            (data['topicName'] as String?)?.trim() ??
-            '';
+        final rawTitle = firstNonEmpty([
+          data['title'],
+          data['name'],
+          data['topicName'],
+        ]);
         final topicTitle = rawTitle.isNotEmpty
             ? rawTitle
             : (slugVal.isNotEmpty && slugVal.toLowerCase() != 'topic'
                 ? slugVal.replaceAll('-', ' ')
                 : '');
-        final topicThumb = data['thumbnailUrl'] as String? ??
-            data['thumbnail'] as String? ??
-            data['coverImage'] as String? ??
-            data['imageUrl'] as String? ??
-            '';
+        final topicThumb = firstNonEmpty([
+          data['thumbnailUrl'],
+          data['thumbnail'],
+          data['coverImage'],
+          data['imageUrl'],
+        ]);
         final topicCount = (data['videoCount'] as num?)?.toInt() ??
             (data['featuredVideoIds'] as List?)?.length ??
             0;
-        final handleVal = data['handle'] as String? ??
+        final handleVal = (data['handle'] as String?)?.trim() ??
             (slugVal.isNotEmpty ? 'T/$slugVal' : '');
 
         return SearchResult(
@@ -122,26 +150,56 @@ class SearchResult {
           category: data['category'] as String?,
         );
       case ResultType.video:
+        final mediaMap = data['media'] is Map ? data['media'] as Map : null;
+        final videoThumbnail = firstNonEmpty([
+          data['thumbnailUrl'],
+          data['thumbnail'],
+          mediaMap?['thumbnailUrl'],
+          mediaMap?['thumbnail'],
+        ]);
+        final rawTitle = firstNonEmpty([
+          data['title'],
+          data['vTitle'],
+        ]);
+        final chName = firstNonEmpty([
+          data['channelName'],
+          data['ownerName'],
+          data['creatorName'],
+        ]);
+        final chImage = firstNonEmpty([
+          data['channelImage'],
+          data['channelAvatarUrl'],
+          data['channelImageUrl'],
+          data['avatarUrl'],
+          data['avatarImage'],
+          data['ownerAvatarUrl'],
+          data['creatorAvatarUrl'],
+          data['photoUrl'],
+          data['photoURL'],
+        ]);
+
         return SearchResult(
           id: doc.id,
-          title: data['title'] as String? ?? 'Untitled',
-          thumbnail: data['thumbnailUrl'] as String? ?? '',
+          title: rawTitle.isNotEmpty ? rawTitle : 'Untitled',
+          thumbnail: videoThumbnail,
           views: (data['viewCount'] as num?)?.toInt() ??
               (data['views'] as num?)?.toInt() ??
               (data['stats'] is Map
                   ? (data['stats']['views'] as num?)?.toInt()
                   : null) ??
               0,
-          channelName: data['channelName'] as String? ?? 'Unknown',
-          channelImage: data['channelAvatarUrl'] as String? ??
-              data['channelImage'] as String? ??
-              '',
+          channelName: chName.isNotEmpty ? chName : 'Unknown',
+          channelImage: chImage,
           createdAt: TimestampUtils.parse(
-            data['uploadedAt'] ?? data['createdAt'],
+            data['uploadedAt'] ?? data['createdAt'] ?? data['uploadDate'] ?? data['publishedAt'],
           ),
-          durationMs: (data['durationMs'] as num?)?.toInt(),
+          durationMs: (data['durationMs'] as num?)?.toInt() ??
+              ((data['duration'] as num?) != null
+                  ? ((data['duration'] as num).toInt() * 1000)
+                  : null),
           language: data['language'] as String?,
           category: data['category'] as String?,
+          visibility: (data['visibility'] as String?) ?? 'public',
         );
     }
   }
@@ -167,6 +225,7 @@ class SearchResult {
       durationMs: (map['durationMs'] as num?)?.toInt(),
       language: map['language'] as String?,
       category: map['category'] as String?,
+      visibility: map['visibility'] as String? ?? 'public',
       relevanceScore:
           (map['relevanceScore'] as num?)?.toDouble() ?? 0.0,
     );
@@ -182,6 +241,7 @@ class SearchResult {
   final int? durationMs;
   final String? language;
   final String? category;
+  final String visibility;
   double relevanceScore;
 
   // Getters for compatibility with EnhancedSearchController
@@ -192,11 +252,18 @@ class SearchResult {
       null; // SearchResult is lightweight, quality might not be present
   int? get videoCount =>
       type == ResultType.playlist || type == ResultType.topic ? views : null;
+  bool get isPrivate =>
+      visibility.trim().toLowerCase() == 'private' ||
+      visibility.trim().toLowerCase() == 'private_draft';
 
   bool get isValid {
     final t = title.trim().toLowerCase();
     if (t.isEmpty) return false;
     if (type == ResultType.video) {
+      final vis = visibility.trim().toLowerCase();
+      if (vis == 'private' || vis == 'private_draft' || vis == 'draft') {
+        return false;
+      }
       if (t == 'untitled' ||
           t == 'untitled video' ||
           t == 'untitled draft' ||
@@ -253,6 +320,7 @@ class SearchResult {
     'durationMs': durationMs,
     'language': language,
     'category': category,
+    'visibility': visibility,
   };
 
   @override

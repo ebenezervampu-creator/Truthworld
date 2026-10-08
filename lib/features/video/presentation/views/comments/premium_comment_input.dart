@@ -305,6 +305,8 @@ class PremiumCommentInput extends StatelessWidget {
               children: [
                 Text(
                   'Join the conversation',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 14,
@@ -314,6 +316,8 @@ class PremiumCommentInput extends StatelessWidget {
                 SizedBox(height: 2),
                 Text(
                   'Sign in to add a comment or reply',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 12,

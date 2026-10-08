@@ -40,18 +40,18 @@ void main() {
       expect(freeStandard.priceUSD, equals(0.00));
     });
 
-    test('CustomChannelInfraConfig normalizes legacy 9.0 trial credit to clean 10.0', () {
+    test('CustomChannelInfraConfig sets trial credits to 0.0 to prevent promotional farming abuse', () {
       final config = CustomChannelInfraConfig.fromMap({
         'subscriptionId': 'sub_test',
         'trialCreditUSD': 9.0,
         'trialCreditRemainingUSD': 9.0,
       });
 
-      expect(config.trialCreditUSD, equals(10.0));
-      expect(config.trialCreditRemainingUSD, equals(10.0));
+      expect(config.trialCreditUSD, equals(0.0));
+      expect(config.trialCreditRemainingUSD, equals(0.0));
     });
 
-    test('ChannelWalletService normalizes legacy 9.0 trial credit to 10.0 in getSpendableBalance', () {
+    test('ChannelWalletService returns 0.0 trial credit in getSpendableBalance to eliminate promotional farming', () {
       final service = ChannelWalletService();
       final channel = Channel(
         id: 'test_chan_1',
@@ -68,13 +68,13 @@ void main() {
         infraConfig: CustomChannelInfraConfig(
           subscriptionId: 'sub_test',
           trialCreditUSD: 10.0,
-          trialCreditRemainingUSD: 9.0, // Legacy charm number
+          trialCreditRemainingUSD: 9.0,
         ),
       );
 
       final spendable = service.getSpendableBalance(channel: channel);
-      expect(spendable.trialCreditRemaining, equals(10.0));
-      expect(spendable.totalSpendableBalance, equals(10.0));
+      expect(spendable.trialCreditRemaining, equals(0.0));
+      expect(spendable.totalSpendableBalance, equals(0.0));
     });
 
     test('Channel max video limits avoid 999999 marketing gimmicks', () {

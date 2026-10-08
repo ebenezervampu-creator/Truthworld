@@ -40,15 +40,7 @@ class CustomChannelInfraConfig {
   });
 
   factory CustomChannelInfraConfig.fromMap(Map<String, dynamic> map) {
-    final rawTrialUSD = (map['trialCreditUSD'] as num?)?.toDouble() ?? 0.0;
-    final rawTrialRem =
-        (map['trialCreditRemainingUSD'] as num?)?.toDouble() ?? 0.0;
-    // Strict Anti-Marketing Policy: Normalize any legacy charm 9.0 to clean $10.00
-    final sanitizedTrialUSD =
-        (rawTrialUSD - 9.0).abs() < 0.01 ? 10.0 : rawTrialUSD;
-    final sanitizedTrialRem =
-        (rawTrialRem - 9.0).abs() < 0.01 ? 10.0 : rawTrialRem;
-
+    // Promotional trial credits discontinued to prevent farming and bot abuse.
     return CustomChannelInfraConfig(
       stripeConnectAccountId: map['stripeConnectAccountId'] as String? ?? '',
       subscriptionId: map['subscriptionId'] as String? ?? '',
@@ -63,8 +55,6 @@ class CustomChannelInfraConfig {
       currentMonthInfraCost:
           (map['currentMonthInfraCost'] as num?)?.toDouble() ?? 0.0,
       flatPlatformFee: (map['flatPlatformFee'] as num?)?.toDouble() ?? 15.0,
-      trialCreditUSD: sanitizedTrialUSD,
-      trialCreditRemainingUSD: sanitizedTrialRem,
       rolloverCreditUSD:
           (map['rolloverCreditUSD'] as num?)?.toDouble() ?? 0.0,
       planTier: map['planTier'] as String? ?? 'starter_15',
@@ -243,8 +233,42 @@ class Channel {
       handle: handleVal,
       handleLowercase: data['handleLowercase'] ?? handleVal.toLowerCase(),
       description: data['description'] ?? '',
-      avatarUrl: data['avatarUrl'] ?? data['avatarImage'] ?? data['channelAvatarUrl'] ?? '',
-      bannerUrl: data['bannerUrl'] ?? data['bannerImage'] ?? '',
+      avatarUrl: () {
+        final candidates = [
+          data['avatarUrl'],
+          data['avatarImage'],
+          data['channelAvatarUrl'],
+          data['channelImage'],
+          data['photoUrl'],
+          data['photoURL'],
+          data['profileImageUrl'],
+          data['avatar'],
+          data['imageUrl'],
+        ];
+        for (final item in candidates) {
+          if (item is String && item.trim().isNotEmpty) {
+            return item.trim();
+          }
+        }
+        return '';
+      }(),
+      bannerUrl: () {
+        final candidates = [
+          data['bannerUrl'],
+          data['bannerImageUrl'],
+          data['bannerImage'],
+          data['banner'],
+          data['bannerPicUrl'],
+          data['coverUrl'],
+          data['headerUrl'],
+        ];
+        for (final item in candidates) {
+          if (item is String && item.trim().isNotEmpty) {
+            return item.trim();
+          }
+        }
+        return '';
+      }(),
       avatarVariants: data['avatarVariants'] is Iterable
           ? List<String>.from(data['avatarVariants'] as Iterable)
           : const [],
@@ -571,7 +595,10 @@ class Channel {
       'handleLowercase': handleLowercase,
       'description': description,
       'avatarUrl': avatarUrl,
+      'channelImage': avatarUrl,
+      'channelAvatarUrl': avatarUrl,
       'bannerUrl': bannerUrl,
+      'bannerImageUrl': bannerUrl,
       'avatarVariants': avatarVariants,
       'avatarFileId': avatarFileId,
       'bannerFileId': bannerFileId,

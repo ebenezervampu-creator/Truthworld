@@ -42,7 +42,7 @@ class TrendingController extends BaseController {
         success: (entities) {
           final parsedVideos = entities
               .map(Video.fromEntity)
-              .where(VideoVisibilityPolicy.isValidVideo)
+              .where(VideoVisibilityPolicy.isVisibleForFeed)
               .toList();
 
           if (Get.isRegistered<TruthworldAlgorithm>()) {

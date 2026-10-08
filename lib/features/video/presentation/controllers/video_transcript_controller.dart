@@ -31,6 +31,17 @@ class VideoTranscriptController extends BaseController {
   final RxInt activeSegmentIndex = (-1).obs;
   final RxBool autoScrollEnabled = true.obs;
   DateTime _lastAutoScroll = DateTime(2000);
+  String? currentVideoId;
+
+  void resetForVideo(String newVideoId) {
+    if (currentVideoId != newVideoId) {
+      currentVideoId = newVideoId;
+      transcriptSegments.clear();
+      activeSegmentIndex.value = -1;
+      isTranscriptVisible.value = false;
+      moderationSummary.value = '';
+    }
+  }
 
   void toggleTranscriptVisibility() {
     isTranscriptVisible.value = !isTranscriptVisible.value;
@@ -40,17 +51,132 @@ class VideoTranscriptController extends BaseController {
     isSummaryVisible.value = !isSummaryVisible.value;
   }
 
-  void updateActiveSegment(SubtitleSegment? seg) {
-    if (seg == null) {
-      if (activeSegmentIndex.value != -1) activeSegmentIndex.value = -1;
+  /// Locates the exact segment index where the video is currently playing.
+  /// 1. Tests if [pos] falls within [start, end] of any segment.
+  /// 2. If [pos] is in a gap between lines or paused, selects the latest line spoken before [pos].
+  /// 3. Falls back safely to 0 if before start.
+  int findSegmentIndexForPosition(Duration pos) {
+    if (transcriptSegments.isEmpty) return -1;
+
+    // 1. Exact match within segment bounds
+    for (var i = 0; i < transcriptSegments.length; i++) {
+      final s = transcriptSegments[i];
+      if (pos >= s.start && pos <= s.end) {
+        return i;
+      }
+    }
+
+    // 2. Nearest segment that started at or before pos (handles pauses & gaps)
+    for (var i = transcriptSegments.length - 1; i >= 0; i--) {
+      if (transcriptSegments[i].start <= pos) {
+        return i;
+      }
+    }
+
+    // 3. pos is before the first segment starts
+    return 0;
+  }
+
+  /// Synchronizes the transcript display to the current playback position.
+  /// When [forceScroll] is true, scrolls the list immediately to the matching segment.
+  void syncToCurrentPosition(Duration pos, {bool forceScroll = false}) {
+    if (transcriptSegments.isEmpty) return;
+    final idx = findSegmentIndexForPosition(pos);
+    if (idx == -1) return;
+
+    final changed = (idx != activeSegmentIndex.value);
+    activeSegmentIndex.value = idx;
+
+    if (changed || forceScroll) {
+      if (isTranscriptVisible.value || forceScroll) {
+        scrollToSegmentIndex(idx, animate: !forceScroll);
+      }
+    }
+  }
+
+  void updateActiveSegment(SubtitleSegment? seg, {Duration? currentPos}) {
+    if (seg != null) {
+      final idx = transcriptSegments.indexOf(seg);
+      if (idx != -1) {
+        if (idx != activeSegmentIndex.value) {
+          activeSegmentIndex.value = idx;
+          if (autoScrollEnabled.value && isTranscriptVisible.value) {
+            _smoothScrollToIndex(idx);
+          }
+        }
+        return;
+      }
+    }
+    // Handle gap or pause between dialogue lines by using current playback pos
+    if (currentPos != null && transcriptSegments.isNotEmpty) {
+      final idx = findSegmentIndexForPosition(currentPos);
+      if (idx != -1 && idx != activeSegmentIndex.value) {
+        activeSegmentIndex.value = idx;
+        if (autoScrollEnabled.value && isTranscriptVisible.value) {
+          _smoothScrollToIndex(idx);
+        }
+      }
+    }
+  }
+
+  /// Scrolls to [targetIndex] safely, handling lazy RenderSliverList expansion
+  /// when the item has not yet been materialized.
+  void scrollToSegmentIndex(int targetIndex, {bool animate = false}) {
+    if (targetIndex < 0 || targetIndex >= transcriptSegments.length) return;
+    if (!transcriptScrollController.hasClients) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (isClosed) return;
+        scrollToSegmentIndex(targetIndex, animate: animate);
+      });
       return;
     }
-    final idx = transcriptSegments.indexOf(seg);
-    if (idx != -1 && idx != activeSegmentIndex.value) {
-      activeSegmentIndex.value = idx;
-      if (autoScrollEnabled.value && isTranscriptVisible.value) {
-        _smoothScrollToIndex(idx);
-      }
+
+    final targetOffset = (targetIndex * 52.0 - 100.0).clamp(0.0, double.infinity);
+    _performScrollToOffset(targetOffset, targetIndex, animate: animate, attempt: 0);
+  }
+
+  void _performScrollToOffset(
+    double targetOffset,
+    int targetIndex, {
+    required bool animate,
+    required int attempt,
+  }) {
+    if (isClosed || !transcriptScrollController.hasClients || attempt > 12) return;
+
+    final pos = transcriptScrollController.position;
+    final currentMax = pos.maxScrollExtent;
+
+    if (pos.pixels < targetOffset && currentMax < targetOffset) {
+      pos.jumpTo(currentMax);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (isClosed || !transcriptScrollController.hasClients) return;
+        final newMax = transcriptScrollController.position.maxScrollExtent;
+        if (newMax > currentMax) {
+          _performScrollToOffset(targetOffset, targetIndex, animate: animate, attempt: attempt + 1);
+        } else {
+          if (animate) {
+            transcriptScrollController.animateTo(
+              newMax,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOut,
+            );
+          } else {
+            transcriptScrollController.jumpTo(newMax);
+          }
+        }
+      });
+      return;
+    }
+
+    final finalOffset = targetOffset.clamp(0.0, currentMax);
+    if (animate) {
+      transcriptScrollController.animateTo(
+        finalOffset,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+      );
+    } else {
+      transcriptScrollController.jumpTo(finalOffset);
     }
   }
 
@@ -59,32 +185,38 @@ class VideoTranscriptController extends BaseController {
     if (now.difference(_lastAutoScroll).inMilliseconds < 150) return;
     _lastAutoScroll = now;
 
-    if (transcriptScrollController.hasClients) {
-      final target = (index * 52.0 - 120.0).clamp(
-        0.0,
-        transcriptScrollController.position.maxScrollExtent,
-      );
-      transcriptScrollController.animateTo(
-        target,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOutCubic,
-      );
-    }
+    scrollToSegmentIndex(index, animate: true);
   }
 
   /// Proactively finds, downloads, and parses the transcript/subtitles for [video].
   Future<void> loadTranscriptForVideo(Video video, {String? defaultSubtitleUrl}) async {
     final playerCtrl = TowerPlayerController.getForTagOrActive(video.id);
 
+    // Invalidate transcript if video ID changed to prevent displaying wrong video's transcript
+    if (currentVideoId != null && currentVideoId != video.id) {
+      transcriptSegments.clear();
+      activeSegmentIndex.value = -1;
+      moderationSummary.value = '';
+    }
+    currentVideoId = video.id;
+
     // 0. Fast-path memory cache checks
     if (transcriptSegments.isNotEmpty) {
       if (playerCtrl != null && playerCtrl.subtitleSegments.isEmpty) {
         playerCtrl.subtitleSegments.assignAll(transcriptSegments);
       }
+      if (isTranscriptVisible.value) {
+        final currentPos = playerCtrl?.videoPlayerController.value.position ?? Duration.zero;
+        syncToCurrentPosition(currentPos, forceScroll: true);
+      }
       return;
     }
     if (playerCtrl != null && playerCtrl.subtitleSegments.isNotEmpty) {
       transcriptSegments.assignAll(playerCtrl.subtitleSegments);
+      if (isTranscriptVisible.value) {
+        final currentPos = playerCtrl.videoPlayerController.value.position;
+        syncToCurrentPosition(currentPos, forceScroll: true);
+      }
       return;
     }
 
@@ -134,6 +266,10 @@ class VideoTranscriptController extends BaseController {
           await playerCtrl.fetchAndParseSubtitles(candidateUrl);
           if (playerCtrl.subtitleSegments.isNotEmpty) {
             transcriptSegments.assignAll(playerCtrl.subtitleSegments);
+            if (isTranscriptVisible.value) {
+              final currentPos = playerCtrl.videoPlayerController.value.position;
+              syncToCurrentPosition(currentPos, forceScroll: true);
+            }
             return;
           }
         }
@@ -141,6 +277,10 @@ class VideoTranscriptController extends BaseController {
         if (segs.isNotEmpty) {
           transcriptSegments.assignAll(segs);
           playerCtrl?.subtitleSegments.assignAll(segs);
+          if (isTranscriptVisible.value) {
+            final currentPos = playerCtrl?.videoPlayerController.value.position ?? Duration.zero;
+            syncToCurrentPosition(currentPos, forceScroll: true);
+          }
           return;
         }
       }
@@ -169,6 +309,10 @@ class VideoTranscriptController extends BaseController {
             if (segs.isNotEmpty) {
               transcriptSegments.assignAll(segs);
               playerCtrl?.subtitleSegments.assignAll(segs);
+              if (isTranscriptVisible.value) {
+                final currentPos = playerCtrl?.videoPlayerController.value.position ?? Duration.zero;
+                syncToCurrentPosition(currentPos, forceScroll: true);
+              }
               debugPrint('[VideoTranscriptController] ✅ Found transcript via storage probe: $p');
               return;
             }

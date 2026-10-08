@@ -4,6 +4,8 @@ import { logger } from "../pipeline/utils/logger";
 import { verifyAuth } from "../utils/auth";
 import { applySecurityHeaders } from "../utils/securityHeaders";
 import { sanitizePublicChannel, isPublicActive } from "../economy/leaderboards";
+import { getUserExperiment } from "../experiments/engine";
+import { AlgorithmWeights, DEFAULT_WEIGHTS } from "../experiments/types";
 
 const db = () => admin.firestore();
 
@@ -40,6 +42,7 @@ function calculateDiscoveryScore(params: {
   watchCompletion?: number; // 0.0 - 1.0 average completion rate
   noveltyPenalty: number;   // 0.0 - 5.0 penalty for same sub-topic spam
   twoTowerAffinity?: number; // 0.0 - 1.0 (Two-Tower neural semantic affinity)
+  weights?: AlgorithmWeights; // A/B test variant weights (optional)
 }): number {
   // ── Credibility Gate ─────────────────────────────────────────────────────
   // If video has low trust score AND is flagged → GATE IT OUT completely
@@ -65,16 +68,18 @@ function calculateDiscoveryScore(params: {
   const completionScore = Math.min(10, (params.watchCompletion ?? 0.5) * 10);
   const twoTowerScore = Math.min(10, (params.twoTowerAffinity ?? 0.5) * 10);
 
-  // ── Additive Weighting (Enhanced with Topic Affinity & Two-Tower Neural Affinity) ──
+  // ── Additive Weighting (A/B test-aware: uses variant weights if available) ──
+  const w = params.weights || DEFAULT_WEIGHTS;
+
   let baseScore =
-    (engagementScore * 0.18) +
-    (recencyScore * 0.13) +
-    (followScore * 0.10) +
-    (topicScore * 0.18) +        // Topic Affinity
-    (twoTowerScore * 0.15) +     // Two-Tower Neural Affinity
-    (momentumScore * 0.10) +
-    (credibilityBonus * 0.08) +
-    (completionScore * 0.05);
+    (engagementScore * w.engagement) +
+    (recencyScore * w.freshness) +
+    (followScore * w.channelAffinity) +
+    (topicScore * w.topicAffinity) +
+    (twoTowerScore * w.twoTowerAffinity) +
+    (momentumScore * w.trending) +
+    (credibilityBonus * w.credibility) +
+    (completionScore * w.watchCompletion);
 
   // ── Tier Baseline Boosts (The Moat) ────────────────────────────────────
   let tierBoost = {
@@ -166,10 +171,26 @@ export const getHomeFeed = onRequest(
           logger.warn("[getHomeFeed] Failed to fetch user data:", err);
         }
       }
+      // ══════════════════════════════════════════════════════════════════════
+      // 1b. Resolve A/B Test Experiment Variant (if active on homeFeed surface)
+      // ══════════════════════════════════════════════════════════════════════
+      let experimentWeights: AlgorithmWeights | undefined;
+      let experimentVariantId: string | undefined;
+      let experimentId: string | undefined;
 
-      // ══════════════════════════════════════════════════════════════════════
-      // 2. Multi-Pool Candidate Selection (8 Pools with Two-Tower Vector Search)
-      // ══════════════════════════════════════════════════════════════════════
+      if (userId) {
+        try {
+          const assignment = await getUserExperiment(userId, "homeFeed");
+          if (assignment) {
+            experimentWeights = assignment.weights;
+            experimentVariantId = assignment.variantId;
+            experimentId = assignment.experimentId;
+            logger.info(`[getHomeFeed] User ${userId} in experiment ${assignment.experimentId} variant ${assignment.variantId}`);
+          }
+        } catch (err) {
+          logger.warn("[getHomeFeed] Experiment resolution failed, using defaults:", err);
+        }
+      }
 
       const poolPromises: Promise<admin.firestore.QuerySnapshot>[] = [];
 
@@ -186,6 +207,14 @@ export const getHomeFeed = onRequest(
       poolPromises.push(
         db().collection("videos")
           .orderBy("createdAt", "desc")
+          .limit(40)
+          .get()
+      );
+
+      // Pool B2: Recency Pool by uploadedAt (Fallback if createdAt missing)
+      poolPromises.push(
+        db().collection("videos")
+          .orderBy("uploadedAt", "desc")
           .limit(40)
           .get()
       );
@@ -269,6 +298,12 @@ export const getHomeFeed = onRequest(
       };
 
       const allCandidateDocs = successfulSnaps.flatMap(snap => filterByCategory(snap.docs));
+      if (allCandidateDocs.length === 0) {
+        try {
+          const fallbackSnap = await db().collection("videos").limit(40).get();
+          allCandidateDocs.push(...filterByCategory(fallbackSnap.docs));
+        } catch (_) {}
+      }
 
       // ══════════════════════════════════════════════════════════════════════
       // 4. Batch Fetch Channel Metadata (Tier, Trend, Inactivity)
@@ -312,6 +347,16 @@ export const getHomeFeed = onRequest(
 
         const data = doc.data();
         if (!data) return;
+
+        // Skip private and draft videos from public recommendations feed
+        const vis = (data.visibility || "").toString().trim().toLowerCase();
+        if (vis === "private" || vis === "private_draft" || vis === "draft") return;
+
+        const stat = (data.status || "").toString().trim().toLowerCase();
+        if (stat === "deleted" || stat === "rejected" || stat === "draft" || stat === "uploading") return;
+
+        const title = (data.title || "").toString().trim().toLowerCase();
+        if (!title || title.startsWith("uploading") || title.startsWith("untitled")) return;
 
         const channel = channelsMap[data.channelId] || {};
         const isSubscribed = following.includes(data.channelId || "");
@@ -397,6 +442,7 @@ export const getHomeFeed = onRequest(
           watchCompletion: data.avgWatchCompletion,
           noveltyPenalty,
           twoTowerAffinity,
+          weights: experimentWeights,
         });
 
         // Skip if gated out (score = 0)
@@ -483,8 +529,17 @@ export const getHomeFeed = onRequest(
           channelId: v.channelId,
           channelAvatarUrl: v.channelAvatarUrl,
           credibilityVerified: v.credibilityVerified ?? false,
-          thumbnailUrl: v.thumbnailUrl,
-          category: v.category,
+          thumbnailUrl: v.thumbnailUrl || v.media?.thumbnailUrl || "",
+          videoUrl: v.videoUrl || v.originalUrl || v.media?.videoUrl || v.media?.originalUrl || "",
+          originalUrl: v.originalUrl || v.videoUrl || v.media?.originalUrl || v.media?.videoUrl || "",
+          hlsUrl: v.hlsUrl || v.media?.hlsUrl || "",
+          dashUrl: v.dashUrl || v.media?.dashUrl || "",
+          adaptiveResolutions: v.adaptiveResolutions || v.media?.adaptiveResolutions || [],
+          status: v.status || "ready",
+          visibility: v.visibility || "public",
+          geminiApproved: v.geminiApproved ?? true,
+          isApproved: v.isApproved ?? true,
+          category: v.category || "",
           topics: v.topics || [],
           viewCount: v.viewCount || 0,
           likeCount: v.likeCount || 0,
@@ -509,6 +564,10 @@ export const getHomeFeed = onRequest(
         videos: response,
         hasMore: feed.length > limit,
         nextStartAfter: response.length > 0 ? response[response.length - 1].createdAt : null,
+        experiment: experimentId ? {
+          experimentId,
+          variantId: experimentVariantId,
+        } : null,
       });
     } catch (err) {
       logger.error("[getHomeFeed] Error:", err);
@@ -553,7 +612,10 @@ export const getDiscoveryModules = onRequest(
 
       const oneDayAgo = Date.now() - 86400000;
       const trustedTodaySnap = trustedVideosSnap.docs.filter(d => {
-        const createdAt = d.data().createdAt?.toMillis?.() || d.data().createdAt || 0;
+        const data = d.data();
+        const vis = (data.visibility || "").toString().trim().toLowerCase();
+        if (vis === "private" || vis === "private_draft" || vis === "draft") return false;
+        const createdAt = data.createdAt?.toMillis?.() || data.createdAt || 0;
         return createdAt >= oneDayAgo;
       }).slice(0, 10);
 
@@ -588,6 +650,8 @@ export const getDiscoveryModules = onRequest(
       const longTailGems = longTailSnap.docs
         .filter(d => {
           const data = d.data();
+          const vis = (data.visibility || "").toString().trim().toLowerCase();
+          if (vis === "private" || vis === "private_draft" || vis === "draft") return false;
           const likes = data.likeCount || 0;
           const views = data.viewCount || 1;
           // Only include if engagement rate is above average

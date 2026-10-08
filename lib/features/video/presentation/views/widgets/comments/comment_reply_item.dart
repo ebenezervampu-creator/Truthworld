@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/features/channel/data/models/channel_loyalty_badge.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
 import 'package:truthworld/features/video/presentation/views/widgets/comments/comment_action_handler.dart';
@@ -123,13 +124,27 @@ class CommentReplyItem extends StatelessWidget {
                                           ],
                                         ),
                                       )
-                                    : Text(
-                                        formattedHandle,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 12,
-                                          color: Colors.white,
-                                        ),
+                                    : Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            formattedHandle,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 12,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                          if (reply.isMember) ...[
+                                            const SizedBox(width: 4),
+                                            ChannelLoyaltyBadgeWidget(
+                                              milestone: reply.loyaltyMilestone ??
+                                                  ChannelLoyaltyMilestone.newMember,
+                                              tierName: reply.memberTierName,
+                                              compact: true,
+                                            ),
+                                          ],
+                                        ],
                                       ),
                               ),
                             ),

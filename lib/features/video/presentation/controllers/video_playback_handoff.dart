@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
+import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:video_player/video_player.dart';
 
@@ -12,51 +14,96 @@ class VideoPlaybackHandoff {
   static VideoPlayerController? _activeController;
   static String? _activeVideoId;
 
-  /// Pre-warm/pre-buffer a video stream from CDN as soon as user taps a card
+  /// Pre-warm/pre-buffer a video stream from Google CDN as soon as user taps a card
   /// or initiates navigation to achieve zero-latency instant playback.
-  ///
-  /// On web: Skip pre-warming entirely. Web playback waits for transcoded
-  /// MP4 resolutions from Firestore, so pre-warming the raw original.mp4
-  /// is wasteful and causes MEDIA_ERR_SRC_NOT_SUPPORTED errors.
-  ///
-  /// On native: Pre-warm using HLS adaptive stream for instant playback.
   static Future<void> prewarmVideo(Video video) async {
     if (video.id.isEmpty) return;
 
-    // Skip pre-warming on web — VideoController will wait for transcoded
-    // resolutions from Firestore instead of using raw original.mp4
+    // On web: Skip physical controller handoff because Flutter Web binds each
+    // VideoPlayerController to an HtmlElementView in the DOM. However, the exact
+    // position is still preserved in `_activePositions` for zero-offset resume.
     if (kIsWeb) return;
 
     // Skip if already pre-warming or active for this video
-    if (_activeVideoId == video.id && _activeController != null) {
+    if (_activeVideoId == video.id &&
+        _activeController != null &&
+        !_activeController!.value.hasError) {
       return;
     }
 
-    // On native, only pre-warm if HLS is available
+    // Determine the optimal Google CDN stream for instant pre-warming
     String? targetUrl;
     if (video.hlsUrl.isNotEmpty && !video.hlsUrl.startsWith('gs://')) {
       targetUrl = video.hlsUrl;
+    } else if (video.adaptiveResolutions.isNotEmpty) {
+      final mp4Res = video.adaptiveResolutions.firstWhereOrNull(
+        (r) =>
+            r.url.isNotEmpty &&
+            !r.url.contains('.m3u8') &&
+            !r.url.endsWith('original.mp4') &&
+            !r.url.contains('/original/'),
+      ) ?? video.adaptiveResolutions.firstOrNull;
+      if (mp4Res != null && mp4Res.url.isNotEmpty) {
+        targetUrl = mp4Res.url;
+      }
+    }
+
+    if (targetUrl == null || targetUrl.isEmpty) {
+      if (video.videoUrl.isNotEmpty) {
+        targetUrl = video.videoUrl;
+      } else if (video.originalUrl.isNotEmpty) {
+        targetUrl = video.originalUrl;
+      } else if (video.hlsUrl.isNotEmpty) {
+        targetUrl = video.hlsUrl;
+      }
     }
 
     if (targetUrl == null || targetUrl.isEmpty) return;
 
+    // Fast 0ms conversion for gs:// or storage paths
+    targetUrl = StorageUtils.getFastDownloadUrl(targetUrl);
+    if (targetUrl.isEmpty) return;
+
     try {
-      debugPrint('[VideoPlaybackHandoff] 🚀 Pre-warming CDN stream for video: ${video.id}');
+      debugPrint(
+        '[VideoPlaybackHandoff] 🚀 Pre-warming Google CDN stream for video: ${video.id}',
+      );
+      final isHlsOrCmaf =
+          targetUrl.contains('.m3u8') || targetUrl.contains('/cmaf/');
+      final networkHeaders = isHlsOrCmaf
+          ? const {
+              'Connection': 'keep-alive',
+              'Accept':
+                  'application/vnd.apple.mpegurl, application/x-mpegURL, video/mp4;q=0.9, */*;q=0.8',
+              'Cache-Control': 'no-cache',
+            }
+          : const {
+              'Connection': 'keep-alive',
+              'Accept': '*/*',
+            };
+
       final controller = VideoPlayerController.networkUrl(
         Uri.parse(targetUrl),
-        httpHeaders: const {
-          'Connection': 'keep-alive',
-          'Accept': '*/*',
-        },
-        videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+        httpHeaders: networkHeaders,
+        videoPlayerOptions: VideoPlayerOptions(
+          mixWithOthers: true,
+          allowBackgroundPlayback: true,
+        ),
       );
 
       registerActiveController(video.id, controller);
 
       // Kick off initialization asynchronously in background
-      controller.initialize().then((_) {
-        debugPrint('[VideoPlaybackHandoff] ✅ Pre-warmed player initialized for: ${video.id}');
+      final initFuture = controller.initialize();
+      _inFlightInit[video.id] = initFuture;
+
+      initFuture.then((_) {
+        _inFlightInit.remove(video.id);
+        debugPrint(
+          '[VideoPlaybackHandoff] ✅ Pre-warmed Google CDN player initialized for: ${video.id}',
+        );
       }).catchError((dynamic e, StackTrace s) {
+        _inFlightInit.remove(video.id);
         ErrorHandler.log(
           e,
           stackTrace: s,
@@ -75,6 +122,12 @@ class VideoPlaybackHandoff {
   }
 
   static final Map<String, Duration> _activePositions = <String, Duration>{};
+  static final Map<String, Future<void>> _inFlightInit = <String, Future<void>>{};
+
+  /// Access in-flight initialization Future for pre-warmed controllers
+  /// to eliminate race conditions and avoid double initialize() calls.
+  static Future<void>? getInitializationFuture(String videoId) =>
+      _inFlightInit[videoId];
 
   /// Register an active controller for a given video ID with optional playback position.
   static void registerActiveController(
@@ -149,6 +202,26 @@ class VideoPlaybackHandoff {
     return _activePositions.containsKey(videoId);
   }
 
+  static final Map<String, DateTime> _claimedHandoffs = <String, DateTime>{};
+
+  /// Check if a video controller is currently waiting in handoff or was recently
+  /// claimed into an active watch screen session (within 15s) so that automated
+  /// background processes (like initial ABR ladder switches) do not abruptly tear down
+  /// the active playing stream.
+  static bool isHandoffActiveOrRecent(String videoId) {
+    if (kIsWeb) return false;
+    if (isActive(videoId)) return true;
+    final claimedAt = _claimedHandoffs[videoId];
+    if (claimedAt != null) {
+      if (DateTime.now().difference(claimedAt).inSeconds < 15) {
+        return true;
+      } else {
+        _claimedHandoffs.remove(videoId);
+      }
+    }
+    return false;
+  }
+
   /// Retrieve the active controller for a video ID, clearing it from the registry.
   /// This transfers ownership of the controller to the caller.
   static VideoPlayerController? retrieveController(String videoId) {
@@ -158,6 +231,7 @@ class VideoPlaybackHandoff {
       final controller = _activeController!;
       _activeController = null;
       _activeVideoId = null;
+      _claimedHandoffs[videoId] = DateTime.now();
 
       // If pre-warmed controller threw an error (e.g. format error), discard it
       if (controller.value.hasError) {
@@ -195,6 +269,8 @@ class VideoPlaybackHandoff {
   /// Clear/dispose the active controller for a video ID if it hasn't been claimed yet.
   static void clear(String videoId) {
     _activePositions.remove(videoId);
+    _claimedHandoffs.remove(videoId);
+    _inFlightInit.remove(videoId);
     if (kIsWeb) return;
     if (_activeVideoId == videoId && _activeController != null) {
       debugPrint(

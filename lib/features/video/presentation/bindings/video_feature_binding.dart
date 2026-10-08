@@ -26,6 +26,8 @@ class VideoFeatureBinding extends Bindings {
     Get.lazyPut<UploadController>(
       () => UploadController(uploadRepository: Get.find<VideoUploadRepository>()),
     );
-    Get.lazyPut<DownloadsController>(DownloadsController.new);
+    if (!Get.isRegistered<DownloadsController>()) {
+      Get.lazyPut<DownloadsController>(DownloadsController.new, fenix: true);
+    }
   }
 }

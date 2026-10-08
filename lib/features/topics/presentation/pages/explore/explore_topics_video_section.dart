@@ -430,15 +430,21 @@ class HorizontalVideoCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: Text(
-                    video.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: isMobile ? 14 : 15,
-                      fontWeight: FontWeight.w600,
-                      color: primaryText,
-                      height: 1.25,
+                  child: SizedBox(
+                    height: isMobile ? 38 : 40,
+                    child: Align(
+                      alignment: Alignment.topLeft,
+                      child: Text(
+                        video.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: isMobile ? 14 : 15,
+                          fontWeight: FontWeight.w600,
+                          color: primaryText,
+                          height: 1.25,
+                        ),
+                      ),
                     ),
                   ),
                 ),

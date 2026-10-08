@@ -99,9 +99,7 @@ class ChannelTypeBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isCustom = type == ChannelType.custom;
-    final badgeColor = isCustom
-        ? const Color(0xFFF59E0B)
-        : const Color(0xFF3B82F6);
+    final badgeColor = isCustom ? AppColors.warning : AppColors.info;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -115,7 +113,7 @@ class ChannelTypeBadge extends StatelessWidget {
         children: [
           Icon(
             isCustom ? Icons.stars_rounded : Icons.layers_rounded,
-            color: Colors.white,
+            color: badgeColor,
             size: 14,
           ),
           const SizedBox(width: 6),
@@ -164,7 +162,7 @@ class ChannelTypeCard extends StatelessWidget {
                       height: 18,
                       decoration: BoxDecoration(
                         color: isCustom
-                            ? const Color(0xFFF59E0B)
+                            ? AppColors.warning
                             : AppColors.brand,
                         borderRadius: BorderRadius.circular(2),
                       ),

@@ -212,7 +212,7 @@ class AdminLoginScreen extends GetView<AdminController> {
               color: AppColors.textPrimary,
             ),
             decoration: InputDecoration(
-              hintText: 'ebenezervampu@towervsp.com',
+              hintText: 'hello@truthworld.in',
               labelText: 'Admin Email',
               labelStyle: const TextStyle(
                 fontFamily: TWTypography.uiFamily,

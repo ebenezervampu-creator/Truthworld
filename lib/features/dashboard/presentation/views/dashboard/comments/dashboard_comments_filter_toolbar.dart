@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_comments_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/comments/dashboard_comments_video_selector.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Filter Toolbar for Dashboard Comments
 /// Contains search text field and horizontal filter chips.
@@ -25,10 +25,10 @@ class DashboardCommentsFilterToolbar extends StatelessWidget {
         vertical: 10,
       ),
       decoration: const BoxDecoration(
-        color: Color(0xFF0F0F0F),
+        color: AppColors.bgPage,
         border: Border(
           bottom: BorderSide(
-            color: Color(0xFF282828),
+            color: AppColors.bgDivider,
           ),
         ),
       ),
@@ -41,29 +41,33 @@ class DashboardCommentsFilterToolbar extends StatelessWidget {
               height: 36,
               width: isMobile ? 180 : 220,
               decoration: BoxDecoration(
-                color: const Color(0xFF161616),
+                color: const Color(0xFF1E1E1E),
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(
-                  color: const Color(0xFF383838),
+                  color: AppColors.bgDivider,
                 ),
               ),
               child: TextField(
                 controller: controller.searchController,
                 onChanged: controller.setSearchQuery,
-                style: GoogleFonts.roboto(
+                style: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
                   fontSize: 13,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                 ),
                 decoration: InputDecoration(
                   hintText: 'Search comments...',
-                  hintStyle: GoogleFonts.roboto(
+                  hintStyle: const TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontFamilyFallback: TWTypography.fallbackFamilies,
                     fontSize: 12,
-                    color: const Color(0xFF888888),
+                    color: AppColors.textTertiary,
                   ),
                   prefixIcon: const Icon(
                     Icons.search_rounded,
                     size: 18,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                   ),
                   suffixIcon: ValueListenableBuilder<TextEditingValue>(
                     valueListenable: controller.searchController,
@@ -79,7 +83,7 @@ class DashboardCommentsFilterToolbar extends StatelessWidget {
                         child: const Icon(
                           Icons.clear_rounded,
                           size: 16,
-                          color: Colors.white,
+                          color: AppColors.textSecondary,
                         ),
                       );
                     },
@@ -134,7 +138,7 @@ class DashboardCommentsFilterToolbar extends StatelessWidget {
             color: isSelected ? Colors.white : const Color(0xFF1E1E1E),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: isSelected ? Colors.white : const Color(0xFF383838),
+              color: isSelected ? Colors.white : AppColors.bgDivider,
             ),
           ),
           child: Row(
@@ -144,16 +148,18 @@ class DashboardCommentsFilterToolbar extends StatelessWidget {
                 Icon(
                   icon,
                   size: 14,
-                  color: isSelected ? Colors.black : Colors.white,
+                  color: isSelected ? Colors.black : AppColors.textPrimary,
                 ),
                 const SizedBox(width: 6),
               ],
               Text(
                 label,
-                style: GoogleFonts.roboto(
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
                   fontSize: 12,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                  color: isSelected ? Colors.black : Colors.white,
+                  color: isSelected ? Colors.black : AppColors.textPrimary,
                 ),
               ),
             ],

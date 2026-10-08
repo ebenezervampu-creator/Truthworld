@@ -37,12 +37,12 @@ async function runTests() {
   );
   console.log("✔ Test 2b passed: Auto-detected SANDBOX for TEST-prefixed App ID");
 
-  process.env.CASHFREE_APP_ID = "1377805c46f477f8d3c7ba542665087731";
+  process.env.CASHFREE_APP_ID = "PROD_MERCHANT_APP_ID_MOCK";
   assert(
     CashfreeService.PublicEnvironment === "PRODUCTION",
     "Environment should auto-detect as PRODUCTION for non-TEST App ID"
   );
-  console.log("✔ Test 2c passed: Auto-detected PRODUCTION for live merchant App ID");
+  console.log("✔ Test 2c passed: Auto-detected PRODUCTION for non-TEST App ID");
 
   // Test 3: Webhook HMAC-SHA256 signature verification
   const testSecret = "test_secret_key_truthworld_12345";

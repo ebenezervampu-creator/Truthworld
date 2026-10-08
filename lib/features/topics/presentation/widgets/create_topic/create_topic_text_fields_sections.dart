@@ -180,11 +180,18 @@ Widget buildSection4Description(
               maxLength: 500,
               textAlignVertical: TextAlignVertical.top,
               inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+              onChanged: (_) => controller.formKey.currentState?.validate(),
               style: const TextStyle(color: Colors.white, fontSize: 14),
               decoration: buildCreateTopicInputDecoration(
-                hintText: 'Describe your topic. What is it about?',
+                hintText: 'Describe your topic. What is it about? (at least 10 characters)',
                 contentPadding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
               ),
+              validator: (val) {
+                final trimmed = val?.trim() ?? '';
+                if (trimmed.isEmpty) return 'Description is required';
+                if (trimmed.length < 10) return 'Description must be at least 10 characters';
+                return null;
+              },
             ),
             Positioned(
               right: 14,
@@ -206,7 +213,7 @@ Widget buildSection4Description(
         ),
         const SizedBox(height: 8),
         Text(
-          'Share more details about this topic.',
+          'Share more details about this topic (minimum 10 characters required).',
           style: TextStyle(
             color: Colors.white.withValues(alpha: 0.45),
             fontSize: 12,

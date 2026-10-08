@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/copyright/copyright_barrel.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/copyright/desktop_copyright_data_table.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 export 'package:truthworld/features/dashboard/presentation/views/dashboard/copyright/copyright_barrel.dart';
@@ -12,6 +14,26 @@ class CopyrightScreen extends StatelessWidget {
   const CopyrightScreen({super.key, this.channelId});
 
   final String? channelId;
+
+  Widget _buildCopyrightSkeleton() {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFF1E1E1E),
+      highlightColor: AppColors.bgSurfaceHover,
+      child: ListView.separated(
+        padding: const EdgeInsets.all(16.0),
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: 4,
+        separatorBuilder: (_, _) => const SizedBox(height: 16),
+        itemBuilder: (_, _) => Container(
+          height: 90,
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E1E1E),
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+      ),
+    );
+  }
 
   CopyrightController get controller {
     final ctrl = Get.isRegistered<CopyrightController>()
@@ -31,32 +53,43 @@ class CopyrightScreen extends StatelessWidget {
     final ctrl = controller;
 
     return Scaffold(
-      backgroundColor: isDarkMode ? AppColors.bgPage : const Color(0xFFF9F9F9),
+      backgroundColor: AppColors.bgPage,
       appBar: AppBar(
-        title: Text(
+        title: const Text(
           'Copyright & Content Protection',
-          style: AppTextStyles.pageTitle.copyWith(
+          style: TextStyle(
+            fontFamily: TWTypography.brandFamily,
             fontSize: 20,
-            color: isDarkMode ? AppColors.textPrimary : Colors.black,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary,
           ),
         ),
-        backgroundColor:
-            isDarkMode ? AppColors.bgSurface : AppColors.textPrimary,
+        backgroundColor: AppColors.bgPage,
         elevation: 0,
-        iconTheme: IconThemeData(
-          color: isDarkMode ? AppColors.textPrimary : Colors.black,
+        iconTheme: const IconThemeData(
+          color: AppColors.textPrimary,
         ),
         bottom: TabBar(
           controller: ctrl.tabController,
           indicatorColor: AppColors.brand,
-          labelColor: isDarkMode ? AppColors.textPrimary : Colors.black,
-          unselectedLabelColor:
-              isDarkMode ? AppColors.textSecondary : Colors.black54,
-          tabs: [
+          indicatorWeight: 3,
+          labelColor: AppColors.textPrimary,
+          unselectedLabelColor: AppColors.textSecondary,
+          labelStyle: const TextStyle(
+            fontFamily: TWTypography.uiFamily,
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+          ),
+          unselectedLabelStyle: const TextStyle(
+            fontFamily: TWTypography.uiFamily,
+            fontSize: 14,
+            fontWeight: FontWeight.normal,
+          ),
+          tabs: const [
             Tab(
               icon: Icon(
                 Icons.gavel_rounded,
-                color: isDarkMode ? Colors.white : Colors.black87,
+                color: AppColors.textPrimary,
                 size: 18,
               ),
               text: 'Claims & Notices',
@@ -64,7 +97,7 @@ class CopyrightScreen extends StatelessWidget {
             Tab(
               icon: Icon(
                 Icons.find_in_page_rounded,
-                color: isDarkMode ? Colors.white : Colors.black87,
+                color: AppColors.textPrimary,
                 size: 18,
               ),
               text: 'Copyright Match Tool (Re-upload Finder)',
@@ -89,9 +122,7 @@ class CopyrightScreen extends StatelessWidget {
         stream: ctrl.noticesStream(ctrl.activeChannelId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(color: AppColors.brand),
-            );
+            return _buildCopyrightSkeleton();
           }
 
           if (snapshot.hasError) {
@@ -115,35 +146,48 @@ class CopyrightScreen extends StatelessWidget {
               return bDate.compareTo(aDate);
             });
 
-          return CustomScrollView(
-            slivers: [
-              SliverToBoxAdapter(
-                child: ClaimsSummaryCard(
-                  totalClaims: docs.length,
-                  isDarkMode: isDarkMode,
-                ),
-              ),
-              if (docs.isEmpty)
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: CopyrightEmptyState(isDarkMode: isDarkMode),
-                )
-              else
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final data =
-                            docs[index].data()! as Map<String, dynamic>;
-                        return ClaimCard(data: data, isDarkMode: isDarkMode);
-                      },
-                      childCount: docs.length,
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final isDesktopWide = constraints.maxWidth >= 1100;
+
+              return CustomScrollView(
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: ClaimsSummaryCard(
+                      totalClaims: docs.length,
+                      isDarkMode: isDarkMode,
                     ),
                   ),
-                ),
-              const SliverToBoxAdapter(child: SizedBox(height: 32)),
-            ],
+                  if (docs.isEmpty)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: CopyrightEmptyState(isDarkMode: isDarkMode),
+                    )
+                  else if (isDesktopWide)
+                    SliverToBoxAdapter(
+                      child: DesktopCopyrightDataTable(
+                        docs: docs,
+                        isDarkMode: isDarkMode,
+                      ),
+                    )
+                  else
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final data =
+                                docs[index].data()! as Map<String, dynamic>;
+                            return ClaimCard(data: data, isDarkMode: isDarkMode);
+                          },
+                          childCount: docs.length,
+                        ),
+                      ),
+                    ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 32)),
+                ],
+              );
+            },
           );
         },
       );
@@ -155,9 +199,7 @@ class CopyrightScreen extends StatelessWidget {
       stream: ctrl.matchedReuploadsStream(ctrl.activeChannelId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(color: AppColors.brand),
-          );
+          return _buildCopyrightSkeleton();
         }
 
         final docs = snapshot.data?.docs ?? [];

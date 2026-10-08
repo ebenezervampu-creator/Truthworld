@@ -9,6 +9,7 @@ import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
 import 'package:truthworld/core/services/algorithm/scored_video.dart';
 import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
@@ -210,7 +211,9 @@ class VideoRecommendationsController extends BaseController {
                 .get();
 
             playlistVideos.addAll(
-              playlistVidsQuery.docs.map(Video.fromDocumentSnapshot),
+              playlistVidsQuery.docs
+                  .map(Video.fromDocumentSnapshot)
+                  .where(VideoVisibilityPolicy.canViewVideo),
             );
           }
 
@@ -245,7 +248,10 @@ class VideoRecommendationsController extends BaseController {
                   .doc(video.coinBattlePairVideoId)
                   .get();
               if (pairDoc.exists && pairDoc.data() != null) {
-                candidateList.add(Video.fromDocumentSnapshot(pairDoc));
+                final cand = Video.fromDocumentSnapshot(pairDoc);
+                if (VideoVisibilityPolicy.isVisibleForRecommendation(cand)) {
+                  candidateList.add(cand);
+                }
               }
             } catch (e, s) {
               ErrorHandler.log(e, stackTrace: s, tag: 'VideoRecommendationsController.fetchCoinBattlePair');
@@ -264,7 +270,10 @@ class VideoRecommendationsController extends BaseController {
             for (final doc in candidatesQuery.docs) {
               if (doc.id != videoId &&
                   !candidateList.any((v) => v.id == doc.id)) {
-                candidateList.add(Video.fromDocumentSnapshot(doc));
+                final cand = Video.fromDocumentSnapshot(doc);
+                if (VideoVisibilityPolicy.isVisibleForRecommendation(cand)) {
+                  candidateList.add(cand);
+                }
               }
             }
           } catch (e, s) {
@@ -295,6 +304,7 @@ class VideoRecommendationsController extends BaseController {
 
           final channelVideos = channelVidsQuery.docs
               .map(Video.fromDocumentSnapshot)
+              .where(VideoVisibilityPolicy.isVisibleForRecommendation)
               .toList();
 
           // Fill the rest with general videos
@@ -306,6 +316,7 @@ class VideoRecommendationsController extends BaseController {
 
           final generalVideos = generalVidsQuery.docs
               .map(Video.fromDocumentSnapshot)
+              .where(VideoVisibilityPolicy.isVisibleForRecommendation)
               .where(
                 (v) =>
                     v.id != videoId && !channelVideos.any((cv) => cv.id == v.id),
@@ -427,6 +438,7 @@ class VideoRecommendationsController extends BaseController {
 
           final topicVids = query.docs
               .map(Video.fromDocumentSnapshot)
+              .where(VideoVisibilityPolicy.isVisibleForRecommendation)
               .toList();
 
           return MapEntry(topic.id, topicVids);
@@ -499,7 +511,11 @@ class VideoRecommendationsController extends BaseController {
             .collection(FirestoreCollections.videos)
             .where(FieldPath.documentId, whereIn: chunk)
             .get();
-        result.addAll(snapshot.docs.map(Video.fromDocumentSnapshot));
+        result.addAll(
+          snapshot.docs
+              .map(Video.fromDocumentSnapshot)
+              .where(VideoVisibilityPolicy.canViewVideo),
+        );
       }
       // Sort to match original ids list order
       result.sort((a, b) {

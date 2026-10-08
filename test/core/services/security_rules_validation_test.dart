@@ -4,8 +4,7 @@ void main() {
   group('Security & Authorization Validation Tests', () {
     test('L-01: Admin email bootstrap requires email_verified == true', () {
       const adminEmails = [
-        'ebenezervampy@towervsp.com',
-        'ebenezervampu@towervsp.com',
+        'hello@truthworld.in',
         'ebenezervampu4@gmail.com',
         'admin@truthworld.com',
       ];
@@ -285,8 +284,7 @@ void main() {
       }) {
         if (hasAdminClaim) return true;
         const bootstrapAdmins = [
-          'ebenezervampy@towervsp.com',
-          'ebenezervampu@towervsp.com',
+          'hello@truthworld.in',
           'ebenezervampu4@gmail.com',
           'admin@truthworld.com',
         ];
@@ -978,6 +976,103 @@ void main() {
         isOwnerOrNew(isSignedIn: true, isAdmin: false, isNewResource: false, existingMetadata: null, authUid: 'user_1'),
         isFalse,
       );
+    });
+
+    test('L-52: Storage KYC document deletion permits deletion without request.resource requirement', () {
+      bool canDeleteKycDocument({
+        required bool isSignedIn,
+        required String? authUid,
+        required String pathUserId,
+        bool isAdmin = false,
+      }) {
+        if (!isSignedIn) return false;
+        return authUid == pathUserId || isAdmin;
+      }
+
+      expect(canDeleteKycDocument(isSignedIn: true, authUid: 'user_1', pathUserId: 'user_1'), isTrue);
+      expect(canDeleteKycDocument(isSignedIn: true, authUid: 'attacker', pathUserId: 'victim'), isFalse);
+      expect(canDeleteKycDocument(isSignedIn: false, authUid: null, pathUserId: 'victim'), isFalse);
+      expect(canDeleteKycDocument(isSignedIn: true, authUid: 'admin_1', pathUserId: 'victim', isAdmin: true), isTrue);
+    });
+
+    test('L-53: Storage user folder read access requires authenticated account ownership', () {
+      bool canReadUserStorageFolder({
+        required bool isSignedIn,
+        required String? authUid,
+        required String pathUserId,
+        bool isAdmin = false,
+      }) {
+        if (!isSignedIn) return false;
+        return authUid == pathUserId || isAdmin;
+      }
+
+      // Owner can read their private storage folder
+      expect(canReadUserStorageFolder(isSignedIn: true, authUid: 'user_abc', pathUserId: 'user_abc'), isTrue);
+      // Unauthenticated / public access is strictly blocked
+      expect(canReadUserStorageFolder(isSignedIn: false, authUid: null, pathUserId: 'user_abc'), isFalse);
+      // Other users cannot read
+      expect(canReadUserStorageFolder(isSignedIn: true, authUid: 'stranger', pathUserId: 'user_abc'), isFalse);
+      // Admin override
+      expect(canReadUserStorageFolder(isSignedIn: true, authUid: 'admin_uid', pathUserId: 'user_abc', isAdmin: true), isTrue);
+    });
+
+    test('L-54: Fact-check verification request submission binds to authenticated user', () {
+      bool canCreateFactCheckRequest({
+        required String? callerUid,
+        required Map<String, dynamic> data,
+        bool isAdmin = false,
+      }) {
+        if (callerUid == null) return false;
+        if (isAdmin) return true;
+        final requestedBy = data['requestedBy'] ?? data['userId'];
+        if (requestedBy != callerUid) return false;
+        final status = data['status'] as String?;
+        if (status != null && status != 'queued' && status != 'pending') return false;
+        if (data['videoId'] is! String || (data['videoId'] as String).isEmpty) return false;
+        return true;
+      }
+
+      // Legitimate user request
+      expect(
+        canCreateFactCheckRequest(
+          callerUid: 'user_123',
+          data: {'requestedBy': 'user_123', 'videoId': 'vid_456', 'status': 'queued'},
+        ),
+        isTrue,
+      );
+
+      // Spoofed requester
+      expect(
+        canCreateFactCheckRequest(
+          callerUid: 'attacker',
+          data: {'requestedBy': 'victim', 'videoId': 'vid_456', 'status': 'queued'},
+        ),
+        isFalse,
+      );
+
+      // Unauthenticated request blocked
+      expect(
+        canCreateFactCheckRequest(
+          callerUid: null,
+          data: {'requestedBy': 'user_123', 'videoId': 'vid_456'},
+        ),
+        isFalse,
+      );
+    });
+
+    test('L-55: Distributed counter shards support watch time and comment counts', () {
+      const allowedVideoShardKeys = ['count', 'qualifiedCount', 'watchTimeSeconds', 'updatedAt'];
+      const allowedCommentShardKeys = ['commentCount', 'updatedAt'];
+      const allowedChannelShardKeys = ['views', 'watchTimeSeconds', 'updatedAt'];
+
+      bool areKeysAllowed(List<String> keys, List<String> allowed) {
+        return keys.every((k) => allowed.contains(k));
+      }
+
+      expect(areKeysAllowed(['count', 'watchTimeSeconds', 'updatedAt'], allowedVideoShardKeys), isTrue);
+      expect(areKeysAllowed(['commentCount', 'updatedAt'], allowedCommentShardKeys), isTrue);
+      expect(areKeysAllowed(['views', 'watchTimeSeconds'], allowedChannelShardKeys), isTrue);
+      expect(areKeysAllowed(['count', 'illegalField'], allowedVideoShardKeys), isFalse);
     });
   });
 }

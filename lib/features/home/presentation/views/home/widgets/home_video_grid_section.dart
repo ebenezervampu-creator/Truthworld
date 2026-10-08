@@ -57,15 +57,27 @@ class HomeVideoGridSection extends StatelessWidget {
         padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
         sliver: SliverList.separated(
           itemCount: videos.length,
-          separatorBuilder: (context, index) => const SizedBox(height: 12),
+          separatorBuilder: (context, index) => const SizedBox(height: 16),
           itemBuilder: (context, index) {
             final item = videos[index];
             if (item is Video) {
-              return VideoCard(video: item, isGrid: true, heroPrefix: heroPrefix);
+              return VideoCard(
+                key: ValueKey('feed_${heroPrefix}_${item.id}'),
+                video: item,
+                isGrid: true,
+                heroPrefix: heroPrefix,
+                disableHoverPreview: isMobile,
+              );
             } else if (item is CommunityPostModel) {
-              return CommunityPostCard(post: item);
+              return CommunityPostCard(
+                key: ValueKey('feed_post_${item.id}'),
+                post: item,
+              );
             } else if (item is AdItem) {
-              return HomepageAdCard(ad: item);
+              return HomepageAdCard(
+                key: ValueKey('feed_ad_${item.id}'),
+                ad: item,
+              );
             }
             return const SizedBox.shrink();
           },
@@ -78,17 +90,29 @@ class HomeVideoGridSection extends StatelessWidget {
       padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
       sliver: SliverMasonryGrid.count(
         crossAxisCount: crossAxisCount,
-        mainAxisSpacing: 8,
-        crossAxisSpacing: 8,
+        mainAxisSpacing: 16,
+        crossAxisSpacing: 16,
         childCount: videos.length,
         itemBuilder: (context, index) {
           final item = videos[index];
           if (item is Video) {
-            return VideoCard(video: item, isGrid: true, heroPrefix: heroPrefix);
+            return VideoCard(
+              key: ValueKey('feed_${heroPrefix}_${item.id}'),
+              video: item,
+              isGrid: true,
+              heroPrefix: heroPrefix,
+              disableHoverPreview: isMobile,
+            );
           } else if (item is CommunityPostModel) {
-            return CommunityPostCard(post: item);
+            return CommunityPostCard(
+              key: ValueKey('feed_post_${item.id}'),
+              post: item,
+            );
           } else if (item is AdItem) {
-            return HomepageAdCard(ad: item);
+            return HomepageAdCard(
+              key: ValueKey('feed_ad_${item.id}'),
+              ad: item,
+            );
           }
           return const SizedBox.shrink();
         },

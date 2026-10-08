@@ -6,6 +6,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/constants/app_categories.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/image_verification_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
@@ -244,41 +245,7 @@ abstract class ChannelControllerBase extends BaseController
     'ru',
   ];
 
-  final List<String> categories = [
-    // Fact-checking / High-credibility categories first
-    'Business',
-    'History',
-    'News',
-    'Education',
-    'Science',
-    'Technology',
-    'Finance',
-    'Health',
-    'Documentary',
-    'Fitness',
-    // General / Entertainment / Lifestyle categories
-    'Music',
-    'Entertainment',
-    'Sports',
-    'Lifestyle',
-    'Travel',
-    'Food',
-    'Fashion',
-    'Comedy',
-    'Art',
-    'Animation',
-    'Automotive',
-    'Pets & Animals',
-    'DIY & How-to',
-    'Nature',
-    'Spirituality',
-    'People & Blogs',
-    'Kids & Family',
-    'Movies',
-    'TV Shows',
-    'Vlogs',
-    'Other',
-  ];
+  final List<String> categories = AppCategories.allCategories;
 
   // Computed Properties
   bool get canCreateMoreChannels => channels.length < maxChannelsPerUser;

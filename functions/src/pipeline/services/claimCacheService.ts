@@ -1,13 +1,13 @@
 import * as admin from "firebase-admin";
 import { VerifiedClaim, ClaimStatus, RichSource } from "../types";
 import { logger } from "../utils/logger";
-import { hashClaimText } from "../utils/claim-normalization";
+import { hashClaimText, hashSemanticClaimText } from "../utils/claim-normalization";
 
 /**
  * 🏛 v12.0: Institutional Claim Cache (Tier 1)
  * 
  * Stores and retrieves verified claims to bypass expensive AI/Search calls.
- * Uses SHA-256 hashing of normalized claim text for stable lookup.
+ * Uses SHA-256 hashing of normalized claim text with semantic hash fallback.
  */
 export class ClaimCacheService {
   private static readonly COLLECTION = "claim_cache";
@@ -21,14 +21,34 @@ export class ClaimCacheService {
   }
 
   /**
+   * Generates a semantic hash for a claim based on canonical entities.
+   */
+  private generateSemanticHash(text: string): string {
+    return hashSemanticClaimText(text);
+  }
+
+  /**
    * Retrieves a verified claim from the persistent cache.
+   * Performs exact hash lookup first, with semantic entity hash fallback.
    */
   async get(text: string): Promise<Partial<VerifiedClaim> | null> {
     if (!ClaimCacheService.CACHE_ENABLED) return null;
 
     try {
-      const hash = this.generateHash(text);
-      const doc = await admin.firestore().collection(ClaimCacheService.COLLECTION).doc(hash).get();
+      const exactHash = this.generateHash(text);
+      let doc = await admin.firestore().collection(ClaimCacheService.COLLECTION).doc(exactHash).get();
+
+      // Semantic entity hash fallback if exact hash misses
+      if (!doc.exists) {
+        const semanticHash = this.generateSemanticHash(text);
+        const semQuery = await admin.firestore().collection(ClaimCacheService.COLLECTION)
+          .where("semanticHash", "==", semanticHash)
+          .limit(1)
+          .get();
+        if (!semQuery.empty) {
+          doc = semQuery.docs[0];
+        }
+      }
 
       if (!doc.exists) return null;
 
@@ -46,7 +66,7 @@ export class ClaimCacheService {
       await doc.ref.update({
         hitCount: admin.firestore.FieldValue.increment(1),
         lastHitAt: admin.firestore.FieldValue.serverTimestamp()
-      });
+      }).catch(() => {});
 
       return {
         status: data.status as ClaimStatus,
@@ -70,15 +90,30 @@ export class ClaimCacheService {
 
   /**
    * Stores a verified claim in the persistent cache.
+   * STRICT GUARD: Never caches ungrounded or fallback LLM hallucinations.
    */
   async set(claim: VerifiedClaim): Promise<void> {
     if (!ClaimCacheService.CACHE_ENABLED) return;
     
-    // Do not cache timed-out or unverified claims
-    if (!claim.status || claim.status === 'verification_timeout' || claim.status === 'unverified') return;
+    // Strict Industry Standard Guard: Do NOT cache ungrounded, timed-out, unverified,
+    // or internal-training fallback claims lacking verified primary citations!
+    if (
+      !claim.status ||
+      claim.status === 'verification_timeout' ||
+      claim.status === 'unverified' ||
+      claim.isGrounded === false ||
+      claim.verificationMethod === 'llm_training' ||
+      claim.sourceStatus === 'missing' ||
+      (claim as any).processingMetadata?.requiresCitationRetry === true ||
+      !claim.richSources ||
+      claim.richSources.length === 0
+    ) {
+      return;
+    }
 
     try {
-      const hash = this.generateHash(claim.text);
+      const exactHash = this.generateHash(claim.text);
+      const semanticHash = this.generateSemanticHash(claim.text);
       const now = Date.now();
       
       // Dynamic TTL based on claim importance and nature (180 days for facts, 90 days for others)
@@ -87,9 +122,11 @@ export class ClaimCacheService {
       
       const expiresAt = now + (ttlDays * 24 * 60 * 60 * 1000);
 
-      await admin.firestore().collection(ClaimCacheService.COLLECTION).doc(hash).set({
+      await admin.firestore().collection(ClaimCacheService.COLLECTION).doc(exactHash).set({
         originalText: claim.text,
         normalizedText: claim.text.toLowerCase().trim(),
+        exactHash,
+        semanticHash,
         status: claim.status,
         reasoning: claim.reasoning,
         richSources: claim.richSources || [],
@@ -101,17 +138,19 @@ export class ClaimCacheService {
         consensusDetails: claim.consensusDetails,
         classificationConfidence: claim.classificationConfidence,
         historicalEvidenceConfidence: claim.historicalEvidenceConfidence,
+        isGrounded: true,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         expiresAt,
         hitCount: 1,
         lastHitAt: admin.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
 
-      logger.info(`[ClaimCache] Cached verified claim: "${claim.text.substring(0, 50)}..."`);
+      logger.info(`[ClaimCache] Cached verified grounded claim: "${claim.text.substring(0, 50)}..."`);
     } catch (error) {
       logger.error("[ClaimCache] Failed to set cache", { error });
     }
   }
+
 
   /**
    * Batch retrieval for performance.

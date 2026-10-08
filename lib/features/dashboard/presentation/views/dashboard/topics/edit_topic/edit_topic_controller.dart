@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:truthworld/core/constants/app_categories.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/image_cropper_service.dart';
@@ -40,40 +41,7 @@ class EditTopicController extends GetxController {
   final RxBool isSaving = false.obs;
   final Rx<String?> currentThumbnailUrl = Rx<String?>(null);
 
-  static const List<String> categories = [
-    'Technology',
-    'Education',
-    'Science',
-    'Gaming',
-    'Music',
-    'News',
-    'Entertainment',
-    'Sports',
-    'Comedy',
-    'Travel',
-    'Lifestyle',
-    'Food',
-    'Fashion',
-    'Health',
-    'Fitness',
-    'Business',
-    'Finance',
-    'History',
-    'Art',
-    'Animation',
-    'Automotive',
-    'Pets & Animals',
-    'DIY & How-to',
-    'Nature',
-    'Spirituality',
-    'People & Blogs',
-    'Kids & Family',
-    'Movies',
-    'TV Shows',
-    'Vlogs',
-    'Documentary',
-    'Other',
-  ];
+  static const List<String> categories = AppCategories.allCategories;
 
   @override
   void onInit() {
@@ -187,7 +155,7 @@ class EditTopicController extends GetxController {
     }
   }
 
-  Future<void> submitUpdate() async {
+  Future<void> submitUpdate({BuildContext? context}) async {
     final titleVal = ContentValidator.validate(
       titleController.text.trim(),
       fieldName: 'Topic Title',
@@ -238,7 +206,7 @@ class EditTopicController extends GetxController {
         finalThumbnailUrl = chosenVideoThumbnailUrl.value;
       }
 
-      await managementController.updateTopic(
+      final success = await managementController.updateTopic(
         topic: topic,
         title: titleController.text,
         description: descriptionController.text,
@@ -250,11 +218,24 @@ class EditTopicController extends GetxController {
             : null,
         thumbnailUrl: finalThumbnailUrl,
       );
+
+      if (success) {
+        isSaving.value = false;
+        // Pop dialog first before showing snackbar to prevent GetX route collision
+        if (context != null && context.mounted && Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        } else if (Get.isDialogOpen ?? false) {
+          Get.back<void>();
+        }
+
+        AppSnackbar.success('Topic updated successfully.');
+        return;
+      }
     } on Exception catch (e) {
       ErrorHandler.log(e);
+      AppSnackbar.error('Unable to update topic. Please try again.');
     } finally {
       isSaving.value = false;
-      Get.back<void>();
     }
   }
 }

@@ -241,7 +241,7 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
                 onPressed: () {
                   if (isDashboard) {
                     Get.find<HomeController>().sideNavSelectedIndex.value =
-                        HomeController.indexSettings;
+                        HomeController.indexHome;
                   } else {
                     Get.back();
                   }

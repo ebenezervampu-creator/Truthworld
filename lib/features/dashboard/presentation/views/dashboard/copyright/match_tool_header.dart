@@ -13,40 +13,49 @@ class MatchToolHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
       padding: const EdgeInsets.all(20),
-      color: isDarkMode ? AppColors.bgSurface : AppColors.textPrimary,
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.bgDivider),
+      ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(12),
             decoration: const BoxDecoration(
-              color: Color(0xFF3B82F6),
+              color: AppColors.infoContainer,
               shape: BoxShape.circle,
             ),
             child: const Icon(
               Icons.screen_search_desktop_rounded,
-              color: Colors.white,
+              color: AppColors.info,
               size: 24,
             ),
           ),
           const SizedBox(width: 16),
-          Expanded(
+          const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Automated Content Match Engine',
-                  style: AppTextStyles.headlineSmall.copyWith(
+                  style: TextStyle(
+                    fontFamily: TWTypography.brandFamily,
                     fontSize: 18,
-                    color: isDarkMode ? AppColors.textPrimary : Colors.black,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(
                   'Scans Truthworld for re-uploaded videos matching your original content. Take direct action to request removal or contact uploaders.',
                   style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
                     fontSize: 13,
-                    color: isDarkMode ? AppColors.textSecondary : Colors.black,
+                    color: AppColors.textSecondary,
+                    height: 1.4,
                   ),
                 ),
               ],

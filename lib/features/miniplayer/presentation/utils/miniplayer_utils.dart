@@ -9,6 +9,7 @@ import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/miniplayer/data/models/miniplayer_model.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/data/models/video_clip.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
 
 /// Utility helpers for miniplayer navigation and state management.
@@ -33,14 +34,18 @@ class MiniplayerNavigationHelper {
     Duration? resumePosition,
   }) async {
     try {
-      if (video.id.isEmpty || video.videoUrl.isEmpty) {
+      final hasPlayableStream = video.videoUrl.isNotEmpty ||
+          video.hlsUrl.isNotEmpty ||
+          video.adaptiveResolutions.isNotEmpty ||
+          video.originalUrl.isNotEmpty;
+      if (video.id.isEmpty || !hasPlayableStream) {
         logger.warning(
           'Invalid video data: id=${video.id}, url=${video.videoUrl}',
           tag: _tag,
         );
         // Continue with navigation even if video is invalid
       } else {
-        // Pre-warm CDN stream immediately for instant low-latency playback
+        // Pre-warm Google CDN stream immediately for instant low-latency playback
         VideoPlaybackHandoff.prewarmVideo(video);
       }
 
@@ -51,6 +56,9 @@ class MiniplayerNavigationHelper {
       }
       if (!args.containsKey('heroTag')) {
         args['heroTag'] = 'video_${video.id}';
+      }
+      if (!args.containsKey('isAudioOnly')) {
+        args['isAudioOnly'] = false;
       }
 
       // Determine the best resume timestamp
@@ -118,11 +126,15 @@ class MiniplayerNavigationHelper {
   /// This is called when user leaves the video screen to go to home/channel.
   ///
   /// [currentPosition] - resume the video from this position
+  /// [clip] - active video clip if playing in clip mode
+  /// [isAudioOnly] - whether playing in audio only mode
   /// [autoShow] - whether to automatically expand/show the miniplayer
   static Future<void> showMiniplayerWithCurrentVideo({
     required Video video,
     Duration? currentPosition,
     String? overrideUrl,
+    VideoClip? clip,
+    bool isAudioOnly = false,
     bool autoShow = true,
   }) async {
     try {
@@ -133,6 +145,8 @@ class MiniplayerNavigationHelper {
         video,
         resumeFromPosition: currentPosition,
         overrideUrl: overrideUrl,
+        clip: clip,
+        isAudioOnly: isAudioOnly,
       );
 
       if (autoShow) {
@@ -141,7 +155,7 @@ class MiniplayerNavigationHelper {
       }
 
       logger.info(
-        'Miniplayer shown for video: ${video.id}, resumed at: $currentPosition',
+        'Miniplayer shown for video: ${video.id}, resumed at: $currentPosition, clip: ${clip?.title}, audioOnly: $isAudioOnly',
         tag: _tag,
       );
     } catch (e, stackTrace) {
@@ -230,22 +244,17 @@ class MiniplayerNavigationHelper {
   ///
   /// [video] - The video to show in miniplayer
   /// [currentPosition] - Current playback position to resume from
+  /// [clip] - Active clip if in clip mode
+  /// [isAudioOnly] - Whether in audio-only mode
   /// [targetRoute] - Where to navigate (e.g., '/home', '/channel')
   /// [arguments] - Arguments to pass to the target route
-  ///
-  /// Example usage:
-  /// ```dart
-  /// await MiniplayerNavigationHelper.navigateAwayWithMiniplayer(
-  ///   video: controller.video,
-  ///   currentPosition: controller.videoPlayerController?.value.position,
-  ///   targetRoute: '/home',
-  /// );
-  /// ```
   static Future<void> navigateAwayWithMiniplayer({
     required Video video,
     required String targetRoute,
     Duration? currentPosition,
     String? overrideUrl,
+    VideoClip? clip,
+    bool isAudioOnly = false,
     Map<String, dynamic>? arguments,
   }) async {
     try {
@@ -255,6 +264,8 @@ class MiniplayerNavigationHelper {
         video,
         resumeFromPosition: currentPosition,
         overrideUrl: overrideUrl,
+        clip: clip,
+        isAudioOnly: isAudioOnly,
       );
 
       // Step 3: Navigate immediately (don't wait for miniplayer to load)

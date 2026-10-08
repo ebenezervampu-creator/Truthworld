@@ -42,6 +42,13 @@ class UserFeedbackSanitizer {
     RegExp('resource-exhausted', caseSensitive: false),
     RegExp('network-request-failed', caseSensitive: false),
     RegExp(r'status code:\s*\d{3}', caseSensitive: false),
+    RegExp(r'\binternal\b', caseSensitive: false),
+    RegExp(r'\bunavailable\b', caseSensitive: false),
+    RegExp('FirebaseFunctionsException', caseSensitive: false),
+    RegExp('FunctionsException', caseSensitive: false),
+    RegExp(r'\[firebase_functions/[a-zA-Z0-9_\-]+\]', caseSensitive: false),
+    RegExp('profile_inactive', caseSensitive: false),
+    RegExp('server error', caseSensitive: false),
   ];
 
   /// Generic or harsh titles that must be sanitized or removed.
@@ -60,6 +67,11 @@ class UserFeedbackSanitizer {
     'failure',
     'failed',
     'exception',
+    'internal',
+    'internal error',
+    'unavailable',
+    'service unavailable',
+    'functions error',
   };
 
   /// Cleanses and standardizes any title for user display.
@@ -94,18 +106,15 @@ class UserFeedbackSanitizer {
       return 'An unexpected issue occurred. Please try again.';
     }
 
-    // 1. If it's already an AppException, use its polished displayMessage
+    // Extract message candidate from AppException, native Exception/Error, or raw object
+    String msg;
     if (errorOrMessage is AppException) {
-      return errorOrMessage.displayMessage;
+      msg = errorOrMessage.displayMessage.trim();
+    } else if (errorOrMessage is Exception || errorOrMessage is Error) {
+      msg = AppException.from(errorOrMessage).displayMessage.trim();
+    } else {
+      msg = errorOrMessage.toString().trim();
     }
-
-    // 2. If it's a native Exception or Error, map through AppException.from
-    if (errorOrMessage is Exception || errorOrMessage is Error) {
-      return AppException.from(errorOrMessage).displayMessage;
-    }
-
-    // 3. String processing
-    var msg = errorOrMessage.toString().trim();
 
     // Remove leading 'Exception: ' or 'Error: '
     if (msg.toLowerCase().startsWith('exception:')) {
@@ -155,8 +164,15 @@ class UserFeedbackSanitizer {
         if (lowerTech.contains('authentication failed') ||
             lowerTech.contains('authentication_error') ||
             lowerTech.contains('request_failed') ||
-            lowerTech.contains('paymentlink_')) {
+            lowerTech.contains('paymentlink_') ||
+            lowerTech.contains('profile_inactive')) {
           return 'Payment service is temporarily unavailable. Please try again in a few moments or contact support.';
+        }
+        if (lowerTech.contains('internal') || lowerTech.contains('unavailable')) {
+          if (defaultActionContext != null && defaultActionContext.isNotEmpty) {
+            return 'Unable to $defaultActionContext right now. Please try again in a few moments.';
+          }
+          return 'The service is temporarily unavailable. Please try again shortly.';
         }
 
         // Otherwise transform "Failed to <action>" into "Unable to <action>. Please try again."
@@ -199,8 +215,15 @@ class UserFeedbackSanitizer {
       if (lower.contains('authentication failed') ||
           lower.contains('authentication_error') ||
           lower.contains('request_failed') ||
-          lower.contains('paymentlink_')) {
+          lower.contains('paymentlink_') ||
+          lower.contains('profile_inactive')) {
         return 'Payment service is temporarily unavailable. Please try again in a few moments or contact support.';
+      }
+      if (lower.contains('internal') || lower.contains('unavailable') || lower.contains('server error')) {
+        if (defaultActionContext != null && defaultActionContext.isNotEmpty) {
+          return 'Unable to $defaultActionContext right now. Please try again in a few moments.';
+        }
+        return 'The service is temporarily unavailable. Please try again shortly.';
       }
 
       // Fallback for technical errors
@@ -230,12 +253,23 @@ class UserFeedbackSanitizer {
     }
 
     final lowerMsg = msg.toLowerCase();
-    if (lowerMsg.contains('authentication failed') || lowerMsg.contains('authentication_error')) {
+    if (lowerMsg.contains('authentication failed') ||
+        lowerMsg.contains('authentication_error') ||
+        lowerMsg.contains('profile_inactive')) {
       return 'Payment service is temporarily unavailable. Please try again in a few moments or contact support.';
+    }
+    if (lowerMsg.contains('internal') || lowerMsg.contains('unavailable') || lowerMsg.contains('server error')) {
+      if (defaultActionContext != null && defaultActionContext.isNotEmpty) {
+        return 'Unable to $defaultActionContext right now. Please try again in a few moments.';
+      }
+      return 'The service is temporarily unavailable. Please try again shortly.';
     }
 
     // If message is too generic or blunt, polish it
-    if (msg.isEmpty || lowerMsg == 'error' || lowerMsg == 'failed') {
+    if (msg.isEmpty || lowerMsg == 'error' || lowerMsg == 'failed' || lowerMsg == 'unknown') {
+      if (defaultActionContext != null && defaultActionContext.isNotEmpty) {
+        return 'Unable to $defaultActionContext. Please try again.';
+      }
       return 'An unexpected issue occurred. Please try again.';
     }
 

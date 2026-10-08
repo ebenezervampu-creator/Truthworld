@@ -14,7 +14,7 @@
 import * as admin from "firebase-admin";
 import { onRequest } from "firebase-functions/v2/https";
 import { logger } from "../pipeline/utils/logger";
-import { requireAdmin, requireRecentAdmin } from "../utils/auth";
+import { requireRecentAdmin } from "../utils/auth";
 
 const db = admin.firestore();
 const Timestamp = admin.firestore.Timestamp;
@@ -30,7 +30,12 @@ const Timestamp = admin.firestore.Timestamp;
  */
 export const manualTriggerPublishing = onRequest(
   {
-    cors: true,
+    cors: [
+      "https://admin.truthworld.in",
+      "https://admin.truthworld.app",
+      "https://truthworld.in",
+      "http://localhost:5173",
+    ],
     region: "asia-south1",
     minInstances: 0,
     maxInstances: 5,
@@ -92,7 +97,12 @@ export const manualTriggerPublishing = onRequest(
  */
 export const getScheduledVideos = onRequest(
   {
-    cors: true,
+    cors: [
+      "https://admin.truthworld.in",
+      "https://admin.truthworld.app",
+      "https://truthworld.in",
+      "http://localhost:5173",
+    ],
     region: "asia-south1",
     minInstances: 0,
     maxInstances: 5,
@@ -101,7 +111,7 @@ export const getScheduledVideos = onRequest(
   },
   async (req, res) => {
     try {
-      const adminUser = await requireAdmin(req, res);
+      const adminUser = await requireRecentAdmin(req, res, 3600);
       if (!adminUser) return;
       const uid = adminUser.uid;
 
@@ -109,9 +119,9 @@ export const getScheduledVideos = onRequest(
 
       const now = Timestamp.now();
 
-      // Get upcoming scheduled videos
+      // Get upcoming scheduled videos from authoritative root videos collection
       const snapshot = await db
-        .collectionGroup("videos")
+        .collection("videos")
         .where("status", "==", "scheduled")
         .orderBy("scheduledTime", "asc")
         .limit(50)
@@ -161,7 +171,12 @@ export const getScheduledVideos = onRequest(
  */
 export const publishSingleVideo = onRequest(
   {
-    cors: true,
+    cors: [
+      "https://admin.truthworld.in",
+      "https://admin.truthworld.app",
+      "https://truthworld.in",
+      "http://localhost:5173",
+    ],
     region: "asia-south1",
     minInstances: 0,
     maxInstances: 5,
@@ -175,24 +190,20 @@ export const publishSingleVideo = onRequest(
       const uid = adminUser.uid;
 
       const videoId = req.path.split("/").pop();
-      if (!videoId) {
+      if (!videoId || !/^[a-zA-Z0-9_-]{5,64}$/.test(videoId)) {
         res.status(400).json({
           status: "error",
-          error: "Video ID required in path",
+          error: "Invalid or missing video ID in path",
         });
         return;
       }
 
       logger.info("publishSingleVideo", `Admin ${uid} requesting publish for ${videoId}`);
 
-      // Find the video
-      const querySnapshot = await db
-        .collectionGroup("videos")
-        .where("id", "==", videoId)
-        .limit(1)
-        .get();
+      // Find the video directly in root videos collection
+      const doc = await db.collection("videos").doc(videoId).get();
 
-      if (querySnapshot.empty) {
+      if (!doc.exists) {
         res.status(404).json({
           status: "error",
           error: `Video ${videoId} not found`,
@@ -200,7 +211,6 @@ export const publishSingleVideo = onRequest(
         return;
       }
 
-      const doc = querySnapshot.docs[0];
       const videoData = doc.data() as any;
 
       if (videoData.status !== "scheduled") {

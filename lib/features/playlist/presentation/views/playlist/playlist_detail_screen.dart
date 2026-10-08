@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
@@ -40,47 +41,60 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
       }
     }
 
-    if (activePlaylist != null) {
-      controller.activePlaylist.value = activePlaylist;
-    } else {
-      final playlistId =
-          Get.parameters['playlistId'] ??
-          Get.parameters['list'] ??
-          Get.parameters['id'];
-      if (playlistId != null && playlistId.isNotEmpty) {
-        controller.loadPlaylistFromDeepLink(playlistId);
+    // Safely sync post-frame without triggering markNeedsBuild during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (activePlaylist != null) {
+        controller.syncPlaylist(activePlaylist);
+      } else {
+        final playlistId =
+            Get.parameters['playlistId'] ??
+            Get.parameters['list'] ??
+            Get.parameters['id'];
+        if (playlistId != null &&
+            playlistId.isNotEmpty &&
+            controller.activePlaylist.value?.id != playlistId) {
+          controller.loadPlaylistFromDeepLink(playlistId);
+        }
       }
-    }
+    });
 
-    controller.reset();
-
-    return Obx(() {
-      final currentPlaylist = controller.activePlaylist.value;
-      if (currentPlaylist == null) {
-        return const ShimmerPlaylistDetail();
-      }
-
-      return Scaffold(
+    return Scaffold(
+      backgroundColor: ytBackground,
+      appBar: AppBar(
         backgroundColor: ytBackground,
-        appBar: AppBar(
-          backgroundColor: ytBackground,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: ytTextPrimary),
-            onPressed: Get.back,
-          ),
-          title: Text(
-            currentPlaylist.playlistName,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: ytTextPrimary),
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Get.back();
+            } else {
+              RouteStackObserver.navigateToHome();
+            }
+          },
+        ),
+        title: Obx(() {
+          final current =
+              controller.activePlaylist.value ?? activePlaylist;
+          return Text(
+            current?.playlistName ?? '',
             style: const TextStyle(
               color: ytTextPrimary,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
-          ),
-        ),
-        body: _buildContent(context, currentPlaylist),
-      );
-    });
+          );
+        }),
+      ),
+      body: Obx(() {
+        final current =
+            controller.activePlaylist.value ?? activePlaylist;
+        if (current == null) {
+          return const ShimmerPlaylistDetail();
+        }
+        return _buildContent(context, current);
+      }),
+    );
   }
 
   Widget _buildContent(BuildContext context, PlaylistModel playlist) {
@@ -184,39 +198,41 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
 
         final videos = snapshot.data!;
 
-        final filteredVideos = videos.where((video) {
+        return Obx(() {
           final filter = controller.filterValue.value.toLowerCase();
-          if (filter.isEmpty || filter == 'all') return true;
-          if (filter == 'shorts') return video.isShort;
-          if (filter == 'videos') return !video.isShort;
-          return true;
-        }).toList();
+          final filteredVideos = videos.where((video) {
+            if (filter.isEmpty || filter == 'all') return true;
+            if (filter == 'shorts') return video.isShort;
+            if (filter == 'videos') return !video.isShort;
+            return true;
+          }).toList();
 
-        if (filteredVideos.isEmpty) {
-          return const PlaylistDetailEmptyState();
-        }
+          if (filteredVideos.isEmpty) {
+            return const PlaylistDetailEmptyState();
+          }
 
-        return ListView.builder(
-          shrinkWrap: !isDesktop,
-          physics: isDesktop
-              ? const AlwaysScrollableScrollPhysics()
-              : const NeverScrollableScrollPhysics(),
-          padding: EdgeInsets.symmetric(
-            horizontal: isDesktop ? 24 : (isTablet ? 24 : 16),
-            vertical: 8,
-          ),
-          itemCount: filteredVideos.length,
-          itemBuilder: (context, index) {
-            final video = filteredVideos[index];
-            return PlaylistVideoListItem(
-              index: index + 1,
-              video: video,
-              playlist: playlist,
-              isDesktop: isDesktop,
-              isTablet: isTablet,
-            );
-          },
-        );
+          return ListView.builder(
+            shrinkWrap: !isDesktop,
+            physics: isDesktop
+                ? const AlwaysScrollableScrollPhysics()
+                : const NeverScrollableScrollPhysics(),
+            padding: EdgeInsets.symmetric(
+              horizontal: isDesktop ? 24 : (isTablet ? 24 : 16),
+              vertical: 8,
+            ),
+            itemCount: filteredVideos.length,
+            itemBuilder: (context, index) {
+              final video = filteredVideos[index];
+              return PlaylistVideoListItem(
+                index: index + 1,
+                video: video,
+                playlist: playlist,
+                isDesktop: isDesktop,
+                isTablet: isTablet,
+              );
+            },
+          );
+        });
       },
     );
   }

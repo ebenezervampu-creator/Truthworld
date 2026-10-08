@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/memberships_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/memberships/memberships_widgets.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -36,7 +37,7 @@ class MembershipsScreen extends StatelessWidget {
     final controller = _controller;
 
     return Scaffold(
-      backgroundColor: isDarkMode ? AppColors.bgPage : const Color(0xFFF8FAFC),
+      backgroundColor: isDarkMode ? AppColors.bgPage : Colors.grey.shade50,
       appBar: AppBar(
         title: Text(
           'Channel Memberships & Fan Funding',
@@ -53,9 +54,9 @@ class MembershipsScreen extends StatelessWidget {
         actions: [
           IconButton(
             tooltip: 'Preview Fan Experience',
-            icon: const Icon(
+            icon: Icon(
               Icons.visibility_outlined,
-              color: AppColors.textPrimary,
+              color: isDarkMode ? AppColors.textPrimary : Colors.black87,
               size: 20,
             ),
             onPressed: () => showFanPreviewModal(
@@ -66,31 +67,53 @@ class MembershipsScreen extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.only(right: 16, left: 8),
-            child: ElevatedButton.icon(
-              onPressed: () => showCreateOrEditTierDialog(
-                context: context,
-                controller: controller,
-                isDarkMode: isDarkMode,
-              ),
-              icon: const Icon(
-                Icons.add_rounded,
-                color: Colors.black,
-                size: 18,
-              ),
-              label: const Text('Add Tier'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.brand,
-                foregroundColor: Colors.black,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+            child: Obx(() {
+              final atMax = controller.hasReachedMaxTiers;
+              return Tooltip(
+                message: atMax
+                    ? 'Channels are limited to 3 membership tiers'
+                    : 'Create a new tier (${controller.remainingTierSlots} slots remaining)',
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    if (atMax) {
+                      AppSnackbar.warning(
+                        'Channels can have up to 3 membership tiers only. Please edit or remove an existing tier to add a new one.',
+                      );
+                      return;
+                    }
+                    showCreateOrEditTierDialog(
+                      context: context,
+                      controller: controller,
+                      isDarkMode: isDarkMode,
+                    );
+                  },
+                  icon: Icon(
+                    atMax ? Icons.lock_outline_rounded : Icons.add_rounded,
+                    color: atMax
+                        ? (isDarkMode ? Colors.white60 : Colors.black54)
+                        : Colors.black,
+                    size: 18,
+                  ),
+                  label: Text(atMax ? '3/3 Tiers' : 'Add Tier'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: atMax
+                        ? (isDarkMode ? AppColors.bgSurfaceHigh : Colors.grey.shade200)
+                        : AppColors.brand,
+                    foregroundColor: atMax
+                        ? (isDarkMode ? AppColors.textSecondary : Colors.black54)
+                        : Colors.black,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    textStyle: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
                 ),
-                textStyle: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-              ),
-            ),
+              );
+            }),
           ),
         ],
       ),

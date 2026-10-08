@@ -158,5 +158,45 @@ void main() {
       expect(filtered.length, equals(1));
       expect(filtered.first.id, equals('a1'));
     });
+
+    test('getOfflineVideo finds item in downloaded list', () async {
+      final item = await controller.getOfflineVideo('a1');
+      expect(item, isNotNull);
+      expect(item!.isAudioOnly, isTrue);
+      expect(item.quality, equals('Audio only'));
+    });
+  });
+
+  group('Offline Audio & Format Locking Playback Tests', () {
+    test('OfflineVideo preserves selected format and audio-only mode', () {
+      final audioItem = OfflineVideo(
+        id: 'audio_track_1',
+        title: 'Interview Track',
+        channelName: 'Truth Studio',
+        channelImage: '',
+        views: '450',
+        thumbnailUrl: '',
+        downloadedAt: DateTime.now(),
+        isAudioOnly: true,
+        quality: 'Audio only',
+      );
+
+      final video720pItem = OfflineVideo(
+        id: 'video_720p_1',
+        title: 'Debate in HD',
+        channelName: 'Truth Debate',
+        channelImage: '',
+        views: '12000',
+        thumbnailUrl: '',
+        downloadedAt: DateTime.now(),
+        quality: '720p',
+      );
+
+      expect(audioItem.isAudioOnly, isTrue);
+      expect(audioItem.quality, equals('Audio only'));
+
+      expect(video720pItem.isAudioOnly, isFalse);
+      expect(video720pItem.quality, equals('720p'));
+    });
   });
 }

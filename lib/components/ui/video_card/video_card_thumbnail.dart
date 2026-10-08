@@ -88,8 +88,10 @@ class VideoCardThumbnail extends StatelessWidget {
                         ),
                       ),
                     ),
-                  if (video.isFactChecked)
+                  if (video.isFactChecked || video.hasAiCredibility)
                     const VideoCardFactCheckBadge(),
+                  if (video.isPrivate)
+                    const VideoCardPrivateBadge(),
                   if (!isInitialized)
                     VideoCardDurationBadge(duration: video.duration),
                   if (isInitialized)

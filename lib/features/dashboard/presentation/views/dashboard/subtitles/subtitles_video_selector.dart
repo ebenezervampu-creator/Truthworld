@@ -55,9 +55,7 @@ class SubtitlesSearchHeader extends StatelessWidget {
           Container(
             height: 40,
             decoration: BoxDecoration(
-              color: isDarkMode
-                  ? const Color(0xFF242424)
-                  : const Color(0xFFF1F5F9),
+              color: const Color(0xFF1E1E1E),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: borderColor),
             ),
@@ -70,9 +68,7 @@ class SubtitlesSearchHeader extends StatelessWidget {
                 hintText: 'Search videos...',
                 hintStyle: AppTextStyles.bodySmall.copyWith(
                   fontSize: 14,
-                  color: isDarkMode
-                      ? AppColors.textSecondary
-                      : const Color(0xFF94A3B8),
+                  color: AppColors.textSecondary,
                 ),
                 prefixIcon: const Icon(
                   Icons.search_rounded,
@@ -150,15 +146,11 @@ class SubtitlesVideoSelectorCard extends StatelessWidget {
                     height: 60,
                     fit: BoxFit.cover,
                     placeholder: (context, url) => Container(
-                      color: isDarkMode
-                          ? const Color(0xFF2A2A2A)
-                          : AppColors.bgDivider,
+                      color: AppColors.bgDivider,
                     ),
-                    errorWidget: (context, url, error) => ColoredBox(
-                      color: isDarkMode
-                          ? const Color(0xFF2A2A2A)
-                          : AppColors.bgDivider,
-                      child: const Icon(
+                    errorWidget: (context, url, error) => const ColoredBox(
+                      color: AppColors.bgDivider,
+                      child: Icon(
                         Icons.video_file_rounded,
                         size: 20,
                         color: Colors.white,
@@ -226,7 +218,7 @@ class SubtitlesVideoSelectorCard extends StatelessWidget {
                         ),
                         decoration: BoxDecoration(
                           color: trackCount > 0
-                              ? const Color(0xFF10B981).withValues(alpha: 0.15)
+                              ? AppColors.success.withValues(alpha: 0.15)
                               : textSecondaryColor.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(4),
                         ),
@@ -245,7 +237,7 @@ class SubtitlesVideoSelectorCard extends StatelessWidget {
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                                 color: trackCount > 0
-                                    ? const Color(0xFF10B981)
+                                    ? AppColors.success
                                     : textSecondaryColor,
                               ),
                             ),

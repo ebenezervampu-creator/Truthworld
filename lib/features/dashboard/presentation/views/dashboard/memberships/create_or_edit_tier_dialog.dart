@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/features/channel/data/models/channel_loyalty_badge.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/memberships_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -74,7 +75,7 @@ void showCreateOrEditTierDialog({
                   Text(
                     isEditing
                         ? 'Edit Membership Tier'
-                        : 'Create Membership Tier',
+                        : 'Create Membership Tier (${(controller.tiers.length + 1).clamp(1, 3)}/3)',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -128,9 +129,7 @@ void showCreateOrEditTierDialog({
                                 : Colors.black38,
                           ),
                           filled: true,
-                          fillColor: isDarkMode
-                              ? AppColors.bgInput
-                              : const Color(0xFFF1F5F9),
+                          fillColor: AppColors.bgInput,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                             borderSide: BorderSide.none,
@@ -161,7 +160,7 @@ void showCreateOrEditTierDialog({
                               decoration: BoxDecoration(
                                 color: isDarkMode
                                     ? AppColors.bgInput
-                                    : const Color(0xFFE2E8F0),
+                                    : Colors.grey.shade200,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Row(
@@ -244,9 +243,7 @@ void showCreateOrEditTierDialog({
                                 : Colors.black38,
                           ),
                           filled: true,
-                          fillColor: isDarkMode
-                              ? AppColors.bgInput
-                              : const Color(0xFFF1F5F9),
+                          fillColor: AppColors.bgInput,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                             borderSide: BorderSide.none,
@@ -337,66 +334,54 @@ void showCreateOrEditTierDialog({
                       }),
                       const SizedBox(height: 16),
 
-                      // Loyalty Badge Color Selector
+                      // YouTube-Style Standard Loyalty Badges (Automatic Tenure Progression)
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.auto_awesome_rounded,
+                            size: 14,
+                            color: isDarkMode ? Colors.amberAccent : Colors.amber.shade700,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'LOYALTY BADGES (AUTOMATIC TENURE PROGRESSION)',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: isDarkMode
+                                    ? AppColors.textSecondary
+                                    : Colors.black54,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
                       Text(
-                        'LOYALTY BADGE COLOR',
+                        'Loyalty badges upgrade beside members’ names in comments and live chat automatically as their tenure grows (New member, 3 months, 6 months, 1 year, 2 years, 3 years, 4 years, 5 years, 7 years, 10 years) — exactly like YouTube.',
                         style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
                           color: isDarkMode
                               ? AppColors.textSecondary
                               : Colors.black54,
+                          height: 1.35,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Obx(() {
-                        final curHex = selectedColorHex.value;
-                        return Row(
-                          children: MembershipsController.presetBadgeColors.map((
-                            colorMap,
-                          ) {
-                            final hex = colorMap['hex']! as String;
-                            final color = colorMap['color']! as Color;
-                            final isSelected = curHex == hex;
-
-                            return GestureDetector(
-                              onTap: () => selectedColorHex.value = hex,
-                              child: Container(
-                                margin: const EdgeInsets.only(right: 12),
-                                width: 34,
-                                height: 34,
-                                decoration: BoxDecoration(
-                                  color: color,
-                                  shape: BoxShape.circle,
-                                  border: isSelected
-                                      ? Border.all(
-                                          color: Colors.white,
-                                          width: 3,
-                                        )
-                                      : null,
-                                  boxShadow: isSelected
-                                      ? [
-                                          BoxShadow(
-                                            color: color.withValues(alpha: 0.6),
-                                            blurRadius: 8,
-                                          ),
-                                        ]
-                                      : null,
-                                ),
-                                child: isSelected
-                                    ? const Center(
-                                        child: Icon(
-                                          Icons.check,
-                                          size: 16,
-                                          color: Colors.white,
-                                        ),
-                                      )
-                                    : null,
+                      const SizedBox(height: 10),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: ChannelLoyaltyBadge.allMilestones.map((m) {
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: ChannelLoyaltyBadgeWidget(
+                                milestone: m.milestone,
                               ),
                             );
                           }).toList(),
-                        );
-                      }),
+                        ),
+                      ),
                       const SizedBox(height: 16),
 
                       // Description
@@ -431,9 +416,7 @@ void showCreateOrEditTierDialog({
                                 : Colors.black38,
                           ),
                           filled: true,
-                          fillColor: isDarkMode
-                              ? AppColors.bgInput
-                              : const Color(0xFFF1F5F9),
+                          fillColor: AppColors.bgInput,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                             borderSide: BorderSide.none,
@@ -520,7 +503,7 @@ void showCreateOrEditTierDialog({
                                 filled: true,
                                 fillColor: isDarkMode
                                     ? AppColors.bgInput
-                                    : const Color(0xFFF1F5F9),
+                                    : AppColors.bgInput,
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
                                   borderSide: BorderSide.none,
@@ -731,6 +714,13 @@ void showCreateOrEditTierDialog({
                               if (perks.isEmpty) {
                                 AppSnackbar.warning(
                                   'Please add at least one perk.',
+                                );
+                                return;
+                              }
+
+                              if (!isEditing && controller.hasReachedMaxTiers) {
+                                AppSnackbar.warning(
+                                  'Channels can have up to 3 membership tiers only. Please edit or remove an existing tier to add a new one.',
                                 );
                                 return;
                               }

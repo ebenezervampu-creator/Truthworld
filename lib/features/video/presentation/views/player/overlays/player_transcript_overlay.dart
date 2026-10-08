@@ -136,7 +136,24 @@ class TranscriptOverlay extends StatelessWidget {
                   );
                 }
 
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (ctrl.showTranscriptPopup.value &&
+                      ctrl.overlayTranscriptScrollController.hasClients) {
+                    final pos = ctrl.videoPlayerController.value.position;
+                    final transcriptCtrl = ctrl.videoController?.transcriptController;
+                    final targetIndex = transcriptCtrl?.findSegmentIndexForPosition(pos) ?? -1;
+                    if (targetIndex >= 0) {
+                      final targetOffset = (targetIndex * 48.0 - 80.0).clamp(
+                        0.0,
+                        ctrl.overlayTranscriptScrollController.position.maxScrollExtent,
+                      );
+                      ctrl.overlayTranscriptScrollController.jumpTo(targetOffset);
+                    }
+                  }
+                });
+
                 return ListView.builder(
+                  controller: ctrl.overlayTranscriptScrollController,
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   itemCount: segments.length,
                   itemBuilder: (context, index) {
@@ -144,6 +161,7 @@ class TranscriptOverlay extends StatelessWidget {
                     return _TranscriptOverlayTile(
                       seg: seg,
                       ctrl: ctrl,
+                      segmentIndex: index,
                     );
                   },
                 );
@@ -160,15 +178,22 @@ class _TranscriptOverlayTile extends StatelessWidget {
   const _TranscriptOverlayTile({
     required this.seg,
     required this.ctrl,
+    this.segmentIndex,
   });
 
   final SubtitleSegment seg;
   final TowerPlayerController ctrl;
+  final int? segmentIndex;
 
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      final isActive = ctrl.activeSubtitleSegment.value == seg;
+      final isPlayerActive = ctrl.activeSubtitleSegment.value == seg;
+      final transcriptCtrl = ctrl.videoController?.transcriptController;
+      final isIndexActive = transcriptCtrl != null &&
+          segmentIndex != null &&
+          transcriptCtrl.activeSegmentIndex.value == segmentIndex;
+      final isActive = isPlayerActive || isIndexActive;
 
       return InkWell(
         onTap: () => ctrl.seekTo(seg.start),

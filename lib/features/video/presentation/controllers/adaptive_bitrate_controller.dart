@@ -10,9 +10,8 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
-import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/utils/web_platform_utils.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:universal_html/js.dart' as js;
 import 'package:video_player/video_player.dart';
 
 /// Represents a single resolution tier in the quality ladder
@@ -37,7 +36,7 @@ class ResolutionTier {
     } else if (v.bitrate > 0) {
       kbps = v.bitrate;
     } else {
-      kbps = defaultBitrateForHeight(v.height);
+      kbps = defaultBitrateForHeight(v.height, fps: v.fps);
     }
 
     return ResolutionTier(
@@ -49,12 +48,13 @@ class ResolutionTier {
     );
   }
 
-  static int defaultBitrateForHeight(int height) {
-    if (height >= 2160) return 15000;
-    if (height >= 1440) return 10000;
-    if (height >= 1080) return 5000;
-    if (height >= 1040) return 4500;
-    if (height >= 720) return 2500;
+  static int defaultBitrateForHeight(int height, {int fps = 30}) {
+    final is60 = fps >= 50;
+    if (height >= 2160) return is60 ? 22000 : 15000;
+    if (height >= 1440) return is60 ? 14000 : 10000;
+    if (height >= 1080) return is60 ? 7500 : 5000;
+    if (height >= 1040) return is60 ? 6750 : 4500;
+    if (height >= 720) return is60 ? 3800 : 2500;
     if (height >= 480) return 1000;
     if (height >= 360) return 600;
     if (height >= 240) return 300;
@@ -65,6 +65,9 @@ class ResolutionTier {
   final int height; // Vertical pixels
   final int bitrate; // Target bitrate in kbps
   final int minBandwidth;
+
+  bool get is60Fps => label.contains('60');
+  int get fps => is60Fps ? 60 : 30;
 
   /// Standard OTT resolution ladder (matches standard OTT encoding specs)
   static List<ResolutionTier> get defaultLadder => [
@@ -199,20 +202,23 @@ class AdaptiveBitrateController extends BaseController {
   VideoPlayerController? _vpc;
   int? maxHeightCap;
 
-  // ABR tuning constants (optimized for smooth progressive MP4 and HLS playback)
-  static const double _bandwidthSafetyFactor = 0.80; // Use 80% of measured BW
+  // ABR tuning constants (Optimized for CMAF Ultra-Low Latency 500ms chunking)
+  static const double _bandwidthSafetyFactor = 0.85; // 85% of measured BW with CMAF
   static const double _upgradeHysteresisFactor =
-      1.25; // Need 25% more than tier BW to upgrade (prevents premature jumping)
+      1.15; // 15% margin for upgrade (responsive step-up)
   static const double _downgradeHysteresisFactor =
-      0.70; // Must drop 30% below tier to downgrade (prevents oscillation on minor network dips)
+      0.75; // Downgrade if throughput drops 25% below tier
   static const double _minBufferToUpgrade =
-      15.0; // Seconds of buffer before allowing automatic upgrade (smooth playback buffer cushion)
+      4.0; // 4.0s of buffer (8x 500ms CMAF chunks) allows near-instant quality shifts
   static const double _panicBufferLevel =
-      1.0; // Drop to lowest tier only if buffer < 1s and outside startup grace
+      1.5; // Trigger emergency downgrade if buffer drops below 1.5s
   static const int _measurementWindowCount =
-      5; // Rolling average over 5 measurements
-  static const Duration _startupGracePeriod = Duration(seconds: 15);
-  static const Duration _minDwellDuration = Duration(seconds: 45);
+      4; // Rolling average over 4 measurements for quick adaptation
+  static const Duration _startupGracePeriod = Duration(seconds: 4);
+  static const Duration _minDwellDuration = Duration(seconds: 5);
+
+  /// Flag indicating CMAF Ultra-Low Latency chunking profile is active
+  bool get isCmafUllEnabled => true;
 
   // ── Internal state ─────────────────────────────────────────
   final List<double> _bandwidthHistory = [];
@@ -234,6 +240,7 @@ class AdaptiveBitrateController extends BaseController {
     required List<ResolutionTier> ladder,
     required VideoPlayerController vpc,
     int? maxHeightCap,
+    int? initialTierIndex,
   }) {
     _playbackStartTime = DateTime.now();
     _lastTierSwitchTime = DateTime.now();
@@ -249,18 +256,50 @@ class AdaptiveBitrateController extends BaseController {
 
     // We keep the current tier or start as high as hint allows
     if (ladder.isNotEmpty) {
-      // SAFETY: Clamp default currentTierIndex to new ladder bounds immediately
-      currentTierIndex.value = currentTierIndex.value.clamp(
-        0,
-        ladder.length - 1,
-      );
-      _runAbrDecision(forceHighest: true);
+      if (initialTierIndex != null) {
+        currentTierIndex.value = initialTierIndex.clamp(0, ladder.length - 1);
+        _isFirstDecision = false;
+      } else {
+        // SAFETY: Clamp default currentTierIndex to new ladder bounds immediately
+        currentTierIndex.value = currentTierIndex.value.clamp(
+          0,
+          ladder.length - 1,
+        );
+        _runAbrDecision(forceHighest: true);
+      }
     }
 
     _startAbrLoop();
     _startBandwidthProbing();
     _startStallDetection();
     _vpc!.addListener(_onVideoPlayerUpdate);
+  }
+
+  /// Seamlessly updates the resolution ladder with concrete variants once resolved from storage/backend,
+  /// preserving active playback alignment without spurious downgrades or upgrades.
+  void updateLadder(
+    List<ResolutionTier> newLadder, {
+    int? activeHeight,
+    int? activeFps,
+  }) {
+    if (newLadder.isEmpty) return;
+    resolutionLadder = newLadder;
+
+    var matchingIdx = -1;
+    if (activeHeight != null) {
+      matchingIdx = newLadder.indexWhere(
+        (t) => t.height == activeHeight && (activeFps == null || t.fps == activeFps),
+      );
+      if (matchingIdx == -1) {
+        matchingIdx = newLadder.indexWhere((t) => t.height == activeHeight);
+      }
+    }
+
+    if (matchingIdx != -1) {
+      currentTierIndex.value = matchingIdx;
+    } else {
+      currentTierIndex.value = currentTierIndex.value.clamp(0, newLadder.length - 1);
+    }
   }
 
   void updateMaxHeightCap(int? cap) {
@@ -283,27 +322,8 @@ class AdaptiveBitrateController extends BaseController {
   }
 
   double _getInitialBandwidthHint() {
-    if (!kIsWeb) return 5000; // Default 5Mbps on mobile if unknown
-    try {
-      // Access Navigator Network Information API via JS context
-      final dynamic nav = js.context['navigator'];
-      if (nav != null) {
-        final dynamic conn = nav['connection'];
-        if (conn != null) {
-          final downlink = conn['downlink']; // Mbps
-          if (downlink != null) {
-            return (downlink as num).toDouble() * 1000; // to kbps
-          }
-        }
-      }
-    } catch (e, s) {
-      ErrorHandler.log(
-        e,
-        stackTrace: s,
-        tag: 'AdaptiveBitrateController.getNetworkInformationHint',
-      );
-    }
-    return 5000;
+    if (!kIsWeb) return 5000;
+    return WebPlatformUtils.getInitialBandwidthHint();
   }
 
   void setManualTier(int index) {
@@ -350,7 +370,7 @@ class AdaptiveBitrateController extends BaseController {
 
   void _startAbrLoop() {
     _abrTimer?.cancel();
-    _abrTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+    _abrTimer = Timer.periodic(const Duration(seconds: 2), (_) {
       if (isAutoMode.value) _runAbrDecision();
     });
     trackTimer(_abrTimer!);

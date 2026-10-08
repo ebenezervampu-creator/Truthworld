@@ -93,25 +93,24 @@ class FirestoreChannelRemoteDataSource implements ChannelRemoteDataSource {
     final subRef = _firestore
         .collection(FirestoreCollections.subscriptions)
         .doc('${userId}_$channelId');
+    final channelRef = _firestore
+        .collection(FirestoreCollections.channels)
+        .doc(channelId);
 
-    final subDoc = await subRef.get();
-    if (subDoc.exists) {
-      await subRef.delete();
-      await _firestore
-          .collection(FirestoreCollections.channels)
-          .doc(channelId)
-          .update({'subscriberCount': FieldValue.increment(-1)});
-    } else {
-      await subRef.set({
-        'userId': userId,
-        'channelId': channelId,
-        'subscribedAt': FieldValue.serverTimestamp(),
-      });
-      await _firestore
-          .collection(FirestoreCollections.channels)
-          .doc(channelId)
-          .update({'subscriberCount': FieldValue.increment(1)});
-    }
+    await _firestore.runTransaction<void>((tx) async {
+      final subSnap = await tx.get(subRef);
+      if (subSnap.exists) {
+        tx.delete(subRef);
+        tx.update(channelRef, {'subscriberCount': FieldValue.increment(-1)});
+      } else {
+        tx.set(subRef, {
+          'userId': userId,
+          'channelId': channelId,
+          'subscribedAt': FieldValue.serverTimestamp(),
+        });
+        tx.update(channelRef, {'subscriberCount': FieldValue.increment(1)});
+      }
+    });
   }
 
   @override

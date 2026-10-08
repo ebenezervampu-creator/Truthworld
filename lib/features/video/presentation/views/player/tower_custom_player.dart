@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
@@ -7,6 +8,7 @@ import 'package:truthworld/features/video/presentation/views/player/controls/pla
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:truthworld/features/video/presentation/views/player/overlays/ad_overlay.dart';
 import 'package:truthworld/features/video/presentation/views/player/overlays/end_screen_overlay.dart';
+import 'package:truthworld/features/video/presentation/views/player/overlays/fullscreen_more_videos_overlay.dart';
 import 'package:truthworld/features/video/presentation/views/player/overlays/live_chat_overlay.dart';
 import 'package:truthworld/features/video/presentation/views/player/overlays/player_comments_overlay.dart';
 import 'package:truthworld/features/video/presentation/views/player/overlays/player_fact_check_overlay.dart';
@@ -161,14 +163,14 @@ class TowerCustomPlayer extends StatelessWidget {
 
                             // ── Layer 0.05: Video Bottom Seam Guard ────────────────
                             // Eliminates any 1px sub-pixel rounding gap, video encoding border,
-                            // or edge texture bleeding at the bottom boundary before page content.
+                            // or edge texture bleeding at the bottom boundary seamlessly in black.
                             const Positioned(
                               bottom: 0,
                               left: 0,
                               right: 0,
                               height: 1.5,
                               child: IgnorePointer(
-                                child: ColoredBox(color: AppColors.bgPage),
+                                child: ColoredBox(color: Colors.black),
                               ),
                             ),
 
@@ -184,8 +186,19 @@ class TowerCustomPlayer extends StatelessWidget {
                                     c.startHideTimer();
                                   }
                                 },
-                                child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
+                                child: Listener(
+                                  onPointerSignal: (pointerSignal) {
+                                    if (pointerSignal is PointerScrollEvent &&
+                                        c.isFullScreen.value &&
+                                        !c.isShowingAd.value) {
+                                      // Upward mouse wheel/trackpad scroll in fullscreen opens More Videos
+                                      if (pointerSignal.scrollDelta.dy < -15) {
+                                        c.openMoreVideos();
+                                      }
+                                    }
+                                  },
+                                  child: GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
                                 onTapDown: (d) => c.isShowingAd.value
                                     ? null
                                     : c.handlePlayerTap(
@@ -193,18 +206,20 @@ class TowerCustomPlayer extends StatelessWidget {
                                         playerWidth,
                                         playerWidth > 1050,
                                       ),
-                                onLongPressStart: (_) => c.isShowingAd.value
-                                    ? null
-                                    : c.startLongPressSpeedUp(),
+                                onLongPressStart: (_) {
+                                  if (c.isShowingAd.value) return;
+                                  c.cancelPendingTap();
+                                  c.startLongPressSpeedUp();
+                                },
                                 onLongPressEnd: (_) => c.isShowingAd.value
                                     ? null
                                     : c.endLongPressSpeedUp(),
                                 onScaleStart: (details) {
-                                  c.cancelPendingTap();
                                   if (c.isShowingAd.value) return;
-                                  baseScale = c.zoomScale.value;
                                   if (details.pointerCount >= 2) {
+                                    c.cancelPendingTap();
                                     isPinching = true;
+                                    baseScale = c.zoomScale.value;
                                   } else {
                                     isPinching = false;
                                     c.onVerticalDragStart(
@@ -270,6 +285,7 @@ class TowerCustomPlayer extends StatelessWidget {
                               ),
                             ),
                           ),
+                        ),
 
                             // ── Layer 0.5: Audio-only UI with 250ms Crossfade ───────────────
                             Obx(
@@ -325,28 +341,46 @@ class TowerCustomPlayer extends StatelessWidget {
                                 bottom: c.controlsVisible.value ? 75 : 20,
                                 left: 16,
                                 right: 16,
-                                child: SubtitleOverlay(ctrl: c),
+                                child: IgnorePointer(
+                                  child: SubtitleOverlay(ctrl: c),
+                                ),
                               );
                             }),
 
                             // ── Layer 2: Double-tap ripples ────────────────────────
                             Obx(
                               () => c.showDoubleTapLeft.value && !c.isPiP.value
-                                  ? DoubleTapRipple(
-                                      isLeft: true,
-                                      seconds: c.doubleTapSeconds.value > 0
-                                          ? c.doubleTapSeconds.value
-                                          : 10,
+                                  ? Positioned(
+                                      top: 0,
+                                      left: 0,
+                                      bottom: 0,
+                                      width: playerWidth * 0.45,
+                                      child: IgnorePointer(
+                                        child: DoubleTapRipple(
+                                          isLeft: true,
+                                          seconds: c.doubleTapSeconds.value > 0
+                                              ? c.doubleTapSeconds.value
+                                              : 10,
+                                        ),
+                                      ),
                                     )
                                   : const SizedBox.shrink(),
                             ),
                             Obx(
                               () => c.showDoubleTapRight.value && !c.isPiP.value
-                                  ? DoubleTapRipple(
-                                      isLeft: false,
-                                      seconds: c.doubleTapSeconds.value > 0
-                                          ? c.doubleTapSeconds.value
-                                          : 10,
+                                  ? Positioned(
+                                      top: 0,
+                                      right: 0,
+                                      bottom: 0,
+                                      width: playerWidth * 0.45,
+                                      child: IgnorePointer(
+                                        child: DoubleTapRipple(
+                                          isLeft: false,
+                                          seconds: c.doubleTapSeconds.value > 0
+                                              ? c.doubleTapSeconds.value
+                                              : 10,
+                                        ),
+                                      ),
                                     )
                                   : const SizedBox.shrink(),
                             ),
@@ -361,7 +395,14 @@ class TowerCustomPlayer extends StatelessWidget {
                             // ── Layer 4: Seek preview tooltip ──────────────────────
                             Obx(
                               () => c.seekPreviewVis.value && !c.isPiP.value
-                                  ? SeekPreviewTooltip(ctrl: c)
+                                  ? Positioned(
+                                      bottom: 100,
+                                      left: 0,
+                                      right: 0,
+                                      child: IgnorePointer(
+                                        child: SeekPreviewTooltip(ctrl: c),
+                                      ),
+                                    )
                                   : const SizedBox.shrink(),
                             ),
 
@@ -370,7 +411,13 @@ class TowerCustomPlayer extends StatelessWidget {
                               () =>
                                   c.toastMessage.value.isNotEmpty &&
                                       !c.isPiP.value
-                                  ? PlayerToast(message: c.toastMessage.value)
+                                  ? Positioned.fill(
+                                      child: IgnorePointer(
+                                        child: PlayerToast(
+                                          message: c.toastMessage.value,
+                                        ),
+                                      ),
+                                    )
                                   : const SizedBox.shrink(),
                             ),
 
@@ -384,35 +431,37 @@ class TowerCustomPlayer extends StatelessWidget {
                                 top: 24,
                                 left: 0,
                                 right: 0,
-                                child: Center(
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 8,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.bgPage.withValues(
-                                        alpha: 0.7,
+                                child: IgnorePointer(
+                                  child: Center(
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 8,
                                       ),
-                                      borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(
-                                        color: AppColors.textDisabled,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.bgPage.withValues(
+                                          alpha: 0.7,
+                                        ),
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(
+                                          color: AppColors.textDisabled,
+                                        ),
                                       ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(
-                                          Icons.fast_forward_rounded,
-                                          color: AppColors.textPrimary,
-                                          size: 16,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          '2.0× Speed',
-                                          style: TS.bold.copyWith(fontSize: 13),
-                                        ),
-                                      ],
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(
+                                            Icons.fast_forward_rounded,
+                                            color: AppColors.textPrimary,
+                                            size: 16,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            '2.0× Speed',
+                                            style: TS.bold.copyWith(fontSize: 13),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -430,15 +479,17 @@ class TowerCustomPlayer extends StatelessWidget {
                                 alignment: bri
                                     ? Alignment.centerLeft
                                     : Alignment.centerRight,
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 24,
-                                  ),
-                                  child: SwipeHUD(
-                                    isBrightness: bri,
-                                    value: bri
-                                        ? c.swipeBrightnessLevel.value
-                                        : c.swipeVolumeLevel.value,
+                                child: IgnorePointer(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 24,
+                                    ),
+                                    child: SwipeHUD(
+                                      isBrightness: bri,
+                                      value: bri
+                                          ? c.swipeBrightnessLevel.value
+                                          : c.swipeVolumeLevel.value,
+                                    ),
                                   ),
                                 ),
                               );
@@ -482,8 +533,8 @@ class TowerCustomPlayer extends StatelessWidget {
                                 child: AnimatedOpacity(
                                   duration: const Duration(milliseconds: 200),
                                   opacity: c.controlsVisible.value ? 1.0 : 0.0,
-                                  child: AbsorbPointer(
-                                    absorbing: !c.controlsVisible.value,
+                                  child: IgnorePointer(
+                                    ignoring: !c.controlsVisible.value,
                                     child: MainControls(
                                       ctrl: c,
                                       playerWidth: playerWidth,
@@ -516,8 +567,8 @@ class TowerCustomPlayer extends StatelessWidget {
                                 child: AnimatedOpacity(
                                   duration: const Duration(milliseconds: 200),
                                   opacity: isLayerVisible ? 1.0 : 0.0,
-                                  child: AbsorbPointer(
-                                    absorbing: !isLayerVisible,
+                                  child: IgnorePointer(
+                                    ignoring: !isLayerVisible,
                                     child: Stack(
                                       children: [
                                         FloatingAutoPlayCommentOverlay(ctrl: c),
@@ -687,6 +738,21 @@ class TowerCustomPlayer extends StatelessWidget {
                               if (c.showEndScreen.value && !c.isPiP.value) {
                                 return Positioned.fill(
                                   child: EndScreenOverlay(ctrl: c),
+                                );
+                              }
+                              return const SizedBox.shrink();
+                            }),
+
+                            // ── Layer 8.7: Fullscreen More Videos Overlay ─────────────
+                            Obx(() {
+                              c.showMoreVideos.value;
+                              c.isFullScreen.value;
+                              c.isPiP.value;
+                              if (c.showMoreVideos.value &&
+                                  c.isFullScreen.value &&
+                                  !c.isPiP.value) {
+                                return Positioned.fill(
+                                  child: FullscreenMoreVideosOverlay(ctrl: c),
                                 );
                               }
                               return const SizedBox.shrink();

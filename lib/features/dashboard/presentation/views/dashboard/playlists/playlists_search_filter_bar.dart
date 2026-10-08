@@ -27,12 +27,13 @@ class PlaylistFilterChip extends StatelessWidget {
         labelStyle: TextStyle(
           fontSize: 12,
           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-          color: isSelected ? Colors.white : AppColors.textSecondary,
+          color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
+          fontFamily: TWTypography.uiFamily,
         ),
-        backgroundColor: const Color(0xFF0F0F0F),
-        selectedColor: const Color(0xFF27272A),
+        backgroundColor: AppColors.bgPage,
+        selectedColor: AppColors.bgSurfaceHover,
         side: BorderSide(
-          color: isSelected ? const Color(0xFF52525B) : const Color(0xFF27272A),
+          color: isSelected ? AppColors.textSecondary : AppColors.bgDivider,
         ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
@@ -44,7 +45,7 @@ class PlaylistFilterChip extends StatelessWidget {
   }
 }
 
-/// Studio search & filter controls bar for Playlists Management tab.
+/// Search & filter controls bar for Playlists Management tab.
 class PlaylistsSearchFilterBar extends GetView<PlaylistsManagementController> {
   const PlaylistsSearchFilterBar({super.key});
 
@@ -53,9 +54,9 @@ class PlaylistsSearchFilterBar extends GetView<PlaylistsManagementController> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF141417),
+        color: const Color(0xFF1E1E1E),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: AppColors.bgDivider),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -64,16 +65,21 @@ class PlaylistsSearchFilterBar extends GetView<PlaylistsManagementController> {
           final searchField = TextField(
             controller: controller.searchController,
             onChanged: controller.updateSearchQuery,
-            style: const TextStyle(color: Colors.white, fontSize: 13),
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 13,
+              fontFamily: TWTypography.uiFamily,
+            ),
             decoration: InputDecoration(
               hintText: 'Search playlists by name or description...',
               hintStyle: const TextStyle(
-                color: AppColors.textSecondary,
+                color: AppColors.textTertiary,
                 fontSize: 13,
+                fontFamily: TWTypography.uiFamily,
               ),
               prefixIcon: const Icon(
                 Icons.search_rounded,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 size: 18,
               ),
               suffixIcon: Obx(() {
@@ -83,7 +89,7 @@ class PlaylistsSearchFilterBar extends GetView<PlaylistsManagementController> {
                 return IconButton(
                   icon: const Icon(
                     Icons.clear_rounded,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     size: 16,
                   ),
                   onPressed: () {
@@ -93,7 +99,7 @@ class PlaylistsSearchFilterBar extends GetView<PlaylistsManagementController> {
                 );
               }),
               filled: true,
-              fillColor: const Color(0xFF0F0F0F),
+              fillColor: AppColors.bgPage,
               isDense: true,
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 14,
@@ -101,15 +107,15 @@ class PlaylistsSearchFilterBar extends GetView<PlaylistsManagementController> {
               ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0xFF27272A)),
+                borderSide: const BorderSide(color: AppColors.bgDivider),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0xFF27272A)),
+                borderSide: const BorderSide(color: AppColors.bgDivider),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0xFF52525B)),
+                borderSide: const BorderSide(color: AppColors.textSecondary),
               ),
             ),
           );
@@ -131,22 +137,23 @@ class PlaylistsSearchFilterBar extends GetView<PlaylistsManagementController> {
                   height: 34,
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0F0F0F),
+                    color: AppColors.bgPage,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFF27272A)),
+                    border: Border.all(color: AppColors.bgDivider),
                   ),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
                       value: controller.activeSortMode.value,
-                      dropdownColor: const Color(0xFF1E1E22),
+                      dropdownColor: const Color(0xFF1E1E1E),
                       style: const TextStyle(
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
+                        fontFamily: TWTypography.uiFamily,
                       ),
                       icon: const Icon(
                         Icons.keyboard_arrow_down_rounded,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                         size: 16,
                       ),
                       items: const [
@@ -183,13 +190,13 @@ class PlaylistsSearchFilterBar extends GetView<PlaylistsManagementController> {
                     controller.isGridView.value
                         ? Icons.view_list_rounded
                         : Icons.grid_view_rounded,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     size: 20,
                   ),
                   onPressed: controller.toggleViewMode,
                   style: IconButton.styleFrom(
-                    backgroundColor: const Color(0xFF0F0F0F),
-                    side: const BorderSide(color: Color(0xFF27272A)),
+                    backgroundColor: AppColors.bgPage,
+                    side: const BorderSide(color: AppColors.bgDivider),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),

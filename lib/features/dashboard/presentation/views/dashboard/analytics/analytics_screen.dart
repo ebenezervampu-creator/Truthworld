@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/features/analytics/presentation/pages/creator_analytics_dashboard.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/analytics_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/recommendation_card_widget.dart';
@@ -33,8 +34,49 @@ class AnalyticsScreen extends StatelessWidget {
       backgroundColor: bgPage,
       body: Obx(() {
         if (controller.rxIsLoading.value) {
-          return const Center(
-            child: CircularProgressIndicator(color: AppColors.brand),
+          return Shimmer.fromColors(
+            baseColor: const Color(0xFF1E1E1E),
+            highlightColor: AppColors.bgSurfaceHover,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    height: 48,
+                    width: 280,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E1E1E),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: List.generate(
+                      4,
+                      (_) => Expanded(
+                        child: Container(
+                          height: 110,
+                          margin: const EdgeInsets.symmetric(horizontal: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1E1E1E),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Container(
+                    height: 260,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E1E1E),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           );
         }
         if (controller.rxErrorMessage.value.isNotEmpty) {
@@ -114,10 +156,10 @@ class AnalyticsScreen extends StatelessWidget {
                             vertical: 10,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFE94560).withValues(alpha: 0.15),
+                            color: AppColors.error.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                              color: const Color(0xFFE94560).withValues(alpha: 0.4),
+                              color: AppColors.error.withValues(alpha: 0.4),
                             ),
                           ),
                           child: const Row(
@@ -132,7 +174,7 @@ class AnalyticsScreen extends StatelessWidget {
                               Text(
                                 'Live Subscribers of channel',
                                 style: TextStyle(
-                                  color: Color(0xFFE94560),
+                                  color: AppColors.error,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 13,
                                 ),

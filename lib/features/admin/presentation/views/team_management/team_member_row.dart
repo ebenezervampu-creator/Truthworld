@@ -25,8 +25,7 @@ class TeamMemberRow extends StatelessWidget {
     final status = member['status']?.toString() ?? 'active';
     final isSuspended = status == 'suspended';
     final isPrimaryOwner =
-        email.toLowerCase() == 'ebenezervampy@towervsp.com' ||
-        email.toLowerCase() == 'ebenezervampu@towervsp.com';
+        email.toLowerCase() == 'hello@truthworld.in';
 
     final rawRoles = member['roles'];
     var rolesList = <String>[];

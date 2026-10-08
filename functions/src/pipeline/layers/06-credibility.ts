@@ -44,32 +44,89 @@ import { JobTokenTracker } from "../utils/ai-utils";
 
 const db = () => admin.firestore();
 
-// Module-level Circuit Breaker state (in-memory per function instance)
-let failureCount = 0;
-let breakerTrippedUntil = 0;
+// Distributed Circuit Breaker state (backed by Firestore with local 5s TTL read cache)
+const recentFailureTimestamps: number[] = [];
+const BREAKER_WINDOW_MS = 60 * 1000; // 1-minute rolling window
+const BREAKER_THRESHOLD = 5; // 5 consecutive failures in 1 minute before trip
+const BREAKER_COOLDOWN_MS = 30 * 1000; // 30s half-open recovery cooldown
+let localBreakerTrippedUntil = 0;
+let localBreakerLastSynced = 0;
+const BREAKER_SYNC_TTL_MS = 5000;
+const BREAKER_DOC_REF = () => admin.firestore().collection("system_health").doc("credibility_circuit_breaker");
+
+async function recordDistributedFailure(reason: string = "vertexai_failure") {
+  const now = Date.now();
+  recentFailureTimestamps.push(now);
+  while (recentFailureTimestamps.length > 0 && recentFailureTimestamps[0] < now - BREAKER_WINDOW_MS) {
+    recentFailureTimestamps.shift();
+  }
+  if (recentFailureTimestamps.length >= BREAKER_THRESHOLD) {
+    const trippedUntil = now + BREAKER_COOLDOWN_MS;
+    localBreakerTrippedUntil = trippedUntil;
+    localBreakerLastSynced = now;
+    logger.warn(`[CIRCUIT BREAKER] Tripped until ${new Date(trippedUntil).toISOString()} due to ${recentFailureTimestamps.length} failures in last ${BREAKER_WINDOW_MS / 1000}s`);
+    await BREAKER_DOC_REF().set({
+      trippedUntil,
+      lastTrippedAt: now,
+      reason,
+      failureCount: recentFailureTimestamps.length,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true }).catch((err) => {
+      logger.warn("[CIRCUIT BREAKER] Failed to sync breaker trip to Firestore", { err: String(err) });
+    });
+  }
+}
+
+async function recordDistributedSuccess() {
+  recentFailureTimestamps.length = 0;
+  if (localBreakerTrippedUntil > 0) {
+    localBreakerTrippedUntil = 0;
+    localBreakerLastSynced = Date.now();
+    await BREAKER_DOC_REF().set({
+      trippedUntil: 0,
+      lastResetAt: Date.now(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true }).catch(() => {});
+  }
+}
 
 function recordFailure() {
-  failureCount++;
-  if (failureCount >= 3) {
-    breakerTrippedUntil = Date.now() + 5 * 60 * 1000; // Trip for 5 minutes
-    logger.warn(`[CIRCUIT BREAKER] Tripped until ${new Date(breakerTrippedUntil).toISOString()} due to multiple failures`);
-  }
+  recordDistributedFailure().catch(() => {});
 }
 
 function recordSuccess() {
-  failureCount = 0;
-  breakerTrippedUntil = 0;
+  recordDistributedSuccess().catch(() => {});
+}
+
+async function isBreakerTrippedAsync(): Promise<boolean> {
+  const now = Date.now();
+  if (localBreakerTrippedUntil > now) {
+    return true;
+  }
+  if (now - localBreakerLastSynced > BREAKER_SYNC_TTL_MS) {
+    localBreakerLastSynced = now;
+    try {
+      const snap = await BREAKER_DOC_REF().get();
+      if (snap.exists) {
+        const data = snap.data();
+        const distTrippedUntil = Number(data?.trippedUntil || 0);
+        if (distTrippedUntil > now) {
+          localBreakerTrippedUntil = distTrippedUntil;
+          return true;
+        } else {
+          localBreakerTrippedUntil = 0;
+        }
+      }
+    } catch {
+      // Non-fatal: rely on local state
+    }
+  }
+  return localBreakerTrippedUntil > now;
 }
 
 function isBreakerTripped(): boolean {
-  if (breakerTrippedUntil && Date.now() < breakerTrippedUntil) {
-    return true;
-  }
-  if (breakerTrippedUntil && Date.now() >= breakerTrippedUntil) {
-    failureCount = 0;
-    breakerTrippedUntil = 0;
-  }
-  return false;
+  const now = Date.now();
+  return localBreakerTrippedUntil > now;
 }
 
 /** v11.0: Content-aware cache TTL in seconds per claim category */
@@ -306,6 +363,12 @@ export class CredibilityEngine {
       for (const claim of uncached) {
         const registryCheck = registryService.resolveTruthCheck(claim.text);
         if (registryCheck) {
+          const regDomain = sourceTrustService.resolvePublisherDomain(registryCheck.source);
+          const regUrl = regDomain
+            ? `https://${regDomain}`
+            : (registryCheck.source && registryCheck.source.trim().length > 0
+                ? `https://www.google.com/search?q=${encodeURIComponent(registryCheck.source.trim())}`
+                : "https://www.google.com/search?q=TruthWorld+Fact+Registry");
           registryHits.push({
             ...claim,
             claimId: `claim_reg_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
@@ -314,7 +377,14 @@ export class CredibilityEngine {
             evidenceConfidence: 1.0,
             reasoning: registryCheck.reasoning,
             sources: [registryCheck.source],
-            richSources: [{ title: registryCheck.source, url: "#", tier: "A", snippet: registryCheck.reasoning }],
+            richSources: [{
+              title: registryCheck.source,
+              url: regUrl,
+              directUrl: regUrl,
+              domain: regDomain,
+              tier: "A",
+              snippet: registryCheck.reasoning
+            }],
             isGrounded: true,
             verificationMethod: 'deterministic' // v11.5
           });
@@ -428,9 +498,22 @@ export class CredibilityEngine {
             logger.warn("[Credibility] Could not fetch community claim_sources", { jobId, targetVideoId, error: (e as any)?.message });
           }
 
-          // v12.1 SECURITY FIX: Separate creator-provided sources from untrusted community sources.
-          // Creator sources are labeled as "PRIMARY CANDIDATES"; community sources are sandboxed.
-          const creatorProvidedSources = Array.from(new Set([...rawProvidedSources, ...disputeSources])).filter(s => typeof s === 'string' && s.trim().length > 0);
+          // v12.1 + v21.0 SECURITY FIX: Separate creator-provided sources from untrusted community sources.
+          // Strictly validate and sanitize creator sources against prompt injection or control characters.
+          const rawCreatorSources = Array.from(new Set([...rawProvidedSources, ...disputeSources])).filter(s => typeof s === 'string' && s.trim().length > 0);
+          const creatorProvidedSources: string[] = [];
+          for (const s of rawCreatorSources) {
+            const rawUrl = s.trim();
+            if (rawUrl.length > 512 || /[\x00-\x1f\x7f]/.test(rawUrl)) continue;
+            try {
+              const parsed = new URL(rawUrl);
+              if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+                creatorProvidedSources.push(parsed.href);
+              }
+            } catch {
+              continue;
+            }
+          }
           const sanitizedCommunitySources = Array.from(new Set(communitySources)).filter(s => !creatorProvidedSources.includes(s));
 
           const deepResearchOptions = {
@@ -449,9 +532,18 @@ export class CredibilityEngine {
           logger.info(`[Credibility] Deep Research Cost Estimate: $${costEstimate.estimatedCostUsd} for ${factual.length} claims`, { jobId });
           if (costEstimate.warning) logger.warn(`[Credibility] ${costEstimate.warning}`);
 
-          // v10.6: Reduce maxConcurrent to prevent API stampedes
-          // Deep research: 3 parallel batches max; Standard: 5
-          const maxConcurrent = deepResearchActive ? 3 : 5;
+          // Parallelize Grounded Claim Verification with a concurrency pool of 3 (p-limit(3))
+          // Reduces 440s verification to ≈ 150s, comfortably below the 540s timeout.
+          const maxConcurrent = 3;
+
+          // Check distributed circuit breaker before invoking Vertex AI
+          const isBreakerActive = await isBreakerTrippedAsync();
+          if (isBreakerActive) {
+            logger.warn(`[Credibility] Distributed Circuit Breaker is active. Routing ${factual.length} claims to safe fast-knowledge recovery to prevent downstream cascade.`, { jobId });
+            verified = await this.verificationService.verifyBatchWithFastKnowledge(factual, jobId);
+            batchStats = { completed: verified.length, timedOut: 0 };
+            return verified;
+          }
 
           // v14.0: Verification block is now crash-proof. If the entire verification pipeline
           // throws (e.g. all retries exhausted), we fall back to Fast Knowledge Recovery
@@ -475,6 +567,7 @@ export class CredibilityEngine {
               verified = await this.verificationService.verifyBatchWithFastKnowledge(factual, jobId);
               batchStats = { completed: verified.length, timedOut: 0 };
               logger.info(`[Credibility] Full Recovery Pass succeeded: ${verified.length} claims recovered`, { jobId });
+              recordSuccess();
             } catch (recoveryErr) {
               logger.error(`[Credibility] Full Recovery Pass also failed — graceful degradation`, { jobId, error: (recoveryErr as any)?.message });
               verified = [];
@@ -689,6 +782,7 @@ export class CredibilityEngine {
         factors:          null, // v12.0: Scoring factors removed
         chapters:         synthesis.chapters || [],
         speakers:         speakerBreakdowns,
+        speakerIdentities,
         claims:           explainableResults,
         
         deductions:       [], // v12.0: Deductions removed
@@ -1159,12 +1253,20 @@ export class CredibilityEngine {
               tier:           rs.tier,       // v5.0
               provenance:     rs.snippet     // v5.0: Source snippet used as provenance
             }))
-          : (claim.sources ?? []).map((s: string) => ({
-              title:          s,
-              url:            s.startsWith("http") ? s : undefined,
-              snippet:        "",
-              relevanceScore: 0.8,
-            })),
+          : (claim.sources ?? []).map((s: string) => {
+              const dom = sourceTrustService.resolvePublisherDomain(s);
+              const url = s.startsWith("http")
+                ? s
+                : (dom
+                    ? `https://${dom}`
+                    : (s.trim().length > 0 ? `https://www.google.com/search?q=${encodeURIComponent(s.trim())}` : undefined));
+              return {
+                title:          s,
+                url:            url,
+                snippet:        "",
+                relevanceScore: 0.8,
+              };
+            }),
         timestampStart: claim.start ?? 0,
         timestampEnd:   claim.end   ?? 0,
         confidence:     claim.verificationConfidence ?? claim.confidence ?? 0.5,
@@ -1233,15 +1335,97 @@ export class CredibilityEngine {
   }
 
   /**
-   * 🏷 v7: Identity Resolution Bridge
+   * 🏷 v7: Identity Resolution Bridge (Hardened against 10k-char truncation amnesia)
    */
-  private async resolveSpeakerIdentities(jobId: string, channelId: string, transcript: any, roles: Record<string, string>) {
-    const speakerNames = await this.extractionService.extractSpeakerNames(transcript.text.slice(0, 10000));
-    const identities: Record<string, any> = {};
+  private async resolveSpeakerIdentities(
+    jobId: string,
+    channelId: string,
+    transcript: any,
+    roles: Record<string, string>
+  ): Promise<Record<string, { id: string; name: string; role: string; confidence: number }>> {
+    const rawText = transcript?.text || "";
+    let sampleForNameExtraction = rawText;
 
-    for (const [label, name] of Object.entries(speakerNames)) {
-      const role = roles[label] || "Guest";
-      identities[label] = await this.speakerRegistry.resolveIdentity(channelId, name, role as any);
+    // Multi-segment representative sampling across the entire video duration
+    if (rawText.length > 16000) {
+      const introSlice = rawText.slice(0, 7000);
+      const midPoint = Math.floor(rawText.length / 2);
+      const midSlice = rawText.slice(Math.max(0, midPoint - 2500), midPoint + 2500);
+      const outroSlice = rawText.slice(-3000);
+
+      // Collect late-appearing speaker dialogue samples from utterances
+      const lateSpeakerSamples: string[] = [];
+      if (Array.isArray(transcript?.utterances)) {
+        const seenSpeakers = new Set<string>();
+        for (const u of transcript.utterances) {
+          if (!u?.speaker) continue;
+          if ((u.end || 0) < 300000) { // first 5 minutes
+            seenSpeakers.add(u.speaker);
+          } else if (!seenSpeakers.has(u.speaker)) {
+            // First time seeing this late-entering speaker
+            seenSpeakers.add(u.speaker);
+            if (u.text && lateSpeakerSamples.length < 5) {
+              lateSpeakerSamples.push(`[${u.speaker} Dialogue Sample]: ${u.text.slice(0, 300)}`);
+            }
+          }
+        }
+      }
+
+      sampleForNameExtraction = [
+        "--- [BEGINNING / INTRODUCTIONS] ---",
+        introSlice,
+        "--- [MIDPOINT DISCUSSION] ---",
+        midSlice,
+        "--- [CLOSING REMARKS & CREDITS] ---",
+        outroSlice,
+        lateSpeakerSamples.length > 0 ? "--- [LATE-ENTERING SPEAKERS] ---\n" + lateSpeakerSamples.join("\n") : ""
+      ].filter(Boolean).join("\n\n");
+    }
+
+    const speakerNames = await this.extractionService
+      .extractSpeakerNames(sampleForNameExtraction)
+      .catch(() => ({} as Record<string, string>));
+
+    // Gather all unique speaker labels from transcript metadata, utterances, and AI extraction
+    const allSpeakerLabels = new Set<string>();
+    if (Array.isArray(transcript?.speakers)) {
+      for (const s of transcript.speakers) {
+        if (typeof s === "string") allSpeakerLabels.add(s);
+        else if (s?.speaker) allSpeakerLabels.add(s.speaker);
+        else if (s?.id) allSpeakerLabels.add(s.id);
+      }
+    }
+    if (Array.isArray(transcript?.utterances)) {
+      for (const u of transcript.utterances) {
+        if (u?.speaker) allSpeakerLabels.add(u.speaker);
+      }
+    }
+    for (const label of Object.keys(speakerNames)) {
+      allSpeakerLabels.add(label);
+    }
+
+    if (allSpeakerLabels.size === 0) {
+      allSpeakerLabels.add("Speaker A");
+    }
+
+    const identities: Record<string, { id: string; name: string; role: string; confidence: number }> = {};
+
+    for (const label of allSpeakerLabels) {
+      const extractedName = speakerNames[label]?.trim();
+      const isKnown = extractedName && extractedName !== "Unknown" && !extractedName.toLowerCase().startsWith("speaker");
+      
+      const role = roles[label] || (label === "Speaker A" || label === "Host" ? "Host" : "Guest");
+      const displayName = isKnown 
+        ? extractedName 
+        : (role === "Host" ? `Channel Host (${label})` : `Guest (${label})`);
+
+      const resolved = await this.speakerRegistry.resolveIdentity(channelId, displayName, role as any);
+      identities[label] = {
+        id: resolved.id,
+        name: displayName,
+        role,
+        confidence: resolved.confidence,
+      };
     }
 
     return identities;

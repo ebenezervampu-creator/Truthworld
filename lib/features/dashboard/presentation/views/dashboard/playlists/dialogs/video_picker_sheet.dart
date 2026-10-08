@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/playlists_management_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -27,10 +28,10 @@ class VideoPickerSheet extends StatelessWidget {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF141417),
+      backgroundColor: const Color(0xFF1E1E1E),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        side: BorderSide(color: Color(0xFF27272A)),
+        side: BorderSide(color: AppColors.bgDivider),
       ),
       builder: (_) => VideoPickerSheet(
         channelId: channelId,
@@ -67,7 +68,8 @@ class VideoPickerSheet extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
+                  fontFamily: TWTypography.brandFamily,
                 ),
               ),
               Row(
@@ -87,8 +89,9 @@ class VideoPickerSheet extends StatelessWidget {
                       child: Text(
                         isAllSelected ? 'Deselect All' : 'Select All',
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           fontSize: 12,
+                          fontFamily: TWTypography.uiFamily,
                         ),
                       ),
                     );
@@ -97,7 +100,7 @@ class VideoPickerSheet extends StatelessWidget {
                   IconButton(
                     icon: const Icon(
                       Icons.close_rounded,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       size: 20,
                     ),
                     onPressed: () => Navigator.pop(context),
@@ -109,24 +112,37 @@ class VideoPickerSheet extends StatelessWidget {
           const SizedBox(height: 12),
           TextField(
             onChanged: (val) => searchFilter.value = val.trim().toLowerCase(),
-            style: const TextStyle(color: Colors.white, fontSize: 13),
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 13,
+              fontFamily: TWTypography.uiFamily,
+            ),
             decoration: InputDecoration(
               hintText: 'Search channel videos...',
               hintStyle: const TextStyle(
-                color: AppColors.textSecondary,
+                color: AppColors.textTertiary,
                 fontSize: 13,
+                fontFamily: TWTypography.uiFamily,
               ),
               prefixIcon: const Icon(
                 Icons.search_rounded,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 size: 18,
               ),
               filled: true,
-              fillColor: const Color(0xFF0F0F0F),
+              fillColor: AppColors.bgPage,
               isDense: true,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0xFF27272A)),
+                borderSide: const BorderSide(color: AppColors.bgDivider),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: AppColors.bgDivider),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: AppColors.textSecondary),
               ),
             ),
           ),
@@ -134,8 +150,20 @@ class VideoPickerSheet extends StatelessWidget {
           Expanded(
             child: Obx(() {
               if (isLoading.value) {
-                return const Center(
-                  child: CircularProgressIndicator(color: Colors.white),
+                return Shimmer.fromColors(
+                  baseColor: const Color(0xFF1E1E1E),
+                  highlightColor: AppColors.bgSurfaceHover,
+                  child: ListView.separated(
+                    itemCount: 6,
+                    separatorBuilder: (_, _) => const SizedBox(height: 6),
+                    itemBuilder: (_, _) => Container(
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E1E1E),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
                 );
               }
 
@@ -152,7 +180,10 @@ class VideoPickerSheet extends StatelessWidget {
                 return const Center(
                   child: Text(
                     'No channel videos found.',
-                    style: TextStyle(color: AppColors.textSecondary),
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontFamily: TWTypography.uiFamily,
+                    ),
                   ),
                 );
               }
@@ -185,13 +216,13 @@ class VideoPickerSheet extends StatelessWidget {
                           ),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? const Color(0xFF27272A)
-                                : const Color(0xFF0F0F0F),
+                                ? AppColors.bgSurfaceHover
+                                : AppColors.bgPage,
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
                               color: isSelected
-                                  ? Colors.white.withValues(alpha: 0.4)
-                                  : const Color(0xFF27272A),
+                                  ? AppColors.textSecondary
+                                  : AppColors.bgDivider,
                               width: isSelected ? 1.5 : 1,
                             ),
                           ),
@@ -208,19 +239,19 @@ class VideoPickerSheet extends StatelessWidget {
                                           fit: BoxFit.cover,
                                           errorWidget: (_, _, _) =>
                                               const ColoredBox(
-                                            color: Color(0xFF27272A),
+                                            color: AppColors.bgSurfaceHover,
                                             child: Icon(
                                               Icons.movie,
-                                              color: Colors.white,
+                                              color: AppColors.textPrimary,
                                               size: 16,
                                             ),
                                           ),
                                         )
                                       : const ColoredBox(
-                                          color: Color(0xFF27272A),
+                                          color: AppColors.bgSurfaceHover,
                                           child: Icon(
                                             Icons.movie,
-                                            color: Colors.white,
+                                            color: AppColors.textPrimary,
                                             size: 16,
                                           ),
                                         ),
@@ -235,9 +266,10 @@ class VideoPickerSheet extends StatelessWidget {
                                     Text(
                                       video.title,
                                       style: const TextStyle(
-                                        color: Colors.white,
+                                        color: AppColors.textPrimary,
                                         fontSize: 13,
                                         fontWeight: FontWeight.w500,
+                                        fontFamily: TWTypography.uiFamily,
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -250,6 +282,7 @@ class VideoPickerSheet extends StatelessWidget {
                                       style: const TextStyle(
                                         color: AppColors.textSecondary,
                                         fontSize: 11,
+                                        fontFamily: TWTypography.uiFamily,
                                       ),
                                     ),
                                   ],
@@ -261,20 +294,20 @@ class VideoPickerSheet extends StatelessWidget {
                                 height: 22,
                                 decoration: BoxDecoration(
                                   color: isSelected
-                                      ? const Color(0xFF3F3F46)
+                                      ? AppColors.textPrimary
                                       : Colors.transparent,
                                   borderRadius: BorderRadius.circular(6),
                                   border: Border.all(
                                     color: isSelected
-                                        ? Colors.white
-                                        : const Color(0xFF52525B),
+                                        ? AppColors.textPrimary
+                                        : AppColors.bgDivider,
                                     width: 1.5,
                                   ),
                                 ),
                                 child: isSelected
                                     ? const Icon(
                                         Icons.check_rounded,
-                                        color: Colors.white,
+                                        color: Colors.black,
                                         size: 16,
                                       )
                                     : null,
@@ -299,18 +332,22 @@ class VideoPickerSheet extends StatelessWidget {
                 Navigator.pop(context);
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF27272A),
-                foregroundColor: Colors.white,
-                side: const BorderSide(color: Color(0xFF3F3F46)),
+                backgroundColor: AppColors.textPrimary,
+                foregroundColor: Colors.black,
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
+                elevation: 0,
               ),
               child: Obx(() {
                 return Text(
                   'Done (${tempSelected.length} selected)',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                    fontFamily: TWTypography.uiFamily,
+                  ),
                 );
               }),
             ),

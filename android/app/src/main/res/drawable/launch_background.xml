@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Truthworld-Style Native Launch Splash Screen for Truthworld Android -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Dark Background (#0D0014) matching Truthworld dark theme -->
+    <!-- Dark Background (#0B0F1A) matching Truthworld dark theme -->
     <item>
-        <color android:color="#0D0014" />
+        <color android:color="#0B0F1A" />
     </item>
 
     <!-- Official Logo Centered -->

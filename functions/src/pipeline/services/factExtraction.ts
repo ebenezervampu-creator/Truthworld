@@ -13,7 +13,7 @@ import {
 import { registryService } from "../registry/RegistryService";
 import { isSubjectiveClaim, containsVerifiablePredicate } from "./contentIntentDetector";
 import { logger } from "../utils/logger";
-import { withAiRetry } from "../utils/ai-utils";
+import { withAiRetry, extractCandidateText } from "../utils/ai-utils";
 
 const HarmCategory = {
   HARM_CATEGORY_HARASSMENT: "HARM_CATEGORY_HARASSMENT",
@@ -258,7 +258,7 @@ Return a JSON response with this structure:
 Return ONLY valid JSON, no explanations.`;
 
     const extractChain = {
-      primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || PIPELINE_CONFIG.GEMINI_MODEL || "gemini-2.5-flash",
+      primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || PIPELINE_CONFIG.GEMINI_MODEL || "gemini-3.1-flash-lite",
       fallback: null,
       forcePrimary: true
     };
@@ -266,7 +266,7 @@ Return ONLY valid JSON, no explanations.`;
       const activeModel = this.genAI.getGenerativeModel({ model: modelId, safetySettings: FACT_CHECK_SAFETY_SETTINGS });
       const response = await activeModel.generateContent(prompt);
       recordUsage?.(response);
-      const text = response.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const text = extractCandidateText(response.response.candidates?.[0]) || response.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
       // Parse JSON response with robust cleanup
       const jsonMatch = this.extractJSON(text);
@@ -364,7 +364,7 @@ RULES:
 4. Detect the language accurately.`;
 
     const stanceChain = {
-      primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-2.5-flash",
+      primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-3.1-flash-lite",
       fallback: null,
       forcePrimary: true
     };
@@ -373,7 +373,7 @@ RULES:
       const activeModel = this.genAI.getGenerativeModel({ model: modelId, safetySettings: FACT_CHECK_SAFETY_SETTINGS });
       const response = await activeModel.generateContent(prompt);
       recordUsage?.(response);
-      const text = response.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const text = extractCandidateText(response.response.candidates?.[0]) || response.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
       const jsonMatch = this.extractJSON(text);
       const res = jsonMatch ? JSON.parse(jsonMatch) : { domain: "General", stance: "Mixed", cautionLevel: "medium", isLaunchNews: false };
       
@@ -590,11 +590,11 @@ RULES:
       const segmentSummariesResults = await Promise.all(
         segments.map(async (segment) => {
           const segmentText = segment.segmentUtterances.map(u => `${u.speaker || 'Speaker'}: ${u.text}`).join("\n");
-          const segmentChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-2.5-flash", fallback: null, forcePrimary: true };
+          const segmentChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-3.1-flash-lite", fallback: null, forcePrimary: true };
           return withAiRetry(async (modelId: string) => {
             const activeModel = this.genAI.getGenerativeModel({ model: modelId, safetySettings: FACT_CHECK_SAFETY_SETTINGS });
             const res = await activeModel.generateContent(`Summarize this transcript segment briefly (focus on core arguments and key facts):\n\n${segmentText.substring(0, 10000)}`);
-            const text = res.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+            const text = extractCandidateText(res.response.candidates?.[0]) || res.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
             return `SEGMENT ${Math.floor(segment.index/segmentSize) + 1} SUMMARY:\n${text}`;
           }, segmentChain, { maxAttempts: 4, instanceId: `SegmentSummary-${segment.index}` }).catch(() => "Segment summary unavailable.");
         })
@@ -721,11 +721,11 @@ Return ONLY valid JSON according to:
 6. MANIPULATION: Distinguish between "Marketing Hype" (scored low) and "Rage-bait" (scored high).
 7. INTELLIGENT NEUTRALITY: If the transcript is primarily legal or political inquiries, suggest specific types of sources (e.g., "consult court rulings") rather than making definitive conclusions.`;
 
-    const narrativeChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-2.5-flash", fallback: null, forcePrimary: true };
+    const narrativeChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.synthesis || PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-3.1-flash-lite", fallback: null, forcePrimary: true };
     return withAiRetry(async (modelId: string) => {
       const activeModel = this.genAI.getGenerativeModel({ model: modelId, safetySettings: FACT_CHECK_SAFETY_SETTINGS });
       const response = await activeModel.generateContent(prompt);
-      const text = response.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const text = extractCandidateText(response.response.candidates?.[0]) || response.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
       const jsonMatch = this.extractJSON(text);
       if (!jsonMatch) throw new Error("No JSON found");
 
@@ -780,11 +780,11 @@ Return a JSON object:
 }
 Return ONLY valid JSON.`;
 
-    const contradictionChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-2.5-flash", fallback: null, forcePrimary: true };
+    const contradictionChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.consistency || PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-3.1-flash-lite", fallback: null, forcePrimary: true };
     return withAiRetry(async (modelId: string) => {
       const activeModel = this.genAI.getGenerativeModel({ model: modelId, safetySettings: FACT_CHECK_SAFETY_SETTINGS });
       const response = await activeModel.generateContent(prompt);
-      const text = response.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const text = extractCandidateText(response.response.candidates?.[0]) || response.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
       const jsonMatch = this.extractJSON(text);
       if (!jsonMatch) return { hasContradiction: false, details: "", claimNature: ClaimNature.VERIFIABLE_FACT };
       
@@ -849,11 +849,11 @@ Return a JSON map: {"Speaker Label": "Real Name or Unknown"}.
 Example: {"Speaker A": "John Smith", "Speaker B": "Unknown"}.
 Return ONLY JSON.`;
 
-    const speakerChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-2.5-flash", fallback: null, forcePrimary: true };
+    const speakerChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.profiling || PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-3.1-flash-lite", fallback: null, forcePrimary: true };
     return withAiRetry(async (modelId: string) => {
       const activeModel = this.genAI.getGenerativeModel({ model: modelId, safetySettings: FACT_CHECK_SAFETY_SETTINGS });
       const res = await activeModel.generateContent(prompt);
-      const text = res.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const text = extractCandidateText(res.response.candidates?.[0]) || res.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
       const match = text.match(/\{[\s\S]*\}/);
       return match ? JSON.parse(match[0]) : {};
     }, speakerChain, { maxAttempts: 3, instanceId: "SpeakerNameExtraction" }).catch(() => ({}));

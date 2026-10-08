@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/components/ui/google_onboarding_controller.dart';
@@ -32,14 +33,17 @@ class GoogleOnboardingSheet extends StatelessWidget {
     try {
       await showModalBottomSheet<void>(
         context: context,
+        useRootNavigator: true,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
         builder: (context) => const GoogleOnboardingSheet(),
       );
     } finally {
-      if (Get.isRegistered<GoogleOnboardingController>()) {
-        Get.delete<GoogleOnboardingController>();
-      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (Get.isRegistered<GoogleOnboardingController>()) {
+          Get.delete<GoogleOnboardingController>();
+        }
+      });
     }
   }
 
@@ -88,7 +92,9 @@ class GoogleOnboardingSheet extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    isFirstTime ? 'Complete Your Profile' : 'Age Group & Gender',
+                    isFirstTime
+                        ? 'Complete Your Profile'
+                        : (controller.isPhoneUser ? 'Profile Preferences' : 'Age Group & Gender'),
                     style: GoogleFonts.outfit(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
@@ -101,7 +107,9 @@ class GoogleOnboardingSheet extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               isFirstTime
-                  ? 'Truthworld uses this to recommend age-appropriate content and build a more inclusive platform for everyone.'
+                  ? (controller.isPhoneUser
+                      ? 'Set up your username and preferences to personalize your experience on Truthworld.'
+                      : 'Truthworld uses this to recommend age-appropriate content and build a more inclusive platform for everyone.')
                   : 'Update your preferences to help Truthworld recommend age-appropriate content.',
               style: GoogleFonts.roboto(
                 fontSize: 14,
@@ -109,6 +117,109 @@ class GoogleOnboardingSheet extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24),
+
+            if (controller.isPhoneUser) ...[
+              // Username Section
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Choose Your Username',
+                    style: GoogleFonts.outfit(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.bgElevated,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Optional',
+                      style: GoogleFonts.roboto(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w400,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Choose a unique handle for your profile (e.g. @yourname).',
+                style: GoogleFonts.roboto(
+                  fontSize: 12,
+                  color: AppColors.textTertiary,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Obx(() {
+                final errorText = controller.usernameError.value;
+                return TextField(
+                  controller: controller.usernameController,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp('[a-zA-Z0-9_.]')),
+                    LengthLimitingTextInputFormatter(30),
+                  ],
+                  style: GoogleFonts.roboto(
+                    fontSize: 15,
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  decoration: InputDecoration(
+                    prefixIcon: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      child: Text(
+                        '@',
+                        style: GoogleFonts.roboto(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                    prefixIconConstraints: const BoxConstraints(),
+                    hintText: 'username',
+                    hintStyle: GoogleFonts.roboto(
+                      fontSize: 14,
+                      color: AppColors.textTertiary,
+                    ),
+                    errorText: errorText,
+                    errorStyle: GoogleFonts.roboto(
+                      fontSize: 12,
+                      color: AppColors.error,
+                    ),
+                    filled: true,
+                    fillColor: AppColors.bgInput,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.bgDivider),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.bgDivider),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.white),
+                    ),
+                  ),
+                );
+              }),
+              const SizedBox(height: 24),
+            ],
 
             // Age Group Section (Optional)
             Row(

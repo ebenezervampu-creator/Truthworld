@@ -16,16 +16,15 @@ import 'package:truthworld/theme/app_theme.dart';
 
 /// Topic Page - /topic/:slug
 ///
-/// Displays:
-/// - Topic hero with cover image
-/// - Search bar & Sort/View controls
-/// - Featured video section
-/// - Contributing channels list
-/// - Video grid/list with infinite scroll
-/// - Related topics
-/// - Premium comments and replies
-///
-/// Responsive: desktop, tablet, mobile
+/// Redesigned to match the high-contrast modern UI:
+/// - Responsive hero banner with integrated cover artwork & gradient overlay
+/// - Section header indicators with white vertical accent bar
+/// - Contributing channels section with electric blue ring cards
+/// - Explore topic videos section with interactive filter tab pills
+/// - Video cards with duration/index badges and 3-dots menus
+/// - "No more videos" status card
+/// - Comments section with rounded input box, image attachment icon, and thread replies
+/// - Fully responsive across mobile, tablet, desktop, and ultra-wide displays
 class TopicPage extends StatelessWidget {
   const TopicPage({super.key, this.slug});
   final String? slug;
@@ -46,9 +45,10 @@ class TopicPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
+    final size = MediaQuery.sizeOf(context);
     final isDesktop = size.width >= 1024;
-    final isTablet = size.width >= 768 && size.width < 1024;
+    final isTablet = size.width >= 600 && size.width < 1024;
+    final horizontalPadding = isDesktop ? 48.0 : (isTablet ? 24.0 : 16.0);
 
     return Scaffold(
       backgroundColor: AppColors.bgPage,
@@ -65,10 +65,10 @@ class TopicPage extends StatelessWidget {
           controller: _scrollController,
           physics: const BouncingScrollPhysics(),
           slivers: [
-            // App Bar
+            // Top Sliver App Bar
             _buildSliverAppBar(isDesktop, isTablet),
 
-            // Hero Section
+            // Hero Banner Section
             SliverToBoxAdapter(
               child: TopicHeroWidget(
                 topic: controller.topic.value,
@@ -95,79 +95,93 @@ class TopicPage extends StatelessWidget {
               ),
             ),
 
-            // Search Bar (if visible)
+            // Search Bar (if activated)
             SliverToBoxAdapter(
               child: controller.isSearchVisible.value
-                  ? Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isDesktop ? 48 : (isTablet ? 32 : 16),
-                        vertical: 16,
-                      ),
-                      child: _buildSearchBar(
-                        context,
-                        isDesktop: isDesktop,
-                        isTablet: isTablet,
+                  ? Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1400),
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: horizontalPadding,
+                            vertical: 12,
+                          ),
+                          child: _buildSearchBar(
+                            context,
+                            isDesktop: isDesktop,
+                            isTablet: isTablet,
+                          ),
+                        ),
                       ),
                     )
                   : const SizedBox.shrink(),
             ),
 
-            // Featured Video Section
+            // Contributing Channels Section
+            SliverToBoxAdapter(
+              child: _buildContributingChannelsSection(isDesktop, isTablet),
+            ),
+
+            // Featured Video Section (if any)
             if (controller.featuredVideos.isNotEmpty)
               SliverToBoxAdapter(
                 child: _buildFeaturedSection(isDesktop, isTablet),
               ),
 
-            // Contributing Channels List
-            SliverToBoxAdapter(
-              child: _buildContributingChannelsSection(isDesktop, isTablet),
-            ),
-
-            // Related Topics
+            // Related Topics Section (if any)
             if (controller.relatedTopics.isNotEmpty)
               SliverToBoxAdapter(
-                child: RelatedTopicsWidget(
-                  topics: controller.relatedTopics,
-                  isDesktop: isDesktop,
-                  isTablet: isTablet,
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1400),
+                    child: RelatedTopicsWidget(
+                      topics: controller.relatedTopics,
+                      isDesktop: isDesktop,
+                      isTablet: isTablet,
+                    ),
+                  ),
                 ),
               ),
 
-            // Video Grid / List
+            // Explore Topic Videos Section
             SliverPadding(
               padding: EdgeInsets.symmetric(
-                horizontal: isDesktop ? 48 : (isTablet ? 32 : 16),
+                horizontal: horizontalPadding,
               ),
               sliver: SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 16),
-                    _buildVideosHeaderRow(isDesktop, isTablet),
-                    const SizedBox(height: 12),
-                    _buildTopicFilterTabs(),
-                    const SizedBox(height: 16),
-                    TopicVideoGrid(
-                      videos: controller.filteredVideos,
-                      isLoadingMore: controller.isLoadingMore.value,
-                      hasMore: controller.hasMoreVideos.value,
-                      isDesktop: isDesktop,
-                      isTablet: isTablet,
-                      isGrid: false,
-                      heroPrefix: 'topic_${controller.topicSlug}',
-                      onLoadMore: controller.loadMoreVideos,
-                      emptyTitle: controller.selectedTab.value == 'From Subscribed channels'
-                          ? 'No subscribed videos'
-                          : (controller.selectedTab.value == 'Fact checked'
-                              ? 'No fact-checked videos'
-                              : 'No videos yet'),
-                      emptySubtitle: controller.selectedTab.value == 'From Subscribed channels'
-                          ? 'Videos from channels you subscribe to will appear here'
-                          : (controller.selectedTab.value == 'Fact checked'
-                              ? 'Videos with verified fact-checking will appear here'
-                              : 'Videos related to this topic will appear here'),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1400),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 16),
+                        _buildVideosHeaderRow(isDesktop, isTablet),
+                        const SizedBox(height: 14),
+                        _buildTopicFilterTabs(),
+                        const SizedBox(height: 16),
+                        TopicVideoGrid(
+                          videos: controller.filteredVideos,
+                          isLoadingMore: controller.isLoadingMore.value,
+                          hasMore: controller.hasMoreVideos.value,
+                          isDesktop: isDesktop,
+                          isTablet: isTablet,
+                          heroPrefix: 'topic_${controller.topicSlug}',
+                          onLoadMore: controller.loadMoreVideos,
+                          emptyTitle: controller.selectedTab.value == 'From Subscribed channels'
+                              ? 'No subscribed videos'
+                              : (controller.selectedTab.value == 'Fact checked'
+                                  ? 'No fact-checked videos'
+                                  : 'No videos yet'),
+                          emptySubtitle: controller.selectedTab.value == 'From Subscribed channels'
+                              ? 'Videos from channels you subscribe to will appear here'
+                              : (controller.selectedTab.value == 'Fact checked'
+                                  ? 'Videos with verified fact-checking will appear here'
+                                  : 'Videos related to this topic will appear here'),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -176,44 +190,55 @@ class TopicPage extends StatelessWidget {
             if (controller.relatedPosts.isNotEmpty)
               SliverPadding(
                 padding: EdgeInsets.symmetric(
-                  horizontal: isDesktop ? 48 : (isTablet ? 32 : 16),
+                  horizontal: horizontalPadding,
                   vertical: 16,
                 ),
                 sliver: SliverToBoxAdapter(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildSectionHeader('Community Posts', isDesktop, isTablet),
-                      const SizedBox(height: 12),
-                      ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: controller.relatedPosts.length.clamp(0, 3),
-                        itemBuilder: (context, index) {
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 16),
-                            child: CommunityPostCard(
-                              post: controller.relatedPosts[index],
-                            ),
-                          );
-                        },
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1400),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildSectionHeader('Community Posts', isDesktop, isTablet),
+                          const SizedBox(height: 12),
+                          ListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: controller.relatedPosts.length.clamp(0, 3),
+                            itemBuilder: (context, index) {
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 16),
+                                child: CommunityPostCard(
+                                  post: controller.relatedPosts[index],
+                                ),
+                              );
+                            },
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
 
             // Comments and Replies Section
-            SliverPadding(
-              padding: EdgeInsets.symmetric(
-                horizontal: isDesktop ? 48 : (isTablet ? 32 : 16),
+            if (controller.topic.value != null)
+              SliverPadding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: horizontalPadding,
+                ),
+                sliver: SliverToBoxAdapter(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1400),
+                      child: TopicCommentsSection(topic: controller.topic.value!),
+                    ),
+                  ),
+                ),
               ),
-              sliver: SliverToBoxAdapter(
-                child: TopicCommentsSection(topic: controller.topic.value!),
-              ),
-            ),
 
-            // Bottom padding
+            // Bottom breathing room
             SliverToBoxAdapter(
               child: SizedBox(height: isDesktop ? 64 : 32),
             ),
@@ -231,16 +256,15 @@ class TopicPage extends StatelessWidget {
       leading: Container(
         margin: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: AppColors.bgSurfaceContainerHighest.withValues(alpha: 0.8),
+          color: const Color(0xFF242428).withValues(alpha: 0.8),
           borderRadius: BorderRadius.circular(12),
         ),
         child: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          icon: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
           onPressed: Get.back,
         ),
       ),
       actions: [
-        // Search icon at the last position replacing refresh icon
         Obx(
           () => IconButton(
             onPressed: () {
@@ -255,7 +279,7 @@ class TopicPage extends StatelessWidget {
               controller.isSearchVisible.value
                   ? Icons.close_rounded
                   : Icons.search_rounded,
-              color: AppColors.textPrimary,
+              color: Colors.white,
             ),
             tooltip: 'Search Videos',
           ),
@@ -272,10 +296,10 @@ class TopicPage extends StatelessWidget {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.bgSurfaceContainerHighest.withValues(alpha: 0.5),
+        color: const Color(0xFF161618),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.bgDivider.withValues(alpha: 0.3),
+          color: const Color(0xFF28282C),
         ),
       ),
       child: TextField(
@@ -322,121 +346,198 @@ class TopicPage extends StatelessWidget {
   Widget _buildFeaturedSection(bool isDesktop, bool isTablet) {
     if (controller.featuredVideos.isEmpty) return const SizedBox.shrink();
 
+    final horizontalPadding = isDesktop ? 48.0 : (isTablet ? 24.0 : 16.0);
+
     return Container(
       margin: EdgeInsets.symmetric(
-        horizontal: isDesktop ? 48 : (isTablet ? 32 : 16),
-        vertical: 24,
+        horizontal: horizontalPadding,
+        vertical: 20,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSectionHeader('Featured Content', isDesktop, isTablet),
-          const SizedBox(height: 16),
-          if (controller.featuredVideos.length == 1)
-            _buildFeaturedCard(
-              controller.featuredVideos.first,
-              isDesktop,
-              isTablet,
-            )
-          else
-            SizedBox(
-              height: isDesktop ? 320.0 : (isTablet ? 260.0 : 200.0),
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: controller.featuredVideos.length,
-                itemBuilder: (context, index) {
-                  final video = controller.featuredVideos[index];
-                  return Container(
-                    width: isDesktop ? 500.0 : (isTablet ? 380.0 : 300.0),
-                    margin: const EdgeInsets.only(right: 16),
-                    child: _buildFeaturedCard(video, isDesktop, isTablet),
-                  );
-                },
-              ),
-            ),
-        ],
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1400),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSectionHeader('Featured Content', isDesktop, isTablet),
+              const SizedBox(height: 16),
+              if (controller.featuredVideos.length == 1)
+                _buildFeaturedCard(
+                  controller.featuredVideos.first,
+                  isDesktop,
+                  isTablet,
+                )
+              else
+                SizedBox(
+                  height: isDesktop ? 320.0 : (isTablet ? 260.0 : 200.0),
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    itemCount: controller.featuredVideos.length,
+                    itemBuilder: (context, index) {
+                      final video = controller.featuredVideos[index];
+                      return Container(
+                        width: isDesktop ? 500.0 : (isTablet ? 380.0 : 300.0),
+                        margin: const EdgeInsets.only(right: 16),
+                        child: _buildFeaturedCard(video, isDesktop, isTablet),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-
-
+  /// Contributing channels section with electric blue ring cards
   Widget _buildContributingChannelsSection(bool isDesktop, bool isTablet) {
     final channels = controller.topicChannels;
     if (channels.isEmpty) return const SizedBox.shrink();
 
+    final horizontalPadding = isDesktop ? 48.0 : (isTablet ? 24.0 : 16.0);
+    final isSingleChannel = channels.length == 1;
+
     return Container(
       margin: EdgeInsets.symmetric(
-        horizontal: isDesktop ? 48 : (isTablet ? 32 : 16),
-        vertical: 24,
+        horizontal: horizontalPadding,
+        vertical: 20,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSectionHeader('Contributing Channels', isDesktop, isTablet),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 110,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: channels.length,
-              itemBuilder: (context, index) {
-                final channel = channels[index];
-                return Padding(
-                  padding: const EdgeInsets.only(right: 20),
-                  child: InkWell(
-                    onTap: () => _navigateToChannel(channel['id']),
-                    borderRadius: BorderRadius.circular(12),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        UserAvatar(
-                          radius: 28,
-                          photoUrl: channel['avatarUrl'],
-                          displayName: channel['name'] ?? '',
-                          backgroundColor: AppColors.brand.withValues(
-                            alpha: 0.2,
-                          ),
-                          textColor: AppColors.brand,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          channel['name'] ?? '',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.textSecondary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1400),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSectionHeader('Contributing Channels', isDesktop, isTablet),
+              const SizedBox(height: 14),
+              if (isSingleChannel)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 380),
+                    child: _buildChannelCard(channels.first),
                   ),
-                );
-              },
-            ),
+                )
+              else
+                SizedBox(
+                  height: 76,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    itemCount: channels.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 12),
+                    itemBuilder: (context, index) {
+                      return SizedBox(
+                        width: isDesktop ? 340 : (isTablet ? 300 : 280),
+                        child: _buildChannelCard(channels[index]),
+                      );
+                    },
+                  ),
+                ),
+            ],
           ),
-        ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChannelCard(Map<String, String> channel) {
+    final channelId = channel['id'];
+    final channelName = channel['name'] ?? 'Channel';
+    final avatarUrl = channel['avatarUrl'];
+
+    // Authentic video count from controller
+    final count = controller.videos.where((v) => v.channelId == channelId).length;
+    final videoCountText = '$count ${count == 1 ? 'video' : 'videos'}';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161618),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFF28282C),
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => _navigateToChannel(channelId),
+          child: Row(
+            children: [
+              // Avatar with electric blue border ring matching screenshot
+              Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: const Color(0xFF007BFF),
+                    width: 2,
+                  ),
+                ),
+                child: UserAvatar(
+                  photoUrl: avatarUrl,
+                  displayName: channelName,
+                  backgroundColor: const Color(0xFF1E1E24),
+                  textColor: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Channel Name & video count
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      channelName,
+                      style: const TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      videoCountText,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        color: Color(0xFFAAAAAA),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              // Vertical 3-dots menu button
+              IconButton(
+                icon: const Icon(
+                  Icons.more_vert,
+                  color: Colors.white,
+                  size: 19,
+                ),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                onPressed: () => _navigateToChannel(channelId),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildVideosHeaderRow(bool isDesktop, bool isTablet) {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildSectionHeader(
-            'Explore ${controller.topicTitle}',
-            isDesktop,
-            isTablet,
-          ),
-        ),
-        IconButton(
-          icon: const Icon(Icons.more_vert, color: AppColors.textPrimary),
-          onPressed: controller.refreshTopic,
-        ),
-      ],
+    return _buildSectionHeader(
+      'Explore ${controller.topicTitle}',
+      isDesktop,
+      isTablet,
     );
   }
 
@@ -451,52 +552,53 @@ class TopicPage extends StatelessWidget {
       tabs.add('Fact checked');
     }
 
-      return SizedBox(
-        height: 38,
-        child: ListView.builder(
-          scrollDirection: Axis.horizontal,
-          itemCount: tabs.length,
-          itemBuilder: (context, index) {
-            final tab = tabs[index];
-            final isSelected = controller.selectedTab.value == tab;
-            return Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: GestureDetector(
-                onTap: () {
-                  controller.selectTab(tab);
-                  HapticFeedback.selectionClick();
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
+    return SizedBox(
+      height: 38,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: tabs.length,
+        physics: const BouncingScrollPhysics(),
+        itemBuilder: (context, index) {
+          final tab = tabs[index];
+          final isSelected = controller.selectedTab.value == tab;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: GestureDetector(
+              onTap: () {
+                controller.selectTab(tab);
+                HapticFeedback.selectionClick();
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? Colors.white
+                      : const Color(0xFF272727),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  tab,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.w500,
                     color: isSelected
-                        ? AppColors.textPrimary
-                        : const Color(0xFF272727),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    tab,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: isSelected
-                          ? FontWeight.bold
-                          : FontWeight.w500,
-                      color: isSelected
-                          ? AppColors.bgPage
-                          : AppColors.textPrimary,
-                    ),
+                        ? Colors.black
+                        : Colors.white,
                   ),
                 ),
               ),
-            );
-          },
-        ),
-      );
+            ),
+          );
+        },
+      ),
+    );
   }
 
   Widget _buildFeaturedCard(dynamic video, bool isDesktop, bool isTablet) {
@@ -520,7 +622,7 @@ class TopicPage extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppTokens.radius.xl),
             boxShadow: [
               BoxShadow(
-                color: AppColors.brand.withValues(alpha: 0.2),
+                color: Colors.black.withValues(alpha: 0.3),
                 blurRadius: 20,
                 offset: const Offset(0, 8),
               ),
@@ -571,7 +673,6 @@ class TopicPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Video title
                       Text(
                         video.title,
                         style: TextStyle(
@@ -583,7 +684,6 @@ class TopicPage extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 8),
-                      // Channel & meta
                       Text(
                         '${video.channelName} • ${video.views} views',
                         style: TextStyle(
@@ -600,7 +700,7 @@ class TopicPage extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: AppColors.brand.withValues(alpha: 0.9),
+                      color: Colors.white.withValues(alpha: 0.9),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -618,25 +718,28 @@ class TopicPage extends StatelessWidget {
     );
   }
 
+  /// Section header with vertical white accent bar matching screenshot
   Widget _buildSectionHeader(String title, bool isDesktop, bool isTablet) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 4,
-          height: 24,
+          width: 3.5,
+          height: 22,
           decoration: BoxDecoration(
-            color: AppColors.brand,
+            color: Colors.white,
             borderRadius: BorderRadius.circular(2),
           ),
         ),
-        const SizedBox(width: 12),
-        Expanded(
+        const SizedBox(width: 10),
+        Flexible(
           child: Text(
             title,
             style: TextStyle(
-              fontSize: isDesktop ? 24 : (isTablet ? 22 : 20),
+              fontSize: isDesktop ? 22 : (isTablet ? 20 : 18),
               fontWeight: FontWeight.bold,
               color: AppColors.textPrimary,
+              letterSpacing: -0.2,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -669,7 +772,7 @@ class TopicPage extends StatelessWidget {
         ),
         SliverPadding(
           padding: EdgeInsets.symmetric(
-            horizontal: isDesktop ? 48 : (isTablet ? 32 : 16),
+            horizontal: isDesktop ? 48 : (isTablet ? 24 : 16),
             vertical: 24,
           ),
           sliver: SliverToBoxAdapter(

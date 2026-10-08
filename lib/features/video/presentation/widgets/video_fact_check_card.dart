@@ -28,6 +28,12 @@ class VideoFactCheckCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
+      // Never show AI credibility check if video is in a non-credibility category
+      // (e.g. music, entertainment) or if AI credibility is not enabled.
+      if (!controller.video.hasAiCredibility) {
+        return const SizedBox.shrink();
+      }
+
       final data = controller.factCheckData;
 
       // Show shimmer while loading
@@ -57,7 +63,7 @@ class VideoFactCheckCard extends StatelessWidget {
       );
 
       // Hide entirely when no fact-check data and no fallback data available
-      if (data.isEmpty && parsed.isEmpty) {
+      if (parsed.isEmpty) {
         return const SizedBox.shrink();
       }
 
@@ -619,7 +625,7 @@ class VideoFactCheckCard extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
@@ -632,12 +638,16 @@ class VideoFactCheckCard extends StatelessWidget {
         children: [
           Icon(ctaIcon, size: 16, color: ctaAccent),
           const SizedBox(width: 8),
-          Text(
-            ctaText,
-            style: GoogleFonts.roboto(
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
+          Flexible(
+            child: Text(
+              ctaText,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.roboto(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
             ),
           ),
           const SizedBox(width: 6),

@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
@@ -147,7 +148,7 @@ class TrashRestoreController extends BaseController {
     final type = item['type'] as String;
 
     Get.dialog(
-      const Center(child: CircularProgressIndicator(color: Color(0xFF6366F1))),
+      const Center(child: CircularProgressIndicator(color: AppColors.brand)),
       barrierDismissible: false,
     );
 
@@ -269,21 +270,25 @@ class TrashRestoreScreen extends StatelessWidget {
                               Text(
                                 'Trash & Restoration',
                                 style: TextStyle(
+                                  fontFamily: TWTypography.brandFamily,
+                                  fontFamilyFallback: TWTypography.fallbackFamilies,
                                   fontSize: 26,
                                   fontWeight: FontWeight.bold,
                                   color: isDarkMode
                                       ? AppColors.textPrimary
-                                      : Colors.black,
+                                      : Colors.black87,
                                 ),
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 'Deleted channels, videos, topics, and playlists are retained for 30 days before permanent deletion.',
                                 style: TextStyle(
+                                  fontFamily: TWTypography.uiFamily,
+                                  fontFamilyFallback: TWTypography.fallbackFamilies,
                                   fontSize: 14,
                                   color: isDarkMode
                                       ? AppColors.textSecondary
-                                      : Colors.black,
+                                      : Colors.black54,
                                 ),
                               ),
                             ],
@@ -313,8 +318,20 @@ class TrashRestoreScreen extends StatelessWidget {
               Expanded(
                 child: Obx(() {
                   if (controller.rxIsLoading.value) {
-                    return const Center(
-                      child: CircularProgressIndicator(color: Color(0xFF6366F1)),
+                    return Shimmer.fromColors(
+                      baseColor: const Color(0xFF1E1E1E),
+                      highlightColor: AppColors.bgSurfaceHover,
+                      child: ListView.separated(
+                        itemCount: 5,
+                        separatorBuilder: (_, _) => const SizedBox(height: 12),
+                        itemBuilder: (_, _) => Container(
+                          height: 72,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1E1E1E),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
                     );
                   }
 
@@ -355,16 +372,18 @@ class TrashRestoreScreen extends StatelessWidget {
                     controller.selectedFilter.value = filter;
                   }
                 },
-                selectedColor: const Color(0xFF6366F1).withValues(alpha: 0.2),
+                selectedColor: AppColors.bgSurfaceHigh,
                 side: BorderSide(
                   color: isSelected
-                      ? const Color(0xFF6366F1)
-                      : AppColors.textDisabled,
+                      ? AppColors.textPrimary
+                      : AppColors.bgDivider,
                 ),
-                backgroundColor: Colors.transparent,
+                backgroundColor: AppColors.bgSurface,
                 labelStyle: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
                   color: isSelected
-                      ? const Color(0xFF818CF8)
+                      ? Colors.white
                       : AppColors.textSecondary,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 ),
@@ -384,8 +403,9 @@ class TrashRestoreScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: AppColors.textPrimary.withValues(alpha: 0.05),
+              color: AppColors.bgSurface,
               shape: BoxShape.circle,
+              border: Border.all(color: AppColors.bgDivider),
             ),
             child: const Icon(
               Icons.delete_outline_rounded,
@@ -397,17 +417,21 @@ class TrashRestoreScreen extends StatelessWidget {
           const Text(
             'Trash is Empty',
             style: TextStyle(
+              fontFamily: TWTypography.brandFamily,
+              fontFamilyFallback: TWTypography.fallbackFamilies,
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: AppColors.textSecondary,
+              color: AppColors.textPrimary,
             ),
           ),
           const SizedBox(height: 8),
           const Text(
             'No recently deleted items match the selected filter.',
             style: TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              fontFamilyFallback: TWTypography.fallbackFamilies,
               fontSize: 14,
-              color: AppColors.textTertiary,
+              color: AppColors.textSecondary,
             ),
           ),
         ],
@@ -431,26 +455,26 @@ class TrashRestoreScreen extends StatelessWidget {
 
         // Icon based on type
         var typeIcon = Icons.video_library_rounded;
-        Color typeColor = Colors.teal;
+        var typeColor = AppColors.success;
         if (type == 'Channel') {
           typeIcon = Icons.account_box_rounded;
-          typeColor = Colors.indigo;
+          typeColor = AppColors.info;
         } else if (type == 'Topic') {
           typeIcon = Icons.topic_rounded;
           typeColor = AppColors.warning;
         } else if (type == 'Playlist') {
           typeIcon = Icons.playlist_play_rounded;
-          typeColor = AppColors.brand;
+          typeColor = AppColors.brandVariant;
         }
 
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: isDarkMode ? const Color(0xFF1E293B) : AppColors.textPrimary,
+            color: isDarkMode ? AppColors.bgSurface : Colors.white,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isDarkMode ? AppColors.bgDivider : Colors.black12,
+              color: isDarkMode ? AppColors.bgDivider : AppColors.brandVariant,
             ),
           ),
           child: Row(
@@ -499,6 +523,8 @@ class TrashRestoreScreen extends StatelessWidget {
                           child: Text(
                             type,
                             style: TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              fontFamilyFallback: TWTypography.fallbackFamilies,
                               color: typeColor,
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
@@ -509,6 +535,8 @@ class TrashRestoreScreen extends StatelessWidget {
                         Text(
                           'Deleted on ${DateFormat('MMM d, yyyy').format(deletedAt)}',
                           style: TextStyle(
+                            fontFamily: TWTypography.uiFamily,
+                            fontFamilyFallback: TWTypography.fallbackFamilies,
                             color: isDarkMode
                                 ? AppColors.textTertiary
                                 : AppColors.textSecondary,
@@ -521,11 +549,13 @@ class TrashRestoreScreen extends StatelessWidget {
                     Text(
                       title,
                       style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontFamilyFallback: TWTypography.fallbackFamilies,
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
                         color: isDarkMode
                             ? AppColors.textPrimary
-                            : Colors.black,
+                            : Colors.black87,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -534,9 +564,11 @@ class TrashRestoreScreen extends StatelessWidget {
                     Text(
                       '$remainingDays days left before permanent deletion',
                       style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontFamilyFallback: TWTypography.fallbackFamilies,
                         color: remainingDays <= 5
                             ? AppColors.error
-                            : AppColors.brandHover,
+                            : AppColors.textSecondary,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),
@@ -546,22 +578,32 @@ class TrashRestoreScreen extends StatelessWidget {
               ),
 
               // Restore Button
-              TextButton.icon(
+              OutlinedButton.icon(
                 icon: const Icon(
                   Icons.restore_rounded,
-                  size: 18,
+                  size: 16,
                   color: Colors.white,
                 ),
-                label: const Text('Restore'),
-                style: TextButton.styleFrom(
-                  foregroundColor: const Color(0xFF818CF8),
+                label: const Text(
+                  'Restore',
+                  style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontFamilyFallback: TWTypography.fallbackFamilies,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: AppColors.bgDivider),
+                  backgroundColor: AppColors.bgSurfaceHover,
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
+                    horizontal: 14,
+                    vertical: 10,
                   ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
-                    side: const BorderSide(color: Color(0xFF6366F1)),
                   ),
                 ),
                 onPressed: () => controller.restoreItem(item),

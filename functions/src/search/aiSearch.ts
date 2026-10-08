@@ -1,6 +1,8 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
 import { getVertexAI } from "../pipeline/utils/ai-client";
+import { PIPELINE_CONFIG } from "../pipeline/config";
+import { extractCandidateText } from "../pipeline/utils/ai-utils";
 
 interface AiSearchRequest {
   query: string;
@@ -152,7 +154,7 @@ export const aiSearchAssistant = onCall(
     try {
       const genAI = getVertexAI();
       const model = genAI.getGenerativeModel({
-        model: "gemini-2.5-flash",
+        model: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-3.1-flash-lite",
         systemInstruction: AI_SEARCH_SYSTEM_PROMPT,
         generationConfig: {
           responseMimeType: "application/json",
@@ -175,7 +177,7 @@ export const aiSearchAssistant = onCall(
         timeoutPromise,
       ]);
 
-      const rawText = result.response.candidates?.[0]?.content?.parts?.[0]?.text;
+      const rawText = extractCandidateText(result.response.candidates?.[0]) || result.response.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!rawText) {
         throw new Error("Empty response from Gemini model");
       }

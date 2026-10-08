@@ -16,20 +16,16 @@ class VideoCardFactCheckBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Positioned(
-      top: AppTheme.spacing.xs,
-      left: AppTheme.spacing.xs,
+      top: 14,
+      left: 14,
       child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: AppTheme.spacing.xs * 1.5,
-          vertical: AppTheme.spacing.xs / 2,
+        padding: const EdgeInsets.symmetric(
+          horizontal: 10,
+          vertical: 5,
         ),
         decoration: BoxDecoration(
-          color: const Color(0xFF10B981).withValues(alpha: 0.95), // Emerald
-          borderRadius: AppTheme.radius.circularMd,
-          border: Border.all(
-            color: AppColors.textPrimary.withValues(alpha: 0.15),
-            width: 0.5,
-          ),
+          color: const Color(0xFF029C5D),
+          borderRadius: BorderRadius.circular(20),
           boxShadow: const [
             BoxShadow(
               color: Colors.black26,
@@ -43,17 +39,17 @@ class VideoCardFactCheckBadge extends StatelessWidget {
           children: [
             Icon(
               Icons.verified_rounded,
-              color: AppColors.textPrimary,
-              size: 11,
+              color: Colors.white,
+              size: 15,
             ),
-            SizedBox(width: 4),
+            SizedBox(width: 6),
             Text(
               'Fact Checked',
               style: TextStyle(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.bold,
-                fontSize: 9,
-                letterSpacing: 0.3,
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 12.5,
+                letterSpacing: -0.1,
               ),
             ),
           ],
@@ -75,23 +71,24 @@ class VideoCardDurationBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Positioned(
-      bottom: 8,
-      right: 8,
+      bottom: 10,
+      right: 10,
       child: Container(
         padding: const EdgeInsets.symmetric(
-          horizontal: 4,
-          vertical: 2,
+          horizontal: 6,
+          vertical: 3,
         ),
         decoration: BoxDecoration(
-          color: AppColors.bgPage.withValues(alpha: 0.8),
-          borderRadius: BorderRadius.circular(4),
+          color: Colors.black.withValues(alpha: 0.85),
+          borderRadius: BorderRadius.circular(5),
         ),
         child: Text(
           duration,
           style: const TextStyle(
-            color: AppColors.textPrimary,
+            color: Colors.white,
             fontSize: 12,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.2,
           ),
         ),
       ),
@@ -263,24 +260,76 @@ class VideoCardWatchProgressBar extends StatelessWidget {
       if (progress <= 0) return const SizedBox.shrink();
 
       return Positioned(
-        bottom: 0,
-        left: 0,
-        right: 0,
-        child: Container(
-          height: 3,
-          width: double.infinity,
-          color: AppColors.textPrimary.withValues(alpha: 0.2),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: FractionallySizedBox(
-              widthFactor: (progress / 100).clamp(0.0, 1.0),
-              child: Container(
-                color: AppColors.error,
+        bottom: 2,
+        left: 6,
+        right: 6,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(2),
+          child: Container(
+            height: 3.5,
+            width: double.infinity,
+            color: Colors.white.withValues(alpha: 0.25),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: FractionallySizedBox(
+                widthFactor: (progress / 100).clamp(0.0, 1.0),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
               ),
             ),
           ),
         ),
       );
     });
+  }
+}
+
+/// Private video badge displayed on thumbnail when viewed by the channel owner.
+class VideoCardPrivateBadge extends StatelessWidget {
+  const VideoCardPrivateBadge({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: 14,
+      right: 14,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 8,
+          vertical: 4,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.8),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.2),
+          ),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.lock_rounded,
+              color: Colors.white,
+              size: 13,
+            ),
+            SizedBox(width: 4),
+            Text(
+              'Private',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 11,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

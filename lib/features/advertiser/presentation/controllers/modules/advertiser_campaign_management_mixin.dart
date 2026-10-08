@@ -116,7 +116,7 @@ mixin AdvertiserCampaignManagementMixin {
     teamMembers.value = [
       {
         'name': user?.displayName ?? 'Account Owner',
-        'email': user?.email ?? 'advertiser@truthworld.in',
+        'email': user?.email ?? 'hello@truthworld.in',
         'role': 'Owner (Full Access)',
         'status': 'Active',
       }

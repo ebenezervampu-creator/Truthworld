@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_comments_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/comments/dashboard_comments_widgets.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
@@ -113,7 +114,7 @@ void main() {
       expect(find.byIcon(Icons.rate_review_outlined), findsOneWidget);
     });
 
-    testWidgets('DashboardCommentsLoadingSkeleton renders CircularProgressIndicator', (tester) async {
+    testWidgets('DashboardCommentsLoadingSkeleton renders shimmer placeholder', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
@@ -122,7 +123,7 @@ void main() {
         ),
       );
 
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(Shimmer), findsWidgets);
     });
 
     testWidgets('DashboardCommentReplyDrawer populates text with quick suggestions', (tester) async {
@@ -170,6 +171,33 @@ void main() {
 
       expect(controller.activeReplyBoxes['c1'], isFalse);
       expect(replyCtrl.text, isEmpty);
+    });
+
+    test('replyToCommentAsChannel rejects invalid or empty videoId safely', () async {
+      final success = await controller.replyToCommentAsChannel(
+        videoId: '',
+        commentId: 'nonexistent-comment',
+        replyText: 'Replying to nothing',
+      );
+      expect(success, isFalse);
+    });
+
+    test('replyToCommentAsChannel rejects channel_all without falling back to random video', () async {
+      final success = await controller.replyToCommentAsChannel(
+        videoId: 'channel_all',
+        commentId: 'unknown_comment_id',
+        replyText: 'Replying safely',
+      );
+      expect(success, isFalse);
+    });
+
+    test('replyToCommentAsChannel rejects comments that do not exist under valid video', () async {
+      final success = await controller.replyToCommentAsChannel(
+        videoId: 'f37dd18e-209b-4d35-b872-a6e651351382',
+        commentId: 'nonexistent-comment-id',
+        replyText: 'Replying to missing comment',
+      );
+      expect(success, isFalse);
     });
   });
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:shimmer/shimmer.dart';
 
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
@@ -66,7 +67,7 @@ class SubtitlesRequestsPanel extends StatelessWidget {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2563EB).withValues(alpha: 0.15),
+                      color: AppColors.brand.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
@@ -74,7 +75,7 @@ class SubtitlesRequestsPanel extends StatelessWidget {
                       style: AppTextStyles.badge.copyWith(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                   );
@@ -89,8 +90,21 @@ class SubtitlesRequestsPanel extends StatelessWidget {
                   .where((r) => r.type == 'subtitle')
                   .toList();
               if (controller.isLoadingRequests.value) {
-                return const Center(
-                  child: CircularProgressIndicator(color: AppColors.brand),
+                return Shimmer.fromColors(
+                  baseColor: const Color(0xFF1E1E1E),
+                  highlightColor: AppColors.bgSurfaceHover,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: 4,
+                    separatorBuilder: (_, _) => const SizedBox(height: 12),
+                    itemBuilder: (_, _) => Container(
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E1E1E),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
                 );
               }
               if (reqs.isEmpty) {
@@ -136,9 +150,7 @@ class SubtitlesRequestsPanel extends StatelessWidget {
                   return Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: isDarkMode
-                          ? const Color(0xFF1E1E1E)
-                          : const Color(0xFFF8FAFC),
+                      color: const Color(0xFF1E1E1E),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: borderColor),
                     ),
@@ -178,7 +190,7 @@ class SubtitlesRequestsPanel extends StatelessWidget {
                                 vertical: 4,
                               ),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF2563EB).withValues(alpha: 0.15),
+                                color: AppColors.brand.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Row(
@@ -194,7 +206,7 @@ class SubtitlesRequestsPanel extends StatelessWidget {
                                     style: AppTextStyles.badge.copyWith(
                                       fontSize: 11,
                                       fontWeight: FontWeight.bold,
-                                      color: Colors.white,
+                                      color: AppColors.textPrimary,
                                     ),
                                   ),
                                 ],
@@ -231,17 +243,18 @@ class SubtitlesRequestsPanel extends StatelessWidget {
                                   onPressed: () {
                                     controller.addLanguageTrack(langCode);
                                   },
-                                  icon: const Icon(Icons.add_rounded, size: 14, color: Colors.white),
+                                  icon: const Icon(Icons.add_rounded, size: 14, color: Colors.black),
                                   label: Text(
                                     'Add Track',
                                     style: AppTextStyles.buttonText.copyWith(
                                       fontSize: 12,
-                                      color: Colors.white,
+                                      color: Colors.black,
+                                      fontWeight: FontWeight.bold,
                                     ),
                                   ),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF2563EB),
-                                    foregroundColor: Colors.white,
+                                    backgroundColor: AppColors.brand,
+                                    foregroundColor: Colors.black,
                                     elevation: 0,
                                   ),
                                 ),

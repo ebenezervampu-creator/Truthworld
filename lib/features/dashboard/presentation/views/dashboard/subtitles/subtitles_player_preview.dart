@@ -70,9 +70,7 @@ class SubtitlesPlayerPreview extends StatelessWidget {
               Divider(height: 1, color: borderColor),
               Container(
                 padding: const EdgeInsets.all(12),
-                color: isDarkMode
-                    ? const Color(0xFF0F0F0F)
-                    : const Color(0xFF0F172A),
+                color: AppColors.bgPage,
                 child: Column(
                   children: [
                     // Video Viewport with Live Subtitle Overlay

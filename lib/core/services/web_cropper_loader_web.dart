@@ -1,8 +1,8 @@
-// ignore_for_file: avoid_web_libraries_in_flutter
 import 'dart:async';
-import 'dart:html' as html;
-import 'dart:js' as js;
+import 'dart:js_interop';
+import 'dart:js_interop_unsafe';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:web/web.dart' as web;
 
 /// Web implementation ensuring Cropper.js library and styles are loaded and initialized.
 Future<bool> ensureWebCropperLoadedImpl() async {
@@ -31,12 +31,10 @@ Future<bool> ensureWebCropperLoadedImpl() async {
 
 bool _isCropperDefined() {
   try {
-    if (!js.context.hasProperty('Cropper')) return false;
-    final cropper = js.context['Cropper'];
+    if (!globalContext.has('Cropper')) return false;
+    final cropper = globalContext['Cropper'];
     if (cropper == null) return false;
-    // Strictly verify Cropper is a constructor function to prevent TypeError: dart.global.Cropper is not a constructor
-    final typeCheck = js.context.callMethod('eval', <dynamic>["typeof window.Cropper === 'function'"]);
-    return typeCheck == true;
+    return cropper.typeofEquals('function');
   } catch (_) {
     return false;
   }
@@ -44,16 +42,16 @@ bool _isCropperDefined() {
 
 void _ensureStyleSheet() {
   try {
-    final existingLink = html.document.querySelector('link[href*="cropper"]');
+    final existingLink = web.document.querySelector('link[href*="cropper"]');
     if (existingLink == null) {
-      final baseUri = html.document.baseUri ?? '';
+      final baseUri = web.document.baseURI;
       final cssHref = baseUri.isNotEmpty
           ? Uri.parse(baseUri).resolve('assets/cropper/cropper.min.css').toString()
           : 'assets/cropper/cropper.min.css';
-      final link = html.LinkElement()
+      final link = web.document.createElement('link') as web.HTMLLinkElement
         ..rel = 'stylesheet'
         ..href = cssHref;
-      html.document.head?.append(link);
+      web.document.head?.append(link);
     }
   } catch (e, stackTrace) {
     ErrorHandler.log(
@@ -68,38 +66,38 @@ Future<void> _loadScript() async {
   if (_isCropperDefined()) return;
 
   final completer = Completer<void>();
-  final baseUri = html.document.baseUri ?? '';
+  final baseUri = web.document.baseURI;
   final localSrc = baseUri.isNotEmpty
       ? Uri.parse(baseUri).resolve('assets/cropper/cropper.min.js').toString()
       : 'assets/cropper/cropper.min.js';
 
-  final script = html.ScriptElement()
+  final script = web.document.createElement('script') as web.HTMLScriptElement
     ..src = localSrc
     ..type = 'text/javascript';
 
-  script.onLoad.listen((_) {
+  script.onload = ((web.Event _) {
     if (!completer.isCompleted) completer.complete();
-  });
+  }).toJS;
 
-  script.onError.listen((_) {
+  script.onerror = ((web.Event _) {
     // Fallback to CDN if local asset fails
     try {
-      final cdnScript = html.ScriptElement()
+      final cdnScript = web.document.createElement('script') as web.HTMLScriptElement
         ..src = 'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js'
         ..type = 'text/javascript';
-      cdnScript.onLoad.listen((_) {
+      cdnScript.onload = ((web.Event _) {
         if (!completer.isCompleted) completer.complete();
-      });
-      cdnScript.onError.listen((_) {
+      }).toJS;
+      cdnScript.onerror = ((web.Event _) {
         if (!completer.isCompleted) completer.complete();
-      });
-      html.document.head?.append(cdnScript);
+      }).toJS;
+      web.document.head?.append(cdnScript);
     } catch (_) {
       if (!completer.isCompleted) completer.complete();
     }
-  });
+  }).toJS;
 
-  html.document.head?.append(script);
+  web.document.head?.append(script);
 
   await completer.future.timeout(
     const Duration(milliseconds: 3500),

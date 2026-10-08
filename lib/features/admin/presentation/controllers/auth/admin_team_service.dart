@@ -92,8 +92,7 @@ class AdminTeamService {
     if (FirebaseAuth.instance.currentUser == null) return;
     try {
       final defaultAdmins = [
-        {'email': 'ebenezervampy@towervsp.com', 'name': 'Ebenezer Vampu'},
-        {'email': 'ebenezervampu@towervsp.com', 'name': 'Ebenezer Vampu'},
+        {'email': 'hello@truthworld.in', 'name': 'Ebenezer Vampu'},
         {'email': 'ebenezervampu4@gmail.com', 'name': 'Ebenezer Vampu'},
       ];
       for (final admin in defaultAdmins) {

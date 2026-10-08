@@ -31,9 +31,7 @@ class SubtitlesLanguageRibbon extends StatelessWidget {
       height: 52,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: isDarkMode
-            ? const Color(0xFF141414)
-            : AppColors.bgDivider,
+        color: const Color(0xFF1E1E1E),
         border: Border(bottom: BorderSide(color: borderColor)),
       ),
       child: Row(

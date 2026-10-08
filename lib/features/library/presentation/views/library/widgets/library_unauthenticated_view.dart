@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/library/presentation/views/library/widgets/library_constants.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -99,23 +99,24 @@ class LibraryUnauthenticatedView extends StatelessWidget {
     return ElevatedButton.icon(
       onPressed: () {
         HapticFeedback.lightImpact();
-        if (Get.isRegistered<HomeController>()) {
-          Get.find<HomeController>().signInWithGoogle();
-        } else {
-          AuthService.to.signInWithGoogle();
+        if (Get.context != null) {
+          AuthBottomSheet.show(Get.context!);
+        } else if (Get.isRegistered<HomeController>()) {
+          Get.find<HomeController>().showAuthBottomSheet();
         }
       },
-      icon: const Icon(Icons.login_rounded, color: Colors.white),
+      icon: const Icon(Icons.login_rounded, color: Colors.black),
       label: const Text(
         'Sign In to Continue',
         style: TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.bold,
-          color: AppColors.bgPage,
+          color: Colors.black,
         ),
       ),
       style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.textPrimary,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
         padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
         elevation: 5,

@@ -9,6 +9,7 @@ import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/feedback/feedback_service.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_discovery_controller.dart';
+import 'package:truthworld/features/subscriptions/presentation/controllers/subscription_controller.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/data/repositories/topic_repository.dart';
 import 'package:truthworld/features/topics/presentation/controllers/topic_controller.dart';
@@ -19,6 +20,9 @@ class FollowingTopicsController extends BaseController {
   FollowingTopicsController({TopicRepository? repository})
     : _repository = repository ?? TopicRepository();
   final TopicRepository _repository;
+
+  String get _currentUserId =>
+      Get.isRegistered<AuthService>() ? AuthService.to.uid : '';
 
   // ==========================================================================
   // OBSERVABLE STATE VARIABLES
@@ -53,6 +57,11 @@ class FollowingTopicsController extends BaseController {
   final RxMap<String, String> topicNotificationSettings =
       <String, String>{}.obs;
 
+  // Video filter & view mode state (Matching uploaded UI architecture)
+  final RxString activeVideoFilter = 'Latest'.obs; // 'Latest', 'From followed channels', 'Trending', 'Popular'
+  final RxString selectedSortOrder = 'Newest first'.obs; // 'Newest first', 'Oldest first', 'Most popular', 'Most viewed'
+  final RxBool isGridView = true.obs;
+
   @override
   void onInit() {
     super.onInit();
@@ -64,7 +73,7 @@ class FollowingTopicsController extends BaseController {
 
   /// Retrieve all topics followed and liked/favorited by the authenticated user
   Future<void> fetchFollowingTopics() async {
-    final userId = AuthService.to.uid;
+    final userId = _currentUserId;
     if (userId.isEmpty) {
       rxErrorMessage.value = 'Please sign in to view your followed topics.';
       return;
@@ -194,6 +203,94 @@ class FollowingTopicsController extends BaseController {
     searchQuery.value = value;
   }
 
+  /// Clears the search field and active query
+  void clearSearch() {
+    searchController.clear();
+    searchQuery.value = '';
+  }
+
+  /// Sets active video filter chip ('Latest', 'From followed channels', 'Trending', 'Popular')
+  void setVideoFilter(String filter) {
+    activeVideoFilter.value = filter;
+  }
+
+  /// Sets active sort order ('Newest first', 'Oldest first', 'Most popular', 'Most viewed')
+  void setSortOrder(String sort) {
+    selectedSortOrder.value = sort;
+  }
+
+  /// Sets grid view flag
+  void setGridView(bool value) {
+    isGridView.value = value;
+  }
+
+  /// Toggles between grid and list views
+  void toggleViewMode() {
+    isGridView.value = !isGridView.value;
+  }
+
+  /// Retrieves reactively filtered and sorted videos for a topic (or all topics if null)
+  List<Video> getFilteredVideosForTopic(Topic? topic) {
+    List<Video> videos;
+    if (topic != null) {
+      videos = List<Video>.from(topicVideosMap[topic.id] ?? []);
+    } else {
+      final allVideos = <String, Video>{};
+      for (final t in followedTopics) {
+        final list = topicVideosMap[t.id] ?? [];
+        for (final v in list) {
+          allVideos[v.id] = v;
+        }
+      }
+      videos = allVideos.values.toList();
+    }
+
+    // 1. Search Query filter
+    final query = searchQuery.value.trim().toLowerCase();
+    if (query.isNotEmpty) {
+      videos = videos.where((v) {
+        return v.title.toLowerCase().contains(query) ||
+            v.channelName.toLowerCase().contains(query) ||
+            v.tags.any((tag) => tag.toLowerCase().contains(query));
+      }).toList();
+    }
+
+    // 2. Active Tab / Chip filter
+    switch (activeVideoFilter.value) {
+      case 'From followed channels':
+        if (Get.isRegistered<SubscriptionController>()) {
+          final subCtrl = Get.find<SubscriptionController>();
+          final subbedIds = subCtrl.subscribedChannels.map((c) => c.id).toSet();
+          final subbedNames = subCtrl.subscribedChannels.map((c) => c.name.toLowerCase()).toSet();
+          final filtered = videos.where((v) {
+            return subbedIds.contains(v.channelId) || subbedNames.contains(v.channelName.toLowerCase());
+          }).toList();
+          if (filtered.isNotEmpty) {
+            videos = filtered;
+          }
+        }
+      case 'Trending':
+        videos.sort((a, b) => b.views.compareTo(a.views));
+      case 'Popular':
+        videos.sort((a, b) => b.views.compareTo(a.views));
+      case 'Latest':
+      default:
+    }
+
+    // 3. Sort Order
+    switch (selectedSortOrder.value) {
+      case 'Newest first':
+        videos.sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
+      case 'Oldest first':
+        videos.sort((a, b) => a.uploadedAt.compareTo(b.uploadedAt));
+      case 'Most popular':
+      case 'Most viewed':
+        videos.sort((a, b) => b.views.compareTo(a.views));
+    }
+
+    return videos;
+  }
+
   /// Sets active category filter
   void setCategory(String category) {
     selectedCategory.value = category;
@@ -218,7 +315,7 @@ class FollowingTopicsController extends BaseController {
 
   /// Toggle follow state and dynamically update local lists and counters to remain reactive
   Future<void> toggleFollowTopic(Topic topic) async {
-    final userId = AuthService.to.uid;
+    final userId = _currentUserId;
     if (userId.isEmpty) {
       SnackbarService.error(message: 'Please sign in to follow topics.');
       return;
@@ -335,8 +432,8 @@ class FollowingTopicsController extends BaseController {
             message: 'You unfollowed "${topic.title}" successfully.',
           );
         } else {
-          topicNotificationSettings[topicId] = 'all';
-          if (topicSlug.isNotEmpty) topicNotificationSettings[topicSlug] = 'all';
+          topicNotificationSettings[topicId] = 'personalized';
+          if (topicSlug.isNotEmpty) topicNotificationSettings[topicSlug] = 'personalized';
           SnackbarService.success(
             message: 'You followed "${topic.title}" successfully.',
           );
@@ -441,8 +538,11 @@ class FollowingTopicsController extends BaseController {
 
   /// Fetch notification setting for a topic
   Future<String> fetchTopicNotificationSetting(String topicId) async {
-    final userId = AuthService.to.uid;
-    if (userId.isEmpty) return 'all';
+    final userId = _currentUserId;
+    if (userId.isEmpty) {
+      topicNotificationSettings[topicId] ??= 'personalized';
+      return topicNotificationSettings[topicId]!;
+    }
 
     if (topicNotificationSettings.containsKey(topicId)) {
       return topicNotificationSettings[topicId]!;
@@ -461,7 +561,7 @@ class FollowingTopicsController extends BaseController {
     String topicId,
     String setting,
   ) async {
-    final userId = AuthService.to.uid;
+    final userId = _currentUserId;
     if (userId.isEmpty) {
       SnackbarService.error(
         message: 'Please sign in to update notification settings.',

@@ -8,16 +8,7 @@ service firebase.storage {
     }
 
     function isAdmin() {
-      return isSignedIn() && (
-        request.auth.token.admin == true ||
-        (request.auth.token.email != null && request.auth.token.email_verified == true && (
-          request.auth.token.email.lower() == 'ebenezervampy@towervsp.com' ||
-          request.auth.token.email.lower() == 'ebenezervampu@towervsp.com' ||
-          request.auth.token.email.lower() == 'ebenezervampu4@gmail.com' ||
-          request.auth.token.email.lower() == 'admin@truthworld.com' ||
-          request.auth.token.email.lower() == 'support@truthworld.com'
-        ))
-      );
+      return isSignedIn() && request.auth.token.admin == true;
     }
 
     // Strict ownership validation for existing assets (prevents deleting or overwriting unowned files)
@@ -74,17 +65,21 @@ service firebase.storage {
     // ================================
     match /channels/{folder}/{userId}/{allPaths=**} {
       allow read: if true;
-      allow write, delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && 
+        (folder == 'avatars' || folder == 'banners' ? isValidImage() : (isValidImage() || isValidVideo()));
+      allow delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
     }
 
     match /channels/avatars/{userId}/{allPaths=**} {
       allow read: if true;
-      allow write, delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && isValidImage();
+      allow delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
     }
 
     match /channels/banners/{userId}/{allPaths=**} {
       allow read: if true;
-      allow write, delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && isValidImage();
+      allow delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
     }
 
     // ================================
@@ -92,17 +87,20 @@ service firebase.storage {
     // ================================
     match /avatars/{userId}/{allPaths=**} {
       allow read: if true;
-      allow write, delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && isValidImage();
+      allow delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
     }
 
     match /banners/{userId}/{allPaths=**} {
       allow read: if true;
-      allow write, delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && isValidImage();
+      allow delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
     }
 
     match /users/{userId}/{allPaths=**} {
-      allow read: if true;
-      allow write, delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow create, update: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && (isValidImage() || isValidVideo() || isValidKycDocument());
+      allow delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
     }
 
     match /avatars/{fileName} {
@@ -236,7 +234,8 @@ service firebase.storage {
     // ================================
     match /kyc_documents/{userId}/{allPaths=**} {
       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow write, delete: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && isValidKycDocument();
+      allow create, update: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && isValidKycDocument();
+      allow delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
     }
   }
 }

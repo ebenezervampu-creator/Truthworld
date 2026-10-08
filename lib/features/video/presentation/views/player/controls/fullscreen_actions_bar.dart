@@ -80,6 +80,21 @@ class FullscreenFloatingActionDock extends StatelessWidget {
             },
             tooltip: 'Share',
           ),
+          // More videos
+          Obx(() {
+            final isMoreVideosOpen = ctrl.showMoreVideos.value;
+            return _DockBtn(
+              icon: isMoreVideosOpen
+                  ? Icons.video_collection_rounded
+                  : Icons.video_collection_outlined,
+              isActive: isMoreVideosOpen,
+              onTap: () {
+                ctrl.toggleMoreVideos();
+                ctrl.startHideTimer();
+              },
+              tooltip: 'More videos',
+            );
+          }),
           // More (⋯)
           Theme(
             data: Theme.of(context).copyWith(

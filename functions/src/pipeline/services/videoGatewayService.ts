@@ -1,6 +1,6 @@
 import type { VertexAI } from "@google-cloud/vertexai";
 import { logger } from "../utils/logger";
-import { withAiRetry } from "../utils/ai-utils";
+import { withAiRetry, extractCandidateText } from "../utils/ai-utils";
 import { PIPELINE_CONFIG } from "../config";
 import { getVertexAI } from "../utils/ai-client";
 import {
@@ -120,8 +120,8 @@ RETURN STRICT JSON FORMAT ONLY:
 }`;
 
     const chain = {
-      primary: PIPELINE_CONFIG.GEMINI_MODELS?.synthesis || "gemini-2.5-flash",
-      fallback: "gemini-2.5-flash",
+      primary: PIPELINE_CONFIG.GEMINI_MODELS?.synthesis || "gemini-3.1-flash-lite",
+      fallback: "gemini-3.1-flash-lite",
       forcePrimary: false
     };
 
@@ -138,7 +138,7 @@ RETURN STRICT JSON FORMAT ONLY:
         });
 
         const res = await model.generateContent(prompt);
-        const text = res.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        const text = extractCandidateText(res.response.candidates?.[0]) || res.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (!jsonMatch) throw new Error("No JSON in Video Gateway response");
 

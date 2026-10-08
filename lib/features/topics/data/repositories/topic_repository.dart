@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/video_visibility_policy.dart';
@@ -38,7 +37,7 @@ class TopicRepository {
   /// Uses in-memory caching and parallel query execution for low latency
   Future<Topic?> getTopicBySlug(String slug) async {
     try {
-      final key = slug.toLowerCase();
+      final key = slug.toLowerCase().trim();
       final now = DateTime.now();
       if (_topicCache.containsKey(key) && _cacheTime.containsKey(key)) {
         if (now.difference(_cacheTime[key]!) < _cacheTtl) {
@@ -46,8 +45,14 @@ class TopicRepository {
         }
       }
 
+      var cleanSlug = slug.trim();
+      if (cleanSlug.toLowerCase().startsWith('t/')) {
+        cleanSlug = cleanSlug.substring(2).trim();
+      }
+      final handleToQuery = 't/${cleanSlug.toLowerCase()}';
+      final cleanKey = cleanSlug.toLowerCase();
+
       // Parallel execution of lookups to cut network roundtrip latency in 3x
-      final handleToQuery = 't/${slug.toLowerCase()}';
       final results = await Future.wait([
         _firestore
             .collection(FirestoreCollections.topics)
@@ -56,31 +61,41 @@ class TopicRepository {
             .get(),
         _firestore
             .collection(FirestoreCollections.topics)
+            .where('slug', isEqualTo: cleanSlug)
+            .limit(1)
+            .get(),
+        _firestore
+            .collection(FirestoreCollections.topics)
             .where('handleLowercase', isEqualTo: handleToQuery)
             .limit(1)
             .get(),
+        _firestore
+            .collection(FirestoreCollections.topics)
+            .where('handle', isEqualTo: 'T/$cleanSlug')
+            .limit(1)
+            .get(),
         _firestore.collection(FirestoreCollections.topics).doc(slug).get(),
+        _firestore.collection(FirestoreCollections.topics).doc(cleanSlug).get(),
       ]);
 
-      final slugSnap = results[0] as QuerySnapshot;
-      if (slugSnap.docs.isNotEmpty) {
-        final topic = Topic.fromDocumentSnapshot(slugSnap.docs.first);
-        _cacheTopic(key, topic);
-        return topic;
+      for (var i = 0; i < 4; i++) {
+        final snap = results[i] as QuerySnapshot;
+        if (snap.docs.isNotEmpty) {
+          final topic = Topic.fromDocumentSnapshot(snap.docs.first);
+          _cacheTopic(key, topic);
+          _cacheTopic(cleanKey, topic);
+          return topic;
+        }
       }
 
-      final handleSnap = results[1] as QuerySnapshot;
-      if (handleSnap.docs.isNotEmpty) {
-        final topic = Topic.fromDocumentSnapshot(handleSnap.docs.first);
-        _cacheTopic(key, topic);
-        return topic;
-      }
-
-      final docSnap = results[2] as DocumentSnapshot;
-      if (docSnap.exists) {
-        final topic = Topic.fromDocumentSnapshot(docSnap);
-        _cacheTopic(key, topic);
-        return topic;
+      for (var i = 4; i < 6; i++) {
+        final docSnap = results[i] as DocumentSnapshot;
+        if (docSnap.exists) {
+          final topic = Topic.fromDocumentSnapshot(docSnap);
+          _cacheTopic(key, topic);
+          _cacheTopic(cleanKey, topic);
+          return topic;
+        }
       }
 
       return null;
@@ -183,10 +198,50 @@ class TopicRepository {
           .map(Video.fromDocumentSnapshot)
           .where((video) => VideoVisibilityPolicy.isValidVideo(video) && video.visibility.toLowerCase() == 'public')
           .toList();
-      final newLastDoc = snapshot.docs.isNotEmpty ? snapshot.docs.last : null;
-      return TopicVideosPage(videos: videos, lastDoc: newLastDoc);
+      if (videos.isNotEmpty) {
+        final newLastDoc = snapshot.docs.isNotEmpty ? snapshot.docs.last : null;
+        return TopicVideosPage(videos: videos, lastDoc: newLastDoc);
+      }
     } catch (e, s) {
-      ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.getVideosPageByTopic');
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.getVideosPageByTopic.primary');
+    }
+
+    // Fallback: Query without orderBy composite index requirement
+    try {
+      final snap = await _firestore
+          .collection(FirestoreCollections.videos)
+          .where('topics', arrayContains: topicSlug)
+          .limit(limit)
+          .get();
+      var videos = snap.docs
+          .map(Video.fromDocumentSnapshot)
+          .where((video) => VideoVisibilityPolicy.isValidVideo(video) && video.visibility.toLowerCase() == 'public')
+          .toList();
+
+      // If still empty, query by topicId directly
+      if (videos.isEmpty) {
+        final topicIdSnap = await _firestore
+            .collection(FirestoreCollections.videos)
+            .where('topicId', isEqualTo: topicSlug)
+            .limit(limit)
+            .get();
+        videos = topicIdSnap.docs
+            .map(Video.fromDocumentSnapshot)
+            .where((video) => VideoVisibilityPolicy.isValidVideo(video) && video.visibility.toLowerCase() == 'public')
+            .toList();
+      }
+
+      if (videos.isNotEmpty) {
+        if (orderBy == 'views') {
+          videos.sort((a, b) => descending ? b.views.compareTo(a.views) : a.views.compareTo(b.views));
+        } else {
+          videos.sort((a, b) => descending ? b.uploadedAt.compareTo(a.uploadedAt) : a.uploadedAt.compareTo(b.uploadedAt));
+        }
+        return TopicVideosPage(videos: videos, lastDoc: snap.docs.isNotEmpty ? snap.docs.last : null);
+      }
+      return const TopicVideosPage(videos: [], lastDoc: null);
+    } catch (fallbackErr, s) {
+      ErrorHandler.log(fallbackErr, stackTrace: s, tag: 'TopicRepository.getVideosPageByTopic.fallback');
       return const TopicVideosPage(videos: [], lastDoc: null);
     }
   }
@@ -278,7 +333,7 @@ class TopicRepository {
         allTopics.addAll(
           query.docs
               .map(Topic.fromDocumentSnapshot)
-              .where((t) => t.isValidTopic && t.videoCount > 0),
+              .where((t) => t.isValidTopic),
         );
       }
 
@@ -306,7 +361,7 @@ class TopicRepository {
 
       return snapshot.docs
           .map(Topic.fromDocumentSnapshot)
-          .where((t) => t.isValidTopic && t.videoCount > 0 && t.slug != excludeSlug)
+          .where((t) => t.isValidTopic && t.slug != excludeSlug)
           .toList();
     } catch (e, s) {
       ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.getSimilarTopics');
@@ -318,6 +373,17 @@ class TopicRepository {
   // POPULAR TOPICS
   // ==========================================================================
 
+  List<Topic> _deduplicateTopics(Iterable<Topic> raw) {
+    final seen = <String>{};
+    final result = <Topic>[];
+    for (final t in raw) {
+      if (t.isValidTopic && seen.add(t.canonicalKey)) {
+        result.add(t);
+      }
+    }
+    return result;
+  }
+
   /// Get popular topics (for discovery)
   Future<List<Topic>> getPopularTopics({int limit = 10}) async {
     try {
@@ -327,10 +393,16 @@ class TopicRepository {
           .limit(limit)
           .get();
 
-      return snapshot.docs
-          .map(Topic.fromDocumentSnapshot)
-          .where((t) => t.isValidTopic && t.videoCount > 0)
-          .toList();
+      final list = _deduplicateTopics(snapshot.docs.map(Topic.fromDocumentSnapshot));
+      if (list.isNotEmpty) return list;
+
+      final fallbackSnap = await _firestore
+          .collection(FirestoreCollections.topics)
+          .limit(limit)
+          .get();
+      final fallbackList = _deduplicateTopics(fallbackSnap.docs.map(Topic.fromDocumentSnapshot));
+      fallbackList.sort((a, b) => b.effectiveVideoCount.compareTo(a.effectiveVideoCount));
+      return fallbackList;
     } catch (e, s) {
       ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.getPopularTopics');
       return [];
@@ -350,10 +422,7 @@ class TopicRepository {
           .limit(limit)
           .get();
 
-      return snapshot.docs
-          .map(Topic.fromDocumentSnapshot)
-          .where((t) => t.isValidTopic && t.videoCount > 0)
-          .toList();
+      return _deduplicateTopics(snapshot.docs.map(Topic.fromDocumentSnapshot));
     } catch (e, s) {
       ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.searchTopics');
       return [];
@@ -368,10 +437,7 @@ class TopicRepository {
           .limit(limit)
           .get();
       if (snapshot.docs.isNotEmpty) {
-        final list = snapshot.docs
-            .map(Topic.fromDocumentSnapshot)
-            .where((t) => t.isValidTopic && t.videoCount > 0)
-            .toList();
+        final list = _deduplicateTopics(snapshot.docs.map(Topic.fromDocumentSnapshot));
         if (list.isNotEmpty) return list;
       }
       return getPopularTopics(limit: limit);
@@ -396,12 +462,98 @@ class TopicRepository {
         query = query.startAfterDocument(lastDoc);
       }
       final snapshot = await query.get();
-      return snapshot.docs
-          .map(Topic.fromDocumentSnapshot)
-          .where((t) => t.isValidTopic && t.videoCount > 0)
-          .toList();
+      final list = _deduplicateTopics(snapshot.docs.map(Topic.fromDocumentSnapshot));
+      if (list.isNotEmpty) return list;
+      return fetchTopics(limit: limit, lastDoc: lastDoc, category: category);
     } catch (e, s) {
       ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.fetchTrendingTopics');
+      try {
+        Query fallback = _firestore.collection(FirestoreCollections.topics);
+        if (category.toLowerCase() != 'all') {
+          fallback = fallback.where('category', isEqualTo: category);
+        }
+        fallback = fallback.limit(limit);
+        final snap = await fallback.get();
+        final list = _deduplicateTopics(snap.docs.map(Topic.fromDocumentSnapshot));
+        list.sort((a, b) => b.trendingScore.compareTo(a.trendingScore));
+        if (list.isNotEmpty) return list;
+      } catch (fallbackErr, fallbackStack) {
+        ErrorHandler.log(fallbackErr, stackTrace: fallbackStack, tag: 'TopicRepository.fetchTrendingTopics.fallback');
+      }
+      return fetchTopics(limit: limit, lastDoc: lastDoc, category: category);
+    }
+  }
+
+  Future<List<Topic>> fetchNewestTopics({
+    required String category,
+    int limit = 20,
+    DocumentSnapshot? lastDoc,
+  }) async {
+    try {
+      Query query = _firestore.collection(FirestoreCollections.topics);
+      if (category.toLowerCase() != 'all') {
+        query = query.where('category', isEqualTo: category);
+      }
+      query = query.orderBy('createdAt', descending: true).limit(limit);
+      if (lastDoc != null) {
+        query = query.startAfterDocument(lastDoc);
+      }
+      final snapshot = await query.get();
+      final list = _deduplicateTopics(snapshot.docs.map(Topic.fromDocumentSnapshot));
+      if (list.isNotEmpty) return list;
+      return fetchTopics(limit: limit, lastDoc: lastDoc, category: category);
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.fetchNewestTopics');
+      try {
+        Query fallback = _firestore.collection(FirestoreCollections.topics);
+        if (category.toLowerCase() != 'all') {
+          fallback = fallback.where('category', isEqualTo: category);
+        }
+        fallback = fallback.limit(limit);
+        final snap = await fallback.get();
+        final list = _deduplicateTopics(snap.docs.map(Topic.fromDocumentSnapshot));
+        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        if (list.isNotEmpty) return list;
+      } catch (fallbackErr, fallbackStack) {
+        ErrorHandler.log(fallbackErr, stackTrace: fallbackStack, tag: 'TopicRepository.fetchNewestTopics.fallback');
+      }
+      return fetchTopics(limit: limit, lastDoc: lastDoc, category: category);
+    }
+  }
+
+  Future<List<Topic>> fetchPopularTopics({
+    required String category,
+    int limit = 20,
+    DocumentSnapshot? lastDoc,
+  }) async {
+    try {
+      Query query = _firestore.collection(FirestoreCollections.topics);
+      if (category.toLowerCase() != 'all') {
+        query = query.where('category', isEqualTo: category);
+      }
+      query = query.orderBy('followerCount', descending: true).limit(limit);
+      if (lastDoc != null) {
+        query = query.startAfterDocument(lastDoc);
+      }
+      final snapshot = await query.get();
+      final list = _deduplicateTopics(snapshot.docs.map(Topic.fromDocumentSnapshot));
+      if (list.isNotEmpty) return list;
+      return fetchTopics(limit: limit, lastDoc: lastDoc, category: category);
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.fetchPopularTopics');
+      try {
+        Query fallback = _firestore.collection(FirestoreCollections.topics);
+        if (category.toLowerCase() != 'all') {
+          fallback = fallback.where('category', isEqualTo: category);
+        }
+        fallback = fallback.limit(limit);
+        final snap = await fallback.get();
+        final list = _deduplicateTopics(snap.docs.map(Topic.fromDocumentSnapshot));
+        list.sort((a, b) => b.followerCount.compareTo(a.followerCount));
+        if (list.isNotEmpty) return list;
+      } catch (fallbackErr, fallbackStack) {
+        ErrorHandler.log(fallbackErr, stackTrace: fallbackStack, tag: 'TopicRepository.fetchPopularTopics.fallback');
+      }
       return fetchTopics(limit: limit, lastDoc: lastDoc, category: category);
     }
   }
@@ -421,27 +573,25 @@ class TopicRepository {
         query = query.startAfterDocument(lastDoc);
       }
       final snapshot = await query.get();
-      return snapshot.docs
-          .map(Topic.fromDocumentSnapshot)
-          .where((t) => t.isValidTopic && t.videoCount > 0)
-          .toList();
+      final list = _deduplicateTopics(snapshot.docs.map(Topic.fromDocumentSnapshot));
+      if (list.isNotEmpty) return list;
     } catch (e, s) {
       ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.fetchTopics');
-      try {
-        Query fallbackQuery = _firestore.collection(FirestoreCollections.topics);
-        if (category.toLowerCase() != 'all') {
-          fallbackQuery = fallbackQuery.where('category', isEqualTo: category);
-        }
-        fallbackQuery = fallbackQuery.limit(limit);
-        final snapshot = await fallbackQuery.get();
-        return snapshot.docs
-            .map(Topic.fromDocumentSnapshot)
-            .where((t) => t.isValidTopic && t.videoCount > 0)
-            .toList();
-      } catch (err, errStack) {
-        ErrorHandler.log(err, stackTrace: errStack, tag: 'TopicRepository.fetchTopics.fallback');
-        return [];
+    }
+
+    try {
+      Query fallbackQuery = _firestore.collection(FirestoreCollections.topics);
+      if (category.toLowerCase() != 'all') {
+        fallbackQuery = fallbackQuery.where('category', isEqualTo: category);
       }
+      fallbackQuery = fallbackQuery.limit(limit);
+      final snapshot = await fallbackQuery.get();
+      final fallbackList = _deduplicateTopics(snapshot.docs.map(Topic.fromDocumentSnapshot));
+      fallbackList.sort((a, b) => b.effectiveVideoCount.compareTo(a.effectiveVideoCount));
+      return fallbackList;
+    } catch (err, errStack) {
+      ErrorHandler.log(err, stackTrace: errStack, tag: 'TopicRepository.fetchTopics.fallback');
+      return [];
     }
   }
 
@@ -529,18 +679,6 @@ class TopicRepository {
 
   Future<bool> followTopic(String userId, String topicId) async {
     try {
-      final topicDoc = await _firestore
-          .collection(FirestoreCollections.topics)
-          .doc(topicId)
-          .get();
-      if (!topicDoc.exists) return false;
-      final topic = Topic.fromDocumentSnapshot(topicDoc);
-      if (!topic.isValidTopic || topic.videoCount <= 0) {
-        debugPrint('Cannot follow invalid or 0-video topic: $topicId');
-        return false;
-      }
-
-      final batch = _firestore.batch();
       final topicRef = _firestore
           .collection(FirestoreCollections.topics)
           .doc(topicId);
@@ -550,22 +688,31 @@ class TopicRepository {
           .collection('savedTopics')
           .doc(topicId);
 
-      // User-centric subcollection + denormalized count only
-      batch.set(userSavedRef, {
-        'topicId': topicId,
-        'savedAt': FieldValue.serverTimestamp(),
-        'notificationSetting': 'all',
-      }, SetOptions(merge: true));
-      batch.set(topicRef, {
-        'followerCount': FieldValue.increment(1),
-      }, SetOptions(merge: true));
+      return await _firestore.runTransaction<bool>((tx) async {
+        final topicSnap = await tx.get(topicRef);
+        if (!topicSnap.exists) return false;
+        final topic = Topic.fromDocumentSnapshot(topicSnap);
+        if (!topic.isValidTopic || topic.videoCount <= 0) return false;
 
-      await batch.commit();
-      _topicCache.clear();
-      return true;
+        final savedSnap = await tx.get(userSavedRef);
+        // Idempotent guard: already following — do nothing, no duplicate count
+        if (savedSnap.exists) return true;
+
+        tx.set(userSavedRef, {
+          'topicId': topicId,
+          'savedAt': FieldValue.serverTimestamp(),
+          'notificationSetting': 'personalized',
+        });
+        tx.update(topicRef, {
+          'followerCount': FieldValue.increment(1),
+        });
+        return true;
+      });
     } catch (e, s) {
       ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.followTopic');
       return false;
+    } finally {
+      _topicCache.clear();
     }
   }
 
@@ -580,7 +727,7 @@ class TopicRepository {
       final settings = <String, String>{};
       for (final doc in snapshot.docs) {
         settings[doc.id] =
-            (doc.data()['notificationSetting'] as String?) ?? 'all';
+            (doc.data()['notificationSetting'] as String?) ?? 'personalized';
       }
       return settings;
     } catch (e, s) {
@@ -605,12 +752,12 @@ class TopicRepository {
           .doc(topicId)
           .get();
       if (doc.exists) {
-        return doc.data()?['notificationSetting'] as String? ?? 'all';
+        return doc.data()?['notificationSetting'] as String? ?? 'personalized';
       }
-      return 'all';
+      return 'personalized';
     } catch (e, s) {
       ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.getTopicNotificationSetting');
-      return 'all';
+      return 'personalized';
     }
   }
 
@@ -639,7 +786,6 @@ class TopicRepository {
 
   Future<bool> unfollowTopic(String userId, String topicId) async {
     try {
-      final batch = _firestore.batch();
       final topicRef = _firestore
           .collection(FirestoreCollections.topics)
           .doc(topicId);
@@ -649,18 +795,22 @@ class TopicRepository {
           .collection('savedTopics')
           .doc(topicId);
 
-      // Only delete user-centric doc + decrement count
-      batch.delete(userSavedRef);
-      batch.set(topicRef, {
-        'followerCount': FieldValue.increment(-1),
-      }, SetOptions(merge: true));
+      return await _firestore.runTransaction<bool>((tx) async {
+        final savedSnap = await tx.get(userSavedRef);
+        // Idempotent guard: not following — do nothing, no negative drift
+        if (!savedSnap.exists) return true;
 
-      await batch.commit();
-      _topicCache.clear();
-      return true;
+        tx.delete(userSavedRef);
+        tx.update(topicRef, {
+          'followerCount': FieldValue.increment(-1),
+        });
+        return true;
+      });
     } catch (e, s) {
       ErrorHandler.log(e, stackTrace: s, tag: 'TopicRepository.unfollowTopic');
       return false;
+    } finally {
+      _topicCache.clear();
     }
   }
 

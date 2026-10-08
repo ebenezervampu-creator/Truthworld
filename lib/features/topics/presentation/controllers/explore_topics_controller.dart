@@ -1,6 +1,7 @@
 
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
@@ -31,6 +32,8 @@ class ExploreTopicsController extends BaseController {
   final RxList<Topic> topics = <Topic>[].obs;
   final RxList<Topic> featuredTopics = <Topic>[].obs;
   final RxList<TopicCategory> availableCategories = <TopicCategory>[].obs;
+  final RxMap<String, int> authenticCategoryTopicCounts = <String, int>{}.obs;
+  final Map<String, Set<String>> _categoryCanonicalTopicsMap = {};
   final RxBool isLoadingCategories = false.obs;
   final RxString selectedCategory = 'all'.obs;
   final Rx<ExploreMode> exploreMode = ExploreMode.discover.obs;
@@ -133,7 +136,7 @@ class ExploreTopicsController extends BaseController {
       // 2. Fetch Featured Curated Strips
       final rawFeatured = await _repository.fetchFeaturedTopics();
       featuredTopics.value = rawFeatured
-          .where((t) => t.isValidTopic && t.videoCount > 0)
+          .where((t) => t.isValidTopic)
           .toList();
 
       // 3. Fetch paginated topics
@@ -202,12 +205,11 @@ class ExploreTopicsController extends BaseController {
         try {
           final snapshot = await FirebaseFirestore.instance
               .collection(FirestoreCollections.topics)
-              .where('status', isEqualTo: 'active')
               .limit(100)
               .get();
           for (final doc in snapshot.docs) {
             final t = Topic.fromDocumentSnapshot(doc);
-            if (t.isValidTopic && t.videoCount > 0) {
+            if (t.isValidTopic) {
               candidateMap[t.id] = t;
             }
           }
@@ -253,6 +255,16 @@ class ExploreTopicsController extends BaseController {
             lastDoc: _lastDoc,
             category: selectedCategory.value,
           );
+        } else if (exploreMode.value == ExploreMode.newest) {
+          newTopics = await _repository.fetchNewestTopics(
+            lastDoc: _lastDoc,
+            category: selectedCategory.value,
+          );
+        } else if (exploreMode.value == ExploreMode.popular) {
+          newTopics = await _repository.fetchPopularTopics(
+            lastDoc: _lastDoc,
+            category: selectedCategory.value,
+          );
         } else if (exploreMode.value == ExploreMode.yearly) {
           // Yearly trended topics query (pull by category or lower video count fallback)
           newTopics = await _repository.fetchTopics(
@@ -287,10 +299,14 @@ class ExploreTopicsController extends BaseController {
         }
       }
 
-      // Filter out any duplicates to ensure robust, unique listing
+      // Filter out any duplicates by document id and canonical topic key
       final existingIds = topics.map((t) => t.id).toSet();
+      final existingCanonicalKeys = topics.map((t) => t.canonicalKey).toSet();
       final uniqueNewTopics = newTopics
-          .where((t) => !existingIds.contains(t.id) && t.isValidTopic && t.videoCount > 0)
+          .where((t) =>
+              !existingIds.contains(t.id) &&
+              !existingCanonicalKeys.contains(t.canonicalKey) &&
+              t.isValidTopic)
           .toList();
       if (Get.isRegistered<TruthworldAlgorithm>()) {
         final algorithm = Get.find<TruthworldAlgorithm>();
@@ -304,6 +320,21 @@ class ExploreTopicsController extends BaseController {
         topics.addAll(finalTopics.isNotEmpty ? finalTopics : uniqueNewTopics);
       } else {
         topics.addAll(uniqueNewTopics);
+      }
+
+      for (final t in uniqueNewTopics) {
+        final cat = t.category.trim();
+        if (cat.isNotEmpty && cat.toLowerCase() != 'all') {
+          final normalized = _capitalizeCategory(cat);
+          final catKey = normalized.toLowerCase();
+          final canonicalKey = t.canonicalKey;
+          _categoryCanonicalTopicsMap.putIfAbsent(catKey, () => <String>{});
+          if (!_categoryCanonicalTopicsMap[catKey]!.contains(canonicalKey)) {
+            _categoryCanonicalTopicsMap[catKey]!.add(canonicalKey);
+            authenticCategoryTopicCounts[catKey] =
+                _categoryCanonicalTopicsMap[catKey]!.length;
+          }
+        }
       }
 
       // Fetch videos for newly added topics
@@ -345,6 +376,12 @@ class ExploreTopicsController extends BaseController {
       var videos = await _repository.getVideosByTopic(topic.slug);
       if (videos.isEmpty && topic.id != topic.slug) {
         videos = await _repository.getVideosByTopic(topic.id);
+      }
+      if (videos.isEmpty && topic.routePathParameter != topic.slug) {
+        videos = await _repository.getVideosByTopic(topic.routePathParameter);
+      }
+      if (videos.isEmpty && topic.featuredVideoIds.isNotEmpty) {
+        videos = await _repository.getFeaturedVideos(topic.featuredVideoIds);
       }
       topicVideosMap[key] = videos;
       if (Get.isRegistered<UserSignalTracker>()) {
@@ -419,27 +456,58 @@ class ExploreTopicsController extends BaseController {
       try {
         final topicSnapshot = await FirebaseFirestore.instance
             .collection(FirestoreCollections.topics)
-            .where('status', isEqualTo: 'active')
             .limit(300)
             .get();
 
+        final categoryTopicSets = <String, Set<String>>{};
+        final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
+        final duplicateDocsToDelete = <DocumentReference>[];
+
         for (final doc in topicSnapshot.docs) {
-          final data = doc.data();
-          final status = (data['status'] as String?)?.toLowerCase();
-          if (status != null && status != 'active') continue;
-          final vCount = (data['videoCount'] as num?)?.toInt() ??
-              (data['featuredVideoIds'] as List?)?.length ??
-              0;
-          if (vCount <= 0) continue;
-          final rawCat = (data['category'] as String?)?.trim();
-          if (rawCat != null &&
-              rawCat.isNotEmpty &&
-              rawCat.toLowerCase() != 'all') {
+          final t = Topic.fromDocumentSnapshot(doc);
+          if (!t.isValidTopic) continue;
+          final rawCat = t.category.trim();
+          if (rawCat.isNotEmpty && rawCat.toLowerCase() != 'all') {
             final normalized = _capitalizeCategory(rawCat);
-            categoryCounts[normalized] =
-                (categoryCounts[normalized] ?? 0) + vCount;
+            final catKey = normalized.toLowerCase();
+            final canonicalKey = t.canonicalKey;
+
+            categoryTopicSets.putIfAbsent(catKey, () => <String>{});
+            if (categoryTopicSets[catKey]!.contains(canonicalKey)) {
+              // Duplicate document detected for the same canonical topic!
+              final docCreator = (doc.data()['creatorId'] as String?) ?? t.creatorId ?? '';
+              if (currentUserId.isNotEmpty &&
+                  docCreator == currentUserId &&
+                  t.effectiveVideoCount <= 0) {
+                duplicateDocsToDelete.add(doc.reference);
+              }
+              continue;
+            }
+
+            categoryTopicSets[catKey]!.add(canonicalKey);
+
+            final vCount = t.effectiveVideoCount;
+            if (vCount > 0) {
+              categoryCounts[normalized] =
+                  (categoryCounts[normalized] ?? 0) + vCount;
+            }
           }
         }
+
+        // Clean up unlinked duplicate documents created by the bug in background
+        for (final ref in duplicateDocsToDelete) {
+          try {
+            ref.delete().catchError((_) {});
+          } catch (_) {}
+        }
+
+        _categoryCanonicalTopicsMap.clear();
+        final topicCounts = <String, int>{};
+        categoryTopicSets.forEach((catKey, topicSet) {
+          _categoryCanonicalTopicsMap[catKey] = Set<String>.from(topicSet);
+          topicCounts[catKey] = topicSet.length;
+        });
+        authenticCategoryTopicCounts.assignAll(topicCounts);
       } catch (e, stackTrace) {
         ErrorHandler.log(
           e,
@@ -456,13 +524,13 @@ class ExploreTopicsController extends BaseController {
           final videos = topicVideosMap[topic.id];
           final count = (videos != null && videos.isNotEmpty)
               ? videos.length
-              : (topic.videoCount > 0 ? topic.videoCount : 1);
+              : (topic.effectiveVideoCount > 0 ? topic.effectiveVideoCount : 1);
           categoryCounts[normalized] =
               (categoryCounts[normalized] ?? 0) + count;
         }
       }
 
-      // Filter to categories that have AT LEAST 2 videos
+      // Filter to categories that have AT LEAST 1 video
       final qualifying = <TopicCategory>[];
 
       for (final configCat in TopicCategoriesConfig.categories) {
@@ -470,14 +538,14 @@ class ExploreTopicsController extends BaseController {
         final countByTitle = categoryCounts[configCat.title] ?? 0;
         final countById = categoryCounts[configCat.id] ?? 0;
         final maxCount = countByTitle > countById ? countByTitle : countById;
-        if (maxCount >= 2) {
+        if (maxCount >= 1) {
           qualifying.add(configCat);
         }
       }
 
-      // Include dynamic categories not in TopicCategoriesConfig if count >= 2
+      // Include dynamic categories not in TopicCategoriesConfig if count >= 1
       categoryCounts.forEach((catName, count) {
-        if (count >= 2 && catName.toLowerCase() != 'all') {
+        if (count >= 1 && catName.toLowerCase() != 'all') {
           final alreadyAdded = qualifying.any(
             (qc) =>
                 qc.title.toLowerCase() == catName.toLowerCase() ||
@@ -516,6 +584,16 @@ class ExploreTopicsController extends BaseController {
   void selectCategory(String category) {
     if (selectedCategory.value == category) return;
     selectedCategory.value = category;
+    searchQuery.value = '';
+    searchController.clear();
+    activeAiIntent.value = null;
+    if (category.toLowerCase() != 'all' &&
+        exploreMode.value == ExploreMode.discover) {
+      exploreMode.value = ExploreMode.trending;
+    }
+    if (category.toLowerCase() == 'all') {
+      exploreMode.value = ExploreMode.discover;
+    }
     if (category != 'all' && Get.isRegistered<UserSignalTracker>()) {
       Get.find<UserSignalTracker>().trackTopicExplored(
         topicSlug: category,
@@ -554,6 +632,86 @@ class ExploreTopicsController extends BaseController {
     loadTopics(reset: true);
   }
 
+  /// Retrieves authentic verified topics for a selected category from Firestore.
+  /// Zero Mock Data Policy: Only returns authentic, active topics from Firestore.
+  /// Absolutely never synthesizes mock, dummy, or curated placeholder topics.
+  List<Topic> getSubtopicsForCategory(String categoryName) {
+    final cat = TopicCategoriesConfig.getCategory(categoryName);
+    final targetCat = cat.title.toLowerCase().trim();
+    final targetId = cat.id.toLowerCase().trim();
+    final targetInput = categoryName.toLowerCase().trim();
+
+    final seenKeys = <String>{};
+    final firestoreTopics = <Topic>[];
+    for (final t in topics) {
+      if (!t.isValidTopic) continue;
+      final tCat = t.category.toLowerCase().trim();
+      final match = tCat == targetCat ||
+          tCat == targetId ||
+          tCat == targetInput ||
+          _capitalizeCategory(t.category).toLowerCase().trim() == targetCat;
+      if (match) {
+        if (seenKeys.add(t.canonicalKey)) {
+          firestoreTopics.add(t);
+        }
+      }
+    }
+
+    final query = searchQuery.value.trim().toLowerCase();
+    var filtered = firestoreTopics;
+    if (query.isNotEmpty) {
+      filtered = firestoreTopics
+          .where((t) =>
+              t.title.toLowerCase().contains(query) ||
+              t.description.toLowerCase().contains(query) ||
+              t.slug.toLowerCase().contains(query) ||
+              t.handle.toLowerCase().contains(query))
+          .toList();
+    }
+
+    // Apply active exploreMode sorting
+    if (exploreMode.value == ExploreMode.trending) {
+      filtered.sort((a, b) => b.trendingScore.compareTo(a.trendingScore));
+    } else if (exploreMode.value == ExploreMode.newest) {
+      filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    } else if (exploreMode.value == ExploreMode.popular) {
+      filtered.sort(
+          (a, b) => b.effectiveVideoCount.compareTo(a.effectiveVideoCount));
+    }
+
+    return filtered;
+  }
+
+  /// Returns authentic verified topic count for a category name.
+  int getAuthenticTopicCount(String categoryName) {
+    final key = categoryName.toLowerCase().trim();
+    final count = authenticCategoryTopicCounts[key];
+    if (count != null && count > 0) return count;
+
+    final matchingCanonicalKeys = <String>{};
+    for (final t in topics) {
+      if (!t.isValidTopic) continue;
+      final tCat = t.category.toLowerCase().trim();
+      if (tCat == key ||
+          _capitalizeCategory(t.category).toLowerCase().trim() == key) {
+        matchingCanonicalKeys.add(t.canonicalKey);
+      }
+    }
+
+    return matchingCanonicalKeys.length;
+  }
+
+  /// Returns authentic formatted topic count text (e.g. '3 topics', '1 topic'),
+  /// or an empty string if not yet verified or 0.
+  /// Zero Mock Data Policy: Never returns simulated numbers like '8.4K topics'.
+  String getAuthenticTopicCountText(TopicCategory category) {
+    final count = getAuthenticTopicCount(category.title);
+    if (count > 0) {
+      return '$count ${count == 1 ? 'topic' : 'topics'}';
+    }
+    return '';
+  }
+
   // ==========================================================================
   // DISCOVERY PRELOADING ENGINE
   // ==========================================================================
@@ -569,7 +727,7 @@ class ExploreTopicsController extends BaseController {
       final topicController = Get.find<TopicController>();
       topicController.topic.value = topic;
     } else {
-      final topicController = Get.find<TopicController>();
+      final topicController = Get.put(TopicController());
       topicController.topic.value = topic;
     }
   }
@@ -578,5 +736,8 @@ class ExploreTopicsController extends BaseController {
 enum ExploreMode {
   discover,
   trending,
+  newest,
+  popular,
   yearly,
 }
+

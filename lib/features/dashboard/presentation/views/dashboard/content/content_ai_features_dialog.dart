@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization/channel_wallet_topup_sheet.dart';
@@ -83,6 +84,7 @@ import 'package:truthworld/theme/app_theme.dart';
                             style: AppTextStyles.titleLarge.copyWith(
                               color: AppColors.textPrimary,
                               fontWeight: FontWeight.bold,
+                              fontFamily: TWTypography.brandFamily,
                               fontSize: 18,
                             ),
                           ),
@@ -372,7 +374,7 @@ import 'package:truthworld/theme/app_theme.dart';
                                         ? 'Channel Wallet & Revenue (Custom Channel)'
                                         : 'Channel Wallet & Revenue',
                                     style: AppTextStyles.labelMedium.copyWith(
-                                      color: isCustom ? const Color(0xFFC084FC) : Colors.green,
+                                      color: isCustom ? AppColors.info : AppColors.success,
                                       fontWeight: FontWeight.bold,
                                       fontSize: 12,
                                     ),
@@ -520,6 +522,7 @@ import 'package:truthworld/theme/app_theme.dart';
       value: value,
       onChanged: onChanged,
       activeColor: AppColors.brand,
+      checkColor: Colors.black,
       dense: true,
       contentPadding: EdgeInsets.zero,
       secondary: Icon(
@@ -540,6 +543,246 @@ import 'package:truthworld/theme/app_theme.dart';
         style: AppTextStyles.caption.copyWith(
           color: AppColors.textSecondary,
           fontSize: 11,
+        ),
+      ),
+    );
+  }
+
+  void showBatchGenerateAIFeaturesDialog(
+    BuildContext context,
+    List<Video> videos,
+    VideoManagementController controller,
+  ) {
+    if (videos.isEmpty) return;
+
+    final selectedFeatures = <String>{
+      'subtitles',
+      'chapters',
+      'factcheck',
+    }.obs;
+
+    final selectedLangs = <String>{'en', 'es'}.obs;
+
+    final availableLangs = [
+      {'code': 'en', 'name': 'English'},
+      {'code': 'es', 'name': 'Spanish'},
+      {'code': 'hi', 'name': 'Hindi'},
+      {'code': 'te', 'name': 'Telugu'},
+      {'code': 'ta', 'name': 'Tamil'},
+      {'code': 'kn', 'name': 'Kannada'},
+      {'code': 'ml', 'name': 'Malayalam'},
+    ];
+
+    Get.dialog<void>(
+      Dialog(
+        backgroundColor: AppColors.bgSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: AppColors.bgDivider),
+        ),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 540),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.brand.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.auto_awesome_rounded,
+                      color: AppColors.textPrimary,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Batch AI Pipeline',
+                          style: AppTextStyles.titleLarge.copyWith(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: TWTypography.brandFamily,
+                            fontSize: 18,
+                          ),
+                        ),
+                        Text(
+                          'Applying to ${videos.length} selected videos',
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Divider(color: AppColors.bgDivider, height: 1),
+              const SizedBox(height: 16),
+              Text(
+                'AI Features to Generate',
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Obx(
+                () => Column(
+                  children: [
+                    buildFeatureCheckbox(
+                      title: 'Automatic Subtitles & Transcriptions',
+                      subtitle: 'Generate synchronized multi-language captions',
+                      icon: Icons.subtitles_rounded,
+                      value: selectedFeatures.contains('subtitles'),
+                      onChanged: (v) {
+                        if (v == true) {
+                          selectedFeatures.add('subtitles');
+                        } else {
+                          selectedFeatures.remove('subtitles');
+                        }
+                      },
+                    ),
+                    buildFeatureCheckbox(
+                      title: 'Automatic Video Chapters',
+                      subtitle: 'Extract thematic timestamps and scene boundaries',
+                      icon: Icons.view_timeline_rounded,
+                      value: selectedFeatures.contains('chapters'),
+                      onChanged: (v) {
+                        if (v == true) {
+                          selectedFeatures.add('chapters');
+                        } else {
+                          selectedFeatures.remove('chapters');
+                        }
+                      },
+                    ),
+                    buildFeatureCheckbox(
+                      title: 'Epistemic Truth & Fact-Check Audit',
+                      subtitle: 'Automated claim detection and credibility scoring',
+                      icon: Icons.verified_user_rounded,
+                      value: selectedFeatures.contains('factcheck'),
+                      onChanged: (v) {
+                        if (v == true) {
+                          selectedFeatures.add('factcheck');
+                        } else {
+                          selectedFeatures.remove('factcheck');
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Target Languages',
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Obx(
+                () => Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: availableLangs.map((lang) {
+                    final isSel = selectedLangs.contains(lang['code']);
+                    return FilterChip(
+                      label: Text(
+                        lang['name']!,
+                        style: TextStyle(
+                          color: isSel ? Colors.black : AppColors.textPrimary,
+                          fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                          fontSize: 12,
+                        ),
+                      ),
+                      selected: isSel,
+                      selectedColor: AppColors.brand,
+                      checkmarkColor: Colors.black,
+                      backgroundColor: AppColors.bgSurfaceHover,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        side: BorderSide(
+                          color: isSel ? AppColors.brand : AppColors.bgDivider,
+                        ),
+                      ),
+                      onSelected: (val) {
+                        final code = lang['code'];
+                        if (code != null) {
+                          if (val) {
+                            selectedLangs.add(code);
+                          } else if (selectedLangs.length > 1) {
+                            selectedLangs.remove(code);
+                          }
+                        }
+                      },
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: Get.back<void>,
+                    child: Text(
+                      'Cancel',
+                      style: AppTextStyles.buttonText.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.brand,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    onPressed: () async {
+                      Get.back<void>();
+                      for (final vid in videos) {
+                        await controller.triggerAIFeatures(
+                          videoId: vid.id,
+                          features: selectedFeatures.toList(),
+                          targetLanguages: selectedLangs.toList(),
+                          durationSeconds: vid.durationValue.inSeconds,
+                        );
+                      }
+                      AppSnackbar.success(
+                        'Batch AI pipeline initiated for ${videos.length} videos.',
+                      );
+                    },
+                    icon: const Icon(Icons.bolt_rounded, size: 18, color: Colors.black),
+                    label: Text(
+                      'Run Batch Pipeline (${videos.length})',
+                      style: AppTextStyles.buttonText.copyWith(
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

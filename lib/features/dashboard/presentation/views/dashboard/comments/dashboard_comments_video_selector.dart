@@ -1,8 +1,9 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_comments_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Desktop & Tablet Video Selector Sidebar Pane
 /// Allows filtering comments by a specific video or all videos.
@@ -18,8 +19,38 @@ class DashboardCommentsVideoSelectorPane extends StatelessWidget {
   Widget build(BuildContext context) {
     return Obx(() {
       if (controller.isLoadingVideos.value) {
-        return const Center(
-          child: CircularProgressIndicator(color: Colors.white),
+        return Shimmer.fromColors(
+          baseColor: const Color(0xFF1E1E1E),
+          highlightColor: AppColors.bgSurfaceHover,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E1E1E),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: 6,
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (_, _) => Container(
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E1E1E),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         );
       }
 
@@ -36,29 +67,33 @@ class DashboardCommentsVideoSelectorPane extends StatelessWidget {
                 const Icon(
                   Icons.video_collection_rounded,
                   size: 18,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                 ),
                 const SizedBox(width: 8),
-                Text(
+                const Text(
                   'Your Videos',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
+                    fontFamily: TWTypography.brandFamily,
+                    fontFamilyFallback: TWTypography.fallbackFamilies,
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                   ),
                 ),
                 const Spacer(),
                 Text(
                   '${videos.length}',
-                  style: GoogleFonts.roboto(
+                  style: const TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontFamilyFallback: TWTypography.fallbackFamilies,
                     fontSize: 12,
-                    color: const Color(0xFFAAAAAA),
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1, color: Color(0xFF282828)),
+          const Divider(height: 1, color: AppColors.bgDivider),
 
           // "All Videos" Option
           Padding(
@@ -70,7 +105,7 @@ class DashboardCommentsVideoSelectorPane extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                 decoration: BoxDecoration(
                   color: controller.selectedVideoId.value == null
-                      ? const Color(0xFF272727)
+                      ? AppColors.bgSurfaceHover
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(6),
                 ),
@@ -80,12 +115,12 @@ class DashboardCommentsVideoSelectorPane extends StatelessWidget {
                       width: 44,
                       height: 32,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF202020),
+                        color: AppColors.bgSurface,
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: const Icon(
                         Icons.video_library_rounded,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                         size: 20,
                       ),
                     ),
@@ -96,20 +131,24 @@ class DashboardCommentsVideoSelectorPane extends StatelessWidget {
                         children: [
                           Text(
                             'All Videos',
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              fontFamilyFallback: TWTypography.fallbackFamilies,
                               fontSize: 13,
                               fontWeight: controller.selectedVideoId.value == null
                                   ? FontWeight.bold
                                   : FontWeight.w500,
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                             ),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             '${controller.allComments.length} comments',
-                            style: GoogleFonts.roboto(
+                            style: const TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              fontFamilyFallback: TWTypography.fallbackFamilies,
                               fontSize: 11,
-                              color: const Color(0xFFAAAAAA),
+                              color: AppColors.textSecondary,
                             ),
                           ),
                         ],
@@ -120,7 +159,7 @@ class DashboardCommentsVideoSelectorPane extends StatelessWidget {
               ),
             ),
           ),
-          const Divider(height: 1, color: Color(0xFF282828)),
+          const Divider(height: 1, color: AppColors.bgDivider),
 
           // Video list
           Expanded(
@@ -128,7 +167,7 @@ class DashboardCommentsVideoSelectorPane extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               itemCount: videos.length,
               separatorBuilder: (context, index) =>
-                  const Divider(height: 1, color: Color(0xFF202020)),
+                  const Divider(height: 1, color: AppColors.bgDivider),
               itemBuilder: (context, index) {
                 final video = videos[index];
                 final isSelected =
@@ -141,7 +180,7 @@ class DashboardCommentsVideoSelectorPane extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? const Color(0xFF272727)
+                          ? AppColors.bgSurfaceHover
                           : Colors.transparent,
                       borderRadius: BorderRadius.circular(6),
                     ),
@@ -158,22 +197,22 @@ class DashboardCommentsVideoSelectorPane extends StatelessWidget {
                                   errorWidget: (context, url, err) => Container(
                                     width: 44,
                                     height: 32,
-                                    color: const Color(0xFF222222),
+                                    color: AppColors.bgSurface,
                                     child: const Icon(
                                       Icons.play_arrow,
                                       size: 16,
-                                      color: Colors.white,
+                                      color: AppColors.textPrimary,
                                     ),
                                   ),
                                 )
                               : Container(
                                   width: 44,
                                   height: 32,
-                                  color: const Color(0xFF222222),
+                                  color: AppColors.bgSurface,
                                   child: const Icon(
                                     Icons.ondemand_video_rounded,
                                     size: 16,
-                                    color: Colors.white,
+                                    color: AppColors.textPrimary,
                                   ),
                                 ),
                         ),
@@ -186,20 +225,24 @@ class DashboardCommentsVideoSelectorPane extends StatelessWidget {
                                 video.title,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.roboto(
+                                style: TextStyle(
+                                  fontFamily: TWTypography.uiFamily,
+                                  fontFamilyFallback: TWTypography.fallbackFamilies,
                                   fontSize: 12.5,
                                   fontWeight: isSelected
                                       ? FontWeight.bold
                                       : FontWeight.w500,
-                                  color: Colors.white,
+                                  color: AppColors.textPrimary,
                                 ),
                               ),
                               const SizedBox(height: 2),
                               Text(
                                 '${video.formattedCommentCount} • ${video.formattedViewCount} views',
-                                style: GoogleFonts.roboto(
+                                style: const TextStyle(
+                                  fontFamily: TWTypography.uiFamily,
+                                  fontFamilyFallback: TWTypography.fallbackFamilies,
                                   fontSize: 11,
-                                  color: const Color(0xFFAAAAAA),
+                                  color: AppColors.textSecondary,
                                 ),
                               ),
                             ],
@@ -251,18 +294,20 @@ class DashboardMobileVideoDropdownChip extends StatelessWidget {
                 const Icon(
                   Icons.video_library_rounded,
                   size: 18,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'All Videos (${controller.allComments.length})',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      fontFamilyFallback: TWTypography.fallbackFamilies,
                       fontSize: 13,
                       fontWeight: selectedId == null
                           ? FontWeight.bold
                           : FontWeight.normal,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                 ),
@@ -286,13 +331,13 @@ class DashboardMobileVideoDropdownChip extends StatelessWidget {
                             errorWidget: (context, url, err) => const Icon(
                               Icons.play_circle_outline,
                               size: 14,
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                             ),
                           )
                         : const Icon(
                             Icons.ondemand_video_rounded,
                             size: 16,
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                           ),
                   ),
                   const SizedBox(width: 10),
@@ -301,12 +346,14 @@ class DashboardMobileVideoDropdownChip extends StatelessWidget {
                       '${video.title} (${video.commentCount})',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontFamilyFallback: TWTypography.fallbackFamilies,
                         fontSize: 12,
                         fontWeight: selectedId == video.videoId
                             ? FontWeight.bold
                             : FontWeight.normal,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                   ),
@@ -319,11 +366,11 @@ class DashboardMobileVideoDropdownChip extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             color: selectedId != null
-                ? const Color(0xFF282828)
+                ? AppColors.bgSurfaceHover
                 : const Color(0xFF1E1E1E),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: selectedId != null ? Colors.white : const Color(0xFF383838),
+              color: selectedId != null ? AppColors.textPrimary : AppColors.bgDivider,
             ),
           ),
           child: Row(
@@ -332,7 +379,7 @@ class DashboardMobileVideoDropdownChip extends StatelessWidget {
               const Icon(
                 Icons.video_collection_rounded,
                 size: 14,
-                color: Colors.white,
+                color: AppColors.textPrimary,
               ),
               const SizedBox(width: 6),
               ConstrainedBox(
@@ -341,10 +388,12 @@ class DashboardMobileVideoDropdownChip extends StatelessWidget {
                   labelText,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.roboto(
+                  style: const TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontFamilyFallback: TWTypography.fallbackFamilies,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                   ),
                 ),
               ),
@@ -352,7 +401,7 @@ class DashboardMobileVideoDropdownChip extends StatelessWidget {
               const Icon(
                 Icons.arrow_drop_down_rounded,
                 size: 18,
-                color: Colors.white,
+                color: AppColors.textPrimary,
               ),
             ],
           ),

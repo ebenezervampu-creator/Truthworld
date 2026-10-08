@@ -73,7 +73,11 @@ android {
             if (releaseSigning != null && releaseSigning.storeFile != null && releaseSigning.storeFile!!.exists()) {
                 signingConfig = releaseSigning
             } else {
-                signingConfig = signingConfigs.getByName("debug")
+                throw GradleException(
+                    "Release keystore not found. Set KEYSTORE_FILE, KEYSTORE_PASSWORD, " +
+                    "KEY_ALIAS, and KEY_PASSWORD environment variables, or configure " +
+                    "signing in local.properties. Never ship with debug signing."
+                )
             }
             isMinifyEnabled = true
             isShrinkResources = true

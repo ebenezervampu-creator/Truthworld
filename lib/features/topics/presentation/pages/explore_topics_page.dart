@@ -3,12 +3,19 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/topics/presentation/controllers/explore_topics_controller.dart';
 import 'package:truthworld/features/topics/presentation/pages/explore/explore_topics_widgets.dart';
-import 'package:truthworld/theme/app_colors.dart';
 
 export 'explore/explore_topics_widgets.dart';
 
-/// Explore Topics discovery screen coordinating category browsing,
-/// AI semantic intent querying, and interactive topic video strips.
+/// Explore Topics discovery screen coordinating topic browsing,
+/// category deep-dives, and AI-assisted semantic exploration.
+///
+/// Transitions seamlessly between:
+/// - Overview Mode (exact UI of first uploaded image):
+///   Prominent header, AI search bar, Featured Topics with Discover/Trending/Newest/Popular pills
+///   and 3 large photographic cards, and All Topics responsive 3-column grid.
+/// - Selected Category Mode (exact UI of second uploaded image):
+///   Circular back button, hero banner with photo fade, + Follow button,
+///   category search bar, Trending/Newest/Popular filter pills, and 3-column subtopics grid.
 class ExploreTopicsPage extends StatelessWidget {
   const ExploreTopicsPage({super.key, this.isDashboard = false});
 
@@ -22,223 +29,163 @@ class ExploreTopicsPage extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isDesktop = constraints.maxWidth >= kDesktopBreakpoint;
-        final isTablet =
-            constraints.maxWidth >= kMobileBreakpoint &&
-            constraints.maxWidth < kDesktopBreakpoint;
+        final isDesktop = constraints.maxWidth >= kTabletBreakpoint;
+        final isTablet = constraints.maxWidth >= kMobileBreakpoint &&
+            constraints.maxWidth < kTabletBreakpoint;
         final isMobile = constraints.maxWidth < kMobileBreakpoint;
 
-        return Scaffold(
-          backgroundColor: bgColor,
-          appBar: (!isDashboard)
-              ? _buildModernAppBar(
-                  context,
-                  isTablet: isTablet,
-                  isDesktop: isDesktop,
-                )
-              : null,
-          body: SafeArea(
-            child: Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: isDesktop ? 32.0 : (isTablet ? 24.0 : 16.0),
-                vertical: 16.0,
-              ),
-              child: CustomScrollView(
-                controller: controller.scrollController,
-                physics: const BouncingScrollPhysics(),
-                slivers: [
-                  if (isDashboard)
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: 24),
-                        child: Row(
-                          children: [
-                            Text(
-                              'Explore Topics',
-                              style: TextStyle(
-                                fontSize: isDesktop ? 32 : (isTablet ? 26 : 22),
-                                fontWeight: FontWeight.bold,
-                                color: primaryText,
-                              ),
+        return Obx(() {
+          final isAll =
+              controller.selectedCategory.value.toLowerCase() == 'all';
+
+          return PopScope(
+            canPop: isAll,
+            onPopInvokedWithResult: (didPop, result) {
+              if (didPop) return;
+              controller.selectCategory('all');
+            },
+            child: Scaffold(
+              backgroundColor: bgColor,
+              appBar: (!isDashboard && isAll && Navigator.canPop(context))
+                  ? _buildOverviewAppBar(context, isTablet: isTablet)
+                  : null,
+              body: SafeArea(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1440),
+                    child: SingleChildScrollView(
+                      controller: controller.scrollController,
+                      physics: const BouncingScrollPhysics(),
+                      padding: EdgeInsets.symmetric(
+                        horizontal:
+                            isDesktop ? 32.0 : (isTablet ? 24.0 : 16.0),
+                        vertical: 16.0,
+                      ),
+                      child: isAll
+                          ? _buildOverviewBody(
+                              controller,
+                              isDesktop: isDesktop,
+                              isTablet: isTablet,
+                              isMobile: isMobile,
+                            )
+                          : ExploreCategoryDetailView(
+                              categoryName: controller.selectedCategory.value,
+                              isDesktop: isDesktop,
+                              isTablet: isTablet,
+                              isMobile: isMobile,
                             ),
-                            const Spacer(),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                  // Search Bar
-                  SliverToBoxAdapter(
-                    child: ExploreTopicsSearchBar(isMobile: isMobile),
-                  ),
-
-                  // Active AI Topic Query Banner (when AI search is active)
-                  const SliverToBoxAdapter(
-                    child: Padding(
-                      padding: EdgeInsets.only(bottom: 16),
-                      child: ExploreTopicsAiBanner(),
-                    ),
-                  ),
-
-                  // Categories (Grid when 'all', selected header otherwise)
-                  Obx(
-                    () =>
-                        controller.selectedCategory.value.toLowerCase() == 'all'
-                            ? ExploreTopicsCategoryGrid(
-                                isDesktop: isDesktop,
-                                isTablet: isTablet,
-                                isMobile: isMobile,
-                              )
-                            : ExploreTopicsSelectedCategoryHeader(
-                                isTablet: isTablet,
-                              ),
-                  ),
-
-                  // Filters Bar
-                  const SliverToBoxAdapter(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 16),
-                      child: ExploreTopicsFilterBar(),
-                    ),
-                  ),
-
-                  // Topics feed
-                  Obx(() {
-                    if (controller.isLoading && controller.topics.isEmpty) {
-                      return SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              HorizontalVideoSkeleton(
-                                isMobile: isMobile,
-                                isTablet: isTablet,
-                                isDesktop: isDesktop,
-                              ),
-                              const SizedBox(height: 24),
-                              HorizontalVideoSkeleton(
-                                isMobile: isMobile,
-                                isTablet: isTablet,
-                                isDesktop: isDesktop,
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }
-
-                    if (controller.errorMessage.isNotEmpty &&
-                        controller.topics.isEmpty) {
-                      return const SliverToBoxAdapter(
-                        child: SizedBox(
-                          height: 300,
-                          child: ExploreTopicsErrorState(),
-                        ),
-                      );
-                    }
-
-                    if (controller.topics.isEmpty) {
-                      return const SliverToBoxAdapter(
-                        child: SizedBox(
-                          height: 300,
-                          child: ExploreTopicsEmptyState(),
-                        ),
-                      );
-                    }
-
-                    return SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          final topic = controller.topics[index];
-                          return ExploreTopicVideoSection(
-                            topic: topic,
-                            isMobile: isMobile,
-                            isTablet: isTablet,
-                            isDesktop: isDesktop,
-                          );
-                        },
-                        childCount: controller.topics.length,
-                      ),
-                    );
-                  }),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  PreferredSizeWidget _buildModernAppBar(
-    BuildContext context, {
-    bool isTablet = false,
-    bool isDesktop = false,
-  }) {
-    return AppBar(
-      backgroundColor: surfaceColor.withValues(alpha: 0.95),
-      elevation: 0,
-      systemOverlayStyle: SystemUiOverlayStyle.light,
-      leading: Navigator.canPop(context)
-          ? Container(
-              margin: const EdgeInsets.only(left: 8),
-              child: Material(
-                color: buttonBg.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(12),
-                child: InkWell(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    Get.back();
-                  },
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    padding: const EdgeInsets.all(10),
-                    child: const Icon(
-                      Icons.arrow_back_rounded,
-                      color: AppColors.textPrimary,
-                      size: 22,
                     ),
                   ),
                 ),
               ),
-            )
-          : null,
-      title: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppColors.textPrimary,
-                  AppColors.textPrimary.withValues(alpha: 0.5),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+            ),
+          );
+        });
+      },
+    );
+  }
+
+  Widget _buildOverviewBody(
+    ExploreTopicsController controller, {
+    required bool isDesktop,
+    required bool isTablet,
+    required bool isMobile,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 1. Header Section: Title + Subtitle
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Explore Topics',
+                style: TextStyle(
+                  fontSize: isDesktop ? 32 : (isTablet ? 26 : 22),
+                  fontWeight: FontWeight.bold,
+                  color: primaryText,
+                  letterSpacing: -0.5,
+                ),
               ),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.explore_rounded,
-              color: Colors.white,
-              size: 24,
-            ),
+              const SizedBox(height: 6),
+              const Text(
+                'Discover meaningful content across topics that inspire, inform, and uplift.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: secondaryText,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Text(
-            'Explore Topics',
-            style: TextStyle(
-              fontSize: isDesktop ? 26 : (isTablet ? 24 : 20),
-              fontWeight: FontWeight.bold,
-              color: primaryText,
-            ),
-          ),
-        ],
-      ),
-      actions: const [
-        SizedBox(width: 8),
+        ),
+
+        // 2. Search Bar with AI Sparkle & Mic
+        ExploreTopicsSearchBar(isMobile: isMobile),
+
+        // Active AI Topic Query Banner (when AI semantic search is triggered)
+        const Padding(
+          padding: EdgeInsets.only(bottom: 16),
+          child: ExploreTopicsAiBanner(),
+        ),
+
+        // 3. Featured Topics Section
+        ExploreTopicsFeaturedSection(
+          isDesktop: isDesktop,
+          isTablet: isTablet,
+          isMobile: isMobile,
+        ),
+        const SizedBox(height: 32),
+
+        // 4. All Topics Section (Responsive 3-Column Grid)
+        ExploreTopicsAllCategoriesGrid(
+          isDesktop: isDesktop,
+          isTablet: isTablet,
+          isMobile: isMobile,
+        ),
+        const SizedBox(height: 24),
       ],
+    );
+  }
+
+  PreferredSizeWidget _buildOverviewAppBar(
+    BuildContext context, {
+    bool isTablet = false,
+  }) {
+    return AppBar(
+      backgroundColor: bgColor,
+      elevation: 0,
+      systemOverlayStyle: SystemUiOverlayStyle.light,
+      leading: Container(
+        margin: const EdgeInsets.only(left: 12, top: 8, bottom: 8),
+        child: Material(
+          color: buttonBg,
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              Get.back<void>();
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: const Center(
+              child: Icon(
+                Icons.arrow_back_rounded,
+                color: primaryText,
+                size: 20,
+              ),
+            ),
+          ),
+        ),
+      ),
+      title: const Text(
+        'Explore Topics',
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: primaryText,
+        ),
+      ),
     );
   }
 }

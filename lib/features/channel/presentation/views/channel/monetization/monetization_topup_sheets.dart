@@ -54,9 +54,7 @@ void showStorageTopupSheet(
             ),
             const SizedBox(height: 6),
             Text(
-              spendable.trialCreditRemaining > 0
-                  ? 'Available Spendable Balance: \$${spendable.totalSpendableBalance.toStringAsFixed(2)} (\$${spendable.trialCreditRemaining.toStringAsFixed(2)} Trial Credit + \$${spendable.totalRevenue.toStringAsFixed(2)} Revenue)'
-                  : 'Available Spendable Balance: \$${spendable.totalSpendableBalance.toStringAsFixed(2)} (\$${spendable.totalRevenue.toStringAsFixed(2)} Revenue)',
+              'Available Spendable Balance: \$${spendable.totalSpendableBalance.toStringAsFixed(2)} (\$${spendable.totalRevenue.toStringAsFixed(2)} Revenue)',
               style: const TextStyle(
                 fontSize: 13,
                 color: AppColors.textSecondary,
@@ -163,13 +161,6 @@ void showStorageTopupSheet(
                                     214748364800,
                             bandwidthUsedBytesThisMonth:
                                 channel.infraConfig?.bandwidthUsedBytesThisMonth ?? 0,
-                            trialCreditRemainingUSD: canAfford
-                                ? ((channel.infraConfig?.trialCreditRemainingUSD ?? 0.0) >
-                                        pack.priceUSD
-                                    ? (channel.infraConfig!.trialCreditRemainingUSD -
-                                        pack.priceUSD)
-                                    : 0.0)
-                                : (channel.infraConfig?.trialCreditRemainingUSD ?? 0.0),
                             planTier: channel.infraConfig?.planTier ?? 'starter_15',
                           );
                           controller.channelRx.value = Channel(
@@ -282,9 +273,7 @@ void showBandwidthTopupSheet(
             ),
             const SizedBox(height: 6),
             Text(
-              spendable.trialCreditRemaining > 0
-                  ? 'Available Spendable Balance: \$${spendable.totalSpendableBalance.toStringAsFixed(2)} (\$${spendable.trialCreditRemaining.toStringAsFixed(2)} Trial Credit + \$${spendable.totalRevenue.toStringAsFixed(2)} Revenue)'
-                  : 'Available Spendable Balance: \$${spendable.totalSpendableBalance.toStringAsFixed(2)} (\$${spendable.totalRevenue.toStringAsFixed(2)} Revenue)',
+              'Available Spendable Balance: \$${spendable.totalSpendableBalance.toStringAsFixed(2)} (\$${spendable.totalRevenue.toStringAsFixed(2)} Revenue)',
               style: const TextStyle(
                 fontSize: 13,
                 color: AppColors.textSecondary,
@@ -391,13 +380,6 @@ void showBandwidthTopupSheet(
                             bandwidthQuotaBytesThisMonth: cur + pack.bytes,
                             bandwidthUsedBytesThisMonth:
                                 channel.infraConfig?.bandwidthUsedBytesThisMonth ?? 0,
-                            trialCreditRemainingUSD: canAfford
-                                ? ((channel.infraConfig?.trialCreditRemainingUSD ?? 0.0) >
-                                        pack.priceUSD
-                                    ? (channel.infraConfig!.trialCreditRemainingUSD -
-                                        pack.priceUSD)
-                                    : 0.0)
-                                : (channel.infraConfig?.trialCreditRemainingUSD ?? 0.0),
                             planTier: channel.infraConfig?.planTier ?? 'starter_15',
                           );
                           controller.channelRx.value = Channel(

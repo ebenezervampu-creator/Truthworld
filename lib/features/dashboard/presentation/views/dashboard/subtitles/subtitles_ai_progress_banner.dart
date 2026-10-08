@@ -26,18 +26,14 @@ class SubtitlesAiProgressBanner extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF2E1065), Color(0xFF1E1B4B)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+          color: const Color(0xFF1E1E1E),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: const Color(0xFF8B5CF6).withValues(alpha: 0.5),
+            color: AppColors.brand.withValues(alpha: 0.3),
           ),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+              color: Colors.black.withValues(alpha: 0.2),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -60,7 +56,7 @@ class SubtitlesAiProgressBanner extends StatelessWidget {
                     style: AppTextStyles.titleMedium.copyWith(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                 ),
@@ -69,7 +65,7 @@ class SubtitlesAiProgressBanner extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFFA78BFA),
+                    color: AppColors.brand,
                   ),
                 ),
               ],
@@ -79,7 +75,7 @@ class SubtitlesAiProgressBanner extends StatelessWidget {
               status,
               style: AppTextStyles.caption.copyWith(
                 fontSize: 12,
-                color: const Color(0xFFDDD6FE),
+                color: AppColors.textSecondary,
               ),
             ),
             const SizedBox(height: 8),
@@ -87,8 +83,8 @@ class SubtitlesAiProgressBanner extends StatelessWidget {
               borderRadius: BorderRadius.circular(4),
               child: LinearProgressIndicator(
                 value: progress > 0 ? (progress / 100.0).clamp(0.0, 1.0) : null,
-                backgroundColor: Colors.white.withValues(alpha: 0.1),
-                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFA78BFA)),
+                backgroundColor: AppColors.bgSurfaceHover,
+                valueColor: const AlwaysStoppedAnimation<Color>(AppColors.brand),
                 minHeight: 6,
               ),
             ),

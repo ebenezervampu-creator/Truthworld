@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/animated_interaction_buttons.dart';
@@ -60,7 +61,7 @@ class ChannelHeaderWidget extends StatelessWidget {
                       children: [
                         Positioned.fill(
                           child: CachedNetworkImage(
-                            imageUrl: channel.avatarUrl,
+                            imageUrl: channel.avatarUrl.replaceAll(' ', '%20'),
                             fit: BoxFit.cover,
                             placeholder: (context, url) => ColoredBox(
                               color: ytSurface,
@@ -70,14 +71,31 @@ class ChannelHeaderWidget extends StatelessWidget {
                                 size: avatarSize * 0.4,
                               ),
                             ),
-                            errorWidget: (context, url, error) => ColoredBox(
-                              color: ytSurface,
-                              child: Icon(
-                                Icons.person,
-                                color: ytTextTertiary,
-                                size: avatarSize * 0.4,
-                              ),
-                            ),
+                            errorWidget: (context, url, error) {
+                              if (kIsWeb && channel.avatarUrl.isNotEmpty) {
+                                return Image.network(
+                                  channel.avatarUrl.replaceAll(' ', '%20'),
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, err, stack) =>
+                                      ColoredBox(
+                                    color: ytSurface,
+                                    child: Icon(
+                                      Icons.person,
+                                      color: ytTextTertiary,
+                                      size: avatarSize * 0.4,
+                                    ),
+                                  ),
+                                );
+                              }
+                              return ColoredBox(
+                                color: ytSurface,
+                                child: Icon(
+                                  Icons.person,
+                                  color: ytTextTertiary,
+                                  size: avatarSize * 0.4,
+                                ),
+                              );
+                            },
                           ),
                         ),
                         Builder(

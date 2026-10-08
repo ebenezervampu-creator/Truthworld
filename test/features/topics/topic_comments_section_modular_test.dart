@@ -144,6 +144,15 @@ void main() {
       final sortedTop = headerController.sortComments(comments);
       expect(sortedTop.first.id, equals('comm_02')); // 42 likes > 15 likes
     });
+
+    test('TopicCommentsHeaderController deduplicates comments with identical IDs', () {
+      final headerController = TopicCommentsHeaderController();
+      final duplicateComments = [sampleComment, sampleComment, sampleComment2];
+
+      final deduplicated = headerController.sortComments(duplicateComments);
+      expect(deduplicated.length, equals(2));
+      expect(deduplicated.map((c) => c.id).toList(), containsAll(['comm_01', 'comm_02']));
+    });
   });
 
   group('ReplyThreadLinePainter Tests', () {

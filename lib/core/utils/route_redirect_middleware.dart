@@ -17,14 +17,25 @@ class VideoScreenRedirectMiddleware extends GetMiddleware {
 
   @override
   RouteSettings? redirect(String? route) {
-    // Extract the video from arguments (callers pass {video: Video})
     final args = Get.arguments;
-    if (args != null && args is Map && args['video'] != null) {
+    var videoId = '';
+    if (args != null && args is Map) {
       final video = args['video'];
-      final videoId = video?.id ?? '';
-      if (videoId.isNotEmpty) {
-        return RouteSettings(name: '/watch?v=$videoId', arguments: args);
-      }
+      videoId = (video != null ? video.id as String? : null) ??
+          args['videoId'] as String? ??
+          args['targetVideoId'] as String? ??
+          args['video_id'] as String? ??
+          args['id'] as String? ??
+          '';
+    }
+    if (videoId.isEmpty) {
+      videoId = Get.parameters['v'] ??
+          Get.parameters['videoId'] ??
+          Get.parameters['id'] ??
+          '';
+    }
+    if (videoId.isNotEmpty) {
+      return RouteSettings(name: '/watch?v=$videoId', arguments: args);
     }
     // No valid video — redirect to home
     return const RouteSettings(name: '/');
@@ -267,14 +278,33 @@ class RouteStackObserver extends NavigatorObserver {
       (route) => route.settings.name?.contains(namePattern) ?? false,
     );
   }
+
+  /// Safely navigates to Home without duplicate controller recreation or route stack churn.
+  /// If Home is already in the Navigator history, pops back to it (`Get.until`).
+  /// Otherwise, replaces the stack with Home (`Get.offAllNamed('/')`).
+  static void navigateToHome() {
+    final hasHomeInStack = routeStack.isNotEmpty &&
+        routeStack.any((r) =>
+            r.settings.name == '/' ||
+            r.settings.name == '/home' ||
+            (r.isFirst && !(r.settings.name?.contains('watch') ?? false)));
+
+    if (hasHomeInStack && routeStack.length > 1) {
+      Get.until((route) =>
+          route.settings.name == '/' ||
+          route.settings.name == '/home' ||
+          route.isFirst);
+    } else {
+      Get.offAllNamed('/');
+    }
+  }
 }
 
 /// Middleware that protects `/admin/dashboard` routes.
 /// Verifies that the user is authenticated and is the owner or has admin claim.
 class AdminAuthGuardMiddleware extends GetMiddleware {
   static const List<String> authorizedOwnerEmails = [
-    'ebenezervampy@towervsp.com',
-    'ebenezervampu@towervsp.com',
+    'hello@truthworld.in',
     'ebenezervampu4@gmail.com',
     'admin@truthworld.com',
   ];

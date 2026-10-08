@@ -11,7 +11,21 @@ async function main() {
     const stack = await loader.loadStack(__dirname);
     const wireFormat = manifest.stackToWire(stack);
     const outputPath = path.join(__dirname, 'functions.yaml');
-    fs.writeFileSync(outputPath, JSON.stringify(wireFormat, null, 2));
+    const content = JSON.stringify(wireFormat, null, 2);
+    let written = false;
+    for (let i = 0; i < 5; i++) {
+      try {
+        fs.writeFileSync(outputPath, content);
+        written = true;
+        break;
+      } catch (writeErr) {
+        const waitMs = 300 * (i + 1);
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, waitMs);
+      }
+    }
+    if (!written) {
+      fs.writeFileSync(outputPath, content);
+    }
     console.log('[manifest] Successfully generated functions.yaml (' + Object.keys(wireFormat.endpoints || {}).length + ' endpoints)');
     process.exit(0);
   } catch (err) {

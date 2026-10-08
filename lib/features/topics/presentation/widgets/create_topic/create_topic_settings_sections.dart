@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/constants/app_categories.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/create_topic_controller.dart';
@@ -12,6 +13,18 @@ Widget buildSection5Category(
   List<String> availableCategories, {
   String title = '5. Topic Category',
 }) {
+  final rawVal = controller.categoryController.text.trim();
+  final normalizedVal = AppCategories.normalizeCategory(rawVal);
+  final initialValue = availableCategories.contains(rawVal)
+      ? rawVal
+      : (availableCategories.contains(normalizedVal)
+          ? normalizedVal
+          : (availableCategories.isNotEmpty ? availableCategories.first : 'Business'));
+
+  if (controller.categoryController.text != initialValue) {
+    controller.categoryController.text = initialValue;
+  }
+
   return buildCreateTopicCardContainer(
     context: context,
     child: Column(
@@ -29,9 +42,7 @@ Widget buildSection5Category(
         const SizedBox(height: 12),
         DropdownButtonFormField<String>(
           isExpanded: true,
-          initialValue: controller.categoryController.text.isNotEmpty
-              ? controller.categoryController.text
-              : (availableCategories.isNotEmpty ? availableCategories.first : 'Science & Technology'),
+          initialValue: initialValue,
           dropdownColor: const Color(0xFF161618),
           style: const TextStyle(color: Colors.white, fontSize: 14),
           decoration: buildCreateTopicInputDecoration(

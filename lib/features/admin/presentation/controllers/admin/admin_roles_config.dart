@@ -2,17 +2,15 @@
 class AdminRolesConfig {
   static const String ownerEmail = String.fromEnvironment(
     'ADMIN_OWNER_EMAIL',
-    defaultValue: 'ebenezervampy@towervsp.com',
+    defaultValue: 'hello@truthworld.in',
   );
 
   static const List<String> authorizedOwnerEmails = [
-    'ebenezervampy@towervsp.com',
-    'ebenezervampu@towervsp.com',
+    'hello@truthworld.in',
     'ebenezervampu4@gmail.com',
     'admin@truthworld.com',
-    'support@truthworld.com',
-    String.fromEnvironment('ADMIN_OWNER_EMAIL', defaultValue: 'ebenezervampy@towervsp.com'),
-    String.fromEnvironment('ADMIN_SECONDARY_EMAIL', defaultValue: 'support@truthworld.com'),
+    String.fromEnvironment('ADMIN_OWNER_EMAIL', defaultValue: 'hello@truthworld.in'),
+    String.fromEnvironment('ADMIN_SECONDARY_EMAIL', defaultValue: 'hello@truthworld.in'),
   ];
 
   /// List of all 8 standard admin roles with their allowed tabs and descriptions

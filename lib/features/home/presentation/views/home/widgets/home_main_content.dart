@@ -12,7 +12,6 @@ import 'package:truthworld/features/home/presentation/controllers/home_controlle
     hide darkSurface;
 import 'package:truthworld/features/home/presentation/controllers/home_discovery_controller.dart';
 import 'package:truthworld/features/home/presentation/views/home/widgets/home_featured_banner.dart';
-import 'package:truthworld/features/home/presentation/views/home/widgets/home_playlists_section.dart';
 import 'package:truthworld/features/home/presentation/views/home/widgets/home_shimmer_placeholders.dart';
 import 'package:truthworld/features/home/presentation/views/home/widgets/home_video_grid_section.dart';
 import 'package:truthworld/features/subscriptions/presentation/views/subscriptions/subscriptions.dart'
@@ -70,10 +69,6 @@ class HomeMainContent extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           FeaturedVideoBanner(horizontalPadding: horizontalPadding),
-          const SizedBox(height: 32),
-          PersonalizedPlaylistsSection(
-            horizontalPadding: horizontalPadding,
-          ),
           const SizedBox(height: 24),
         ],
       ),

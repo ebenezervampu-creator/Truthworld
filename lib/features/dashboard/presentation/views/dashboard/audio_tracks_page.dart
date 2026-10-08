@@ -1,10 +1,10 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/audio_tracks_widgets.dart';
-import 'package:truthworld/theme/app_colors.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 export 'audio_tracks/audio_tracks_widgets.dart';
 
@@ -35,29 +35,25 @@ class AudioTracksPage extends GetView<AudioTracksController> {
     final isTablet = width >= 600 && width < 1024;
 
     final surfaceColor = isDarkMode
-        ? const Color(0xFF141414)
-        : AppColors.textPrimary;
+        ? const Color(0xFF1E1E1E)
+        : AppColors.bgSurface;
     const bgColor = AppColors.bgPage;
     final textColor = isDarkMode
         ? AppColors.textPrimary
-        : Colors.black;
+        : AppColors.textPrimary;
     final textSecondaryColor = isDarkMode
         ? AppColors.textSecondary
-        : const Color(0xFF4B5563);
+        : AppColors.textSecondary;
     final borderColor = isDarkMode
-        ? const Color(0xFF262626)
-        : AppColors.bgDivider;
+        ? AppColors.bgDivider
+        : const Color(0xFF1E1E1E);
 
     return Scaffold(
       backgroundColor: bgColor,
       body: SafeArea(
         child: Obx(() {
           if (controller.isLoading) {
-            return const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.brand),
-              ),
-            );
+            return _buildAudioTracksSkeleton();
           }
 
           if (controller.isEmpty) {
@@ -117,12 +113,14 @@ class AudioTracksPage extends GetView<AudioTracksController> {
               ),
             ),
             const SizedBox(height: 24),
-            Text(
+            const Text(
               'No Audio Workspace Scope Available',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
+                fontFamily: TWTypography.brandFamily,
+                fontFamilyFallback: TWTypography.fallbackFamilies,
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
-                color: textColor,
+                color: AppColors.textPrimary,
               ),
               textAlign: TextAlign.center,
             ),
@@ -260,10 +258,12 @@ class AudioTracksPage extends GetView<AudioTracksController> {
                         selectedVideo.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.roboto(
+                        style: const TextStyle(
+                          fontFamily: TWTypography.uiFamily,
+                          fontFamilyFallback: TWTypography.fallbackFamilies,
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
-                          color: textColor,
+                          color: AppColors.textPrimary,
                         ),
                       ),
                       Text(
@@ -274,13 +274,15 @@ class AudioTracksPage extends GetView<AudioTracksController> {
                   ),
                 ),
               ] else
-                Expanded(
+                const Expanded(
                   child: Text(
                     'Select a Video',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
+                      fontFamily: TWTypography.brandFamily,
+                      fontFamilyFallback: TWTypography.fallbackFamilies,
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
-                      color: textColor,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                 ),
@@ -337,12 +339,14 @@ class AudioTracksPage extends GetView<AudioTracksController> {
               children: [
                 const Icon(Icons.touch_app_rounded, size: 48, color: Colors.white),
                 const SizedBox(height: 16),
-                Text(
+                const Text(
                   'Select a Video to Manage Audio Tracks',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
+                    fontFamily: TWTypography.brandFamily,
+                    fontFamilyFallback: TWTypography.fallbackFamilies,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: textColor,
+                    color: AppColors.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -473,5 +477,54 @@ class AudioTracksPage extends GetView<AudioTracksController> {
         );
       });
     });
+  }
+
+  Widget _buildAudioTracksSkeleton() {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFF1E1E1E),
+      highlightColor: AppColors.bgSurfaceHover,
+      child: Column(
+        children: [
+          // Top header skeleton
+          Container(
+            height: 60,
+            margin: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E1E1E),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.bgDivider),
+            ),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                // Video selector sidebar skeleton
+                Container(
+                  width: 280,
+                  margin: const EdgeInsets.only(left: 16, bottom: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E1E1E),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.bgDivider),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                // Main audio tracks workspace skeleton
+                Expanded(
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 16, bottom: 16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E1E1E),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.bgDivider),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

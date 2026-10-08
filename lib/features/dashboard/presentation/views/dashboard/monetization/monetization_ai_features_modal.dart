@@ -139,9 +139,7 @@ class SpendRevenueBottomSheet {
               ),
               const SizedBox(height: 6),
               Text(
-                spendable.trialCreditRemaining > 0
-                    ? 'Available Spendable: \$${spendable.totalSpendableBalance.toStringAsFixed(2)} (\$${spendable.fundedBalance.toStringAsFixed(2)} Wallet + \$${spendable.trialCreditRemaining.toStringAsFixed(2)} Promotional Credit + \$${spendable.totalRevenue.toStringAsFixed(2)} Revenue)'
-                    : 'Available Spendable: \$${spendable.totalSpendableBalance.toStringAsFixed(2)} (\$${spendable.fundedBalance.toStringAsFixed(2)} Wallet + \$${spendable.totalRevenue.toStringAsFixed(2)} Revenue)',
+                'Available Spendable: \$${spendable.totalSpendableBalance.toStringAsFixed(2)} (\$${spendable.fundedBalance.toStringAsFixed(2)} Wallet + \$${spendable.totalRevenue.toStringAsFixed(2)} Revenue)',
                 style: const TextStyle(
                   fontSize: 13,
                   color: AppColors.textSecondary,

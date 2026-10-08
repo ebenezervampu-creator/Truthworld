@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 
@@ -428,6 +429,9 @@ class AdminAuthProtocolService {
         }
       }
     } catch (e) {
+      if (e is GoogleSignInException && e.code == 'redirecting') {
+        return;
+      }
       ErrorHandler.log(e);
       AppSnackbar.error(
         'Unable to complete Google Sign In. Please try again.',

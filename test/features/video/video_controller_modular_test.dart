@@ -1,17 +1,51 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
+import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
 import 'package:truthworld/features/video/presentation/controllers/mixins/mixins.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
+import 'package:video_player_platform_interface/video_player_platform_interface.dart';
 import '../../test_helpers/mock_firebase.dart';
+
+class _FakeVideoPlayerPlatform extends VideoPlayerPlatform {
+  @override
+  Future<void> init() async {}
+  @override
+  Future<void> dispose(int textureId) async {}
+  @override
+  Future<int?> create(DataSource dataSource) async => 1;
+  @override
+  Future<void> setLooping(int textureId, bool looping) async {}
+  @override
+  Future<void> play(int textureId) async {}
+  @override
+  Future<void> pause(int textureId) async {}
+  @override
+  Future<void> setVolume(int textureId, double volume) async {}
+  @override
+  Future<void> setPlaybackSpeed(int textureId, double speed) async {}
+  @override
+  Future<void> seekTo(int textureId, Duration position) async {}
+  @override
+  Future<Duration> getPosition(int textureId) async => Duration.zero;
+  @override
+  Stream<VideoEvent> videoEventsFor(int textureId) => const Stream.empty();
+  @override
+  Widget buildView(int textureId) => const SizedBox();
+  @override
+  Future<void> setMixWithOthers(bool mixWithOthers) async {}
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUpAll(() async {
+    VideoPlayerPlatform.instance = _FakeVideoPlayerPlatform();
     await setupMockFirebase();
   });
 
@@ -134,6 +168,56 @@ void main() {
 
       // Safe teardown does not throw
       expect(controller.disposePlayer, returnsNormally);
+    });
+
+    test('6. StorageUtils resolves Google CDN and streaming URLs instantly in 0ms', () async {
+      // Direct Google Cloud CDN / GCS URL
+      const cdnUrl = 'https://storage.googleapis.com/truthworld-1.firebasestorage.app/videos/vid_test_123/master.mp4';
+      final resolvedCdn = await StorageUtils.resolveUrl(cdnUrl);
+      expect(resolvedCdn, equals(cdnUrl));
+
+      // Fast download URL conversion
+      const gsUrl = 'gs://truthworld-1.firebasestorage.app/videos/vid_test_123/stream.m3u8';
+      final resolvedGs = await StorageUtils.resolveUrl(gsUrl);
+      expect(resolvedGs, contains('firebasestorage.googleapis.com'));
+      expect(resolvedGs, contains('alt=media'));
+
+      // Direct CDN domain
+      const customCdn = 'https://cdn.truthworld.com/video/vid_test_123/master.mp4';
+      final resolvedCustom = await StorageUtils.resolveUrl(customCdn);
+      expect(resolvedCustom, equals(customCdn));
+    });
+
+    test('7. VideoPlaybackHandoff and VideoController immediate Google CDN playback flow', () async {
+      final cdnVideo = Video.fromMap({
+        'title': 'Google CDN Video',
+        'channelId': 'chan_google_cdn',
+        'channelName': 'TruthWorld Edge',
+        'videoUrl': 'https://storage.googleapis.com/truthworld-1.firebasestorage.app/videos/gcdn_123.mp4',
+        'adaptiveResolutions': [
+          {
+            'label': '720p',
+            'url': 'https://storage.googleapis.com/truthworld-1.firebasestorage.app/resolutions/gcdn_123/720p.mp4',
+            'width': 1280,
+            'height': 720,
+            'bitrate': 2500000,
+          },
+        ],
+      }, 'gcdn_123');
+
+      // Prewarm handles Google CDN video model
+      await VideoPlaybackHandoff.prewarmVideo(cdnVideo);
+
+      final controller = VideoController();
+      controller.video = cdnVideo;
+
+      // Populates available resolutions immediately from model
+      expect(cdnVideo.adaptiveResolutions, isNotEmpty);
+      final targetUrl = await controller.resolvePlaybackTargetUrl();
+      expect(targetUrl, isNotNull);
+      expect(targetUrl, contains('storage.googleapis.com'));
+
+      VideoPlaybackHandoff.clear('gcdn_123');
     });
   });
 }

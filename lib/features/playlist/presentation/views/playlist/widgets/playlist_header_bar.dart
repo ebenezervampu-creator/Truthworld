@@ -3,9 +3,8 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
-import 'package:truthworld/theme/app_theme.dart';
 
-/// Top header bar for playlists screen with search and navigation controls.
+/// Top header bar for playlists screen with search and navigation controls matching reference design.
 class PlaylistHeaderBar extends StatelessWidget {
   const PlaylistHeaderBar({
     required this.controller,
@@ -25,111 +24,154 @@ class PlaylistHeaderBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Obx(
-            () => controller.isSearchExpanded.value
-                ? Expanded(
-                    child: Container(
-                      height: 40,
-                      margin: const EdgeInsets.only(right: 12),
-                      decoration: BoxDecoration(
-                        color: AppColors.bgSurface,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.1),
-                        ),
-                      ),
-                      child: TextField(
-                        controller: searchController,
-                        onChanged: controller.updateSearchQuery,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'Search playlists...',
-                          hintStyle: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.3),
-                          ),
-                          prefixIcon: const Icon(
-                            Icons.search,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                          suffixIcon: IconButton(
-                            icon: const Icon(
-                              Icons.close,
-                              color: Colors.white,
-                              size: 18,
-                            ),
-                            onPressed: () {
-                              controller.isSearchExpanded.value = false;
-                              searchController?.clear();
-                              controller.updateSearchQuery('');
-                            },
-                          ),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 8,
-                          ),
-                        ),
-                      ),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      child: Obx(() {
+        final isSearchExpanded = controller.isSearchExpanded.value;
+
+        if (isSearchExpanded) {
+          return Row(
+            children: [
+              Expanded(
+                child: Container(
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF141414),
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: const Color(0xFF2C2C2C),
                     ),
-                  )
-                : Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back, color: Colors.white),
+                  ),
+                  child: TextField(
+                    controller: searchController,
+                    autofocus: true,
+                    onChanged: controller.updateSearchQuery,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Search playlists...',
+                      hintStyle: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.4),
+                        fontSize: 14,
+                      ),
+                      prefixIcon: const Icon(
+                        Icons.search,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      suffixIcon: IconButton(
+                        icon: const Icon(
+                          Icons.close,
+                          color: Colors.white,
+                          size: 18,
+                        ),
                         onPressed: () {
-                          if (isDashboard && Get.isRegistered<HomeController>()) {
-                            Get.find<HomeController>()
-                                .sideNavSelectedIndex
-                                .value = HomeController.indexLibrary;
-                          } else {
-                            Get.back();
-                          }
+                          controller.isSearchExpanded.value = false;
+                          searchController?.clear();
+                          controller.updateSearchQuery('');
                         },
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Playlists',
-                        style: GoogleFonts.roboto(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        vertical: 10,
                       ),
-                    ],
+                    ),
                   ),
-          ),
-          Row(
-            children: [
-              Obx(
-                () => !controller.isSearchExpanded.value
-                    ? IconButton(
-                        icon: const Icon(
-                          Icons.search,
-                          color: Colors.white,
-                        ),
-                        onPressed: () =>
-                            controller.isSearchExpanded.value = true,
-                      )
-                    : const SizedBox.shrink(),
-              ),
-              IconButton(
-                icon: const Icon(
-                  Icons.add_circle_outline,
-                  color: Colors.white,
-                  size: 28,
                 ),
+              ),
+              const SizedBox(width: 8),
+              _buildHeaderActionButton(
+                icon: Icons.add_circle_outline_rounded,
+                size: 22,
+                tooltip: 'Create Playlist',
                 onPressed: onCreatePlaylist,
               ),
             ],
-          ),
-        ],
+          );
+        }
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                IconButton(
+                  icon: const Icon(
+                    Icons.arrow_back,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                  onPressed: () {
+                    if (isDashboard && Get.isRegistered<HomeController>()) {
+                      Get.find<HomeController>()
+                          .sideNavSelectedIndex
+                          .value = HomeController.indexLibrary;
+                    } else {
+                      Get.back();
+                    }
+                  },
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Playlists',
+                  style: GoogleFonts.roboto(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                _buildHeaderActionButton(
+                  icon: Icons.search_rounded,
+                  size: 20,
+                  tooltip: 'Search',
+                  onPressed: () => controller.isSearchExpanded.value = true,
+                ),
+                const SizedBox(width: 10),
+                _buildHeaderActionButton(
+                  icon: Icons.add_circle_outline_rounded,
+                  size: 22,
+                  tooltip: 'Create Playlist',
+                  onPressed: onCreatePlaylist,
+                ),
+              ],
+            ),
+          ],
+        );
+      }),
+    );
+  }
+
+  Widget _buildHeaderActionButton({
+    required IconData icon,
+    required double size,
+    required String tooltip,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: const Color(0xFF141414),
+        border: Border.all(
+          color: const Color(0xFF2C2C2C),
+          width: 1.2,
+        ),
+      ),
+      child: IconButton(
+        padding: EdgeInsets.zero,
+        tooltip: tooltip,
+        icon: Icon(
+          icon,
+          color: Colors.white,
+          size: size,
+        ),
+        onPressed: onPressed,
       ),
     );
   }

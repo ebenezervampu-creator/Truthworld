@@ -113,7 +113,7 @@ class CreateContentCommunityFlow extends StatelessWidget {
                           ? FileImage(io.File(file.path!))
                           : (file.bytes != null
                               ? MemoryImage(file.bytes!)
-                              : const AssetImage('assets/images/logo.png')
+                              : const AssetImage('assets/logo.png')
                                   as ImageProvider)),
                 ),
               ),

@@ -1,6 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
@@ -33,14 +32,16 @@ class NavRailSupportSection extends StatelessWidget {
         children: [
           const NavRailDivider(),
           NavRailSectionHeader(title: 'SUPPORT', isCompact: isCompact),
-          _item(
-            context,
-            Icons.settings_rounded,
-            Icons.settings_outlined,
-            'Settings',
-            HomeController.indexSettings,
-            route: '/settings',
-          ),
+          if (currentUser != null)
+            _item(
+              context,
+              Icons.settings_rounded,
+              Icons.settings_outlined,
+              'Settings',
+              HomeController.indexSettings,
+              route: '/settings',
+              requiresAuth: true,
+            ),
           _item(
             context,
             Icons.chat_bubble_rounded,
@@ -151,24 +152,6 @@ class NavRailPoliciesSection extends StatelessWidget {
             isSelected: selectedIndex == 998,
             isCompact: isCompact,
             onTap: StudioLauncher.openStudio,
-          ),
-          NavRailItem(
-            selectedIcon: Icons.admin_panel_settings_rounded,
-            unselectedIcon: Icons.admin_panel_settings_outlined,
-            title: 'Admin Portal',
-            index: 999,
-            isSelected: selectedIndex == 999,
-            isCompact: isCompact,
-            onTap: () => Get.toNamed('/admin/dashboard'),
-          ),
-          NavRailItem(
-            selectedIcon: Icons.campaign_rounded,
-            unselectedIcon: Icons.campaign_outlined,
-            title: 'Advertiser Portal',
-            index: 996,
-            isSelected: selectedIndex == 996,
-            isCompact: isCompact,
-            onTap: () => Get.toNamed('/advertisements'),
           ),
         ],
       ),

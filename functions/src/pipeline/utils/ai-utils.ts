@@ -221,8 +221,8 @@ export async function getCircuitState(): Promise<CircuitBreakerState> {
 // ─── WATERFALL ROUTING ──────────────────────────────────────────────────────
 
 export interface ModelFallbackChain {
-  primary: string;           // e.g. 'gemini-2.5-pro'
-  fallback: string | null;   // e.g. 'gemini-2.5-flash' or null if forcePro
+  primary: string;           // e.g. 'gemini-3.5-flash'
+  fallback: string | null;   // e.g. 'gemini-3.1-flash-lite' or null if forcePrimary
   forcePrimary: boolean;     // if true, never fall back — wait and retry on primary
 }
 
@@ -453,4 +453,21 @@ export async function withAiRetry<T>(
   } finally {
     semaphore.release();
   }
+}
+
+/**
+ * Safe text extractor for Gemini / Vertex AI response candidates.
+ * In Gemini 3 models, reasoning/thought parts (where part.thought === true)
+ * can precede final text parts. This helper strips thinking steps and aggregates
+ * genuine output text, preventing JSON parsing errors.
+ */
+export function extractCandidateText(candidate: any): string {
+  if (!candidate?.content?.parts || !Array.isArray(candidate.content.parts)) {
+    return "";
+  }
+  return candidate.content.parts
+    .filter((p: any) => !p.thought)
+    .map((p: any) => p.text || "")
+    .join("")
+    .trim();
 }

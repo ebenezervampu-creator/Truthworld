@@ -127,6 +127,7 @@ class FactCheckSourceCard extends StatelessWidget {
           url: directUrl ?? url,
           title: author ?? title,
           domain: domain,
+          source: cleanSource,
         );
       },
       child: Container(
@@ -200,7 +201,10 @@ class FactCheckSourceCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                       ],
-                      if (domain != null)
+                      if (domain != null &&
+                          domain.isNotEmpty &&
+                          domain.toLowerCase() != (author ?? '').toLowerCase() &&
+                          domain.toLowerCase() != (title ?? '').toLowerCase())
                         Expanded(
                           child: Text(
                             domain,

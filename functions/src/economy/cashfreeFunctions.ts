@@ -1,4 +1,5 @@
 import * as admin from "firebase-admin";
+import * as crypto from "crypto";
 import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import { CashfreeService } from "../services/cashfreeService";
 import { applySecurityHeaders } from "../utils/securityHeaders";
@@ -518,12 +519,14 @@ export const createCashfreeOrder = onCall(
   {
     region: REGION,
     secrets: ["CASHFREE_APP_ID", "CASHFREE_SECRET_KEY"],
+    enforceAppCheck: true,
   },
   async (request) => {
-    const callerUid = request.auth?.uid;
-    if (!callerUid) {
-      throw new HttpsError("unauthenticated", "User must be authenticated to initiate payment.");
-    }
+    try {
+      const callerUid = request.auth?.uid;
+      if (!callerUid) {
+        throw new HttpsError("unauthenticated", "User must be authenticated to initiate payment.");
+      }
 
     const {
       amount,
@@ -546,8 +549,34 @@ export const createCashfreeOrder = onCall(
       );
     }
 
+    if (amount > 500000) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Payment amount exceeds the maximum allowable limit of ₹500,000 per transaction."
+      );
+    }
+
     if (!purpose) {
       throw new HttpsError("invalid-argument", "Payment purpose is required.");
+    }
+
+    const ALLOWED_PURPOSES = [
+      "premium_subscription",
+      "channel_membership",
+      "advertiser_wallet",
+      "advertiser_campaign",
+      "channel_topup",
+      "channel_wallet_topup",
+      "superchat",
+      "super_thanks",
+      "custom_channel_plan",
+    ];
+
+    if (!ALLOWED_PURPOSES.includes(purpose)) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Invalid or unsupported payment purpose."
+      );
     }
 
     if (purpose === "user_wallet_topup" || purpose === "user_topup") {
@@ -572,14 +601,36 @@ export const createCashfreeOrder = onCall(
     const customerName = userData.displayName || userData.name || "TruthWorld User";
 
     const cleanPurpose = String(purpose).replace(/[^a-zA-Z0-9_]/g, "");
-    const orderId = `cf_${cleanPurpose}_${Date.now()}_${callerUid.substring(0, 5)}`;
+    const randomHex = crypto.randomBytes(4).toString("hex");
+    const orderId = `cf_${cleanPurpose}_${Date.now()}_${randomHex}`;
     const isAutoPay = Boolean(metadata?.autoPay === true || metadata?.autoPay === "true");
+
+    const ALLOWED_METADATA_KEYS = [
+      "planId",
+      "channelId",
+      "campaignId",
+      "billingCycle",
+      "amountUSD",
+      "adId",
+      "creatorId",
+      "tierId",
+      "autoPay",
+      "videoId",
+    ];
+    const safeMetadata: Record<string, any> = {};
+    if (metadata && typeof metadata === "object") {
+      for (const k of ALLOWED_METADATA_KEYS) {
+        if (k in metadata) {
+          safeMetadata[k] = metadata[k];
+        }
+      }
+    }
 
     const sanitizedTags = CashfreeService.sanitizeOrderTags({
       userId: callerUid,
       purpose: cleanPurpose,
       autoPay: isAutoPay ? "true" : "false",
-      ...metadata,
+      ...safeMetadata,
     });
 
     // ─── Cashfree Subscriptions / Auto Pay Mandate Flow ────────────────────
@@ -598,12 +649,12 @@ export const createCashfreeOrder = onCall(
           const chanKey = String(metadata?.channelId || "chan").substring(0, 10).replace(/[^a-zA-Z0-9_]/g, "");
           const tierKey = String(metadata?.tierId || "tier").substring(0, 10).replace(/[^a-zA-Z0-9_]/g, "");
           planId = `plan_tw_mbr_${chanKey}_${tierKey}`;
-          planName = `${metadata?.channelName || "Channel"} Membership (${metadata?.tierName || "Tier"})`;
+          planName = `${metadata?.channelName || "Channel"} Membership ${metadata?.tierName || "Tier"}`.replace(/[()]/g, "").trim();
           intervalType = "MONTH";
         } else if (cleanPurpose === "custom_channel_plan" || cleanPurpose === "channel_infra_plan") {
           const tierKey = String(metadata?.planTier || "starter_15").replace(/[^a-zA-Z0-9_]/g, "");
           planId = `plan_tw_infra_${tierKey}_${Math.round(amount)}`;
-          planName = `TruthWorld Studio Infrastructure (${metadata?.planName || tierKey})`;
+          planName = `TruthWorld Studio Infrastructure ${metadata?.planName || tierKey}`.replace(/[()]/g, "").trim();
           intervalType = "MONTH";
         } else {
           planId = `plan_tw_${cleanPurpose}_${Math.round(amount)}`;
@@ -754,7 +805,7 @@ export const createCashfreeOrder = onCall(
         environment: CashfreeService.PublicEnvironment,
       };
     } catch (err: any) {
-      console.error("[createCashfreeOrder] Error:", err?.response?.data || err?.message || err);
+      console.error("[createCashfreeOrder] PG order error:", err?.response?.data || err?.message || err);
       const errData = err?.response?.data;
       const rawMsg = (errData?.message || err?.message || "").toLowerCase();
       if (
@@ -763,14 +814,26 @@ export const createCashfreeOrder = onCall(
         rawMsg.includes("unauthorized")
       ) {
         throw new HttpsError(
-          "internal",
+          "unavailable",
           "The payment gateway is temporarily unavailable. Please try again shortly or contact support."
         );
       }
-      const gatewayMsg = errData?.message || err?.message || "Unable to create payment order. Please try again.";
-      throw new HttpsError("internal", gatewayMsg);
+      throw new HttpsError(
+        "unavailable",
+        "Unable to initialize payment session. Please try again in a few moments."
+      );
     }
+  } catch (topErr: any) {
+    if (topErr instanceof HttpsError) {
+      throw topErr;
+    }
+    console.error("[createCashfreeOrder] Unhandled error:", topErr?.response?.data || topErr?.message || topErr);
+    throw new HttpsError(
+      "unavailable",
+      "Unable to initialize payment session. Please try again in a few moments."
+    );
   }
+}
 );
 
 /**
@@ -780,6 +843,7 @@ export const verifyCashfreePayment = onCall(
   {
     region: REGION,
     secrets: ["CASHFREE_APP_ID", "CASHFREE_SECRET_KEY"],
+    enforceAppCheck: true,
   },
   async (request) => {
     const callerUid = request.auth?.uid;
@@ -853,7 +917,7 @@ export const verifyCashfreePayment = onCall(
       }
     } catch (err: any) {
       console.error("[verifyCashfreePayment] Error:", err?.response?.data || err?.message || err);
-      throw new HttpsError("internal", "Unable to verify payment status with the gateway. Please try again shortly.");
+      throw new HttpsError("unavailable", "Unable to verify payment status with the gateway. Please try again shortly.");
     }
   }
 );
@@ -865,6 +929,7 @@ export const verifyCashfreeSubscription = onCall(
   {
     region: REGION,
     secrets: ["CASHFREE_APP_ID", "CASHFREE_SECRET_KEY"],
+    enforceAppCheck: true,
   },
   async (request) => {
     const callerUid = request.auth?.uid;
@@ -907,8 +972,23 @@ export const verifyCashfreeSubscription = onCall(
     try {
       const cfSub = await CashfreeService.getSubscription(subscriptionId);
       const status = (cfSub.subscription_status || "").toUpperCase();
+      const isSuccess = status === "ACTIVE";
+      const isPending = status === "BANK_APPROVAL_PENDING";
 
-      const isSuccess = status === "ACTIVE" || status === "BANK_APPROVAL_PENDING";
+      if (isPending) {
+        await firestore.collection("payment_subscriptions").doc(subscriptionId).update({
+          status: "BANK_APPROVAL_PENDING",
+          cfStatus: status,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        return {
+          success: false,
+          pending: true,
+          subscriptionStatus: "BANK_APPROVAL_PENDING",
+          message: "Subscription mandate is pending bank approval. Benefits will activate once approved.",
+        };
+      }
+
       if (isSuccess) {
         await firestore.collection("payment_subscriptions").doc(subscriptionId).update({
           status: "ACTIVE",
@@ -944,7 +1024,7 @@ export const verifyCashfreeSubscription = onCall(
       }
     } catch (err: any) {
       console.error("[verifyCashfreeSubscription] Error:", err?.response?.data || err?.message || err);
-      throw new HttpsError("internal", "Unable to verify subscription mandate status with the gateway.");
+      throw new HttpsError("unavailable", "Unable to verify subscription mandate status with the gateway.");
     }
   }
 );
@@ -956,6 +1036,7 @@ export const cancelCashfreeSubscription = onCall(
   {
     region: REGION,
     secrets: ["CASHFREE_APP_ID", "CASHFREE_SECRET_KEY"],
+    enforceAppCheck: true,
   },
   async (request) => {
     const callerUid = request.auth?.uid;
@@ -1047,7 +1128,7 @@ export const cancelCashfreeSubscription = onCall(
       };
     } catch (err: any) {
       console.error("[cancelCashfreeSubscription] Error:", err?.message || err);
-      throw new HttpsError("internal", "Unable to cancel auto pay subscription. Please try again.");
+      throw new HttpsError("unavailable", "Unable to cancel auto pay subscription. Please try again.");
     }
   }
 );
@@ -1058,7 +1139,7 @@ export const cancelCashfreeSubscription = onCall(
 export const cashfreeWebhook = onRequest(
   {
     region: REGION,
-    cors: true,
+    cors: false,
     secrets: ["CASHFREE_APP_ID", "CASHFREE_SECRET_KEY"],
   },
   async (req, res) => {
@@ -1097,7 +1178,8 @@ export const cashfreeWebhook = onRequest(
         res.status(401).send("Invalid webhook signature");
         return;
       }
-    } else if (CashfreeService.isConfigured() && process.env.NODE_ENV === "production") {
+    } else if (CashfreeService.isConfigured()) {
+      // Unconditionally reject webhooks missing signature headers when Cashfree is configured
       console.warn("[cashfreeWebhook] Rejected webhook: missing x-webhook-signature / x-webhook-timestamp");
       res.status(401).send("Missing webhook signature headers");
       return;
@@ -1164,7 +1246,10 @@ export const cashfreeWebhook = onRequest(
 
       // Handle Cashfree Dashboard "Test" button / verification ping
       if (!orderId) {
-        console.log("[cashfreeWebhook] Test ping received from Cashfree:", req.body);
+        console.log("[cashfreeWebhook] Test ping received from Cashfree:", {
+          type: req.body?.type,
+          event_time: req.body?.event_time,
+        });
         res.status(200).json({ status: "acknowledged", message: "Cashfree test ping received successfully" });
         return;
       }
@@ -1211,7 +1296,12 @@ export const cashfreeWebhook = onRequest(
 export const cashfreeHostedCheckout = onRequest(
   {
     region: REGION,
-    cors: true,
+    cors: [
+      "https://www.truthworld.in",
+      "https://truthworld.in",
+      "https://www.truthworld.app",
+      "https://truthworld.app",
+    ],
     secrets: ["CASHFREE_APP_ID", "CASHFREE_SECRET_KEY"],
   },
   async (req, res) => {

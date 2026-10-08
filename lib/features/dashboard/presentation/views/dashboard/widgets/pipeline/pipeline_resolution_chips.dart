@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/presentation/controllers/downloads/download_resolution_manager.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Renders adaptive resolution transcoding variant status chips.
@@ -12,7 +14,19 @@ class PipelineResolutionChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const resolutions = ['1080p', '720p', '480p', '360p', '240p', '144p'];
+    const standard = ['1080p', '720p', '480p', '360p', '240p', '144p'];
+    final dynamicKeys = variants.keys.where((k) => !standard.contains(k)).toList();
+    dynamicKeys.sort((a, b) {
+      final hA = DownloadResolutionManager.inferHeightFromLabel(a);
+      final hB = DownloadResolutionManager.inferHeightFromLabel(b);
+      final cmp = hB.compareTo(hA);
+      if (cmp != 0) return cmp;
+      final fpsA = VideoResolutionV2.inferFpsFromLabel(a);
+      final fpsB = VideoResolutionV2.inferFpsFromLabel(b);
+      return fpsB.compareTo(fpsA);
+    });
+
+    final resolutions = [...dynamicKeys, ...standard];
 
     return Wrap(
       spacing: 8,

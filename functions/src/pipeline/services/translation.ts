@@ -17,6 +17,7 @@ import { SpeakerProfile } from "./speaker-profiling";
 import { costEngine } from "./cost-engine";
 import { PIPELINE_CONFIG } from "../config";
 import { getVertexAI } from "../utils/ai-client";
+import { extractCandidateText } from "../utils/ai-utils";
 import { normalizeLanguageCode } from "../../shared/language-normalizer";
 
 const projectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT_ID || "truthworld-1";
@@ -417,7 +418,7 @@ export class TranslationService {
     if (!this.gemini) {
       throw new Error("Gemini client not initialized for premium translation");
     }
-    const model = this.gemini.getGenerativeModel({ model: PIPELINE_CONFIG.GEMINI_MODELS?.translation || PIPELINE_CONFIG.GEMINI_MODEL || "gemini-2.5-flash" });
+    const model = this.gemini.getGenerativeModel({ model: PIPELINE_CONFIG.GEMINI_MODELS?.translation || PIPELINE_CONFIG.GEMINI_MODEL || "gemini-3.1-flash-lite" });
 
     // We translate in chunks to avoid prompt limits
     const CHUNK_SIZE = 20;
@@ -476,7 +477,7 @@ Segments to translate:
 ${JSON.stringify(chunk.map((t, idx) => `${batchHooks[idx] ? "[HOOK] " : ""}${t}`), null, 2)}`;
 
       const result = await model.generateContent(prompt);
-      const responseText = result.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const responseText = extractCandidateText(result.response.candidates?.[0]) || result.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       
       if (!jsonMatch) throw new Error("No JSON in premium translation response");

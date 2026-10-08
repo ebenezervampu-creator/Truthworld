@@ -22,9 +22,9 @@ class EditTopicThumbnailSelector extends StatelessWidget {
           Container(
             width: double.infinity,
             decoration: BoxDecoration(
-              color: const Color(0xFF121212),
+              color: AppColors.bgInput,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFF27272A)),
+              border: Border.all(color: AppColors.bgDivider),
             ),
             padding: const EdgeInsets.all(4),
             child: Row(
@@ -38,7 +38,7 @@ class EditTopicThumbnailSelector extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       decoration: BoxDecoration(
                         color: controller.thumbnailSource.value == 'video'
-                            ? const Color(0xFF27272A)
+                            ? AppColors.bgSurfaceHover
                             : Colors.transparent,
                         borderRadius: BorderRadius.circular(6),
                       ),
@@ -64,7 +64,7 @@ class EditTopicThumbnailSelector extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       decoration: BoxDecoration(
                         color: controller.thumbnailSource.value == 'custom'
-                            ? const Color(0xFF27272A)
+                            ? AppColors.bgSurfaceHover
                             : Colors.transparent,
                         borderRadius: BorderRadius.circular(6),
                       ),
@@ -94,9 +94,9 @@ class EditTopicThumbnailSelector extends StatelessWidget {
                 width: double.infinity,
                 height: 120,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF121212),
+                  color: AppColors.bgInput,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFF27272A)),
+                  border: Border.all(color: AppColors.bgDivider),
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: controller.pickedCustomImageBytes.value != null
@@ -199,8 +199,8 @@ class EditTopicThumbnailSelector extends StatelessWidget {
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
                                 color: isSelected
-                                    ? Colors.white
-                                    : const Color(0xFF27272A),
+                                    ? AppColors.brand
+                                    : AppColors.bgDivider,
                                 width: isSelected ? 2 : 1,
                               ),
                             ),
@@ -226,13 +226,13 @@ class EditTopicThumbnailSelector extends StatelessWidget {
                                     right: 4,
                                     child: Container(
                                       decoration: const BoxDecoration(
-                                        color: Color(0xFF27272A),
+                                        color: AppColors.brand,
                                         shape: BoxShape.circle,
                                       ),
                                       padding: const EdgeInsets.all(2),
                                       child: const Icon(
                                         Icons.check,
-                                        color: Colors.white,
+                                        color: Colors.black,
                                         size: 12,
                                       ),
                                     ),

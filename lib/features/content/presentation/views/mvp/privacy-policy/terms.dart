@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/utils/web_platform_utils.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -97,6 +99,27 @@ class TermsAndConditionsPage extends StatelessWidget {
         curve: Curves.easeInOut,
       );
     }
+  }
+
+  void _navigateToPolicy(String route) {
+    if (isDashboard && Get.isRegistered<HomeController>()) {
+      final homeController = Get.find<HomeController>();
+      switch (route) {
+        case '/community-guidelines':
+          homeController.onSideNavItemSelect(
+            HomeController.indexCommunityGuidelines,
+          );
+        case '/privacy':
+          homeController.onSideNavItemSelect(HomeController.indexPrivacy);
+        case '/terms':
+          homeController.onSideNavItemSelect(HomeController.indexTerms);
+      }
+      if (kIsWeb) {
+        WebPlatformUtils.pushUrlHistory(route);
+      }
+      return;
+    }
+    Get.toNamed(route);
   }
 
   /// Builds the left-hand navigation menu
@@ -198,9 +221,13 @@ class TermsAndConditionsPage extends StatelessWidget {
                       color: Colors.white,
                     ),
                     onPressed: () {
-                      if (isDashboard) {
-                        Get.find<HomeController>().sideNavSelectedIndex.value =
-                            HomeController.indexSettings;
+                      if (isDashboard && Get.isRegistered<HomeController>()) {
+                        Get.find<HomeController>().onSideNavItemSelect(
+                          HomeController.indexHome,
+                        );
+                        if (kIsWeb) {
+                          WebPlatformUtils.pushUrlHistory('/');
+                        }
                       } else {
                         Get.back();
                       }
@@ -216,11 +243,19 @@ class TermsAndConditionsPage extends StatelessWidget {
               ),
             ),
             actions: [
-              if (isDesktop)
+              if (isDesktop) ...[
                 TextButton(
-                  onPressed: () {
-                    Get.toNamed('/privacy');
-                  },
+                  onPressed: () => _navigateToPolicy('/community-guidelines'),
+                  child: Text(
+                    'Community Guidelines',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w500,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => _navigateToPolicy('/privacy'),
                   child: Text(
                     'Privacy Policy',
                     style: TextStyle(
@@ -228,12 +263,16 @@ class TermsAndConditionsPage extends StatelessWidget {
                       color: Theme.of(context).colorScheme.primary,
                     ),
                   ),
-                )
-              else
+                ),
+              ] else
                 PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert, color: Colors.white),
-                  onSelected: Get.toNamed,
+                  onSelected: _navigateToPolicy,
                   itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: '/community-guidelines',
+                      child: Text('Community Guidelines'),
+                    ),
                     const PopupMenuItem(
                       value: '/privacy',
                       child: Text('Privacy Policy'),
@@ -604,7 +643,7 @@ We respect intellectual property rights and strictly comply with the Indian Copy
 **Copyright Infringement Reporting:**
 If you are a copyright owner or authorized agent and believe that content hosted on Truthworld infringes your intellectual property:
 1. **Online Takedown Form:** You can submit an official statutory takedown request directly via our public Copyright Infringement Form at `/copyright-complaint`.
-2. **Email Notice:** Alternatively, submit a formal written notice to: copyright@truthworld.in
+2. **Email Notice:** Alternatively, submit a formal written notice to: hello@truthworld.in
 3. Required notice contents:
 - Clear description of the copyrighted work claimed to be infringed
 - Exact URL(s) of the infringing content on Truthworld
@@ -681,7 +720,7 @@ Your use of our Services is governed by our Privacy Policy, which is incorporate
 **For Indian Users (IT Rules, 2021 & DPDPA, 2023 Compliance):**
 - Corporate Operator: TowerVSP Services (OPC) Private Limited
 - Statutory Grievance Officer: Vampu Ebenezer
-- Email: ebenezervampu@truthworld.in / grievance@truthworld.in
+- Email: hello@truthworld.in
 - Phone: +91 9390617877
 - Statutory Timelines: All grievances are acknowledged within 24 hours and resolved within 15 days (pursuant to Rule 3(2) of the Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021 as amended)
 - Expedited Review (Rule 3(2)(b)): Complaints relating to non-consensual sexual content, explicit nudity, morphing, or deepfakes will be acted upon within 24 hours
@@ -776,7 +815,7 @@ You agree to indemnify, defend, and hold harmless Truthworld, its affiliates, of
 
 You may terminate your account at any time by:
 - Using account deletion settings
-- Contacting support at: ebenezervampu@Truthworld.com
+- Contacting support at: hello@truthworld.in
 
 **Upon Account Deletion:**
 - Your public content may be removed (subject to statutory retention requirements)
@@ -819,7 +858,7 @@ These Terms are governed by the laws of India, without regard to conflict of law
 12.2 Informal Resolution
 
 Before filing a legal claim, you agree to:
-1. Contact us at: legal@Truthworld.com
+1. Contact us at: hello@truthworld.in
 2. Describe the dispute in detail
 3. Allow 30 days for resolution attempts
 
@@ -905,7 +944,7 @@ Notices will be sent to your registered email address or posted on the Platform.
 Notices should be sent to:
 TowerVSP Services (OPC) Private Limited
 Truthworld Legal Department
-Email: legal@truthworld.in
+Email: hello@truthworld.in
 Registered Office: Ramaram, Yadadri Bhuvanagiri, Telangana - 508116, India
 Corporate Office: Telangana, India
  
@@ -920,23 +959,23 @@ CIN: U63111TS2025OPC207488
 Registered Office: Ramaram, Yadadri Bhuvanagiri, Telangana - 508116, India
  
 **General Inquiries & Support:**
-Email: support@truthworld.in
+Email: hello@truthworld.in
 Phone: +91 9390617877
 Support Hours: Mon – Fri, 9:00 AM – 6:00 PM IST
  
 **Legal & Corporate Matters:**
-Email: legal@truthworld.in
+Email: hello@truthworld.in
  
 **Privacy Concerns:**
-Email: privacy@truthworld.in
+Email: hello@truthworld.in
  
 **Copyright Claims & DMCA Takedown Requests:**
 Online Form: /copyright-complaint
-Email: copyright@truthworld.in
+Email: hello@truthworld.in
  
 **Statutory Grievance Officer (IT Rules, 2021 & DPDPA, 2023 Compliance):**
 Grievance Officer: Vampu Ebenezer
-Email: ebenezervampu@truthworld.in / grievance@truthworld.in
+Email: hello@truthworld.in
 Phone: +91 9390617877
 Address: TowerVSP Services (OPC) Private Limited, Ramaram, Yadadri Bhuvanagiri, Telangana - 508116, India
 Response Timeline: Acknowledgment within 24 hours; Disposal within 15 days

@@ -51,19 +51,12 @@ export async function verifyAuth(req: Request): Promise<AuthenticatedUser | null
     const decoded = await admin.auth().verifyIdToken(token);
     const email = (decoded.email || "").toLowerCase();
     const isEmailVerified = decoded.email_verified === true;
-    const ADMIN_EMAILS = [
-      "ebenezervampy@towervsp.com",
-      "ebenezervampu@towervsp.com",
-      "ebenezervampu4@gmail.com",
-      "admin@truthworld.com",
-      "support@truthworld.com",
-    ];
 
-    const isBootstrapAdminEmail = isEmailVerified && ADMIN_EMAILS.includes(email);
+    // Admin status is determined solely by JWT custom claims or the admin_members collection.
+    // No hardcoded email list — admin provisioning must go through setCustomUserClaims.
     let isAdminUser =
       decoded.admin === true ||
-      decoded.role === "admin" ||
-      isBootstrapAdminEmail;
+      decoded.role === "admin";
 
     // Check admin_members collection in Firestore if not already identified (strictly require email verification)
     if (!isAdminUser && email && isEmailVerified) {
@@ -77,7 +70,8 @@ export async function verifyAuth(req: Request): Promise<AuthenticatedUser | null
       }
     }
 
-    // Auto-provision admin claims for identified admins
+    // Auto-provision admin JWT custom claim for admin_members-identified admins.
+    // Runs once per token refresh cycle (only when decoded.admin is not yet set).
     if (isAdminUser && !decoded.admin) {
       try {
         await admin.auth().setCustomUserClaims(decoded.uid, { admin: true, role: "admin" });
@@ -87,17 +81,8 @@ export async function verifyAuth(req: Request): Promise<AuthenticatedUser | null
       }
     }
 
-    // Also ensure the user doc in users collection reflects admin privileges
-    if (isAdminUser) {
-      try {
-        await admin.firestore().collection("users").doc(decoded.uid).set({
-          role: "admin",
-          isAdmin: true,
-        }, { merge: true });
-      } catch (userErr) {
-        logger.warn("[Auth] Could not sync admin role to users doc:", userErr);
-      }
-    }
+    // NOTE: Admin status is intentionally NOT written to the client-readable `users` collection.
+    // Admin checks must always use JWT custom claims (decoded.admin) or admin_members collection.
 
     return {
       uid: decoded.uid,
@@ -117,7 +102,19 @@ export async function verifyAuth(req: Request): Promise<AuthenticatedUser | null
  */
 export function setCorsHeaders(req: Request, res: Response): void {
   applySecurityHeaders(res);
-  res.set("Access-Control-Allow-Origin", "*");
+  const allowedOrigins = [
+    "https://admin.truthworld.in",
+    "https://admin.truthworld.app",
+    "https://truthworld.in",
+    "https://truthworld.app",
+    "http://localhost:5173",
+  ];
+  const origin = (req.headers.origin as string) || "";
+  if (allowedOrigins.includes(origin)) {
+    res.set("Access-Control-Allow-Origin", origin);
+  } else {
+    res.set("Access-Control-Allow-Origin", "https://admin.truthworld.in");
+  }
   res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
   res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
 }
@@ -193,20 +190,7 @@ export async function requireRecentAdmin(
 export function isCallableAdmin(auth: any): boolean {
   if (!auth) return false;
   const token = auth.token || {};
-  const email = (token.email || "").toLowerCase();
-  const isEmailVerified = token.email_verified === true;
-  const ADMIN_EMAILS = [
-    "ebenezervampy@towervsp.com",
-    "ebenezervampu@towervsp.com",
-    "ebenezervampu4@gmail.com",
-    "admin@truthworld.com",
-    "support@truthworld.com",
-  ];
-  return (
-    token.admin === true ||
-    token.role === "admin" ||
-    (isEmailVerified && ADMIN_EMAILS.includes(email))
-  );
+  return token.admin === true || token.role === "admin";
 }
 
 /**
@@ -215,7 +199,7 @@ export function isCallableAdmin(auth: any): boolean {
 export function isCallableRecentAdmin(auth: any, maxAgeSeconds: number = 3600): boolean {
   if (!isCallableAdmin(auth)) return false;
   const authTime = auth?.token?.auth_time;
-  if (!authTime) return true; // fallback if auth_time not available in test context
+  if (!authTime) return false; // fail closed
   return isSessionRecent(authTime, maxAgeSeconds);
 }
 

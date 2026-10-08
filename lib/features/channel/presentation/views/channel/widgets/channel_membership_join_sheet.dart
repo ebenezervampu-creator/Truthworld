@@ -1,12 +1,16 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/channel/data/models/channel_loyalty_badge.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_membership_join_controller.dart';
+import 'package:truthworld/features/library/presentation/views/library/widgets/library_constants.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Modal bottom sheet allowing fans to view and join a creator's Channel Membership tiers.
+/// Styled strictly according to the Library screen UI, fonts, and dark theme design tokens.
 class ChannelMembershipJoinSheet extends StatelessWidget {
   const ChannelMembershipJoinSheet({
     required this.channelId,
@@ -48,15 +52,28 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
 
     return Container(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.85,
+        maxHeight: MediaQuery.of(context).size.height * 0.88,
       ),
       decoration: const BoxDecoration(
-        color: AppColors.bgSurface,
+        color: bgColor,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Drag Handle
+          Center(
+            child: Container(
+              margin: const EdgeInsets.only(top: 10, bottom: 4),
+              width: 38,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.textPrimary.withValues(alpha: 0.25),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+
           // Header Bar
           _buildHeader(context, controller),
 
@@ -65,11 +82,11 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
             child: Obx(() {
               if (controller.isLoadingTiers.value) {
                 return const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 40),
+                  padding: EdgeInsets.symmetric(vertical: 48),
                   child: Center(
                     child: CircularProgressIndicator(
                       strokeWidth: 2.5,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.textPrimary),
                     ),
                   ),
                 );
@@ -80,14 +97,15 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
               }
 
               return SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Prominently display current active membership if user has joined
                     if (controller.isMember.value && controller.currentMembership.value != null) ...[
                       _buildCurrentMembershipBanner(context, controller),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 16),
                     ],
 
                     // Section title
@@ -97,26 +115,27 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
                         Text(
                           controller.isMember.value ? 'Membership Plans' : 'Select a Tier',
                           style: const TextStyle(
-                            color: Colors.white,
+                            color: primaryText,
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
+                            letterSpacing: -0.1,
                           ),
                         ),
                         if (controller.isMember.value)
                           const Text(
                             'Select plan to upgrade',
                             style: TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 11,
+                              color: secondaryText,
+                              fontSize: 12,
                             ),
                           ),
                       ],
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
 
-                    // Tier selection pills
+                    // Tier selection pills (Library chip style)
                     _buildTierSelector(controller),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 18),
 
                     // Active tier detail card
                     _buildTierDetailCard(context, controller),
@@ -126,7 +145,7 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
             }),
           ),
 
-          // Bottom Action Bar
+          // Bottom Action Bar (Retains Auto Pay switch and Join CTA)
           Obx(() => _buildBottomBar(context, controller)),
         ],
       ),
@@ -138,21 +157,22 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
     final avatarUrl = channel?.avatarUrl ?? '';
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.bgDivider)),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: AppColors.bgDivider.withValues(alpha: 0.6),
+          ),
+        ),
       ),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: AppColors.bgPage,
-            backgroundImage: avatarUrl.isNotEmpty
-                ? CachedNetworkImageProvider(avatarUrl)
-                : null,
-            child: avatarUrl.isEmpty
-                ? const Icon(Icons.person_rounded, size: 20, color: Colors.white)
-                : null,
+          UserAvatar(
+            photoUrl: avatarUrl,
+            displayName: channelName,
+            backgroundColor: buttonBg,
+            textColor: primaryText,
+            fontSize: 16,
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -161,8 +181,8 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
               final cur = controller.currentMembership.value;
               final title = isMember ? '$channelName Member' : 'Join $channelName';
               final subtitle = isMember && cur != null
-                  ? 'Active Plan: ${cur.tierName} • Manage perks or upgrade'
-                  : 'Unlock exclusive badges, perks & support the creator';
+                  ? 'Active: ${cur.tierName} • Manage perks & plan'
+                  : 'Unlock exclusive badges, perks & support creator';
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -170,26 +190,32 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
                   Text(
                     title,
                     style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
+                      color: primaryText,
+                      fontSize: 17,
                       fontWeight: FontWeight.bold,
+                      letterSpacing: -0.2,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
                     style: const TextStyle(
-                      color: AppColors.textSecondary,
+                      color: secondaryText,
                       fontSize: 12,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               );
             }),
           ),
           IconButton(
-            icon: const Icon(Icons.close_rounded, color: Colors.white, size: 22),
+            icon: const Icon(Icons.close_rounded, color: primaryText, size: 22),
             onPressed: () => Get.back<void>(),
+            tooltip: 'Close',
           ),
         ],
       ),
@@ -207,25 +233,24 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF132B20),
-        borderRadius: BorderRadius.circular(12),
+        color: cardColor,
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: const Color(0xFF10B981).withValues(alpha: 0.6),
-          width: 1.2,
+          color: AppColors.success.withValues(alpha: 0.35),
         ),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: const Color(0xFF10B981).withValues(alpha: 0.2),
+            decoration: const BoxDecoration(
+              color: AppColors.successContainer,
               shape: BoxShape.circle,
             ),
             child: const Icon(
               Icons.stars_rounded,
-              color: Colors.white,
-              size: 22,
+              color: AppColors.success,
+              size: 20,
             ),
           ),
           const SizedBox(width: 12),
@@ -239,7 +264,7 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
                       child: Text(
                         cur.tierName,
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: primaryText,
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
                         ),
@@ -250,14 +275,17 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF10B981),
+                        color: AppColors.successContainer,
                         borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: AppColors.success.withValues(alpha: 0.4),
+                        ),
                       ),
                       child: const Text(
                         'CURRENT',
                         style: TextStyle(
-                          color: Colors.black,
-                          fontSize: 10,
+                          color: AppColors.success,
+                          fontSize: 9,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 0.5,
                         ),
@@ -265,13 +293,13 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 3),
                 Text(
                   cur.price > 0
                       ? 'Active Membership • ${cur.formattedPriceForUser()} / month'
                       : 'Active Membership',
                   style: const TextStyle(
-                    color: Color(0xFF34D399),
+                    color: secondaryText,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
@@ -286,24 +314,28 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
 
   Widget _buildEmptyTiers() {
     return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 40, horizontal: 24),
+      padding: EdgeInsets.symmetric(vertical: 48, horizontal: 24),
       child: Column(
         children: [
-          Icon(Icons.stars_outlined, color: Colors.white, size: 48),
-          SizedBox(height: 12),
+          Icon(Icons.stars_outlined, color: primaryText, size: 48),
+          SizedBox(height: 16),
           Text(
             'Memberships Coming Soon',
             style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
+              color: primaryText,
+              fontSize: 17,
               fontWeight: FontWeight.bold,
             ),
           ),
-          SizedBox(height: 6),
+          SizedBox(height: 8),
           Text(
             'This channel has not published any membership tiers yet. Check back soon!',
             textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            style: TextStyle(
+              color: secondaryText,
+              fontSize: 13,
+              height: 1.4,
+            ),
           ),
         ],
       ),
@@ -312,7 +344,7 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
 
   Widget _buildTierSelector(ChannelMembershipJoinController controller) {
     return SizedBox(
-      height: 42,
+      height: 38,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: controller.tiers.length,
@@ -324,43 +356,51 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
               controller.currentMembership.value?.tierId == tier.id;
 
           return InkWell(
-            onTap: () => controller.selectTier(index),
+            onTap: () {
+              HapticFeedback.selectionClick();
+              controller.selectTier(index);
+            },
             borderRadius: BorderRadius.circular(20),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
                 color: isSelected
-                    ? tier.badgeColor.withValues(alpha: 0.2)
-                    : (isCurrentTier ? const Color(0xFF132B20) : AppColors.bgPage),
+                    ? Colors.white
+                    : (isCurrentTier
+                        ? AppColors.successContainer
+                        : buttonBg),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
                   color: isSelected
-                      ? tier.badgeColor
+                      ? Colors.white
                       : (isCurrentTier
-                          ? const Color(0xFF10B981).withValues(alpha: 0.6)
-                          : AppColors.bgDivider),
-                  width: isSelected || isCurrentTier ? 1.5 : 1.0,
+                          ? AppColors.success.withValues(alpha: 0.5)
+                          : AppColors.textPrimary.withValues(alpha: 0.08)),
                 ),
               ),
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: isCurrentTier ? const Color(0xFF10B981) : tier.badgeColor,
-                      shape: BoxShape.circle,
+                  if (isCurrentTier) ...[
+                    Container(
+                      width: 6,
+                      height: 6,
+                      margin: const EdgeInsets.only(right: 6),
+                      decoration: const BoxDecoration(
+                        color: AppColors.success,
+                        shape: BoxShape.circle,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
+                  ],
                   Text(
                     isCurrentTier ? '${tier.name} (Current)' : tier.name,
                     style: TextStyle(
                       color: isSelected
-                          ? Colors.white
-                          : (isCurrentTier ? const Color(0xFF34D399) : AppColors.textSecondary),
+                          ? Colors.black87
+                          : (isCurrentTier ? AppColors.success : primaryText),
                       fontSize: 13,
-                      fontWeight: isSelected || isCurrentTier ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                     ),
                   ),
                 ],
@@ -388,117 +428,144 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
     final isCurrentTier =
         controller.isMember.value && controller.currentMembership.value?.tierId == tier.id;
 
+    final isUsdOriginal = tier.currency.toUpperCase() == 'USD';
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.bgPage,
-        borderRadius: BorderRadius.circular(14),
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: tier.badgeColor.withValues(alpha: 0.5),
+          color: AppColors.bgDivider.withValues(alpha: 0.6),
         ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header with tier price & badge icon
+          // Header with tier title, price & Loyalty Badge preview
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    tier.name,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    isIndian && tier.currency.toUpperCase() == 'USD'
-                        ? '${tier.formattedPriceForUser(true)} / month (~${tier.formattedPrice})'
-                        : '${tier.formattedPriceForUser(isIndian)} / month',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  if (isIndian && tier.currency.toUpperCase() == 'USD') ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      '1 USD = ₹${rate.toStringAsFixed(2)} INR (Live Market Rate)',
-                      style: const TextStyle(
-                        color: Color(0xFF10B981),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              // Loyalty Badge Preview
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: tier.badgeColor.withValues(alpha: 0.25),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: tier.badgeColor),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      _resolveBadgeIcon(tier.badgeIcon),
-                      color: Colors.white,
-                      size: 14,
-                    ),
-                    const SizedBox(width: 6),
-                    const Text(
-                      'Loyalty Badge',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
+                    Text(
+                      tier.name,
+                      style: const TextStyle(
+                        color: primaryText,
+                        fontSize: 20,
                         fontWeight: FontWeight.bold,
+                        letterSpacing: -0.3,
                       ),
                     ),
+                    const SizedBox(height: 6),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          tier.formattedPriceForUser(isIndian),
+                          style: const TextStyle(
+                            color: primaryText,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Text(
+                          '/ month',
+                          style: TextStyle(
+                            color: secondaryText,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                        if (isIndian && isUsdOriginal) ...[
+                          const SizedBox(width: 6),
+                          Text(
+                            '(~${tier.formattedPrice})',
+                            style: const TextStyle(
+                              color: AppColors.textTertiary,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    if (isIndian && isUsdOriginal) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.currency_exchange_rounded,
+                            size: 12,
+                            color: AppColors.textTertiary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '1 USD ≈ ₹${rate.toStringAsFixed(2)} INR · Live market rate',
+                            style: const TextStyle(
+                              color: AppColors.textTertiary,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
+              ),
+              const SizedBox(width: 12),
+              // Loyalty Badge Preview
+              ChannelLoyaltyBadgeWidget(
+                milestone: controller.isMember.value &&
+                        controller.currentMembership.value?.joinedAt != null
+                    ? ChannelLoyaltyBadge.milestoneFromJoinedAt(
+                        controller.currentMembership.value!.joinedAt,
+                      )
+                    : ChannelLoyaltyMilestone.newMember,
+                tierName: tier.name,
               ),
             ],
           ),
+
           if (tier.description.isNotEmpty) ...[
             const SizedBox(height: 12),
             Text(
               tier.description,
               style: const TextStyle(
-                color: AppColors.textSecondary,
+                color: secondaryText,
                 fontSize: 13,
                 height: 1.4,
               ),
             ),
           ],
-          const Divider(color: AppColors.bgDivider, height: 24),
 
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 14),
+            child: Divider(color: AppColors.bgDivider, height: 1),
+          ),
+
+          // Zero Ads & 4K badge if channel enabled
           if (controller.isAdFreeChannel) ...[
             Container(
-              margin: const EdgeInsets.only(bottom: 14),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
-                color: Colors.amber.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(10),
+                color: buttonBg,
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: Colors.amber.withValues(alpha: 0.4),
+                  color: AppColors.bgDivider.withValues(alpha: 0.6),
                 ),
               ),
               child: const Row(
                 children: [
                   Icon(
                     Icons.workspace_premium_rounded,
-                    color: Colors.white,
+                    color: primaryText,
                     size: 20,
                   ),
                   SizedBox(width: 10),
@@ -509,16 +576,16 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
                         Text(
                           'Channel Premium: Zero Ads & 4K Streaming',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: primaryText,
                             fontSize: 13,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                         SizedBox(height: 2),
                         Text(
-                          'Members enjoy zero ads and unlock 4K Ultra HD (up to 2160p) on all channel videos.',
+                          'Members enjoy zero ads and unlock 4K Ultra HD on all channel videos.',
                           style: TextStyle(
-                            color: AppColors.textSecondary,
+                            color: secondaryText,
                             fontSize: 11,
                           ),
                         ),
@@ -532,30 +599,26 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
 
           // Perks list
           const Text(
-            'Included Member Perks:',
+            'INCLUDED MEMBER PERKS',
             style: TextStyle(
-              color: Colors.white,
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
+              color: AppColors.textTertiary,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           ...tier.perks.map((perk) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.only(bottom: 10),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      margin: const EdgeInsets.only(top: 2),
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.15),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.check_rounded,
-                        color: Colors.white,
-                        size: 12,
+                    const Padding(
+                      padding: EdgeInsets.only(top: 2),
+                      child: Icon(
+                        Icons.check_circle_rounded,
+                        color: primaryText,
+                        size: 16,
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -563,8 +626,9 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
                       child: Text(
                         perk,
                         style: const TextStyle(
-                          color: AppColors.textPrimary,
+                          color: primaryText,
                           fontSize: 13,
+                          height: 1.35,
                         ),
                       ),
                     ),
@@ -575,19 +639,27 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
           if (isCurrentTier) ...[
             const SizedBox(height: 12),
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
-                color: Colors.green.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.green.withValues(alpha: 0.4)),
+                color: AppColors.successContainer,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: AppColors.success.withValues(alpha: 0.3),
+                ),
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.check_circle_rounded, color: Colors.white, size: 16),
+                  Icon(Icons.check_circle_rounded, color: AppColors.success, size: 16),
                   SizedBox(width: 8),
-                  Text(
-                    'You are currently an active member of this tier.',
-                    style: TextStyle(color: Colors.white, fontSize: 12),
+                  Expanded(
+                    child: Text(
+                      'You are currently an active member of this tier.',
+                      style: TextStyle(
+                        color: AppColors.success,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -595,24 +667,26 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
           ] else if (controller.isMember.value) ...[
             const SizedBox(height: 12),
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
-                color: const Color(0xFF1E3A8A).withValues(alpha: 0.25),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFF3B82F6).withValues(alpha: 0.5)),
+                color: AppColors.infoContainer,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: AppColors.info.withValues(alpha: 0.3),
+                ),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.upgrade_rounded, color: Colors.white, size: 20),
-                  const SizedBox(width: 10),
+                  const Icon(Icons.upgrade_rounded, color: AppColors.info, size: 18),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       tier.price > (controller.currentMembership.value?.price ?? 0)
                           ? 'Upgrade your membership to unlock all exclusive perks in ${tier.name}.'
                           : 'Switch your active plan to ${tier.name}.',
                       style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
+                        color: primaryText,
+                        fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -649,47 +723,47 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
         : 'Join';
 
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(
-        color: AppColors.bgSurface,
-        border: Border(top: BorderSide(color: AppColors.bgDivider)),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+      decoration: BoxDecoration(
+        color: bgColor,
+        border: Border(
+          top: BorderSide(
+            color: AppColors.bgDivider.withValues(alpha: 0.6),
+          ),
+        ),
       ),
       child: SafeArea(
         top: false,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Auto Pay Toggle Card
             if (!isCurrentTier) ...[
               Container(
                 margin: const EdgeInsets.only(bottom: 12),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
-                  color: AppColors.bgPage,
-                  borderRadius: BorderRadius.circular(12),
+                  color: cardColor,
+                  borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: isAutoPay
-                        ? tier.badgeColor.withValues(alpha: 0.6)
-                        : AppColors.bgDivider,
-                    width: isAutoPay ? 1.5 : 1.0,
+                    color: AppColors.bgDivider.withValues(alpha: 0.6),
                   ),
                 ),
                 child: Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: isAutoPay
-                            ? tier.badgeColor.withValues(alpha: 0.2)
-                            : AppColors.bgSurface,
+                      padding: const EdgeInsets.all(7),
+                      decoration: const BoxDecoration(
+                        color: AppColors.bgElevated,
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
-                        Icons.autorenew_rounded,
-                        color: Colors.white,
-                        size: 16,
+                        Icons.sync_rounded,
+                        color: primaryText,
+                        size: 18,
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -701,16 +775,16 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.white,
+                                  color: primaryText,
                                 ),
                               ),
-                              const SizedBox(width: 6),
+                              const SizedBox(width: 8),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
                                   color: isAutoPay
-                                      ? const Color(0xFF10B981).withValues(alpha: 0.2)
-                                      : const Color(0xFF3F3F46),
+                                      ? AppColors.textPrimary.withValues(alpha: 0.12)
+                                      : AppColors.bgElevated,
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
@@ -718,9 +792,10 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
                                   style: TextStyle(
                                     fontSize: 9,
                                     fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.5,
                                     color: isAutoPay
-                                        ? const Color(0xFF34D399)
-                                        : Colors.white70,
+                                        ? primaryText
+                                        : AppColors.textTertiary,
                                   ),
                                 ),
                               ),
@@ -729,11 +804,11 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
                           const SizedBox(height: 2),
                           Text(
                             isAutoPay
-                                ? 'Auto-renews monthly so loyalty badges and perks stay active. Cancel anytime.'
+                                ? 'Auto-renews monthly so loyalty badges stay active. Cancel anytime.'
                                 : 'Valid for 1 month only. No automatic renewal.',
                             style: const TextStyle(
                               fontSize: 11,
-                              color: AppColors.textSecondary,
+                              color: secondaryText,
                             ),
                           ),
                         ],
@@ -745,37 +820,60 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
                       onChanged: (val) {
                         controller.toggleAutoPay(val);
                       },
-                      activeColor: Colors.white,
-                      activeTrackColor: tier.badgeColor,
+                      activeColor: Colors.black,
+                      activeTrackColor: Colors.white,
+                      inactiveThumbColor: AppColors.textTertiary,
+                      inactiveTrackColor: AppColors.bgElevated,
                     ),
                   ],
                 ),
               ),
             ],
+
+            // Action Button (Join / Upgrade / Cancel)
             Row(
               children: [
                 if (isCurrentTier) ...[
                   Expanded(
                     child: OutlinedButton(
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.redAccent,
-                        side: const BorderSide(color: Colors.redAccent),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        foregroundColor: AppColors.error,
+                        side: const BorderSide(color: AppColors.error),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
+                        ),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                       onPressed: controller.isProcessing.value
                           ? null
                           : controller.cancelMembership,
-                      child: const Text('Cancel Membership'),
+                      child: controller.isProcessing.value
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(AppColors.error),
+                              ),
+                            )
+                          : const Text(
+                              'Cancel Membership',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
                     ),
                   ),
                 ] else ...[
                   Expanded(
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
+                        backgroundColor: AppColors.brand,
                         foregroundColor: Colors.black,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
+                        ),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         elevation: 0,
                       ),
@@ -793,7 +891,11 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
                             )
                           : Text(
                               '$actionLabel $autoPaySuffix ${tier.formattedPriceForUser(isIndian)}${isAutoPay ? ' / month' : ''}',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                letterSpacing: 0.1,
+                              ),
                             ),
                     ),
                   ),
@@ -804,20 +906,5 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  IconData _resolveBadgeIcon(String iconName) {
-    switch (iconName.toLowerCase()) {
-      case 'crown':
-        return Icons.emoji_events_rounded;
-      case 'heart':
-        return Icons.favorite_rounded;
-      case 'diamond':
-        return Icons.diamond_rounded;
-      case 'shield':
-        return Icons.shield_rounded;
-      default:
-        return Icons.star_rounded;
-    }
   }
 }

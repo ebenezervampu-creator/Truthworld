@@ -96,11 +96,17 @@ class FollowButton extends StatelessWidget {
                 ? colors.textPrimary.withValues(alpha: 0.1)
                 : colors.brand,
             borderRadius: BorderRadius.circular(18),
+            border: isFollowing
+                ? Border.all(
+                    color: colors.textPrimary.withValues(alpha: 0.2),
+                    width: 0.8,
+                  )
+                : null,
           ),
           child: Text(
             isFollowing ? 'Following' : 'Follow',
             style: typography.label.copyWith(
-              color: colors.textPrimary,
+              color: isFollowing ? colors.textPrimary : Colors.black,
               fontWeight: FontWeight.bold,
             ),
           ),

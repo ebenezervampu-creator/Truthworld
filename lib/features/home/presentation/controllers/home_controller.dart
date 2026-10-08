@@ -1,15 +1,16 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
+import 'package:truthworld/core/utils/get_instance_extensions.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
@@ -94,10 +95,7 @@ class HomeController extends BaseController {
     _setupConnectivityListener();
 
     trackSubscription(_authService.currentUser.listen((u) {
-      if (u != null && !u.isAnonymous) {
-        _checkUserLibraryData(u.uid);
-        discovery.fetchSubscribedChannels();
-      } else {
+      if (u == null || u.isAnonymous) {
         _resetLibraryData();
         discovery.subscribedChannelList.clear();
       }
@@ -105,11 +103,19 @@ class HomeController extends BaseController {
       ErrorHandler.log(e, stackTrace: s, tag: 'HomeController.currentUser');
     }));
 
-    final currentUid = _authService.user?.uid;
-    if (currentUid != null &&
-        currentUid.isNotEmpty &&
-        !(_authService.user?.isAnonymous ?? true)) {
-      _checkUserLibraryData(currentUid);
+    // Lazily check library data ONLY when user navigates to the Library
+    trackSubscription(nav.sideNavSelectedIndex.listen((idx) {
+      if (idx == indexLibrary) {
+        checkUserLibraryDataIfNeeded();
+      }
+    }));
+  }
+
+  /// Lazily fetches user library state on-demand when the user visits the Library
+  void checkUserLibraryDataIfNeeded() {
+    final u = _authService.user;
+    if (u != null && !u.isAnonymous) {
+      _checkUserLibraryData(u.uid);
     }
   }
 
@@ -133,16 +139,15 @@ class HomeController extends BaseController {
   Future<void> fetchInitialVideos() => feed.fetchInitialVideos();
 
   void _setupConnectivityListener() {
-    _connectivitySubscription = Get.find<ConnectivityService>().onConnectivityChanged.listen((results) {
-      final isConnected = results.any((r) => r != ConnectivityResult.none);
-      if (isConnected && (feed.videos.isEmpty || feed.trendingVideos.isEmpty)) {
-        debugPrint('[HomeController] 🌐 Internet restored. Reloading feed...');
-        feed.refreshHomeFeed();
-        discovery.fetchFeaturedTopics();
-        discovery.fetchSubscribedChannels();
-      }
+    _connectivitySubscription = Get.find<ConnectivityService>()
+        .onConnectivityRestored
+        .listen((_) {
+      debugPrint('[HomeController] 🌐 Internet restored. Reloading feed...');
+      feed.refreshHomeFeed();
+      discovery.fetchFeaturedTopics();
+      discovery.fetchSubscribedChannels();
     }, onError: (e, s) {
-      ErrorHandler.log(e, stackTrace: s, tag: 'HomeController.onConnectivityChanged');
+      ErrorHandler.log(e, stackTrace: s, tag: 'HomeController.onConnectivityRestored');
     });
     trackSubscription(_connectivitySubscription!);
   }
@@ -174,10 +179,9 @@ class HomeController extends BaseController {
   }
 
   void _setupDownloadsListener() {
-    if (!Get.isRegistered<DownloadsController>()) {
-      Get.put(DownloadsController());
-    }
-    final downloadsCtrl = Get.find<DownloadsController>();
+    // Only bind to DownloadsController if already instantiated; do not force eager installation
+    final downloadsCtrl = Get.findIfInstantiated<DownloadsController>();
+    if (downloadsCtrl == null) return;
     hasDownloads.value = downloadsCtrl.videos.isNotEmpty;
 
     _downloadsListSub?.cancel();
@@ -238,7 +242,12 @@ class HomeController extends BaseController {
   }
 
   void _handleGoogleSignInError(GoogleSignInException exception) {
-    if (exception.code == 'user-cancelled' || exception.code == 'popup-closed' || exception.code == 'popup-closed-by-user') return;
+    if (exception.code == 'user-cancelled' ||
+        exception.code == 'popup-closed' ||
+        exception.code == 'popup-closed-by-user' ||
+        exception.code == 'redirecting') {
+      return;
+    }
     final displayMessage = exception.getDisplayMessage();
     if (exception.isRetryable) {
       _showErrorWithRetry(displayMessage);
@@ -257,14 +266,46 @@ class HomeController extends BaseController {
     );
   }
 
+  Future<void> signInWithApple() async {
+    try {
+      isLoadingAuth.value = true;
+      await _authService.signInWithApple();
+      if (!_authService.isAuthenticated.value) {
+        _showErrorWithRetry('Sign-in failed. Please try again.');
+      }
+    } on AppleSignInException catch (e) {
+      _handleAppleSignInError(e);
+    } catch (e) {
+      _showErrorWithRetry('Sign-in failed. Please try again.');
+    } finally {
+      isLoadingAuth.value = false;
+    }
+  }
+
+  void _handleAppleSignInError(AppleSignInException exception) {
+    if (exception.code == 'user-cancelled' ||
+        exception.code == 'popup-closed' ||
+        exception.code == 'popup-closed-by-user') {
+      return;
+    }
+    final displayMessage = exception.getDisplayMessage();
+    AppSnackbar.error(displayMessage, title: 'Sign-In Failed');
+  }
+
+  /// Opens the unified authentication bottom sheet (Google, Apple, Phone)
+  Future<void> showAuthBottomSheet([BuildContext? context]) async {
+    final ctx = context ?? Get.context;
+    if (ctx != null) {
+      await AuthBottomSheet.show(ctx);
+    }
+  }
+
   Future<void> signOut() => _authService.logout();
   Future<void> deleteAccount() async {}
 
   // Discovery Facade
   RxList<Topic> get featuredTopics => discovery.featuredTopics;
   RxBool get isLoadingFeaturedTopics => discovery.isLoadingFeaturedTopics;
-  RxList<Topic> get forYouTopics => discovery.forYouTopics;
-  RxBool get isLoadingForYouTopics => discovery.isLoadingForYouTopics;
   RxString get selectedCategory => discovery.selectedCategory;
   RxString get activeFilterBar => discovery.activeFilterBar;
   RxList<String> get availableCategories => discovery.availableCategories;
@@ -302,6 +343,8 @@ class HomeController extends BaseController {
   RxInt get bottomNavSelectedIndex => nav.bottomNavSelectedIndex;
   RxBool get showBottomNav => nav.showBottomNav;
   RxBool get isNavigating => nav.isNavigating;
+  RxSet<int> get visitedTabIndices => nav.visitedTabIndices;
+  void markTabVisited(int tabIndex) => nav.markTabVisited(tabIndex);
   Rxn<dynamic> get selectedPlaylist => nav.selectedPlaylist;
   Rxn<Channel> get selectedChannelForDetail => nav.selectedChannelForDetail;
   TabController get tabController => nav.tabController;

@@ -93,7 +93,7 @@ void main() {
         price: 10.0,
         currency: 'INR',
         perks: ['Badge', 'Chat Emojis'],
-        badgeColorHex: '0xFF10B981',
+        badgeColorHex: '0xFF0284C7',
       );
 
       final map = original.toMap();
@@ -171,6 +171,23 @@ void main() {
       );
       expect(memberUSD.currencySymbol, equals(r'$'));
       expect(memberUSD.formattedPrice, equals(r'$0.10'));
+    });
+  });
+
+  group('Channel Membership Tier Capacity Limit (Up to 3 Tiers)', () {
+    test('enforces maximum 3 tiers per channel constant', () {
+      expect(ChannelMembershipTier.maxTiersPerChannel, equals(3));
+      expect(MembershipsController.maxTiersPerChannel, equals(3));
+    });
+
+    test('validates starter bundles never exceed 3 tiers', () {
+      for (final bundle in MembershipsController.starterBundles) {
+        expect(
+          bundle.tiers.length,
+          lessThanOrEqualTo(3),
+          reason: 'Bundle ${bundle.title} has ${bundle.tiers.length} tiers, exceeding limit of 3',
+        );
+      }
     });
   });
 }

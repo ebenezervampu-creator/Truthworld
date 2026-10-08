@@ -82,7 +82,7 @@ class AdminController extends BaseController
   void onInit() {
     super.onInit();
     if (emailController.text.isEmpty) {
-      emailController.text = 'ebenezervampu@towervsp.com';
+      emailController.text = 'hello@truthworld.in';
     }
     if (passwordController.text.isEmpty) {
       passwordController.text = '12345';

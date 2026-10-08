@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
@@ -9,6 +10,7 @@ import 'package:truthworld/features/analytics/data/services/viewer_identity_serv
 /// Controller responsible for managing playback metrics, stopwatch timers, milestone tracking, and view qualification.
 class VideoAnalyticsController extends BaseController {
   final Stopwatch _watchStopwatch = Stopwatch();
+  int? _testWatchTimeSeconds;
   bool _hasCountedQualifiedView = false;
   final Set<String> _firedMilestones = {};
   static const List<int> _milestoneThresholds = [25, 50, 75, 100];
@@ -17,7 +19,14 @@ class VideoAnalyticsController extends BaseController {
   String viewerHash = '';
   String? currentVideoId;
 
-  int get watchTimeSeconds => _watchStopwatch.elapsed.inSeconds;
+  int get watchTimeSeconds => _testWatchTimeSeconds ?? _watchStopwatch.elapsed.inSeconds;
+  bool get hasCountedQualifiedView => _hasCountedQualifiedView;
+  Set<String> get firedMilestones => Set.unmodifiable(_firedMilestones);
+
+  @visibleForTesting
+  int? get testWatchTimeSeconds => _testWatchTimeSeconds;
+  @visibleForTesting
+  set testWatchTimeSeconds(int? seconds) => _testWatchTimeSeconds = seconds;
 
   void startTimer({String? videoId, double position = 0}) {
     if (videoId != null && videoId.isNotEmpty) {
@@ -77,12 +86,14 @@ class VideoAnalyticsController extends BaseController {
       watchedSeconds: watchTimeSeconds,
     );
 
-    final progressPct = (currentPositionSeconds / totalDurationSeconds * 100)
+    // Calculate true watch progress percentage strictly based on actual elapsed watch time,
+    // NEVER on scrubbed playhead position (prevents dragging to end from inflating metrics).
+    final actualWatchPct = (watchTimeSeconds / totalDurationSeconds * 100)
         .clamp(0, 100);
 
-    // Qualified View check (e.g. at 30s or 50% watch time)
+    // Qualified View check (e.g. at 30s or 50% true watch time)
     if (!_hasCountedQualifiedView &&
-        (watchTimeSeconds >= 30 || progressPct >= 50)) {
+        (watchTimeSeconds >= 30 || actualWatchPct >= 50)) {
       _hasCountedQualifiedView = true;
       if (Get.isRegistered<VideoAnalyticsService>()) {
         Get.find<VideoAnalyticsService>().recordQualifiedView(
@@ -92,10 +103,10 @@ class VideoAnalyticsController extends BaseController {
       }
     }
 
-    // Milestone Event check (25%, 50%, 75%, 100%)
+    // Milestone Event check (25%, 50%, 75%, 100%) - based strictly on true watch progress
     for (final threshold in _milestoneThresholds) {
       final key = '${videoId}_$threshold';
-      if (progressPct >= threshold && !_firedMilestones.contains(key)) {
+      if (actualWatchPct >= threshold && !_firedMilestones.contains(key)) {
         _firedMilestones.add(key);
         if (Get.isRegistered<ImpressionTrackingService>()) {
           Get.find<ImpressionTrackingService>().recordPlaybackMilestone(

@@ -2,9 +2,12 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/utils/get_instance_extensions.dart';
+import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
@@ -107,7 +110,7 @@ Widget _buildDesktopHeader(BuildContext context) {
     child: Row(
       children: [
         InkWell(
-          onTap: () => Get.offAllNamed('/'),
+          onTap: RouteStackObserver.navigateToHome,
           borderRadius: BorderRadius.circular(8),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
@@ -186,7 +189,7 @@ Widget _buildMobileHeader(BuildContext context) {
   return Padding(
     padding: const EdgeInsets.only(left: 16),
     child: InkWell(
-      onTap: () => Get.offAllNamed('/'),
+      onTap: RouteStackObserver.navigateToHome,
       borderRadius: BorderRadius.circular(8),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
@@ -266,18 +269,13 @@ Widget _buildNotificationLogo(BuildContext context, {bool isMobile = false}) {
       return const SizedBox.shrink();
     }
 
-    // Ensure controllers are registered
-    if (!Get.isRegistered<VideoFeedNotificationController>()) {
-      Get.put(VideoFeedNotificationController());
-    }
-    if (!Get.isRegistered<UserNotificationController>()) {
-      Get.put(UserNotificationController());
-    }
-    final feedController = Get.find<VideoFeedNotificationController>();
-    final userController = Get.find<UserNotificationController>();
+    final feedController =
+        Get.findIfInstantiated<VideoFeedNotificationController>();
+    final userController =
+        Get.findIfInstantiated<UserNotificationController>();
 
     final totalCount =
-        feedController.unseenCount + userController.unreadCount;
+        (feedController?.unseenCount ?? 0) + (userController?.unreadCount ?? 0);
 
     final countText = isMobile
         ? (totalCount > 9 ? '9+' : '$totalCount')
@@ -345,22 +343,15 @@ Widget _buildNotificationLogo(BuildContext context, {bool isMobile = false}) {
   });
 }
 
-Future<void> _handleSignIn() async {
-  if (Get.isRegistered<HomeController>()) {
-    final homeCtrl = Get.find<HomeController>();
-    if (!homeCtrl.isLoadingAuth.value) {
-      await homeCtrl.signInWithGoogle();
-    }
-  } else {
-    try {
-      await AuthService.to.signInWithGoogle();
-    } catch (e, stackTrace) {
-      ErrorHandler.log(
-        e,
-        stackTrace: stackTrace,
-        tag: 'GlobalAppBar.handleSignIn',
-      );
-    }
+Future<void> _handleSignIn(BuildContext context) async {
+  try {
+    await AuthBottomSheet.show(context);
+  } catch (e, stackTrace) {
+    ErrorHandler.log(
+      e,
+      stackTrace: stackTrace,
+      tag: 'GlobalAppBar.handleSignIn',
+    );
   }
 }
 
@@ -374,30 +365,34 @@ Widget _buildSignInButton(BuildContext context) {
           Get.find<HomeController>().isLoadingAuth.value;
       if (isAuth) return const SizedBox.shrink();
 
-      return OutlinedButton.icon(
-        icon: const Icon(
-          Icons.account_circle_outlined,
-          size: 18,
-          color: Colors.white,
-        ),
-        label: Text(
-          isLoading ? 'Signing In...' : 'Sign In',
-          style: const TextStyle(
-            color: primaryAccent,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        onPressed: isLoading ? null : _handleSignIn,
-        style: OutlinedButton.styleFrom(
-          side: BorderSide(
-            color: primaryAccent.withValues(alpha: 0.6),
-            width: 1.5,
-          ),
+      return ElevatedButton(
+        onPressed: isLoading ? null : () => _handleSignIn(context),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
         ),
+        child: isLoading
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.black,
+                ),
+              )
+            : const Text(
+                'Sign In',
+                style: TextStyle(
+                  color: Colors.black,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
       );
     }),
   );

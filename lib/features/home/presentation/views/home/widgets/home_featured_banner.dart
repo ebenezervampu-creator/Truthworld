@@ -9,10 +9,12 @@ import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
+import 'package:truthworld/core/utils/get_instance_extensions.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
 import 'package:truthworld/features/topics/presentation/controllers/topic_controller.dart';
+import 'package:truthworld/features/topics/presentation/widgets/topic_more_options_sheet.dart';
 import 'package:truthworld/features/topics/presentation/widgets/topic_notification_options_sheet.dart';
 import 'package:truthworld/theme/app_colors.dart';
 import 'package:truthworld/theme/dark_professional_theme.dart';
@@ -41,7 +43,6 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
 
   late final HomeController _homeController;
   late final Worker _topicsWorker;
-  late final Worker _forYouTopicsWorker;
 
   @override
   void initState() {
@@ -49,23 +50,15 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
     _pageController = PageController();
     _homeController = Get.find<HomeController>();
 
-    // Listen to changes in featuredTopics and forYouTopics to reinitialize PageController
+    // Listen to changes in featuredTopics to reinitialize PageController
     _topicsWorker = ever(_homeController.featuredTopics, (_) {
       if (mounted) {
         _reinitPageController();
       }
     });
 
-    _forYouTopicsWorker = ever(_homeController.forYouTopics, (_) {
-      if (mounted) {
-        _reinitPageController();
-      }
-    });
-
     // Initialize PageController with cached topics if they are already available
-    final initialTopics = (_homeController.featuredTopics.isNotEmpty
-            ? _homeController.featuredTopics
-            : _homeController.forYouTopics)
+    final initialTopics = _homeController.featuredTopics
         .where((t) => t.isValidTopic && t.videoCount > 0)
         .toList();
     if (initialTopics.isNotEmpty) {
@@ -78,9 +71,7 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
   }
 
   void _reinitPageController() {
-    final topics = (_homeController.featuredTopics.isNotEmpty
-            ? _homeController.featuredTopics
-            : _homeController.forYouTopics)
+    final topics = _homeController.featuredTopics
         .where((t) => t.isValidTopic && t.videoCount > 0)
         .toList();
     if (topics.isEmpty) return;
@@ -118,7 +109,6 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
   @override
   void dispose() {
     _topicsWorker.dispose();
-    _forYouTopicsWorker.dispose();
     _timer?.cancel();
     try {
       _pageController.dispose();
@@ -137,7 +127,7 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
     if (Get.isRegistered<TopicController>()) {
       Get.find<TopicController>().topic.value = topic;
     } else {
-      Get.find<TopicController>().topic.value = topic;
+      Get.put(TopicController()).topic.value = topic;
     }
 
     Get.toNamed(
@@ -152,10 +142,7 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
     final bannerHeight = isMobile ? 320.0 : 460.0;
 
     return Obx(() {
-      final rawTopics = _homeController.featuredTopics.isNotEmpty
-          ? _homeController.featuredTopics
-          : _homeController.forYouTopics;
-      final topics = rawTopics
+      final topics = _homeController.featuredTopics
           .where((t) => t.isValidTopic && t.videoCount > 0)
           .toList();
 
@@ -399,10 +386,6 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
     required bool isMobile,
     double pageOffset = 0.0,
   }) {
-    final followingController = Get.isRegistered<FollowingTopicsController>()
-        ? Get.find<FollowingTopicsController>()
-        : Get.put(FollowingTopicsController());
-
     final bannerImageUrl = (topic.coverImage?.isNotEmpty ?? false
             ? topic.coverImage
             : topic.thumbnailUrl?.isNotEmpty ?? false
@@ -468,36 +451,51 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
           // Content
           Padding(
             padding: EdgeInsets.only(
-              left: isMobile ? 20 : 84,
-              right: isMobile ? 20 : 84,
-              top: isMobile ? 20 : 32,
-              bottom: isMobile ? 20 : 36,
+              left: isMobile ? 18 : 64,
+              right: isMobile ? 18 : 64,
+              top: isMobile ? 18 : 28,
+              bottom: isMobile ? 18 : 28,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                // TOPIC Badge
+                // TOPIC Pill Badge
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Text(
-                    'TOPIC',
-                    style: TextStyle(
-                      color: Colors.black,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.8,
+                    color: Colors.black.withValues(alpha: 0.65),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.25),
+                      width: 0.8,
                     ),
                   ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.folder_outlined,
+                        color: Color(0xFFFFD54F),
+                        size: 13,
+                      ),
+                      SizedBox(width: 6),
+                      Text(
+                        'TOPIC',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 // Title
                 ConstrainedBox(
                   constraints: BoxConstraints(
@@ -506,17 +504,17 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
                   child: Text(
                     topic.title,
                     style: GoogleFonts.roboto(
-                      fontSize: isMobile ? 22 : 36,
-                      fontWeight: FontWeight.w700,
+                      fontSize: isMobile ? 22 : 32,
+                      fontWeight: FontWeight.w800,
                       color: Colors.white,
-                      height: 1.15,
-                      letterSpacing: -0.5,
+                      height: 1.2,
+                      letterSpacing: -0.3,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 // Meta Info
                 Wrap(
                   crossAxisAlignment: WrapCrossAlignment.center,
@@ -524,24 +522,46 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
                   runSpacing: 4,
                   children: [
                     Text(
-                      '${topic.videoCount} ${topic.videoCount == 1 ? 'video' : 'videos'} • ${timeago.format(topic.createdAt)}',
+                      '${topic.videoCount} ${topic.videoCount == 1 ? 'video' : 'videos'}',
                       style: const TextStyle(
-                        color: Colors.white70,
+                        color: Color(0xFFCBD5E1),
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-                    if (topic.category.isNotEmpty)
+                    const Text(
+                      '•',
+                      style: TextStyle(
+                        color: Color(0xFF64748B),
+                        fontSize: 12,
+                      ),
+                    ),
+                    Text(
+                      timeago.format(topic.createdAt),
+                      style: const TextStyle(
+                        color: Color(0xFFCBD5E1),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (topic.category.isNotEmpty) ...[
+                      const Text(
+                        '•',
+                        style: TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 12,
+                        ),
+                      ),
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
-                          vertical: 3,
+                          vertical: 2,
                         ),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.15),
+                            color: Colors.white.withValues(alpha: 0.18),
                             width: 0.8,
                           ),
                         ),
@@ -554,130 +574,100 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
                           ),
                         ),
                       ),
+                    ],
                   ],
                 ),
-                if (!isMobile && topic.description.trim().isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  // Description
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 580),
-                    child: Text(
-                      topic.description,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                        height: 1.4,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                const SizedBox(height: 6),
+                // Subtitle / Description
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: isMobile ? double.infinity : 600),
+                  child: Text(
+                    topic.description.trim().isNotEmpty
+                        ? topic.description
+                        : topic.title,
+                    style: const TextStyle(
+                      color: Color(0xFF94A3B8),
+                      fontSize: 13,
+                      height: 1.3,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ],
-                const SizedBox(height: 20),
-                // Action Buttons
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 8,
+                ),
+                const SizedBox(height: 16),
+                // Action Buttons Row (Follow Pill, Circular Share, Circular More Options)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Obx(() {
-                      final isFollowed = followingController.isTopicFollowed(
-                        topic.id,
-                      );
-                      return ElevatedButton.icon(
-                        onPressed: () {
-                          if (isFollowed) {
-                            TopicNotificationOptionsSheet.show(
-                              context,
-                              topic: topic,
-                            );
-                          } else {
-                            followingController.toggleFollowTopic(topic);
-                          }
-                        },
-                        icon: Icon(
-                          isFollowed
-                              ? Icons.check_circle_outline_rounded
-                              : Icons.person_add_alt_1_outlined,
-                          color: isFollowed ? Colors.white : Colors.black,
-                          size: 16,
+                    _BannerFollowButton(topic: topic),
+                    const SizedBox(width: 10),
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          width: 0.8,
                         ),
-                        label: Text(
-                          isFollowed ? 'Following' : 'Follow',
-                          style: TextStyle(
-                            color: isFollowed ? Colors.white : Colors.black,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: isFollowed
-                              ? Colors.white.withValues(alpha: 0.15)
-                              : Colors.white,
-                          foregroundColor: isFollowed
-                              ? Colors.white
-                              : Colors.black,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 10,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                            side: isFollowed
-                                ? BorderSide(
-                                    color: Colors.white
-                                        .withValues(alpha: 0.3),
-                                  )
-                                : BorderSide.none,
-                          ),
-                          elevation: 0,
-                        ),
-                      );
-                    }),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        final slug = topic.slug;
-                        final title = topic.title;
-                        final imageUrl = topic.coverImage ?? topic.thumbnailUrl;
-                        final topicUrl = DeepLinkService.topicUrl(slug);
-                        final currentFollowerCount =
-                            followingController.getFollowerCount(topic);
-                        ShareBottomSheet.show(
-                          title: title,
-                          url: topicUrl,
-                          thumbnailUrl: imageUrl,
-                          followerCount: currentFollowerCount,
-                          videoCount: topic.videoCount,
-                          handle: slug,
-                          type: 'topic',
-                        );
-                      },
-                      icon: const Icon(
-                        Icons.share_outlined,
-                        color: Colors.white,
-                        size: 16,
                       ),
-                      label: const Text(
-                        'Share',
-                        style: TextStyle(
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        tooltip: 'Share',
+                        icon: const Icon(
+                          Icons.reply_rounded,
                           color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
+                          size: 19,
+                        ),
+                        onPressed: () {
+                          final slug = topic.slug;
+                          final title = topic.title;
+                          final imageUrl = topic.coverImage ?? topic.thumbnailUrl;
+                          final topicUrl = DeepLinkService.topicUrl(slug);
+                          final followingCtrl =
+                              Get.findIfInstantiated<FollowingTopicsController>();
+                          final currentFollowerCount =
+                              followingCtrl?.getFollowerCount(topic) ??
+                                  topic.followerCount;
+                          ShareBottomSheet.show(
+                            title: title,
+                            url: topicUrl,
+                            thumbnailUrl: imageUrl,
+                            followerCount: currentFollowerCount,
+                            videoCount: topic.videoCount,
+                            handle: slug,
+                            type: 'topic',
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          width: 0.8,
                         ),
                       ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white.withValues(alpha: 0.15),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        tooltip: 'More options',
+                        icon: const Icon(
+                          Icons.more_horiz_rounded,
+                          color: Colors.white,
+                          size: 19,
                         ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                          side: BorderSide(
-                            color: Colors.white.withValues(alpha: 0.3),
-                          ),
-                        ),
-                        elevation: 0,
+                        onPressed: () {
+                          TopicMoreOptionsBottomSheet.show(
+                            context,
+                            topic: topic,
+                          );
+                        },
                       ),
                     ),
                   ],
@@ -689,40 +679,10 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
           Positioned(
             top: isMobile ? 16 : 24,
             right: isMobile ? 16 : 28,
-            child: Obx(() {
-              final count = followingController.getFollowerCount(topic);
-              return Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.6),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.15),
-                    width: 0.8,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.people_outline_rounded,
-                      color: Colors.white,
-                      size: 15,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${_formatCount(count)} ${count == 1 ? 'Follower' : 'Followers'}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
+            child: _BannerFollowerCountBadge(
+              topic: topic,
+              formatCount: _formatCount,
+            ),
           ),
         ],
       ),
@@ -737,6 +697,179 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
       return '${(count / 1000).toStringAsFixed(1)}K';
     }
     return count.toString();
+  }
+}
+
+/// Follow button for the featured banner that avoids eager initialization of
+/// [FollowingTopicsController] until the user explicitly requests follow interactions.
+class _BannerFollowButton extends StatelessWidget {
+  const _BannerFollowButton({required this.topic});
+
+  final Topic topic;
+
+  IconData _getNotificationIcon(String? setting) {
+    if (setting == 'all') {
+      return Icons.notifications_active_rounded;
+    }
+    if (setting == 'none') {
+      return Icons.notifications_off_outlined;
+    }
+    return Icons.notifications_outlined;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final followingController =
+        Get.findIfInstantiated<FollowingTopicsController>();
+
+    if (followingController != null) {
+      final ctrl = followingController;
+      return Obx(() {
+        final isFollowed = ctrl.isTopicFollowed(topic.id);
+        final setting = ctrl.topicNotificationSettings[topic.id];
+        return _buildButton(
+          context,
+          isFollowed: isFollowed,
+          icon: isFollowed
+              ? _getNotificationIcon(setting)
+              : Icons.play_arrow_rounded,
+          onPressed: () {
+            if (isFollowed) {
+              TopicNotificationOptionsSheet.show(
+                context,
+                topic: topic,
+              );
+            } else {
+              ctrl.toggleFollowTopic(topic);
+            }
+          },
+        );
+      });
+    }
+
+    return _buildButton(
+      context,
+      isFollowed: false,
+      icon: Icons.play_arrow_rounded,
+      onPressed: () {
+        final ctrl = Get.isRegistered<FollowingTopicsController>()
+            ? Get.find<FollowingTopicsController>()
+            : Get.put(FollowingTopicsController());
+        if (ctrl.isTopicFollowed(topic.id)) {
+          TopicNotificationOptionsSheet.show(
+            context,
+            topic: topic,
+          );
+        } else {
+          ctrl.toggleFollowTopic(topic);
+        }
+      },
+    );
+  }
+
+  Widget _buildButton(
+    BuildContext context, {
+    required bool isFollowed,
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return ElevatedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(
+        icon,
+        color: isFollowed ? Colors.white : Colors.black,
+        size: 16,
+      ),
+      label: Text(
+        isFollowed ? 'Following' : 'Follow',
+        style: TextStyle(
+          color: isFollowed ? Colors.white : Colors.black,
+          fontWeight: FontWeight.bold,
+          fontSize: 13,
+        ),
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: isFollowed
+            ? Colors.white.withValues(alpha: 0.15)
+            : Colors.white,
+        foregroundColor: isFollowed ? Colors.white : Colors.black,
+        padding: const EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: 10,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: isFollowed
+              ? BorderSide(
+                  color: Colors.white.withValues(alpha: 0.25),
+                  width: 0.8,
+                )
+              : BorderSide.none,
+        ),
+        elevation: 0,
+      ),
+    );
+  }
+}
+
+/// Follower count badge that resolves reactively if [FollowingTopicsController]
+/// is active, but falls back to static metadata without triggering lazy instantiation.
+class _BannerFollowerCountBadge extends StatelessWidget {
+  const _BannerFollowerCountBadge({
+    required this.topic,
+    required this.formatCount,
+  });
+
+  final Topic topic;
+  final String Function(int) formatCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final followingController =
+        Get.findIfInstantiated<FollowingTopicsController>();
+
+    if (followingController != null) {
+      final ctrl = followingController;
+      return Obx(() {
+        final count = ctrl.getFollowerCount(topic);
+        return _buildBadge(count);
+      });
+    }
+
+    return _buildBadge(topic.followerCount);
+  }
+
+  Widget _buildBadge(int count) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.65),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.2),
+          width: 0.8,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.people_outline_rounded,
+            color: Colors.white,
+            size: 14,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '${formatCount(count)} ${count == 1 ? 'Follower' : 'Followers'}',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

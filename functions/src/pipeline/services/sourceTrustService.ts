@@ -154,6 +154,240 @@ export class SourceTrustService {
         "x.com/apple",
         "twitter.com/apple"
       ]
+    },
+    {
+      name: "ISRO",
+      defaultTier: "A" as SourceTier,
+      domains: ["isro.gov.in"],
+      socialHandles: ["x.com/isro", "twitter.com/isro"]
+    },
+    {
+      name: "ESA",
+      defaultTier: "A" as SourceTier,
+      domains: ["esa.int"],
+      socialHandles: ["x.com/esa", "twitter.com/esa"]
+    },
+    {
+      name: "SpaceX",
+      defaultTier: "B" as SourceTier,
+      domains: ["spacex.com"],
+      socialHandles: ["x.com/spacex", "twitter.com/spacex"]
+    },
+    {
+      name: "WION",
+      defaultTier: "C" as SourceTier,
+      domains: ["wionews.com"],
+      socialHandles: ["youtube.com/@wion", "x.com/wionews"]
+    },
+    {
+      name: "Visual Capitalist",
+      defaultTier: "C" as SourceTier,
+      domains: ["visualcapitalist.com"],
+      socialHandles: ["x.com/visualcap"]
+    },
+    {
+      name: "Wikipedia",
+      defaultTier: "C" as SourceTier,
+      domains: ["wikipedia.org", "en.wikipedia.org"],
+      socialHandles: ["x.com/wikipedia"]
+    },
+    {
+      name: "MDPI",
+      defaultTier: "B" as SourceTier,
+      domains: ["mdpi.com"],
+      socialHandles: ["x.com/mdpiopenaccess"]
+    },
+    {
+      name: "HeroX",
+      defaultTier: "C" as SourceTier,
+      domains: ["herox.com"],
+      socialHandles: ["x.com/herox"]
+    },
+    {
+      name: "Reuters",
+      defaultTier: "B" as SourceTier,
+      domains: ["reuters.com"],
+      socialHandles: ["x.com/reuters"]
+    },
+    {
+      name: "BBC",
+      defaultTier: "B" as SourceTier,
+      domains: ["bbc.com", "bbc.co.uk"],
+      socialHandles: ["x.com/bbcnews"]
+    },
+    {
+      name: "Bloomberg",
+      defaultTier: "B" as SourceTier,
+      domains: ["bloomberg.com"],
+      socialHandles: ["x.com/bloomberg"]
+    },
+    {
+      name: "AP News",
+      defaultTier: "B" as SourceTier,
+      domains: ["apnews.com"],
+      socialHandles: ["x.com/ap"]
+    },
+    {
+      name: "Associated Press",
+      defaultTier: "B" as SourceTier,
+      domains: ["apnews.com"],
+      socialHandles: ["x.com/ap"]
+    },
+    {
+      name: "Nature",
+      defaultTier: "A" as SourceTier,
+      domains: ["nature.com"],
+      socialHandles: ["x.com/nature"]
+    },
+    {
+      name: "Science",
+      defaultTier: "A" as SourceTier,
+      domains: ["science.org"],
+      socialHandles: ["x.com/science"]
+    },
+    {
+      name: "The Lancet",
+      defaultTier: "A" as SourceTier,
+      domains: ["thelancet.com"],
+      socialHandles: ["x.com/thelancet"]
+    },
+    {
+      name: "NEJM",
+      defaultTier: "A" as SourceTier,
+      domains: ["nejm.org"],
+      socialHandles: ["x.com/nejm"]
+    },
+    {
+      name: "BMJ",
+      defaultTier: "A" as SourceTier,
+      domains: ["bmj.com"],
+      socialHandles: ["x.com/bmj_latest"]
+    },
+    {
+      name: "PNAS",
+      defaultTier: "A" as SourceTier,
+      domains: ["pnas.org"],
+      socialHandles: ["x.com/pnasnews"]
+    },
+    {
+      name: "Wall Street Journal",
+      defaultTier: "B" as SourceTier,
+      domains: ["wsj.com"],
+      socialHandles: ["x.com/wsj"]
+    },
+    {
+      name: "WSJ",
+      defaultTier: "B" as SourceTier,
+      domains: ["wsj.com"],
+      socialHandles: ["x.com/wsj"]
+    },
+    {
+      name: "New York Times",
+      defaultTier: "B" as SourceTier,
+      domains: ["nytimes.com"],
+      socialHandles: ["x.com/nytimes"]
+    },
+    {
+      name: "The Guardian",
+      defaultTier: "B" as SourceTier,
+      domains: ["theguardian.com"],
+      socialHandles: ["x.com/guardian"]
+    },
+    {
+      name: "Financial Times",
+      defaultTier: "B" as SourceTier,
+      domains: ["ft.com"],
+      socialHandles: ["x.com/ft"]
+    },
+    {
+      name: "United Nations",
+      defaultTier: "A" as SourceTier,
+      domains: ["un.org"],
+      socialHandles: ["x.com/un"]
+    },
+    {
+      name: "UN",
+      defaultTier: "A" as SourceTier,
+      domains: ["un.org"],
+      socialHandles: ["x.com/un"]
+    },
+    {
+      name: "World Bank",
+      defaultTier: "A" as SourceTier,
+      domains: ["worldbank.org"],
+      socialHandles: ["x.com/worldbank"]
+    },
+    {
+      name: "IMF",
+      defaultTier: "A" as SourceTier,
+      domains: ["imf.org"],
+      socialHandles: ["x.com/imfnews"]
+    },
+    {
+      name: "NOAA",
+      defaultTier: "A" as SourceTier,
+      domains: ["noaa.gov"],
+      socialHandles: ["x.com/noaa"]
+    },
+    {
+      name: "FDA",
+      defaultTier: "A" as SourceTier,
+      domains: ["fda.gov"],
+      socialHandles: ["x.com/us_fda"]
+    },
+    {
+      name: "EPA",
+      defaultTier: "A" as SourceTier,
+      domains: ["epa.gov"],
+      socialHandles: ["x.com/epa"]
+    },
+    {
+      name: "USDA",
+      defaultTier: "A" as SourceTier,
+      domains: ["usda.gov"],
+      socialHandles: ["x.com/usda"]
+    },
+    {
+      name: "CERN",
+      defaultTier: "A" as SourceTier,
+      domains: ["cern.ch"],
+      socialHandles: ["x.com/cern"]
+    },
+    {
+      name: "Oxford University",
+      defaultTier: "B" as SourceTier,
+      domains: ["ox.ac.uk"],
+      socialHandles: ["x.com/uniofoxford"]
+    },
+    {
+      name: "Cambridge University",
+      defaultTier: "B" as SourceTier,
+      domains: ["cam.ac.uk"],
+      socialHandles: ["x.com/cambridge_uni"]
+    },
+    {
+      name: "Britannica",
+      defaultTier: "B" as SourceTier,
+      domains: ["britannica.com"],
+      socialHandles: ["x.com/britannica"]
+    },
+    {
+      name: "Snopes",
+      defaultTier: "B" as SourceTier,
+      domains: ["snopes.com"],
+      socialHandles: ["x.com/snopes"]
+    },
+    {
+      name: "PolitiFact",
+      defaultTier: "B" as SourceTier,
+      domains: ["politifact.com"],
+      socialHandles: ["x.com/politifact"]
+    },
+    {
+      name: "FactCheck.org",
+      defaultTier: "B" as SourceTier,
+      domains: ["factcheck.org"],
+      socialHandles: ["x.com/factcheckdotorg"]
     }
   ];
 
@@ -347,6 +581,27 @@ export class SourceTrustService {
     }
 
     return {};
+  }
+
+  /**
+   * Resolves the primary official domain for a publisher/organization name.
+   */
+  resolvePublisherDomain(publisherName: string): string | undefined {
+    if (!publisherName || !publisherName.trim()) return undefined;
+    const cleanName = publisherName.trim().toLowerCase();
+    const cleanAlpha = cleanName.replace(/[^a-z0-9]/g, "");
+
+    const allPublishers = [...this.dbPublishers, ...SourceTrustService.PUBLISHERS];
+    for (const pub of allPublishers) {
+      const pubLower = pub.name.toLowerCase();
+      const pubAlpha = pubLower.replace(/[^a-z0-9]/g, "");
+      if (pubLower === cleanName || pubAlpha === cleanAlpha || cleanName.includes(pubLower) || pubLower.includes(cleanName)) {
+        if (pub.domains && pub.domains.length > 0) {
+          return pub.domains[0];
+        }
+      }
+    }
+    return undefined;
   }
 }
 

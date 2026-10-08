@@ -42,8 +42,8 @@ class DeepLinkService
       DeepLinkUrlBuilderAndShare.videoUrl(videoId);
 
   /// Generates a shareable channel URL.
-  static String channelUrl(String channelId) =>
-      DeepLinkUrlBuilderAndShare.channelUrl(channelId);
+  static String channelUrl(String channelId, {String? handle}) =>
+      DeepLinkUrlBuilderAndShare.channelUrl(channelId, handle: handle);
 
   /// Generates a shareable playlist URL.
   static String playlistUrl(String playlistId) =>
@@ -52,6 +52,10 @@ class DeepLinkService
   /// Generates a shareable topic URL.
   static String topicUrl(String slugOrHandle) =>
       DeepLinkUrlBuilderAndShare.topicUrl(slugOrHandle);
+
+  /// Dispatches and navigates to the target screen parsed from the deep-link URL.
+  Future<void> handleDeepLink(String url, {bool replace = false}) =>
+      handleUrl(url, replace: replace);
 
   /// Launches the native mobile TruthWorld app from mobile web browsers.
   static Future<void> openNativeAppFromWeb({String? path}) =>

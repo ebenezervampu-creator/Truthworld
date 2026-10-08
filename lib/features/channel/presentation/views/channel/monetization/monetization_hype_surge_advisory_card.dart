@@ -36,7 +36,10 @@ class ChannelHypeSurgeAdvisoryCard extends StatelessWidget {
       // Determine surge alert badge
       String statusBadgeText;
       Color statusBadgeColor;
-      if (summary.isWithdrawalHeld) {
+      if (summary.lossPreventionMode == LossPreventionMode.autoScaled) {
+        statusBadgeText = 'AUTO-SCALED AT 480P (ZERO-LOSS ACTIVE)';
+        statusBadgeColor = const Color(0xFF10B981);
+      } else if (summary.isWithdrawalHeld) {
         statusBadgeText = 'TRUTHWORLD FRONTING 100% COSTS • WITHDRAWAL ON HOLD';
         statusBadgeColor = const Color(0xFFEF4444);
       } else if (summary.lossPreventionMode == LossPreventionMode.warning) {

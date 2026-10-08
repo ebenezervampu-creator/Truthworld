@@ -13,6 +13,7 @@ import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/adaptive_bitrate_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/downloads/download_resolution_manager.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_engagement_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_transcript_controller.dart';
@@ -34,6 +35,18 @@ mixin VideoTrackManagementMixin on GetxController {
   VideoEngagementController get engagementController;
   Duration? get initialSeekPosition;
   set initialSeekPosition(Duration? pos);
+
+  bool _isFetchingAudioTracks = false;
+
+  AdaptiveBitrateController? _resolveAbr() {
+    if (Get.isRegistered<AdaptiveBitrateController>(tag: video.id)) {
+      return Get.find<AdaptiveBitrateController>(tag: video.id);
+    }
+    if (Get.isRegistered<AdaptiveBitrateController>()) {
+      return Get.find<AdaptiveBitrateController>();
+    }
+    return null;
+  }
 
   Future<void> initializeVideoPlayer({String? overrideUrl});
 
@@ -72,11 +85,14 @@ mixin VideoTrackManagementMixin on GetxController {
               if (directDownloadUrl != null && directDownloadUrl.isNotEmpty) {
                 foundVariants.add(
                   VideoResolutionV2(
-                    label: label as String,
+                    label: label.toString(),
                     url: directDownloadUrl,
                     width: (variantData['width'] as num?)?.toInt() ?? 0,
-                    height: (variantData['height'] as num?)?.toInt() ?? 0,
+                    height: (variantData['height'] as num?)?.toInt() ??
+                        DownloadResolutionManager.inferHeightFromLabel(label.toString()),
                     bitrate: (variantData['bitrateKbps'] as num?)?.toInt() ?? 0,
+                    fps: (variantData['fps'] as num?)?.toInt() ??
+                        VideoResolutionV2.inferFpsFromLabel(label.toString()),
                   ),
                 );
               } else if (outputPath != null && outputPath.isNotEmpty) {
@@ -93,12 +109,15 @@ mixin VideoTrackManagementMixin on GetxController {
                           .getDownloadURL();
                     }
                     return VideoResolutionV2(
-                      label: label as String,
+                      label: label.toString(),
                       url: url,
                       width: (variantData['width'] as num?)?.toInt() ?? 0,
-                      height: (variantData['height'] as num?)?.toInt() ?? 0,
+                      height: (variantData['height'] as num?)?.toInt() ??
+                          DownloadResolutionManager.inferHeightFromLabel(label.toString()),
                       bitrate:
                           (variantData['bitrateKbps'] as num?)?.toInt() ?? 0,
+                      fps: (variantData['fps'] as num?)?.toInt() ??
+                          VideoResolutionV2.inferFpsFromLabel(label.toString()),
                     );
                   } catch (e, s) {
                     ErrorHandler.log(
@@ -119,29 +138,26 @@ mixin VideoTrackManagementMixin on GetxController {
           }
 
           if (foundVariants.isNotEmpty) {
-            // Sort by height descending
-            foundVariants.sort((a, b) => b.height.compareTo(a.height));
+            // Sort by height descending, then fps descending
+            foundVariants.sort((a, b) {
+              final cmp = b.height.compareTo(a.height);
+              if (cmp != 0) return cmp;
+              return b.fps.compareTo(a.fps);
+            });
             availableResolutions.assignAll(foundVariants);
 
             // Update ABR ladder with real variants
-            if (Get.isRegistered<AdaptiveBitrateController>()) {
-              final abr = Get.find<AdaptiveBitrateController>();
+            final abr = _resolveAbr();
+            if (abr != null) {
               final ladder = foundVariants.reversed
                   .map(ResolutionTier.fromVideoResolution)
                   .toList();
-
               if (ladder.isNotEmpty) {
-                abr.resolutionLadder = ladder;
-                final activeHeight = currentResolution.value?.height;
-                final matchingIdx = activeHeight != null
-                    ? ladder.indexWhere((t) => t.height == activeHeight)
-                    : -1;
-                if (matchingIdx != -1) {
-                  abr.currentTierIndex.value = matchingIdx;
-                } else {
-                  abr.currentTierIndex.value =
-                      (ladder.length - 1).clamp(0, ladder.length - 1);
-                }
+                abr.updateLadder(
+                  ladder,
+                  activeHeight: currentResolution.value?.height,
+                  activeFps: currentResolution.value?.fps,
+                );
               }
             }
 
@@ -166,23 +182,17 @@ mixin VideoTrackManagementMixin on GetxController {
           modelResolutions.sort((a, b) => b.height.compareTo(a.height));
           availableResolutions.assignAll(modelResolutions);
 
-          if (Get.isRegistered<AdaptiveBitrateController>()) {
-            final abr = Get.find<AdaptiveBitrateController>();
+          final abr = _resolveAbr();
+          if (abr != null) {
             final ladder = modelResolutions.reversed
                 .map(ResolutionTier.fromVideoResolution)
                 .toList();
             if (ladder.isNotEmpty) {
-              abr.resolutionLadder = ladder;
-              final activeHeight = currentResolution.value?.height;
-              final matchingIdx = activeHeight != null
-                  ? ladder.indexWhere((t) => t.height == activeHeight)
-                  : -1;
-              if (matchingIdx != -1) {
-                abr.currentTierIndex.value = matchingIdx;
-              } else {
-                abr.currentTierIndex.value =
-                    (ladder.length - 1).clamp(0, ladder.length - 1);
-              }
+              abr.updateLadder(
+                ladder,
+                activeHeight: currentResolution.value?.height,
+                activeFps: currentResolution.value?.fps,
+              );
             }
           }
           debugPrint(
@@ -334,13 +344,14 @@ mixin VideoTrackManagementMixin on GetxController {
       }
 
       final results = await Future.wait(fetchTasks);
+      if (isClosed) return;
       final found = results.whereType<SubtitleTrack>().toList();
       availableSubtitles.assignAll(found);
 
       debugPrint('[VideoController] ✅ Loaded ${found.length} subtitle tracks');
 
       // If audio tracks only has original, retry audio track discovery now that subtitles are resolved
-      if (availableAudioTracks.length <= 1 && found.isNotEmpty) {
+      if (availableAudioTracks.length <= 1 && found.isNotEmpty && !_isFetchingAudioTracks && !isClosed) {
         unawaited(fetchAvailableAudioTracks());
       }
     } catch (e, s) {
@@ -363,9 +374,12 @@ mixin VideoTrackManagementMixin on GetxController {
   Future<void> fetchSummary() => transcriptController.fetchSummary(video);
 
   Future<void> fetchAvailableAudioTracks() async {
+    if (isClosed || _isFetchingAudioTracks) return;
+    _isFetchingAudioTracks = true;
     try {
       final audioTracksMap = Map<String, String>.from(video.audioTracks);
       final loc = await VideoMediaService().getLocalization(video.id);
+      if (isClosed) return;
       if (audioTracksMap.isEmpty) {
         audioTracksMap.addAll(loc.audioTracks);
       }
@@ -377,6 +391,7 @@ mixin VideoTrackManagementMixin on GetxController {
               .collection(FirestoreCollections.videos)
               .doc(video.id)
               .getCacheFirst();
+          if (isClosed) return;
           if (videoDoc.exists && videoDoc.data() != null) {
             final data = videoDoc.data()!;
             final directAudio = data['audioTracks'] as Map? ??
@@ -391,6 +406,8 @@ mixin VideoTrackManagementMixin on GetxController {
           }
         } catch (_) {}
       }
+
+      if (isClosed) return;
 
       // If still empty, discover from subtitle job ID or Storage audio/ folder
       if (audioTracksMap.isEmpty) {
@@ -432,12 +449,15 @@ mixin VideoTrackManagementMixin on GetxController {
             'ta',
           }.where((l) => l.isNotEmpty && l != video.language).toSet();
 
-          for (final langCode in candidateLangs) {
-            if (!audioTracksMap.containsKey(langCode)) {
+          await Future.wait(
+            candidateLangs.map((langCode) async {
+              if (isClosed) return;
+              if (audioTracksMap.containsKey(langCode)) return;
               try {
                 debugPrint('[AudioDiscovery] Scanning Storage for audio/$detectedJobId/$langCode');
                 final storageRef = FirebaseStorage.instance.ref('audio/$detectedJobId/$langCode');
                 final listResult = await storageRef.list(const ListOptions(maxResults: 10));
+                if (isClosed) return;
                 debugPrint('[AudioDiscovery] Items found in audio/$detectedJobId/$langCode: ${listResult.items.length}');
                 if (listResult.items.isNotEmpty) {
                   final bestItem = listResult.items.firstWhereOrNull(
@@ -446,14 +466,17 @@ mixin VideoTrackManagementMixin on GetxController {
                     (item) => item.name.endsWith('.mp3') || item.name.endsWith('.wav') || item.name.endsWith('.m4a'),
                   ) ?? listResult.items.first;
                   final downloadUrl = await bestItem.getDownloadURL();
+                  if (isClosed) return;
                   debugPrint('[AudioDiscovery] ✅ Resolved track for $langCode: $downloadUrl');
                   audioTracksMap[langCode] = downloadUrl;
                 }
               } catch (storageErr) {
                 debugPrint('[AudioDiscovery] ⚠️ Storage check for $langCode failed: $storageErr');
               }
-            }
-          }
+            }),
+          );
+
+          if (isClosed) return;
 
           if (audioTracksMap.isNotEmpty) {
             // Persist discovered audio tracks back to Firestore so subsequent loads are immediate
@@ -474,6 +497,8 @@ mixin VideoTrackManagementMixin on GetxController {
           }
         }
       }
+
+      if (isClosed) return;
 
       final dubbedVideosMap = Map<String, String>.from(video.dubbedVideos);
       final fetchTasks = <Future<AudioTrack?>>[];
@@ -610,7 +635,9 @@ mixin VideoTrackManagementMixin on GetxController {
         }());
       }
 
+      if (isClosed) return;
       final results = await Future.wait(fetchTasks);
+      if (isClosed) return;
       final found = results.whereType<AudioTrack>().toList();
       availableAudioTracks.assignAll(found);
 
@@ -623,6 +650,8 @@ mixin VideoTrackManagementMixin on GetxController {
         stackTrace: s,
         tag: 'VideoTrackManagementMixin.fetchAvailableAudioTracks',
       );
+    } finally {
+      _isFetchingAudioTracks = false;
     }
   }
 
@@ -753,8 +782,8 @@ mixin VideoTrackManagementMixin on GetxController {
   Future<void> setResolutionByIndex(int index) async {
     if (index < 0 || index >= availableResolutions.length) return;
 
-    if (Get.isRegistered<AdaptiveBitrateController>()) {
-      final abr = Get.find<AdaptiveBitrateController>();
+    final abr = _resolveAbr();
+    if (abr != null && index >= 0 && index < abr.resolutionLadder.length) {
       final tier = abr.resolutionLadder[index];
 
       final res = availableResolutions.firstWhereOrNull(

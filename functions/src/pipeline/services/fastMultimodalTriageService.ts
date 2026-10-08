@@ -22,6 +22,10 @@ import { tier0KnowledgeService } from "./tier0Knowledge";
 
 const db = () => admin.firestore();
 
+// @ts-ignore TS6133 - Used on lines 182-183 inside nested async scope
+const SENSATIONAL_CLICKBAIT_REGEX =
+  /\b(cure for|secret cure|miracle (cure|drug|food|herb|supplement)|they don't want you to know|what they hid|100% proven|hoax exposed|collapse imminent|guaranteed returns|get rich quick|conspiracy exposed|banned from tv|shocking truth|shocking discovery)\b/i;
+
 const FastTriageClaimSchema = z.object({
   text: z.string(),
   sourceMedium: z.enum(["speech", "ocr_on_screen", "hybrid"]).default("speech"),
@@ -37,6 +41,8 @@ const FastTriageResponseSchema = z.object({
   ocrExtractedText: z.array(z.string()).default([]),
   claims: z.array(FastTriageClaimSchema).default([]),
   detectedDomain: z.string().default("General"),
+  isClickbaitOrSensational: z.boolean().default(false),
+  titleDiscrepancyReason: z.string().optional().default(""),
 });
 
 export type FastTriageResult = z.infer<typeof FastTriageResponseSchema> & {
@@ -78,25 +84,32 @@ export class FastMultimodalTriageService {
 
     const mimeType = videoUrl.endsWith(".webm") ? "video/webm" : "video/mp4";
 
+    const cleanTitle = (videoTitle || "Untitled").replace(/["\r\n]/g, " ").trim();
     const prompt = `You are TruthWorld's Fast-Triage Multimodal Credibility Engine.
 Analyze this video directly using both the AUDIO TRACK (speech) and VISUAL FRAMES (on-screen OCR).
 
+VIDEO METADATA:
+Title: "${cleanTitle}"
+
 YOUR TASKS:
-1. ON-SCREEN OCR: Read any prominent text visible in the video (news chyrons, ticker tapes, presentation slides, charts, titles).
-2. SPEECH ANALYSIS: Identify the top 3 to 5 core empirical factual claims made by the speaker(s).
-3. RAPID VERIFICATION: Evaluate each claim's veracity based on established consensus facts.
+1. TITLE & CLICKBAIT SCRUTINY: Compare the video title to the actual content and on-screen claims.
+   - Detect if the title is sensational clickbait, alarmist, deceptive, making unsubstantiated medical/financial promises, or exhibiting title-content discrepancy.
+   - Set "isClickbaitOrSensational": true/false and provide "titleDiscrepancyReason" if applicable.
+2. ON-SCREEN OCR: Read any prominent text visible in the video (news chyrons, ticker tapes, presentation slides, charts, titles).
+3. SPEECH ANALYSIS: Identify the top 3 to 5 core empirical factual claims made by the speaker(s).
+4. RAPID VERIFICATION: Evaluate each claim's veracity based on established consensus facts.
    Allowed verdicts: "verified_true", "mostly_true", "false_claim", "misleading", "disputed", "opinion", "satire", "unverified".
-4. TRUST SCORE: Compute an overall provisional Trust Score (0 to 100) where:
-   - 80-100 = High Integrity (verifiable and accurate)
-   - 50-79 = Mixed / Needs Context
-   - 0-49 = Low Integrity / Disputed / Misleading
-5. VIEWER ADVISORY: Write a crisp 1-2 sentence plain-language note for viewers.
+5. PROVISIONAL TRIAGE CLASSIFICATION: This is a fast preliminary triage prior to deep multi-source Google Search grounding.
+   - NEVER label any video "HIGH INTEGRITY" or assign a score > 75 during preliminary triage.
+   - For clean, low-risk, verifiable content with 0 false/misleading claims: label "PRELIMINARY SCAN" (score 65-75).
+   - For clickbait, sensationalism, or content with disputed/unverified claims: label "PRELIMINARY - SENSATIONAL / DISPUTED" or "PRELIMINARY - NEEDS CONTEXT" (score 30-50).
+6. VIEWER ADVISORY: Write a crisp 1-2 sentence plain-language note explicitly stating this is a preliminary scan awaiting full multi-source grounding.
 
 Return ONLY a valid JSON object matching this schema:
 {
-  "provisionalScore": 85,
-  "provisionalLabel": "HIGH INTEGRITY",
-  "provisionalViewerNote": "Core claims check out against documented historical and empirical sources.",
+  "provisionalScore": 70,
+  "provisionalLabel": "PRELIMINARY SCAN",
+  "provisionalViewerNote": "Preliminary automated scan. Complete multi-source verification with Google Search grounding is currently processing in the background.",
   "ocrExtractedText": ["Ticker: Dow Jones drops 200 points", "Banner: Press Conference 2026"],
   "claims": [
     {
@@ -107,7 +120,9 @@ Return ONLY a valid JSON object matching this schema:
       "reasoning": "Plain-language 1-sentence explanation"
     }
   ],
-  "detectedDomain": "Science | Politics | Tech | Health | Finance | General"
+  "detectedDomain": "Science | Politics | Tech | Health | Finance | General",
+  "isClickbaitOrSensational": false,
+  "titleDiscrepancyReason": ""
 }`;
 
     try {
@@ -164,10 +179,48 @@ Return ONLY a valid JSON object matching this schema:
         }
       }
 
+      // Server-side Defense-in-Depth Guard: detect clickbait & sensationalism independently of LLM
+      const hasTitlePattern = SENSATIONAL_CLICKBAIT_REGEX.test(cleanTitle);
+      const hasOcrPattern = validated.ocrExtractedText.some(ocr => SENSATIONAL_CLICKBAIT_REGEX.test(ocr));
+      const hasNegativeClaims = validated.claims.some(c =>
+        ['false_claim', 'misleading', 'disputed'].includes(c.verdict)
+      );
+      const hasUnverifiedClaims = validated.claims.some(c =>
+        ['unverified'].includes(c.verdict)
+      );
+
+      const isSensational = validated.isClickbaitOrSensational || hasTitlePattern || hasOcrPattern;
+
+      // Enforce strict policy: preliminary triage CANNOT be stamped "HIGH INTEGRITY"
+      if (isSensational || hasNegativeClaims) {
+        validated.provisionalScore = Math.min(validated.provisionalScore, 45);
+        validated.provisionalLabel = hasNegativeClaims 
+          ? "PRELIMINARY - DISPUTED / UNGROUNDED" 
+          : "PRELIMINARY - SENSATIONAL / CLICKBAIT";
+        validated.isClickbaitOrSensational = true;
+        if (!validated.provisionalViewerNote.toLowerCase().includes("preliminary")) {
+          validated.provisionalViewerNote = "Preliminary scan detected sensational claims or ungrounded assertions. Awaiting comprehensive multi-source grounding.";
+        }
+      } else if (hasUnverifiedClaims) {
+        validated.provisionalScore = Math.min(validated.provisionalScore, 60);
+        validated.provisionalLabel = "PRELIMINARY - NEEDS CONTEXT";
+      } else {
+        // Clean baseline claims - capped at 75 max during provisional stage (never premature 100)
+        validated.provisionalScore = Math.min(validated.provisionalScore, 75);
+        validated.provisionalLabel = "PRELIMINARY SCAN";
+      }
+
+      // Ensure viewer note always clearly communicates provisional status
+      if (!validated.provisionalViewerNote.toLowerCase().includes("preliminary") && !validated.provisionalViewerNote.toLowerCase().includes("processing")) {
+        validated.provisionalViewerNote = `${validated.provisionalViewerNote} (Preliminary scan; full multi-source verification is in progress.)`;
+      }
+
       const processingTimeMs = Date.now() - t0;
       logger.info("[FastTriage] Completed fast triage successfully", {
         videoId,
         score: validated.provisionalScore,
+        label: validated.provisionalLabel,
+        isSensational,
         claimsCount: validated.claims.length,
         ocrCount: validated.ocrExtractedText.length,
         processingTimeMs,
@@ -180,7 +233,9 @@ Return ONLY a valid JSON object matching this schema:
           trustLabel: validated.provisionalLabel,
           isProvisional: true,
           provisionalScore: validated.provisionalScore,
+          provisionalLabel: validated.provisionalLabel,
           provisionalViewerNote: validated.provisionalViewerNote,
+          isClickbaitOrSensational: validated.isClickbaitOrSensational,
           ocrTickerText: validated.ocrExtractedText,
           provisionalClaims: validated.claims,
           credibilityStatus: "provisional_ready",

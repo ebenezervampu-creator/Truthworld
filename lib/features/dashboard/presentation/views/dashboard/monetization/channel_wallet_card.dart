@@ -56,7 +56,7 @@ class ChannelWalletCard extends StatelessWidget {
                     width: 4,
                     height: 20,
                     decoration: BoxDecoration(
-                      color: isCustom ? const Color(0xFFF59E0B) : AppColors.brand,
+                      color: isCustom ? AppColors.warning : AppColors.brand,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -75,12 +75,12 @@ class ChannelWalletCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: isCustom
-                      ? const Color(0xFFF59E0B).withValues(alpha: 0.15)
+                      ? AppColors.warning.withValues(alpha: 0.15)
                       : AppColors.brand.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(
                     color: isCustom
-                        ? const Color(0xFFF59E0B).withValues(alpha: 0.4)
+                        ? AppColors.warning.withValues(alpha: 0.4)
                         : AppColors.brand.withValues(alpha: 0.4),
                   ),
                 ),
@@ -90,7 +90,7 @@ class ChannelWalletCard extends StatelessWidget {
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 0.5,
-                    color: isCustom ? const Color(0xFFF59E0B) : Colors.white,
+                    color: isCustom ? AppColors.warning : Colors.white,
                   ),
                 ),
               ),
@@ -157,17 +157,6 @@ class ChannelWalletCard extends StatelessWidget {
                         color: Colors.white,
                       ),
                     ),
-                    if (spendable.trialCreditRemaining > 0) ...[
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _buildBreakdownItem(
-                          label: isCustom ? 'Monthly Credits' : 'Trial Credit',
-                          amount: '\$${spendable.trialCreditRemaining.toStringAsFixed(2)}',
-                          icon: Icons.card_giftcard_rounded,
-                          color: Colors.green,
-                        ),
-                      ),
-                    ],
                     if (isCustom && spendable.rolloverCredit > 0) ...[
                       const SizedBox(width: 8),
                       Expanded(
@@ -175,7 +164,7 @@ class ChannelWalletCard extends StatelessWidget {
                           label: 'Rollover Safe',
                           amount: '\$${spendable.rolloverCredit.toStringAsFixed(2)}',
                           icon: Icons.savings_rounded,
-                          color: const Color(0xFF38BDF8),
+                          color: AppColors.info,
                         ),
                       ),
                     ],
@@ -185,7 +174,7 @@ class ChannelWalletCard extends StatelessWidget {
                         label: 'Earned Revenue',
                         amount: '\$${spendable.totalRevenue.toStringAsFixed(2)}',
                         icon: Icons.trending_up_rounded,
-                        color: const Color(0xFF60A5FA),
+                        color: AppColors.brand,
                       ),
                     ),
                   ],

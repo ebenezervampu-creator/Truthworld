@@ -19,6 +19,7 @@ mixin TowerPlayerAbrMixin on GetxController {
   String? get tag;
   RxBool get isShowingAd;
   RxString get activePanel;
+  RxBool get isAudioOnly;
   void closeSettings();
   void trackAnalytics(PlayerEvent event);
 
@@ -51,14 +52,26 @@ mixin TowerPlayerAbrMixin on GetxController {
 
     final isPremium = hasPremiumPlaybackAccess;
 
+    int? initialTierIdx;
     // Pre-align current tier index with the active resolution before initialize to prevent immediate spurious auto-switch
     try {
       if (Get.isRegistered<VideoController>(tag: tag)) {
         final vc = Get.find<VideoController>(tag: tag);
-        final activeHeight = vc.currentResolution.value?.height;
-        if (activeHeight != null && ladder.isNotEmpty) {
-          final matchIdx = ladder.indexWhere((t) => t.height == activeHeight);
+        final activeRes = vc.currentResolution.value;
+        if (activeRes != null && ladder.isNotEmpty) {
+          var matchIdx = ladder.indexWhere(
+            (t) => t.label.toLowerCase() == activeRes.label.toLowerCase(),
+          );
+          if (matchIdx == -1) {
+            matchIdx = ladder.indexWhere(
+              (t) => t.height == activeRes.height && t.fps == activeRes.fps,
+            );
+          }
+          if (matchIdx == -1) {
+            matchIdx = ladder.indexWhere((t) => t.height == activeRes.height);
+          }
           if (matchIdx != -1) {
+            initialTierIdx = matchIdx;
             abr.currentTierIndex.value = matchIdx;
           }
         }
@@ -79,6 +92,7 @@ mixin TowerPlayerAbrMixin on GetxController {
       ladder: ladder,
       vpc: videoPlayerController,
       maxHeightCap: isPremium ? null : 1040,
+      initialTierIndex: initialTierIdx,
     );
     abr.isAdPlaying = () => isShowingAd.value;
 
@@ -88,16 +102,24 @@ mixin TowerPlayerAbrMixin on GetxController {
           if (!Get.isRegistered<VideoController>(tag: tag)) return;
           final vc = Get.find<VideoController>(tag: tag);
           if (vc.isSwitchingResolution.value) return;
+          if (vc.rxIsOffline.value || isAudioOnly.value) return;
           if (tierIndex >= 0 && tierIndex < abr.resolutionLadder.length) {
             final tier = abr.resolutionLadder[tierIndex];
             final match = vc.availableResolutions.firstWhereOrNull(
-              (r) => r.height == tier.height,
-            );
+                  (r) => r.label.toLowerCase() == tier.label.toLowerCase(),
+                ) ??
+                vc.availableResolutions.firstWhereOrNull(
+                  (r) => r.height == tier.height && r.fps == tier.fps,
+                ) ??
+                vc.availableResolutions.firstWhereOrNull(
+                  (r) => r.height == tier.height,
+                );
             if (match == null) return;
 
-            // If already on this exact URL or height, do not re-initialize player
+            // If already on this exact URL or (height and fps without manual switch), do not re-initialize player
             if (vc.currentResolution.value?.url == match.url ||
                 (vc.currentResolution.value?.height == match.height &&
+                    vc.currentResolution.value?.fps == match.fps &&
                     !isManual)) {
               if (vc.currentResolution.value != match) {
                 vc.currentResolution.value = match;
@@ -106,7 +128,8 @@ mixin TowerPlayerAbrMixin on GetxController {
             }
 
             // Protect active handoff controller from auto ABR teardown
-            if (!isManual && VideoPlaybackHandoff.isActive(vc.video.id)) {
+            if (!isManual &&
+                VideoPlaybackHandoff.isHandoffActiveOrRecent(vc.video.id)) {
               return;
             }
 
@@ -179,9 +202,21 @@ mixin TowerPlayerAbrMixin on GetxController {
     }
   }
 
-  String get currentQualityLabel => abr.isAutoMode.value
-      ? 'Auto · ${abr.currentTier.label}'
-      : abr.currentTier.label;
+  String get currentQualityLabel {
+    if (isAudioOnly.value) {
+      return 'Audio only';
+    }
+    if (videoController?.rxIsOffline.value == true) {
+      final currentRes = videoController?.currentResolution.value;
+      if (currentRes != null && currentRes.label.isNotEmpty) {
+        return currentRes.label;
+      }
+      return 'Offline';
+    }
+    return abr.isAutoMode.value
+        ? 'Auto · ${abr.currentTier.label}'
+        : abr.currentTier.label;
+  }
 
   /// Evaluates whether the current viewer has premium playback privileges (unlocked 4K / 1080p).
   /// This is true if the user has global TruthWorld Full Premium OR if the user is an active
@@ -193,13 +228,7 @@ mixin TowerPlayerAbrMixin on GetxController {
       }
       final vCtrl = videoController;
       if (vCtrl != null) {
-        final isMember =
-            vCtrl.channelController.subController.isChannelMember.value;
-        final channel = vCtrl.channelController.selectedChannel.value;
-        final channelNoAds = channel?.noAdsForMembers ?? false;
-        if (isMember && channelNoAds) {
-          return true;
-        }
+        return vCtrl.canStreamHighResolution;
       }
     } catch (e, s) {
       ErrorHandler.log(

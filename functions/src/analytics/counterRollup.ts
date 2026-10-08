@@ -113,6 +113,7 @@ export const rollupVideoCounterShards = onSchedule(
         const aggSnap = await shardsCollection.aggregate({
           totalViews: admin.firestore.AggregateField.sum("count"),
           totalQualified: admin.firestore.AggregateField.sum("qualifiedCount"),
+          totalWatchTimeSeconds: admin.firestore.AggregateField.sum("watchTimeSeconds"),
         }).get();
 
         const aggData = aggSnap.data();
@@ -120,15 +121,24 @@ export const rollupVideoCounterShards = onSchedule(
         const totalQualified = aggData.totalQualified
           ? Number(aggData.totalQualified)
           : 0;
+        const totalWatchTimeSeconds = aggData.totalWatchTimeSeconds
+          ? Number(aggData.totalWatchTimeSeconds)
+          : 0;
 
-        if (totalViews > 0) {
+        if (totalViews > 0 || totalWatchTimeSeconds > 0) {
           const videoRef = db.collection("videos").doc(videoId);
-          batch.update(videoRef, {
-            viewCount: totalViews,
-            views: totalViews,
-            qualifiedViewCount: totalQualified,
+          const updateData: Record<string, any> = {
             lastShardRollupAt: admin.firestore.FieldValue.serverTimestamp(),
-          });
+          };
+          if (totalViews > 0) {
+            updateData.viewCount = totalViews;
+            updateData.views = totalViews;
+            updateData.qualifiedViewCount = totalQualified;
+          }
+          if (totalWatchTimeSeconds > 0) {
+            updateData.totalWatchTimeSeconds = totalWatchTimeSeconds;
+          }
+          batch.update(videoRef, updateData);
           ops++;
           consolidatedVideos++;
 
@@ -153,22 +163,29 @@ export const rollupVideoCounterShards = onSchedule(
 
         const aggSnap = await shardsCollection.aggregate({
           totalViews: admin.firestore.AggregateField.sum("views"),
+          totalWatchTimeSeconds: admin.firestore.AggregateField.sum("watchTimeSeconds"),
         }).get();
 
         const aggData = aggSnap.data();
         const totalViews = aggData.totalViews ? Number(aggData.totalViews) : 0;
+        const totalWatchTimeSeconds = aggData.totalWatchTimeSeconds
+          ? Number(aggData.totalWatchTimeSeconds)
+          : 0;
 
-        if (totalViews > 0) {
+        if (totalViews > 0 || totalWatchTimeSeconds > 0) {
           const channelRef = db.collection("channels").doc(channelId);
-          batch.set(
-            channelRef,
-            {
-              metrics: { totalViews },
-              viewCount: totalViews,
-              lastShardRollupAt: admin.firestore.FieldValue.serverTimestamp(),
-            },
-            { merge: true }
-          );
+          const updateData: Record<string, any> = {
+            lastShardRollupAt: admin.firestore.FieldValue.serverTimestamp(),
+          };
+          if (totalViews > 0) {
+            updateData.viewCount = totalViews;
+            updateData["metrics.totalViews"] = totalViews;
+          }
+          if (totalWatchTimeSeconds > 0) {
+            updateData.totalWatchTimeSeconds = totalWatchTimeSeconds;
+            updateData["metrics.totalWatchTimeMinutes"] = Math.floor(totalWatchTimeSeconds / 60);
+          }
+          batch.set(channelRef, updateData, { merge: true });
           ops++;
           consolidatedChannels++;
 

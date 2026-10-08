@@ -56,17 +56,17 @@ void main() {
       final ctrl = Get.put(AdminController());
       ctrl.adminMembers.assignAll([
         {
-          'email': 'owner@towervsp.com',
+          'email': 'owner@truthworld.in',
           'role': 'Super Admin',
           'status': 'active',
         },
         {
-          'email': 'mod1@towervsp.com',
+          'email': 'mod1@truthworld.in',
           'role': 'Content Moderator',
           'status': 'active',
         },
         {
-          'email': 'suspended@towervsp.com',
+          'email': 'suspended@truthworld.in',
           'role': 'Community Mod',
           'status': 'suspended',
         },
@@ -147,7 +147,7 @@ void main() {
     testWidgets('TeamMemberRow displays member information, credentials, and actions', (tester) async {
       final ctrl = Get.put(AdminController());
       final member = {
-        'email': 'ebenezervampy@towervsp.com',
+        'email': 'hello@truthworld.in',
         'name': 'Ebenezer',
         'role': 'Super Admin',
         'password': 'SuperSecret123',
@@ -159,7 +159,7 @@ void main() {
       );
 
       expect(find.text('Ebenezer'), findsOneWidget);
-      expect(find.text('ebenezervampy@towervsp.com'), findsOneWidget);
+      expect(find.text('hello@truthworld.in'), findsOneWidget);
       expect(find.text('OWNER'), findsOneWidget);
       expect(find.text('••••••••'), findsOneWidget);
 

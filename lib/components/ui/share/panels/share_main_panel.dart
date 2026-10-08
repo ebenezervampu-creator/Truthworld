@@ -108,6 +108,7 @@ class ShareMainPanel extends StatelessWidget {
           child: SharePreviewCard(
             contentType: contentType,
             title: title,
+            url: url,
             thumbnailUrl: thumbnailUrl,
             bannerUrl: bannerUrl,
             subtitle: subtitle,

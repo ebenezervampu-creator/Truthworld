@@ -38,23 +38,21 @@ enum AppFlavor {
     }
     if (kIsWeb) {
       final host = Uri.base.host.toLowerCase();
-      final uriStr = Uri.base.toString().toLowerCase();
-      if (host.startsWith('admin') ||
-          host.contains('admin') ||
-          uriStr.contains('admin') ||
-          Uri.base.queryParameters.containsKey('admin')) {
+      if (host == 'admin.truthworld.in' ||
+          host == 'admin.truthworld.app' ||
+          host.startsWith('admin.')) {
         return AppFlavor.admin;
       }
-      if (host.startsWith('studio') ||
-          host.contains('studio') ||
-          uriStr.contains('studio') ||
-          Uri.base.queryParameters.containsKey('studio')) {
+      if (host == 'studio.truthworld.in' ||
+          host == 'studio.truthworld.app' ||
+          host.startsWith('studio.')) {
         return AppFlavor.studio;
       }
-      if (host.startsWith('advertiser') ||
-          host.contains('advertiser') ||
-          uriStr.contains('advertiser') ||
-          Uri.base.queryParameters.containsKey('advertiser')) {
+      if (host == 'ads.truthworld.in' ||
+          host == 'advertiser.truthworld.in' ||
+          host == 'advertiser.truthworld.app' ||
+          host.startsWith('advertiser.') ||
+          host.startsWith('ads.')) {
         return AppFlavor.advertiser;
       }
     }

@@ -31,7 +31,7 @@ export const onPayoutRequestCreated = onDocumentCreated(
 
     const data = snap.data();
     const requestId = event.params.requestId;
-    const { userId, channelId, amount, paymentMethod, beneficiaryName, bankName, accountNumberMasked, ifscCode } = data;
+    const { userId, channelId, amount, paymentMethod, beneficiaryName, bankName, accountNumberMasked } = data;
 
     logger.info(`[Payouts] Request ${requestId} | channel ${channelId} | user ${userId} | ₹${amount} via ${paymentMethod}`);
 
@@ -197,69 +197,93 @@ export const onPayoutRequestCreated = onDocumentCreated(
       }
 
     try {
-      // ── 6. All checks passed — schedule payout & debit balance ────────────
+      // ── 6. All checks passed — schedule payout & debit balance atomically ──
       const transferRef = `TW-PAYOUT-${requestId.slice(0, 8).toUpperCase()}`;
       const payoutAmount = Number(amount);
 
-      const batch = db().batch();
-
-      // 6a. Update payout request status
-      batch.update(snap.ref, {
-        status: "processing",
-        transferReference: transferRef,
-        processedAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-
-      // 6b. Track cumulative withdrawn revenue on channel
+      let latestStmtRef: admin.firestore.DocumentReference | null = null;
       if (channelId) {
-        const channelRef = db().collection("channels").doc(channelId);
-        batch.set(
-          channelRef,
-          {
-            withdrawnRevenueTotal: admin.firestore.FieldValue.increment(payoutAmount),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          },
-          { merge: true }
-        );
-
-        // 6c. Record immutable ledger entry in channel_wallet_transactions
-        const txRef = db().collection("channel_wallet_transactions").doc(requestId);
-        batch.set(txRef, {
-          id: requestId,
-          channelId,
-          userId: userId || "",
-          amount: payoutAmount,
-          category: "payoutWithdrawal",
-          description: `Payout Withdrawal (Ref: ${transferRef})`,
-          revenueDeducted: payoutAmount,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
-          status: "processing",
-        }, { merge: true });
-
-        // 6d. Deduct withdrawableShare and increment paidOutShare on the latest revenue statement
         try {
           const stmtSnap = await db().collection("revenue_statements")
             .where("channelId", "==", channelId)
             .orderBy("month", "desc")
             .limit(1)
             .get();
-
           if (!stmtSnap.empty) {
-            const latestStmtRef = stmtSnap.docs[0].ref;
-            batch.update(latestStmtRef, {
+            latestStmtRef = stmtSnap.docs[0].ref;
+          }
+        } catch (stmtErr) {
+          logger.warn(`[Payouts] Could not locate latest revenue_statement for ${channelId}:`, stmtErr);
+        }
+      }
+
+      await db().runTransaction(async (transaction) => {
+        const freshSnap = await transaction.get(snap.ref);
+        const currentReqStatus = freshSnap.data()?.status;
+        if (!freshSnap.exists || (currentReqStatus && currentReqStatus !== "pending")) {
+          throw new Error(`Payout request ${requestId} is no longer pending (status: ${currentReqStatus})`);
+        }
+
+        if (channelId) {
+          const channelRef = db().collection("channels").doc(channelId);
+          const freshChannelSnap = await transaction.get(channelRef);
+          if (!freshChannelSnap.exists) {
+            throw new Error(`Channel ${channelId} not found during payout transaction`);
+          }
+          const freshChannelData = freshChannelSnap.data() || {};
+          const currentWithdrawn = Number(freshChannelData.withdrawnRevenueTotal || 0);
+          const currentAds = Number(freshChannelData.adsRevenueTotal || 0);
+          const currentPrem = Number(freshChannelData.premiumSubsRevenueTotal || 0);
+          const currentMem = Number(freshChannelData.membershipRevenueTotal || 0);
+          const currentSuper = Number(freshChannelData.superchatRevenueTotal || 0);
+          const currentWalletUSD = Number(freshChannelData.walletBalanceUSD || 0);
+          const currentWalletINR = currentWalletUSD * 84.0;
+          const currentTotal = currentAds + currentPrem + currentMem + currentSuper + currentWalletINR;
+          const currentAvailable = Math.max(0, currentTotal - currentWithdrawn);
+
+          if (payoutAmount > currentAvailable) {
+            throw new Error(`Insufficient balance during atomic debit: requested ₹${payoutAmount} > available ₹${currentAvailable}`);
+          }
+
+          transaction.set(
+            channelRef,
+            {
+              withdrawnRevenueTotal: admin.firestore.FieldValue.increment(payoutAmount),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+
+          const txRef = db().collection("channel_wallet_transactions").doc(requestId);
+          transaction.set(txRef, {
+            id: requestId,
+            channelId,
+            userId: userId || "",
+            amount: payoutAmount,
+            category: "payoutWithdrawal",
+            description: `Payout Withdrawal (Ref: ${transferRef})`,
+            revenueDeducted: payoutAmount,
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            status: "processing",
+          }, { merge: true });
+
+          if (latestStmtRef) {
+            transaction.update(latestStmtRef, {
               paidOutShare: admin.firestore.FieldValue.increment(payoutAmount),
               withdrawableShare: admin.firestore.FieldValue.increment(-payoutAmount),
               payoutStatus: "processing",
               updatedAt: Date.now(),
             });
           }
-        } catch (stmtErr) {
-          logger.warn(`[Payouts] Could not update revenue_statement for ${channelId}:`, stmtErr);
         }
-      }
 
-      await batch.commit();
+        transaction.update(snap.ref, {
+          status: "processing",
+          transferReference: transferRef,
+          processedAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      });
 
       if (userId) {
         await db().collection("notifications").add({
@@ -274,7 +298,6 @@ export const onPayoutRequestCreated = onDocumentCreated(
             channelId,
             amount: payoutAmount,
             transferReference: transferRef,
-            ifscCode: ifscCode || "",
           },
         });
       }

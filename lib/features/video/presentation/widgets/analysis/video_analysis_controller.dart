@@ -5,6 +5,7 @@ import 'package:truthworld/core/base/base_controller.dart';
 class VideoAnalysisController extends BaseController {
   final RxSet<int> expandedClaimIndices = <int>{}.obs;
   final RxString selectedClaimFilter = 'All'.obs;
+  final RxInt selectedTab = 0.obs;
 
   void toggleClaimExpanded(int index) {
     if (expandedClaimIndices.contains(index)) {
@@ -16,5 +17,9 @@ class VideoAnalysisController extends BaseController {
 
   void setClaimFilter(String filter) {
     selectedClaimFilter.value = filter;
+  }
+
+  void setSelectedTab(int index) {
+    selectedTab.value = index;
   }
 }

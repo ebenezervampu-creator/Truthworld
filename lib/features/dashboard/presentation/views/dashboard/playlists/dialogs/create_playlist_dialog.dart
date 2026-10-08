@@ -39,10 +39,10 @@ class CreatePlaylistDialog extends StatelessWidget {
     final isCreating = false.obs;
 
     return Dialog(
-      backgroundColor: const Color(0xFF141417),
+      backgroundColor: const Color(0xFF1E1E1E),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFF27272A)),
+        side: const BorderSide(color: AppColors.bgDivider),
       ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 550, maxHeight: 680),
@@ -59,13 +59,14 @@ class CreatePlaylistDialog extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
+                      fontFamily: TWTypography.brandFamily,
                     ),
                   ),
                   IconButton(
                     icon: const Icon(
                       Icons.close_rounded,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       size: 20,
                     ),
                     onPressed: () => Navigator.pop(context),
@@ -78,6 +79,7 @@ class CreatePlaylistDialog extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   color: AppColors.textSecondary,
+                  fontFamily: TWTypography.uiFamily,
                 ),
               ),
               const SizedBox(height: 20),
@@ -90,30 +92,39 @@ class CreatePlaylistDialog extends StatelessWidget {
                         controller: titleController,
                         inputFormatters: TruthworldTextInputFormatters.standard,
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           fontSize: 14,
+                          fontFamily: TWTypography.uiFamily,
                         ),
                         decoration: InputDecoration(
                           labelText: 'Playlist Title *',
                           labelStyle: const TextStyle(
                             color: AppColors.textSecondary,
+                            fontFamily: TWTypography.uiFamily,
                           ),
                           hintText: 'e.g., Full Flutter Course 2026',
                           hintStyle: const TextStyle(
                             color: AppColors.textTertiary,
+                            fontFamily: TWTypography.uiFamily,
                           ),
                           filled: true,
-                          fillColor: const Color(0xFF0F0F0F),
+                          fillColor: AppColors.bgPage,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                             borderSide: const BorderSide(
-                              color: Color(0xFF27272A),
+                              color: AppColors.bgDivider,
                             ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                             borderSide: const BorderSide(
-                              color: Color(0xFF27272A),
+                              color: AppColors.bgDivider,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(
+                              color: AppColors.textSecondary,
                             ),
                           ),
                         ),
@@ -124,31 +135,40 @@ class CreatePlaylistDialog extends StatelessWidget {
                         inputFormatters: TruthworldTextInputFormatters.standard,
                         maxLines: 3,
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           fontSize: 13,
+                          fontFamily: TWTypography.uiFamily,
                         ),
                         decoration: InputDecoration(
                           labelText: 'Description (Optional)',
                           labelStyle: const TextStyle(
                             color: AppColors.textSecondary,
+                            fontFamily: TWTypography.uiFamily,
                           ),
                           hintText:
                               'What is this playlist about? Help viewers find your topics.',
                           hintStyle: const TextStyle(
                             color: AppColors.textTertiary,
+                            fontFamily: TWTypography.uiFamily,
                           ),
                           filled: true,
-                          fillColor: const Color(0xFF0F0F0F),
+                          fillColor: AppColors.bgPage,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                             borderSide: const BorderSide(
-                              color: Color(0xFF27272A),
+                              color: AppColors.bgDivider,
                             ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                             borderSide: const BorderSide(
-                              color: Color(0xFF27272A),
+                              color: AppColors.bgDivider,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(
+                              color: AppColors.textSecondary,
                             ),
                           ),
                         ),
@@ -157,28 +177,36 @@ class CreatePlaylistDialog extends StatelessWidget {
                       Obx(() {
                         return DropdownButtonFormField<PlaylistVisibility>(
                           value: selectedVisibility.value,
-                          dropdownColor: const Color(0xFF1E1E22),
+                          dropdownColor: const Color(0xFF1E1E1E),
                           style: const TextStyle(
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                             fontSize: 13,
+                            fontFamily: TWTypography.uiFamily,
                           ),
                           decoration: InputDecoration(
                             labelText: 'Visibility',
                             labelStyle: const TextStyle(
                               color: AppColors.textSecondary,
+                              fontFamily: TWTypography.uiFamily,
                             ),
                             filled: true,
-                            fillColor: const Color(0xFF0F0F0F),
+                            fillColor: AppColors.bgPage,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
                               borderSide: const BorderSide(
-                                color: Color(0xFF27272A),
+                                color: AppColors.bgDivider,
                               ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
                               borderSide: const BorderSide(
-                                color: Color(0xFF27272A),
+                                color: AppColors.bgDivider,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(
+                                color: AppColors.textSecondary,
                               ),
                             ),
                           ),
@@ -206,7 +234,8 @@ class CreatePlaylistDialog extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
+                              fontFamily: TWTypography.brandFamily,
                             ),
                           ),
                           TextButton.icon(
@@ -218,13 +247,15 @@ class CreatePlaylistDialog extends StatelessWidget {
                             icon: const Icon(
                               Icons.add_rounded,
                               size: 16,
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                             ),
                             label: const Text(
                               'Add Videos',
                               style: TextStyle(
-                                color: Colors.white,
+                                color: AppColors.textPrimary,
                                 fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: TWTypography.uiFamily,
                               ),
                             ),
                           ),
@@ -236,10 +267,10 @@ class CreatePlaylistDialog extends StatelessWidget {
                           return Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF0F0F0F),
+                              color: AppColors.bgPage,
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
-                                color: const Color(0xFF27272A),
+                                color: AppColors.bgDivider,
                               ),
                             ),
                             child: const Center(
@@ -248,6 +279,7 @@ class CreatePlaylistDialog extends StatelessWidget {
                                 style: TextStyle(
                                   color: AppColors.textSecondary,
                                   fontSize: 12,
+                                  fontFamily: TWTypography.uiFamily,
                                 ),
                               ),
                             ),
@@ -265,10 +297,10 @@ class CreatePlaylistDialog extends StatelessWidget {
                             return Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF0F0F0F),
+                                color: AppColors.bgPage,
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
-                                  color: const Color(0xFF27272A),
+                                  color: AppColors.bgDivider,
                                 ),
                               ),
                               child: Row(
@@ -284,7 +316,7 @@ class CreatePlaylistDialog extends StatelessWidget {
                                               fit: BoxFit.cover,
                                             )
                                           : Container(
-                                              color: const Color(0xFF27272A),
+                                              color: AppColors.bgSurfaceHover,
                                             ),
                                     ),
                                   ),
@@ -293,8 +325,9 @@ class CreatePlaylistDialog extends StatelessWidget {
                                     child: Text(
                                       vid.title,
                                       style: const TextStyle(
-                                        color: Colors.white,
+                                        color: AppColors.textPrimary,
                                         fontSize: 12,
+                                        fontFamily: TWTypography.uiFamily,
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -303,7 +336,7 @@ class CreatePlaylistDialog extends StatelessWidget {
                                   IconButton(
                                     icon: const Icon(
                                       Icons.close_rounded,
-                                      color: Colors.white,
+                                      color: AppColors.textPrimary,
                                       size: 16,
                                     ),
                                     onPressed: () =>
@@ -327,7 +360,10 @@ class CreatePlaylistDialog extends StatelessWidget {
                     onPressed: () => Navigator.pop(context),
                     child: const Text(
                       'Cancel',
-                      style: TextStyle(color: AppColors.textSecondary),
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontFamily: TWTypography.uiFamily,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -378,9 +414,8 @@ class CreatePlaylistDialog extends StatelessWidget {
                               }
                             },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF27272A),
-                        foregroundColor: Colors.white,
-                        side: const BorderSide(color: Color(0xFF3F3F46)),
+                        backgroundColor: AppColors.textPrimary,
+                        foregroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 20,
                           vertical: 12,
@@ -388,6 +423,7 @@ class CreatePlaylistDialog extends StatelessWidget {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
+                        elevation: 0,
                       ),
                       child: isCreating.value
                           ? const SizedBox(
@@ -395,12 +431,16 @@ class CreatePlaylistDialog extends StatelessWidget {
                               height: 18,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: Colors.white,
+                                color: Colors.black,
                               ),
                             )
                           : const Text(
                               'Create Playlist',
-                              style: TextStyle(fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black,
+                                fontFamily: TWTypography.uiFamily,
+                              ),
                             ),
                     );
                   }),

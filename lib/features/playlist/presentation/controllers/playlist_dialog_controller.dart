@@ -18,6 +18,8 @@ class PlaylistDialogController extends BaseController
   final RxBool showCreateForm = false.obs;
   final RxBool isPublicNewPlaylist = false.obs;
 
+  final RxSet<String> togglingPlaylistIds = <String>{}.obs;
+
   late final TextEditingController newPlaylistCtrl =
       trackTextController(TextEditingController());
 
@@ -37,16 +39,16 @@ class PlaylistDialogController extends BaseController
 
   void _initializeAnimations() {
     scaleController = AnimationController(
-      duration: const Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 350),
       vsync: this,
     );
 
     listController = AnimationController(
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 450),
       vsync: this,
     );
 
-    scaleAnimation = Tween<double>(begin: 0.8, end: 1).animate(
+    scaleAnimation = Tween<double>(begin: 0.85, end: 1).animate(
       CurvedAnimation(parent: scaleController, curve: Curves.easeOutBack),
     );
 
@@ -56,7 +58,7 @@ class PlaylistDialogController extends BaseController
 
     scaleController.forward();
     trackTimer(
-      Timer(const Duration(milliseconds: 200), () {
+      Timer(const Duration(milliseconds: 150), () {
         if (!isClosed) {
           listController.forward();
         }
@@ -103,8 +105,61 @@ class PlaylistDialogController extends BaseController
     isCreatingPlaylist.value = false;
     isAddingToPlaylist.value = false;
     isPublicNewPlaylist.value = false;
+    togglingPlaylistIds.clear();
     selectedPlaylist = null;
     newPlaylistCtrl.clear();
+  }
+
+  bool isPlaylistToggling(String playlistId) {
+    return togglingPlaylistIds.contains(playlistId);
+  }
+
+  Future<void> togglePlaylistMembership({
+    required PlaylistModel playlist,
+    required String videoId,
+  }) async {
+    if (togglingPlaylistIds.contains(playlist.id)) return;
+
+    togglingPlaylistIds.add(playlist.id);
+    try {
+      final playlistController = Get.isRegistered<PlaylistController>()
+          ? Get.find<PlaylistController>()
+          : Get.put(PlaylistController());
+
+      if (playlist.id == 'watchlater') {
+        final wasIn = playlistController.isInWatchLater(videoId);
+        await playlistController.toggleWatchLater(videoId);
+        AppSnackbar.success(
+          wasIn ? 'Removed from Watch Later' : 'Saved to Watch Later',
+        );
+      } else {
+        final isIn = playlist.videoIds.contains(videoId);
+        if (isIn) {
+          await playlistController.removeVideoFromPlaylist(
+            playlist.id,
+            videoId,
+            playlist.isPublic,
+          );
+          AppSnackbar.success('Removed from ${playlist.playlistName}');
+        } else {
+          await playlistController.addVideoToPlaylist(
+            playlist.id,
+            videoId,
+            playlist.isPublic,
+          );
+          AppSnackbar.success('Saved to ${playlist.playlistName}');
+        }
+      }
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'PlaylistDialogController.togglePlaylistMembership',
+      );
+      AppSnackbar.error('Unable to update playlist. Please try again.');
+    } finally {
+      togglingPlaylistIds.remove(playlist.id);
+    }
   }
 
   Future<bool> createNewPlaylist(String videoId) async {
@@ -122,7 +177,10 @@ class PlaylistDialogController extends BaseController
 
     setCreatingPlaylist(true);
     try {
-      final playlistController = Get.find<PlaylistController>();
+      final playlistController = Get.isRegistered<PlaylistController>()
+          ? Get.find<PlaylistController>()
+          : Get.put(PlaylistController());
+
       final newPlaylist = await playlistController.createPlayList(
         name,
         isPublic: isPublicNewPlaylist.value,
@@ -130,13 +188,18 @@ class PlaylistDialogController extends BaseController
       );
 
       newPlaylistCtrl.clear();
+      showCreateForm.value = false;
       if (newPlaylist != null) {
         AppSnackbar.success('Playlist "$name" created and video added!');
         return true;
       }
       return false;
-    } catch (e) {
-      ErrorHandler.log(e);
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'PlaylistDialogController.createNewPlaylist',
+      );
       AppSnackbar.error('Unable to create playlist. Please try again.');
       return false;
     } finally {
@@ -152,7 +215,10 @@ class PlaylistDialogController extends BaseController
 
     setAddingToPlaylist(true);
     try {
-      final playlistController = Get.find<PlaylistController>();
+      final playlistController = Get.isRegistered<PlaylistController>()
+          ? Get.find<PlaylistController>()
+          : Get.put(PlaylistController());
+
       if (selectedId == 'watchlater') {
         final wasIn = playlistController.isInWatchLater(videoId);
         await playlistController.toggleWatchLater(videoId);
@@ -183,8 +249,12 @@ class PlaylistDialogController extends BaseController
           return true;
         }
       }
-    } catch (e) {
-      ErrorHandler.log(e);
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'PlaylistDialogController.addVideoToPlaylist',
+      );
       AppSnackbar.error('Unable to update playlist. Please try again.');
       return false;
     } finally {

@@ -116,13 +116,29 @@ void main() {
       expect(controller.commentCount.value, equals(0));
     });
 
-    test('6. addReply ignores empty text without throwing', () async {
+    test('6. addComment ignores concurrent submissions when isSubmittingComment is true', () async {
+      controller.isSubmittingComment.value = true;
+      await controller.addComment('topic_abc', 'Valid comment text');
+      expect(controller.comments, isEmpty);
+      expect(controller.commentCount.value, equals(0));
+      controller.isSubmittingComment.value = false;
+    });
+
+    test('7. addReply ignores empty text without throwing', () async {
       await controller.addReply('topic_abc', 'comment_123', '   ');
       expect(controller.repliesMap, isEmpty);
       expect(controller.commentCount.value, equals(0));
     });
 
-    test('7. Controller closes and disposes subscription cleanly', () {
+    test('8. addReply ignores concurrent submissions when isSubmittingReply is true', () async {
+      controller.isSubmittingReply.value = true;
+      await controller.addReply('topic_abc', 'comment_123', 'Valid reply text');
+      expect(controller.repliesMap, isEmpty);
+      expect(controller.commentCount.value, equals(0));
+      controller.isSubmittingReply.value = false;
+    });
+
+    test('9. Controller closes and disposes subscription cleanly', () {
       expect(controller.isClosed, isFalse);
       controller.onClose();
       expect(controller.commentsSubscription, isNull);

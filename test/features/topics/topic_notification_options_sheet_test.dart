@@ -158,5 +158,47 @@ void main() {
 
       expect(find.text('Unfollow Artificial Intelligence?'), findsNothing);
     });
+
+    testWidgets('defaults to Personalized checkmark when user followed topic without previous setting',
+        (tester) async {
+      Get.testMode = true;
+      final controller = FollowingTopicsController();
+      // Ensure no override is set
+      expect(controller.topicNotificationSettings[sampleTopic.id], isNull);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TopicNotificationOptionsSheet(
+              topic: sampleTopic,
+              controller: controller,
+            ),
+          ),
+        ),
+      );
+
+      // Trailing checkmark should be exactly 1
+      expect(find.byIcon(Icons.check), findsOneWidget);
+
+      // Verify the checkmark is on the Personalized option, not on All
+      final personalizedFinder = find.widgetWithText(ListTile, 'Personalized');
+      expect(
+        find.descendant(of: personalizedFinder, matching: find.byIcon(Icons.check)),
+        findsOneWidget,
+      );
+      final allFinder = find.widgetWithText(ListTile, 'All');
+      expect(
+        find.descendant(of: allFinder, matching: find.byIcon(Icons.check)),
+        findsNothing,
+      );
+    });
+
+    test('fetchTopicNotificationSetting defaults to personalized when unauthenticated or unset', () async {
+      Get.testMode = true;
+      final controller = FollowingTopicsController();
+      final setting = await controller.fetchTopicNotificationSetting(sampleTopic.id);
+      expect(setting, equals('personalized'));
+      expect(controller.topicNotificationSettings[sampleTopic.id], equals('personalized'));
+    });
   });
 }

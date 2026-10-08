@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:truthworld/features/channel/data/models/channel_loyalty_badge.dart';
 
 class Reply {
   Reply({
@@ -18,6 +19,9 @@ class Reply {
     this.channelProfilePicUrl,
     this.isLikedByCurrentUser = false,
     this.isDislikedByCurrentUser = false,
+    this.isMember = false,
+    this.memberSince,
+    this.memberTierName,
   });
 
   factory Reply.fromDocumentSnapshot(DocumentSnapshot doc) {
@@ -37,6 +41,16 @@ class Reply {
       dislikeCount: data['dislikeCount'] ?? 0,
       reportCount: data['reportCount'] ?? 0,
       createdAt: data['createdAt'] ?? Timestamp.now(),
+      isMember: (data['isMember'] as bool?) ?? (data['memberSince'] != null),
+      memberSince: data['memberSince'] is Timestamp
+          ? data['memberSince'] as Timestamp
+          : (data['memberSince'] != null
+              ? Timestamp.fromDate(
+                  DateTime.tryParse(data['memberSince'].toString()) ??
+                      DateTime.now(),
+                )
+              : null),
+      memberTierName: data['memberTierName'] as String?,
       // likedBy/dislikedBy not read from Firestore — use subcollection
     );
   }
@@ -58,6 +72,17 @@ class Reply {
   // ⚡ SCALE FIX: likedBy/dislikedBy maps removed — use subcollection pattern
   final bool isLikedByCurrentUser;
   final bool isDislikedByCurrentUser;
+
+  // Channel Membership & Loyalty Badge (YouTube-style tenure progression)
+  final bool isMember;
+  final Timestamp? memberSince;
+  final String? memberTierName;
+
+  /// Resolves the YouTube-style tenure milestone for this reply author.
+  ChannelLoyaltyMilestone? get loyaltyMilestone {
+    if (!isMember) return null;
+    return ChannelLoyaltyBadge.milestoneFromJoinedAt(memberSince?.toDate());
+  }
 
   String get displayName {
     if (channelName != null && channelName!.isNotEmpty) {
@@ -87,6 +112,9 @@ class Reply {
       'dislikeCount': dislikeCount,
       'reportCount': reportCount,
       'createdAt': createdAt,
+      'isMember': isMember,
+      if (memberSince != null) 'memberSince': memberSince,
+      if (memberTierName != null) 'memberTierName': memberTierName,
       // likedBy/dislikedBy maps removed for scale
     };
   }
@@ -108,6 +136,9 @@ class Reply {
     Timestamp? createdAt,
     bool? isLikedByCurrentUser,
     bool? isDislikedByCurrentUser,
+    bool? isMember,
+    Timestamp? memberSince,
+    String? memberTierName,
   }) {
     return Reply(
       id: id ?? this.id,
@@ -127,6 +158,9 @@ class Reply {
       isLikedByCurrentUser: isLikedByCurrentUser ?? this.isLikedByCurrentUser,
       isDislikedByCurrentUser:
           isDislikedByCurrentUser ?? this.isDislikedByCurrentUser,
+      isMember: isMember ?? this.isMember,
+      memberSince: memberSince ?? this.memberSince,
+      memberTierName: memberTierName ?? this.memberTierName,
     );
   }
 }

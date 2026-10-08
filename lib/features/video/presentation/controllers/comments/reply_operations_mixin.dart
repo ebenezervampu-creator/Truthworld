@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/mentions_helper.dart';
@@ -48,6 +50,34 @@ mixin ReplyOperationsMixin on CommentsStateBase {
           : authService.activeDisplayName;
       final finalChannelProfilePicUrl = authService.activePhotoUrl;
 
+      // Channel Membership & Loyalty Badge lookup
+      var isMember = false;
+      Timestamp? memberSince;
+      String? memberTierName;
+      final targetChannelId = video?.channelId;
+      if (targetChannelId != null && targetChannelId.isNotEmpty) {
+        try {
+          final memDoc = await FirebaseFirestore.instance
+              .collection(FirestoreCollections.users)
+              .doc(currentUserId)
+              .collection('channel_memberships')
+              .doc(targetChannelId)
+              .get();
+          if (memDoc.exists && memDoc.data() != null) {
+            final data = memDoc.data()!;
+            final status =
+                (data['status'] ?? 'active').toString().toLowerCase();
+            if (status == 'active') {
+              isMember = true;
+              memberSince = data['joinedAt'] is Timestamp
+                  ? data['joinedAt'] as Timestamp
+                  : null;
+              memberTierName = data['tierName'] as String?;
+            }
+          }
+        } catch (_) {}
+      }
+
       final replyId = await commentService.addReply(
         videoId: video!.id,
         commentId: commentId,
@@ -58,6 +88,9 @@ mixin ReplyOperationsMixin on CommentsStateBase {
         channelName: finalChannelName,
         channelProfilePicUrl: finalChannelProfilePicUrl,
         text: text.trim(),
+        isMember: isMember,
+        memberSince: memberSince,
+        memberTierName: memberTierName,
       );
 
       if (commentAuthorId != null &&
@@ -158,16 +191,6 @@ mixin ReplyOperationsMixin on CommentsStateBase {
           userId: userId,
         );
       } else {
-        if (replyAuthorId != null &&
-            replyAuthorId.isNotEmpty &&
-            replyAuthorId != userId) {
-          triggerReplyLikeNotification(
-            commentId,
-            replyId,
-            replyAuthorId,
-            replyText,
-          );
-        }
         await commentService.likeReply(
           videoId: video!.id,
           commentId: commentId,

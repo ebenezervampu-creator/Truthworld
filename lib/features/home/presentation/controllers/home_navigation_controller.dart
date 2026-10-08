@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
@@ -37,6 +38,16 @@ class HomeNavigationController extends BaseController with GetTickerProviderStat
   final RxInt sideNavSelectedIndex = indexHome.obs;
   final RxInt bottomNavSelectedIndex = 0.obs;
   final RxBool showBottomNav = true.obs;
+  
+  /// Set of core tab indices (0: Home, 1: Subscriptions, 2: Discover, 3: Explore Topics, 4: Library)
+  /// that have been navigated to at least once. Enables lazy widget building and lazy controller initialization.
+  final RxSet<int> visitedTabIndices = <int>{0}.obs;
+
+  void markTabVisited(int tabIndex) {
+    if (!visitedTabIndices.contains(tabIndex)) {
+      visitedTabIndices.add(tabIndex);
+    }
+  }
   
   final selectedPlaylist = Rxn<dynamic>();
   final selectedChannelForDetail = Rxn<Channel>();
@@ -285,19 +296,16 @@ class HomeNavigationController extends BaseController with GetTickerProviderStat
     switch (index) {
       case 0:
         sideNavSelectedIndex.value = indexHome;
-        if (!isAtHome) Get.offAllNamed<dynamic>('/');
+        if (!isAtHome) RouteStackObserver.navigateToHome();
       case 1:
         sideNavSelectedIndex.value = indexExploreTopics;
-        if (!isAtHome) Get.offAllNamed<dynamic>('/');
+        if (!isAtHome) RouteStackObserver.navigateToHome();
       case 2:
         sideNavSelectedIndex.value = indexDiscover;
-        if (!isAtHome) Get.offAllNamed<dynamic>('/');
+        if (!isAtHome) RouteStackObserver.navigateToHome();
       case 3:
-        if (!_authService.isAuthenticated.value) {
-          _authService.signInWithGoogle();
-        }
         sideNavSelectedIndex.value = indexLibrary;
-        if (!isAtHome) Get.offAllNamed<dynamic>('/');
+        if (!isAtHome) RouteStackObserver.navigateToHome();
     }
   }
 

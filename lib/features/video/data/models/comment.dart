@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/domain/entities/comment_entity.dart';
+import 'package:truthworld/features/channel/data/models/channel_loyalty_badge.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
 
 class Comment {
@@ -27,14 +28,25 @@ class Comment {
     this.donationCurrency = r'$',
     this.isDonatedComment = false,
     this.donationColorHex,
+    this.isMember = false,
+    this.memberSince,
+    this.memberTierName,
   });
 
   factory Comment.fromDocumentSnapshot(DocumentSnapshot doc) {
     final data = doc.data()! as Map<String, dynamic>;
-    final extractedVideoId =
-        (data['videoId'] != null && (data['videoId'] as String).isNotEmpty)
-        ? data['videoId'] as String
-        : (doc.reference.parent.parent?.id ?? '');
+    final pathSegments = doc.reference.path.split('/');
+    // When the document is located at videos/{videoId}/comments/{commentId},
+    // the authentic parent video ID is always pathSegments[1].
+    final isVideoSubcollection =
+        pathSegments.length >= 4 && pathSegments[0] == 'videos';
+    final parentVideoId = isVideoSubcollection ? pathSegments[1] : '';
+
+    final extractedVideoId = parentVideoId.isNotEmpty
+        ? parentVideoId
+        : ((data['videoId'] != null && (data['videoId'] as String).isNotEmpty)
+            ? data['videoId'] as String
+            : (doc.reference.parent.parent?.id ?? ''));
 
     return Comment(
       id: doc.id,
@@ -64,6 +76,16 @@ class Comment {
           (data['donationAmount'] != null &&
               (data['donationAmount'] as num) > 0),
       donationColorHex: data['donationColorHex'],
+      isMember: (data['isMember'] as bool?) ?? (data['memberSince'] != null),
+      memberSince: data['memberSince'] is Timestamp
+          ? data['memberSince'] as Timestamp
+          : (data['memberSince'] != null
+              ? Timestamp.fromDate(
+                  DateTime.tryParse(data['memberSince'].toString()) ??
+                      DateTime.now(),
+                )
+              : null),
+      memberTierName: data['memberTierName'] as String?,
     );
   }
   final String id;
@@ -97,6 +119,17 @@ class Comment {
   final String donationCurrency;
   final bool isDonatedComment;
   final String? donationColorHex;
+
+  // Channel Membership & Loyalty Badge (YouTube-style tenure progression)
+  final bool isMember;
+  final Timestamp? memberSince;
+  final String? memberTierName;
+
+  /// Resolves the YouTube-style tenure milestone for this comment author.
+  ChannelLoyaltyMilestone? get loyaltyMilestone {
+    if (!isMember) return null;
+    return ChannelLoyaltyBadge.milestoneFromJoinedAt(memberSince?.toDate());
+  }
 
   String get displayName {
     if (channelName != null && channelName!.isNotEmpty) {
@@ -134,6 +167,9 @@ class Comment {
       'donationCurrency': donationCurrency,
       'isDonatedComment': isDonatedComment,
       'donationColorHex': donationColorHex,
+      'isMember': isMember,
+      if (memberSince != null) 'memberSince': memberSince,
+      if (memberTierName != null) 'memberTierName': memberTierName,
     };
   }
 
@@ -161,6 +197,9 @@ class Comment {
     String? donationCurrency,
     bool? isDonatedComment,
     String? donationColorHex,
+    bool? isMember,
+    Timestamp? memberSince,
+    String? memberTierName,
   }) {
     return Comment(
       id: id ?? this.id,
@@ -187,6 +226,9 @@ class Comment {
       donationCurrency: donationCurrency ?? this.donationCurrency,
       isDonatedComment: isDonatedComment ?? this.isDonatedComment,
       donationColorHex: donationColorHex ?? this.donationColorHex,
+      isMember: isMember ?? this.isMember,
+      memberSince: memberSince ?? this.memberSince,
+      memberTierName: memberTierName ?? this.memberTierName,
     );
   }
 

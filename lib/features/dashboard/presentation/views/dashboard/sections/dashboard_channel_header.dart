@@ -38,19 +38,19 @@ class DashboardHeader extends StatelessWidget {
                 Text(
                   'Channel Overview',
                   style: TextStyle(
-                    fontSize: isMobile ? 24 : 32,
+                    fontFamily: TWTypography.brandFamily,
+                    fontSize: isMobile ? 22 : 28,
                     fontWeight: FontWeight.bold,
-                    color: isDarkMode ? AppColors.textPrimary : Colors.black,
+                    color: AppColors.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
+                const SizedBox(height: 4),
+                const Text(
                   'Last 28 days',
                   style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
                     fontSize: 14,
-                    color: isDarkMode
-                        ? AppColors.textSecondary
-                        : Colors.black,
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ],
@@ -58,21 +58,20 @@ class DashboardHeader extends StatelessWidget {
             if (channel != null)
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
+                  horizontal: 14,
+                  vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-                  ),
+                  color: const Color(0xFF1E1E1E),
                   borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.bgDivider),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(
                       Icons.verified_rounded,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       size: 16,
                     ),
                     const SizedBox(width: 8),
@@ -82,9 +81,10 @@ class DashboardHeader extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
+                          fontFamily: TWTypography.uiFamily,
                           color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w500,
-                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
                         ),
                       ),
                     ),
@@ -124,29 +124,31 @@ class DashboardMobileSearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 48,
+      height: 44,
       decoration: BoxDecoration(
-        color: AppColors.bgSurfaceContainerHighest.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(AppTokens.radius.lg),
+        color: AppColors.bgInput,
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: AppColors.bgSurfaceContainerHighest,
+          color: AppColors.bgDivider,
         ),
       ),
       child: TextField(
         controller: searchController,
-        style: TextStyle(
-          color: isDarkMode ? AppColors.textPrimary : Colors.black,
+        style: const TextStyle(
+          fontFamily: TWTypography.uiFamily,
+          color: AppColors.textPrimary,
           fontSize: 14,
         ),
         onChanged: onSearchChanged,
         decoration: InputDecoration(
-          hintText: 'Search your content...',
-          hintStyle: TextStyle(
-            color: isDarkMode ? AppColors.textSecondary : Colors.black,
+          hintText: 'Search studio content...',
+          hintStyle: const TextStyle(
+            fontFamily: TWTypography.uiFamily,
+            color: AppColors.textTertiary,
           ),
-          prefixIcon: Icon(
+          prefixIcon: const Icon(
             Icons.search_rounded,
-            color: isDarkMode ? AppColors.textSecondary : Colors.black,
+            color: AppColors.textSecondary,
             size: 20,
           ),
           suffixIcon: ValueListenableBuilder<TextEditingValue>(
@@ -154,9 +156,9 @@ class DashboardMobileSearchField extends StatelessWidget {
             builder: (context, value, _) {
               if (value.text.isEmpty) return const SizedBox.shrink();
               return IconButton(
-                icon: Icon(
+                icon: const Icon(
                   Icons.clear_rounded,
-                  color: isDarkMode ? AppColors.textSecondary : Colors.black,
+                  color: AppColors.textSecondary,
                   size: 18,
                 ),
                 onPressed: () {
@@ -168,8 +170,8 @@ class DashboardMobileSearchField extends StatelessWidget {
           ),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 14,
+            horizontal: 14,
+            vertical: 12,
           ),
         ),
       ),
@@ -193,68 +195,66 @@ class DashboardChannelViolationsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: isDarkMode ? AppTheme.colors.surface : AppColors.textPrimary,
-        borderRadius: BorderRadius.circular(16),
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: AppColors.error.withValues(alpha: 0.5),
+          color: AppColors.error.withValues(alpha: 0.4),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.error.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.warning_amber_rounded,
-                color: Colors.white,
-                size: 24,
+                color: AppColors.error,
+                size: 22,
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 10),
               Text(
                 'Channel violations',
                 style: TextStyle(
-                  fontSize: 18,
+                  fontFamily: TWTypography.brandFamily,
+                  fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: isDarkMode ? AppColors.textPrimary : Colors.black,
+                  color: AppColors.textPrimary,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          Text(
+          const SizedBox(height: 12),
+          const Text(
             'Copyright claims',
             style: TextStyle(
-              fontSize: 16,
+              fontFamily: TWTypography.uiFamily,
+              fontSize: 15,
               fontWeight: FontWeight.w600,
-              color: isDarkMode ? AppColors.textPrimary : Colors.black,
+              color: AppColors.textPrimary,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             'Your channel has $copyrightClaimsCount active copyright claims. This may affect your visibility or monetization.',
-            style: TextStyle(
-              fontSize: 14,
-              color: isDarkMode ? AppColors.textSecondary : Colors.black,
+            style: const TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              fontSize: 13,
+              color: AppColors.textSecondary,
+              height: 1.3,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           InkWell(
             onTap: onViewDetails,
             child: const Text(
               'VIEW DETAILS',
               style: TextStyle(
-                fontSize: 14,
+                fontFamily: TWTypography.uiFamily,
+                fontSize: 13,
                 fontWeight: FontWeight.bold,
-                color: AppColors.brand,
+                color: AppColors.textLink,
                 letterSpacing: 0.5,
               ),
             ),

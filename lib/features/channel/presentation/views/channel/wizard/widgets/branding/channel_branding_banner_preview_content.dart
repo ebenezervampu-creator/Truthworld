@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/wizard/painters/channel_banner_painters.dart';
@@ -23,21 +24,40 @@ class ChannelBrandingBannerPreviewContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cleanBannerUrl = bannerUrl.trim().replaceAll(' ', '%20');
     final imageWidget = bannerData != null
         ? Image.memory(bannerData!.bytes, fit: BoxFit.cover)
         : CachedNetworkImage(
-            imageUrl: bannerUrl,
+            imageUrl: cleanBannerUrl,
             fit: BoxFit.cover,
-            errorWidget: (context, url, error) => const ColoredBox(
-              color: Color(0xFF212121),
-              child: Center(
-                child: Icon(
-                  Icons.broken_image_rounded,
-                  color: Colors.white,
-                  size: 28,
+            errorWidget: (context, url, error) {
+              if (kIsWeb && cleanBannerUrl.isNotEmpty) {
+                return Image.network(
+                  cleanBannerUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, err, stack) => const ColoredBox(
+                    color: Color(0xFF212121),
+                    child: Center(
+                      child: Icon(
+                        Icons.broken_image_rounded,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                    ),
+                  ),
+                );
+              }
+              return const ColoredBox(
+                color: Color(0xFF212121),
+                child: Center(
+                  child: Icon(
+                    Icons.broken_image_rounded,
+                    color: Colors.white,
+                    size: 28,
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           );
 
     if (mode == 1) {

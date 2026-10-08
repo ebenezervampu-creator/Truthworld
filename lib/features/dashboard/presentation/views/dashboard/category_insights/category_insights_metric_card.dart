@@ -25,9 +25,9 @@ class CategoryInsightsMetricCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFF161618),
+        color: const Color(0xFF1E1E1E),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: AppColors.bgDivider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -43,6 +43,7 @@ class CategoryInsightsMetricCard extends StatelessWidget {
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: AppColors.textSecondary,
+                    fontFamily: TWTypography.uiFamily,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -55,7 +56,11 @@ class CategoryInsightsMetricCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: accentBadgeBorder),
                 ),
-                child: Icon(icon, color: Colors.white, size: 16),
+                child: Icon(
+                  icon,
+                  color: AppColors.textPrimary,
+                  size: 16,
+                ),
               ),
             ],
           ),
@@ -70,8 +75,9 @@ class CategoryInsightsMetricCard extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   letterSpacing: -0.5,
+                  fontFamily: TWTypography.brandFamily,
                 ),
               ),
               const SizedBox(height: 3),
@@ -80,6 +86,7 @@ class CategoryInsightsMetricCard extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 11,
                   color: AppColors.textTertiary,
+                  fontFamily: TWTypography.uiFamily,
                 ),
               ),
             ],

@@ -198,6 +198,28 @@ void main() {
       expect(controller.isAutoplay.value, isTrue);
     });
 
+    testWidgets(
+        '5b. VideoScreenRecommendationHeader renders without overflow under tight width',
+        (tester) async {
+      final controller = VideoController();
+      Get.put(controller);
+
+      await tester.pumpWidget(
+        wrapWithMaterial(
+          SizedBox(
+            width: 214.0,
+            child: VideoScreenRecommendationHeader(controller: controller),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Recommended'), findsOneWidget);
+      expect(find.text('Autoplay'), findsOneWidget);
+      expect(find.byType(Switch), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('6. VideoPlayerErrorView renders error state with retry button',
         (tester) async {
       final controller = VideoController();

@@ -14,11 +14,13 @@ class ContentScreen extends StatelessWidget {
     required this.isDarkMode,
     super.key,
     this.searchQuery = '',
+    this.initialIndex = 0,
   });
 
   final String channelId;
   final bool isDarkMode;
   final String searchQuery;
+  final int initialIndex;
 
   VideoManagementController get controller {
     final ctrl = Get.isRegistered<VideoManagementController>()
@@ -32,15 +34,21 @@ class ContentScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 4,
+      initialIndex: initialIndex,
       child: Scaffold(
         backgroundColor: AppColors.bgPage,
         appBar: AppBar(
-          backgroundColor: AppColors.bgSurface,
+          backgroundColor: AppColors.bgPage,
           elevation: 0,
           toolbarHeight: 0, // Hide the app bar title portion, only keep TabBar
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(52),
-            child: Padding(
+            child: Container(
+              decoration: const BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(color: AppColors.bgDivider),
+                ),
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 12.0),
               child: Row(
                 children: [
@@ -54,6 +62,7 @@ class ContentScreen extends StatelessWidget {
                       indicatorSize: TabBarIndicatorSize.label,
                       labelStyle: AppTextStyles.titleMedium.copyWith(
                         fontWeight: FontWeight.bold,
+                        fontFamily: TWTypography.brandFamily,
                       ),
                       unselectedLabelStyle: AppTextStyles.titleMedium.copyWith(
                         fontWeight: FontWeight.normal,
@@ -84,7 +93,7 @@ class ContentScreen extends StatelessWidget {
                       icon: const Icon(
                         Icons.auto_delete_outlined,
                         size: 18,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                       label: Text(
                         'Trash',
@@ -94,7 +103,7 @@ class ContentScreen extends StatelessWidget {
                         ),
                       ),
                       style: TextButton.styleFrom(
-                        backgroundColor: AppColors.bgInput,
+                        backgroundColor: AppColors.bgSurfaceHover,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 12,
                           vertical: 8,

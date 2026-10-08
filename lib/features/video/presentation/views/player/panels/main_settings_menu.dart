@@ -72,6 +72,15 @@ class MainSettingsMenu extends StatelessWidget {
               onChanged: (_) => ctrl.toggleAudioOnly(),
             ),
           ),
+          Obx(() {
+            if (!ctrl.isAudioOnly.value) return const SizedBox.shrink();
+            return SettingsTile(
+              icon: Icons.palette_outlined,
+              title: 'Audio Theme',
+              value: TowerPlayerPreferences.globalAudioTheme.value.displayName,
+              onTap: () => ctrl.activePanel.value = 'audio_theme',
+            );
+          }),
 
           const PlayerDivider(),
 

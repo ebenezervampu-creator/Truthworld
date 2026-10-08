@@ -9,10 +9,8 @@ import 'package:truthworld/features/dashboard/presentation/views/dashboard/categ
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Category Insights & Market Demand Screen in Studio Dashboard.
-/// Built with exact fonts, theme, container borders, and dark visual architecture
-/// from the Channel Creation page (channel_screen_wizard.dart).
-/// Uses sleek dark blue styling for demand & opportunity highlights.
-/// Complies 100% with project Icon Color Guidelines (icons always use white / AppColors.textPrimary).
+/// Aligned 100% with Consumer App theme, styling, fonts, and dark visual architecture.
+/// Complies with UI Contrast Guard (Zero White-on-White Policy).
 class CategoryInsightsScreen extends GetView<CategoryInsightsController> {
   final String channelId;
   final bool isDarkMode;
@@ -26,7 +24,7 @@ class CategoryInsightsScreen extends GetView<CategoryInsightsController> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0F),
+      backgroundColor: AppColors.bgPage,
       body: Obx(() {
         if (controller.isLoading) {
           return const CategoryInsightsLoadingView();
@@ -41,8 +39,8 @@ class CategoryInsightsScreen extends GetView<CategoryInsightsController> {
 
         return RefreshIndicator(
           onRefresh: controller.fetchCategoryInsights,
-          color: Colors.white,
-          backgroundColor: const Color(0xFF161618),
+          color: AppColors.textPrimary,
+          backgroundColor: const Color(0xFF1E1E1E),
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(24),
@@ -62,8 +60,9 @@ class CategoryInsightsScreen extends GetView<CategoryInsightsController> {
                             style: TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                               letterSpacing: -0.5,
+                              fontFamily: TWTypography.brandFamily,
                             ),
                           ),
                           SizedBox(height: 4),
@@ -72,6 +71,7 @@ class CategoryInsightsScreen extends GetView<CategoryInsightsController> {
                             style: TextStyle(
                               fontSize: 13,
                               color: AppColors.textSecondary,
+                              fontFamily: TWTypography.uiFamily,
                             ),
                           ),
                         ],
@@ -82,13 +82,13 @@ class CategoryInsightsScreen extends GetView<CategoryInsightsController> {
                       tooltip: 'Refresh Analytics',
                       icon: const Icon(
                         Icons.refresh_rounded,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                         size: 20,
                       ),
                       onPressed: controller.fetchCategoryInsights,
                       style: IconButton.styleFrom(
-                        backgroundColor: const Color(0xFF161618),
-                        side: const BorderSide(color: Color(0xFF27272A)),
+                        backgroundColor: AppColors.bgSurfaceHover,
+                        side: const BorderSide(color: AppColors.bgDivider),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),

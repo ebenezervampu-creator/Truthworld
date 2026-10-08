@@ -82,17 +82,17 @@ class SubtitlesWorkspaceTopBar extends StatelessWidget {
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                          color: AppColors.warning.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(4),
                           border: Border.all(
-                            color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                            color: AppColors.warning.withValues(alpha: 0.3),
                           ),
                         ),
                         child: Text(
                           'Unsaved',
                           style: AppTextStyles.badge.copyWith(
                             fontSize: 10,
-                            color: const Color(0xFFF59E0B),
+                            color: AppColors.warning,
                           ),
                         ),
                       );
@@ -135,12 +135,12 @@ class SubtitlesWorkspaceTopBar extends StatelessWidget {
                       style: AppTextStyles.buttonText.copyWith(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF8B5CF6),
-                      foregroundColor: Colors.white,
+                      backgroundColor: AppColors.bgSurfaceHover,
+                      foregroundColor: AppColors.textPrimary,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 10,
                         vertical: 6,
@@ -400,25 +400,23 @@ class SubtitlesSaveButton extends StatelessWidget {
                 height: 14,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
                 ),
               )
-            : const Icon(Icons.save_rounded, size: 15, color: Colors.white),
+            : const Icon(Icons.save_rounded, size: 15, color: Colors.black),
         label: Text(
           saving ? 'Saving...' : 'Save Changes',
           style: AppTextStyles.buttonText.copyWith(
             fontSize: 12,
-            color: Colors.white,
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
           ),
         ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF10B981),
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: isDarkMode
-              ? const Color(0xFF2A2A2A)
-              : const Color(0xFFCBD5E1),
-          disabledForegroundColor:
-              isDarkMode ? Colors.white38 : Colors.black38,
+          backgroundColor: AppColors.brand,
+          foregroundColor: Colors.black,
+          disabledBackgroundColor: AppColors.bgSurfaceHover,
+          disabledForegroundColor: AppColors.textDisabled,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         ),
       );

@@ -6,6 +6,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/network/app_http_client.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/logger_service.dart';
 
 /// Service that dynamically resolves the user's localized currency with
 /// Real-Time Live Dollar Pricing.
@@ -175,7 +176,7 @@ class CurrencyLocalizationService extends GetxService {
       // 1. Primary: open.er-api.com (Open Exchange Rates public free tier)
       final primaryUrl = Uri.parse('https://open.er-api.com/v6/latest/USD');
       final primaryRes =
-          await AppHttpClient.get(primaryUrl, timeout: const Duration(seconds: 4));
+          await AppHttpClient.get(primaryUrl, timeout: const Duration(seconds: 7));
 
       if (primaryRes.statusCode == 200) {
         final json = jsonDecode(primaryRes.body) as Map<String, dynamic>;
@@ -186,10 +187,11 @@ class CurrencyLocalizationService extends GetxService {
           return inr;
         }
       }
-    } catch (e, stackTrace) {
-      ErrorHandler.log(e,
-          stackTrace: stackTrace,
-          tag: 'CurrencyLocalizationService.fetchRealtimeRate.primary');
+    } catch (e) {
+      logger.warning(
+        'Primary currency exchange API unavailable or timed out: $e. Falling back to secondary...',
+        tag: 'CurrencyLocalizationService',
+      );
     }
 
     try {
@@ -197,7 +199,7 @@ class CurrencyLocalizationService extends GetxService {
       final backupUrl =
           Uri.parse('https://api.frankfurter.app/latest?from=USD&to=INR');
       final backupRes =
-          await AppHttpClient.get(backupUrl, timeout: const Duration(seconds: 4));
+          await AppHttpClient.get(backupUrl, timeout: const Duration(seconds: 7));
 
       if (backupRes.statusCode == 200) {
         final json = jsonDecode(backupRes.body) as Map<String, dynamic>;
@@ -208,10 +210,11 @@ class CurrencyLocalizationService extends GetxService {
           return inr;
         }
       }
-    } catch (e, stackTrace) {
-      ErrorHandler.log(e,
-          stackTrace: stackTrace,
-          tag: 'CurrencyLocalizationService.fetchRealtimeRate.secondary');
+    } catch (e) {
+      logger.warning(
+        'Secondary currency exchange API unavailable or timed out: $e. Using active rate.',
+        tag: 'CurrencyLocalizationService',
+      );
     } finally {
       isFetchingRate.value = false;
     }

@@ -80,22 +80,41 @@ export async function sendPushNotificationForUser(
   const fcmTokensMap = userData?.fcmTokens as Record<string, any> | undefined;
   if (!fcmTokensMap) return;
 
-  // Extract tokens safely whether stored as object { token: "..." } or plain string
-  const deviceEntries: { deviceId: string; token: string }[] = [];
+  // Extract and deduplicate tokens safely (plain string or object format)
+  // Maps unique token string -> primary deviceId to prevent duplicate push deliveries
+  const tokenToDeviceMap = new Map<string, string>();
+  const duplicateDeviceIdsToRemove: string[] = [];
+
   for (const [deviceId, val] of Object.entries(fcmTokensMap)) {
     let tokenStr = "";
     if (typeof val === "string") {
-      tokenStr = val;
+      tokenStr = val.trim();
     } else if (val && typeof val === "object" && typeof val.token === "string") {
-      tokenStr = val.token;
+      tokenStr = val.token.trim();
     }
-    if (tokenStr.trim().length > 0) {
-      deviceEntries.push({ deviceId, token: tokenStr });
+    if (tokenStr.length > 0) {
+      if (tokenToDeviceMap.has(tokenStr)) {
+        // Redundant entry holding the identical token - mark for background cleanup
+        duplicateDeviceIdsToRemove.push(deviceId);
+      } else {
+        tokenToDeviceMap.set(tokenStr, deviceId);
+      }
     }
   }
 
-  if (deviceEntries.length === 0) return;
-  const tokens = deviceEntries.map(e => e.token);
+  // Asynchronously prune redundant duplicate token device keys from Firestore
+  if (duplicateDeviceIdsToRemove.length > 0) {
+    const pruneUpdates: Record<string, any> = {};
+    for (const dId of duplicateDeviceIdsToRemove) {
+      pruneUpdates[`fcmTokens.${dId}`] = admin.firestore.FieldValue.delete();
+    }
+    db.collection("users").doc(params.userId).update(pruneUpdates).catch(err => {
+      logger.warn("[FCM] Failed to prune redundant duplicate token keys:", { userId: params.userId, err: String(err) });
+    });
+  }
+
+  const tokens = Array.from(tokenToDeviceMap.keys());
+  if (tokens.length === 0) return;
 
   const dataPayload: Record<string, string> = {
     click_action: "FLUTTER_NOTIFICATION_CLICK",
@@ -114,15 +133,24 @@ export async function sendPushNotificationForUser(
     }
   }
 
+  const fallbackIconUrl = "https://www.truthworld.in/icons/Icon-512.png";
+  const notificationImageUrl = (params.metadata?.thumbnailUrl ||
+    params.metadata?.imageUrl ||
+    params.metadata?.userAvatar ||
+    params.metadata?.avatarUrl ||
+    fallbackIconUrl) as string;
+
   const payload = {
     tokens,
     notification: {
       title: params.title,
       body: params.message,
+      imageUrl: notificationImageUrl,
     },
     data: dataPayload,
     android: {
       priority: "high" as const,
+      collapseKey: String(notificationId),
       notification: {
         sound: "default",
         channelId: "truthworld_notifications",
@@ -130,12 +158,17 @@ export async function sendPushNotificationForUser(
         priority: "max" as const, // MAX system priority for heads-up alert
         notificationPriority: "PRIORITY_MAX" as const,
         visibility: "public" as const,
+        tag: String(notificationId), // OS-level collapse/deduplication tag
+        icon: "ic_notification",
+        color: "#14EAB2",
+        imageUrl: notificationImageUrl,
       },
     },
     apns: {
       headers: {
         "apns-priority": "10",
         "apns-push-type": "alert",
+        "apns-collapse-id": String(notificationId),
       },
       payload: {
         aps: {
@@ -143,6 +176,22 @@ export async function sendPushNotificationForUser(
           badge: 1,
           "mutable-content": 1, // iOS notification service extension trigger
         },
+      },
+      fcmOptions: {
+        imageUrl: notificationImageUrl,
+      },
+    },
+    webpush: {
+      headers: {
+        Urgency: "high",
+      },
+      notification: {
+        icon: "https://www.truthworld.in/icons/Icon-192.png",
+        badge: "https://www.truthworld.in/icons/Icon-192.png",
+        image: notificationImageUrl,
+      },
+      fcmOptions: {
+        link: params.actionUrl || "https://www.truthworld.in",
       },
     },
   };
@@ -160,7 +209,8 @@ export async function sendPushNotificationForUser(
           errCode === "messaging/invalid-registration-token" ||
           errCode === "messaging/registration-token-not-registered"
         ) {
-          const deviceId = deviceEntries[index]?.deviceId;
+          const failedToken = tokens[index];
+          const deviceId = failedToken ? tokenToDeviceMap.get(failedToken) : undefined;
           if (deviceId) {
             tokensToRemove[`fcmTokens.${deviceId}`] = admin.firestore.FieldValue.delete();
           }
@@ -336,7 +386,7 @@ export const followTopic = onCall(
     const cleanTopicId = topicId.trim();
     const cleanSetting = (notificationSetting && typeof notificationSetting === "string")
       ? notificationSetting.trim().toLowerCase()
-      : "all";
+      : "personalized";
 
     if (!["all", "personalized", "none"].includes(cleanSetting)) {
       throw new HttpsError(
@@ -491,7 +541,7 @@ export const getTopicNotificationSetting = onCall(
         };
       }
 
-      const setting = doc.data()?.notificationSetting || "all";
+      const setting = doc.data()?.notificationSetting || "personalized";
       return {
         success: true,
         topicId: cleanTopicId,

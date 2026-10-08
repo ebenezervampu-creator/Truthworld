@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Clean illustration state shown when no creator intelligence notifications match current filters.
 class IntelligenceEmptyState extends StatelessWidget {
@@ -15,9 +16,9 @@ class IntelligenceEmptyState extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFF161618),
+                color: AppColors.bgSurface,
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF27272A)),
+                border: Border.all(color: AppColors.bgDivider),
               ),
               child: const Icon(
                 Icons.insights_rounded,
@@ -29,9 +30,11 @@ class IntelligenceEmptyState extends StatelessWidget {
             const Text(
               'No Creator Insights Yet',
               style: TextStyle(
+                fontFamily: TWTypography.brandFamily,
+                fontFamilyFallback: TWTypography.fallbackFamilies,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 letterSpacing: -0.3,
               ),
             ),
@@ -40,8 +43,10 @@ class IntelligenceEmptyState extends StatelessWidget {
               'Milestones, video verification audit reports, and AI growth tips will appear here.',
               textAlign: TextAlign.center,
               style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                fontFamilyFallback: TWTypography.fallbackFamilies,
                 fontSize: 13,
-                color: Color(0xFFA1A1AA),
+                color: AppColors.textSecondary,
               ),
             ),
           ],

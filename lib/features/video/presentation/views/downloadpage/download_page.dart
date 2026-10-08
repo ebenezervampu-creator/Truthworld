@@ -62,14 +62,26 @@ class DownloadsPage extends GetView<DownloadsController> {
 
   @override
   Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (controller.videos.isEmpty && !controller.rxIsLoading.value) {
+        controller.loadVideos();
+      }
+    });
+
     return Scaffold(
       backgroundColor: AppColors.bgPage,
-      body: _buildMainContent(context),
+      body: RefreshIndicator(
+        onRefresh: controller.loadVideos,
+        color: AppColors.brand,
+        backgroundColor: AppColors.bgSurface,
+        child: _buildMainContent(context),
+      ),
     );
   }
 
   Widget _buildMainContent(BuildContext context) {
     return CustomScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
@@ -205,28 +217,112 @@ class DownloadsPage extends GetView<DownloadsController> {
             );
           }
 
-          if (controller.errorMessage.isNotEmpty) {
+          final errorMsg = controller.errorMessage.isNotEmpty
+              ? controller.errorMessage
+              : controller.rxErrorMessage.value;
+
+          if (errorMsg.isNotEmpty &&
+              controller.videos.isEmpty &&
+              controller.activeDownloads.isEmpty) {
             return SliverFillRemaining(
               hasScrollBody: false,
               child: Center(
                 child: Padding(
                   padding: const EdgeInsets.all(32),
-                  child: Text(
-                    'Error: ${controller.errorMessage}',
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    textAlign: TextAlign.center,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: const BoxDecoration(
+                          color: AppColors.bgSurfaceHover,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.cloud_off_rounded,
+                          size: 40,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        errorMsg,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 15,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: controller.loadVideos,
+                        icon: const Icon(
+                          Icons.refresh_rounded,
+                          color: Colors.black,
+                          size: 18,
+                        ),
+                        label: const Text('Try Again'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.brand,
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
             );
           }
 
+          final activeTasks = controller.activeDownloads.values.toList();
           final videos = controller.filteredVideos;
           final groupedVideos = controller.groupVideosByDate(videos);
 
           return SliverList(
             delegate: SliverChildListDelegate([
-              if (videos.isEmpty)
+              // 1. In-flight active downloads
+              if (activeTasks.isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Row(
+                    children: [
+                      const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.brand,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Downloading (${activeTasks.length})',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                for (final task in activeTasks)
+                  _ActiveDownloadCard(
+                    task: task,
+                    controller: controller,
+                  ),
+                const SizedBox(height: 12),
+              ],
+
+              // 2. Empty state (only if both completed and active downloads are empty)
+              if (videos.isEmpty && activeTasks.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     vertical: 24,
@@ -309,14 +405,17 @@ class DownloadsPage extends GetView<DownloadsController> {
           : mainController.videos;
 
       final downloadedIds = controller.videos.map((v) => v.id).toSet();
+      final downloadingIds = controller.activeDownloads.keys.toSet();
+      final excludedIds = {...downloadedIds, ...downloadingIds};
+
       final recommended = allVideos
-          .where((v) => !downloadedIds.contains(v.id))
+          .where((v) => !excludedIds.contains(v.id))
           .take(10)
           .toList();
 
       final displayList = recommended.isNotEmpty
           ? recommended
-          : allVideos.take(10).toList();
+          : allVideos.where((v) => !downloadedIds.contains(v.id)).take(10).toList();
 
       if (displayList.isEmpty) {
         return const SizedBox.shrink();
@@ -367,6 +466,7 @@ class DownloadsPage extends GetView<DownloadsController> {
               return _RecommendedDownloadCard(
                 video: video,
                 isDownloaded: downloadedIds.contains(video.id),
+                isDownloading: downloadingIds.contains(video.id),
                 onDownload: () => _downloadRecommendedVideo(video, context),
               );
             },
@@ -477,6 +577,7 @@ class _DownloadVideoListCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
                           video.isAudioOnly
@@ -538,6 +639,8 @@ class _DownloadVideoListCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     '${video.channelName} • ${video.views} views',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 13,
                       color: AppColors.textSecondary,
@@ -551,11 +654,15 @@ class _DownloadVideoListCard extends StatelessWidget {
                         size: 13,
                       ),
                       const SizedBox(width: 4),
-                      Text(
-                        'AES-256 Encrypted • ${controller.formatTimeAgo(video.downloadedAt)}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
+                      Expanded(
+                        child: Text(
+                          'AES-256 Encrypted • ${controller.formatTimeAgo(video.downloadedAt)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
                       ),
                     ],
@@ -689,23 +796,26 @@ class _RecommendedDownloadCard extends StatelessWidget {
     required this.video,
     required this.isDownloaded,
     required this.onDownload,
+    this.isDownloading = false,
   });
   final Video video;
   final bool isDownloaded;
+  final bool isDownloading;
   final VoidCallback onDownload;
 
-  final RxBool isDownloading = false.obs;
+  final RxBool isInitiating = false.obs;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () {
+      onTap: () async {
         if (isDownloaded) {
           final downloadsCtrl = Get.isRegistered<DownloadsController>()
               ? Get.find<DownloadsController>()
               : Get.put(DownloadsController());
-          final offline = downloadsCtrl.videos
+          var offline = downloadsCtrl.videos
               .firstWhereOrNull((v) => v.id == video.id);
+          offline ??= await downloadsCtrl.getOfflineVideo(video.id);
           if (offline != null) {
             downloadsCtrl.playVideo(offline);
             return;
@@ -788,16 +898,19 @@ class _RecommendedDownloadCard extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             Obx(() {
-              final downloading = isDownloading.value;
+              final active = isDownloading || isInitiating.value;
               return IconButton(
-                onPressed: (isDownloaded || downloading)
+                onPressed: (isDownloaded || active)
                     ? null
                     : () async {
-                        isDownloading.value = true;
-                        onDownload();
-                        isDownloading.value = false;
+                        isInitiating.value = true;
+                        try {
+                          onDownload();
+                        } finally {
+                          isInitiating.value = false;
+                        }
                       },
-                icon: downloading
+                icon: active
                     ? const SizedBox(
                         width: 20,
                         height: 20,
@@ -815,6 +928,156 @@ class _RecommendedDownloadCard extends StatelessWidget {
                       ),
               );
             }),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ActiveDownloadCard extends StatelessWidget {
+  const _ActiveDownloadCard({
+    required this.task,
+    required this.controller,
+  });
+
+  final ActiveDownloadTask task;
+  final DownloadsController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.bgSurface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppColors.bgDivider.withValues(alpha: 0.3),
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Thumbnail with live progress spinner overlay
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  CachedNetworkImage(
+                    imageUrl: task.video.thumbnailUrl,
+                    width: 120,
+                    height: 70,
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) =>
+                        Container(color: AppColors.bgSurfaceHover),
+                    errorWidget: (context, url, error) =>
+                        Container(color: AppColors.bgSurfaceHover),
+                  ),
+                  Container(
+                    width: 120,
+                    height: 70,
+                    color: Colors.black.withValues(alpha: 0.45),
+                  ),
+                  Obx(() {
+                    final p = task.progress.value;
+                    return SizedBox(
+                      width: 28,
+                      height: 28,
+                      child: CircularProgressIndicator(
+                        value: p > 0 ? p : null,
+                        strokeWidth: 3,
+                        color: AppColors.brand,
+                        backgroundColor: Colors.white24,
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Info & Progress
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    task.video.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${task.video.channelName} • ${task.quality}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  // Progress Bar
+                  Obx(() {
+                    final p = task.progress.value;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: p > 0 ? p : null,
+                            minHeight: 4,
+                            color: AppColors.brand,
+                            backgroundColor: AppColors.bgSurfaceHover,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              task.status.value,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            if (p > 0)
+                              Text(
+                                '${(p * 100).toInt()}%',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    );
+                  }),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Cancel Button
+            IconButton(
+              icon: const Icon(
+                Icons.close_rounded,
+                color: AppColors.textSecondary,
+                size: 20,
+              ),
+              tooltip: 'Cancel download',
+              onPressed: () => controller.cancelDownload(task.video.id),
+            ),
           ],
         ),
       ),

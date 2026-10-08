@@ -1,7 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
@@ -39,7 +38,7 @@ class DashboardCommentCard extends StatelessWidget {
       );
 
       return Container(
-        color: const Color(0xFF0F0F0F),
+        color: AppColors.bgPage,
         padding: EdgeInsets.symmetric(
           horizontal: isMobile ? 16 : 20,
           vertical: 14,
@@ -65,7 +64,7 @@ class DashboardCommentCard extends StatelessWidget {
                     color: const Color(0xFF1E1E1E),
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(
-                      color: const Color(0xFF2C2C2C),
+                      color: AppColors.bgDivider,
                     ),
                   ),
                   child: Row(
@@ -81,13 +80,13 @@ class DashboardCommentCard extends StatelessWidget {
                                 errorWidget: (context, url, err) => const Icon(
                                   Icons.play_circle_outline,
                                   size: 14,
-                                  color: Colors.white,
+                                  color: AppColors.textPrimary,
                                 ),
                               )
                             : const Icon(
                                 Icons.ondemand_video_rounded,
                                 size: 16,
-                                color: Colors.white,
+                                color: AppColors.textPrimary,
                               ),
                       ),
                       const SizedBox(width: 8),
@@ -96,10 +95,12 @@ class DashboardCommentCard extends StatelessWidget {
                           video?.title ?? 'Video: ${comment.videoId}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.roboto(
+                          style: const TextStyle(
+                            fontFamily: TWTypography.uiFamily,
+                            fontFamilyFallback: TWTypography.fallbackFamilies,
                             fontSize: 12.5,
                             fontWeight: FontWeight.w600,
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                           ),
                         ),
                       ),
@@ -107,9 +108,11 @@ class DashboardCommentCard extends StatelessWidget {
                         const SizedBox(width: 8),
                         Text(
                           video.formattedCommentCount,
-                          style: GoogleFonts.roboto(
+                          style: const TextStyle(
+                            fontFamily: TWTypography.uiFamily,
+                            fontFamilyFallback: TWTypography.fallbackFamilies,
                             fontSize: 11.5,
-                            color: const Color(0xFFAAAAAA),
+                            color: AppColors.textSecondary,
                           ),
                         ),
                       ],
@@ -127,8 +130,8 @@ class DashboardCommentCard extends StatelessWidget {
                   radius: isMobile ? 18 : 20,
                   photoUrl: comment.avatarUrl,
                   displayName: comment.displayName,
-                  backgroundColor: const Color(0xFF252525),
-                  textColor: Colors.white,
+                  backgroundColor: AppColors.bgSurface,
+                  textColor: AppColors.textPrimary,
                   fontSize: 14,
                 ),
                 const SizedBox(width: 12),
@@ -143,10 +146,12 @@ class DashboardCommentCard extends StatelessWidget {
                         children: [
                           Text(
                             comment.displayName,
-                            style: GoogleFonts.roboto(
+                            style: const TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              fontFamilyFallback: TWTypography.fallbackFamilies,
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                             ),
                           ),
                           if (comment.channelId ==
@@ -158,18 +163,20 @@ class DashboardCommentCard extends StatelessWidget {
                                 vertical: 1.5,
                               ),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF333333),
+                                color: AppColors.bgSurface,
                                 borderRadius: BorderRadius.circular(4),
                                 border: Border.all(
-                                  color: const Color(0xFF444444),
+                                  color: AppColors.bgDivider,
                                 ),
                               ),
-                              child: Text(
+                              child: const Text(
                                 'CHANNEL',
-                                style: GoogleFonts.roboto(
+                                style: TextStyle(
+                                  fontFamily: TWTypography.uiFamily,
+                                  fontFamilyFallback: TWTypography.fallbackFamilies,
                                   fontSize: 8.5,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.white,
+                                  color: AppColors.textPrimary,
                                 ),
                               ),
                             ),
@@ -177,9 +184,11 @@ class DashboardCommentCard extends StatelessWidget {
                           const SizedBox(width: 8),
                           Text(
                             timeago.format(comment.createdAt.toDate()),
-                            style: GoogleFonts.roboto(
+                            style: const TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              fontFamilyFallback: TWTypography.fallbackFamilies,
                               fontSize: 11,
-                              color: const Color(0xFFAAAAAA),
+                              color: AppColors.textSecondary,
                             ),
                           ),
                         ],
@@ -189,10 +198,12 @@ class DashboardCommentCard extends StatelessWidget {
                       // Comment Content Text
                       Text(
                         comment.text,
-                        style: GoogleFonts.roboto(
+                        style: const TextStyle(
+                          fontFamily: TWTypography.uiFamily,
+                          fontFamilyFallback: TWTypography.fallbackFamilies,
                           fontSize: 13.5,
                           height: 1.4,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -213,7 +224,7 @@ class DashboardCommentCard extends StatelessWidget {
                                   ? Icons.thumb_up_rounded
                                   : Icons.thumb_up_alt_outlined,
                               size: 16,
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                             ),
                             onPressed: () => controller.likeCommentAsChannel(
                               videoId: comment.videoId,
@@ -224,9 +235,11 @@ class DashboardCommentCard extends StatelessWidget {
                           if (comment.likeCount > 0) ...[
                             Text(
                               '${comment.likeCount}',
-                              style: GoogleFonts.roboto(
+                              style: const TextStyle(
+                                fontFamily: TWTypography.uiFamily,
+                                fontFamilyFallback: TWTypography.fallbackFamilies,
                                 fontSize: 11,
-                                color: const Color(0xFFAAAAAA),
+                                color: AppColors.textSecondary,
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -245,7 +258,7 @@ class DashboardCommentCard extends StatelessWidget {
                                   ? Icons.thumb_down_rounded
                                   : Icons.thumb_down_alt_outlined,
                               size: 16,
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                             ),
                             onPressed: () => controller.dislikeCommentAsChannel(
                               videoId: comment.videoId,
@@ -278,8 +291,8 @@ class DashboardCommentCard extends StatelessWidget {
                                         controller.userChannelName.value.isNotEmpty
                                             ? controller.userChannelName.value
                                             : 'C',
-                                    backgroundColor: const Color(0xFF252525),
-                                    textColor: Colors.white,
+                                    backgroundColor: AppColors.bgSurface,
+                                    textColor: AppColors.textPrimary,
                                     fontSize: 8,
                                   ),
                                   Positioned(
@@ -288,7 +301,7 @@ class DashboardCommentCard extends StatelessWidget {
                                     child: Container(
                                       decoration: const BoxDecoration(
                                         shape: BoxShape.circle,
-                                        color: Color(0xFF0F0F0F),
+                                        color: AppColors.bgPage,
                                       ),
                                       child: Icon(
                                         isHearted
@@ -296,8 +309,8 @@ class DashboardCommentCard extends StatelessWidget {
                                             : Icons.favorite_border,
                                         size: 10,
                                         color: isHearted
-                                            ? Colors.red
-                                            : Colors.white,
+                                            ? AppColors.error
+                                            : AppColors.textPrimary,
                                       ),
                                     ),
                                   ),
@@ -320,25 +333,27 @@ class DashboardCommentCard extends StatelessWidget {
                                 ),
                                 decoration: BoxDecoration(
                                   color: showReplyBox
-                                      ? const Color(0xFF272727)
+                                      ? AppColors.bgSurfaceHover
                                       : Colors.transparent,
                                   borderRadius: BorderRadius.circular(16),
                                 ),
-                                child: Row(
+                                child: const Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Icon(
+                                    Icon(
                                       Icons.reply_rounded,
                                       size: 15,
-                                      color: Colors.white,
+                                      color: AppColors.textPrimary,
                                     ),
-                                    const SizedBox(width: 4),
+                                    SizedBox(width: 4),
                                     Text(
                                       'REPLY',
-                                      style: GoogleFonts.roboto(
+                                      style: TextStyle(
+                                        fontFamily: TWTypography.uiFamily,
+                                        fontFamilyFallback: TWTypography.fallbackFamilies,
                                         fontSize: 12,
                                         fontWeight: FontWeight.bold,
-                                        color: Colors.white,
+                                        color: AppColors.textPrimary,
                                       ),
                                     ),
                                   ],
@@ -354,18 +369,20 @@ class DashboardCommentCard extends StatelessWidget {
                             icon: const Icon(
                               Icons.more_vert_rounded,
                               size: 18,
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                             ),
                             padding: EdgeInsets.zero,
                             color: const Color(0xFF1E1E1E),
                             onSelected: AppSnackbar.info,
-                            itemBuilder: (context) => [
+                            itemBuilder: (context) => const [
                               PopupMenuItem(
                                 value: 'Pin comment',
                                 child: Text(
                                   'Pin comment',
-                                  style: GoogleFonts.roboto(
-                                    color: Colors.white,
+                                  style: TextStyle(
+                                    fontFamily: TWTypography.uiFamily,
+                                    fontFamilyFallback: TWTypography.fallbackFamilies,
+                                    color: AppColors.textPrimary,
                                   ),
                                 ),
                               ),
@@ -373,7 +390,9 @@ class DashboardCommentCard extends StatelessWidget {
                                 value: 'Remove',
                                 child: Text(
                                   'Remove',
-                                  style: GoogleFonts.roboto(
+                                  style: TextStyle(
+                                    fontFamily: TWTypography.uiFamily,
+                                    fontFamilyFallback: TWTypography.fallbackFamilies,
                                     color: AppColors.error,
                                   ),
                                 ),
@@ -382,8 +401,10 @@ class DashboardCommentCard extends StatelessWidget {
                                 value: 'Report',
                                 child: Text(
                                   'Report spam or abuse',
-                                  style: GoogleFonts.roboto(
-                                    color: Colors.white,
+                                  style: TextStyle(
+                                    fontFamily: TWTypography.uiFamily,
+                                    fontFamilyFallback: TWTypography.fallbackFamilies,
+                                    color: AppColors.textPrimary,
                                   ),
                                 ),
                               ),

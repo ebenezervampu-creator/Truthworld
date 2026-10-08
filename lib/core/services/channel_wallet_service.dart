@@ -146,14 +146,6 @@ class ChannelWalletService {
     double withdrawableRevenue = 0.0,
     double lockedRevenue = 0.0,
   }) {
-    var trialCredit = channel.infraConfig?.trialCreditRemainingUSD ?? 0.0;
-    // Strict Anti-Marketing Policy: Never show $9 or charm marketing figures.
-    // Normalize any legacy 9.0 trial credit to the honest, clean $10.00 standard.
-    if ((trialCredit - 9.0).abs() < 0.01) {
-      trialCredit = 10.0;
-      _healLegacyTrialCredit(channel.id);
-    }
-
     final rollover = channel.infraConfig?.rolloverCreditUSD ?? 0.0;
     final funded = channel.walletBalanceUSD;
     final withdrawable = withdrawableRevenue > 0
@@ -165,27 +157,10 @@ class ChannelWalletService {
 
     return SpendableBalance(
       fundedBalance: funded,
-      trialCreditRemaining: trialCredit,
       rolloverCredit: rollover,
       withdrawableRevenue: withdrawable,
       lockedRevenue: locked,
     );
-  }
-
-  void _healLegacyTrialCredit(String channelId) {
-    if (channelId.isEmpty) return;
-    try {
-      _firestore.collection(FirestoreCollections.channels).doc(channelId).set({
-        'infraConfig': {
-          'trialCreditUSD': 10.0,
-          'trialCreditRemainingUSD': 10.0,
-        }
-      }, SetOptions(merge: true)).catchError((dynamic e, StackTrace? s) {
-        ErrorHandler.log(e,
-            stackTrace: s,
-            tag: 'ChannelWalletService._healLegacyTrialCredit');
-      });
-    } catch (_) {}
   }
 
   /// Core atomic balance deduction execution
@@ -198,6 +173,15 @@ class ChannelWalletService {
     Map<String, dynamic>? metadata,
     SpendableBalance? customBalance,
   }) async {
+    if (amount <= 0) {
+      ErrorHandler.log(
+        ArgumentError('spendBalance: amount must be positive, got $amount'),
+        stackTrace: StackTrace.current,
+        tag: 'ChannelWalletService.spendBalance',
+      );
+      return null;
+    }
+
     final balance = customBalance ?? getSpendableBalance(channel: channel);
 
     if (!balance.canAfford(amount)) {
@@ -208,17 +192,10 @@ class ChannelWalletService {
     final balanceBefore = balance.totalSpendableBalance;
 
     // Determine breakdown of deduction:
-    // 1. Trial/bonus credits first
-    // 2. Rollover credits second (Zero-Waste Policy: unspent plan money utilized first)
-    // 3. Funded wallet balance third
-    // 4. Unwithdrawn revenue fourth
+    // 1. Rollover credits first (Zero-Waste Policy: unspent plan money utilized first)
+    // 2. Funded wallet balance second
+    // 3. Unwithdrawn revenue third
     var remaining = amount;
-
-    var trialDeduction = 0.0;
-    if (balance.trialCreditRemaining > 0) {
-      trialDeduction = math.min(balance.trialCreditRemaining, remaining);
-      remaining -= trialDeduction;
-    }
 
     var rolloverDeduction = 0.0;
     if (remaining > 0 && balance.rolloverCredit > 0) {
@@ -234,7 +211,6 @@ class ChannelWalletService {
 
     final revenueDeduction = remaining;
 
-    final newTrialRemaining = (balance.trialCreditRemaining - trialDeduction).clamp(0.0, 1000000.0);
     final newRolloverRemaining = (balance.rolloverCredit - rolloverDeduction).clamp(0.0, 1000000.0);
     final newFundedBalance = (balance.fundedBalance - fundedDeduction).clamp(0.0, 1000000.0);
     final balanceAfter = balanceBefore - amount;
@@ -245,7 +221,7 @@ class ChannelWalletService {
       channelId: channel.id,
       userId: userId,
       amount: amount,
-      trialCreditDeducted: trialDeduction,
+      trialCreditDeducted: 0.0,
       rolloverDeducted: rolloverDeduction,
       fundedDeducted: fundedDeduction,
       revenueDeducted: revenueDeduction,
@@ -261,7 +237,7 @@ class ChannelWalletService {
       // 1. Record transaction in Firestore
       await txDocRef.set(transaction.toMap());
 
-      // 2. Update Channel's infraConfig trial credit, rollover credit, and remaining counters
+      // 2. Update Channel's infraConfig rollover credit and remaining counters
       final existingInfra = channel.infraConfig ?? CustomChannelInfraConfig(
         subscriptionId: 'sub_${channel.id}',
       );
@@ -275,8 +251,6 @@ class ChannelWalletService {
         bandwidthQuotaBytesThisMonth: existingInfra.bandwidthQuotaBytesThisMonth,
         currentMonthInfraCost: existingInfra.currentMonthInfraCost,
         flatPlatformFee: existingInfra.flatPlatformFee,
-        trialCreditUSD: existingInfra.trialCreditUSD,
-        trialCreditRemainingUSD: newTrialRemaining,
         rolloverCreditUSD: newRolloverRemaining,
         planTier: existingInfra.planTier,
         lossPreventionMode: existingInfra.lossPreventionMode,
@@ -310,7 +284,7 @@ class ChannelWalletService {
         stackTrace: stackTrace,
         tag: 'ChannelWalletService.spendBalance',
       );
-      return transaction; // Return transaction object even if offline/sandbox
+      return null; // Return null on failure so caller does not proceed as if spend succeeded
     }
   }
 
@@ -345,8 +319,6 @@ class ChannelWalletService {
       storageQuotaBytes: infra.storageQuotaBytes,
       bandwidthQuotaBytesThisMonth: infra.bandwidthQuotaBytesThisMonth,
       flatPlatformFee: infra.flatPlatformFee,
-      trialCreditUSD: infra.trialCreditUSD,
-      trialCreditRemainingUSD: infra.trialCreditRemainingUSD,
       rolloverCreditUSD: newRolloverTotal,
       planTier: infra.planTier,
       autoPay: infra.autoPay,
@@ -538,7 +510,7 @@ class ChannelWalletService {
         stackTrace: stackTrace,
         tag: 'ChannelWalletService.spendForStorageTopup',
       );
-      return true;
+      return false;
     }
   }
 
@@ -577,7 +549,7 @@ class ChannelWalletService {
         stackTrace: stackTrace,
         tag: 'ChannelWalletService.spendForBandwidthTopup',
       );
-      return true;
+      return false;
     }
   }
 
@@ -775,7 +747,6 @@ class ChannelWalletService {
       final doc = await _firestore.collection(FirestoreCollections.channels).doc(channelId).get();
       if (!doc.exists || doc.data() == null) {
         return const SpendableBalance(
-          trialCreditRemaining: 0,
           withdrawableRevenue: 0,
           lockedRevenue: 0,
         );
@@ -789,7 +760,6 @@ class ChannelWalletService {
         tag: 'ChannelWalletService.getSpendableBalanceForChannelId',
       );
       return const SpendableBalance(
-        trialCreditRemaining: 0,
         withdrawableRevenue: 0,
         lockedRevenue: 0,
       );
@@ -824,13 +794,8 @@ class ChannelWalletService {
       );
 
       if (paymentResult.success) {
-        await topupChannelWalletDirect(
-          channelId: channel.id,
-          userId: userId,
-          amountUSD: amountUSD,
-          orderId: paymentResult.orderId,
-          description: 'Wallet Deposit (+\$${amountUSD.toStringAsFixed(2)}) via Cashfree',
-        );
+        // NOTE: Server-side fulfillOrder webhook handles the wallet balance increment.
+        // We do NOT call topupChannelWalletDirect here to avoid duplicate credit.
         return true;
       }
       return false;

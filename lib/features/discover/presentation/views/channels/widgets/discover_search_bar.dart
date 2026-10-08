@@ -5,9 +5,8 @@ import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/features/discover/presentation/controllers/discover_channels_controller.dart';
 import 'package:truthworld/features/discover/presentation/views/channels/widgets/discover_channels_constants.dart';
 import 'package:truthworld/features/search/presentation/widgets/voice_search_dialog.dart';
-import 'package:truthworld/theme/app_theme.dart';
 
-/// Interactive AI & text search bar for channel discovery.
+/// Interactive AI & text search bar for channel discovery matching Image 1.
 class DiscoverSearchBar extends StatelessWidget {
   const DiscoverSearchBar({
     required this.controller,
@@ -22,10 +21,10 @@ class DiscoverSearchBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: buttonBg,
+        color: const Color(0xFF161619),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: AppColors.textPrimary.withValues(alpha: 0.12),
+          color: kDiscoverCardBorder,
         ),
       ),
       child: TextField(
@@ -38,12 +37,11 @@ class DiscoverSearchBar extends StatelessWidget {
           fontWeight: FontWeight.w400,
         ),
         decoration: InputDecoration(
-          hintText: isMobile
-              ? 'Ask AI (e.g. "Top verified science", "AI robotics", "Investigative news")...'
-              : 'Ask AI or search channels (e.g. "Top verified science educators", "Emerging AI & robotics creators")...',
-          hintStyle: const TextStyle(
-            color: secondaryText,
-            fontSize: 14,
+          hintText:
+              'Ask AI or search channels (e.g. "Top verified science educators", "Emerging AI & robotics creators")...',
+          hintStyle: TextStyle(
+            color: Colors.white.withValues(alpha: 0.38),
+            fontSize: 13.5,
             fontWeight: FontWeight.w400,
           ),
           prefixIcon: const Icon(

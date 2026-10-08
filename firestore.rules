@@ -13,26 +13,10 @@ service cloud.firestore {
     }
 
     // Helper function to check if user has administrative privileges.
-    // Prioritizes Firebase Auth custom claims, Firestore document roles in users,
-    // active team members in admin_members, and designated email bootstrap fallbacks.
+    // Relies strictly on Firebase Auth custom claims or verified admin_members UID record.
     function isAdmin() {
       return isAuthenticated() && (
         request.auth.token.admin == true || 
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin' ||
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'moderator' ||
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true)) ||
-        (request.auth.token.email != null && request.auth.token.email_verified == true && (
-          request.auth.token.email.lower() == 'ebenezervampy@towervsp.com' ||
-          request.auth.token.email.lower() == 'ebenezervampu@towervsp.com' ||
-          request.auth.token.email.lower() == 'ebenezervampu4@gmail.com' ||
-          request.auth.token.email.lower() == 'admin@truthworld.com' ||
-          request.auth.token.email.lower() == 'support@truthworld.com'
-        )) ||
-        (request.auth.token.email != null && request.auth.token.email_verified == true &&
-         exists(/databases/$(database)/documents/admin_members/$(request.auth.token.email.lower())) &&
-         get(/databases/$(database)/documents/admin_members/$(request.auth.token.email.lower())).data.status != 'suspended') ||
         (exists(/databases/$(database)/documents/admin_members/$(request.auth.uid)) &&
          get(/databases/$(database)/documents/admin_members/$(request.auth.uid)).data.status != 'suspended')
       );
@@ -106,6 +90,8 @@ service cloud.firestore {
       
       // Allow authenticated users to create their own channel without self-verifying or granting self-monetization
       allow create: if isAuthenticated() && 
+                       (!('ownerId' in request.resource.data) || request.resource.data.ownerId == request.auth.uid) &&
+                       (!('userId' in request.resource.data) || request.resource.data.userId == request.auth.uid) &&
                        (request.resource.data.ownerId == request.auth.uid ||
                         request.resource.data.userId == request.auth.uid ||
                         isAdmin()) &&
@@ -192,16 +178,29 @@ service cloud.firestore {
                           get(/databases/$(database)/documents/channels/$(channelId)).data.ownerId == request.auth.uid;
       }
 
-      // Distributed Counter Shards (20 shards for channel views)
+      // Distributed Counter Shards (20 shards for channel views & watch time)
       match /shards/{shardId} {
         allow read: if true;
-        allow create: if request.resource.data.keys().hasOnly(['views', 'updatedAt']);
-        allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'updatedAt']);
+        allow create: if isAuthenticated() && request.resource.data.keys().hasOnly(['views', 'watchTimeSeconds', 'updatedAt']);
+        allow update: if isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'watchTimeSeconds', 'updatedAt']);
       }
 
       // Videos subcollection (alternate path)
       match /videos/{videoId} {
-        allow read: if true;
+        allow list: if true;
+        allow get: if (!('visibility' in resource.data) ||
+                       (resource.data.visibility != 'Private' &&
+                        resource.data.visibility != 'private' &&
+                        resource.data.visibility != 'private_draft' &&
+                        resource.data.visibility != 'draft')) ||
+                      (isAuthenticated() && (
+                        resource.data.ownerId == request.auth.uid ||
+                        resource.data.userId == request.auth.uid ||
+                        request.auth.uid == channelId ||
+                        (exists(/databases/$(database)/documents/channels/$(channelId)) &&
+                         get(/databases/$(database)/documents/channels/$(channelId)).data.ownerId == request.auth.uid) ||
+                        isAdmin()
+                      ));
         allow write: if isAuthenticated() && 
                          (resource.data.ownerId == request.auth.uid ||
                           request.resource.data.ownerId == request.auth.uid);
@@ -305,10 +304,19 @@ service cloud.firestore {
     
     // Videos Collection
     match /videos/{videoId} {
-      allow read: if true;
+      allow list: if true;
+      allow get: if (!('visibility' in resource.data) ||
+                     (resource.data.visibility != 'Private' &&
+                      resource.data.visibility != 'private' &&
+                      resource.data.visibility != 'private_draft' &&
+                      resource.data.visibility != 'draft')) ||
+                    isVideoOwner(videoId);
       
-      // Allow authenticated users to create videos (flexible field check)
+      // Allow authenticated users to create videos — all identity fields must match the creator
       allow create: if isAuthenticated() && 
+                       (!('uploaderId' in request.resource.data) || request.resource.data.uploaderId == request.auth.uid) &&
+                       (!('userId' in request.resource.data) || request.resource.data.userId == request.auth.uid) &&
+                       (!('ownerId' in request.resource.data) || request.resource.data.ownerId == request.auth.uid) &&
                        (request.resource.data.uploaderId == request.auth.uid ||
                         request.resource.data.userId == request.auth.uid ||
                         request.resource.data.ownerId == request.auth.uid ||
@@ -394,11 +402,18 @@ service cloud.firestore {
         allow write: if isAuthenticated() && request.auth.uid == userId;
       }
 
-      // Distributed Counter Shards (20 shards for viral video views)
+      // Distributed Counter Shards (20 shards for viral video views & watch time)
       match /shards/{shardId} {
         allow read: if true;
-        allow create: if request.resource.data.keys().hasOnly(['count', 'qualifiedCount', 'updatedAt']);
-        allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['count', 'qualifiedCount', 'updatedAt']);
+        allow create: if isAuthenticated() && request.resource.data.keys().hasOnly(['count', 'qualifiedCount', 'watchTimeSeconds', 'updatedAt']);
+        allow update: if isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['count', 'qualifiedCount', 'watchTimeSeconds', 'updatedAt']);
+      }
+
+      // Distributed Counter Shards (20 shards for viral video comments)
+      match /comment_shards/{shardId} {
+        allow read: if true;
+        allow create: if isAuthenticated() && request.resource.data.keys().hasOnly(['commentCount', 'updatedAt']);
+        allow update: if isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount', 'updatedAt']);
       }
 
       // Likes/Dislikes subcollections
@@ -415,7 +430,8 @@ service cloud.firestore {
       // Comments subcollection
       match /comments/{commentId} {
         allow read: if true;
-        allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+        allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid &&
+                         (!('text' in request.resource.data) || (request.resource.data.text is string && request.resource.data.text.size() <= 2000));
         allow update: if isAuthenticated() && (
           resource.data.userId == request.auth.uid ||
           isVideoOwner(videoId) ||
@@ -431,7 +447,8 @@ service cloud.firestore {
         // Replies subcollection
         match /replies/{replyId} {
           allow read: if true;
-          allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+          allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid &&
+                           (!('text' in request.resource.data) || (request.resource.data.text is string && request.resource.data.text.size() <= 2000));
           allow update: if isAuthenticated() && (
             resource.data.userId == request.auth.uid ||
             isVideoOwner(videoId) ||
@@ -471,6 +488,8 @@ service cloud.firestore {
     match /topics/{topicId} {
       allow read: if true;
       allow create: if isAuthenticated() && (
+        // Enforce identity: creatorId must match the authenticated user
+        (!('creatorId' in request.resource.data) || request.resource.data.creatorId == request.auth.uid) &&
         (((request.resource.data.videoCount is number && request.resource.data.videoCount > 0) ||
           (request.resource.data.featuredVideoIds is list && request.resource.data.featuredVideoIds.size() > 0)) &&
          (!('geminiApproved' in request.resource.data) || request.resource.data.geminiApproved == false) &&
@@ -526,10 +545,18 @@ service cloud.firestore {
         allow write: if isAuthenticated() && request.auth.uid == userId;
       }
 
+      // Distributed Counter Shards (20 shards for topic comments)
+      match /shards/{shardId} {
+        allow read: if true;
+        allow create: if isAuthenticated() && request.resource.data.keys().hasOnly(['commentCount', 'updatedAt']);
+        allow update: if isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount', 'updatedAt']);
+      }
+
       // Comments subcollection
       match /comments/{commentId} {
         allow read: if true;
-        allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+        allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid &&
+                         (!('text' in request.resource.data) || (request.resource.data.text is string && request.resource.data.text.size() <= 2000));
         allow update: if isAuthenticated() && (
           resource.data.userId == request.auth.uid ||
           isAdmin() ||
@@ -553,7 +580,8 @@ service cloud.firestore {
         // Replies subcollection
         match /replies/{replyId} {
           allow read: if true;
-          allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+          allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid &&
+                           (!('text' in request.resource.data) || (request.resource.data.text is string && request.resource.data.text.size() <= 2000));
           allow update: if isAuthenticated() && (
             resource.data.userId == request.auth.uid ||
             isAdmin() ||
@@ -829,6 +857,16 @@ service cloud.firestore {
       match /saved_videos/{videoId} {
         allow read, write: if isOwner(userId);
       }
+
+      // User Bookmarked Community Posts subcollection
+      match /bookmarks/{docId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+
+      // User In-App Notifications subcollection
+      match /notifications/{docId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
     }
 
     // User Notifications Collection
@@ -842,7 +880,7 @@ service cloud.firestore {
     
     // Ad Campaigns Collection
     match /ad_campaigns/{campaignId} {
-      allow read: if true;
+      allow read: if resource.data.status == 'active' || (isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin()));
       allow create: if isAuthenticated() && (
         (request.resource.data.userId == request.auth.uid &&
          (!('status' in request.resource.data) || request.resource.data.status == 'draft' || request.resource.data.status == 'pendingPayment' || request.resource.data.status == 'underReview') &&
@@ -867,7 +905,7 @@ service cloud.firestore {
 
       // Metrics subcollection
       match /metrics/{metricId} {
-        allow read: if true;
+        allow read: if isAuthenticated() && (get(/databases/$(database)/documents/ad_campaigns/$(campaignId)).data.userId == request.auth.uid || isAdmin());
         allow write: if isAdmin();
       }
     }
@@ -958,7 +996,8 @@ service cloud.firestore {
       
       // Allow authenticated users to create comments
       allow create: if isAuthenticated() && 
-                       request.resource.data.userId == request.auth.uid;
+                       request.resource.data.userId == request.auth.uid &&
+                       (!('text' in request.resource.data) || (request.resource.data.text is string && request.resource.data.text.size() <= 2000));
       
       // Allow comment owners to update/delete
       allow update, delete: if isAuthenticated() && 
@@ -998,8 +1037,10 @@ service cloud.firestore {
       // Allow reading playlists across public, channel, and studio views
       allow read: if true;
       
-      // Allow authenticated users to create playlists matching their own identity
+      // Allow authenticated users to create playlists — all identity fields must match the creator
       allow create: if isAuthenticated() && 
+                       (!('ownerId' in request.resource.data) || request.resource.data.ownerId == request.auth.uid) &&
+                       (!('userId' in request.resource.data) || request.resource.data.userId == request.auth.uid) &&
                        (request.resource.data.ownerId == request.auth.uid ||
                         request.resource.data.userId == request.auth.uid ||
                         isAdmin());
@@ -1008,7 +1049,9 @@ service cloud.firestore {
       allow update, delete: if isAuthenticated() && 
                                (resource.data.ownerId == request.auth.uid ||
                                 resource.data.userId == request.auth.uid ||
-                                resource.data.channelId == request.auth.uid ||
+                                (resource.data.channelId != null &&
+                                 exists(/databases/$(database)/documents/channels/$(resource.data.channelId)) &&
+                                 get(/databases/$(database)/documents/channels/$(resource.data.channelId)).data.ownerId == request.auth.uid) ||
                                 isAdmin());
     }
     
@@ -1415,6 +1458,23 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // AI Fact-Check Verification Requests
+    match /fact_check_requests/{requestId} {
+      allow read: if isAuthenticated() && (
+        resource.data.requestedBy == request.auth.uid ||
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        request.resource.data.requestedBy == request.auth.uid ||
+        request.resource.data.userId == request.auth.uid ||
+        isAdmin()
+      ) &&
+      (!('status' in request.resource.data) || request.resource.data.status == 'queued' || request.resource.data.status == 'pending') &&
+      request.resource.data.videoId is string;
+      allow update, delete: if isAdmin();
+    }
+
     // User Drafts Collection
     match /user_drafts/{draftId} {
       allow read: if isAuthenticated() && (
@@ -1462,7 +1522,12 @@ service cloud.firestore {
       allow write: if false; // System / Cloud Functions only
     }
 
-    // Payment Receipts & Subscriptions Collections
+    // Payment Orders, Receipts & Subscriptions Collections
+    match /payment_orders/{orderId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if isAdmin();
+    }
+
     match /payment_receipts/{receiptId} {
       allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
       allow write: if isAdmin();
@@ -1507,7 +1572,8 @@ service cloud.firestore {
 
     // Admin Collections (Strictly protected, accessible only by authenticated administrators)
     match /admin_members/{doc=**} {
-      allow read, write: if isAdmin();
+      allow read: if isAdmin();
+      allow write: if false; // Only Admin SDK / Cloud Functions should write
     }
     match /content_appeals/{doc=**} {
       allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
@@ -1685,7 +1751,9 @@ service cloud.firestore {
 
     // Community Post Drafts
     match /communityDrafts/{draftId} {
-      allow read, write, delete: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid || resource.data.ownerId == request.auth.uid);
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || request.resource.data.ownerId == request.auth.uid || isAdmin());
+      allow update, delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || resource.data.ownerId == request.auth.uid || isAdmin());
     }
 
     // Creator KYC Master Identity & Document Records

@@ -9,6 +9,8 @@ import 'package:truthworld/core/services/deep_link/deep_link_cache_manager.dart'
 import 'package:truthworld/core/services/deep_link/deep_link_url_parser.dart';
 import 'package:truthworld/core/services/deep_link/parsed_truthworld_url.dart';
 import 'package:truthworld/core/utils/studio_launcher.dart';
+import 'package:truthworld/core/utils/web_platform_utils.dart';
+import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -134,6 +136,16 @@ mixin DeepLinkNavigator on DeepLinkCacheManager {
         }
 
       case TruthworldUrlType.settings:
+        if (Get.isRegistered<HomeController>()) {
+          final isAtHome = Get.currentRoute == '/' || Get.currentRoute == '/home';
+          if (isAtHome) {
+            Get.find<HomeController>().onSideNavItemSelect(HomeController.indexSettings);
+            if (kIsWeb) {
+              WebPlatformUtils.pushUrlHistory('/settings');
+            }
+            break;
+          }
+        }
         if (replace) {
           Get.offNamed<void>('/settings');
         } else {
@@ -142,6 +154,9 @@ mixin DeepLinkNavigator on DeepLinkCacheManager {
 
       case TruthworldUrlType.home:
         Get.offAllNamed<void>('/');
+
+      case TruthworldUrlType.policy:
+        _handlePolicyNavigation(parsed, replace: replace);
 
       case TruthworldUrlType.external:
       case TruthworldUrlType.unknown:
@@ -320,6 +335,47 @@ mixin DeepLinkNavigator on DeepLinkCacheManager {
       Get.offNamed<void>(routeUrl);
     } else {
       Get.toNamed<void>(routeUrl);
+    }
+  }
+
+  void _handlePolicyNavigation(
+    ParsedTruthworldUrl parsed, {
+    required bool replace,
+  }) {
+    final policySlug = parsed.id ?? 'terms';
+    final route = '/$policySlug';
+
+    if (Get.isRegistered<HomeController>()) {
+      final homeController = Get.find<HomeController>();
+      final isAtHome = Get.currentRoute == '/' || Get.currentRoute == '/home';
+      if (isAtHome) {
+        int? targetIndex;
+        switch (policySlug) {
+          case 'community-guidelines':
+            targetIndex = HomeController.indexCommunityGuidelines;
+          case 'terms':
+            targetIndex = HomeController.indexTerms;
+          case 'privacy':
+            targetIndex = HomeController.indexPrivacy;
+          case 'about':
+            targetIndex = HomeController.indexAbout;
+          case 'feedback':
+            targetIndex = HomeController.indexFeedback;
+        }
+        if (targetIndex != null) {
+          homeController.onSideNavItemSelect(targetIndex);
+          if (kIsWeb) {
+            WebPlatformUtils.pushUrlHistory(route);
+          }
+          return;
+        }
+      }
+    }
+
+    if (replace) {
+      Get.offNamed<void>(route);
+    } else {
+      Get.toNamed<void>(route);
     }
   }
 

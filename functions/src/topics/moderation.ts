@@ -3,6 +3,8 @@ import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
 import { getVertexAI } from "../pipeline/utils/ai-client";
+import { PIPELINE_CONFIG } from "../pipeline/config";
+import { extractCandidateText } from "../pipeline/utils/ai-utils";
 import { MODERATION_RESPONSE_SCHEMA } from "../moderation/communityGuidelinesPrompt";
 import { isTopicsBypassed } from "../moderation/moderationModes";
 import { requireRecentAdmin } from "../utils/auth";
@@ -208,7 +210,7 @@ export const onTopicWritten = onDocumentWritten(
       try {
         const genAI = getVertexAI();
         const model = genAI.getGenerativeModel({
-          model: "gemini-2.5-flash",
+          model: PIPELINE_CONFIG.GEMINI_MODELS?.moderation || PIPELINE_CONFIG.GEMINI_MODELS?.synthesis || "gemini-3.1-flash-lite",
           systemInstruction: TOPIC_MODERATION_SYSTEM_PROMPT,
           generationConfig: {
             responseMimeType: "application/json",
@@ -244,7 +246,7 @@ export const onTopicWritten = onDocumentWritten(
         });
 
         const result = await model.generateContent({ contents });
-        const responseText = result.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        const responseText = extractCandidateText(result.response.candidates?.[0]) || result.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
         let responseObj: { approved?: boolean; reason?: string };
         try {
@@ -278,6 +280,19 @@ export const onTopicWritten = onDocumentWritten(
               finalStatus = "verificationRejected";
               finalReason = "Topic must contain at least 1 video. Cannot activate topic with 0 videos.";
             }
+          } else {
+            // Auto-link any featured videos if not yet linked
+            const featIds: string[] = Array.isArray(freshData?.featuredVideoIds) ? freshData.featuredVideoIds : [];
+            for (const vId of featIds) {
+              try {
+                await db().collection("videos").doc(vId).update({
+                  topicId: cleanSlug,
+                  topics: admin.firestore.FieldValue.arrayUnion(cleanSlug, topicId),
+                });
+              } catch (featErr) {
+                logger.warn(`[onTopicWritten] Error auto-linking video ${vId}:`, featErr);
+              }
+            }
           }
         }
 
@@ -301,11 +316,12 @@ export const onTopicWritten = onDocumentWritten(
     }
 
     // Retries exhausted
-    logger.error(`[onTopicWritten] All ${MAX_RETRIES} retries exhausted for topic ${topicId}. Marking as verificationRejected.`);
+    const hasVideos = topicVideoCount > 0 || featuredVideos.length > 0;
+    logger.error(`[onTopicWritten] All ${MAX_RETRIES} retries exhausted for topic ${topicId}.`);
     await db().collection("topics").doc(topicId).update({
       geminiApproved: false,
-      status: "verificationRejected",
-      moderationReason: `Moderation check failed after ${MAX_RETRIES} attempts. Topic is held for manual review.`,
+      status: hasVideos ? "active" : "verificationRejected",
+      moderationReason: hasVideos ? "AI check delayed. Topic is active for review." : `Moderation check failed after ${MAX_RETRIES} attempts. Topic is held for manual review.`,
       updatedAt: Date.now(),
     });
   }

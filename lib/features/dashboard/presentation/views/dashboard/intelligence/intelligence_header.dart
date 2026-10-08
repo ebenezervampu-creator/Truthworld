@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/creator_intelligence_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Top header banner displaying screen title, description, unread counter, and mark-all-as-read button.
 class IntelligenceHeaderBanner extends StatelessWidget {
@@ -20,9 +21,9 @@ class IntelligenceHeaderBanner extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: const Color(0xFF161618),
+            color: AppColors.bgSurface,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF27272A)),
+            border: Border.all(color: AppColors.bgDivider),
           ),
           child: const Icon(
             Icons.insights_rounded,
@@ -38,9 +39,11 @@ class IntelligenceHeaderBanner extends StatelessWidget {
               Text(
                 'Creator Intelligence',
                 style: TextStyle(
+                  fontFamily: TWTypography.brandFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
                   fontSize: isMobile ? 20 : 22,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   letterSpacing: -0.5,
                 ),
               ),
@@ -48,8 +51,10 @@ class IntelligenceHeaderBanner extends StatelessWidget {
               const Text(
                 'Real-time channel milestones, performance insights & verification audits',
                 style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
                   fontSize: 13,
-                  color: Color(0xFFA1A1AA),
+                  color: AppColors.textSecondary,
                 ),
               ),
             ],
@@ -69,18 +74,20 @@ class IntelligenceHeaderBanner extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               margin: const EdgeInsets.only(right: 12),
               decoration: BoxDecoration(
-                color: const Color(0xFF1E293B),
+                color: AppColors.infoContainer,
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(
-                  color: const Color(0xFF38BDF8).withValues(alpha: 0.4),
+                  color: AppColors.info.withValues(alpha: 0.4),
                 ),
               ),
               child: Text(
                 '${controller.unreadCount.value} UNREAD',
                 style: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF38BDF8),
+                  color: AppColors.info,
                 ),
               ),
             );
@@ -97,6 +104,8 @@ class IntelligenceHeaderBanner extends StatelessWidget {
           label: const Text(
             'Mark all as read',
             style: TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              fontFamilyFallback: TWTypography.fallbackFamilies,
               fontSize: 13,
               fontWeight: FontWeight.w500,
               color: Colors.white,
@@ -104,8 +113,8 @@ class IntelligenceHeaderBanner extends StatelessWidget {
           ),
           style: OutlinedButton.styleFrom(
             foregroundColor: Colors.white,
-            side: const BorderSide(color: Color(0xFF3F3F46)),
-            backgroundColor: const Color(0xFF18181B),
+            side: const BorderSide(color: AppColors.bgDivider),
+            backgroundColor: AppColors.bgSurfaceHover,
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
@@ -121,10 +130,10 @@ class IntelligenceHeaderBanner extends StatelessWidget {
         vertical: 16,
       ),
       decoration: const BoxDecoration(
-        color: Color(0xFF0F0F0F),
+        color: AppColors.bgPage,
         border: Border(
           bottom: BorderSide(
-            color: Color(0xFF27272A),
+            color: AppColors.bgDivider,
           ),
         ),
       ),
@@ -207,12 +216,14 @@ class IntelligenceFilterChips extends StatelessWidget {
               avatar: Icon(
                 cat['icon']! as IconData,
                 size: 15,
-                color: Colors.white,
+                color: isSelected ? Colors.white : AppColors.textSecondary,
               ),
               label: Text(
                 cat['label']! as String,
                 style: TextStyle(
-                  color: isSelected ? Colors.white : const Color(0xFFA1A1AA),
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
+                  color: isSelected ? Colors.white : AppColors.textSecondary,
                   fontSize: 12,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                 ),
@@ -223,15 +234,15 @@ class IntelligenceFilterChips extends StatelessWidget {
                   controller.selectedCategory.value = catId;
                 }
               },
-              selectedColor: const Color(0xFF27272A),
-              backgroundColor: const Color(0xFF161618),
+              selectedColor: AppColors.bgSurfaceHigh,
+              backgroundColor: AppColors.bgSurface,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
                 side: BorderSide(
                   color: isSelected
-                      ? const Color(0xFF38BDF8)
-                      : const Color(0xFF27272A),
+                      ? AppColors.textPrimary
+                      : AppColors.bgDivider,
                 ),
               ),
             );

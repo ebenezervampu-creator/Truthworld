@@ -6,6 +6,7 @@ import 'package:truthworld/features/dashboard/presentation/controllers/creator_i
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/intelligence/intelligence_verification_modal.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification_dashboard_page.dart';
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Notification card rendering milestone, performance, or policy insight with action handlers.
 class IntelligenceNotificationCard extends StatelessWidget {
@@ -43,44 +44,44 @@ class IntelligenceNotificationCard extends StatelessWidget {
     final isUnread = !notification.read;
 
     var leadingIcon = Icons.notifications_rounded;
-    var badgeBg = const Color(0xFF18181B);
-    var badgeBorder = const Color(0xFF27272A);
+    var badgeBg = AppColors.bgSurfaceHover;
+    var badgeBorder = AppColors.bgDivider;
 
     if (notification.type.contains('verification')) {
       if (notification.priority == NotificationPriority.critical ||
           notification.severity == NotificationSeverity.warning) {
         leadingIcon = Icons.cancel_rounded;
-        badgeBg = const Color(0xFF450A0A);
-        badgeBorder = const Color(0xFFEF4444).withValues(alpha: 0.4);
+        badgeBg = AppColors.errorContainer;
+        badgeBorder = AppColors.error.withValues(alpha: 0.4);
       } else {
         leadingIcon = Icons.verified_rounded;
-        badgeBg = const Color(0xFF064E3B);
-        badgeBorder = const Color(0xFF10B981).withValues(alpha: 0.4);
+        badgeBg = AppColors.successContainer;
+        badgeBorder = AppColors.success.withValues(alpha: 0.4);
       }
     } else if (notification.type.contains('milestone')) {
       leadingIcon = Icons.emoji_events_rounded;
-      badgeBg = const Color(0xFF451A03);
-      badgeBorder = const Color(0xFFF59E0B).withValues(alpha: 0.4);
+      badgeBg = AppColors.warningContainer;
+      badgeBorder = AppColors.warning.withValues(alpha: 0.4);
     } else if (notification.type.contains('performance') ||
         notification.type.contains('retention')) {
       leadingIcon = Icons.trending_up_rounded;
-      badgeBg = const Color(0xFF1E293B);
-      badgeBorder = const Color(0xFF38BDF8).withValues(alpha: 0.4);
+      badgeBg = AppColors.infoContainer;
+      badgeBorder = AppColors.info.withValues(alpha: 0.4);
     } else if (notification.type.contains('coach')) {
       leadingIcon = Icons.auto_awesome_rounded;
-      badgeBg = const Color(0xFF2E1065);
-      badgeBorder = const Color(0xFF8B5CF6).withValues(alpha: 0.4);
+      badgeBg = AppColors.infoContainer;
+      badgeBorder = AppColors.info.withValues(alpha: 0.4);
     }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF161618),
+        color: AppColors.bgSurface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isUnread
-              ? const Color(0xFF38BDF8).withValues(alpha: 0.5)
-              : const Color(0xFF27272A),
+              ? AppColors.info.withValues(alpha: 0.5)
+              : AppColors.bgDivider,
         ),
       ),
       child: Material(
@@ -132,11 +133,13 @@ class IntelligenceNotificationCard extends StatelessWidget {
                                 child: Text(
                                   notification.title,
                                   style: TextStyle(
+                                    fontFamily: TWTypography.uiFamily,
+                                    fontFamilyFallback: TWTypography.fallbackFamilies,
                                     fontSize: 14,
                                     fontWeight: isUnread
                                         ? FontWeight.bold
                                         : FontWeight.w500,
-                                    color: Colors.white,
+                                    color: AppColors.textPrimary,
                                   ),
                                 ),
                               ),
@@ -145,8 +148,10 @@ class IntelligenceNotificationCard extends StatelessWidget {
                                 DateFormat('h:mm a')
                                     .format(notification.createdAt),
                                 style: const TextStyle(
+                                  fontFamily: TWTypography.uiFamily,
+                                  fontFamilyFallback: TWTypography.fallbackFamilies,
                                   fontSize: 11,
-                                  color: Color(0xFF71717A),
+                                  color: AppColors.textTertiary,
                                 ),
                               ),
                             ],
@@ -155,9 +160,11 @@ class IntelligenceNotificationCard extends StatelessWidget {
                           Text(
                             notification.message,
                             style: const TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              fontFamilyFallback: TWTypography.fallbackFamilies,
                               fontSize: 13,
                               height: 1.4,
-                              color: Color(0xFFA1A1AA),
+                              color: AppColors.textSecondary,
                             ),
                           ),
 
@@ -179,7 +186,7 @@ class IntelligenceNotificationCard extends StatelessWidget {
                         width: 8,
                         height: 8,
                         decoration: const BoxDecoration(
-                          color: Color(0xFF38BDF8),
+                          color: AppColors.info,
                           shape: BoxShape.circle,
                         ),
                       ),
@@ -190,7 +197,7 @@ class IntelligenceNotificationCard extends StatelessWidget {
                 if (notification.actions.isNotEmpty ||
                     notification.verificationReportId != null) ...[
                   const SizedBox(height: 12),
-                  const Divider(height: 1, color: Color(0xFF27272A)),
+                  const Divider(height: 1, color: AppColors.bgDivider),
                   const SizedBox(height: 10),
                   Wrap(
                     alignment: WrapAlignment.end,
@@ -209,12 +216,12 @@ class IntelligenceNotificationCard extends StatelessWidget {
                           icon: const Icon(
                             Icons.assessment_rounded,
                             size: 15,
-                            color: Colors.white,
+                            color: Colors.black,
                           ),
                           label: const Text('View Verification Audit'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF2563EB),
-                            foregroundColor: Colors.white,
+                            backgroundColor: AppColors.brand,
+                            foregroundColor: Colors.black,
                             elevation: 0,
                             padding: const EdgeInsets.symmetric(
                               horizontal: 12,
@@ -224,8 +231,11 @@ class IntelligenceNotificationCard extends StatelessWidget {
                               borderRadius: BorderRadius.circular(8),
                             ),
                             textStyle: const TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              fontFamilyFallback: TWTypography.fallbackFamilies,
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
+                              color: Colors.black,
                             ),
                           ),
                         ),
@@ -233,9 +243,9 @@ class IntelligenceNotificationCard extends StatelessWidget {
                         OutlinedButton(
                           onPressed: () => _handleAction(context, action),
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            side: const BorderSide(color: Color(0xFF3F3F46)),
-                            backgroundColor: const Color(0xFF18181B),
+                            foregroundColor: AppColors.textPrimary,
+                            side: const BorderSide(color: AppColors.bgDivider),
+                            backgroundColor: AppColors.bgSurfaceHover,
                             padding: const EdgeInsets.symmetric(
                               horizontal: 12,
                               vertical: 7,
@@ -244,6 +254,8 @@ class IntelligenceNotificationCard extends StatelessWidget {
                               borderRadius: BorderRadius.circular(8),
                             ),
                             textStyle: const TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              fontFamilyFallback: TWTypography.fallbackFamilies,
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
                             ),
@@ -276,22 +288,24 @@ class IntelligenceAnalyticsSnapshotPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF121212),
+        color: AppColors.bgSurfaceHover,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: AppColors.bgDivider),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.history_rounded, size: 14, color: Colors.white),
+          const Icon(Icons.history_rounded, size: 14, color: AppColors.textSecondary),
           const SizedBox(width: 6),
           Flexible(
             child: Text(
               'Snapshot at creation: ${NumberFormat.compact().format(snapshot.views)} views • ${NumberFormat.compact().format(snapshot.subscribers)} subs',
               style: const TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                fontFamilyFallback: TWTypography.fallbackFamilies,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFFA1A1AA),
+                color: AppColors.textSecondary,
               ),
             ),
           ),

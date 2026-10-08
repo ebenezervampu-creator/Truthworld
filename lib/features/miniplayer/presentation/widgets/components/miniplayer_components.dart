@@ -1,3 +1,4 @@
+export 'miniplayer_audio_stage.dart';
 export 'miniplayer_expanded_details.dart';
 export 'miniplayer_expanded_view.dart';
 export 'miniplayer_floating_card.dart';

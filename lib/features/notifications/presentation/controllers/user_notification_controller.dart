@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
 import 'package:truthworld/features/notifications/data/services/user_notification_service.dart';
@@ -23,6 +24,9 @@ class UserNotificationController extends BaseController {
 
   String get userId {
     if (_currentUserId.isNotEmpty) return _currentUserId;
+    if (Get.isRegistered<AuthService>() && AuthService.to.user != null) {
+      return AuthService.to.user!.uid;
+    }
     return FirebaseAuth.instance.currentUser?.uid ?? 'guest_user';
   }
 
@@ -39,9 +43,13 @@ class UserNotificationController extends BaseController {
   }
 
   void _listenToAuthChanges() {
+    final authStream = Get.isRegistered<AuthService>()
+        ? AuthService.to.currentUser.stream
+        : FirebaseAuth.instance.authStateChanges();
+
     // Track auth subscription for automatic disposal on controller close
     trackSubscription(
-      FirebaseAuth.instance.authStateChanges().listen(
+      authStream.listen(
         (user) {
           final newUid = user?.uid ?? '';
           if (newUid != _currentUserId) {
@@ -64,7 +72,9 @@ class UserNotificationController extends BaseController {
       ),
     );
 
-    final initialUser = FirebaseAuth.instance.currentUser;
+    final initialUser = Get.isRegistered<AuthService>()
+        ? AuthService.to.user
+        : FirebaseAuth.instance.currentUser;
     if (initialUser != null && !initialUser.isAnonymous) {
       _currentUserId = initialUser.uid;
       _listenToCloudNotifications();

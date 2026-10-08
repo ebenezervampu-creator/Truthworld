@@ -1,3 +1,8 @@
+// ignore: implementation_imports
+import 'package:chewie/src/center_play_button.dart';
+// ignore: implementation_imports
+import 'package:chewie/src/center_seek_button.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
@@ -12,9 +17,70 @@ class CenterRow extends StatelessWidget {
   final TowerPlayerController ctrl;
   final double maxControlsWidth;
 
+  bool _useChewieMobileButtons(BuildContext context) {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      return true;
+    }
+    if (kIsWeb) {
+      if (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS) {
+        return true;
+      }
+      final screenWidth = MediaQuery.of(context).size.width;
+      if (screenWidth < 600 || maxControlsWidth < 600) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isMobile = maxControlsWidth < 600;
+    final useChewie = _useChewieMobileButtons(context);
+
+    if (useChewie) {
+      return Obx(() {
+        final isFinished = (ctrl.vv.position >= ctrl.vv.duration) &&
+            ctrl.vv.duration.inSeconds > 0;
+        final isPlaying = ctrl.isPlaying.value;
+        const buttonBg = Colors.black54;
+
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CenterSeekButton(
+              iconData: Icons.replay_10_rounded,
+              backgroundColor: buttonBg,
+              iconColor: Colors.white,
+              show: true,
+              iconSize: 28,
+              onPressed: () => ctrl.seekRelative(-10),
+            ),
+            const SizedBox(width: 24),
+            CenterPlayButton(
+              backgroundColor: buttonBg,
+              iconColor: Colors.white,
+              isFinished: isFinished,
+              isPlaying: isPlaying,
+              show: true,
+              onPressed: ctrl.togglePlayPause,
+            ),
+            const SizedBox(width: 24),
+            CenterSeekButton(
+              iconData: Icons.forward_10_rounded,
+              backgroundColor: buttonBg,
+              iconColor: Colors.white,
+              show: true,
+              iconSize: 28,
+              onPressed: () => ctrl.seekRelative(10),
+            ),
+          ],
+        );
+      });
+    }
+
     // Substantially increased dimensions for desktop & mobile ergonomics
     final playDiameter = isMobile ? 64.0 : 72.0;
     final skipDiameter = isMobile ? 48.0 : 52.0;

@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:truthworld/features/search/presentation/controllers/search/search_models.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -57,25 +58,44 @@ class SearchSuggestionTile extends StatelessWidget {
                 ],
               ),
             ),
-            if (suggestion.imageUrl != null && suggestion.imageUrl!.isNotEmpty)
-              ClipRRect(
+            if (suggestion.imageUrl != null &&
+                suggestion.imageUrl!.trim().isNotEmpty) () {
+              final cleanSuggestionUrl =
+                  suggestion.imageUrl!.trim().replaceAll(' ', '%20');
+              return ClipRRect(
                 borderRadius: BorderRadius.circular(
                   suggestion.isRoundImage ? 20 : 4,
                 ),
                 child: CachedNetworkImage(
-                  imageUrl: suggestion.imageUrl!,
+                  imageUrl: cleanSuggestionUrl,
                   width: 40,
                   height: suggestion.isRoundImage ? 40 : 25,
                   fit: BoxFit.cover,
                   placeholder: (context, url) =>
                       Container(color: AppColors.bgDivider),
-                  errorWidget: (context, url, error) => const Icon(
-                    Icons.image,
-                    size: 20,
-                    color: Colors.white,
-                  ),
+                  errorWidget: (context, url, error) {
+                    if (kIsWeb) {
+                      return Image.network(
+                        cleanSuggestionUrl,
+                        width: 40,
+                        height: suggestion.isRoundImage ? 40 : 25,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, err, stack) => const Icon(
+                          Icons.image,
+                          size: 20,
+                          color: Colors.white,
+                        ),
+                      );
+                    }
+                    return const Icon(
+                      Icons.image,
+                      size: 20,
+                      color: Colors.white,
+                    );
+                  },
                 ),
-              )
+              );
+            }()
             else
               IconButton(
                 icon: const Icon(

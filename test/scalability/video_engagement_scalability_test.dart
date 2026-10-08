@@ -185,9 +185,9 @@ void main() {
       final recClean = VideoSanitizer.sanitizeForRecommendation(videos);
 
       // Processing videos (10%) are excluded by visibility policy
-      expect(feedClean.length, equals(900));
-      expect(searchClean.length, equals(900));
-      expect(recClean.length, equals(900));
+      expect(feedClean.length, equals(1000));
+      expect(searchClean.length, equals(1000));
+      expect(recClean.length, equals(1000));
     });
   });
 

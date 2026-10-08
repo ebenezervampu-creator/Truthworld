@@ -71,7 +71,9 @@ export const getCreatorRevenue = onCall(
             for (const mDoc of membersSnap.docs) {
               chMembers += Number(mDoc.data().price || 0);
             }
-          } catch (_) {}
+          } catch (e) {
+            logger.warn(`[revenue] Sub-collection fetch error for channel ${chDoc.id}:`, e instanceof Error ? e.message : String(e));
+          }
         }
 
         const chGross = chSuperchats + chAds + chMembers + chPremiumSubs;
@@ -191,12 +193,14 @@ export async function syncChannelStatements(channel: any, userId: string): Promi
       },
     });
   } else {
+    const existingData = existingSnap.data() || {};
+    const alreadyPaidOut = Number(existingData.paidOutShare || 0);
     await statementRef.update({
       grossAdsRevenue: adsRevenue,
       grossSubsRevenue: superchatRevenue + membershipsRevenue + premiumSubsRevenue,
       grossPremiumSubsRevenue: premiumSubsRevenue,
       creatorShare,
-      withdrawableShare: creatorShare,
+      withdrawableShare: Math.max(0, creatorShare - alreadyPaidOut),
       updatedAt: Date.now(),
       "metadata.totalViews": views,
     });

@@ -20,6 +20,9 @@ import { generatePlaylistSchema } from "./schema/playlistSchema";
 import { generateCommunityPostSchema } from "./schema/communityPostSchema";
 import { generateOrganizationSchema } from "./schema/organizationSchema";
 import { buildSemanticSsrHtml } from "./render/htmlRenderer";
+import { renderChannelCardImage } from "./render/channelCardImageRenderer";
+import { renderVideoCardImage } from "./render/videoCardImageRenderer";
+import { renderTopicCardImage } from "./render/topicCardImageRenderer";
 import { getCachedSnapshot, saveSnapshot } from "./cache/storageCache";
 import { logSeoEvent } from "./monitor/searchHealth";
 import {
@@ -145,7 +148,7 @@ async function resolveVideoImage(db: admin.firestore.Firestore, data: any): Prom
   return undefined;
 }
 
-async function resolveChannelImage(db: admin.firestore.Firestore, channelId: string, docData: any): Promise<string | undefined> {
+export async function resolveChannelImage(db: admin.firestore.Firestore, channelId: string, docData: any): Promise<string | undefined> {
   // 1. Direct channel banner fields (16:9 widescreen for high-impact social preview cards)
   let bannerImg = ensureAbsoluteImageUrl(
     docData.bannerUrl ||
@@ -264,6 +267,7 @@ export const seoServer = onRequest(
   {
     region: "asia-south1",
     memory: "512MiB",
+    maxInstances: 10,
   },
   async (req: Request, res: Response): Promise<void> => {
     const startTime = Date.now();
@@ -363,6 +367,25 @@ export const seoServer = onRequest(
             "apps": ["TEAMID.com.truthworld.app"]
           }
         }));
+        return;
+      }
+      if (path === "/.well-known/traffic-advice") {
+        res.set("Content-Type", "application/trafficadvice+json");
+        res.set("X-Robots-Tag", "noindex, nofollow");
+        res.set("Cache-Control", "public, max-age=86400");
+        res.status(200).send(JSON.stringify([
+          {
+            "user_agent": "prefetch-proxy",
+            "google_prefetch_proxy_eap": {
+              "fraction": 1.0
+            }
+          }
+        ]));
+        return;
+      }
+      if (path.startsWith("/.well-known/")) {
+        res.set("X-Robots-Tag", "noindex, nofollow");
+        res.status(404).send("Not Found");
         return;
       }
       if (path === "/truthworld-indexnow-key-2026.txt") {
@@ -556,23 +579,31 @@ export const seoServer = onRequest(
         }
       }
 
-      // WATCH / V / SHORTS ROUTE
-      if (lowerPath.startsWith("/watch") || lowerPath.startsWith("/v/") || lowerPath.startsWith("/shorts/")) {
+      // WATCH / V / SHORTS ROUTE & DYNAMIC VIDEO CARD IMAGE
+      if (lowerPath.startsWith("/watch") || lowerPath.startsWith("/v/") || lowerPath.startsWith("/shorts/") || lowerPath.startsWith("/api/og/video")) {
+        const isVideoCardImageRequest = lowerPath.endsWith("/og.png") || lowerPath.endsWith("/card.png") || lowerPath.startsWith("/api/og/video");
         let videoId = (req.query.v || req.query.id) as string;
         if (!videoId) {
-          const parts = path.split("/").filter(p => p.length > 0);
-          const p0 = parts.length > 0 ? parts[0].toLowerCase() : "";
-          if (parts.length >= 2 && (p0 === "watch" || p0 === "v" || p0 === "shorts")) {
-            videoId = parts[1];
+          if (lowerPath.startsWith("/api/og/video")) {
+            const parts = path.split("/").filter(p => p.length > 0);
+            videoId = parts[3] || "";
+          } else {
+            const parts = path.split("/").filter(p => p.length > 0);
+            const p0 = parts.length > 0 ? parts[0].toLowerCase() : "";
+            if (parts.length >= 2 && (p0 === "watch" || p0 === "v" || p0 === "shorts")) {
+              videoId = parts[1].replace(/\.(png|jpe?g)$/i, "").replace(/\/(og|card)\.png$/i, "");
+            }
           }
         }
         if (videoId) {
           const cacheKey = `watch_v2_${videoId}`;
-          const cached = await getCachedSnapshot(cacheKey);
-          if (cached) {
-            logSeoEvent({ eventType: "cache_hit", path: canonicalUrl, durationMs: Date.now() - startTime });
-            sendHtmlResponse(req, res, cached.html, cached.etag, cached.lastModified);
-            return;
+          if (!isVideoCardImageRequest) {
+            const cached = await getCachedSnapshot(cacheKey);
+            if (cached) {
+              logSeoEvent({ eventType: "cache_hit", path: canonicalUrl, durationMs: Date.now() - startTime });
+              sendHtmlResponse(req, res, cached.html, cached.etag, cached.lastModified);
+              return;
+            }
           }
 
           logSeoEvent({ eventType: "cache_miss", path: canonicalUrl, durationMs: Date.now() - startTime });
@@ -659,6 +690,29 @@ export const seoServer = onRequest(
             }
 
             const videoImage = await resolveVideoImage(db, docData);
+
+            // Dynamic Video Card Image for Social Sharing & Open Graph
+            if (isVideoCardImageRequest) {
+              try {
+                const cardBuffer = await renderVideoCardImage({
+                  title: rawTitle,
+                  thumbnailUrl: videoImage,
+                  description: rawDesc,
+                  channelName,
+                  durationMs: docData.durationMs,
+                  videoId: docId,
+                });
+
+                res.set("Content-Type", "image/png");
+                res.set("Cache-Control", "public, max-age=86400, s-maxage=604800");
+                res.status(200).send(cardBuffer);
+                return;
+              } catch (cardErr) {
+                console.error("Failed to generate dynamic video card image, falling back", cardErr);
+              }
+            }
+
+            const ogCardImageUrl = `${DOMAIN}/v/${docId}/og.png`;
             const videoSchema = generateVideoSchema({ ...docData, id: docId } as any, authorUrl, channelName, channelIsBrand);
             const breadcrumbs = generateBreadcrumbData([
               { name: channelName, url: authorUrl },
@@ -700,13 +754,31 @@ export const seoServer = onRequest(
               videoTopicItems.push({ title: `#${docData.category}`, url: `${DOMAIN}/browse` });
             }
 
+            // High-fidelity video architecture card matching social preview architecture
+            const videoCardHtml = `
+  <section class="tw-video-hero-card" style="margin: 20px auto 32px; max-width: 720px; background: #161719; border-radius: 20px; overflow: hidden; border: 1px solid #27272a; box-shadow: 0 8px 30px rgba(0,0,0,0.5);">
+    <div style="aspect-ratio: 16/9; width: 100%; background: #000; overflow: hidden; position: relative;">
+      ${videoImage ? `<img src="${escapeHtml(videoImage)}" alt="${escapeHtml(rawTitle)}" style="width: 100%; height: 100%; object-fit: contain;" />` : `<div style="width: 100%; height: 100%; background: linear-gradient(135deg, #19042b, #2a0a4a, #0a0014); display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.22); font-size: 24px; font-weight: bold; letter-spacing: 2px;">TRUTHWORLD VIDEO</div>`}
+    </div>
+    <div style="padding: 20px 24px;">
+      <h2 style="margin: 0 0 10px; font-size: 20px; font-weight: 700; color: #ffffff; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${escapeHtml(rawTitle)}</h2>
+      <p style="margin: 0 0 14px; color: #9ca3af; font-size: 14px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${escapeHtml(rawDesc || "Watch verified, family-safe video on Truthworld.")}</p>
+      <a href="${canonicalUrl}" style="display: flex; align-items: center; justify-content: space-between; text-decoration: none; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.08);">
+        <div style="display: flex; align-items: center; gap: 8px; color: #ffffff; font-weight: 600; font-size: 15px;">
+          <span>Truthworld</span>
+        </div>
+        <span style="color: #ffffff; font-size: 18px;">&rsaquo;</span>
+      </a>
+    </div>
+  </section>`;
+
             const finalHtml = buildSemanticSsrHtml({
               title: pageTitle,
               description: pageDescription,
               url: canonicalUrl,
-              image: videoImage,
-              imageWidth: 1280,
-              imageHeight: 720,
+              image: ogCardImageUrl,
+              imageWidth: 1024,
+              imageHeight: 780,
               type: "video.other",
               videoUrl: docData.hlsUrl || docData.originalUrl || docData.videoUrl,
               embedUrl: `${DOMAIN}/embed/${docId}`,
@@ -720,7 +792,8 @@ export const seoServer = onRequest(
               authorUrl: authorUrl,
               transcriptExcerpt: docData.transcript || docData.captionsText,
               relatedItems: relatedVideosList,
-              topicItems: videoTopicItems
+              topicItems: videoTopicItems,
+              customBodyHtml: videoCardHtml
             });
 
             const saved = await saveSnapshot(cacheKey, finalHtml);
@@ -746,21 +819,27 @@ export const seoServer = onRequest(
       }
 
       // CHANNEL / HANDLE ROUTE
-      if (lowerPath.startsWith("/channel/") || path.startsWith("/@") || lowerPath.startsWith("/c/") || lowerPath.startsWith("/user/")) {
+      if (lowerPath.startsWith("/channel/") || path.startsWith("/@") || lowerPath.startsWith("/c/") || lowerPath.startsWith("/user/") || lowerPath.startsWith("/api/og/channel")) {
+        const isChannelCardImageRequest = lowerPath.endsWith("/og.png") || lowerPath.endsWith("/card.png") || lowerPath.startsWith("/api/og/channel");
         let handleOrId = "";
         if (path.startsWith("/@")) {
-          handleOrId = path.substring(2);
+          handleOrId = path.substring(2).replace(/\/(og|card)\.png$/i, "");
+        } else if (lowerPath.startsWith("/api/og/channel")) {
+          const parts = path.split("/").filter(p => p.length > 0);
+          handleOrId = parts[3] || (req.query.id as string) || (req.query.handle as string) || "";
         } else {
-          handleOrId = path.split("/")[2];
+          handleOrId = path.split("/")[2]?.replace(/\.(png|jpe?g)$/i, "").replace(/\/(og|card)\.png$/i, "") || "";
         }
 
         if (handleOrId) {
           const cacheKey = `channel_v2_${handleOrId.toLowerCase().replace(/^@/, "")}`;
-          const cached = await getCachedSnapshot(cacheKey);
-          if (cached) {
-            logSeoEvent({ eventType: "cache_hit", path: canonicalUrl, durationMs: Date.now() - startTime });
-            sendHtmlResponse(req, res, cached.html, cached.etag, cached.lastModified);
-            return;
+          if (!isChannelCardImageRequest) {
+            const cached = await getCachedSnapshot(cacheKey);
+            if (cached) {
+              logSeoEvent({ eventType: "cache_hit", path: canonicalUrl, durationMs: Date.now() - startTime });
+              sendHtmlResponse(req, res, cached.html, cached.etag, cached.lastModified);
+              return;
+            }
           }
 
           let docData: any = null;
@@ -808,6 +887,46 @@ export const seoServer = onRequest(
             const handleWithAt = handle ? `@${handle}` : "";
             const canonicalChannelUrl = handle ? `${DOMAIN}/@${handle}` : canonicalUrl;
 
+            // Extract subscriber & video metrics
+            const subscriberCount = docData.subscriberCount || docData.subscribers || docData.stats?.subscriberCount || 0;
+            const videoCount = docData.videoCount || 0;
+            const subStr = subscriberCount >= 1000000 
+              ? `${(subscriberCount / 1000000).toFixed(1).replace(/\.0$/, "")}M Subscribers`
+              : subscriberCount >= 1000
+                ? `${(subscriberCount / 1000).toFixed(1).replace(/\.0$/, "")}K Subscribers`
+                : `${subscriberCount} Subscriber${subscriberCount === 1 ? "" : "s"}`;
+            const vidStr = `${videoCount} Video${videoCount === 1 ? "" : "s"}`;
+
+            const rawBio = (docData.about || docData.description || "").trim();
+
+            const bannerUrl = ensureAbsoluteImageUrl(
+              docData.bannerUrl || docData.bannerImage || docData.coverUrl || docData.banner || docData.coverImage
+            );
+            const avatarUrl = ensureAbsoluteImageUrl(
+              docData.avatarUrl || docData.avatarImage || docData.photoUrl || docData.profile?.photoUrl || docData.profilePicture || docData.imageUrl || docData.iconUrl
+            );
+
+            // Handle Dynamic Image Generation for Open Graph and Twitter Card
+            if (isChannelCardImageRequest) {
+              try {
+                const cardBuffer = await renderChannelCardImage({
+                  channelName,
+                  handle: docData.handle,
+                  subscriberCount,
+                  description: rawBio,
+                  bannerUrl,
+                  avatarUrl,
+                });
+
+                res.set("Content-Type", "image/png");
+                res.set("Cache-Control", "public, max-age=86400, s-maxage=604800");
+                res.status(200).send(cardBuffer);
+                return;
+              } catch (cardErr) {
+                console.error("Failed to generate dynamic channel card image, falling back", cardErr);
+              }
+            }
+
             // Format Title cleanly avoiding redundant "Truthworld - Truthworld"
             let pageTitle: string;
             if (channelName.toLowerCase() === "truthworld" || channelName.toLowerCase() === "truth world") {
@@ -820,18 +939,7 @@ export const seoServer = onRequest(
               pageTitle = `${channelName} - Truthworld`;
             }
 
-            // Extract subscriber & video metrics
-            const subscriberCount = docData.subscriberCount || docData.subscribers || docData.stats?.subscriberCount || 0;
-            const videoCount = docData.videoCount || 0;
-            const subStr = subscriberCount >= 1000000 
-              ? `${(subscriberCount / 1000000).toFixed(1).replace(/\.0$/, "")}M Subscribers`
-              : subscriberCount >= 1000
-                ? `${(subscriberCount / 1000).toFixed(1).replace(/\.0$/, "")}K Subscribers`
-                : `${subscriberCount} Subscriber${subscriberCount === 1 ? "" : "s"}`;
-            const vidStr = `${videoCount} Video${videoCount === 1 ? "" : "s"}`;
-
             // Build rich industry-standard description
-            const rawBio = (docData.about || docData.description || "").trim();
             let pageDescription: string;
             if (rawBio) {
               pageDescription = `${rawBio} • ${subStr} • ${vidStr} on Truthworld.`;
@@ -877,19 +985,51 @@ export const seoServer = onRequest(
               }
             } catch (_) {}
 
-            const channelImage = await resolveChannelImage(db, docData.id, docData);
-            const channelSchema = generateChannelSchema(docData, canonicalChannelUrl, channelImage);
+            // Dynamic Social Share Card Image URL
+            const ogCardImageUrl = handle
+              ? `${DOMAIN}/@${handle}/og.png`
+              : `${DOMAIN}/channel/${docData.id}/og.png`;
+
+            const channelSchema = generateChannelSchema(docData, canonicalChannelUrl, ogCardImageUrl);
             const breadcrumbs = generateBreadcrumbData([
               { name: channelName, url: canonicalChannelUrl }
             ]);
+
+            // High-fidelity channel architecture card matching Image preview
+            const channelCardHtml = `
+  <section class="tw-channel-hero-card" style="margin: 20px auto 32px; max-width: 720px; background: #161719; border-radius: 20px; overflow: hidden; border: 1px solid #27272a; box-shadow: 0 8px 30px rgba(0,0,0,0.5);">
+    <div style="aspect-ratio: 16/9; width: 100%; background: #0f051d; overflow: hidden; position: relative;">
+      ${bannerUrl ? `<img src="${escapeHtml(bannerUrl)}" alt="${escapeHtml(channelName)} Banner" style="width: 100%; height: 100%; object-fit: cover;" />` : `<div style="width: 100%; height: 100%; background: linear-gradient(135deg, #1e1035, #2d1254, #0f051d); display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.18); font-size: 28px; font-weight: bold; letter-spacing: 3px;">TRUTHWORLD</div>`}
+    </div>
+    <div style="padding: 20px 24px;">
+      <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 14px;">
+        <div style="width: 64px; height: 64px; border-radius: 50%; overflow: hidden; border: 2.5px solid #27272a; flex-shrink: 0; background: #27272a;">
+          ${avatarUrl ? `<img src="${escapeHtml(avatarUrl)}" alt="${escapeHtml(channelName)}" style="width: 100%; height: 100%; object-fit: cover;" />` : `<div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: bold; font-size: 24px; background: #2a1b40;">${escapeHtml(channelName.charAt(0).toUpperCase())}</div>`}
+        </div>
+        <div>
+          <h2 style="margin: 0; font-size: 22px; font-weight: 700; color: #ffffff;">${escapeHtml(channelName)}</h2>
+          ${handleWithAt ? `<div style="font-size: 14px; color: #8e8e93; margin-top: 2px;">${escapeHtml(handleWithAt)}</div>` : ""}
+          <div style="font-size: 14px; color: #8e8e93; margin-top: 2px;">${escapeHtml(subStr)}</div>
+        </div>
+      </div>
+      <p style="margin: 0 0 18px; color: #9ca3af; font-size: 14px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${escapeHtml(rawBio || "Watch family-safe, verified videos on Truthworld.")}</p>
+      <a href="${canonicalChannelUrl}" style="display: flex; align-items: center; justify-content: space-between; text-decoration: none; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.08);">
+        <div style="display: flex; align-items: center; gap: 8px; color: #ffffff; font-weight: 600; font-size: 16px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          <span>Truthworld</span>
+        </div>
+        <span style="color: #ffffff; font-size: 18px;">&rsaquo;</span>
+      </a>
+    </div>
+  </section>`;
 
             const finalHtml = buildSemanticSsrHtml({
               title: pageTitle,
               description: pageDescription,
               url: canonicalChannelUrl,
-              image: channelImage,
-              imageWidth: 1280,
-              imageHeight: 720,
+              image: ogCardImageUrl,
+              imageWidth: 850,
+              imageHeight: 1024,
               type: "profile",
               robots: "index, follow",
               jsonLd: [channelSchema, breadcrumbs.jsonLd],
@@ -897,7 +1037,7 @@ export const seoServer = onRequest(
               contentHeading: `${channelName}${handleWithAt ? ` (${handleWithAt})` : ""}`,
               authorName: channelName,
               authorUrl: canonicalChannelUrl,
-              customBodyHtml: channelVideosHtml,
+              customBodyHtml: channelCardHtml + channelVideosHtml,
               relatedItems: channelRelatedVideos
             });
 
@@ -919,26 +1059,34 @@ export const seoServer = onRequest(
         }
       }
 
-      // TOPIC ROUTE
-      if (lowerPath.startsWith("/topic") || lowerPath.startsWith("/topics") || lowerPath.startsWith("/t/")) {
+      // TOPIC ROUTE & DYNAMIC TOPIC CARD IMAGE
+      if (lowerPath.startsWith("/topic") || lowerPath.startsWith("/topics") || lowerPath.startsWith("/t/") || lowerPath.startsWith("/api/og/topic")) {
+        const isTopicCardImageRequest = lowerPath.endsWith("/og.png") || lowerPath.endsWith("/card.png") || lowerPath.startsWith("/api/og/topic");
         let slug = (req.query.id || req.query.slug) as string;
         if (!slug) {
-          const parts = path.split("/").filter(p => p.length > 0);
-          if (parts.length >= 2) {
-            slug = parts[1];
-          } else if (parts.length === 1 && (parts[0].toLowerCase() !== "topic" && parts[0].toLowerCase() !== "topics" && parts[0].toLowerCase() !== "t")) {
-            slug = parts[0];
+          if (lowerPath.startsWith("/api/og/topic")) {
+            const parts = path.split("/").filter(p => p.length > 0);
+            slug = parts[3] || "";
+          } else {
+            const parts = path.split("/").filter(p => p.length > 0);
+            if (parts.length >= 2) {
+              slug = parts[1].replace(/\.(png|jpe?g)$/i, "").replace(/\/(og|card)\.png$/i, "");
+            } else if (parts.length === 1 && (parts[0].toLowerCase() !== "topic" && parts[0].toLowerCase() !== "topics" && parts[0].toLowerCase() !== "t")) {
+              slug = parts[0].replace(/\.(png|jpe?g)$/i, "").replace(/\/(og|card)\.png$/i, "");
+            }
           }
         }
 
         if (slug) {
           const cleanSlug = slug.replace(/^(T\/|t\/)/i, "").trim();
           const cacheKey = `topic_v3_${cleanSlug.toLowerCase()}`;
-          const cached = await getCachedSnapshot(cacheKey);
-          if (cached) {
-            logSeoEvent({ eventType: "cache_hit", path: canonicalUrl, durationMs: Date.now() - startTime });
-            sendHtmlResponse(req, res, cached.html, cached.etag, cached.lastModified);
-            return;
+          if (!isTopicCardImageRequest) {
+            const cached = await getCachedSnapshot(cacheKey);
+            if (cached) {
+              logSeoEvent({ eventType: "cache_hit", path: canonicalUrl, durationMs: Date.now() - startTime });
+              sendHtmlResponse(req, res, cached.html, cached.etag, cached.lastModified);
+              return;
+            }
           }
 
           let docData: any = null;
@@ -1044,23 +1192,77 @@ export const seoServer = onRequest(
               topicDescription = `Explore top videos and discussions in #${cleanTitle} on Truthworld. • ${folStr} • ${vidStr} • Verified family-safe content.`;
             }
 
+            // Dynamic Topic Card Image for Social Previews (WhatsApp, Telegram, X, etc.)
+            if (isTopicCardImageRequest) {
+              try {
+                const cardBuffer = await renderTopicCardImage({
+                  title: cleanTitle,
+                  handle: docData.handle || cleanSlug,
+                  followerCount,
+                  videoCount,
+                  description: rawDesc,
+                  thumbnailUrl: topicImage,
+                  url: canonicalUrl,
+                });
+
+                res.set("Content-Type", "image/png");
+                res.set("Cache-Control", "public, max-age=86400, s-maxage=604800");
+                res.status(200).send(cardBuffer);
+                return;
+              } catch (cardErr) {
+                console.error("Failed to generate dynamic topic card image, falling back", cardErr);
+              }
+            }
+
+            const ogCardImageUrl = `${DOMAIN}/T/${cleanSlug}/og.png`;
             const topicSchema = generateTopicSchema(docData, canonicalUrl, topVideos);
             const breadcrumbs = generateBreadcrumbData([
               { name: `#${cleanTitle}`, url: canonicalUrl }
             ]);
 
+            const rawTopicHandle = (docData.handle || cleanSlug).replace(/^[#@]/, "").replace(/^[Tt]\//, "").trim();
+
+            // High-fidelity topic architecture card matching social preview architecture
+            const topicCardHtml = `
+  <section class="tw-topic-hero-card" style="margin: 20px auto 32px; max-width: 720px; background: #161719; border-radius: 20px; overflow: hidden; border: 1px solid #27272a; box-shadow: 0 8px 30px rgba(0,0,0,0.5);">
+    <div style="aspect-ratio: 16/7; width: 100%; background: #0f051d; overflow: hidden; position: relative;">
+      ${topicImage ? `<img src="${escapeHtml(topicImage)}" alt="${escapeHtml(cleanTitle)}" style="width: 100%; height: 100%; object-fit: cover;" />` : `<div style="width: 100%; height: 100%; background: linear-gradient(135deg, #090514, #180b30, #2a0f55, #0c0418); display: flex; flex-direction: column; align-items: center; justify-content: center;"><span style="color: #ffffff; font-size: 26px; font-weight: 800;">Truthworld</span><span style="color: #f59e0b; font-size: 22px; font-weight: 800;">Topics</span></div>`}
+    </div>
+    <div style="padding: 20px 24px;">
+      <h2 style="margin: 0 0 4px; font-size: 24px; font-weight: 800; color: #ffffff;">${escapeHtml(cleanTitle)}</h2>
+      <div style="font-size: 14px; color: #8e8e93; margin-bottom: 10px;">@ ${escapeHtml(rawTopicHandle || cleanSlug.toLowerCase())}</div>
+      <div style="display: flex; align-items: center; gap: 12px; font-size: 14px; color: #ffffff; font-weight: 600; margin-bottom: 12px;">
+        <span>${escapeHtml(folStr)}</span>
+        <span style="color: #3f3f46;">|</span>
+        <span>${escapeHtml(vidStr)}</span>
+      </div>
+      <p style="margin: 0 0 18px; color: #9ca3af; font-size: 14px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">${escapeHtml(rawDesc || "Truthworld Topics brings you the best verified channels and creators across education, technology, science, health, spirituality, entertainment and more.")}</p>
+      <a href="${canonicalUrl}" style="display: flex; align-items: center; justify-content: space-between; text-decoration: none; padding: 12px 16px; background: #0f1012; border: 1px solid #27272a; border-radius: 12px;">
+        <div style="display: flex; align-items: center; gap: 8px; color: #ffffff; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(canonicalUrl)}</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 4px; color: #8e8e93; font-size: 13px; flex-shrink: 0; margin-left: 12px;">
+          <span>Truthworld</span>
+          <span>&rsaquo;</span>
+        </div>
+      </a>
+    </div>
+  </section>`;
+
             const finalHtml = buildSemanticSsrHtml({
               title: `#${cleanTitle} - Topic | Truthworld`,
               description: topicDescription,
               url: canonicalUrl,
-              image: topicImage,
-              imageWidth: 1280,
-              imageHeight: 720,
+              image: ogCardImageUrl,
+              imageWidth: 1024,
+              imageHeight: 682,
               type: "website",
               robots: "index, follow",
               jsonLd: [topicSchema, breadcrumbs.jsonLd],
               breadcrumbHtml: breadcrumbs.html,
               contentHeading: `#${cleanTitle} Topic`,
+              customBodyHtml: topicCardHtml,
               relatedItems: topVideos.map(v => ({ title: v.title, url: `${DOMAIN}/watch?v=${v.id}` }))
             });
 
@@ -1631,7 +1833,7 @@ export const seoServer = onRequest(
   <section class="tw-hero" style="margin-bottom: 32px; padding: 24px; background: linear-gradient(135deg, #180029 0%, #0d0014 100%); border-radius: 12px; border: 1px solid #3b0764;">
     <h2 style="font-size: 22px; font-weight: bold; color: #ffffff; margin-bottom: 8px;">Watch Verified Videos, AI-Dubbed in 70+ Languages</h2>
     <p style="color: #d4d4d8; font-size: 15px; line-height: 1.6; max-width: 800px;">
-      Truthworld is the next-generation video platform with automated fact-checking, AI multilingual voice translation, and high-retention streaming. Explore trending topics, creator channels, and family-safe content below.
+      Watch family-safe videos with AI dubbing in 70+ languages &amp; 100+ subtitles. Automated fact-checking, creator studio tools, and 100% creator revenue.
     </p>
   </section>
       `;

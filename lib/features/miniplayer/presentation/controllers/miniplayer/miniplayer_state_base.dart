@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/features/miniplayer/data/models/miniplayer_model.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/data/models/video_clip.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:video_player/video_player.dart';
 
@@ -25,6 +26,12 @@ abstract class MiniplayerStateBase extends BaseController
   /// Full video object for handoff to full screen.
   final Rxn<Video> currentVideo = Rxn<Video>();
 
+  /// Active clip metadata if miniplayer is playing a clip.
+  final Rxn<VideoClip> activeClip = Rxn<VideoClip>();
+
+  /// Whether miniplayer is currently playing in audio-only mode.
+  final RxBool isAudioOnly = false.obs;
+
   /// Whether the underlying video is currently playing.
   final RxBool isPlaying = false.obs;
 
@@ -34,7 +41,7 @@ abstract class MiniplayerStateBase extends BaseController
   /// Current playback position (updated at ~4 Hz).
   final Rx<Duration> currentPosition = Duration.zero.obs;
 
-  /// Total duration of the loaded video.
+  /// Total duration of the loaded video or clip.
   final Rx<Duration> totalDuration = Duration.zero.obs;
 
   /// Drag progress (0.0 = collapsed, 1.0 = expanded).
@@ -82,6 +89,9 @@ abstract class MiniplayerStateBase extends BaseController
     }
     return MiniplayerConfig.videoAspectRatio;
   }
+
+  /// Whether playback is currently scoped to an active clip.
+  bool get isClip => activeClip.value != null;
 
   // ═══════════════════════════════════════════════════════════════════════════
   // INTERNAL NON-REACTIVE STATE
@@ -154,10 +164,13 @@ abstract class MiniplayerStateBase extends BaseController
   void dismiss();
   void expand();
   void collapse();
+  void clearActiveClip();
   Future<void> attemptRecovery();
   Future<void> showWithVideo(
     Video video, {
     Duration? resumeFromPosition,
     String? overrideUrl,
+    VideoClip? clip,
+    bool isAudioOnly = false,
   });
 }

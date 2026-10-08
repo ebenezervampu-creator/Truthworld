@@ -116,3 +116,11 @@ web/flutter_service_worker.js
 web/flutter_bootstrap.js
 web/flutter.js.map
 web/assets/
+
+# Release outputs & temporary files
+releases/
+*.aab
+*.apk
+*.ipa
+home_wasm_screenshot.png
+testers.csv

@@ -3,6 +3,8 @@ import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
 import { getVertexAI } from "../pipeline/utils/ai-client";
+import { PIPELINE_CONFIG } from "../pipeline/config";
+import { extractCandidateText } from "../pipeline/utils/ai-utils";
 import { COMMUNITY_GUIDELINES_TEXT, MODERATION_RESPONSE_SCHEMA } from "../moderation/communityGuidelinesPrompt";
 import { isAdsBypassed } from "../moderation/moderationModes";
 import { requireAuth, requireRecentAdmin } from "../utils/auth";
@@ -122,7 +124,7 @@ export const onAdCampaignWritten = onDocumentWritten(
       try {
         const genAI = getVertexAI();
         const model = genAI.getGenerativeModel({
-          model: "gemini-2.5-flash",
+          model: PIPELINE_CONFIG.GEMINI_MODELS?.moderation || PIPELINE_CONFIG.GEMINI_MODELS?.synthesis || "gemini-3.1-flash-lite",
           systemInstruction: `You are a strict advertisement moderation system for Truthworld. Review the advertisement details (brand name, headline, description, CTA text, CTA target, and media URLs) for violations of the Community Guidelines and Advertising Standards.\n\n${COMMUNITY_GUIDELINES_TEXT}`,
           generationConfig: {
             responseMimeType: "application/json",
@@ -141,7 +143,7 @@ export const onAdCampaignWritten = onDocumentWritten(
         }
 
         const result = await model.generateContent(prompt);
-        const responseText = result.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        const responseText = extractCandidateText(result.response.candidates?.[0]) || result.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
         // ── Cost Attribution: Track Gemini AI tokens used for ad moderation ──
         const usage = (result.response as any)?.usageMetadata;

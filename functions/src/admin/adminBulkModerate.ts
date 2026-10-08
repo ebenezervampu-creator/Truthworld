@@ -9,7 +9,11 @@ if (!admin.apps.length) {
 
 export const adminBulkModerate = onRequest(
   {
-    cors: true,
+    cors: [
+      "https://admin.truthworld.in",
+      "https://admin.truthworld.app",
+      "http://localhost:5173",
+    ],
     region: "asia-south1",
     minInstances: 0,
     maxInstances: 5,
@@ -27,6 +31,11 @@ export const adminBulkModerate = onRequest(
 
       if (itemIds.length === 0) {
         res.status(200).json({ results: [] });
+        return;
+      }
+
+      if (itemIds.length > 200) {
+        res.status(400).json({ error: "Batch size exceeds maximum limit of 200 items per request" });
         return;
       }
 
@@ -113,14 +122,20 @@ async function processVideo(id: string, action: string, reason: string) {
     const reviewQueueRef = admin.firestore().collection("admin_review_queue").doc(id);
     batch.delete(reviewQueueRef);
 
-    // Delete files from Storage
+    // Delete files from Storage with structured async handling
     const bucket = admin.storage().bucket();
-    bucket.getFiles({ prefix: `videos/${id}/` }).then(([files]) => {
-      files.forEach(f => f.delete().catch(() => {}));
-    }).catch(() => {});
-    bucket.getFiles({ prefix: `thumbnails/${id}/` }).then(([files]) => {
-      files.forEach(f => f.delete().catch(() => {}));
-    }).catch(() => {});
+    const deleteFiles = async (prefix: string) => {
+      try {
+        const [files] = await bucket.getFiles({ prefix });
+        await Promise.allSettled(files.map((f) => f.delete()));
+      } catch (err) {
+        logger.warn(`[adminBulkModerate] Storage delete error for prefix ${prefix}:`, err);
+      }
+    };
+    await Promise.allSettled([
+      deleteFiles(`videos/${id}/`),
+      deleteFiles(`thumbnails/${id}/`),
+    ]);
   }
 
   await batch.commit();

@@ -70,14 +70,14 @@ class OfflineVideo {
   };
 
   static OfflineVideo fromJson(Map<String, dynamic> json) => OfflineVideo(
-    id: json['id'],
-    title: json['title'],
-    channelName: json['channelName'],
-    channelImage: json['channelImage'],
-    views: json['views'],
-    thumbnailUrl: json['thumbnailUrl'],
+    id: json['id']?.toString() ?? '',
+    title: json['title']?.toString() ?? '',
+    channelName: json['channelName']?.toString() ?? '',
+    channelImage: json['channelImage']?.toString() ?? '',
+    views: json['views']?.toString() ?? '0',
+    thumbnailUrl: json['thumbnailUrl']?.toString() ?? '',
     downloadedAt: json['downloadedAt'] != null
-        ? DateTime.parse(json['downloadedAt'])
+        ? (DateTime.tryParse(json['downloadedAt'].toString()) ?? DateTime.now())
         : DateTime.now(),
     isAudioOnly: json['isAudioOnly'] as bool? ?? false,
     quality: json['quality'] as String?,

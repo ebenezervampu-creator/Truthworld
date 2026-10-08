@@ -101,13 +101,13 @@ import 'package:truthworld/theme/app_theme.dart';
               ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+                  decoration: const BoxDecoration(
+                    color: AppColors.infoContainer,
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
                     Icons.lock_open_rounded,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     size: 22,
                   ),
                 ),
@@ -115,6 +115,7 @@ import 'package:truthworld/theme/app_theme.dart';
                   'Change Visibility / Access',
                   style: AppTextStyles.titleMedium.copyWith(
                     fontWeight: FontWeight.bold,
+                    fontFamily: TWTypography.brandFamily,
                     color: AppColors.textPrimary,
                   ),
                 ),
@@ -133,13 +134,13 @@ import 'package:truthworld/theme/app_theme.dart';
               ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppColors.info.withValues(alpha: 0.15),
+                  decoration: const BoxDecoration(
+                    color: AppColors.infoContainer,
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
                     Icons.tune_rounded,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     size: 22,
                   ),
                 ),
@@ -311,35 +312,35 @@ import 'package:truthworld/theme/app_theme.dart';
         title: 'Public',
         subtitle: 'Everyone can search for and watch this video on Truthworld',
         icon: Icons.public_rounded,
-        color: const Color(0xFF10B981),
+        color: AppColors.success,
       ),
       (
         value: 'private',
         title: 'Private',
         subtitle: 'Only you can view this video in your channel studio',
         icon: Icons.lock_outline_rounded,
-        color: const Color(0xFFEF4444),
+        color: AppColors.error,
       ),
       (
         value: 'members_only',
         title: 'Members Only',
         subtitle: 'Exclusive access for paid channel members with an active tier',
         icon: Icons.card_membership_rounded,
-        color: const Color(0xFF8B5CF6),
+        color: AppColors.info,
       ),
       (
         value: 'subscribers_only',
         title: 'Subscribers Only',
         subtitle: 'Exclusive access for users subscribed to your channel',
         icon: Icons.subscriptions_rounded,
-        color: const Color(0xFF3B82F6),
+        color: AppColors.info,
       ),
       (
         value: 'unlisted',
         title: 'Unlisted',
         subtitle: 'Anyone with the video link can watch (hidden from search & feed)',
         icon: Icons.link_rounded,
-        color: const Color(0xFF94A3B8),
+        color: AppColors.textSecondary,
       ),
     ];
 
@@ -362,12 +363,12 @@ import 'package:truthworld/theme/app_theme.dart';
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppColors.brand.withValues(alpha: 0.15),
+                      color: AppColors.bgSurfaceHover,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Icon(
                       Icons.lock_open_rounded,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       size: 22,
                     ),
                   ),
@@ -381,6 +382,7 @@ import 'package:truthworld/theme/app_theme.dart';
                           style: AppTextStyles.titleLarge.copyWith(
                             color: AppColors.textPrimary,
                             fontWeight: FontWeight.bold,
+                            fontFamily: TWTypography.brandFamily,
                             fontSize: 18,
                           ),
                         ),
@@ -439,13 +441,13 @@ import 'package:truthworld/theme/app_theme.dart';
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: color.withValues(alpha: 0.2),
+                                color: color.withValues(alpha: 0.15),
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
                                 icon,
                                 size: 18,
-                                color: Colors.white,
+                                color: color,
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -518,7 +520,13 @@ import 'package:truthworld/theme/app_theme.dart';
                       controller.changeVideoVisibility(video.id, selected.value);
                       Get.back<void>();
                     },
-                    child: const Text('Save Visibility'),
+                    child: const Text(
+                      'Save Visibility',
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -553,6 +561,7 @@ import 'package:truthworld/theme/app_theme.dart';
                 style: AppTextStyles.titleLarge.copyWith(
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.bold,
+                  fontFamily: TWTypography.brandFamily,
                 ),
               ),
               const SizedBox(height: 12),
@@ -588,7 +597,13 @@ import 'package:truthworld/theme/app_theme.dart';
                       controller.deleteVideo(video);
                       Get.back<void>();
                     },
-                    child: const Text('Delete'),
+                    child: const Text(
+                      'Delete',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ],
               ),

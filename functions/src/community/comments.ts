@@ -141,9 +141,47 @@ export const addCommentNested = onCall(
 
     try {
       const sanitizedText = sanitizeText(text);
+
+      // Verify that target video actually exists before creating a comment
+      const videoDoc = await db().collection("videos").doc(videoId).get();
+      if (!videoDoc.exists) {
+        throw new HttpsError("not-found", "Target video not found.");
+      }
+      const targetChannelId = videoDoc.data()?.channelId || videoDoc.data()?.userId || "";
+
       const docRef = db().collection("videos").doc(videoId).collection("comments").doc();
 
-      const commentData = {
+      let isMember = Boolean(request.data.isMember);
+      let memberSince = request.data.memberSince
+        ? admin.firestore.Timestamp.fromDate(new Date(request.data.memberSince))
+        : null;
+      let memberTierName = request.data.memberTierName || null;
+
+      if (!isMember && targetChannelId) {
+        try {
+          const memberDoc = await db()
+            .collection("channels")
+            .doc(targetChannelId)
+            .collection("members")
+            .doc(userId)
+            .get();
+          if (memberDoc.exists) {
+            const mData = memberDoc.data();
+            if (mData?.status === "active" || !mData?.status) {
+              isMember = true;
+              memberSince = mData?.joinedAt || admin.firestore.FieldValue.serverTimestamp();
+              memberTierName = mData?.tierName || "Member";
+            }
+          }
+        } catch (memErr) {
+          logger.warn("[addCommentNested] Membership lookup skipped:", memErr);
+        }
+      }
+
+      const commentData: Record<string, any> = {
+        id: docRef.id,
+        videoId,
+        targetChannelId,
         userId,
         userName: userName || "Anonymous",
         userProfilePicUrl: userProfilePicUrl || "",
@@ -156,9 +194,29 @@ export const addCommentNested = onCall(
         reportCount: 0,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         hasCreatorReply: false,
+        isMember,
       };
+      if (memberSince) commentData.memberSince = memberSince;
+      if (memberTierName) commentData.memberTierName = memberTierName;
 
       await docRef.set(commentData);
+
+      // Increment distributed counter shard across 20 shards + update parent document
+      try {
+        const shardId = Math.floor(Math.random() * 20).toString();
+        const shardRef = db().collection("videos").doc(videoId).collection("comment_shards").doc(shardId);
+        await shardRef.set({
+          commentCount: admin.firestore.FieldValue.increment(1),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+
+        await db().collection("videos").doc(videoId).update({
+          commentCount: admin.firestore.FieldValue.increment(1),
+        });
+      } catch (countErr) {
+        logger.warn("[addCommentNested] Counter update skipped:", countErr);
+      }
+
       return { success: true, commentId: docRef.id };
     } catch (err) {
       logger.error("[addCommentNested] Error:", err);
@@ -194,15 +252,57 @@ export const addReplyNested = onCall(
 
     try {
       const sanitizedText = sanitizeText(text);
-      const docRef = db()
+
+      // 1. Verify target video exists in videos collection
+      const videoDoc = await db().collection("videos").doc(videoId).get();
+      if (!videoDoc.exists) {
+        throw new HttpsError("not-found", "Target video not found.");
+      }
+
+      // 2. Verify target comment exists under this specific video
+      const commentRef = db()
         .collection("videos")
         .doc(videoId)
         .collection("comments")
-        .doc(commentId)
-        .collection("replies")
-        .doc();
+        .doc(commentId);
+      const commentDoc = await commentRef.get();
+      if (!commentDoc.exists) {
+        throw new HttpsError("not-found", "Target comment not found.");
+      }
 
-      const replyData = {
+      const docRef = commentRef.collection("replies").doc();
+
+      let isMember = Boolean(request.data.isMember);
+      let memberSince = request.data.memberSince
+        ? admin.firestore.Timestamp.fromDate(new Date(request.data.memberSince))
+        : null;
+      let memberTierName = request.data.memberTierName || null;
+
+      const targetChannelId = videoDoc.data()?.channelId || videoDoc.data()?.userId;
+
+      if (!isMember && targetChannelId) {
+        try {
+          const memberDoc = await db()
+            .collection("channels")
+            .doc(targetChannelId)
+            .collection("members")
+            .doc(userId)
+            .get();
+          if (memberDoc.exists) {
+            const mData = memberDoc.data();
+            if (mData?.status === "active" || !mData?.status) {
+              isMember = true;
+              memberSince = mData?.joinedAt || admin.firestore.FieldValue.serverTimestamp();
+              memberTierName = mData?.tierName || "Member";
+            }
+          }
+        } catch (memErr) {
+          logger.warn("[addReplyNested] Membership lookup skipped:", memErr);
+        }
+      }
+
+      const replyData: Record<string, any> = {
+        id: docRef.id,
         commentId,
         videoId,
         userId,
@@ -216,9 +316,28 @@ export const addReplyNested = onCall(
         dislikeCount: 0,
         reportCount: 0,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        isMember,
       };
+      if (memberSince) replyData.memberSince = memberSince;
+      if (memberTierName) replyData.memberTierName = memberTierName;
 
       await docRef.set(replyData);
+
+      // Atomically update comment: increment reply count and mark as creator reply if applicable
+      const isCreatorReply = Boolean(
+        (channelId && targetChannelId && channelId === targetChannelId) ||
+        (userId && targetChannelId && userId === targetChannelId)
+      );
+
+      try {
+        await commentRef.update({
+          ...(isCreatorReply ? { hasCreatorReply: true } : {}),
+          replyCount: admin.firestore.FieldValue.increment(1),
+        });
+      } catch (updateErr) {
+        logger.warn("[addReplyNested] Failed to update comment reply status:", updateErr);
+      }
+
       return { success: true, replyId: docRef.id };
     } catch (err) {
       logger.error("[addReplyNested] Error:", err);
@@ -773,6 +892,164 @@ export const reportCommentNested = onCall(
     } catch (err) {
       logger.error("[reportCommentNested] Error:", err);
       throw new HttpsError("internal", `Failed to file report: ${(err as Error)?.message || String(err)}`);
+    }
+  }
+);
+
+/**
+ * 💬 ADD TOPIC COMMENT (Callable)
+ * Targets: topics/{topicId}/comments
+ * Distributes high-velocity writes across 20 shards to prevent write contention.
+ */
+export const addTopicComment = onCall(
+  { region: "asia-south1", memory: "256MiB", maxInstances: 15 },
+  async (request) => {
+    const userId = request.auth?.uid;
+    if (!userId) throw new HttpsError("unauthenticated", "Auth required.");
+
+    const {
+      topicId,
+      userName,
+      userProfilePicUrl,
+      channelId,
+      channelName,
+      channelProfilePicUrl,
+      text,
+    } = request.data;
+
+    if (!topicId || !text || typeof text !== "string") {
+      throw new HttpsError("invalid-argument", "Missing required fields.");
+    }
+
+    if (text.trim().length === 0 || text.length > 5000) {
+      throw new HttpsError("out-of-range", "Comment length invalid.");
+    }
+
+    try {
+      const sanitizedText = sanitizeText(text);
+      const docRef = db().collection("topics").doc(topicId).collection("comments").doc();
+
+      const commentData: Record<string, any> = {
+        topicId,
+        videoId: topicId,
+        userId,
+        userName: userName || "Anonymous",
+        userProfilePicUrl: userProfilePicUrl || "",
+        channelId: channelId || userId,
+        channelName: channelName || null,
+        channelProfilePicUrl: channelProfilePicUrl || null,
+        text: sanitizedText,
+        likeCount: 0,
+        dislikeCount: 0,
+        reportCount: 0,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+
+      await docRef.set(commentData);
+
+      // Increment distributed counter shard across 20 shards + update parent document
+      try {
+        const shardId = Math.floor(Math.random() * 20).toString();
+        const shardRef = db().collection("topics").doc(topicId).collection("shards").doc(shardId);
+        await shardRef.set({
+          commentCount: admin.firestore.FieldValue.increment(1),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+
+        await db().collection("topics").doc(topicId).update({
+          commentCount: admin.firestore.FieldValue.increment(1),
+        });
+      } catch (countErr) {
+        logger.warn("[addTopicComment] Counter update skipped:", countErr);
+      }
+
+      return { success: true, commentId: docRef.id };
+    } catch (err) {
+      logger.error("[addTopicComment] Error:", err);
+      throw new HttpsError("internal", `Failed to create topic comment: ${(err as Error)?.message || String(err)}`);
+    }
+  }
+);
+
+/**
+ * 💬 ADD TOPIC REPLY (Callable)
+ * Targets: topics/{topicId}/comments/{commentId}/replies
+ * Distributes high-velocity writes across 20 shards.
+ */
+export const addTopicReply = onCall(
+  { region: "asia-south1", memory: "256MiB", maxInstances: 15 },
+  async (request) => {
+    const userId = request.auth?.uid;
+    if (!userId) throw new HttpsError("unauthenticated", "Auth required.");
+
+    const {
+      topicId,
+      commentId,
+      userName,
+      userProfilePicUrl,
+      channelId,
+      channelName,
+      channelProfilePicUrl,
+      text,
+    } = request.data;
+
+    if (!topicId || !commentId || !text || typeof text !== "string") {
+      throw new HttpsError("invalid-argument", "Missing required fields.");
+    }
+
+    if (text.trim().length === 0 || text.length > 5000) {
+      throw new HttpsError("out-of-range", "Reply length invalid.");
+    }
+
+    try {
+      const sanitizedText = sanitizeText(text);
+      const docRef = db()
+        .collection("topics")
+        .doc(topicId)
+        .collection("comments")
+        .doc(commentId)
+        .collection("replies")
+        .doc();
+
+      const replyData: Record<string, any> = {
+        commentId,
+        topicId,
+        videoId: topicId,
+        userId,
+        userName: userName || "Anonymous",
+        userProfilePicUrl: userProfilePicUrl || "",
+        channelId: channelId || userId,
+        channelName: channelName || null,
+        channelProfilePicUrl: channelProfilePicUrl || null,
+        text: sanitizedText,
+        likeCount: 0,
+        dislikeCount: 0,
+        reportCount: 0,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+
+      await docRef.set(replyData);
+
+      // Increment distributed counter shard across 20 shards + update parent document
+      try {
+        const shardId = Math.floor(Math.random() * 20).toString();
+        const shardRef = db().collection("topics").doc(topicId).collection("shards").doc(shardId);
+        await shardRef.set({
+          commentCount: admin.firestore.FieldValue.increment(1),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+
+        await db().collection("topics").doc(topicId).update({
+          commentCount: admin.firestore.FieldValue.increment(1),
+        });
+      } catch (countErr) {
+        logger.warn("[addTopicReply] Counter update skipped:", countErr);
+      }
+
+      return { success: true, replyId: docRef.id };
+    } catch (err) {
+      logger.error("[addTopicReply] Error:", err);
+      throw new HttpsError("internal", `Failed to create topic reply: ${(err as Error)?.message || String(err)}`);
     }
   }
 );

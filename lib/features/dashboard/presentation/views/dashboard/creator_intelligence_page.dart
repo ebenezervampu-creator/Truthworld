@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/creator_intelligence_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/intelligence/creator_intelligence_widgets.dart';
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 export 'package:truthworld/features/dashboard/presentation/views/dashboard/intelligence/creator_intelligence_widgets.dart';
 
@@ -23,10 +25,12 @@ class CreatorIntelligencePage extends StatelessWidget {
       child: Text(
         title,
         style: const TextStyle(
+          fontFamily: TWTypography.uiFamily,
+          fontFamilyFallback: TWTypography.fallbackFamilies,
           fontSize: 12,
           fontWeight: FontWeight.bold,
           letterSpacing: 1.2,
-          color: Color(0xFF71717A),
+          color: AppColors.textTertiary,
         ),
       ),
     );
@@ -43,7 +47,7 @@ class CreatorIntelligencePage extends StatelessWidget {
     );
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0F),
+      backgroundColor: AppColors.bgPage,
       body: CustomScrollView(
         slivers: [
           // ── App Header Banner ──
@@ -59,11 +63,25 @@ class CreatorIntelligencePage extends StatelessWidget {
           // ── Main Content List ──
           Obx(() {
             if (controller.isLoading) {
-              return const SliverFillRemaining(
-                child: Center(
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              return SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                sliver: SliverToBoxAdapter(
+                  child: Shimmer.fromColors(
+                    baseColor: const Color(0xFF1E1E1E),
+                    highlightColor: AppColors.bgSurfaceHover,
+                    child: Column(
+                      children: List.generate(
+                        4,
+                        (_) => Container(
+                          height: 84,
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1E1E1E),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               );

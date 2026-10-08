@@ -1,4 +1,5 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/widgets/app_logo.dart';
@@ -12,7 +13,7 @@ abstract class TLong {
   static const Duration fast = Duration(milliseconds: 220);
   static const Duration medium = Duration(milliseconds: 320);
   static const Duration slow = Duration(milliseconds: 420);
-  static const Duration splash = Duration(milliseconds: 2200);
+  static const Duration splash = Duration(milliseconds: 350);
   static const Curve curve = Curves.easeOutCubic;
   static const Curve exit = Curves.fastOutSlowIn;
 }
@@ -25,14 +26,30 @@ class TruthworldSplashScreen extends StatefulWidget {
     required this.child,
     super.key,
     this.duration = TLong.splash,
-    this.backgroundColor = const Color(0xFF08070E),
+    this.backgroundColor = const Color(0xFF0B0F1A),
+    this.message = 'Love everyone Trust no one',
     this.onCompleted,
   });
 
   final Widget child;
   final Duration duration;
   final Color backgroundColor;
+  final String? message;
   final VoidCallback? onCompleted;
+
+  static final RxBool _dismissSignal = false.obs;
+
+  /// Trigger immediate graceful exit animation as soon as the Home feed is loaded.
+  static void dismiss() {
+    if (!_dismissSignal.value) {
+      _dismissSignal.value = true;
+    }
+  }
+
+  /// Reset the signal for testing or session restarts.
+  static void reset() {
+    _dismissSignal.value = false;
+  }
 
   @override
   State<TruthworldSplashScreen> createState() => _TruthworldSplashScreenState();
@@ -48,6 +65,7 @@ class _TruthworldSplashScreenState extends State<TruthworldSplashScreen>
   late final Animation<double> _exitFade;
 
   final RxBool _done = false.obs;
+  Worker? _dismissWorker;
 
   @override
   void initState() {
@@ -76,30 +94,42 @@ class _TruthworldSplashScreenState extends State<TruthworldSplashScreen>
         widget.onCompleted?.call();
       }
     });
-    _controller.forward();
+
+    if (TruthworldSplashScreen._dismissSignal.value) {
+      _done.value = true;
+      widget.onCompleted?.call();
+    } else {
+      _dismissWorker = ever(TruthworldSplashScreen._dismissSignal, (dismiss) {
+        if (dismiss && mounted && !_done.value) {
+          if (_controller.value < 0.70) {
+            _controller.animateTo(
+              1.0,
+              duration: const Duration(milliseconds: 160),
+              curve: Curves.easeOut,
+            );
+          }
+        }
+      });
+      _controller.forward();
+    }
   }
 
   @override
   void dispose() {
+    _dismissWorker?.dispose();
     _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (kIsWeb) return widget.child;
-
     return Obx(() {
       if (_done.value) return widget.child;
-
-      final shortest = MediaQuery.sizeOf(context).shortestSide;
-      final logoSize = (shortest * 0.24).clamp(72.0, 110.0);
-      final titleSize = (shortest * 0.06).clamp(20.0, 26.0);
 
       return Stack(
         fit: StackFit.expand,
         children: [
-          TickerMode(enabled: _done.value, child: widget.child),
+          TickerMode(enabled: true, child: widget.child),
           AnimatedBuilder(
             animation: _controller,
             builder: (context, _) {
@@ -110,47 +140,85 @@ class _TruthworldSplashScreenState extends State<TruthworldSplashScreen>
                   scale: _logoScale.value * _exitScale.value,
                   child: ColoredBox(
                     color: widget.backgroundColor,
-                    child: Stack(
-                      children: [
-                        Center(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final availableHeight = constraints.maxHeight;
+                        final availableWidth = constraints.maxWidth;
+                        final shortest = math.min(availableWidth, availableHeight);
+
+                        // Prominently sized Truthworld Logo (increased size: 130px - 220px)
+                        final logoSize = math.min(
+                          availableHeight * 0.36,
+                          shortest * 0.42,
+                        ).clamp(130.0, 220.0);
+
+                        final spacing = (logoSize * 0.16).clamp(16.0, 26.0);
+                        final titleSize = (logoSize * 0.22).clamp(26.0, 38.0);
+                        final hasMessage = widget.message != null && widget.message!.trim().isNotEmpty;
+                        final messageSize = (titleSize * 0.42).clamp(13.0, 16.0);
+                        final messageSpacing = (logoSize * 0.05).clamp(6.0, 10.0);
+
+                        // Check if "Truthworld" text and message comfortably fit without crowding or overflowing
+                        final estimatedTotalHeight = logoSize +
+                            spacing +
+                            (titleSize * 1.35) +
+                            (hasMessage ? messageSpacing + (messageSize * 1.35) : 0.0);
+                        final fitsText = availableHeight >= (estimatedTotalHeight + 48.0);
+
+                        return Center(
                           child: FittedBox(
                             fit: BoxFit.scaleDown,
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                FadeTransition(opacity: _logoFade, child: AppLogo(size: logoSize, borderRadius: 20)),
-                                SizedBox(height: logoSize * 0.28),
-                                FadeTransition(
-                                  opacity: _textFade,
-                                  child: Column(
-                                    children: [
-                                      Text('Truthworld', style: TextStyle(fontSize: titleSize, fontWeight: FontWeight.w700, color: Colors.white, letterSpacing: 0.5)),
-                                      const SizedBox(height: 6),
-                                      Text('LONG FORM • TRUTH FIRST',
-                                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 2.0, color: Colors.white.withValues(alpha: 0.5))),
-                                    ],
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  FadeTransition(
+                                    opacity: _logoFade,
+                                    child: AppLogo(
+                                      size: logoSize,
+                                      borderRadius: logoSize * 0.22,
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        // Truthworld style loading line - perfect for long video
-                        Positioned(
-                          bottom: 0, left: 0, right: 0,
-                          child: SafeArea(
-                            top: false,
-                            child: SizedBox(
-                              height: 2.5,
-                              child: LinearProgressIndicator(
-                                value: _controller.value,
-                                backgroundColor: Colors.white.withValues(alpha: 0.08),
-                                valueColor: const AlwaysStoppedAnimation(Color(0xFF9B30FF)),
+                                  if (fitsText) ...[
+                                    SizedBox(height: spacing),
+                                    FadeTransition(
+                                      opacity: _textFade,
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            'Truthworld',
+                                            style: TextStyle(
+                                              fontSize: titleSize,
+                                              fontWeight: FontWeight.w700,
+                                              color: Colors.white,
+                                              letterSpacing: 0.6,
+                                            ),
+                                          ),
+                                          if (hasMessage) ...[
+                                            SizedBox(height: messageSpacing),
+                                            Text(
+                                              widget.message!,
+                                              style: TextStyle(
+                                                fontSize: messageSize,
+                                                fontWeight: FontWeight.w500,
+                                                color: Colors.white.withValues(alpha: 0.72),
+                                                letterSpacing: 0.6,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ),
                           ),
-                        ),
-                      ],
+                        );
+                      },
                     ),
                   ),
                 ),

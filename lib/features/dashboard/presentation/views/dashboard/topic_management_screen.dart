@@ -52,27 +52,26 @@ class TopicManagementScreen extends StatelessWidget {
         return;
       }
 
-      Get.dialog<void>(
-        EditTopicDialog(
-          topic: topic,
-          channelId: topic.channelId ?? channelId,
-          isDarkMode: isDarkMode,
-          controller: controller,
-        ),
+      EditTopicDialog.show(
+        context: ctx,
+        topic: topic,
+        channelId: topic.channelId ?? channelId,
+        isDarkMode: isDarkMode,
+        controller: controller,
       );
     };
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0F),
+      backgroundColor: AppColors.bgPage,
       body: CustomScrollView(
         slivers: [
           // Studio Header & Summary Metrics Bar
           SliverToBoxAdapter(
             child: Container(
               decoration: const BoxDecoration(
-                color: Color(0xFF0F0F0F),
+                color: AppColors.bgPage,
                 border: Border(
-                  bottom: BorderSide(color: Color(0xFF27272A)),
+                  bottom: BorderSide(color: AppColors.bgDivider),
                 ),
               ),
               padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
@@ -92,7 +91,8 @@ class TopicManagementScreen extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: 22,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.white,
+                                color: AppColors.textPrimary,
+                                fontFamily: TWTypography.brandFamily,
                                 letterSpacing: -0.5,
                               ),
                             ),
@@ -110,20 +110,19 @@ class TopicManagementScreen extends StatelessWidget {
                               icon: const Icon(
                                 Icons.add_rounded,
                                 size: 18,
-                                color: Colors.white,
+                                color: Colors.black,
                               ),
                               label: const Text(
                                 'New Topic',
                                 style: TextStyle(
-                                  color: Colors.white,
+                                  color: Colors.black,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 13,
                                 ),
                               ),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF27272A),
-                                foregroundColor: Colors.white,
-                                side: const BorderSide(color: Color(0xFF3F3F46)),
+                                backgroundColor: AppColors.brand,
+                                foregroundColor: Colors.black,
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 16,
                                   vertical: 12,
@@ -150,7 +149,8 @@ class TopicManagementScreen extends StatelessWidget {
                                   style: TextStyle(
                                     fontSize: 24,
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.white,
+                                    color: AppColors.textPrimary,
+                                    fontFamily: TWTypography.brandFamily,
                                     letterSpacing: -0.5,
                                   ),
                                 ),
@@ -171,20 +171,19 @@ class TopicManagementScreen extends StatelessWidget {
                             icon: const Icon(
                               Icons.add_rounded,
                               size: 18,
-                              color: Colors.white,
+                              color: Colors.black,
                             ),
                             label: const Text(
                               'New Topic',
                               style: TextStyle(
-                                color: Colors.white,
+                                color: Colors.black,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 13,
                               ),
                             ),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF27272A),
-                              foregroundColor: Colors.white,
-                              side: const BorderSide(color: Color(0xFF3F3F46)),
+                              backgroundColor: AppColors.brand,
+                              foregroundColor: Colors.black,
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 18,
                                 vertical: 12,
@@ -245,7 +244,7 @@ class TopicManagementScreen extends StatelessWidget {
                   final topics = snapshot.data!;
                   // Update controller reactive list safely after the frame renders
                   WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (controller.topicsList.length != topics.length) {
+                    if (_haveTopicsChanged(controller.topicsList, topics)) {
                       controller.topicsList.assignAll(topics);
                     }
                   });
@@ -331,5 +330,21 @@ class TopicManagementScreen extends StatelessWidget {
         );
       },
     );
+  }
+
+  bool _haveTopicsChanged(List<Topic> current, List<Topic> incoming) {
+    if (current.length != incoming.length) return true;
+    for (var i = 0; i < current.length; i++) {
+      if (current[i].id != incoming[i].id ||
+          current[i].updatedAt != incoming[i].updatedAt ||
+          current[i].title != incoming[i].title ||
+          current[i].videoCount != incoming[i].videoCount ||
+          current[i].visibilityType != incoming[i].visibilityType ||
+          current[i].thumbnailUrl != incoming[i].thumbnailUrl ||
+          current[i].category != incoming[i].category) {
+        return true;
+      }
+    }
+    return false;
   }
 }

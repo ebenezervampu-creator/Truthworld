@@ -119,6 +119,7 @@ function Copy-WebAssets {
         "robots.txt",
         "truthworld-indexnow-key-2026.txt",
         "truthworld_indexnow_key_2026.txt",
+        "sw.js",
         "flutter_service_worker.js",
         "flutter.js.map",
         "llms.txt",
@@ -182,10 +183,14 @@ if (-not $SkipAndroid -and -not $OnlyDeploy) {
     
     foreach ($app in $apps) {
         Write-Host "`n--- Building Android: $($app.Name) (Flavor: $($app.Flavor), Entry: $($app.Entry)) ---" -ForegroundColor Green
+        $symbolsDir = Join-Path $projectRoot "build\app\outputs\symbols\$($app.Flavor)"
+        if (-not (Test-Path $symbolsDir)) {
+            New-Item -ItemType Directory -Path $symbolsDir -Force | Out-Null
+        }
         
         if ($AndroidFormat -eq 'apk' -or $AndroidFormat -eq 'both') {
-            Write-Host "Building Release APK for $($app.Flavor)..." -ForegroundColor Cyan
-            flutter build apk --release --flavor $app.Flavor -t $app.Entry
+            Write-Host "Building Secure Obfuscated Release APK for $($app.Flavor)..." -ForegroundColor Cyan
+            flutter build apk --release --flavor $app.Flavor -t $app.Entry --obfuscate --split-debug-info=$symbolsDir
             if ($LASTEXITCODE -ne 0) {
                 throw "Failed to build APK for $($app.Name)"
             }
@@ -197,15 +202,15 @@ if (-not $SkipAndroid -and -not $OnlyDeploy) {
                 Copy-Item $sourceApk $targetApk -Force
                 $hash = (Get-FileHash $targetApk -Algorithm SHA256).Hash
                 $sizeMb = [math]::Round(((Get-Item $targetApk).Length / 1MB), 2)
-                Write-Host ("[+] Staged APK: {0} ({1} MB, SHA256: {2})" -f $targetApk, $sizeMb, $hash) -ForegroundColor Green
+                Write-Host ("[+] Staged Obfuscated APK: {0} ({1} MB, SHA256: {2})" -f $targetApk, $sizeMb, $hash) -ForegroundColor Green
             } else {
                 Write-Warning "Could not find expected APK at $sourceApk"
             }
         }
 
         if ($AndroidFormat -eq 'appbundle' -or $AndroidFormat -eq 'both') {
-            Write-Host "Building Release AppBundle for $($app.Flavor)..." -ForegroundColor Cyan
-            flutter build appbundle --release --flavor $app.Flavor -t $app.Entry
+            Write-Host "Building Secure Obfuscated Release AppBundle for $($app.Flavor)..." -ForegroundColor Cyan
+            flutter build appbundle --release --flavor $app.Flavor -t $app.Entry --obfuscate --split-debug-info=$symbolsDir
             if ($LASTEXITCODE -ne 0) {
                 throw "Failed to build AppBundle for $($app.Name)"
             }
@@ -215,9 +220,10 @@ if (-not $SkipAndroid -and -not $OnlyDeploy) {
                 $targetAab = Join-Path $releasesDir "truthworld-$($app.Id)-release.aab"
                 Copy-Item $sourceAab $targetAab -Force
                 $sizeMb = [math]::Round(((Get-Item $targetAab).Length / 1MB), 2)
-                Write-Host ("[+] Staged AppBundle: {0} ({1} MB)" -f $targetAab, $sizeMb) -ForegroundColor Green
+                Write-Host ("[+] Staged Obfuscated AppBundle: {0} ({1} MB)" -f $targetAab, $sizeMb) -ForegroundColor Green
             }
         }
+        Write-Host ("[+] Debug symbols stored securely in: {0}" -f $symbolsDir) -ForegroundColor Cyan
     }
 }
 

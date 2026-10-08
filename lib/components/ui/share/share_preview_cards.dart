@@ -19,6 +19,7 @@ class SharePreviewCard extends StatelessWidget {
     required this.contentType,
     required this.title,
     super.key,
+    this.url,
     this.thumbnailUrl,
     this.bannerUrl,
     this.subtitle,
@@ -34,10 +35,12 @@ class SharePreviewCard extends StatelessWidget {
     this.clipFile,
     this.clipStatus,
     this.isPreparingClip,
+    this.onTap,
   });
 
   final String contentType;
   final String title;
+  final String? url;
   final String? thumbnailUrl;
   final String? bannerUrl;
   final String? subtitle;
@@ -53,6 +56,7 @@ class SharePreviewCard extends StatelessWidget {
   final Rxn<File>? clipFile;
   final RxString? clipStatus;
   final RxBool? isPreparingClip;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -72,6 +76,7 @@ class SharePreviewCard extends StatelessWidget {
       case 'channel':
         return ShareChannelCard(
           title: title,
+          url: url,
           thumbnailUrl: thumbnailUrl,
           bannerUrl: bannerUrl,
           subtitle: subtitle,
@@ -79,6 +84,7 @@ class SharePreviewCard extends StatelessWidget {
           videoCount: videoCount,
           subscriberCount: subscriberCount,
           handle: handle,
+          onTap: onTap,
         );
       case 'playlist':
         return SharePlaylistCard(
@@ -91,20 +97,25 @@ class SharePreviewCard extends StatelessWidget {
       case 'topic':
         return ShareTopicCard(
           title: title,
+          url: url,
           thumbnailUrl: thumbnailUrl,
+          bannerUrl: bannerUrl,
           subtitle: subtitle,
           videoCount: videoCount,
           followerCount: followerCount,
           handle: handle,
+          onTap: onTap,
         );
       case 'video':
       default:
         return ShareVideoCard(
           title: title,
+          url: url,
           thumbnailUrl: thumbnailUrl,
           subtitle: subtitle,
           durationMs: durationMs,
           channelName: channelName,
+          onTap: onTap,
         );
     }
   }

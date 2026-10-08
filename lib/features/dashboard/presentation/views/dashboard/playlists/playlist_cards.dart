@@ -17,11 +17,11 @@ class PlaylistDefaultThumbnail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const ColoredBox(
-      color: Color(0xFF1F1F23),
+      color: Color(0xFF1E1E1E),
       child: Center(
         child: Icon(
           Icons.playlist_play_rounded,
-          color: Colors.white,
+          color: AppColors.textPrimary,
           size: 36,
         ),
       ),
@@ -47,13 +47,13 @@ class PlaylistMenuButton extends StatelessWidget {
     return PopupMenuButton<String>(
       icon: const Icon(
         Icons.more_vert_rounded,
-        color: Colors.white,
+        color: AppColors.textPrimary,
         size: 18,
       ),
-      color: const Color(0xFF1C1C20),
+      color: const Color(0xFF1E1E1E),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: const BorderSide(color: Color(0xFF27272A)),
+        side: const BorderSide(color: AppColors.bgDivider),
       ),
       onSelected: (action) {
         if (action == 'view') {
@@ -79,13 +79,17 @@ class PlaylistMenuButton extends StatelessWidget {
             children: [
               Icon(
                 Icons.play_circle_outline_rounded,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 size: 16,
               ),
               SizedBox(width: 10),
               Text(
                 'Play & View',
-                style: TextStyle(color: Colors.white, fontSize: 13),
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                  fontFamily: TWTypography.uiFamily,
+                ),
               ),
             ],
           ),
@@ -96,13 +100,17 @@ class PlaylistMenuButton extends StatelessWidget {
             children: [
               Icon(
                 Icons.video_collection_outlined,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 size: 16,
               ),
               SizedBox(width: 10),
               Text(
                 'Manage & Reorder Videos',
-                style: TextStyle(color: Colors.white, fontSize: 13),
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                  fontFamily: TWTypography.uiFamily,
+                ),
               ),
             ],
           ),
@@ -113,13 +121,17 @@ class PlaylistMenuButton extends StatelessWidget {
             children: [
               Icon(
                 Icons.edit_outlined,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 size: 16,
               ),
               SizedBox(width: 10),
               Text(
                 'Edit Metadata',
-                style: TextStyle(color: Colors.white, fontSize: 13),
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                  fontFamily: TWTypography.uiFamily,
+                ),
               ),
             ],
           ),
@@ -130,13 +142,17 @@ class PlaylistMenuButton extends StatelessWidget {
             children: [
               Icon(
                 Icons.link_rounded,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 size: 16,
               ),
               SizedBox(width: 10),
               Text(
                 'Copy Share Link',
-                style: TextStyle(color: Colors.white, fontSize: 13),
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                  fontFamily: TWTypography.uiFamily,
+                ),
               ),
             ],
           ),
@@ -148,13 +164,17 @@ class PlaylistMenuButton extends StatelessWidget {
             children: [
               Icon(
                 Icons.delete_outline_rounded,
-                color: Colors.white,
+                color: AppColors.error,
                 size: 16,
               ),
               SizedBox(width: 10),
               Text(
                 'Delete Playlist',
-                style: TextStyle(color: AppColors.error, fontSize: 13),
+                style: TextStyle(
+                  color: AppColors.error,
+                  fontSize: 13,
+                  fontFamily: TWTypography.uiFamily,
+                ),
               ),
             ],
           ),
@@ -178,16 +198,16 @@ class PlaylistGridCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final visibilityColor = playlist.visibility == PlaylistVisibility.public
-        ? Colors.green
+        ? AppColors.success
         : (playlist.visibility == PlaylistVisibility.unlisted
-            ? Colors.amber
-            : const Color(0xFF94A3B8));
+            ? AppColors.warning
+            : AppColors.textSecondary);
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF141417),
+        color: const Color(0xFF1E1E1E),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: AppColors.bgDivider),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -225,16 +245,17 @@ class PlaylistGridCard extends StatelessWidget {
                     children: [
                       const Icon(
                         Icons.playlist_play_rounded,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                         size: 14,
                       ),
                       const SizedBox(width: 4),
                       Text(
                         '${playlist.videoCount} videos',
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
+                          fontFamily: TWTypography.uiFamily,
                         ),
                       ),
                     ],
@@ -267,7 +288,7 @@ class PlaylistGridCard extends StatelessWidget {
                                     PlaylistVisibility.unlisted
                                 ? Icons.link_rounded
                                 : Icons.lock_outline_rounded),
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                         size: 11,
                       ),
                       const SizedBox(width: 4),
@@ -278,6 +299,7 @@ class PlaylistGridCard extends StatelessWidget {
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 0.5,
+                          fontFamily: TWTypography.uiFamily,
                         ),
                       ),
                     ],
@@ -305,8 +327,9 @@ class PlaylistGridCard extends StatelessWidget {
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                             height: 1.2,
+                            fontFamily: TWTypography.brandFamily,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -327,12 +350,13 @@ class PlaylistGridCard extends StatelessWidget {
                       fontSize: 12,
                       color: AppColors.textSecondary,
                       height: 1.3,
+                      fontFamily: TWTypography.uiFamily,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const Spacer(),
-                  const Divider(height: 12, color: Color(0xFF27272A)),
+                  const Divider(height: 12, color: AppColors.bgDivider),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -341,6 +365,7 @@ class PlaylistGridCard extends StatelessWidget {
                         style: const TextStyle(
                           fontSize: 11,
                           color: AppColors.textTertiary,
+                          fontFamily: TWTypography.uiFamily,
                         ),
                       ),
                       InkWell(
@@ -359,16 +384,17 @@ class PlaylistGridCard extends StatelessWidget {
                             children: [
                               Icon(
                                 Icons.video_collection_outlined,
-                                color: Colors.white,
+                                color: AppColors.textPrimary,
                                 size: 13,
                               ),
                               SizedBox(width: 4),
                               Text(
                                 'Manage',
                                 style: TextStyle(
-                                  color: Colors.white,
+                                  color: AppColors.textPrimary,
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
+                                  fontFamily: TWTypography.uiFamily,
                                 ),
                               ),
                             ],
@@ -401,16 +427,16 @@ class PlaylistListCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final visibilityColor = playlist.visibility == PlaylistVisibility.public
-        ? Colors.green
+        ? AppColors.success
         : (playlist.visibility == PlaylistVisibility.unlisted
-            ? Colors.amber
-            : const Color(0xFF94A3B8));
+            ? AppColors.warning
+            : AppColors.textSecondary);
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF141417),
+        color: const Color(0xFF1E1E1E),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: AppColors.bgDivider),
       ),
       padding: const EdgeInsets.all(12),
       child: Row(
@@ -448,9 +474,10 @@ class PlaylistListCard extends StatelessWidget {
                       child: Text(
                         '${playlist.videoCount} videos',
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
+                          fontFamily: TWTypography.uiFamily,
                         ),
                       ),
                     ),
@@ -477,7 +504,8 @@ class PlaylistListCard extends StatelessWidget {
                         style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
+                          fontFamily: TWTypography.brandFamily,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -502,6 +530,7 @@ class PlaylistListCard extends StatelessWidget {
                           color: visibilityColor,
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
+                          fontFamily: TWTypography.uiFamily,
                         ),
                       ),
                     ),
@@ -510,11 +539,12 @@ class PlaylistListCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   playlist.description.isNotEmpty
-                        ? playlist.description
-                        : 'No description provided.',
+                      ? playlist.description
+                      : 'No description provided.',
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,
+                    fontFamily: TWTypography.uiFamily,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -525,6 +555,7 @@ class PlaylistListCard extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 11,
                     color: AppColors.textTertiary,
+                    fontFamily: TWTypography.uiFamily,
                   ),
                 ),
               ],
@@ -542,20 +573,21 @@ class PlaylistListCard extends StatelessWidget {
             icon: const Icon(
               Icons.video_collection_outlined,
               size: 14,
-              color: Colors.white,
+              color: AppColors.textPrimary,
             ),
             label: const Text(
               'Manage Videos',
               style: TextStyle(
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
+                fontFamily: TWTypography.uiFamily,
               ),
             ),
             style: OutlinedButton.styleFrom(
-              backgroundColor: const Color(0xFF1E1E22),
-              foregroundColor: Colors.white,
-              side: const BorderSide(color: Color(0xFF27272A)),
+              backgroundColor: AppColors.bgSurfaceHover,
+              foregroundColor: AppColors.textPrimary,
+              side: const BorderSide(color: AppColors.bgDivider),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),

@@ -16,11 +16,11 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
+import 'package:truthworld/core/utils/web_platform_utils.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:universal_html/html.dart' as html;
 import 'package:video_player/video_player.dart';
 
 class VideoManagementController extends BaseController with ContentValidationMixin {
@@ -443,6 +443,18 @@ class VideoManagementController extends BaseController with ContentValidationMix
     }
   }
 
+  Future<void> batchChangeVideoVisibility(List<String> videoIds, String visibility) async {
+    for (final id in videoIds) {
+      await changeVideoVisibility(id, visibility);
+    }
+  }
+
+  Future<void> batchDeleteVideos(List<Video> videos) async {
+    for (final v in videos) {
+      await deleteVideo(v);
+    }
+  }
+
   Future<void> updateVideo(String videoId, Map<String, dynamic> data) async {
     try {
       if (data.containsKey('title')) {
@@ -496,24 +508,12 @@ class VideoManagementController extends BaseController with ContentValidationMix
 
   Future<String> _getVideoDurationFormatted(PlatformFile videoFile) async {
     if (kIsWeb) {
-      final completer = Completer<String>();
-      final blob = html.Blob([videoFile.bytes]);
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      final videoElement = html.VideoElement()
-        ..src = url
-        ..preload = 'metadata';
-
-      videoElement.onLoadedMetadata.listen((event) {
-        final duration = Duration(seconds: videoElement.duration.floor());
-        html.Url.revokeObjectUrl(url);
-        completer.complete(_formatDuration(duration));
-      });
-
-      videoElement.onError.listen((event) {
-        html.Url.revokeObjectUrl(url);
-        completer.completeError('Failed to load video metadata.');
-      });
-      return completer.future;
+      final bytes = videoFile.bytes;
+      if (bytes == null) {
+        return _formatDuration(Duration.zero);
+      }
+      final duration = await WebPlatformUtils.getVideoDurationFromBytes(bytes);
+      return _formatDuration(duration ?? Duration.zero);
     } else {
       final File targetFile;
       var shouldDelete = false;

@@ -121,15 +121,15 @@ class SubtitlesCuesEditor extends StatelessWidget {
                                     icon: const Icon(
                                       Icons.add_rounded,
                                       size: 16,
-                                      color: Colors.white,
+                                      color: Colors.black,
                                     ),
                                     label: const Text(
                                       'Add First Cue',
-                                      style: TextStyle(color: Colors.white),
+                                      style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
                                     ),
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF2563EB),
-                                      foregroundColor: Colors.white,
+                                      backgroundColor: AppColors.brand,
+                                      foregroundColor: Colors.black,
                                     ),
                                   ),
                                   OutlinedButton.icon(
@@ -331,11 +331,11 @@ class SubtitlesCueCardItem extends StatelessWidget {
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: isActive
-              ? const Color(0xFF2563EB).withValues(alpha: 0.12)
+              ? AppColors.brand.withValues(alpha: 0.12)
               : surfaceColor,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isActive ? const Color(0xFF2563EB) : borderColor,
+            color: isActive ? AppColors.brand : borderColor,
             width: isActive ? 1.5 : 1.0,
           ),
         ),
@@ -432,10 +432,9 @@ class SubtitlesTimingBadge extends StatelessWidget {
       width: 180,
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
       decoration: BoxDecoration(
-        color: isDarkMode
-            ? const Color(0xFF242424)
-            : const Color(0xFFF1F5F9),
+        color: const Color(0xFF1E1E1E),
         borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AppColors.bgDivider),
       ),
       child: Column(
         children: [

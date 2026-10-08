@@ -5,6 +5,7 @@ import 'package:truthworld/features/dashboard/presentation/controllers/creator_i
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/copyright_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/intelligence/intelligence_branding_issues.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/intelligence/intelligence_issue_card.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Container aggregating all Truthworld verification audits, channel status, and copyright notices.
 class IntelligenceIssuesSection extends StatelessWidget {
@@ -56,7 +57,7 @@ class IntelligenceIssuesSection extends StatelessWidget {
                 ),
                 label: const Text('Review Community Guidelines'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFEF4444),
+                  backgroundColor: AppColors.error,
                   foregroundColor: Colors.white,
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(
@@ -67,6 +68,8 @@ class IntelligenceIssuesSection extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   textStyle: const TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontFamilyFallback: TWTypography.fallbackFamilies,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
@@ -130,7 +133,7 @@ class IntelligenceIssuesSection extends StatelessWidget {
               ),
               label: const Text('View Copyright Details'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFEF4444),
+                backgroundColor: AppColors.error,
                 foregroundColor: Colors.white,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(
@@ -141,6 +144,8 @@ class IntelligenceIssuesSection extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 textStyle: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -157,10 +162,10 @@ class IntelligenceIssuesSection extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 20),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFF161618),
+        color: AppColors.bgSurface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: const Color(0xFFEF4444).withValues(alpha: 0.5),
+          color: AppColors.error.withValues(alpha: 0.5),
         ),
       ),
       child: Column(
@@ -171,10 +176,10 @@ class IntelligenceIssuesSection extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF450A0A),
+                  color: AppColors.errorContainer,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: const Color(0xFFEF4444).withValues(alpha: 0.4),
+                    color: AppColors.error.withValues(alpha: 0.4),
                   ),
                 ),
                 child: const Icon(
@@ -191,18 +196,22 @@ class IntelligenceIssuesSection extends StatelessWidget {
                     Text(
                       'TRUTHWORLD AUDITS & ACTIVE NOTICES',
                       style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontFamilyFallback: TWTypography.fallbackFamilies,
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 1.1,
-                        color: Color(0xFFF87171),
+                        color: AppColors.error,
                       ),
                     ),
                     SizedBox(height: 2),
                     Text(
                       'Real-time verification flags, moderation notices & policy health',
                       style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontFamilyFallback: TWTypography.fallbackFamilies,
                         fontSize: 12,
-                        color: Color(0xFFA1A1AA),
+                        color: AppColors.textSecondary,
                       ),
                     ),
                   ],
@@ -211,7 +220,7 @@ class IntelligenceIssuesSection extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          const Divider(height: 1, color: Color(0xFF27272A)),
+          const Divider(height: 1, color: AppColors.bgDivider),
           const SizedBox(height: 16),
           ...issueCards,
         ],

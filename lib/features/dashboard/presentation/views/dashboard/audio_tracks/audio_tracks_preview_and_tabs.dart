@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/widgets/audio_track_builder.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/widgets/video_player_with_audio_tracks.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/theme/app_colors.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Synchronized video preview player section with multi-language audio support.
 class AudioTracksPreviewPlayer extends StatelessWidget {
@@ -54,12 +53,14 @@ class AudioTracksPreviewPlayer extends StatelessWidget {
               children: [
                 const Icon(Icons.graphic_eq_rounded, size: 18, color: Colors.white),
                 const SizedBox(width: 8),
-                Text(
+                const Text(
                   'Multi-Language Synchronized Audio Player Preview',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
+                    fontFamily: TWTypography.brandFamily,
+                    fontFamilyFallback: TWTypography.fallbackFamilies,
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    color: textColor,
+                    color: AppColors.textPrimary,
                   ),
                 ),
                 const Spacer(),
@@ -191,16 +192,15 @@ class AudioTracksTabBar extends StatelessWidget {
                           selected: isChosen,
                           onSelected: (_) => controller.switchLanguageTrack(langCode),
                           selectedColor: AppColors.brand,
-                          backgroundColor: isDarkMode
-                              ? const Color(0xFF262626)
-                              : const Color(0xFFF1F5F9),
+                          backgroundColor: const Color(0xFF1E1E1E),
                           labelStyle: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            color: isChosen ? Colors.black : textColor,
+                            color: isChosen ? Colors.black : AppColors.textPrimary,
                           ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
+                            side: const BorderSide(color: AppColors.bgDivider),
                           ),
                           showCheckmark: false,
                         ),
@@ -210,10 +210,13 @@ class AudioTracksTabBar extends StatelessWidget {
                     ActionChip(
                       avatar: const Icon(Icons.add_rounded, size: 14, color: Colors.white),
                       label: const Text('Add Language'),
-                      labelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textColor),
-                      backgroundColor: isDarkMode ? const Color(0xFF262626) : const Color(0xFFF1F5F9),
+                      labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                      backgroundColor: const Color(0xFF1E1E1E),
                       onPressed: onAddLanguage,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: const BorderSide(color: AppColors.bgDivider),
+                      ),
                     ),
                   ],
                 ),

@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/utils/web_platform_utils.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/settings/presentation/views/settings/widgets/settings_section_card.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -69,6 +71,9 @@ class LegalAboutSection extends StatelessWidget {
           Get.find<HomeController>().onSideNavItemSelect(
             HomeController.indexFeedback,
           );
+          if (kIsWeb) {
+            WebPlatformUtils.pushUrlHistory('/feedback');
+          }
         } else {
           Get.toNamed('/feedback');
         }
@@ -93,6 +98,9 @@ class LegalAboutSection extends StatelessWidget {
       onTap: () {
         if (Get.isRegistered<HomeController>()) {
           Get.find<HomeController>().onSideNavItemSelect(index);
+          if (kIsWeb) {
+            WebPlatformUtils.pushUrlHistory(route);
+          }
         } else {
           Get.toNamed(route);
         }

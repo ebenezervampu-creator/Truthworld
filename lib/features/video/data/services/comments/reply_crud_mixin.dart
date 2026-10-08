@@ -17,10 +17,13 @@ mixin ReplyCrudMixin on CommentServiceBase {
     required String text,
     String? channelName,
     String? channelProfilePicUrl,
+    bool isMember = false,
+    Timestamp? memberSince,
+    String? memberTierName,
   }) async {
     try {
       final callable = functions.httpsCallable('addReplyNested');
-      final result = await callable.call({
+      final payload = <String, dynamic>{
         'videoId': videoId,
         'commentId': commentId,
         'userName': userName,
@@ -29,7 +32,15 @@ mixin ReplyCrudMixin on CommentServiceBase {
         'channelName': channelName,
         'channelProfilePicUrl': channelProfilePicUrl,
         'text': text,
-      });
+        'isMember': isMember,
+      };
+      if (memberSince != null) {
+        payload['memberSince'] = memberSince.toDate().toIso8601String();
+      }
+      if (memberTierName != null) {
+        payload['memberTierName'] = memberTierName;
+      }
+      final result = await callable.call(payload);
 
       final data = result.data as Map<String, dynamic>;
       return data['replyId'] as String;
@@ -39,6 +50,22 @@ mixin ReplyCrudMixin on CommentServiceBase {
         tag: 'COMMENTS',
       );
       try {
+        final videoDoc =
+            await firestore.collection(videosCollection).doc(videoId).get();
+        if (!videoDoc.exists) {
+          throw Exception('Target video $videoId does not exist.');
+        }
+
+        final commentDoc = await firestore
+            .collection(videosCollection)
+            .doc(videoId)
+            .collection(commentsCollection)
+            .doc(commentId)
+            .get();
+        if (!commentDoc.exists) {
+          throw Exception('Target comment $commentId does not exist.');
+        }
+
         final docRef = firestore
             .collection(videosCollection)
             .doc(videoId)
@@ -62,6 +89,9 @@ mixin ReplyCrudMixin on CommentServiceBase {
           dislikeCount: 0,
           reportCount: 0,
           createdAt: Timestamp.now(),
+          isMember: isMember,
+          memberSince: memberSince,
+          memberTierName: memberTierName,
         );
 
         await docRef.set(newReply.toMap());

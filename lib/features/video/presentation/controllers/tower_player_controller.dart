@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/features/video/data/services/storyboard_service.dart';
+import 'package:truthworld/features/video/presentation/controllers/adaptive_bitrate_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/playback_source.dart';
 import 'package:truthworld/features/video/presentation/controllers/player_lock_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_mixins/tower_mixins.dart';
@@ -27,6 +28,7 @@ class TowerPlayerController extends BaseController
         TowerPlayerAdMixin,
         TowerPlayerBackgroundAudioMixin,
         TowerPlayerEngagementMixin,
+        TowerPlayerTruthReportMixin,
         TowerPlayerGesturesMixin,
         TowerPlayerKeyboardMixin,
         TowerPlayerModesMixin,
@@ -74,31 +76,6 @@ class TowerPlayerController extends BaseController
 
   @override
   bool get isScrubbingValue => isScrubbing.value;
-
-  // ── Dynamic Truth Report Getters ──────────────────────────
-  int? get truthReportScore {
-    final score = videoController?.video.trustScore;
-    if (score != null && score > 0) {
-      return score > 5.0 ? score.toInt() : (score * 20).toInt();
-    }
-    final rawScore = videoController?.factCheckData['trustScore'];
-    if (rawScore is num && rawScore > 0) {
-      return rawScore > 5.0 ? rawScore.toInt() : (rawScore * 20).toInt();
-    }
-    return null;
-  }
-
-  bool get isAnalyzingTruth =>
-      videoController?.isLoadingFactCheck.value == true;
-
-  String get truthReportBadgeText {
-    if (isAnalyzingTruth) return 'Analyzing…';
-    final score = truthReportScore;
-    if (score != null) return 'Truth Report $score';
-    final isFactChecked = videoController?.video.isFactChecked == true;
-    if (isFactChecked) return 'Truth Report ✓';
-    return 'Truth Report';
-  }
 
   // ── Global Registry ───────────────────────────────────────
   static List<TowerPlayerController> get activePlayers =>
@@ -168,25 +145,6 @@ class TowerPlayerController extends BaseController
         shadows: shadows,
       );
 
-  // ── Theater Mode & Subtitle Sync Offset ───────────────────
-  final RxBool isTheaterMode = false.obs;
-  @override
-  void toggleTheaterMode() {
-    isTheaterMode.value = !isTheaterMode.value;
-    showToast(isTheaterMode.value ? 'Theater mode on (t)' : 'Default view (t)');
-  }
-
-  final RxInt subtitleOffsetMs = 0.obs;
-  void adjustSubtitleOffset(int deltaMs) {
-    subtitleOffsetMs.value += deltaMs;
-    final sign = subtitleOffsetMs.value > 0 ? '+' : '';
-    showToast('Subtitle sync: $sign${subtitleOffsetMs.value}ms');
-  }
-
-  void resetSubtitleOffset() {
-    subtitleOffsetMs.value = 0;
-    showToast('Subtitle sync reset to 0ms');
-  }
 
   // ── Core Controllers ──────────────────────────────────────
   @override
@@ -301,18 +259,26 @@ class TowerPlayerController extends BaseController
       preRollPlayed = true;
     }
 
-    TowerPlayerLifecycleHelper.triggerInitialPreRollAd(
-      isClosed: isClosed,
-      shouldSuppressAds: shouldSuppressAds,
-      isFromMiniplayer: isFromMiniplayer,
-      preRollPlayed: preRollPlayed,
-      videoId: videoController?.video.id,
-      videoPlayerController: videoPlayerController,
-      onStartSponsorAd: (ad, {required isPreRoll}) =>
-          startSponsorAd(ad, isPreRoll: isPreRoll),
-      onStartAd: startAd,
-      setPreRollPlayed: (v) => preRollPlayed = v,
-    );
+    try {
+      TowerPlayerLifecycleHelper.triggerInitialPreRollAd(
+        isClosed: isClosed,
+        shouldSuppressAds: shouldSuppressAds,
+        isFromMiniplayer: isFromMiniplayer,
+        preRollPlayed: preRollPlayed,
+        videoId: videoController?.video.id,
+        videoPlayerController: videoPlayerController,
+        onStartSponsorAd: (ad, {required isPreRoll}) =>
+            startSponsorAd(ad, isPreRoll: isPreRoll),
+        onStartAd: startAd,
+        setPreRollPlayed: (v) => preRollPlayed = v,
+      );
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'TowerPlayerController.triggerInitialPreRollAd',
+      );
+    }
 
     TowerPlayerLifecycleHelper.applyInitialPreferences(
       arguments: Get.arguments,
@@ -321,7 +287,9 @@ class TowerPlayerController extends BaseController
       isAudioOnly: isAudioOnly,
       playbackSpeed: playbackSpeed,
       vpc: videoPlayerController,
+      onSetAudioOnly: setAudioOnly,
       onToggleAudioOnly: toggleAudioOnly,
+      initialAudioOnly: videoController?.isAudioOnly.value ?? false,
       isClosed: () => isClosed,
     );
 
@@ -404,26 +372,35 @@ class TowerPlayerController extends BaseController
       );
 
       // Ad triggers
-      final adHandled = TowerPlayerVpcEventHandler.handleAdTriggers(
-        val: val,
-        shouldSuppressAds: shouldSuppressAds,
-        hasRealVideoAds: TowerPlayerAdPolicyEvaluator.hasRealVideoAds(
+      var adHandled = false;
+      try {
+        adHandled = TowerPlayerVpcEventHandler.handleAdTriggers(
+          val: val,
+          shouldSuppressAds: shouldSuppressAds,
+          hasRealVideoAds: TowerPlayerAdPolicyEvaluator.hasRealVideoAds(
+            videoId: videoController?.video.id,
+          ),
+          isShowingAd: isShowingAd.value,
+          mainVpc: videoPlayerController,
+          audioCtrl: audioTrackController,
           videoId: videoController?.video.id,
-        ),
-        isShowingAd: isShowingAd.value,
-        mainVpc: videoPlayerController,
-        audioCtrl: audioTrackController,
-        videoId: videoController?.video.id,
-        preRollPlayed: preRollPlayed,
-        midRollPlayed: midRollPlayed,
-        sponsorMidRollPlayed: sponsorMidRollPlayed,
-        onStartSponsorAd: (ad, {required isPreRoll}) =>
-            startSponsorAd(ad, isPreRoll: isPreRoll),
-        onStartAd: startAd,
-        setPreRollPlayed: (v) => preRollPlayed = v,
-        setMidRollPlayed: (v) => midRollPlayed = v,
-        setSponsorMidRollPlayed: (v) => sponsorMidRollPlayed = v,
-      );
+          preRollPlayed: preRollPlayed,
+          midRollPlayed: midRollPlayed,
+          sponsorMidRollPlayed: sponsorMidRollPlayed,
+          onStartSponsorAd: (ad, {required isPreRoll}) =>
+              startSponsorAd(ad, isPreRoll: isPreRoll),
+          onStartAd: startAd,
+          setPreRollPlayed: (v) => preRollPlayed = v,
+          setMidRollPlayed: (v) => midRollPlayed = v,
+          setSponsorMidRollPlayed: (v) => sponsorMidRollPlayed = v,
+        );
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'TowerPlayerController.onVpcUpdate.adTriggers',
+        );
+      }
       if (adHandled) return;
 
       // Sync metadata (subtitles, chapters, claims, tracks)
@@ -455,6 +432,21 @@ class TowerPlayerController extends BaseController
         final rem = (val.duration - val.position).inSeconds;
         sleepTimerService.remainingSeconds.value =
             rem.clamp(0, double.maxFinite.toInt());
+      }
+
+      // Near-end trigger: When watching in fullscreen and video is coming to an end
+      // (within the last 10 seconds), automatically reveal the recommended videos overlay.
+      if (val.duration > const Duration(seconds: 15)) {
+        final remaining = val.duration - val.position;
+        if (isFullScreen.value &&
+            remaining > Duration.zero &&
+            remaining <= const Duration(seconds: 10) &&
+            !hasShownNearEndMoreVideos) {
+          hasShownNearEndMoreVideos = true;
+          openMoreVideos();
+        } else if (remaining > const Duration(seconds: 15)) {
+          hasShownNearEndMoreVideos = false;
+        }
       }
 
       if (val.position >= val.duration &&
@@ -508,12 +500,17 @@ class TowerPlayerController extends BaseController
     chewieController = null;
     TowerPlayerRegistry.unregister(this);
     timers.cancelAll();
+    overlayTranscriptScrollController.dispose();
     if (isFullScreen.value) isFullScreen.value = false;
     if (isBackgroundAudioActive) {
       audioService?.deactivateBackgroundPlayback();
       isBackgroundAudioActive = false;
     }
-    abr.onClose();
+    if (Get.isRegistered<AdaptiveBitrateController>(tag: tag)) {
+      Get.delete<AdaptiveBitrateController>(tag: tag, force: true);
+    } else {
+      abr.onClose();
+    }
     overlayManager.dispose();
     TowerPlayerRegistry.disposePipChannel();
     if (Get.isRegistered<PlayerLockController>(tag: tag)) {
@@ -530,6 +527,8 @@ class TowerPlayerController extends BaseController
   // ── Controller sync ──────────────────────────────────────
   void sync(VideoPlayerController vpc) {
     errorDebounceTimer?.cancel();
+    hasShownNearEndMoreVideos = false;
+    showMoreVideos.value = false;
     if (videoPlayerController == vpc && videoPlaybackSource != null) return;
 
     final (source, isInit) = TowerPlayerLifecycleHelper.syncController(
@@ -551,10 +550,17 @@ class TowerPlayerController extends BaseController
       hasError.value = false;
       errorDescription.value = '';
       if (tag != null && Get.isRegistered<VideoController>(tag: tag)) {
-        isAudioOnly.value =
-            Get.find<VideoController>(tag: tag).isAudioOnly.value;
+        final vc = Get.find<VideoController>(tag: tag);
+        isAudioOnly.value = vc.isAudioOnly.value;
+        playbackMode.value =
+            vc.isAudioOnly.value ? PlaybackMode.audio : PlaybackMode.video;
+        TowerPlayerController.globalAudioOnly = vc.isAudioOnly.value;
       } else if (Get.isRegistered<VideoController>()) {
-        isAudioOnly.value = Get.find<VideoController>().isAudioOnly.value;
+        final vc = Get.find<VideoController>();
+        isAudioOnly.value = vc.isAudioOnly.value;
+        playbackMode.value =
+            vc.isAudioOnly.value ? PlaybackMode.audio : PlaybackMode.video;
+        TowerPlayerController.globalAudioOnly = vc.isAudioOnly.value;
       }
     } catch (e, s) {
       ErrorHandler.log(

@@ -36,6 +36,7 @@ class ParsedFactCheckData {
     required this.scoreAvailable,
     this.isProvisional = false,
     this.factCheckTier = 'standard',
+    this.isVideoFactChecked = false,
   });
 
   /// An empty state instance when no fact check data is present.
@@ -90,6 +91,7 @@ class ParsedFactCheckData {
   final bool scoreAvailable;
   final bool isProvisional;
   final String factCheckTier;
+  final bool isVideoFactChecked;
 
   bool get isShortOverview => factCheckTier == 'short';
   bool get isFullGround =>
@@ -104,11 +106,15 @@ class ParsedFactCheckData {
     return 'VERIFIED FACT-CHECK';
   }
 
-  bool get isEmpty =>
-      trustScore == null &&
-      claims.isEmpty &&
-      sources.isEmpty &&
-      viewerNote.isEmpty;
+  bool get isEmpty {
+    if (claims.isNotEmpty || sources.isNotEmpty || viewerNote.isNotEmpty) {
+      return false;
+    }
+    if (isVideoFactChecked && trustScore != null && trustScore! > 0) {
+      return false;
+    }
+    return true;
+  }
 
   bool get isNotEmpty => !isEmpty;
 }
@@ -125,7 +131,7 @@ class FactCheckDataParser {
     bool isVideoFactChecked = false,
   }) {
     if ((rawData == null || rawData.isEmpty) && fallbackReport == null) {
-      if (fallbackTrustScore != null && fallbackTrustScore > 0) {
+      if (isVideoFactChecked && fallbackTrustScore != null && fallbackTrustScore > 0) {
         final norm = fallbackTrustScore > 5
             ? fallbackTrustScore
             : fallbackTrustScore * 20;
@@ -154,6 +160,7 @@ class FactCheckDataParser {
           scoreColor: color,
           urgencyColor: norm < 50 ? AppColors.error : color,
           scoreAvailable: true,
+          isVideoFactChecked: isVideoFactChecked,
         );
       }
       return ParsedFactCheckData.empty;
@@ -488,6 +495,7 @@ class FactCheckDataParser {
       urgencyColor: urgencyColor,
       scoreAvailable: scoreAvailable,
       isProvisional: isProvisional,
+      isVideoFactChecked: isVideoFactChecked,
       factCheckTier: (data['factCheckTier'] ??
               (data['aiFeatures'] is Map ? data['aiFeatures']['factCheckTier'] : null) ??
               (data['media'] is Map ? data['media']['factCheckTier'] : null) ??

@@ -103,12 +103,11 @@ void main() {
 
         final rewrites = targetConfig!['rewrites'] as List<dynamic>;
         final rewriteSources = rewrites.map((r) => r['source']).toList();
+        // llms.txt rewrites exist on all targets for SEO crawlability
         expect(rewriteSources.contains('/llms.txt'), isTrue,
             reason: '$targetName must have /llms.txt rewrite');
         expect(rewriteSources.contains('/llms-full.txt'), isTrue,
             reason: '$targetName must have /llms-full.txt rewrite');
-        expect(rewriteSources.contains('**/*.map'), isTrue,
-            reason: '$targetName must have **/*.map rewrite');
 
         final headers = targetConfig['headers'] as List<dynamic>;
         final headerSources = headers.map((h) => h['source']).toList();

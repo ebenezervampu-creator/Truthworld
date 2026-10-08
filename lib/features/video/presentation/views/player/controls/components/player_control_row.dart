@@ -1,8 +1,12 @@
+// ignore: implementation_imports
+import 'package:chewie/src/animated_play_pause.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/controls/components/player_controls_buttons.dart';
 import 'package:truthworld/features/video/presentation/views/player/controls/components/player_volume_and_time.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Minimal, restructured bottom controls row for TruthWorld player.
 /// Left: Play/Pause, Volume slider, Timestamp.
@@ -20,6 +24,23 @@ class ControlRow extends StatelessWidget {
   final bool isNarrow;
   final bool isMedium;
 
+  bool _useChewieMobileButtons(BuildContext context) {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      return true;
+    }
+    if (kIsWeb) {
+      if (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS) {
+        return true;
+      }
+      final screenWidth = MediaQuery.of(context).size.width;
+      if (screenWidth < 600 || isNarrow) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -28,15 +49,32 @@ class ControlRow extends StatelessWidget {
         Expanded(
           child: Row(
             children: [
-              Obx(
-                () => IconBtn(
+              Obx(() {
+                if (_useChewieMobileButtons(context)) {
+                  return Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: ctrl.togglePlayPause,
+                      customBorder: const CircleBorder(),
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: AnimatedPlayPause(
+                          color: AppColors.textPrimary,
+                          size: 22,
+                          playing: ctrl.isPlaying.value,
+                        ),
+                      ),
+                    ),
+                  );
+                }
+                return IconBtn(
                   icon: ctrl.isPlaying.value
                       ? Icons.pause_rounded
                       : Icons.play_arrow_rounded,
                   size: 22,
                   onTap: ctrl.togglePlayPause,
-                ),
-              ),
+                );
+              }),
               if (!isNarrow) ...[
                 VolumeControl(ctrl: ctrl),
                 const SizedBox(width: 4),
@@ -123,6 +161,22 @@ class ControlRow extends StatelessWidget {
                   ),
                 ),
               ),
+
+            // More videos (fullscreen recommended overlay)
+            Obx(
+              () => ctrl.isFullScreen.value
+                  ? Tooltip(
+                      message: 'More videos',
+                      child: IconBtn(
+                        icon: ctrl.showMoreVideos.value
+                            ? Icons.video_collection_rounded
+                            : Icons.video_collection_outlined,
+                        size: 20,
+                        onTap: ctrl.toggleMoreVideos,
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
 
             // Fullscreen
             Obx(

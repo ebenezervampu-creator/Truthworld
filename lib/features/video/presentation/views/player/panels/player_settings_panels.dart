@@ -65,6 +65,8 @@ class SettingsPanel extends StatelessWidget {
                           return LanguagePanel(ctrl: ctrl);
                         case 'audio_settings':
                           return AudioSettingsPanel(ctrl: ctrl);
+                        case 'audio_theme':
+                          return AudioThemePanel(ctrl: ctrl);
                         case 'zoom':
                           return ZoomPanel(ctrl: ctrl);
                         case 'rating':

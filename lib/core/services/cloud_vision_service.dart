@@ -100,7 +100,10 @@ class GoogleCloudVisionService {
         stackTrace: stack,
         tag: 'VISION_AI',
       );
-      return VisionVerificationResult.approved();
+      return VisionVerificationResult.rejected(
+        'Image verification service is temporarily unavailable. Please try again.',
+        category: 'SERVICE_ERROR',
+      );
     }
   }
 

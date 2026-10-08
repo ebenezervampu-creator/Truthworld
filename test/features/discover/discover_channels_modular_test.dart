@@ -143,7 +143,7 @@ void main() {
       expect(controller.activeAiIntent.value, isNull);
     });
 
-    testWidgets('5. DiscoverCategoryCard displays category name and triggers tap',
+    testWidgets('5. DiscoverCategoryCard displays category name and authentic channel count',
         (tester) async {
       var tapped = false;
       final category = {'name': 'Science', 'icon': 'science'};
@@ -153,6 +153,7 @@ void main() {
           home: Scaffold(
             body: DiscoverCategoryCard(
               category: category,
+              channelCount: 1,
               onTap: () => tapped = true,
             ),
           ),
@@ -161,11 +162,14 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Science'), findsOneWidget);
+      expect(find.text('1 channel'), findsOneWidget);
+      // Zero Mock Data Policy: Never show mock channel count on category card
+      expect(find.text('14.2K channels'), findsNothing);
       await tester.tap(find.byType(DiscoverCategoryCard));
       expect(tapped, isTrue);
     });
 
-    testWidgets('6. DiscoverSelectedCategoryHeader renders category and back navigation',
+    testWidgets('6. DiscoverSelectedCategoryHeader renders category and back navigation with authentic channel count',
         (tester) async {
       var backPressed = false;
       await tester.pumpWidget(
@@ -175,6 +179,7 @@ void main() {
               slivers: [
                 DiscoverSelectedCategoryHeader(
                   selectedCategory: 'Technology',
+                  channelCount: 3,
                   onBack: () => backPressed = true,
                 ),
               ],
@@ -185,17 +190,22 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Technology'), findsOneWidget);
-      expect(find.text('Exploring Technology channels'), findsOneWidget);
+      // Zero Mock Data: authentic channel count displayed instead of mock '11.2K channels'
+      expect(find.text('11.2K channels'), findsNothing);
+      expect(find.text('3 channels'), findsOneWidget);
       expect(find.byIcon(Icons.arrow_back_rounded), findsOneWidget);
 
       await tester.tap(find.byIcon(Icons.arrow_back_rounded));
       expect(backPressed, isTrue);
     });
 
-    testWidgets('7. DiscoverCategoryGrid renders category items in slivers',
+    testWidgets('7. DiscoverCategoryGrid renders category items in slivers with authentic channel counts',
         (tester) async {
       final controller = DiscoverChannelsController();
       Get.put<DiscoverChannelsController>(controller);
+
+      // Set authentic channel count for Education
+      controller.categoryChannelCounts['Education'] = 1;
 
       await tester.pumpWidget(
         MaterialApp(
@@ -215,6 +225,10 @@ void main() {
 
       expect(find.byType(DiscoverCategoryCard), findsWidgets);
       expect(find.text('Education'), findsOneWidget);
+      // Zero Mock Data: never show mock '12.4K channels'
+      expect(find.text('12.4K channels'), findsNothing);
+      // Real authentic count is shown for categories with active channels
+      expect(find.text('1 channel'), findsWidgets);
     });
 
     testWidgets('8. DiscoverChannelCard displays channel details and verified icon',
@@ -233,6 +247,7 @@ void main() {
         updatedAt: Timestamp.now(),
         isVerified: true,
         subscriberCount: 254000,
+        videoCount: 12,
       );
 
       await tester.pumpWidget(
@@ -249,7 +264,8 @@ void main() {
 
       expect(find.text('Cosmos Explorer'), findsOneWidget);
       expect(find.byIcon(Icons.verified), findsOneWidget);
-      expect(find.text('@cosmosexplorer • 254.0K subscribers'), findsOneWidget);
+      expect(find.text('@cosmosexplorer'), findsOneWidget);
+      expect(find.text('254.0K subscribers • 12 videos'), findsOneWidget);
       expect(
         find.text('Exploring planets, astrophysics, and the deep universe.'),
         findsOneWidget,
@@ -298,6 +314,27 @@ void main() {
       expect(find.byType(DiscoverChannelsPage), findsOneWidget);
       expect(find.byType(DiscoverChannelsAppBar), findsOneWidget);
       expect(find.byType(DiscoverSearchBar), findsOneWidget);
+    });
+
+    testWidgets('11. DiscoverCreatorBanner renders with high contrast Create Channel button',
+        (tester) async {
+      await tester.pumpWidget(
+        const GetMaterialApp(
+          home: Scaffold(
+            body: DiscoverCreatorBanner(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Are you a creator?'), findsOneWidget);
+      expect(find.text('Create Channel'), findsOneWidget);
+    });
+
+    test('12. Zero Mock Data Policy: DiscoverChannelsController never seeds or holds mock channels', () {
+      final controller = DiscoverChannelsController();
+      expect(controller.channels, isEmpty);
+      expect(controller.categoryChannelCounts, isEmpty);
     });
   });
 }

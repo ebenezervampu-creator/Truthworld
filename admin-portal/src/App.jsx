@@ -4,6 +4,8 @@ import {
   signInWithPopup, 
   signInWithRedirect,
   signInWithEmailAndPassword,
+  updatePassword,
+  sendPasswordResetEmail,
   getRedirectResult,
   signOut, 
   onAuthStateChanged 
@@ -21,14 +23,6 @@ import {
   getDoc
 } from "firebase/firestore";
 import { auth, db } from "./firebase";
-
-const OWNER_EMAIL = "ebenezervampy@towervsp.com";
-const AUTHORIZED_ADMIN_EMAILS = [
-  "ebenezervampy@towervsp.com",
-  "ebenezervampu@towervsp.com",
-  "ebenezervampu4@gmail.com",
-  "admin@truthworld.com"
-];
 
 const ROLES_DEFINITION = [
   {
@@ -147,18 +141,15 @@ function App() {
 
   const isOwner = Boolean(
     user &&
-    user.email &&
-    (user.email.toLowerCase() === OWNER_EMAIL ||
-     user.email.toLowerCase() === "ebenezervampu@towervsp.com" ||
-     user.email.toLowerCase() === "ebenezervampu4@gmail.com")
+    (user.roles?.some(r => r.toLowerCase().includes("owner") || r.toLowerCase().includes("super admin")) ||
+     user.role?.toLowerCase()?.includes("owner") ||
+     user.role?.toLowerCase()?.includes("super admin"))
   );
 
   // Tab Permission Evaluation
   const isTabAllowed = (tabId) => {
     if (!user) return false;
     if (tabId === "language_requests") return isOwner;
-    const email = user.email?.toLowerCase();
-    if (email === OWNER_EMAIL || AUTHORIZED_ADMIN_EMAILS.includes(email)) return true;
 
     // Get active roles
     let userRoles = user.roles || [];
@@ -228,24 +219,6 @@ function App() {
 
   // Auth Listener
   useEffect(() => {
-    // Check saved session in localStorage
-    try {
-      const saved = localStorage.getItem("truthworld_admin_session");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed?.email) {
-          const roles = parsed.roles || (parsed.role ? [parsed.role] : ["Super Admin"]);
-          setUser({ 
-            email: parsed.email, 
-            role: parsed.role || "Super Admin", 
-            roles: roles, 
-            name: parsed.name || "" 
-          });
-          setIsAdmin(true);
-        }
-      }
-    } catch (_) {}
-
     getRedirectResult(auth).catch((err) => {
       console.warn("Redirect result handled/failed:", err);
     });
@@ -255,40 +228,59 @@ function App() {
         try {
           const idTokenResult = await currentUser.getIdTokenResult(true);
           const email = currentUser.email?.toLowerCase();
-          const isOwner = email && AUTHORIZED_ADMIN_EMAILS.includes(email);
 
-          if (idTokenResult.claims.admin === true || isOwner) {
+          // 1. Check custom claim (source of truth)
+          let hasAdminAccess = idTokenResult.claims.admin === true;
+          let memberData = null;
+
+          // 2. Check admin_members collection by UID or email
+          try {
+            const memberDocByUid = await getDoc(doc(db, "admin_members", currentUser.uid));
+            if (memberDocByUid.exists()) {
+              memberData = memberDocByUid.data();
+            } else if (email) {
+              const memberDocByEmail = await getDoc(doc(db, "admin_members", email));
+              if (memberDocByEmail.exists()) {
+                memberData = memberDocByEmail.data();
+              }
+            }
+          } catch (dbErr) {
+            console.warn("Failed checking admin_members collection:", dbErr);
+          }
+
+          if (memberData && memberData.status !== "suspended") {
+            hasAdminAccess = true;
+          }
+
+          if (hasAdminAccess) {
+            const primaryRole = memberData?.role || (idTokenResult.claims.admin ? "Super Admin" : "Moderator");
+            const roles = Array.isArray(memberData?.roles) && memberData.roles.length > 0
+              ? memberData.roles
+              : (memberData?.role ? memberData.role.split(",").map(r => r.trim()).filter(Boolean) : ["Super Admin"]);
+
             setUser({
               ...currentUser,
-              role: isOwner ? "Owner / Super Admin" : "Super Admin",
-              roles: ["Super Admin"],
+              role: primaryRole,
+              roles: roles,
+              name: memberData?.name || currentUser.displayName || email?.split("@")[0] || "Admin",
             });
             setIsAdmin(true);
             setError("");
           } else {
-            const saved = localStorage.getItem("truthworld_admin_session");
-            if (!saved) {
-              setError(`Access Denied: Account (${currentUser.email}) does not have admin privileges.`);
-              await signOut(auth);
-              setUser(null);
-              setIsAdmin(false);
-            }
-          }
-        } catch (err) {
-          console.error("Auth claim validation failed:", err);
-          const saved = localStorage.getItem("truthworld_admin_session");
-          if (!saved) {
-            setError("Authentication error. Please try again.");
+            setError(`Access Denied: Account (${currentUser.email}) does not have admin privileges.`);
+            await signOut(auth);
             setUser(null);
             setIsAdmin(false);
           }
-        }
-      } else {
-        const saved = localStorage.getItem("truthworld_admin_session");
-        if (!saved) {
+        } catch (err) {
+          console.error("Auth claim validation failed:", err);
+          setError("Authentication error. Please try again.");
           setUser(null);
           setIsAdmin(false);
         }
+      } else {
+        setUser(null);
+        setIsAdmin(false);
       }
       setAuthChecking(false);
     });
@@ -607,7 +599,7 @@ function App() {
     }
   };
 
-  // Handle Email & Password Login with Admin Protocol
+  // Handle Email & Password Login with Firebase Auth
   const handleEmailLogin = async (e) => {
     e.preventDefault();
     const cleanEmail = loginEmail.trim().toLowerCase();
@@ -621,75 +613,11 @@ function App() {
     setIsLoggingIn(true);
 
     try {
-      const isDefaultCreds = (cleanEmail === "ebenezervampy@towervsp.com" || cleanEmail === "ebenezervampu@towervsp.com") && cleanPassword === "12345";
-
-      // 1. Check admin_members in Firestore
-      let matchedMember = null;
-      try {
-        const memberRef = doc(db, "admin_members", cleanEmail);
-        const memberSnap = await getDoc(memberRef);
-        if (memberSnap.exists()) {
-          matchedMember = memberSnap.data();
-        }
-      } catch (fErr) {
-        console.warn("admin_members check notice:", fErr);
-      }
-
-      if (matchedMember && matchedMember.status === "suspended") {
-        setError("This administrator account has been suspended.");
-        setIsLoggingIn(false);
-        return;
-      }
-
-      if ((matchedMember && matchedMember.password === cleanPassword) || isDefaultCreds) {
-        const role = matchedMember?.role || (isDefaultCreds ? "Owner / Super Admin" : "Super Admin");
-        let roles = Array.isArray(matchedMember?.roles) ? matchedMember.roles : [];
-        if (roles.length === 0 && matchedMember?.role) {
-          roles = matchedMember.role.split(",").map(r => r.trim()).filter(Boolean);
-        }
-        if (roles.length === 0) {
-          roles = ["Super Admin"];
-        }
-        const adminUser = { 
-          email: cleanEmail, 
-          role, 
-          roles, 
-          name: matchedMember?.name || cleanEmail.split("@")[0] 
-        };
-        setUser(adminUser);
-        setIsAdmin(true);
-
-        try {
-          localStorage.setItem("truthworld_admin_session", JSON.stringify(adminUser));
-        } catch (_) {}
-
-        // Ensure default admin is seeded in Firestore
-        if (isDefaultCreds && !matchedMember) {
-          try {
-            await setDoc(doc(db, "admin_members", "ebenezervampy@towervsp.com"), {
-              email: "ebenezervampy@towervsp.com",
-              password: "12345",
-              role: "Owner / Super Admin",
-              roles: ROLES_DEFINITION.map(r => r.name),
-              name: "Ebenezer Vampu",
-              status: "active",
-              createdAt: Date.now(),
-            }, { merge: true });
-          } catch (_) {}
-        }
-
-        setSuccessMsg(`Welcome to Admin Portal (${cleanEmail})`);
-        setTimeout(() => setSuccessMsg(""), 4000);
-        setIsLoggingIn(false);
-        return;
-      }
-
-      // 2. Fallback to Firebase Auth
-      if (cleanPassword.length >= 6) {
-        await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
-      } else {
-        throw new Error("Invalid administrator email or password.");
-      }
+      await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
+      // onAuthStateChanged validates claims or admin_members
+      setSuccessMsg(`Welcome to Admin Portal (${cleanEmail})`);
+      setTimeout(() => setSuccessMsg(""), 4000);
+      setIsLoggingIn(false);
     } catch (err) {
       console.error("Email login failed:", err);
       setError(err instanceof Error ? err.message : "Authentication failed.");
@@ -700,8 +628,8 @@ function App() {
   // Handle Add Member
   const handleAddMember = async (e) => {
     e.preventDefault();
-    if (!newMemberEmail.trim() || !newMemberPassword.trim()) {
-      setError("Please provide member email and password.");
+    if (!newMemberEmail.trim()) {
+      setError("Please provide member email.");
       return;
     }
     if (selectedMemberRoles.length === 0) {
@@ -716,7 +644,6 @@ function App() {
     try {
       await setDoc(doc(db, "admin_members", cleanEmail), {
         email: cleanEmail,
-        password: newMemberPassword.trim(),
         name: newMemberName.trim() || cleanEmail.split("@")[0],
         role: primaryRole,
         roles: selectedMemberRoles,
@@ -725,7 +652,14 @@ function App() {
         createdBy: user?.email || "Admin",
       }, { merge: true });
 
-      setSuccessMsg(`Member ${cleanEmail} added with ${selectedMemberRoles.length} role(s)!`);
+      // Send password reset / account invite email
+      try {
+        await sendPasswordResetEmail(auth, cleanEmail);
+      } catch (emailErr) {
+        console.warn("Notice: invite email not sent directly:", emailErr);
+      }
+
+      setSuccessMsg(`Member ${cleanEmail} added with ${selectedMemberRoles.length} role(s)! Invite sent.`);
       setShowAddMemberModal(false);
       setNewMemberEmail("");
       setNewMemberName("");
@@ -739,7 +673,7 @@ function App() {
 
   // Handle Delete Member
   const handleDeleteMember = async (email) => {
-    if (email === "ebenezervampy@towervsp.com" || email === "ebenezervampu@towervsp.com") {
+    if (email === "hello@truthworld.in") {
       alert("Primary Owner account cannot be removed.");
       return;
     }
@@ -765,13 +699,13 @@ function App() {
       return;
     }
     try {
-      const email = user?.email || "ebenezervampy@towervsp.com";
-      await setDoc(doc(db, "admin_members", email.toLowerCase()), {
-        password: newPasswordInput.trim(),
-        updatedAt: Date.now(),
-      }, { merge: true });
+      if (auth.currentUser) {
+        await updatePassword(auth.currentUser, newPasswordInput.trim());
+      } else {
+        throw new Error("No active authenticated session.");
+      }
 
-      setSuccessMsg("Password updated successfully!");
+      setSuccessMsg("Password updated successfully via Firebase Auth!");
       setShowChangePasswordModal(false);
       setCurrentPasswordInput("");
       setNewPasswordInput("");
@@ -782,11 +716,11 @@ function App() {
     }
   };
 
-  // Copy Member Credentials
-  const copyCredentials = (email, password, role) => {
-    const text = `TruthWorld Admin Portal Login Credentials\nEmail: ${email}\nPassword: ${password}\nRole: ${role || "Admin"}\nPortal URL: https://truthworld.in/admin`;
+  // Copy Member Invitation
+  const copyCredentials = (email, role) => {
+    const text = `TruthWorld Admin Portal Invitation\nEmail: ${email}\nRole: ${role || "Admin"}\nPortal URL: https://truthworld.in/admin\nPlease sign in with your company credentials or use the password reset link.`;
     navigator.clipboard.writeText(text);
-    setSuccessMsg(`Credentials for ${email} copied to clipboard! Ready to share.`);
+    setSuccessMsg(`Invite details for ${email} copied to clipboard! Ready to share.`);
     setTimeout(() => setSuccessMsg(""), 4000);
   };
 
@@ -813,7 +747,6 @@ function App() {
   // Handle Sign Out
   const handleSignOut = async () => {
     try {
-      localStorage.removeItem("truthworld_admin_session");
       setUser(null);
       setIsAdmin(false);
       await signOut(auth);
@@ -1131,7 +1064,7 @@ function App() {
                 <label>Admin Email</label>
                 <input 
                   type="email" 
-                  placeholder="ebenezervampy@towervsp.com" 
+                  placeholder="hello@truthworld.in" 
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
                   disabled={isLoggingIn}
@@ -1179,7 +1112,7 @@ function App() {
             </button>
 
             <div className="auth-owner-badge">
-              Authorized Owner: <strong>ebenezervampy@towervsp.com</strong>
+              Authorized Owner: <strong>hello@truthworld.in</strong>
             </div>
           </div>
         </div>
@@ -2602,7 +2535,6 @@ function App() {
                         <th>Administrator</th>
                         <th>Role</th>
                         <th>Status</th>
-                        <th>Credentials Password</th>
                         <th>Created Date</th>
                         <th style={{ textAlign: "right" }}>Actions</th>
                       </tr>
@@ -2610,15 +2542,13 @@ function App() {
                     <tbody>
                       {adminMembers.length === 0 ? (
                         <tr>
-                          <td colSpan="6" style={{ textAlign: "center", color: "var(--text-muted)", padding: "40px" }}>
+                          <td colSpan="5" style={{ textAlign: "center", color: "var(--text-muted)", padding: "40px" }}>
                             No team members configured yet. Click "Add Team Member" above to invite members.
                           </td>
                         </tr>
                       ) : (
                         adminMembers.map((member) => {
-                          const isOwner = member.email === "ebenezervampy@towervsp.com" || member.email === "ebenezervampu@towervsp.com";
-                          const isRevealed = revealedPasswords[member.email] === true;
-                          const pwd = member.password || "••••••";
+                          const isOwner = member.email === "hello@truthworld.in";
 
                           return (
                             <tr key={member.id || member.email}>
@@ -2653,31 +2583,6 @@ function App() {
                                 </span>
                               </td>
                               <td>
-                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                  <code style={{ fontSize: "0.9rem", letterSpacing: isRevealed ? "normal" : "2px" }}>
-                                    {isRevealed ? member.password : "••••••••"}
-                                  </code>
-                                  {member.password && (
-                                    <button 
-                                      type="button"
-                                      title={isRevealed ? "Hide Password" : "Show Password"}
-                                      style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", display: "flex" }}
-                                      onClick={() => {
-                                        setRevealedPasswords(prev => ({
-                                          ...prev,
-                                          [member.email]: !prev[member.email]
-                                        }));
-                                      }}
-                                    >
-                                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
-                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                                        <circle cx="12" cy="12" r="3"/>
-                                      </svg>
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                              <td>
                                 <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
                                   {formatDate(member.createdAt)}
                                 </span>
@@ -2689,7 +2594,7 @@ function App() {
                                     className="btn-secondary"
                                     style={{ padding: "6px 12px", fontSize: "0.8rem", display: "inline-flex", alignItems: "center", gap: "6px", background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(255, 255, 255, 0.15)", color: "#ffffff", borderRadius: "6px", cursor: "pointer" }}
                                     title="Copy login details to clipboard"
-                                    onClick={() => copyCredentials(member.email, member.password || "12345", member.role)}
+                                    onClick={() => copyCredentials(member.email, member.role)}
                                   >
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
                                       <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
@@ -3183,14 +3088,14 @@ function App() {
             <form onSubmit={handleAddMember}>
               <div className="modal-body">
                 <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", marginBottom: "16px" }}>
-                  Create an administrator credential. The member will use this email and password to log in directly to the TruthWorld Admin Portal.
+                  Grant administrator privileges to a team member. They will be invited via email and can sign in with their authenticated credentials.
                 </p>
 
                 <div className="form-group" style={{ marginBottom: "14px" }}>
                   <label>Member Email</label>
                   <input 
                     type="email" 
-                    placeholder="teammate@towervsp.com" 
+                    placeholder="hello@truthworld.in" 
                     value={newMemberEmail}
                     onChange={(e) => setNewMemberEmail(e.target.value)}
                     required
@@ -3285,29 +3190,6 @@ function App() {
                       );
                     })}
                   </div>
-                </div>
-
-                <div className="form-group" style={{ marginBottom: "8px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                    <label style={{ margin: 0 }}>Password</label>
-                    <button 
-                      type="button" 
-                      style={{ background: "none", border: "none", color: "#ffffff", fontSize: "0.8rem", cursor: "pointer", textDecoration: "underline" }}
-                      onClick={() => {
-                        const randomPwd = Math.random().toString(36).slice(-8) + "!TW";
-                        setNewMemberPassword(randomPwd);
-                      }}
-                    >
-                      Generate Secure Password
-                    </button>
-                  </div>
-                  <input 
-                    type="text" 
-                    placeholder="Enter or generate password" 
-                    value={newMemberPassword}
-                    onChange={(e) => setNewMemberPassword(e.target.value)}
-                    required
-                  />
                 </div>
               </div>
 

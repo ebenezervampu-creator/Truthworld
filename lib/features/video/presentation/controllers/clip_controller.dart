@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -20,9 +21,15 @@ class ClipController extends BaseController {
 
   final RxDouble startSeconds = 0.0.obs;
   final RxDouble endSeconds = 15.0.obs; // Default 15s clip
+  final RxDouble totalDuration = 300.0.obs;
+  final RxDouble currentVideoPosition = 0.0.obs;
   final RxString clipTitle = ''.obs;
   final RxString titleError = ''.obs;
   final RxBool isSaving = false.obs;
+  final RxBool isPreviewPlaying = false.obs;
+
+  VideoController? videoControllerRef;
+  Timer? _previewTimer;
 
   // Industry standard duration bounds
   double get minDuration => 5.0; // Minimum 5 seconds to prevent micro-spam & glitches
@@ -31,6 +38,30 @@ class ClipController extends BaseController {
   static const int maxLibraryClips = 50; // Quota per user to prevent database abuse
   static const int actionCooldownSeconds = 10; // 10s cooldown to throttle automated spam
   static DateTime? _lastClipActionTime;
+
+  /// Initialize state for the clip creation dialog
+  void initialize({
+    required double totalDur,
+    required double currentPos,
+    VideoController? videoCtrl,
+  }) {
+    totalDuration.value = totalDur > 0 ? totalDur : 300.0;
+    currentVideoPosition.value = currentPos;
+    videoControllerRef = videoCtrl;
+
+    final maxDur = totalDuration.value;
+    final initialStart = currentPos.clamp(0.0, (maxDur - minDuration).clamp(0.0, maxDur));
+    final initialEnd = (initialStart + 15.0).clamp(
+      (initialStart + minDuration).clamp(0.0, maxDur),
+      maxDur,
+    );
+
+    startSeconds.value = initialStart;
+    endSeconds.value = initialEnd;
+    titleError.value = '';
+    clipTitle.value = '';
+    isPreviewPlaying.value = false;
+  }
 
   /// Check if the video is eligible for clipping based on creator preferences and safety guidelines
   String? getClippingRestrictionReason() {
@@ -101,6 +132,174 @@ class ClipController extends BaseController {
         endSeconds.value = startSeconds.value + maxDuration;
       }
     }
+  }
+
+  /// Quickly set duration preset (5s, 10s, 15s, 30s)
+  void setDurationPreset(double durationSeconds) {
+    final targetSpan = durationSeconds.clamp(minDuration, maxDuration);
+    final total = totalDuration.value;
+
+    if (startSeconds.value + targetSpan <= total) {
+      endSeconds.value = startSeconds.value + targetSpan;
+    } else {
+      endSeconds.value = total;
+      startSeconds.value = (total - targetSpan).clamp(0.0, total);
+    }
+  }
+
+  /// Fine-tune start time by +1s, -1s, etc.
+  void stepStart(double delta) {
+    final total = totalDuration.value;
+    final targetStart = (startSeconds.value + delta).clamp(0.0, (total - minDuration).clamp(0.0, total));
+
+    if (targetStart <= endSeconds.value - minDuration) {
+      if (endSeconds.value - targetStart <= maxDuration) {
+        startSeconds.value = targetStart;
+      } else {
+        startSeconds.value = targetStart;
+        endSeconds.value = (targetStart + maxDuration).clamp(targetStart + minDuration, total);
+      }
+    } else {
+      startSeconds.value = targetStart;
+      endSeconds.value = (targetStart + minDuration).clamp(targetStart + minDuration, total);
+    }
+
+    videoControllerRef?.videoPlayerController?.seekTo(
+      Duration(milliseconds: (startSeconds.value * 1000).toInt()),
+    );
+  }
+
+  /// Fine-tune end time by +1s, -1s, etc.
+  void stepEnd(double delta) {
+    final total = totalDuration.value;
+    final targetEnd = (endSeconds.value + delta).clamp(minDuration, total);
+
+    if (targetEnd >= startSeconds.value + minDuration) {
+      if (targetEnd - startSeconds.value <= maxDuration) {
+        endSeconds.value = targetEnd;
+      } else {
+        endSeconds.value = targetEnd;
+        startSeconds.value = (targetEnd - maxDuration).clamp(0.0, total);
+      }
+    } else {
+      endSeconds.value = targetEnd;
+      startSeconds.value = (targetEnd - minDuration).clamp(0.0, total);
+    }
+
+    videoControllerRef?.videoPlayerController?.seekTo(
+      Duration(milliseconds: (endSeconds.value * 1000).toInt()),
+    );
+  }
+
+  /// Shift entire segment window left or right preserving length
+  void shiftSegment(double delta) {
+    final total = totalDuration.value;
+    final span = endSeconds.value - startSeconds.value;
+
+    var newStart = (startSeconds.value + delta).clamp(0.0, (total - span).clamp(0.0, total));
+    var newEnd = newStart + span;
+
+    if (newEnd > total) {
+      newEnd = total;
+      newStart = (total - span).clamp(0.0, total);
+    }
+
+    startSeconds.value = newStart;
+    endSeconds.value = newEnd;
+
+    videoControllerRef?.videoPlayerController?.seekTo(
+      Duration(milliseconds: (startSeconds.value * 1000).toInt()),
+    );
+  }
+
+  /// Set start time to current player position
+  void setStartToPlayhead() {
+    final vpc = videoControllerRef?.videoPlayerController;
+    final currentPos = vpc != null && vpc.value.isInitialized
+        ? vpc.value.position.inMilliseconds / 1000.0
+        : currentVideoPosition.value;
+
+    final total = totalDuration.value;
+    final newStart = currentPos.clamp(0.0, (total - minDuration).clamp(0.0, total));
+    final span = (endSeconds.value - startSeconds.value).clamp(minDuration, maxDuration);
+
+    var newEnd = (newStart + span).clamp(newStart + minDuration, total);
+    if (newEnd - newStart > maxDuration) {
+      newEnd = newStart + maxDuration;
+    }
+
+    startSeconds.value = newStart;
+    endSeconds.value = newEnd;
+
+    vpc?.seekTo(Duration(milliseconds: (newStart * 1000).toInt()));
+  }
+
+  /// Set end time to current player position
+  void setEndToPlayhead() {
+    final vpc = videoControllerRef?.videoPlayerController;
+    final currentPos = vpc != null && vpc.value.isInitialized
+        ? vpc.value.position.inMilliseconds / 1000.0
+        : currentVideoPosition.value;
+
+    final total = totalDuration.value;
+    final newEnd = currentPos.clamp(minDuration, total);
+    final span = (endSeconds.value - startSeconds.value).clamp(minDuration, maxDuration);
+
+    var newStart = (newEnd - span).clamp(0.0, (newEnd - minDuration).clamp(0.0, total));
+    if (newEnd - newStart > maxDuration) {
+      newStart = newEnd - maxDuration;
+    }
+
+    startSeconds.value = newStart;
+    endSeconds.value = newEnd;
+
+    vpc?.seekTo(Duration(milliseconds: (newEnd * 1000).toInt()));
+  }
+
+  /// Toggle preview loop playback for the selected segment
+  void togglePreview() {
+    if (isPreviewPlaying.value) {
+      stopPreview();
+    } else {
+      startPreview();
+    }
+  }
+
+  void startPreview() {
+    final vpc = videoControllerRef?.videoPlayerController;
+    if (vpc == null || !vpc.value.isInitialized) return;
+
+    isPreviewPlaying.value = true;
+    vpc.seekTo(Duration(milliseconds: (startSeconds.value * 1000).toInt())).then((_) {
+      if (isPreviewPlaying.value) {
+        vpc.play();
+      }
+    });
+
+    _previewTimer?.cancel();
+    _previewTimer = Timer.periodic(const Duration(milliseconds: 250), (_) {
+      if (!isPreviewPlaying.value) {
+        _previewTimer?.cancel();
+        return;
+      }
+      final currentPosSec = vpc.value.position.inMilliseconds / 1000.0;
+      if (currentPosSec >= endSeconds.value || currentPosSec < startSeconds.value - 0.5) {
+        vpc.seekTo(Duration(milliseconds: (startSeconds.value * 1000).toInt()));
+      }
+    });
+  }
+
+  void stopPreview() {
+    isPreviewPlaying.value = false;
+    _previewTimer?.cancel();
+    _previewTimer = null;
+    videoControllerRef?.videoPlayerController?.pause();
+  }
+
+  @override
+  void onClose() {
+    stopPreview();
+    super.onClose();
   }
 
   bool _isRateLimited() {
@@ -287,7 +486,7 @@ class ClipController extends BaseController {
         '${start.toInt()}s - ${end.toInt()}s (${duration.toInt()}s)';
     final watermarkText =
         '🎬 Watch clip: "$title" [$durationText]\n'
-        '✨ Truthworld Watermark\n'
+        '✨ Truthworld\n'
         '👇 Tap to watch in Truthworld App:\n'
         '$clipUrl';
 

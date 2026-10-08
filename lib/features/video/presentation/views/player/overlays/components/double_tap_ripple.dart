@@ -47,14 +47,8 @@ class _DoubleTapRippleState extends State<DoubleTapRipple>
     final isLeft = widget.isLeft;
     final seconds = widget.seconds;
 
-    return Positioned(
-      top: 0,
-      left: isLeft ? 0 : null,
-      right: isLeft ? null : 0,
-      bottom: 0,
-      width: MediaQuery.of(context).size.width * 0.45,
-      child: RepaintBoundary(
-        child: LayoutBuilder(
+    return RepaintBoundary(
+      child: LayoutBuilder(
         builder: (context, constraints) {
           return ClipPath(
             clipper: _SeekRippleClipper(isLeft: isLeft),
@@ -142,9 +136,8 @@ class _DoubleTapRippleState extends State<DoubleTapRipple>
           );
         },
       ),
-    ),
-  );
-}
+    );
+  }
 }
 
 class _SeekRippleClipper extends CustomClipper<Path> {

@@ -343,7 +343,7 @@ class PremiumPlanSelectorSection extends StatelessWidget {
     Widget buildHeader(bool isPremium) {
       final title = isPremium
           ? 'Upgrade or Change Your Plan'
-          : 'Choose the plan that fits you';
+          : 'Choose the plan that fits for you';
 
       final subtitle = isPremium
           ? r'Switch to higher tiers anytime. Your existing plan payment is automatically credited ($2 - 40 rupees for Premium, $3 - 40 rupees for Fact-Checked).'

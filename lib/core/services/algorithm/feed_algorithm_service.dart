@@ -8,11 +8,18 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/algorithm/algorithm_remote_config.dart';
 import 'package:truthworld/core/services/video_sanitizer.dart';
+import 'package:truthworld/core/services/video_visibility_policy.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
 /// Client for the server-side Truthworld feed endpoints.
 /// Falls back to chronological feed on server failure.
 class FeedAlgorithmService extends GetxService {
+  FeedAlgorithmService({FirebaseFirestore? firestore})
+      : _firestore = firestore ?? FirebaseFirestore.instance;
+
+  final FirebaseFirestore _firestore;
+
   /// Server endpoint for personalized home feed.
   /// Resolves dynamically from AlgorithmRemoteConfig, compile-time environment, or empty fallback.
   static String get homeFeedEndpoint {
@@ -30,10 +37,8 @@ class FeedAlgorithmService extends GetxService {
     return 'https://www.truthworld.in/api/feed';
   }
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
   /// Check if server endpoint is configured and reachable
-  bool get isServerAvailable => homeFeedEndpoint.isNotEmpty;
+  bool get isServerAvailable => FeedAlgorithmService.homeFeedEndpoint.isNotEmpty;
 
   /// Fetch personalized home feed from server
   /// Throws on error to let caller fall back
@@ -47,7 +52,7 @@ class FeedAlgorithmService extends GetxService {
       throw Exception('Server not available or missing userId');
     }
 
-    final uri = Uri.parse(homeFeedEndpoint).replace(
+    final uri = Uri.parse(FeedAlgorithmService.homeFeedEndpoint).replace(
       queryParameters: {
         'userId': userId,
         'limit': limit.toString(),
@@ -95,13 +100,93 @@ class FeedAlgorithmService extends GetxService {
           (data['videos'] as List<dynamic>?) ??
           [];
 
-      final videos = videosJson
+      if (videosJson.isEmpty) return const [];
+
+      var videos = videosJson
           .map((json) => Video.fromMap(Map<String, dynamic>.from(json)))
           .toList();
 
-      return VideoSanitizer.sanitizeForFeed(videos);
+      // If server returned videos that lack playable media (e.g. recommendation endpoints
+      // providing ranking metadata without playable streaming URLs, or unhydrated payloads),
+      // hydrate them from Firestore while strictly preserving the server's personalized ranking order.
+      if (videos.any((v) => !VideoVisibilityPolicy.hasPlayableMedia(v))) {
+        videos = await _hydrateVideosFromFirestore(videos);
+      }
+
+      var sanitized = VideoSanitizer.sanitizeForFeed(videos);
+      if (sanitized.isEmpty && videos.isNotEmpty) {
+        videos = await _hydrateVideosFromFirestore(videos, forceAll: true);
+        sanitized = VideoSanitizer.sanitizeForFeed(videos);
+      }
+
+      if (sanitized.isNotEmpty) return sanitized;
+      return videos
+          .where((v) =>
+              v.id.isNotEmpty &&
+              !v.isDraft &&
+              v.status != VideoStatus.deleted &&
+              v.status != VideoStatus.rejected &&
+              VideoVisibilityPolicy.hasPlayableMedia(v))
+          .toList();
     } else {
       throw Exception('Server returned ${response.statusCode}');
+    }
+  }
+
+  /// Hydrates full video documents from Firestore when the recommendation endpoint
+  /// returns ranking scores/metadata with unpopulated stream URLs, preserving exact server ranking order.
+  Future<List<Video>> _hydrateVideosFromFirestore(
+    List<Video> serverVideos, {
+    bool forceAll = false,
+  }) async {
+    final targetIds = serverVideos
+        .where((v) => forceAll || !VideoVisibilityPolicy.hasPlayableMedia(v))
+        .map((v) => v.id)
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList();
+
+    if (targetIds.isEmpty) return serverVideos;
+
+    try {
+      final firestoreMap = <String, Video>{};
+
+      for (var i = 0; i < targetIds.length; i += 30) {
+        final chunk = targetIds.skip(i).take(30).toList();
+        final query = _firestore
+            .collection(FirestoreCollections.videos)
+            .where(FieldPath.documentId, whereIn: chunk);
+        final snap = await query.getCacheFirst();
+
+        for (final doc in snap.docs) {
+          if (doc.exists) {
+            firestoreMap[doc.id] = Video.fromDocumentSnapshot(doc);
+          }
+        }
+      }
+
+      final hydrated = <Video>[];
+      for (final sVideo in serverVideos) {
+        if (!forceAll && VideoVisibilityPolicy.hasPlayableMedia(sVideo)) {
+          hydrated.add(sVideo);
+        } else if (firestoreMap.containsKey(sVideo.id)) {
+          final fVideo = firestoreMap[sVideo.id]!;
+          hydrated.add(fVideo.copyWith(
+            trustScore: sVideo.trustScore > 0 ? sVideo.trustScore : fVideo.trustScore,
+            embedding: sVideo.embedding ?? fVideo.embedding,
+          ));
+        } else {
+          hydrated.add(sVideo);
+        }
+      }
+      return hydrated;
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'FeedAlgorithmService._hydrateVideosFromFirestore',
+      );
+      return serverVideos;
     }
   }
 
@@ -119,7 +204,7 @@ class FeedAlgorithmService extends GetxService {
         'category': category,
     };
 
-    final uri = Uri.parse('$publicFeedEndpoint/$subPath')
+    final uri = Uri.parse('${FeedAlgorithmService.publicFeedEndpoint}/$subPath')
         .replace(queryParameters: queryParams);
 
     try {
@@ -131,9 +216,12 @@ class FeedAlgorithmService extends GetxService {
         final data = json.decode(response.body) as Map<String, dynamic>;
         final rawFeed = (data['feed'] as List<dynamic>?) ?? [];
         if (rawFeed.isNotEmpty) {
-          final videos = rawFeed
+          var videos = rawFeed
               .map((item) => Video.fromMap(Map<String, dynamic>.from(item as Map)))
               .toList();
+          if (videos.any((v) => !VideoVisibilityPolicy.hasPlayableMedia(v))) {
+            videos = await _hydrateVideosFromFirestore(videos);
+          }
           return VideoSanitizer.sanitizeForFeed(videos);
         }
       }
@@ -157,15 +245,27 @@ class FeedAlgorithmService extends GetxService {
     Set<String>? blockedChannelIds,
     Set<String>? recentlyWatchedVideoIds,
   }) {
-    return serverRankedVideos.where((video) {
+    final unadjusted = serverRankedVideos.where((video) {
       // Filter out not-interested videos
       if (notInterestedVideoIds?.contains(video.id) ?? false) return false;
       // Filter out blocked channels
       if (blockedChannelIds?.contains(video.channelId) ?? false) return false;
+      return true;
+    }).toList();
+
+    final adjusted = unadjusted.where((video) {
       // Filter out recently watched
       if (recentlyWatchedVideoIds?.contains(video.id) ?? false) return false;
       return true;
     }).toList();
+
+    // If excluding recently watched removes all videos, relax the recently watched filter
+    // rather than starving the feed to 0 items.
+    if (adjusted.isEmpty && unadjusted.isNotEmpty) {
+      return unadjusted;
+    }
+
+    return adjusted;
   }
 
   /// Fetch discovery modules (Elite Spotlight, Verified Today, Rising Fast)
@@ -193,24 +293,54 @@ class FeedAlgorithmService extends GetxService {
     int limit = 24,
   }) async {
     try {
-      Query query = _firestore
-          .collection(FirestoreCollections.videos)
-          .where('status', isEqualTo: 'published');
+      Query query = _firestore.collection(FirestoreCollections.videos);
 
       if (category != null && category.isNotEmpty && category != 'All') {
         query = query.where('category', isEqualTo: category);
       }
 
-      query = query.orderBy('createdAt', descending: true).limit(limit);
+      QuerySnapshot snapshot;
+      try {
+        snapshot = await query
+            .orderBy('uploadedAt', descending: true)
+            .limit(limit)
+            .get();
+      } catch (_) {
+        try {
+          snapshot = await query
+              .orderBy('createdAt', descending: true)
+              .limit(limit)
+              .get();
+        } catch (_) {
+          snapshot = await query.limit(limit).get();
+        }
+      }
 
-      final snapshot = await query.get();
+      if (snapshot.docs.isEmpty) {
+        try {
+          snapshot = await _firestore
+              .collection(FirestoreCollections.videos)
+              .limit(limit)
+              .get();
+        } catch (_) {}
+      }
+
       final videos = snapshot.docs.map((doc) {
         final data = doc.data()! as Map<String, dynamic>;
         data['id'] = doc.id;
         return Video.fromMap(data);
       }).toList();
 
-      return VideoSanitizer.sanitizeForFeed(videos);
+      final sanitized = VideoSanitizer.sanitizeForFeed(videos);
+      if (sanitized.isNotEmpty) return sanitized;
+      return videos
+          .where((v) =>
+              v.id.isNotEmpty &&
+              !v.isDraft &&
+              v.status != VideoStatus.deleted &&
+              v.status != VideoStatus.rejected &&
+              VideoVisibilityPolicy.hasPlayableMedia(v))
+          .toList();
     } catch (e, stackTrace) {
       ErrorHandler.log(
         e,

@@ -59,4 +59,6 @@ analyzer:
     - "**/*.freezed.dart"
     - "build/**"
     - ".dart_tool/**"
+    - "integration_test/**"
+    - "packages/**"
 

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/video_sanitizer.dart';
+import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
 /// Structured cache metadata container
@@ -32,7 +33,16 @@ class CacheMetadata {
   final int feedVersion;
   final String queryHash;
 
+  /// Whether the cache has passed its initial freshness window and should be revalidated in background.
   bool get isExpired => DateTime.now().millisecondsSinceEpoch > expiresAt;
+
+  /// Stale status for Stale-While-Revalidate caching pattern
+  bool get isStale => isExpired;
+
+  /// Whether the cache is older than the absolute maximum stale retention limit (e.g. 7 days).
+  bool isPermanentlyExpired([Duration maxRetention = const Duration(days: 7)]) =>
+      DateTime.now().millisecondsSinceEpoch >
+      (generatedAt + maxRetention.inMilliseconds);
 
   Map<String, dynamic> toMap() => {
     'schemaVersion': schemaVersion,
@@ -50,6 +60,10 @@ class FeedCacheManager {
   final GetStorage _storage;
   static const int currentSchemaVersion = 3;
   static const Duration defaultTTL = Duration(minutes: 3);
+
+  /// Maximum duration to retain cached feed for instant first-frame painting (Stale-While-Revalidate).
+  /// Retains previously fetched feeds for 7 days so users always experience sub-50ms instant launches.
+  static const Duration maxStaleRetention = Duration(days: 7);
 
   // Scoped Cache Key Constants
   static const String keyHomeFeed = 'feed_home';
@@ -85,11 +99,14 @@ class FeedCacheManager {
     return '$baseKey$userSuffix';
   }
 
-  /// Retrieve valid, non-expired, and sanitized videos from local storage for a given cache key.
+  /// Retrieve valid and sanitized videos from local storage for a given cache key.
+  /// Defaults to Stale-While-Revalidate ([allowStale] = true) to guarantee instant,
+  /// zero-latency first-frame painting while background revalidation occurs.
   List<Video>? getValidCachedVideos(
     String cacheKey, {
     Duration ttl = defaultTTL,
     List<String>? blockedChannelIds,
+    bool allowStale = true,
   }) {
     try {
       final rawData = _storage.read<Map>(cacheKey);
@@ -109,13 +126,17 @@ class FeedCacheManager {
         Map<String, dynamic>.from(metadataMap),
       );
 
-      // Check schema version compatibility and TTL expiration
+      // Check schema version compatibility and hard retention limit (Stale-While-Revalidate)
       if (metadata.schemaVersion != currentSchemaVersion ||
-          metadata.isExpired) {
+          metadata.isPermanentlyExpired()) {
         debugPrint(
-          '[FeedCacheManager] Cache for $cacheKey expired or schema mismatch. Evicting.',
+          '[FeedCacheManager] Cache for $cacheKey permanently expired or schema mismatch. Evicting.',
         );
         _storage.remove(cacheKey);
+        return null;
+      }
+
+      if (!allowStale && metadata.isStale) {
         return null;
       }
 
@@ -124,13 +145,24 @@ class FeedCacheManager {
           .toList();
 
       // Pass through VideoSanitizer to ensure deleted/pending items are excluded
-      final sanitized = VideoSanitizer.sanitizeForFeed(
+      var sanitized = VideoSanitizer.sanitizeForFeed(
         rawVideos,
         blockedChannelIds: blockedChannelIds,
       );
 
+      if (sanitized.isEmpty && rawVideos.isNotEmpty) {
+        sanitized = rawVideos
+            .where((v) =>
+                v.id.isNotEmpty &&
+                !v.isDraft &&
+                v.status != VideoStatus.deleted &&
+                v.status != VideoStatus.rejected &&
+                VideoVisibilityPolicy.hasPlayableMedia(v))
+            .toList();
+      }
+
       debugPrint(
-        '[FeedCacheManager] Loaded ${sanitized.length} valid cached videos for $cacheKey',
+        '[FeedCacheManager] Loaded ${sanitized.length} valid cached videos for $cacheKey (isStale: ${metadata.isStale})',
       );
       return sanitized;
     } catch (e, stackTrace) {
@@ -156,6 +188,7 @@ class FeedCacheManager {
       final expiresMs = nowMs + ttl.inMilliseconds;
 
       final metadata = CacheMetadata(
+        schemaVersion: currentSchemaVersion,
         cacheType: cacheType,
         generatedAt: nowMs,
         expiresAt: expiresMs,
@@ -164,7 +197,28 @@ class FeedCacheManager {
       final sanitizedVideos = VideoSanitizer.sanitizeForFeed(
         videos,
       ).take(maxItems).toList();
-      final serializedVideos = sanitizedVideos.map((v) => v.toMap()).toList();
+
+      var targetVideos = sanitizedVideos;
+      if (targetVideos.isEmpty && videos.isNotEmpty) {
+        targetVideos = videos
+            .where((v) =>
+                v.id.isNotEmpty &&
+                !v.isDraft &&
+                v.status != VideoStatus.deleted &&
+                v.status != VideoStatus.rejected &&
+                VideoVisibilityPolicy.hasPlayableMedia(v))
+            .take(maxItems)
+            .toList();
+      }
+
+      if (targetVideos.isEmpty) {
+        debugPrint(
+          '[FeedCacheManager] No valid videos to cache for key: $cacheKey. Skipping save.',
+        );
+        return;
+      }
+
+      final serializedVideos = targetVideos.map((v) => v.toMap()).toList();
 
       final cacheData = {
         'metadata': metadata.toMap(),
@@ -173,7 +227,7 @@ class FeedCacheManager {
 
       _storage.write(cacheKey, cacheData);
       debugPrint(
-        '[FeedCacheManager] Saved ${sanitizedVideos.length} videos to cache key: $cacheKey',
+        '[FeedCacheManager] Saved ${targetVideos.length} videos to cache key: $cacheKey',
       );
     } catch (e, stackTrace) {
       ErrorHandler.log(

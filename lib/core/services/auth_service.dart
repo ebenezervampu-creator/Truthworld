@@ -1,18 +1,23 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart'
     hide GoogleSignInException;
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
+import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth/auth_barrel.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/services/push_notification_service.dart';
+import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/data/models/channel.dart';
 
 export 'auth/auth_barrel.dart';
@@ -26,6 +31,8 @@ class AuthService extends GetxService {
   final AuthProfileManager _profileManager = AuthProfileManager();
   final AuthFirestoreSync _firestoreSync = AuthFirestoreSync();
   final AuthGoogleSignInProvider _googleProvider = AuthGoogleSignInProvider();
+  final AuthAppleSignInProvider _appleProvider = AuthAppleSignInProvider();
+  final AuthPhoneSignInProvider _phoneProvider = AuthPhoneSignInProvider();
 
   // Sub-manager accessors for advanced modular usage
   AuthPremiumManager get premiumManager => _premiumManager;
@@ -33,6 +40,8 @@ class AuthService extends GetxService {
   AuthProfileManager get profileManager => _profileManager;
   AuthFirestoreSync get firestoreSync => _firestoreSync;
   AuthGoogleSignInProvider get googleProvider => _googleProvider;
+  AuthAppleSignInProvider get appleProvider => _appleProvider;
+  AuthPhoneSignInProvider get phoneProvider => _phoneProvider;
 
   FirebaseAuth? _authOverride;
   FirebaseAuth get _auth => _authOverride ?? FirebaseAuth.instance;
@@ -48,12 +57,20 @@ class AuthService extends GetxService {
   RxBool get isAuthenticated => _isAuthenticated;
   bool get isUserSignedIn => _isAuthenticated.value;
 
-  String get uid =>
-      (_isAuthenticated.value &&
-          _user.value != null &&
-          !_user.value!.isAnonymous)
-      ? _user.value!.uid
-      : '';
+  String? _cachedUid;
+
+  String get uid {
+    if (_user.value != null && !_user.value!.isAnonymous) {
+      return _user.value!.uid;
+    }
+    if (_isAuthenticated.value && _cachedUid != null && _cachedUid!.isNotEmpty) {
+      return _cachedUid!;
+    }
+    return '';
+  }
+
+  String get email =>
+      _user.value?.email ?? _profileManager.userEmail.value ?? '';
 
   // Channel delegation
   RxBool get hasChannel => _channelManager.hasChannel;
@@ -108,6 +125,10 @@ class AuthService extends GetxService {
   RxnString get userState => _profileManager.userState;
   RxnString get userCountry => _profileManager.userCountry;
   RxnString get userProfession => _profileManager.userProfession;
+  RxnString get userEmail => _profileManager.userEmail;
+  RxnString get userPhoneNumber => _profileManager.userPhoneNumber;
+  RxBool get isPhoneVerified => _profileManager.isPhoneVerified;
+  RxBool get isEmailVerified => _profileManager.isEmailVerified;
   RxBool get needsOnboarding => _profileManager.needsOnboarding;
 
   String get activeDisplayName => _profileManager.getActiveDisplayName(
@@ -137,10 +158,14 @@ class AuthService extends GetxService {
   Future<void> updateUserProfileOnboarding({
     String? ageGroup,
     String? gender,
+    String? username,
+    String? displayName,
   }) => _profileManager.updateUserProfileOnboarding(
     user,
     ageGroup: ageGroup,
     gender: gender,
+    username: username,
+    displayName: displayName,
   );
 
   Future<void> skipUserOnboarding() => _profileManager.skipUserOnboarding(user);
@@ -152,20 +177,66 @@ class AuthService extends GetxService {
         context: context,
       );
 
+  StreamSubscription<User?>? _authStateSub;
+  String? _lastHandledUid;
+  bool _isInitialAuthRestorationPending = false;
+
   @override
   void onInit() {
     super.onInit();
     try {
       _auth = FirebaseAuth.instance;
-      final current = _auth.currentUser;
-      if (current != null && !current.isAnonymous) {
-        _user.value = current;
-        _isAuthenticated.value = true;
-      }
+      _initCachedSession();
+      _setupAuthStateListener();
       _premiumManager.loadCachedPremiumStatus();
-      _channelManager.initCachedChannelStatus(current?.uid);
+      _channelManager.initCachedChannelStatus(_cachedUid ?? _auth.currentUser?.uid);
     } catch (e, s) {
       ErrorHandler.log(e, stackTrace: s, tag: 'AuthService.onInit');
+    }
+  }
+
+  void _initCachedSession() {
+    try {
+      final box = GetStorage();
+      final hasActiveSession =
+          box.read<bool>('auth_has_active_session') ?? false;
+      final hasPendingRedirect =
+          box.read<bool>('auth_pending_redirect') ?? false;
+
+      var validPendingRedirect = false;
+      if (hasPendingRedirect) {
+        final redirectTime = box.read<int>('auth_pending_redirect_time') ?? 0;
+        final elapsed = DateTime.now().millisecondsSinceEpoch - redirectTime;
+        if (elapsed < 600000) {
+          validPendingRedirect = true;
+        } else {
+          box.remove('auth_pending_redirect');
+          box.remove('auth_pending_redirect_time');
+        }
+      }
+
+      if (hasActiveSession) {
+        _isAuthenticated.value = true;
+        _isInitialAuthRestorationPending = true;
+        _cachedUid = box.read<String>('auth_session_uid');
+        if (_cachedUid != null && _cachedUid!.isNotEmpty) {
+          _profileManager.initCachedProfile(_cachedUid);
+        }
+      } else if (validPendingRedirect) {
+        _isInitialAuthRestorationPending = true;
+      }
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'AuthService._initCachedSession');
+    }
+  }
+
+  void _setupAuthStateListener() {
+    _authStateSub?.cancel();
+    _authStateSub = _auth.authStateChanges().listen(_handleAuthChanged);
+
+    final current = _auth.currentUser;
+    if (current != null && !current.isAnonymous) {
+      _handleAuthChanged(current);
     }
   }
 
@@ -173,9 +244,119 @@ class AuthService extends GetxService {
   Future<AuthService> init() async {
     _auth = FirebaseAuth.instance;
 
+    // Enforce persistence on Web so sessions survive tab closures and page refreshes
+    if (kIsWeb) {
+      try {
+        await _auth
+            .setPersistence(Persistence.LOCAL)
+            .timeout(const Duration(milliseconds: 1000), onTimeout: () {});
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'AuthService.setPersistence');
+      }
+    }
+
     _premiumManager.loadCachedPremiumStatus();
-    _channelManager.initCachedChannelStatus(_auth.currentUser?.uid);
+    _channelManager.initCachedChannelStatus(_cachedUid ?? _auth.currentUser?.uid);
     await _googleProvider.initialize();
+
+    // Check for web redirect result if coming back from redirect flow
+    if (kIsWeb) {
+      final box = GetStorage();
+      final wasPendingRedirect =
+          box.read<bool>('auth_pending_redirect') ?? false;
+
+      try {
+        final redirectResult = await _auth.getRedirectResult();
+        final redirectUser = redirectResult.user;
+        if (redirectUser != null && !redirectUser.isAnonymous) {
+          box.remove('auth_pending_redirect');
+          box.remove('auth_pending_redirect_time');
+          _isInitialAuthRestorationPending = false;
+          _user.value = redirectUser;
+          _isAuthenticated.value = true;
+          _cachedUid = redirectUser.uid;
+          box.write('auth_has_active_session', true);
+          box.write('auth_session_uid', redirectUser.uid);
+          await _handlePostSignIn(
+            redirectUser,
+            lastGooglePeopleData: _googleProvider.lastGooglePeopleData,
+          );
+          _handleAuthChanged(redirectUser);
+          debugPrint(
+            'AuthService: Successfully authenticated via redirect (${redirectUser.email})',
+          );
+        }
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'AuthService.getRedirectResult');
+      }
+
+      // If returning from redirect but getRedirectResult didn't return a user yet,
+      // wait for currentUser or IndexedDB to settle
+      if (wasPendingRedirect && (_user.value == null || _user.value!.isAnonymous)) {
+        for (var i = 0; i < 6; i++) {
+          final current = _auth.currentUser;
+          if (current != null && !current.isAnonymous) {
+            box.remove('auth_pending_redirect');
+            box.remove('auth_pending_redirect_time');
+            _isInitialAuthRestorationPending = false;
+            await _handlePostSignIn(
+              current,
+              lastGooglePeopleData: _googleProvider.lastGooglePeopleData,
+            );
+            _handleAuthChanged(current);
+            break;
+          }
+          await Future<void>.delayed(const Duration(milliseconds: 500));
+        }
+      }
+
+      if (wasPendingRedirect && (_user.value == null || _user.value!.isAnonymous)) {
+        box.remove('auth_pending_redirect');
+        box.remove('auth_pending_redirect_time');
+        _isInitialAuthRestorationPending = false;
+        _handleAuthChanged(null);
+      }
+    }
+
+    // Re-verify after async initialization in case auth resolved during async awaits
+    final current = _auth.currentUser;
+    if (current != null && !current.isAnonymous) {
+      _isInitialAuthRestorationPending = false;
+      _handleAuthChanged(current);
+    } else if (_isInitialAuthRestorationPending) {
+      // IndexedDB reading on Web / Keystore retrieval on Mobile is asynchronous.
+      // Poll currentUser or wait up to 4.4 seconds for Firebase Auth to finish hydrating user credentials.
+      const pollInterval = Duration(milliseconds: 200);
+      const maxAttempts = 22; // 22 * 200ms = 4.4 seconds
+      for (var i = 0; i < maxAttempts; i++) {
+        if (!_isInitialAuthRestorationPending) {
+          // Resolved concurrently by authStateChanges stream listener!
+          break;
+        }
+        final liveUser = _auth.currentUser;
+        if (liveUser != null && !liveUser.isAnonymous) {
+          _isInitialAuthRestorationPending = false;
+          _handleAuthChanged(liveUser);
+          break;
+        }
+        await Future<void>.delayed(pollInterval);
+      }
+
+      // If still pending after the full grace period, check one last time before concluding
+      // genuine unauthenticated state:
+      if (_isInitialAuthRestorationPending) {
+        final finalUser = _auth.currentUser;
+        _isInitialAuthRestorationPending = false;
+        if (finalUser != null && !finalUser.isAnonymous) {
+          _handleAuthChanged(finalUser);
+        } else {
+          debugPrint(
+            'AuthService: Verified unauthenticated state after IndexedDB hydration timeout; clearing session.',
+          );
+          _handleAuthChanged(null);
+        }
+      }
+    }
 
     // Purge any lingering anonymous session
     try {
@@ -186,15 +367,19 @@ class AuthService extends GetxService {
       ErrorHandler.log(e, stackTrace: s, tag: 'AuthService.purgeAnonymousUser');
     }
 
-    _user.bindStream(_auth.authStateChanges());
-    ever(_user, _handleAuthChanged);
-
     return this;
   }
 
   void _handleAuthChanged(User? u) {
     if (u != null && u.isAnonymous) {
+      _isInitialAuthRestorationPending = false;
+      _lastHandledUid = null;
+      _cachedUid = null;
+      _user.value = null;
       _isAuthenticated.value = false;
+      final box = GetStorage();
+      box.write('auth_has_active_session', false);
+      box.remove('auth_session_uid');
       _channelManager.updateChannelSubscription(null);
       _profileManager.updateUserDocSubscription(
         null,
@@ -209,7 +394,47 @@ class AuthService extends GetxService {
     }
 
     final isRealUser = u != null && !u.isAnonymous;
-    _isAuthenticated.value = isRealUser;
+    final newUid = isRealUser ? u.uid : null;
+
+    final box = GetStorage();
+    if (isRealUser) {
+      _isInitialAuthRestorationPending = false;
+      _user.value = u;
+      _isAuthenticated.value = true;
+      _cachedUid = u.uid;
+      box.write('auth_has_active_session', true);
+      box.write('auth_session_uid', u.uid);
+      if (u.email != null && u.email!.isNotEmpty) {
+        _profileManager.userEmail.value = u.email;
+        box.write('profile_email_${u.uid}', u.email);
+      }
+      if (u.displayName != null && u.displayName!.isNotEmpty) {
+        _profileManager.userDisplayName.value = u.displayName;
+        box.write('profile_name_${u.uid}', u.displayName);
+      }
+      if (u.photoURL != null && u.photoURL!.isNotEmpty) {
+        _profileManager.userPhotoUrl.value = u.photoURL;
+        box.write('profile_photo_${u.uid}', u.photoURL);
+      }
+    } else {
+      if (_isInitialAuthRestorationPending) {
+        debugPrint(
+          'AuthService: Initial auth restoration in progress; preserving cached session.',
+        );
+        return;
+      }
+      _user.value = null;
+      _isAuthenticated.value = false;
+      _cachedUid = null;
+      box.write('auth_has_active_session', false);
+      box.remove('auth_session_uid');
+    }
+
+    if (_lastHandledUid == newUid && isRealUser) {
+      return;
+    }
+    _lastHandledUid = newUid;
+
     _channelManager.updateChannelSubscription(isRealUser ? u : null);
     _profileManager.updateUserDocSubscription(
       isRealUser ? u : null,
@@ -243,26 +468,95 @@ class AuthService extends GetxService {
 
   @override
   void onClose() {
+    _authStateSub?.cancel();
     _channelManager.dispose();
     _profileManager.dispose();
     super.onClose();
   }
 
-  /// Force-refreshes the Firebase Auth ID token and custom claims
+  Future<String?>? _inFlightTokenRefresh;
+
+  /// Force-refreshes the Firebase Auth ID token and custom claims with single-flight request coalescing.
   Future<String?> forceRefreshToken() async {
+    if (_inFlightTokenRefresh != null) {
+      return _inFlightTokenRefresh;
+    }
+
+    final completer = Completer<String?>();
+    _inFlightTokenRefresh = completer.future;
+
     try {
       final token = await _auth.currentUser?.getIdToken(true);
       logger.info(
         'Firebase Auth token & custom claims force-refreshed successfully',
         tag: 'Auth',
       );
+      completer.complete(token);
       return token;
     } catch (e) {
       logger.warning(
         'Failed to force-refresh Firebase Auth token: $e',
         tag: 'Auth',
       );
+      completer.complete(null);
       return null;
+    } finally {
+      _inFlightTokenRefresh = null;
+    }
+  }
+
+  Future<void> _handlePostSignIn(
+    User u, {
+    Map<String, dynamic>? lastGooglePeopleData,
+  }) async {
+    _user.value = u;
+    _isAuthenticated.value = true;
+    _cachedUid = u.uid;
+    final box = GetStorage();
+    box.write('auth_has_active_session', true);
+    box.write('auth_session_uid', u.uid);
+    if (u.email != null && u.email!.isNotEmpty) {
+      _profileManager.userEmail.value = u.email;
+      box.write('profile_email_${u.uid}', u.email);
+    }
+    if (u.displayName != null && u.displayName!.isNotEmpty) {
+      _profileManager.userDisplayName.value = u.displayName;
+      box.write('profile_name_${u.uid}', u.displayName);
+    }
+    if (u.photoURL != null && u.photoURL!.isNotEmpty) {
+      _profileManager.userPhotoUrl.value = u.photoURL;
+      box.write('profile_photo_${u.uid}', u.photoURL);
+    }
+    try {
+      await _firestoreSync.syncUserToFirestore(
+        u,
+        lastGooglePeopleData: lastGooglePeopleData,
+        onNeedsOnboardingChanged: (val) => needsOnboarding.value = val,
+      );
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'AuthService._handlePostSignIn.syncUser',
+      );
+    }
+    try {
+      await PushNotificationService.to.registerToken(u.uid);
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'AuthService._handlePostSignIn.push',
+      );
+    }
+    try {
+      await ensureChannelLoaded();
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'AuthService._handlePostSignIn.ensureChannel',
+      );
     }
   }
 
@@ -271,14 +565,10 @@ class AuthService extends GetxService {
     final credential = await _googleProvider.signInWithGoogle(_auth);
     final u = credential.user;
     if (u != null) {
-      _user.value = u;
-      _isAuthenticated.value = true;
-      await _firestoreSync.syncUserToFirestore(
+      await _handlePostSignIn(
         u,
         lastGooglePeopleData: _googleProvider.lastGooglePeopleData,
-        onNeedsOnboardingChanged: (val) => needsOnboarding.value = val,
       );
-      PushNotificationService.to.registerToken(u.uid);
     }
     return credential;
   }
@@ -287,21 +577,367 @@ class AuthService extends GetxService {
   Future<UserCredential> retryGoogleSignIn({int maxRetries = 2}) =>
       _googleProvider.retryGoogleSignIn(_auth, maxRetries: maxRetries);
 
+  /// Initiates sign-in using Apple provider across iOS, macOS, Android, and Web.
+  Future<UserCredential> signInWithApple() async {
+    final credential = await _appleProvider.signInWithApple(_auth);
+    final u = credential.user;
+    if (u != null) {
+      await _handlePostSignIn(u);
+    }
+    return credential;
+  }
+
+  /// Initiates phone number verification by sending an SMS OTP.
+  Future<void> verifyPhoneNumber({
+    required String phoneNumber,
+    required void Function(String verificationId, int? resendToken) onCodeSent,
+    required void Function(PhoneAuthCredential credential) onVerificationCompleted,
+    required void Function(PhoneAuthException error) onVerificationFailed,
+    required void Function(String verificationId) onCodeAutoRetrievalTimeout,
+    int? resendToken,
+  }) async {
+    await _phoneProvider.verifyPhoneNumber(
+      auth: _auth,
+      phoneNumber: phoneNumber,
+      resendToken: resendToken,
+      onCodeSent: onCodeSent,
+      onVerificationCompleted: (cred) async {
+        try {
+          final userCredential = await _auth.signInWithCredential(cred);
+          final u = userCredential.user;
+          if (u != null) {
+            await _handlePostSignIn(u);
+          }
+          onVerificationCompleted(cred);
+        } catch (e, s) {
+          ErrorHandler.log(
+            e,
+            stackTrace: s,
+            tag: 'AuthService.verifyPhoneNumber.autoSignIn',
+          );
+        }
+      },
+      onVerificationFailed: onVerificationFailed,
+      onCodeAutoRetrievalTimeout: onCodeAutoRetrievalTimeout,
+    );
+  }
+
+  /// Completes Phone Sign-In using the SMS OTP code and verification ID.
+  Future<UserCredential> signInWithPhoneOtp({
+    required String verificationId,
+    required String smsCode,
+    ConfirmationResult? confirmationResult,
+  }) async {
+    final credential = await _phoneProvider.signInWithOtp(
+      auth: _auth,
+      verificationId: verificationId,
+      smsCode: smsCode,
+      webConfirmation: confirmationResult,
+    );
+    final u = credential.user;
+    if (u != null) {
+      await _handlePostSignIn(u);
+    }
+    return credential;
+  }
+
+  /// Links a phone number to the current account.
+  /// If another account already holds this phone number, securely merges the duplicate
+  /// account into the current account and deletes the duplicate account from Firebase Auth and Firestore.
+  Future<void> linkPhoneNumber({
+    required String verificationId,
+    required String smsCode,
+    required String phoneNumber,
+  }) async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      throw const AuthException(
+        message: 'No authenticated user session found.',
+        userMessage: 'Please sign in to verify your phone number.',
+        code: 'AUTH_UNAUTHENTICATED',
+      );
+    }
+
+    final trimmedCode = smsCode.trim();
+    final credential = PhoneAuthProvider.credential(
+      verificationId: verificationId,
+      smsCode: trimmedCode,
+    );
+    final normalizedPhone =
+        AuthPhoneSignInProvider.normalizePhoneNumber(phoneNumber);
+
+    try {
+      await currentUser.linkWithCredential(credential);
+      await FirebaseFirestore.instance
+          .collection(FirestoreCollections.users)
+          .doc(currentUser.uid)
+          .set({
+        'phoneNumber': normalizedPhone,
+        'isPhoneVerified': true,
+        'metadata': {
+          'phoneNumber': normalizedPhone,
+        },
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      await currentUser.reload();
+      _user.value = _auth.currentUser;
+      await syncCurrentUser();
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'credential-already-in-use') {
+        // An existing account already holds this phone number. Merge and delete duplicate.
+        await _mergeDuplicatePhoneAccount(
+          phoneCredential: credential,
+          phoneNumber: normalizedPhone,
+        );
+      } else {
+        rethrow;
+      }
+    }
+  }
+
+  Future<void> _mergeDuplicatePhoneAccount({
+    required PhoneAuthCredential phoneCredential,
+    required String phoneNumber,
+  }) async {
+    String? duplicateIdToken;
+    FirebaseApp? tempApp;
+
+    try {
+      try {
+        tempApp = Firebase.app('secondaryApp_accountMerge');
+      } catch (_) {
+        tempApp = await Firebase.initializeApp(
+          name: 'secondaryApp_accountMerge',
+          options: Firebase.app().options,
+        );
+      }
+
+      final tempAuth = FirebaseAuth.instanceFor(app: tempApp);
+      final dupUserCredential =
+          await tempAuth.signInWithCredential(phoneCredential);
+      duplicateIdToken = await dupUserCredential.user?.getIdToken();
+      await tempAuth.signOut();
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'AuthService._mergeDuplicatePhoneAccount.token',
+      );
+    }
+
+    await _callMergeDuplicateAccount(
+      duplicateIdToken: duplicateIdToken,
+      phoneNumber: phoneNumber,
+    );
+  }
+
+  /// Links Google email to the current account.
+  /// If another account already holds this Google account, securely merges the duplicate
+  /// account into the current account and deletes the duplicate account from Firebase Auth and Firestore.
+  Future<void> linkGoogleEmail() async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      throw const AuthException(
+        message: 'No authenticated user session found.',
+        userMessage: 'Please sign in to verify your email.',
+        code: 'AUTH_UNAUTHENTICATED',
+      );
+    }
+
+    try {
+      if (kIsWeb) {
+        final provider = GoogleAuthProvider();
+        provider.setCustomParameters({'prompt': 'select_account'});
+        try {
+          await currentUser.linkWithPopup(provider);
+        } on FirebaseAuthException catch (e) {
+          if (e.code == 'credential-already-in-use') {
+            await _callMergeDuplicateAccount(
+              email: e.email ?? currentUser.email,
+            );
+          } else {
+            rethrow;
+          }
+        }
+      } else {
+        final credential = await _googleProvider.getGoogleAuthCredential();
+        final email = _googleProvider.lastGoogleEmail;
+        try {
+          await currentUser.linkWithCredential(credential);
+        } on FirebaseAuthException catch (e) {
+          if (e.code == 'credential-already-in-use') {
+            await _mergeDuplicateGoogleAccount(
+              googleCredential: credential,
+              email: email,
+            );
+          } else {
+            rethrow;
+          }
+        }
+      }
+
+      await currentUser.reload();
+      _user.value = _auth.currentUser;
+      await syncCurrentUser();
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'AuthService.linkGoogleEmail');
+      rethrow;
+    }
+  }
+
+  Future<void> _mergeDuplicateGoogleAccount({
+    required AuthCredential googleCredential,
+    String? email,
+  }) async {
+    String? duplicateIdToken;
+    FirebaseApp? tempApp;
+
+    try {
+      try {
+        tempApp = Firebase.app('secondaryApp_accountMerge');
+      } catch (_) {
+        tempApp = await Firebase.initializeApp(
+          name: 'secondaryApp_accountMerge',
+          options: Firebase.app().options,
+        );
+      }
+
+      final tempAuth = FirebaseAuth.instanceFor(app: tempApp);
+      final dupUserCredential =
+          await tempAuth.signInWithCredential(googleCredential);
+      duplicateIdToken = await dupUserCredential.user?.getIdToken();
+      await tempAuth.signOut();
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'AuthService._mergeDuplicateGoogleAccount.token',
+      );
+    }
+
+    await _callMergeDuplicateAccount(
+      duplicateIdToken: duplicateIdToken,
+      email: email,
+    );
+  }
+
+  /// Sends a verification email to the user or verifies before updating email.
+  Future<void> sendEmailVerification({String? email}) async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      throw const AuthException(
+        message: 'No authenticated user session found.',
+        userMessage: 'Please sign in to verify your email.',
+        code: 'AUTH_UNAUTHENTICATED',
+      );
+    }
+
+    final trimmedEmail = email?.trim();
+    if (trimmedEmail != null &&
+        trimmedEmail.isNotEmpty &&
+        currentUser.email != trimmedEmail) {
+      try {
+        await currentUser.verifyBeforeUpdateEmail(trimmedEmail);
+      } on FirebaseAuthException catch (e) {
+        if (e.code == 'email-already-in-use') {
+          await _callMergeDuplicateAccount(email: trimmedEmail);
+        } else {
+          rethrow;
+        }
+      }
+    } else {
+      await currentUser.sendEmailVerification();
+    }
+  }
+
+  /// Reloads the Firebase user and updates verification status in Firestore.
+  Future<bool> reloadAndCheckEmailVerified() async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) return false;
+    await currentUser.reload();
+    _user.value = _auth.currentUser;
+    final isVerified = _auth.currentUser?.emailVerified ?? false;
+    if (isVerified) {
+      await FirebaseFirestore.instance
+          .collection(FirestoreCollections.users)
+          .doc(currentUser.uid)
+          .set({
+        'email': _auth.currentUser?.email,
+        'isEmailVerified': true,
+        'emailVerified': true,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      await syncCurrentUser();
+    }
+    return isVerified;
+  }
+
+  /// Synchronizes active Firebase User data and profile state to Firestore.
+  Future<void> syncCurrentUser() async {
+    final u = _auth.currentUser;
+    if (u != null) {
+      await _firestoreSync.syncUserToFirestore(
+        u,
+        onNeedsOnboardingChanged: (needs) => needsOnboarding.value = needs,
+      );
+    }
+  }
+
+  /// Calls backend mergeDuplicateAccount Cloud Function to unify duplicate accounts and delete the duplicate.
+  Future<void> _callMergeDuplicateAccount({
+    String? duplicateIdToken,
+    String? phoneNumber,
+    String? email,
+  }) async {
+    final functions = FirebaseFunctions.instanceFor(region: 'asia-south1');
+    final callable = functions.httpsCallable('mergeDuplicateAccount');
+    final payload = <String, dynamic>{};
+    if (duplicateIdToken != null) payload['duplicateIdToken'] = duplicateIdToken;
+    if (phoneNumber != null) payload['phoneNumber'] = phoneNumber;
+    if (email != null) payload['email'] = email;
+    await callable.call<Map<String, dynamic>>(payload);
+
+    final currentUser = _auth.currentUser;
+    if (currentUser != null) {
+      await currentUser.reload();
+      _user.value = _auth.currentUser;
+      await syncCurrentUser();
+    }
+  }
+
   /// Signs out user and unregisters push notification device token.
   Future<void> signOut() async {
     try {
-      final uidSnapshot = uid;
-      if (uidSnapshot.isNotEmpty) {
-        await PushNotificationService.to.unregisterToken(uidSnapshot);
+      if (Get.isRegistered<PushNotificationService>()) {
+        final uidSnapshot = uid;
+        if (uidSnapshot.isNotEmpty) {
+          await PushNotificationService.to.unregisterToken(uidSnapshot);
+        }
+      }
+      if (Get.isRegistered<AdService>()) {
+        AdService.to.clearUserInteractions();
+      }
+      if (Get.isRegistered<WatchHistoryService>()) {
+        WatchHistoryService.to.clearHistorySubscriptions();
       }
       await _googleProvider.signOut();
       await _auth.signOut();
     } catch (e) {
       logger.warning('Error during sign out: $e', tag: 'AUTH');
+    } finally {
+      _isInitialAuthRestorationPending = false;
+      final box = GetStorage();
+      box.write('auth_has_active_session', false);
+      box.remove('auth_session_uid');
+      box.remove('auth_pending_redirect');
+      box.remove('auth_pending_redirect_time');
+      _cachedUid = null;
       _user.value = null;
       _isAuthenticated.value = false;
       needsOnboarding.value = false;
-      rethrow;
+      _profileManager.clearProfile();
+      _channelManager.clearUserChannel();
     }
   }
 
@@ -316,7 +952,10 @@ class AuthService extends GetxService {
 
   /// Re-authenticates the current user against their active authentication provider
   /// to refresh the authentication token before sensitive operations (e.g. account deletion).
-  Future<UserCredential?> reauthenticate({String? password}) async {
+  Future<UserCredential?> reauthenticate({
+    String? password,
+    PhoneAuthCredential? phoneCredential,
+  }) async {
     final currentUser = _auth.currentUser;
     if (currentUser == null) {
       throw const AuthException(
@@ -347,12 +986,12 @@ class AuthService extends GetxService {
       );
       return currentUser.reauthenticateWithCredential(cred);
     } else if (providers.contains('apple.com')) {
-      final appleProvider = AppleAuthProvider();
-      if (kIsWeb) {
-        return currentUser.reauthenticateWithPopup(appleProvider);
-      } else {
-        return currentUser.reauthenticateWithProvider(appleProvider);
+      return _appleProvider.reauthenticateWithApple(currentUser);
+    } else if (providers.contains('phone')) {
+      if (phoneCredential != null) {
+        return currentUser.reauthenticateWithCredential(phoneCredential);
       }
+      return null;
     } else {
       // Fallback: try Google reauth if supported
       try {

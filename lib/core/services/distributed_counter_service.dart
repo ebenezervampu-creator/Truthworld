@@ -63,6 +63,24 @@ class DistributedCounterService extends GetxService {
 
       await shardRef.set(shardPayload, SetOptions(merge: true)).timeout(timeout);
 
+      // Best-effort update on parent video document for immediate O(1) UI reads.
+      // Without this, viewCount stays 0 until the nightly midnight rollup.
+      // Matches the same pattern already used by incrementVideoComments.
+      _firestore
+          .collection(FirestoreCollections.videos)
+          .doc(videoId)
+          .update({
+            'viewCount': FieldValue.increment(1),
+            if (isQualified) 'qualifiedViewCount': FieldValue.increment(1),
+          })
+          .catchError((e, s) {
+            ErrorHandler.log(
+              e,
+              stackTrace: s,
+              tag: 'DistributedCounterService.videoParentViewCount',
+            );
+          });
+
       // Distribute channel view increment across channel shards if provided
       if (channelId != null && channelId.trim().isNotEmpty) {
         final channelShardId = _random.nextInt(numShards).toString();
@@ -85,12 +103,111 @@ class DistributedCounterService extends GetxService {
                 tag: 'DistributedCounterService.channelShard',
               );
             });
+
+        // Best-effort update on parent channel document for immediate viewCount reads
+        _firestore
+            .collection(FirestoreCollections.channels)
+            .doc(channelId)
+            .update({'viewCount': FieldValue.increment(1)})
+            .catchError((e, s) {
+              ErrorHandler.log(
+                e,
+                stackTrace: s,
+                tag: 'DistributedCounterService.channelParentViewCount',
+              );
+            });
       }
     } catch (e, stackTrace) {
       ErrorHandler.log(
         e,
         stackTrace: stackTrace,
         tag: 'DistributedCounterService.incrementVideoViews',
+      );
+    }
+  }
+
+  /// Atomically increments a randomly selected shard for video and channel watch time.
+  ///
+  /// Distributes high-frequency watch-time pulses across 20 shards to eliminate write contention.
+  Future<void> incrementWatchTime({
+    required String videoId,
+    required int secondsDelta,
+    String? channelId,
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    if (videoId.trim().isEmpty || secondsDelta <= 0) return;
+
+    try {
+      final shardId = _random.nextInt(numShards).toString();
+      final videoShardRef = _firestore
+          .collection(FirestoreCollections.videos)
+          .doc(videoId)
+          .collection('shards')
+          .doc(shardId);
+
+      await videoShardRef.set({
+        'watchTimeSeconds': FieldValue.increment(secondsDelta),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true)).timeout(timeout);
+
+      // Best-effort update on parent video document for immediate UI reads
+      _firestore
+          .collection(FirestoreCollections.videos)
+          .doc(videoId)
+          .update({
+            'totalWatchTimeSeconds': FieldValue.increment(secondsDelta),
+            'updatedAt': FieldValue.serverTimestamp(),
+          })
+          .catchError((e, s) {
+            ErrorHandler.log(
+              e,
+              stackTrace: s,
+              tag: 'DistributedCounterService.videoParentWatchTime',
+            );
+          });
+
+      if (channelId != null && channelId.trim().isNotEmpty) {
+        final channelShardId = _random.nextInt(numShards).toString();
+        final channelShardRef = _firestore
+            .collection(FirestoreCollections.channels)
+            .doc(channelId)
+            .collection('shards')
+            .doc(channelShardId);
+
+        channelShardRef
+            .set({
+              'watchTimeSeconds': FieldValue.increment(secondsDelta),
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true))
+            .timeout(timeout)
+            .catchError((e, s) {
+              ErrorHandler.log(
+                e,
+                stackTrace: s,
+                tag: 'DistributedCounterService.channelWatchTimeShard',
+              );
+            });
+
+        _firestore
+            .collection(FirestoreCollections.channels)
+            .doc(channelId)
+            .update({
+              'totalWatchTimeSeconds': FieldValue.increment(secondsDelta),
+              'metrics.totalWatchTimeMinutes': FieldValue.increment(secondsDelta / 60),
+            })
+            .catchError((e, s) {
+              ErrorHandler.log(
+                e,
+                stackTrace: s,
+                tag: 'DistributedCounterService.channelParentWatchTime',
+              );
+            });
+      }
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'DistributedCounterService.incrementWatchTime',
       );
     }
   }
@@ -144,6 +261,140 @@ class DistributedCounterService extends GetxService {
         e,
         stackTrace: stackTrace,
         tag: 'DistributedCounterService.getRealtimeChannelViews',
+      );
+      return 0;
+    }
+  }
+
+  /// Atomically increments a randomly selected shard for a topic's comment count.
+  ///
+  /// Distributes high-velocity topic commenting across 20 shards to prevent write contention.
+  Future<void> incrementTopicComments({
+    required String topicId,
+    int delta = 1,
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    if (topicId.trim().isEmpty) return;
+
+    try {
+      final shardId = _random.nextInt(numShards).toString();
+      final shardRef = _firestore
+          .collection(FirestoreCollections.topics)
+          .doc(topicId)
+          .collection('shards')
+          .doc(shardId);
+
+      await shardRef.set({
+        'commentCount': FieldValue.increment(delta),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true)).timeout(timeout);
+
+      // Best-effort update on the parent topic document for O(1) reads
+      _firestore
+          .collection(FirestoreCollections.topics)
+          .doc(topicId)
+          .update({
+            'commentCount': FieldValue.increment(delta),
+          })
+          .catchError((_) {});
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'DistributedCounterService.incrementTopicComments',
+      );
+    }
+  }
+
+  /// Atomically increments a randomly selected shard for a video's comment count.
+  ///
+  /// Distributes high-velocity video commenting across 20 shards to prevent write contention.
+  Future<void> incrementVideoComments({
+    required String videoId,
+    int delta = 1,
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    if (videoId.trim().isEmpty) return;
+
+    try {
+      final shardId = _random.nextInt(numShards).toString();
+      final shardRef = _firestore
+          .collection(FirestoreCollections.videos)
+          .doc(videoId)
+          .collection('comment_shards')
+          .doc(shardId);
+
+      await shardRef.set({
+        'commentCount': FieldValue.increment(delta),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true)).timeout(timeout);
+
+      // Best-effort update on the parent video document for O(1) reads
+      _firestore
+          .collection(FirestoreCollections.videos)
+          .doc(videoId)
+          .update({
+            'commentCount': FieldValue.increment(delta),
+          })
+          .catchError((_) {});
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'DistributedCounterService.incrementVideoComments',
+      );
+    }
+  }
+
+  /// Calculates total real-time comment count for a topic across all 20 shards.
+  Future<int> getRealtimeTopicComments(String topicId) async {
+    if (topicId.trim().isEmpty) return 0;
+
+    try {
+      final snapshot = await _firestore
+          .collection(FirestoreCollections.topics)
+          .doc(topicId)
+          .collection('shards')
+          .get();
+
+      var total = 0;
+      for (final doc in snapshot.docs) {
+        final count = (doc.data()['commentCount'] as num?)?.toInt() ?? 0;
+        total += count;
+      }
+      return total;
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'DistributedCounterService.getRealtimeTopicComments',
+      );
+      return 0;
+    }
+  }
+
+  /// Calculates total real-time comment count for a video across all 20 shards.
+  Future<int> getRealtimeVideoComments(String videoId) async {
+    if (videoId.trim().isEmpty) return 0;
+
+    try {
+      final snapshot = await _firestore
+          .collection(FirestoreCollections.videos)
+          .doc(videoId)
+          .collection('comment_shards')
+          .get();
+
+      var total = 0;
+      for (final doc in snapshot.docs) {
+        final count = (doc.data()['commentCount'] as num?)?.toInt() ?? 0;
+        total += count;
+      }
+      return total;
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'DistributedCounterService.getRealtimeVideoComments',
       );
       return 0;
     }

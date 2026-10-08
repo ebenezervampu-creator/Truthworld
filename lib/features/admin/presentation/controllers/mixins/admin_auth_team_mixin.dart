@@ -40,15 +40,14 @@ mixin AdminAuthTeamMixin on BaseController {
   StreamSubscription<QuerySnapshot>? _adminMembersSub;
 
   static const List<String> authorizedOwnerEmails = [
-    'ebenezervampy@towervsp.com',
-    'ebenezervampu@towervsp.com',
+    'hello@truthworld.in',
     'ebenezervampu4@gmail.com',
   ];
 
   // Email & Password login controllers
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-  final RxString loginEmail = 'ebenezervampu@towervsp.com'.obs;
+  final RxString loginEmail = 'hello@truthworld.in'.obs;
   final RxString loginPassword = '12345'.obs;
   final RxBool needsPasswordSetup = false.obs;
 

@@ -36,7 +36,7 @@ extension QueryCacheExtension<T> on Query<T> {
         return cacheQuery;
       }
     } catch (_) {
-      // Expected cache miss when query is not yet cached locally.
+      // Expected cache miss when query is not yet stored in local client cache.
     }
     try {
       return await get();

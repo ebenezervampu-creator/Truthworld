@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/premium/presentation/controllers/premium_controller.dart';
@@ -7,52 +6,7 @@ import 'package:truthworld/features/premium/presentation/views/plans/premium_con
 import 'package:truthworld/features/premium/presentation/views/plans/premium_membership_status_card.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-/// Interactive shortcut tile for desktop sidebar navigation.
-class PremiumSidebarAction extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final VoidCallback onTap;
-
-  const PremiumSidebarAction({
-    required this.icon,
-    required this.title,
-    required this.onTap,
-    super.key,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          HapticFeedback.lightImpact();
-          onTap();
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-          child: Row(
-            children: [
-              Icon(icon, color: Colors.white, size: 20),
-              const SizedBox(width: 16),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: primaryText,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Desktop right-hand sidebar showing current membership details and quick navigation links.
+/// Desktop right-hand sidebar showing current membership details.
 class PremiumDesktopSidebar extends StatelessWidget {
   final PremiumController? controller;
 
@@ -60,6 +14,12 @@ class PremiumDesktopSidebar extends StatelessWidget {
     this.controller,
     super.key,
   });
+
+  PremiumController get _effectiveController =>
+      controller ??
+      (Get.isRegistered<PremiumController>()
+          ? Get.find<PremiumController>()
+          : Get.put(PremiumController()));
 
   @override
   Widget build(BuildContext context) {
@@ -88,51 +48,17 @@ class PremiumDesktopSidebar extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Obx(() {
+              final ctrl = _effectiveController;
+              final _ = ctrl.selectedPlanId.value;
               final auth = Get.isRegistered<AuthService>() ? AuthService.to : null;
               final isPremium = auth?.isPremiumUser.value ?? false;
               final planId = auth?.premiumPlanId.value;
               return PremiumMembershipStatusCard(
                 isPremium: isPremium,
                 planId: planId,
-                controller: controller,
+                controller: ctrl,
               );
             }),
-            const SizedBox(height: 32),
-            const Text(
-              'QUICK SHORTCUTS',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: secondaryText,
-                letterSpacing: 1.2,
-              ),
-            ),
-            const SizedBox(height: 16),
-            PremiumSidebarAction(
-              icon: Icons.history_rounded,
-              title: 'Watch History',
-              onTap: () => Get.toNamed('/watchhistory'),
-            ),
-            PremiumSidebarAction(
-              icon: Icons.video_collection_rounded,
-              title: 'My Videos',
-              onTap: () => Get.toNamed('/myvideos'),
-            ),
-            PremiumSidebarAction(
-              icon: Icons.file_download_outlined,
-              title: 'Offline Downloads',
-              onTap: () => Get.toNamed('/downloads'),
-            ),
-            PremiumSidebarAction(
-              icon: Icons.settings_rounded,
-              title: 'Account Settings',
-              onTap: () => Get.toNamed('/settings'),
-            ),
-            PremiumSidebarAction(
-              icon: Icons.feedback_outlined,
-              title: 'Send Feedback',
-              onTap: () => Get.toNamed('/feedback'),
-            ),
           ],
         ),
       ),
@@ -180,24 +106,25 @@ void showPremiumMoreOptionsSheet(BuildContext context) {
               borderRadius: BorderRadius.circular(12),
             ),
           ),
-          ListTile(
-            leading: const Icon(Icons.settings_rounded, color: Colors.white),
-            title: const Text(
-              'Account Settings',
-              style: TextStyle(
-                color: primaryText,
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
+          if (AuthService.to.isAuthenticated.value)
+            ListTile(
+              leading: const Icon(Icons.settings_rounded, color: Colors.white),
+              title: const Text(
+                'Account Settings',
+                style: TextStyle(
+                  color: primaryText,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                Get.toNamed('/settings');
+              },
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
-            onTap: () {
-              Navigator.pop(context);
-              Get.toNamed('/settings');
-            },
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
         ],
       ),
     ),

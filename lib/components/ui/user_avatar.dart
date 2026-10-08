@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
@@ -93,30 +94,50 @@ class UserAvatar extends StatelessWidget {
             : null,
       ),
       child: ClipOval(
-        child: effectivePhotoUrl != null && effectivePhotoUrl.isNotEmpty
-            ? CachedNetworkImage(
-                imageUrl: effectivePhotoUrl,
-                width: radius * 2,
-                height: radius * 2,
-                fit: BoxFit.cover,
-                memCacheWidth:
-                    (radius * 2 * MediaQuery.of(context).devicePixelRatio)
-                        .toInt(),
-                memCacheHeight:
-                    (radius * 2 * MediaQuery.of(context).devicePixelRatio)
-                        .toInt(),
-                placeholder: (context, url) => _buildPlaceholder(
-                  initial,
-                  effectiveTextColor,
-                  effectiveFontSize,
-                ),
-                errorWidget: (context, url, error) => _buildPlaceholder(
-                  initial,
-                  effectiveTextColor,
-                  effectiveFontSize,
-                ),
-              )
-            : _buildPlaceholder(initial, effectiveTextColor, effectiveFontSize),
+        child: () {
+          final cleanUrl = effectivePhotoUrl?.trim() ?? '';
+          if (cleanUrl.isEmpty) {
+            return _buildPlaceholder(initial, effectiveTextColor, effectiveFontSize);
+          }
+          final formattedUrl = cleanUrl.replaceAll(' ', '%20');
+          return CachedNetworkImage(
+            imageUrl: formattedUrl,
+            width: radius * 2,
+            height: radius * 2,
+            fit: BoxFit.cover,
+            memCacheWidth: kIsWeb
+                ? null
+                : (radius * 2 * MediaQuery.of(context).devicePixelRatio).toInt(),
+            memCacheHeight: kIsWeb
+                ? null
+                : (radius * 2 * MediaQuery.of(context).devicePixelRatio).toInt(),
+            placeholder: (context, url) => _buildPlaceholder(
+              initial,
+              effectiveTextColor,
+              effectiveFontSize,
+            ),
+            errorWidget: (context, url, error) {
+              if (kIsWeb) {
+                return Image.network(
+                  formattedUrl,
+                  width: radius * 2,
+                  height: radius * 2,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, err, stack) => _buildPlaceholder(
+                    initial,
+                    effectiveTextColor,
+                    effectiveFontSize,
+                  ),
+                );
+              }
+              return _buildPlaceholder(
+                initial,
+                effectiveTextColor,
+                effectiveFontSize,
+              );
+            },
+          );
+        }(),
       ),
     );
   }

@@ -44,7 +44,7 @@ enum DateRangeFilter {
 /// Core abstract base controller holding reactive observables, filters, and lifecycle for subscriptions.
 abstract class SubscriptionStateBase extends BaseController {
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
-  StreamSubscription<List<ConnectivityResult>>? connectivitySubscription;
+  StreamSubscription<ConnectivityResult>? connectivitySubscription;
 
   final RxList<SubscriptionContent> allContent = <SubscriptionContent>[].obs;
   final RxList<SubscriptionContent> filteredContent =
@@ -85,16 +85,13 @@ abstract class SubscriptionStateBase extends BaseController {
     try {
       if (Get.isRegistered<ConnectivityService>()) {
         connectivitySubscription = Get.find<ConnectivityService>()
-            .onConnectivityChanged
+            .onConnectivityRestored
             .listen(
-              (results) {
-                if (results.isNotEmpty &&
-                    results.first != ConnectivityResult.none) {
-                  debugPrint(
-                    '[SubscriptionController] Network restored. Refreshing subscriptions...',
-                  );
-                  refresh();
-                }
+              (_) {
+                debugPrint(
+                  '[SubscriptionController] Network restored. Refreshing subscriptions...',
+                );
+                refresh();
               },
               onError: (error, stackTrace) {
                 ErrorHandler.log(

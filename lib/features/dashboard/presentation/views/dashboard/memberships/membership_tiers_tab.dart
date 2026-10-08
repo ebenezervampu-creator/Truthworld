@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:shimmer/shimmer.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/memberships_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/memberships/membership_tier_card.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -35,17 +37,50 @@ class MembershipTiersTab extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Membership Levels & Perks',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: isDarkMode ? AppColors.textPrimary : Colors.black87,
-                    ),
+                  Row(
+                    children: [
+                      Text(
+                        'Membership Levels & Perks',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: isDarkMode ? AppColors.textPrimary : Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Obx(() {
+                        final atMax = controller.hasReachedMaxTiers;
+                        final count = controller.tiers.length;
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: atMax
+                                ? Colors.amber.withValues(alpha: 0.2)
+                                : (isDarkMode ? AppColors.bgSurfaceHigh : Colors.grey.shade200),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: atMax
+                                  ? (isDarkMode ? Colors.amber.shade700 : Colors.amber.shade400)
+                                  : (isDarkMode ? AppColors.bgDivider : Colors.grey.shade300),
+                            ),
+                          ),
+                          child: Text(
+                            atMax ? '3/3 Tiers (Max)' : '$count/3 Tiers',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: atMax
+                                  ? (isDarkMode ? Colors.amber.shade300 : Colors.amber.shade800)
+                                  : (isDarkMode ? AppColors.textSecondary : Colors.black87),
+                            ),
+                          ),
+                        );
+                      }),
+                    ],
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Manage tier pricing, benefits, and loyalty badges offered to fans.',
+                    'Manage tier pricing, benefits, and loyalty badges offered to fans (up to 3 tiers).',
                     style: TextStyle(
                       fontSize: 12,
                       color: isDarkMode
@@ -86,30 +121,52 @@ class MembershipTiersTab extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 10),
-                ElevatedButton.icon(
-                  onPressed: onOpenCreateTier,
-                  icon: const Icon(
-                    Icons.add_rounded,
-                    color: Colors.black,
-                    size: 16,
-                  ),
-                  label: const Text('New Tier'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.brand,
-                    foregroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
+                Obx(() {
+                  final atMax = controller.hasReachedMaxTiers;
+                  return Tooltip(
+                    message: atMax
+                        ? 'Channels can have up to 3 membership tiers only'
+                        : 'Create a new tier (${controller.remainingTierSlots} slots remaining)',
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        if (atMax) {
+                          AppSnackbar.warning(
+                            'Channels can have up to 3 membership tiers only. Please edit or remove an existing tier to add a new one.',
+                          );
+                          return;
+                        }
+                        onOpenCreateTier();
+                      },
+                      icon: Icon(
+                        atMax ? Icons.lock_outline_rounded : Icons.add_rounded,
+                        color: atMax
+                            ? (isDarkMode ? Colors.white60 : Colors.black54)
+                            : Colors.black,
+                        size: 16,
+                      ),
+                      label: Text(atMax ? '3/3 Tiers' : 'New Tier'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: atMax
+                            ? (isDarkMode ? AppColors.bgSurfaceHigh : Colors.grey.shade200)
+                            : AppColors.brand,
+                        foregroundColor: atMax
+                            ? (isDarkMode ? AppColors.textSecondary : Colors.black54)
+                            : Colors.black,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        textStyle: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    textStyle: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
+                  );
+                }),
               ],
             ),
           ],
@@ -123,10 +180,21 @@ class MembershipTiersTab extends StatelessWidget {
 
         Obx(() {
           if (controller.isLoadingTiers.value) {
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 40),
-              child: Center(
-                child: CircularProgressIndicator(color: AppColors.brand),
+            return Shimmer.fromColors(
+              baseColor: const Color(0xFF1E1E1E),
+              highlightColor: AppColors.bgSurfaceHover,
+              child: ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: 3,
+                separatorBuilder: (_, _) => const SizedBox(height: 12),
+                itemBuilder: (_, _) => Container(
+                  height: 120,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E1E1E),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
               ),
             );
           }

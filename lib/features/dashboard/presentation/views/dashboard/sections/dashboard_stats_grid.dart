@@ -88,7 +88,7 @@ class DashboardChannelStatsGrid extends StatelessWidget {
                     value: channelStats['views'] ?? '0',
                     change: channelStats['viewsChange'] ?? '+0%',
                     icon: Icons.visibility_rounded,
-                    color: const Color(0xFF10B981),
+                    color: AppColors.success,
                     isDarkMode: isDarkMode,
                     isMobile: isMobile,
                     onTap: () {
@@ -110,7 +110,7 @@ class DashboardChannelStatsGrid extends StatelessWidget {
                     value: channelStats['watchTime'] ?? '0h',
                     change: channelStats['watchTimeChange'] ?? '+0%',
                     icon: Icons.timer_rounded,
-                    color: const Color(0xFF3B82F6),
+                    color: AppColors.info,
                     isDarkMode: isDarkMode,
                     isMobile: isMobile,
                     onTap: () {
@@ -133,7 +133,7 @@ class DashboardChannelStatsGrid extends StatelessWidget {
                     value: channelStats['subscribers'] ?? '0',
                     change: channelStats['subscribersChange'] ?? '+0',
                     icon: Icons.people_rounded,
-                    color: const Color(0xFF8B5CF6),
+                    color: AppColors.brand,
                     isDarkMode: isDarkMode,
                     isMobile: isMobile,
                     onTap: () {
@@ -156,7 +156,7 @@ class DashboardChannelStatsGrid extends StatelessWidget {
                     value: channelStats['revenue'] ?? '₹0.00',
                     change: channelStats['revenueChange'] ?? '+₹0.00',
                     icon: Icons.currency_rupee_rounded,
-                    color: const Color(0xFFF59E0B),
+                    color: AppColors.warning,
                     isDarkMode: isDarkMode,
                     isMobile: isMobile,
                     onTap: () {
@@ -198,7 +198,7 @@ class DashboardChannelStatsGrid extends StatelessWidget {
                   value: channelStats['views'] ?? '0',
                   change: channelStats['viewsChange'] ?? '+0%',
                   icon: Icons.visibility_rounded,
-                  color: const Color(0xFF10B981),
+                  color: AppColors.success,
                   isDarkMode: isDarkMode,
                   isMobile: isMobile,
                   onTap: () {
@@ -219,7 +219,7 @@ class DashboardChannelStatsGrid extends StatelessWidget {
                   value: channelStats['watchTime'] ?? '0h',
                   change: channelStats['watchTimeChange'] ?? '+0%',
                   icon: Icons.timer_rounded,
-                  color: const Color(0xFF3B82F6),
+                  color: AppColors.info,
                   isDarkMode: isDarkMode,
                   isMobile: isMobile,
                   onTap: () {
@@ -241,7 +241,7 @@ class DashboardChannelStatsGrid extends StatelessWidget {
                   value: channelStats['subscribers'] ?? '0',
                   change: channelStats['subscribersChange'] ?? '+0',
                   icon: Icons.people_rounded,
-                  color: const Color(0xFF8B5CF6),
+                  color: AppColors.brand,
                   isDarkMode: isDarkMode,
                   isMobile: isMobile,
                   onTap: () {
@@ -263,7 +263,7 @@ class DashboardChannelStatsGrid extends StatelessWidget {
                   value: channelStats['revenue'] ?? '₹0.00',
                   change: channelStats['revenueChange'] ?? '+₹0.00',
                   icon: Icons.currency_rupee_rounded,
-                  color: const Color(0xFFF59E0B),
+                  color: AppColors.warning,
                   isDarkMode: isDarkMode,
                   isMobile: isMobile,
                   onTap: () {
@@ -355,19 +355,17 @@ class DashboardStatCardSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: isDarkMode ? AppTheme.colors.surface : AppColors.textPrimary,
-        borderRadius: BorderRadius.circular(16),
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isDarkMode ? const Color(0xFF374151) : AppColors.bgDivider,
+          color: AppColors.bgDivider,
         ),
       ),
       child: Shimmer.fromColors(
-        baseColor: isDarkMode ? const Color(0xFF374151) : AppColors.bgDivider,
-        highlightColor: isDarkMode
-            ? const Color(0xFF4B5563)
-            : const Color(0xFFF1F5F9),
+        baseColor: const Color(0xFF272727),
+        highlightColor: const Color(0xFF333333),
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -376,10 +374,10 @@ class DashboardStatCardSkeleton extends StatelessWidget {
                 children: [
                   Container(
                     width: 60,
-                    height: 16,
+                    height: 14,
                     decoration: BoxDecoration(
                       color: AppColors.textPrimary,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(6),
                     ),
                   ),
                   Container(
@@ -387,7 +385,7 @@ class DashboardStatCardSkeleton extends StatelessWidget {
                     height: 24,
                     decoration: BoxDecoration(
                       color: AppColors.textPrimary,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                   ),
                 ],
@@ -398,16 +396,16 @@ class DashboardStatCardSkeleton extends StatelessWidget {
                 height: 24,
                 decoration: BoxDecoration(
                   color: AppColors.textPrimary,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(6),
                 ),
               ),
               const SizedBox(height: 12),
               Container(
                 width: 50,
-                height: 16,
+                height: 14,
                 decoration: BoxDecoration(
                   color: AppColors.textPrimary,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(4),
                 ),
               ),
             ],
@@ -445,41 +443,29 @@ class DashboardStatCard extends StatelessWidget {
     final isPositive = change.startsWith('+');
 
     return TweenAnimationBuilder<double>(
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 400),
       tween: Tween(begin: 0, end: 1),
       builder: (context, animationValue, child) {
         return Transform.scale(
-          scale: 0.8 + (0.2 * animationValue),
+          scale: 0.9 + (0.1 * animationValue),
           child: Container(
             decoration: BoxDecoration(
-              color: isDarkMode
-                  ? AppTheme.colors.surface
-                  : AppColors.textPrimary,
-              borderRadius: BorderRadius.circular(16),
+              color: const Color(0xFF1E1E1E),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: isDarkMode
-                    ? const Color(0xFF374151)
-                    : AppColors.bgDivider,
+                color: AppColors.bgDivider,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: isDarkMode ? Colors.black26 : Colors.black38,
-                  blurRadius: 20,
-                  spreadRadius: 2,
-                  offset: const Offset(0, 4),
-                ),
-              ],
             ),
             child: Material(
               color: Colors.transparent,
               child: InkWell(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(12),
                 onTap: () {
                   HapticFeedback.lightImpact();
                   if (onTap != null) onTap!();
                 },
                 child: Padding(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(18),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -491,11 +477,10 @@ class DashboardStatCard extends StatelessWidget {
                               title,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: isDarkMode
-                                    ? AppColors.textSecondary
-                                    : Colors.black,
-                                fontSize: 14,
+                              style: const TextStyle(
+                                fontFamily: TWTypography.uiFamily,
+                                color: AppColors.textSecondary,
+                                fontSize: 13,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -504,25 +489,24 @@ class DashboardStatCard extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: color.withValues(alpha: 0.1),
+                              color: AppColors.bgSurfaceHover,
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: Icon(icon, color: Colors.white, size: 20),
+                            child: Icon(icon, color: AppColors.textPrimary, size: 18),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 14),
                       Text(
                         value,
                         style: TextStyle(
+                          fontFamily: TWTypography.brandFamily,
                           fontSize: isMobile ? 20 : 24,
                           fontWeight: FontWeight.bold,
-                          color: isDarkMode
-                              ? AppColors.textPrimary
-                              : Colors.black,
+                          color: AppColors.textPrimary,
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
                       Row(
                         children: [
                           Container(
@@ -532,12 +516,8 @@ class DashboardStatCard extends StatelessWidget {
                             ),
                             decoration: BoxDecoration(
                               color: isPositive
-                                  ? const Color(
-                                      0xFF10B981,
-                                    ).withValues(alpha: 0.1)
-                                  : const Color(
-                                      0xFFEF4444,
-                                    ).withValues(alpha: 0.1),
+                                  ? AppColors.success.withValues(alpha: 0.15)
+                                  : AppColors.error.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Row(
@@ -547,18 +527,21 @@ class DashboardStatCard extends StatelessWidget {
                                   isPositive
                                       ? Icons.trending_up_rounded
                                       : Icons.trending_down_rounded,
-                                  size: 14,
-                                  color: Colors.white,
+                                  size: 13,
+                                  color: isPositive
+                                      ? AppColors.success
+                                      : AppColors.error,
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
                                   change,
                                   style: TextStyle(
+                                    fontFamily: TWTypography.uiFamily,
                                     color: isPositive
-                                        ? const Color(0xFF10B981)
-                                        : const Color(0xFFEF4444),
+                                        ? AppColors.success
+                                        : AppColors.error,
                                     fontSize: 12,
-                                    fontWeight: FontWeight.w500,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                               ],

@@ -128,6 +128,28 @@ void main() {
       expect(settings.type, equals(TruthworldUrlType.settings));
     });
 
+    test('Parses /community-guidelines and other policy routes as policy type', () {
+      final guidelines = DeepLinkService.parseUrl('https://www.truthworld.in/community-guidelines');
+      expect(guidelines.type, equals(TruthworldUrlType.policy));
+      expect(guidelines.id, equals('community-guidelines'));
+
+      final terms = DeepLinkService.parseUrl('/terms');
+      expect(terms.type, equals(TruthworldUrlType.policy));
+      expect(terms.id, equals('terms'));
+
+      final privacy = DeepLinkService.parseUrl('/privacy');
+      expect(privacy.type, equals(TruthworldUrlType.policy));
+      expect(privacy.id, equals('privacy'));
+
+      final about = DeepLinkService.parseUrl('/about');
+      expect(about.type, equals(TruthworldUrlType.policy));
+      expect(about.id, equals('about'));
+
+      final feedback = DeepLinkService.parseUrl('/feedback');
+      expect(feedback.type, equals(TruthworldUrlType.policy));
+      expect(feedback.id, equals('feedback'));
+    });
+
     test('Defensively rejects spoofed domains containing truthworld.in substring', () {
       final spoof1 = DeepLinkService.parseUrl('https://truthworld.in.attacker.com/watch?v=123');
       expect(spoof1.type, equals(TruthworldUrlType.external));

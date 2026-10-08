@@ -90,7 +90,7 @@ void main() {
       expect(find.text('Truthworld Premium'), findsOneWidget);
 
       expect(find.text('SUPPORT'), findsOneWidget);
-      expect(find.text('Settings'), findsOneWidget);
+      expect(find.text('Settings'), findsNothing);
       expect(find.text('About Truthworld'), findsOneWidget);
 
       expect(find.text('POLICIES'), findsOneWidget);

@@ -43,7 +43,6 @@ class DashboardRecommendationsSection extends StatelessWidget {
         'description':
             'Channels with banners get up to 25% more subscribers. Upload a banner to make your channel stand out.',
         'icon': Icons.image_rounded,
-        'color': const Color(0xFF10B981),
         'action': 'Customize',
         'onTap': () => controller.setSelectedIndex(6),
       });
@@ -56,7 +55,6 @@ class DashboardRecommendationsSection extends StatelessWidget {
         'description':
             'A detailed description helps viewers find your channel. Add keywords and tell viewers what to expect.',
         'icon': Icons.description_rounded,
-        'color': const Color(0xFF8B5CF6),
         'action': 'Customize',
         'onTap': () => controller.setSelectedIndex(6),
       });
@@ -73,7 +71,6 @@ class DashboardRecommendationsSection extends StatelessWidget {
           'description':
               "It's been $daysSince days since your last upload. Consistent uploads boost discoverability and subscriber retention.",
           'icon': Icons.cloud_upload_rounded,
-          'color': const Color(0xFFF59E0B),
           'action': 'Upload Now',
           'onTap': () => Get.toNamed('/upload'),
         });
@@ -84,7 +81,6 @@ class DashboardRecommendationsSection extends StatelessWidget {
         'description':
             "You haven't uploaded any videos yet. Start creating content to grow your channel.",
         'icon': Icons.cloud_upload_rounded,
-        'color': const Color(0xFFF59E0B),
         'action': 'Upload Now',
         'onTap': () => Get.toNamed('/upload'),
       });
@@ -98,87 +94,46 @@ class DashboardRecommendationsSection extends StatelessWidget {
         recs.add({
           'title': 'Boost Video Visibility',
           'description':
-              'Your recent videos average ${avgViews.toStringAsFixed(0)} views. Try sharing on social media and adding trending topics to increase reach.',
+              'Your recent videos have modest view counts. Try optimizing your titles, tags, and thumbnails.',
           'icon': Icons.trending_up_rounded,
-          'color': const Color(0xFF3B82F6),
-          'action': 'View Analytics',
-          'onTap': () => controller.setSelectedIndex(3),
-        });
-      }
-    }
-
-    // 5. Tags/Topics check — videos with no tags
-    if (videos.isNotEmpty) {
-      final untaggedCount = videos
-          .where((v) => v.tags.isEmpty && v.topics.isEmpty)
-          .length;
-      if (untaggedCount > 0) {
-        recs.add({
-          'title': 'Add Tags & Topics',
-          'description':
-              '$untaggedCount of your recent videos have no tags or topics. Adding them improves search discoverability.',
-          'icon': Icons.label_rounded,
-          'color': const Color(0xFFEC4899),
-          'action': 'Manage Content',
+          'action': 'View Content',
           'onTap': () => controller.setSelectedIndex(2),
         });
       }
     }
 
-    // 6. Thumbnail check — missing thumbnails
-    if (videos.isNotEmpty) {
-      final noThumbCount = videos.where((v) => v.thumbnailUrl.isEmpty).length;
-      if (noThumbCount > 0) {
-        recs.add({
-          'title': 'Add Video Thumbnails',
-          'description':
-              '$noThumbCount of your videos are missing custom thumbnails. Eye-catching thumbnails can increase CTR by up to 30%.',
-          'icon': Icons.filter_rounded,
-          'color': const Color(0xFF14B8A6),
-          'action': 'Manage Content',
-          'onTap': () => controller.setSelectedIndex(2),
-        });
-      }
-    }
-
-    // 7. Create a Topic
-    if (ch != null && videos.length >= 3) {
+    // 5. Monetization readiness
+    final subscriberCount = ch?.subscriberCount ?? 0;
+    if (subscriberCount >= 50 && ch != null) {
       recs.add({
-        'title': 'Organize with Topics',
+        'title': 'Explore Channel Memberships',
         'description':
-            'Group your ${videos.length} videos into Topics to help viewers discover related content more easily.',
-        'icon': Icons.topic_rounded,
-        'color': const Color(0xFF6366F1),
-        'action': 'Create Topic',
-        'onTap': () => controller.setSelectedIndex(14),
+            'You have an engaged audience. Set up membership tiers to earn recurring revenue from supporters.',
+        'icon': Icons.card_membership_rounded,
+        'action': 'Set Up Tiers',
+        'onTap': () => controller.setSelectedIndex(18),
       });
     }
 
-    // 8. Social links check
-    if (ch != null &&
-        (ch.socialLinks == null || (ch.socialLinks?.isEmpty ?? true))) {
+    // 6. Subtitles check
+    if (videos.length >= 2) {
       recs.add({
-        'title': 'Add Social Links',
+        'title': 'Add Multi-Language Subtitles',
         'description':
-            'Connect your social media accounts to your channel to build a cross-platform audience.',
-        'icon': Icons.link_rounded,
-        'color': const Color(0xFF0EA5E9),
-        'action': 'Customize',
-        'onTap': () => controller.setSelectedIndex(6),
+            'Videos with subtitles reach a global audience. Auto-generate or add multilingual subtitles.',
+        'icon': Icons.subtitles_rounded,
+        'action': 'Manage Subtitles',
+        'onTap': () => controller.setSelectedIndex(10),
       });
     }
 
-    return recs.take(3).toList();
+    return recs;
   }
 
   @override
   Widget build(BuildContext context) {
-    final recommendations = generateRecommendations(
-      channel,
-      videos,
-      stats,
-      controller,
-    );
+    final recommendations =
+        generateRecommendations(channel, videos, stats, controller);
 
     if (recommendations.isEmpty) {
       return const SizedBox.shrink();
@@ -187,21 +142,44 @@ class DashboardRecommendationsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Recommendations',
-          style: TextStyle(
-            fontSize: isMobile ? 20 : 24,
-            fontWeight: FontWeight.bold,
-            color: isDarkMode ? AppColors.textPrimary : Colors.black,
-          ),
+        Row(
+          children: [
+            Text(
+              'Recommendations',
+              style: TextStyle(
+                fontFamily: TWTypography.brandFamily,
+                fontSize: isMobile ? 18 : 22,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppColors.bgSurfaceHover,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.bgDivider),
+              ),
+              child: Text(
+                '${recommendations.length}',
+                style: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
         GridView.builder(
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: isDesktop ? 3 : (isTablet ? 2 : 1),
             crossAxisSpacing: 16,
             mainAxisSpacing: 16,
-            childAspectRatio: isDesktop ? 1.0 : (isTablet ? 1.2 : 1.5),
+            childAspectRatio: isDesktop ? 1.05 : (isTablet ? 1.25 : 1.45),
           ),
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -209,11 +187,11 @@ class DashboardRecommendationsSection extends StatelessWidget {
           itemBuilder: (context, index) {
             final rec = recommendations[index];
             return TweenAnimationBuilder<double>(
-              duration: Duration(milliseconds: 600 + (index * 200)),
+              duration: Duration(milliseconds: 400 + (index * 150)),
               tween: Tween(begin: 0, end: 1),
               builder: (context, value, child) {
                 return Transform.translate(
-                  offset: Offset(0, 50 * (1 - value)),
+                  offset: Offset(0, 30 * (1 - value)),
                   child: Opacity(
                     opacity: value,
                     child: DashboardRecommendationCard(
@@ -245,24 +223,16 @@ class DashboardRecommendationCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: isDarkMode ? AppTheme.colors.surface : AppColors.textPrimary,
-        borderRadius: BorderRadius.circular(16),
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isDarkMode ? const Color(0xFF374151) : AppColors.bgDivider,
+          color: AppColors.bgDivider,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: isDarkMode ? Colors.black26 : Colors.black38,
-            blurRadius: 20,
-            spreadRadius: 2,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           onTap: () {
             final onTap = recommendation['onTap'];
             if (onTap is VoidCallback) {
@@ -271,48 +241,46 @@ class DashboardRecommendationCard extends StatelessWidget {
             HapticFeedback.lightImpact();
           },
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(18),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 48,
-                  height: 48,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
-                    color: (recommendation['color'] as Color).withValues(
-                      alpha: 0.2,
-                    ),
-                    borderRadius: BorderRadius.circular(12),
+                    color: AppColors.bgSurfaceHover,
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
                     recommendation['icon'] as IconData,
-                    color: Colors.white,
-                    size: 24,
+                    color: AppColors.textPrimary,
+                    size: 22,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
                 Text(
                   recommendation['title'] as String,
-                  style: TextStyle(
+                  style: const TextStyle(
+                    fontFamily: TWTypography.brandFamily,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: isDarkMode ? AppColors.textPrimary : Colors.black,
+                    color: AppColors.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Expanded(
                   child: Text(
                     recommendation['description'] as String,
-                    style: TextStyle(
-                      color: isDarkMode
-                          ? AppColors.textSecondary
-                          : Colors.black,
-                      fontSize: 14,
+                    style: const TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      color: AppColors.textSecondary,
+                      fontSize: 13,
                       height: 1.4,
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -324,8 +292,8 @@ class DashboardRecommendationCard extends StatelessWidget {
                       HapticFeedback.lightImpact();
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: recommendation['color'] as Color,
-                      foregroundColor: AppColors.textPrimary,
+                      backgroundColor: AppColors.brand,
+                      foregroundColor: Colors.black,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -335,8 +303,10 @@ class DashboardRecommendationCard extends StatelessWidget {
                     child: Text(
                       recommendation['action'] as String,
                       style: const TextStyle(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 14,
+                        fontFamily: TWTypography.uiFamily,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: Colors.black,
                       ),
                     ),
                   ),

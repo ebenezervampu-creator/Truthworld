@@ -1,20 +1,28 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:truthworld/components/ui/animated_interaction_buttons.dart';
+import 'package:truthworld/components/ui/share_bottom_sheet.dart';
+import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
+import 'package:truthworld/features/topics/presentation/widgets/topic_more_options_sheet.dart';
 import 'package:truthworld/features/topics/presentation/widgets/topic_notification_options_sheet.dart';
-import 'package:truthworld/theme/app_theme.dart';
 
-/// Topic Hero Widget
+/// Topic Hero Banner Widget redesigned to match the high-contrast modern UI.
 ///
-/// Clean UI design:
-/// 1. Complete Topic Thumbnail without any title/text overlaid on it.
-/// 2. Topic Title & Collapsible description ("show more / show less").
-/// 3. Community icon + text row with Video count, Follow/Following button, and Notification Bell settings.
+/// Features:
+/// 1. Integrated responsive hero card with topic cover/thumbnail artwork.
+/// 2. Multi-stop directional gradient ensuring high contrast for all text.
+/// 3. Category pill tag, bold title, subtitle/tagline, and expandable description.
+/// 4. Stats row: Videos count, Followers count, Comments count (tappable to scroll).
+/// 5. High-contrast action row:
+///    - Follow/Following button (white pill with black text/icon, Zero White-on-White compliant).
+///    - Circular bell button for notifications.
+///    - Circular share button.
+///    - Circular more options (...) button.
 class TopicHeroWidget extends StatelessWidget {
   TopicHeroWidget({
     required this.isDesktop,
@@ -24,6 +32,7 @@ class TopicHeroWidget extends StatelessWidget {
     this.onCommunityTap,
     this.onCommentsTap,
   });
+
   final Topic? topic;
   final bool isDesktop;
   final bool isTablet;
@@ -39,196 +48,411 @@ class TopicHeroWidget extends StatelessWidget {
       return _buildSkeleton();
     }
 
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isMobile = screenWidth < 600 || (!isDesktop && !isTablet);
+
     final horizontalPadding = isDesktop
         ? 48.0
-        : (isTablet ? 32.0 : 16.0);
-    final imageHeight = isDesktop
-        ? 360.0
-        : (isTablet ? 260.0 : 200.0);
+        : (isTablet ? 24.0 : 16.0);
+    final verticalPadding = isDesktop ? 16.0 : (isTablet ? 12.0 : 8.0);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 1. Complete Topic Thumbnail (NO title or text on it)
-        Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: horizontalPadding,
-            vertical: 12,
-          ),
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: horizontalPadding,
+        vertical: verticalPadding,
+      ),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1400),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: SizedBox(
-              height: imageHeight,
-              width: double.infinity,
-              child: _buildThumbnail(currentTopic),
+            borderRadius: BorderRadius.circular(isMobile ? 18 : 24),
+            child: Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF141416),
+                borderRadius: BorderRadius.circular(isMobile ? 18 : 24),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.12),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.4),
+                    blurRadius: 24,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Stack(
+                children: [
+                  // 1. Background image
+                  Positioned.fill(
+                    child: _buildBackgroundImage(currentTopic),
+                  ),
+
+                  // 2. Multi-stop directional gradient overlays
+                  Positioned.fill(
+                    child: _buildGradientOverlay(isMobile),
+                  ),
+
+                  // 3. Foreground content
+                  Padding(
+                    padding: EdgeInsets.all(isDesktop ? 36.0 : (isTablet ? 26.0 : 18.0)),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: isDesktop ? 680 : (isTablet ? 540 : double.infinity),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Category Tag Pill
+                          _buildCategoryBadge(currentTopic),
+
+                          const SizedBox(height: 14),
+
+                          // Topic Title
+                          Text(
+                            currentTopic.title,
+                            style: TextStyle(
+                              fontSize: isDesktop ? 36 : (isTablet ? 28 : 22),
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                              height: 1.18,
+                              letterSpacing: -0.4,
+                            ),
+                          ),
+
+                          // Subtitle / Tagline
+                          _buildSubtitle(currentTopic),
+
+                          const SizedBox(height: 10),
+
+                          // Expandable Description
+                          _buildDescription(currentTopic),
+
+                          const SizedBox(height: 18),
+
+                          // Stats Row (Videos, Followers, Comments)
+                          _buildStatsRow(context, currentTopic),
+
+                          const SizedBox(height: 20),
+
+                          // Action Buttons Row (Following, Bell, Share, More)
+                          _buildActionsRow(context, currentTopic),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-
-        // 2. Topic Details Section (Title, Category, Collapsible Description)
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 8),
-
-              // Category Badge & Title Row
-              Row(
-                children: [
-                  _buildCategoryBadge(currentTopic),
-                ],
-              ),
-              const SizedBox(height: 10),
-
-              // Title (Tappable to expand description)
-              InkWell(
-                onTap: _isExpanded.toggle,
-                splashColor: Colors.transparent,
-                highlightColor: Colors.transparent,
-                child: Text(
-                  currentTopic.title,
-                  style: TextStyle(
-                    fontSize: isDesktop
-                        ? 32
-                        : (isTablet ? 26 : 22),
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                    height: 1.2,
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              // Collapsible Description ("show more / show less")
-              if (currentTopic.description.isNotEmpty)
-                InkWell(
-                  onTap: _isExpanded.toggle,
-                  borderRadius: BorderRadius.circular(8),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Obx(() {
-                      final expanded = _isExpanded.value;
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            currentTopic.description,
-                            style: TextStyle(
-                              fontSize: isDesktop ? 16 : 14,
-                              color: AppColors.textSecondary,
-                              height: 1.4,
-                            ),
-                            maxLines: expanded ? 100 : 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                expanded ? 'Show less' : '...more',
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.brand,
-                                ),
-                              ),
-                              Icon(
-                                expanded
-                                    ? Icons.keyboard_arrow_up_rounded
-                                    : Icons.keyboard_arrow_down_rounded,
-                                size: 18,
-                                color: Colors.white,
-                              ),
-                            ],
-                          ),
-                        ],
-                      );
-                    }),
-                  ),
-                ),
-
-              const SizedBox(height: 16),
-
-              // 3. Videos Count Chip + Comments Chip + Follow/Following & Bell Settings Row
-              _buildCommunityAndActionsRow(context, currentTopic),
-
-              const SizedBox(height: 16),
-              const Divider(color: AppColors.bgDivider, height: 1),
-            ],
-          ),
-        ),
-      ],
+      ),
     );
   }
 
-  /// Thumbnail without any overlay text
-  Widget _buildThumbnail(Topic topic) {
+  /// Background artwork
+  Widget _buildBackgroundImage(Topic topic) {
     final bgUrl = (topic.coverImage != null && topic.coverImage!.isNotEmpty)
         ? topic.coverImage
         : (topic.thumbnailUrl != null && topic.thumbnailUrl!.isNotEmpty)
-        ? topic.thumbnailUrl
-        : null;
+            ? topic.thumbnailUrl
+            : null;
 
     if (bgUrl != null) {
       return CachedNetworkImage(
         imageUrl: bgUrl,
         fit: BoxFit.cover,
-        placeholder: (context, url) => _buildGradientFallback(),
-        errorWidget: (context, url, error) => _buildGradientFallback(),
+        alignment: Alignment.centerRight,
+        placeholder: (context, url) => _buildFallbackColor(),
+        errorWidget: (context, url, error) => _buildFallbackColor(),
       );
     }
-    return _buildGradientFallback();
+    return _buildFallbackColor();
   }
 
-  Widget _buildGradientFallback() {
+  Widget _buildFallbackColor() {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xFF272727),
-            Color(0xFF1E1E1E),
+            Color(0xFF222226),
+            Color(0xFF141416),
           ],
         ),
       ),
-      child: const Center(
-        child: Icon(
-          Icons.topic_rounded,
-          size: 64,
-          color: Colors.white,
-        ),
-      ),
     );
   }
 
+  /// Gradient overlay for optimal readability
+  Widget _buildGradientOverlay(bool isMobile) {
+    return Stack(
+      children: [
+        // Horizontal gradient (dark on left, clear on right)
+        Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Colors.black.withValues(alpha: 0.96),
+                Colors.black.withValues(alpha: 0.88),
+                Colors.black.withValues(alpha: 0.50),
+                Colors.black.withValues(alpha: 0.15),
+              ],
+              stops: const [0.0, 0.45, 0.75, 1.0],
+            ),
+          ),
+        ),
+        // Vertical gradient for mobile safety
+        Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.bottomCenter,
+              end: Alignment.topCenter,
+              colors: [
+                Colors.black.withValues(alpha: isMobile ? 0.90 : 0.65),
+                Colors.transparent,
+              ],
+              stops: const [0.0, 0.70],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Category badge pill (e.g. MUSIC)
   Widget _buildCategoryBadge(Topic topic) {
+    final categoryText = topic.category.trim().isNotEmpty
+        ? topic.category.trim().toUpperCase()
+        : 'TOPIC';
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       decoration: BoxDecoration(
-        color: AppColors.bgSurfaceHover,
-        borderRadius: BorderRadius.circular(12),
+        color: const Color(0xFF1F1F24).withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.textPrimary.withValues(alpha: 0.1),
+          color: Colors.white.withValues(alpha: 0.22),
         ),
       ),
       child: Text(
-        topic.category.toUpperCase(),
+        categoryText,
         style: const TextStyle(
           fontSize: 11,
-          fontWeight: FontWeight.bold,
-          color: AppColors.textPrimary,
-          letterSpacing: 0.8,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+          letterSpacing: 0.9,
         ),
       ),
     );
   }
 
-  /// Actions Row with Videos Count Chip, Comments Chip (tappable), Follow/Following & Bell dropdown
-  Widget _buildCommunityAndActionsRow(BuildContext context, Topic topic) {
+  /// Subtitle / Tagline from tags or first description sentence
+  Widget _buildSubtitle(Topic topic) {
+    var subtitleText = '';
+    final desc = topic.description.trim();
+
+    if (desc.contains('\n')) {
+      final firstLine = desc.split('\n').first.trim();
+      if (firstLine.isNotEmpty && firstLine != topic.title) {
+        subtitleText = firstLine;
+      }
+    } else if (topic.tags.isNotEmpty) {
+      subtitleText = topic.tags
+          .map((t) => t.trim())
+          .where((t) => t.isNotEmpty)
+          .take(4)
+          .join(' • ');
+    }
+
+    if (subtitleText.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Text(
+        subtitleText,
+        style: TextStyle(
+          fontSize: isDesktop ? 15 : (isTablet ? 14 : 13),
+          fontWeight: FontWeight.w500,
+          color: const Color(0xFFD6D6D6),
+          height: 1.3,
+        ),
+      ),
+    );
+  }
+
+  /// Expandable Description with "...more ∨" / "show less ∧"
+  Widget _buildDescription(Topic topic) {
+    final fullText = topic.description.trim();
+    if (fullText.isEmpty) return const SizedBox.shrink();
+
+    // Strip out first line if already displayed in subtitle
+    var bodyText = fullText;
+    if (fullText.contains('\n')) {
+      final parts = fullText.split('\n').where((p) => p.trim().isNotEmpty).toList();
+      if (parts.length > 1) {
+        bodyText = parts.sublist(1).join(' ');
+      }
+    }
+
+    return Obx(() {
+      final expanded = _isExpanded.value;
+
+      return InkWell(
+        onTap: _isExpanded.toggle,
+        borderRadius: BorderRadius.circular(6),
+        splashColor: Colors.transparent,
+        highlightColor: Colors.transparent,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              bodyText,
+              style: TextStyle(
+                fontSize: isDesktop ? 14 : 13,
+                color: const Color(0xFFAAAAAA),
+                height: 1.45,
+              ),
+              maxLines: expanded ? 100 : 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 3),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  expanded ? 'Show less' : '...more',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 2),
+                Icon(
+                  expanded
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.keyboard_arrow_down_rounded,
+                  size: 16,
+                  color: Colors.white,
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  /// Stats Row: Videos count, Followers count, Comments count
+  Widget _buildStatsRow(BuildContext context, Topic topic) {
+    final followingController = Get.isRegistered<FollowingTopicsController>()
+        ? Get.find<FollowingTopicsController>()
+        : Get.put(FollowingTopicsController());
+
+    return Obx(() {
+      final followers = followingController.getFollowerCount(topic);
+      final commentsHandler = onCommentsTap ?? onCommunityTap;
+
+      return Wrap(
+        spacing: 24,
+        runSpacing: 10,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          // 1. Videos
+          _buildStatItem(
+            icon: Icons.ondemand_video_rounded,
+            count: '${topic.videoCount}',
+            label: topic.videoCount == 1 ? 'Video' : 'Videos',
+          ),
+
+          // 2. Followers
+          _buildStatItem(
+            icon: Icons.people_outline_rounded,
+            count: FormatUtils.formatCount(followers),
+            label: followers == 1 ? 'Follower' : 'Followers',
+          ),
+
+          // 3. Comments (Tappable to scroll to comments section)
+          _buildStatItem(
+            icon: Icons.chat_bubble_outline_rounded,
+            count: FormatUtils.formatCount(topic.commentCount),
+            label: topic.commentCount == 1 ? 'Comment' : 'Comments',
+            onTap: commentsHandler,
+          ),
+        ],
+      );
+    });
+  }
+
+  Widget _buildStatItem({
+    required IconData icon,
+    required String count,
+    required String label,
+    VoidCallback? onTap,
+  }) {
+    final content = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          icon,
+          size: 22,
+          color: Colors.white,
+        ),
+        const SizedBox(width: 8),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              count,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                height: 1.1,
+              ),
+            ),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w400,
+                color: Color(0xFFAAAAAA),
+                height: 1.15,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+
+    if (onTap != null) {
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            child: content,
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      child: content,
+    );
+  }
+
+  /// Action Buttons Row (Following, Bell, Share, More)
+  Widget _buildActionsRow(BuildContext context, Topic topic) {
     final followingController = Get.isRegistered<FollowingTopicsController>()
         ? Get.find<FollowingTopicsController>()
         : Get.put(FollowingTopicsController());
@@ -236,182 +460,152 @@ class TopicHeroWidget extends StatelessWidget {
     return Obx(() {
       final isFollowed = followingController.isTopicFollowed(topic.id);
       final currentBellSetting =
-          followingController.topicNotificationSettings[topic.id] ?? 'all';
-      final commentsHandler = onCommentsTap ?? onCommunityTap;
+          followingController.topicNotificationSettings[topic.id] ?? 'personalized';
 
-      return SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            // Chip 1: Videos Count Chip
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.bgSurfaceHover,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: AppColors.textPrimary.withValues(alpha: 0.08),
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.video_collection_outlined,
-                    size: 18,
-                    color: Colors.white,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    '${topic.videoCount} ${topic.videoCount == 1 ? 'Video' : 'Videos'}',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Chip 2: Followers Count Chip
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.bgSurfaceHover,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: AppColors.textPrimary.withValues(alpha: 0.08),
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.people_outline_rounded,
-                    size: 18,
-                    color: Colors.white,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    '${FormatUtils.formatCount(followingController.getFollowerCount(topic))} ${followingController.getFollowerCount(topic) == 1 ? 'Follower' : 'Followers'}',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(width: 8),
-
-            // Chip 3: Comments Chip (Tappable to scroll to comments)
-            InkWell(
-              onTap: commentsHandler,
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.bgSurfaceHover,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: AppColors.textPrimary.withValues(alpha: 0.08),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.chat_bubble_outline_rounded,
-                      size: 18,
-                      color: Colors.white,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${topic.commentCount} ${topic.commentCount == 1 ? 'Comment' : 'Comments'}',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(width: 12),
-
-            // Follow / Following Button
-            AnimatedFollowTopicButton(
-              isFollowed: isFollowed,
-              onPressed: () {
+      return Wrap(
+        spacing: 12,
+        runSpacing: 10,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          // 1. Follow / Following Pill Button (White surface with black text/icon - Zero White-on-White compliant)
+          Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(24),
+              onTap: () {
+                HapticFeedback.lightImpact();
                 if (isFollowed) {
                   TopicNotificationOptionsSheet.show(context, topic: topic);
                 } else {
                   followingController.toggleFollowTopic(topic);
                 }
               },
-            ),
-
-            // Bell Icon Notification Option (when Following)
-            if (isFollowed) ...[
-              const SizedBox(width: 8),
-              Container(
-                height: 36,
-                width: 36,
-                decoration: const BoxDecoration(
-                  color: AppColors.bgSurfaceHover,
-                  shape: BoxShape.circle,
-                ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    customBorder: const CircleBorder(),
-                    onTap: () =>
-                        TopicNotificationOptionsSheet.show(context, topic: topic),
-                    child: Icon(
-                      _getBellIcon(currentBellSetting),
-                      size: 18,
-                      color: AppColors.textPrimary,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isFollowed ? Icons.check_rounded : Icons.add_rounded,
+                      color: Colors.black,
+                      size: 17,
                     ),
-                  ),
+                    const SizedBox(width: 6),
+                    Text(
+                      isFollowed ? 'Following' : 'Follow',
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ],
-        ),
+            ),
+          ),
+
+          // 2. Notification Bell Button
+          _buildCircularActionButton(
+            icon: _getBellIcon(currentBellSetting),
+            tooltip: 'Notification options',
+            onTap: () {
+              TopicNotificationOptionsSheet.show(context, topic: topic);
+            },
+          ),
+
+          // 3. Share Button
+          _buildCircularActionButton(
+            icon: Icons.share_outlined,
+            tooltip: 'Share topic',
+            onTap: () {
+              final url = DeepLinkService.topicUrl(topic.slug);
+              Clipboard.setData(ClipboardData(text: url));
+              ShareBottomSheet.show(title: topic.title, url: url);
+            },
+          ),
+
+          // 4. More Options (...) Button
+          _buildCircularActionButton(
+            icon: Icons.more_horiz_rounded,
+            tooltip: 'More options',
+            onTap: () {
+              TopicMoreOptionsBottomSheet.show(context, topic: topic);
+            },
+          ),
+        ],
       );
     });
   }
 
+  Widget _buildCircularActionButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: const Color(0xFF242428).withValues(alpha: 0.9),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.16),
+          ),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: () {
+              HapticFeedback.lightImpact();
+              onTap();
+            },
+            child: Center(
+              child: Icon(
+                icon,
+                color: Colors.white,
+                size: 19,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   IconData _getBellIcon(String setting) {
     switch (setting) {
-      case 'personalized':
-        return Icons.notifications_outlined;
+      case 'all':
+        return Icons.notifications_active_rounded;
       case 'none':
         return Icons.notifications_off_outlined;
-      case 'all':
+      case 'personalized':
       default:
-        return Icons.notifications_active_rounded;
+        return Icons.notifications_outlined;
     }
   }
 
   Widget _buildSkeleton() {
-    final height = isDesktop ? 360.0 : (isTablet ? 260.0 : 200.0);
+    final height = isDesktop ? 360.0 : (isTablet ? 280.0 : 220.0);
+    final horizontalPadding = isDesktop ? 48.0 : (isTablet ? 24.0 : 16.0);
 
-    return Shimmer.fromColors(
-      baseColor: AppColors.bgSurfaceHover,
-      highlightColor: AppColors.bgDivider,
-      child: Container(
-        height: height,
-        width: double.infinity,
-        color: AppColors.textPrimary,
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 16),
+      child: Shimmer.fromColors(
+        baseColor: const Color(0xFF1E1E22),
+        highlightColor: const Color(0xFF2C2C32),
+        child: Container(
+          height: height,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+          ),
+        ),
       ),
     );
   }

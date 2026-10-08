@@ -13,10 +13,10 @@ class CategoryInsightsGapBanner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFF161618),
+        color: const Color(0xFF1E1E1E),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: const Color(0xFF38BDF8).withValues(alpha: 0.4),
+          color: AppColors.info.withValues(alpha: 0.4),
         ),
         boxShadow: [
           BoxShadow(
@@ -31,15 +31,15 @@ class CategoryInsightsGapBanner extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xFF1E293B),
+              color: AppColors.infoContainer,
               shape: BoxShape.circle,
               border: Border.all(
-                color: const Color(0xFF38BDF8).withValues(alpha: 0.4),
+                color: AppColors.info.withValues(alpha: 0.4),
               ),
             ),
             child: const Icon(
               Icons.auto_awesome_rounded,
-              color: Colors.white,
+              color: AppColors.textPrimary,
               size: 24,
             ),
           ),
@@ -53,7 +53,8 @@ class CategoryInsightsGapBanner extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
+                    fontFamily: TWTypography.brandFamily,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -63,6 +64,7 @@ class CategoryInsightsGapBanner extends StatelessWidget {
                     fontSize: 12,
                     color: AppColors.textSecondary,
                     height: 1.35,
+                    fontFamily: TWTypography.uiFamily,
                   ),
                 ),
               ],
@@ -76,25 +78,26 @@ class CategoryInsightsGapBanner extends StatelessWidget {
             icon: const Icon(
               Icons.explore_off_rounded,
               size: 14,
-              color: Colors.white,
+              color: AppColors.textPrimary,
             ),
             label: const Text(
               'View Untouched',
               style: TextStyle(
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
+                fontFamily: TWTypography.uiFamily,
               ),
             ),
             style: TextButton.styleFrom(
-              backgroundColor: const Color(0xFF27272A),
+              backgroundColor: AppColors.bgSurfaceHover,
               padding: const EdgeInsets.symmetric(
                 horizontal: 14,
                 vertical: 10,
               ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
-                side: const BorderSide(color: Color(0xFF3F3F46)),
+                side: const BorderSide(color: AppColors.bgDivider),
               ),
             ),
           ),

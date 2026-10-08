@@ -466,17 +466,6 @@ mixin UploadSubmissionMixin on
             .replaceAll(RegExp(r'[^a-z0-9\s-]'), '')
             .replaceAll(RegExp(r'\s+'), '-');
 
-        final existingSlug = await firestore
-            .collection('topics')
-            .where('slug', isEqualTo: newSlug)
-            .limit(1)
-            .get();
-
-        var finalSlug = newSlug;
-        if (existingSlug.docs.isNotEmpty) {
-          finalSlug = '$newSlug-${const Uuid().v4().substring(0, 6)}';
-        }
-
         final rawHandle = (newTopicData['handle'] as String?) ?? '';
         var cleanHandle = rawHandle.trim();
         if (cleanHandle.startsWith('T/')) {
@@ -489,41 +478,71 @@ mixin UploadSubmissionMixin on
             .replaceAll(RegExp('[^a-zA-Z0-9_-]'), '-')
             .replaceAll(RegExp('-+'), '-');
         if (cleanHandle.isEmpty) {
-          cleanHandle = finalSlug;
+          cleanHandle = newSlug;
         }
         final finalHandle = 'T/$cleanHandle';
         final finalHandleLowercase = finalHandle.toLowerCase();
 
-        final newTopicRef = firestore.collection('topics').doc();
-        final newTopic = Topic(
-          id: newTopicRef.id,
-          title: newTitle,
-          slug: finalSlug,
-          handle: finalHandle,
-          handleLowercase: finalHandleLowercase,
-          description: newDescription,
-          category: newCategory,
-          thumbnailUrl: finalThumbnailUrl,
-          channelId: channelId.trim(),
-          creatorId: userId,
-          visibilityType: newVisibility,
-          accessCode: newVisibility == TopicVisibilityType.private
-              ? newAccessCode
-              : null,
-          videoCount: 1, // First video linked
-          featuredVideoIds: [videoId],
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-          status: 'underReview',
-        );
+        // Check if topic already exists by slug or handle to prevent duplicate documents
+        DocumentSnapshot? existingTopicDoc;
+        final existingSlugQuery = await firestore
+            .collection('topics')
+            .where('slug', isEqualTo: newSlug)
+            .limit(1)
+            .get();
+        if (existingSlugQuery.docs.isNotEmpty) {
+          existingTopicDoc = existingSlugQuery.docs.first;
+        } else {
+          final handleQuery = await firestore
+              .collection('topics')
+              .where('handleLowercase', isEqualTo: finalHandleLowercase)
+              .limit(1)
+              .get();
+          if (handleQuery.docs.isNotEmpty) {
+            existingTopicDoc = handleQuery.docs.first;
+          }
+        }
 
-        await newTopicRef.set(newTopic.toMap());
-        debugPrint(
-          '✅ Inline topic created with slug: $finalSlug and handle: $finalHandle',
-        );
+        if (existingTopicDoc != null && existingTopicDoc.exists) {
+          final existingData = existingTopicDoc.data() as Map<String, dynamic>?;
+          final canonicalSlug = (existingData?['slug'] as String?) ?? newSlug;
+          debugPrint(
+            'ℹ️ Inline topic already exists with slug: $canonicalSlug. Reusing existing topic to prevent duplicate document creation.',
+          );
+          selectedTopicId.value = canonicalSlug;
+          newTopicData.clear();
+        } else {
+          final newTopicRef = firestore.collection('topics').doc();
+          final newTopic = Topic(
+            id: newTopicRef.id,
+            title: newTitle,
+            slug: newSlug,
+            handle: finalHandle,
+            handleLowercase: finalHandleLowercase,
+            description: newDescription,
+            category: newCategory,
+            thumbnailUrl: finalThumbnailUrl,
+            channelId: channelId.trim(),
+            creatorId: userId,
+            visibilityType: newVisibility,
+            accessCode: newVisibility == TopicVisibilityType.private
+                ? newAccessCode
+                : null,
+            videoCount: 1, // First video linked
+            featuredVideoIds: [videoId],
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+            status: 'underReview',
+          );
 
-        selectedTopicId.value = finalSlug;
-        newTopicData.clear();
+          await newTopicRef.set(newTopic.toMap());
+          debugPrint(
+            '✅ Inline topic created with slug: $newSlug and handle: $finalHandle',
+          );
+
+          selectedTopicId.value = newSlug;
+          newTopicData.clear();
+        }
       }
 
       // Link video to topic if selected

@@ -1,8 +1,9 @@
-// ignore_for_file: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+import 'dart:js_interop';
+
 import 'package:flutter/foundation.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:web/web.dart' as web;
 
 /// Web browser implementation for file downloading
 Future<void> downloadFileFromBytesImpl(
@@ -11,12 +12,16 @@ Future<void> downloadFileFromBytesImpl(
   String mimeType,
 ) async {
   try {
-    final blob = html.Blob([bytes], mimeType);
-    final url = html.Url.createObjectUrlFromBlob(blob);
-    html.AnchorElement(href: url)
-      ..setAttribute('download', fileName)
-      ..click();
-    html.Url.revokeObjectUrl(url);
+    final blob = web.Blob(
+      [bytes.toJS].toJS,
+      web.BlobPropertyBag(type: mimeType),
+    );
+    final url = web.URL.createObjectURL(blob);
+    final anchor = web.document.createElement('a') as web.HTMLAnchorElement
+      ..href = url
+      ..download = fileName;
+    anchor.click();
+    web.URL.revokeObjectURL(url);
   } catch (e, stackTrace) {
     ErrorHandler.log(
       e,
@@ -29,9 +34,10 @@ Future<void> downloadFileFromBytesImpl(
 /// Web browser implementation for URL downloading
 Future<void> downloadFileFromUrlImpl(String url, String fileName) async {
   try {
-    final anchor = html.AnchorElement(href: url)
-      ..setAttribute('download', fileName)
-      ..setAttribute('target', '_blank');
+    final anchor = web.document.createElement('a') as web.HTMLAnchorElement
+      ..href = url
+      ..download = fileName
+      ..target = '_blank';
     anchor.click();
   } catch (e, stackTrace) {
     ErrorHandler.log(

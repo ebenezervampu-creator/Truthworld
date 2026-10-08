@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
@@ -54,14 +55,27 @@ class LibraryController extends BaseController
     super.onInit();
     _initializeAnimations();
 
-    rxUser.value = _auth.currentUser;
-    _userSub = _auth.authStateChanges().listen(
+    final initialUser = Get.isRegistered<AuthService>()
+        ? AuthService.to.user
+        : _auth.currentUser;
+    rxUser.value = initialUser;
+    if (initialUser != null) {
+      loadUserData(initialUser.uid);
+    }
+
+    final authStream = Get.isRegistered<AuthService>()
+        ? AuthService.to.currentUser.stream
+        : _auth.authStateChanges();
+
+    _userSub = authStream.listen(
       (user) {
-        rxUser.value = user;
-        if (user != null) {
-          loadUserData(user.uid);
-        } else {
-          _clearUserData();
+        if (user?.uid != rxUser.value?.uid) {
+          rxUser.value = user;
+          if (user != null) {
+            loadUserData(user.uid);
+          } else {
+            _clearUserData();
+          }
         }
       },
       onError: (e, stackTrace) => ErrorHandler.log(
@@ -71,10 +85,6 @@ class LibraryController extends BaseController
       ),
     );
     if (_userSub != null) trackSubscription(_userSub!);
-
-    if (_auth.currentUser != null) {
-      loadUserData(_auth.currentUser!.uid);
-    }
   }
 
   void _initializeAnimations() {

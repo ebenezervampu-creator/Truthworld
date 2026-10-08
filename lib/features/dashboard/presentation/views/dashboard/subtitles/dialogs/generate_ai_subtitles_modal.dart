@@ -45,10 +45,10 @@ class GenerateAiSubtitlesModal {
               children: [
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.auto_awesome_rounded,
                       size: 24,
-                      color: Colors.white,
+                      color: isDarkMode ? Colors.white : Colors.black87,
                     ),
                     const SizedBox(width: 10),
                     Text(
@@ -60,7 +60,7 @@ class GenerateAiSubtitlesModal {
                     ),
                     const Spacer(),
                     IconButton(
-                      icon: const Icon(Icons.close_rounded, color: Colors.white),
+                      icon: Icon(Icons.close_rounded, color: isDarkMode ? Colors.white : Colors.black87),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ],
@@ -92,11 +92,12 @@ class GenerateAiSubtitlesModal {
                         onSelected: (s) {
                           if (s) priorityMode.value = 'standard';
                         },
-                        selectedColor: const Color(0xFF8B5CF6),
+                        selectedColor: AppColors.brand,
                         labelStyle: TextStyle(
                           color: priorityMode.value == 'standard'
-                              ? Colors.white
+                              ? Colors.black
                               : textColor,
+                          fontWeight: priorityMode.value == 'standard' ? FontWeight.bold : FontWeight.normal,
                         ),
                       ),
                     ),
@@ -108,11 +109,12 @@ class GenerateAiSubtitlesModal {
                         onSelected: (s) {
                           if (s) priorityMode.value = 'high';
                         },
-                        selectedColor: const Color(0xFF8B5CF6),
+                        selectedColor: AppColors.brand,
                         labelStyle: TextStyle(
                           color: priorityMode.value == 'high'
-                              ? Colors.white
+                              ? Colors.black
                               : textColor,
+                          fontWeight: priorityMode.value == 'high' ? FontWeight.bold : FontWeight.normal,
                         ),
                       ),
                     ),
@@ -134,11 +136,11 @@ class GenerateAiSubtitlesModal {
                       onPressed: () {
                         selectedLangs.addAll(['en', 'hi', 'te', 'ta', 'es', 'fr', 'de', 'ja']);
                       },
-                      child: const Text('Select Popular', style: TextStyle(fontSize: 12, color: Colors.white)),
+                      child: Text('Select Popular', style: TextStyle(fontSize: 12, color: textColor)),
                     ),
                     TextButton(
                       onPressed: selectedLangs.clear,
-                      child: const Text('Clear', style: TextStyle(fontSize: 12, color: Colors.white)),
+                      child: Text('Clear', style: TextStyle(fontSize: 12, color: textColor)),
                     ),
                   ],
                 ),
@@ -162,10 +164,11 @@ class GenerateAiSubtitlesModal {
                               selectedLangs.remove(lang.code);
                             }
                           },
-                          selectedColor: const Color(0xFF8B5CF6),
-                          checkmarkColor: Colors.white,
+                          selectedColor: AppColors.brand,
+                          checkmarkColor: Colors.black,
                           labelStyle: TextStyle(
-                            color: isSel ? Colors.white : textColor,
+                            color: isSel ? Colors.black : textColor,
+                            fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
                           ),
                         );
                       }).toList(),
@@ -178,12 +181,12 @@ class GenerateAiSubtitlesModal {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: isDarkMode ? const Color(0xFF2A2A2A) : const Color(0xFFF1F5F9),
+                    color: isDarkMode ? AppColors.bgSurfaceHover : Colors.grey.shade200,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.wallet_rounded, size: 20, color: Colors.white),
+                      Icon(Icons.wallet_rounded, size: 20, color: isDarkMode ? Colors.white : Colors.black87),
                       const SizedBox(width: 8),
                       Text(
                         'Estimated Wallet Cost:',
@@ -195,7 +198,7 @@ class GenerateAiSubtitlesModal {
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF10B981),
+                          color: AppColors.success,
                         ),
                       ),
                     ],
@@ -216,18 +219,18 @@ class GenerateAiSubtitlesModal {
                               priorityMode: priorityMode.value,
                             );
                           },
-                    icon: const Icon(Icons.auto_awesome_rounded, size: 16, color: Colors.white),
+                    icon: const Icon(Icons.auto_awesome_rounded, size: 16, color: Colors.black),
                     label: const Text(
                       'Start AI Subtitle Pipeline',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: Colors.black,
                       ),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF8B5CF6),
-                      foregroundColor: Colors.white,
+                      backgroundColor: AppColors.brand,
+                      foregroundColor: Colors.black,
                     ),
                   ),
                 ),

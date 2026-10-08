@@ -156,7 +156,7 @@ void main() {
       expect(find.text('Channel Type & Infrastructure Tier'), findsOneWidget);
       expect(find.text('Upload Limit'), findsOneWidget);
       expect(find.text('10 Mins / Day'), findsWidgets);
-      expect(find.text('10h Watch Time Gate'), findsOneWidget);
+      expect(find.text('1k Views & 10h Gate'), findsOneWidget);
       expect(find.text('Explore / Switch Channel Type'), findsOneWidget);
     });
 
@@ -169,7 +169,7 @@ void main() {
 
       expect(find.text('Unlimited Videos'), findsOneWidget);
       expect(find.text('Up to 24 Hours'), findsOneWidget);
-      expect(find.text('Instant Withdrawal'), findsOneWidget);
+      expect(find.text('1k Views & 10h Gate'), findsOneWidget);
       expect(find.text('Manage Custom Infra & Tier Settings'), findsOneWidget);
       expect(find.textContaining('Scheduled to switch to STANDARD CHANNEL'), findsOneWidget);
     });
@@ -194,7 +194,7 @@ void main() {
         ),
       );
 
-      expect(find.textContaining('Direct & instant cash out'), findsOneWidget);
+      expect(find.text('Instant Revenue from Day 1'), findsOneWidget);
     });
 
     testWidgets('renders partner eligibility status tiles', (tester) async {
@@ -208,7 +208,7 @@ void main() {
       expect(find.text('Subscriber Gate'), findsOneWidget);
       expect(find.text('0 Required'), findsOneWidget);
       expect(find.text('Cash Out Gate'), findsOneWidget);
-      expect(find.text('10h / Video'), findsOneWidget);
+      expect(find.text('1k Views & 10h'), findsOneWidget);
       expect(find.text('AI Features'), findsOneWidget);
       expect(find.text('Instant Use'), findsOneWidget);
     });
@@ -273,7 +273,7 @@ void main() {
       );
       await tester.pump(const Duration(seconds: 3));
 
-      expect(find.text('Video Cash-Out Eligibility (10 Hours Target)'), findsOneWidget);
+      expect(find.text('Video Cash-Out Eligibility (1,000 Views & 10 Hours)'), findsOneWidget);
       expect(find.textContaining('No uploaded videos found yet'), findsOneWidget);
     });
 
@@ -325,7 +325,7 @@ void main() {
       expect(find.text('Revenue & Withdrawal Summary'), findsOneWidget);
       expect(find.text('Total Estimated Revenue'), findsOneWidget);
       expect(find.text('Available for Cash Withdrawal'), findsOneWidget);
-      expect(find.text('Locked for Cash Out (Awaiting 10h)'), findsOneWidget);
+      expect(find.text('Locked for Cash Out (Awaiting 1k Views & 10h)'), findsOneWidget);
       expect(find.text('Usable Balance for AI Features'), findsOneWidget);
       expect(find.text('Use Balance for AI Subtitles & Dubbing'), findsOneWidget);
     });

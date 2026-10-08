@@ -32,94 +32,106 @@ class DashboardCreatorAppBar extends StatelessWidget
 
   @override
   Widget build(BuildContext context) {
-    return AppBar(
-      backgroundColor: isDarkMode ? AppColors.bgInput : AppColors.textPrimary,
-      elevation: 0,
-      surfaceTintColor: Colors.transparent,
-      toolbarHeight: 64,
-      centerTitle: false,
-      titleSpacing: isMobile ? 4 : null,
-      leading: isDesktop
-          ? null
-          : IconButton(
-              icon: const Icon(
-                Icons.menu_rounded,
-                color: Colors.white,
-              ),
-              onPressed: () =>
-                  viewController.scaffoldKey.currentState?.openDrawer(),
-              tooltip: 'Menu',
-            ),
-      title: Row(
-        children: [
-          if (!AppFlavor.isStudio)
-            IconButton(
-              icon: const Icon(
-                Icons.arrow_back,
-                size: 20,
-                color: Colors.white,
-              ),
-              onPressed: () => Get.offAllNamed('/home'),
-              tooltip: 'Back to Home',
-            ),
-          if (!isMobile) ...[
-            const AppLogo(
-              size: 34,
-              borderRadius: 8,
-            ),
-            const SizedBox(width: 12),
-          ],
-          Expanded(
-            child: Text(
-              isMobile ? 'Studio' : 'Creator Studio',
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-              style: TextStyle(
-                fontFamily: TWTypography.brandFamily,
-                fontSize: isMobile ? 18 : 20,
-                fontWeight: FontWeight.w700,
-                color: isDarkMode ? AppColors.textPrimary : Colors.white,
-                letterSpacing: -0.5,
-              ),
-            ),
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.bgPage,
+        border: Border(
+          bottom: BorderSide(
+            color: AppColors.bgDivider,
+            width: 0.5,
           ),
+        ),
+      ),
+      child: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        toolbarHeight: 64,
+        centerTitle: false,
+        titleSpacing: isMobile ? 4 : null,
+        leading: isDesktop
+            ? null
+            : IconButton(
+                icon: const Icon(
+                  Icons.menu_rounded,
+                  color: Colors.white,
+                ),
+                onPressed: () =>
+                    viewController.scaffoldKey.currentState?.openDrawer(),
+                tooltip: 'Menu',
+              ),
+        title: Row(
+          children: [
+            if (!AppFlavor.isStudio)
+              IconButton(
+                icon: const Icon(
+                  Icons.arrow_back,
+                  size: 20,
+                  color: Colors.white,
+                ),
+                onPressed: () => Get.offAllNamed('/home'),
+                tooltip: 'Back to Home',
+              ),
+            if (!isMobile) ...[
+              const AppLogo(
+                size: 34,
+                borderRadius: 8,
+              ),
+              const SizedBox(width: 12),
+            ],
+            Expanded(
+              child: Text(
+                isMobile ? 'Studio' : 'Creator Studio',
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                style: TextStyle(
+                  fontFamily: TWTypography.brandFamily,
+                  fontSize: isMobile ? 18 : 20,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                  letterSpacing: -0.5,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          if (isDesktop) ...[
+            DashboardSearchField(
+              searchController: viewController.searchController,
+              focusNode: viewController.searchFocusNode,
+              isDarkMode: isDarkMode,
+              onChanged: dashboardController.setSearchQuery,
+              onClear: () => dashboardController.setSearchQuery(''),
+            ),
+            const SizedBox(width: 16),
+          ],
+          DashboardActionButton(
+            icon: Icons.notifications_none_rounded,
+            onPressed: () => dashboardController.setSelectedIndex(16),
+            isDarkMode: isDarkMode,
+            tooltip: 'Creator Intelligence',
+          ),
+          SizedBox(width: isMobile ? 4 : 8),
+          DashboardActionButton(
+            icon: Icons.video_call_rounded,
+            label: isDesktop ? 'Upload' : '',
+            onPressed: () => Get.toNamed('/upload'),
+            isDarkMode: isDarkMode,
+            isPrimary: true,
+            tooltip: 'Upload Video',
+          ),
+          SizedBox(width: isMobile ? 4 : 8),
+          DashboardGoogleAccountSelector(
+            isDarkMode: isDarkMode,
+            onSignIn: () {
+              HapticFeedback.lightImpact();
+              viewController.handleGoogleSignIn();
+            },
+          ),
+          const SizedBox(width: 12),
         ],
       ),
-      actions: [
-        if (isDesktop) ...[
-          DashboardSearchField(
-            searchController: viewController.searchController,
-            isDarkMode: isDarkMode,
-            onChanged: dashboardController.setSearchQuery,
-            onClear: () => dashboardController.setSearchQuery(''),
-          ),
-          const SizedBox(width: 16),
-        ],
-        DashboardActionButton(
-          icon: Icons.notifications_none_rounded,
-          onPressed: () => dashboardController.setSelectedIndex(16),
-          isDarkMode: isDarkMode,
-          tooltip: 'Creator Intelligence',
-        ),
-        SizedBox(width: isMobile ? 4 : 8),
-        DashboardActionButton(
-          icon: Icons.video_call_rounded,
-          label: isDesktop ? 'Upload' : '',
-          onPressed: () => Get.toNamed('/upload'),
-          isDarkMode: isDarkMode,
-          isPrimary: true,
-          tooltip: 'Upload Video',
-        ),
-        SizedBox(width: isMobile ? 4 : 8),
-        DashboardGoogleAccountSelector(
-          isDarkMode: isDarkMode,
-          onSignIn: () {
-            HapticFeedback.lightImpact();
-            viewController.handleGoogleSignIn();
-          },
-        ),
-        SizedBox(width: isMobile ? 8 : 16),
-      ],
     );
   }
 }

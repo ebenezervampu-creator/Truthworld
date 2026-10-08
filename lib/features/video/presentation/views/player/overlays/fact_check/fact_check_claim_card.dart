@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/utils/source_url_sanitizer.dart';
 import 'package:truthworld/features/video/data/models/claim_verdict_helper.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
@@ -394,37 +395,26 @@ import 'package:url_launcher/url_launcher.dart';
 
   @override
   Widget build(BuildContext context) {
-    final title = (source['title'] ??
-            source['author'] ??
-            source['domain'] ??
-            source['url'] ??
+    final cleanSource = SourceUrlSanitizer.sanitizeSourceMap(source);
+    final title = (cleanSource['title'] ??
+            cleanSource['author'] ??
+            cleanSource['domain'] ??
             'Source Citation')
         .toString();
-    final url =
-        (source['url'] ?? source['directUrl'] ?? source['link'])?.toString();
-    final domain = (source['domain'] ??
-            (url != null ? Uri.tryParse(url)?.host : null) ??
-            '')
-        .toString();
-    final snippet = source['snippet']?.toString();
+    final url = cleanSource['url']?.toString();
+    final domain = (cleanSource['domain'] ?? '').toString();
+    final snippet = cleanSource['snippet']?.toString();
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 5),
       child: InkWell(
         onTap: () async {
-          if (url != null && url.isNotEmpty) {
-            try {
-              final uri =
-                  Uri.parse(url.startsWith('http') ? url : 'https://$url');
-              await launchUrl(uri, mode: LaunchMode.externalApplication);
-            } catch (e, stackTrace) {
-              ErrorHandler.log(
-                e,
-                stackTrace: stackTrace,
-                tag: 'FactCheckClaimCard.launchSourceUrl',
-              );
-            }
-          }
+          await SourceUrlSanitizer.launchSourceUrl(
+            url: url,
+            title: title,
+            domain: domain,
+            source: cleanSource,
+          );
         },
         borderRadius: BorderRadius.circular(6),
         child: Container(

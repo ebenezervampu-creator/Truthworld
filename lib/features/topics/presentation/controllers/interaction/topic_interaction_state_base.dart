@@ -23,6 +23,14 @@ abstract class TopicInteractionStateBase extends BaseController
 
   final RxList<Comment> comments = <Comment>[].obs;
   final RxBool isLoadingComments = false.obs;
+  final RxBool isSubmittingComment = false.obs;
+  final RxBool isSubmittingReply = false.obs;
+
+  // Cursor-based pagination (25 per page for millions scale)
+  static const int commentsPerPage = 25;
+  final RxBool hasMoreComments = true.obs;
+  final RxBool isLoadingMoreComments = false.obs;
+  DocumentSnapshot? lastCommentDoc;
 
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? commentsSubscription;
   String? initializedTopicId;
@@ -68,6 +76,7 @@ abstract class TopicInteractionStateBase extends BaseController
 
   // Cross-mixin abstract contracts
   Future<void> fetchComments(String topicId);
+  Future<void> loadMoreComments(String topicId);
   void initializeTopic(Topic topic);
 
   @override

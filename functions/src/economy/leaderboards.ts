@@ -37,6 +37,12 @@ export const getLeaderboards = onRequest(
   { region: "asia-south1", cors: true, memory: "256MiB" },
   async (req, res) => {
     applySecurityHeaders(res);
+
+    if (req.method !== "GET") {
+      res.status(405).json({ error: "Method Not Allowed" });
+      return;
+    }
+
     const category = req.query.category as string; // Optional category filter
 
     try {

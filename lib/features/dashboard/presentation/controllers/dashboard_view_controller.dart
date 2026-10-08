@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
@@ -14,6 +15,7 @@ import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/topic_management_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/widgets/studio_shortcuts_modal.dart';
 import 'package:truthworld/features/topics/presentation/widgets/create_topic_dialog.dart';
 
 /// Presentation view controller managing animation controllers, responsive drawers,
@@ -22,6 +24,7 @@ class DashboardViewController extends BaseController
     with GetTickerProviderStateMixin {
   final GlobalKey<ScaffoldState> scaffoldKey = GlobalKey<ScaffoldState>();
   final TextEditingController searchController = TextEditingController();
+  final FocusNode searchFocusNode = FocusNode();
 
   final RxBool isSelectingDefault = true.obs;
 
@@ -116,6 +119,7 @@ class DashboardViewController extends BaseController
   void onInit() {
     super.onInit();
     _initializeAnimations();
+    _initGlobalKeyboardListener();
     final initChannelId = getChannelId(channel);
     if (!Get.isRegistered<DashboardController>()) {
       Get.put(DashboardController(channelId: initChannelId));
@@ -349,7 +353,7 @@ class DashboardViewController extends BaseController
         } else if (currentRoute.contains('/drafts') ||
             tabParam == 'drafts' ||
             tabParam == '20') {
-          ctrl.selectedIndex.value = 20;
+          ctrl.selectedIndex.value = 2;
         }
       }
 
@@ -389,7 +393,8 @@ class DashboardViewController extends BaseController
     } catch (e) {
       isSelectingDefault.value = false;
       if (e is GoogleSignInUserCancelledException ||
-          (e is AuthException && e.code == 'user-cancelled')) {
+          (e is AuthException && (e.code == 'user-cancelled' || e.code == 'redirecting')) ||
+          (e is GoogleSignInException && (e.code == 'user-cancelled' || e.code == 'redirecting'))) {
         return;
       }
       var message = 'Failed to sign in';
@@ -449,11 +454,74 @@ class DashboardViewController extends BaseController
     );
   }
 
+  void _initGlobalKeyboardListener() {
+    HardwareKeyboard.instance.addHandler(_handleGlobalHardwareKeyEvent);
+  }
+
+  bool _handleGlobalHardwareKeyEvent(KeyEvent event) {
+    if (event is! KeyDownEvent) return false;
+
+    // Check if an editable text is already focused
+    final primaryFocus = FocusManager.instance.primaryFocus;
+    final isEditing = primaryFocus?.context?.widget is EditableText;
+
+    // Escape clears search focus or dismisses
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      if (searchFocusNode.hasFocus) {
+        searchFocusNode.unfocus();
+        return true;
+      }
+    }
+
+    // If typing inside an input field, do not hijack shortcuts (except Escape)
+    if (isEditing) return false;
+
+    final isShift = HardwareKeyboard.instance.isShiftPressed;
+    final isControlOrMeta = HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isMetaPressed;
+
+    // Show studio shortcuts modal: '?' or Shift + '/'
+    if (!isControlOrMeta &&
+        (event.logicalKey == LogicalKeyboardKey.question ||
+            (isShift && event.logicalKey == LogicalKeyboardKey.slash))) {
+      final context = scaffoldKey.currentContext;
+      if (context != null) {
+        StudioShortcutsModal.show(context);
+        return true;
+      }
+    }
+
+    // Quick Search focus: '/' (without shift/ctrl)
+    if (!isShift && !isControlOrMeta && event.logicalKey == LogicalKeyboardKey.slash) {
+      searchFocusNode.requestFocus();
+      return true;
+    }
+
+    // Quick Search focus: Ctrl/Cmd + K
+    if (isControlOrMeta && event.logicalKey == LogicalKeyboardKey.keyK) {
+      searchFocusNode.requestFocus();
+      return true;
+    }
+
+    // Studio Save: Ctrl/Cmd + S
+    if (isControlOrMeta && event.logicalKey == LogicalKeyboardKey.keyS) {
+      AppSnackbar.success(
+        'All studio metadata and edits are up to date.',
+        title: 'Studio Saved',
+      );
+      return true;
+    }
+
+    return false;
+  }
+
   @override
   void onClose() {
+    HardwareKeyboard.instance.removeHandler(_handleGlobalHardwareKeyEvent);
     _authWorker?.dispose();
     _channelWorker?.dispose();
     searchController.dispose();
+    searchFocusNode.dispose();
     if (staggeredAnimationController.isAnimating) {
       staggeredAnimationController.stop();
     }

@@ -18,9 +18,50 @@ import 'package:truthworld/core/config/app_flavor.dart';
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform => forFlavor(AppFlavor.active);
 
+  /// Canonical Truthworld authentication domain for OAuth redirects and popups.
+  /// Uses verified truthworld-1.firebaseapp.com to ensure cross-origin compatibility
+  /// and reliable OAuth handler routing across localhost and production domains.
+  static const String defaultAuthDomain = 'truthworld-1.firebaseapp.com';
+
+  /// Resolves the active Truthworld auth domain dynamically on Web.
+  /// Uses canonical 'truthworld-1.firebaseapp.com' to guarantee verified OAuth handler
+  /// availability and cross-origin compatibility across localhost and custom domains.
+  static String get resolvedWebAuthDomain {
+    if (kIsWeb) {
+      try {
+        final host = Uri.base.host.toLowerCase();
+        if (host == 'localhost' ||
+            host == '127.0.0.1' ||
+            host == '0.0.0.0' ||
+            host == '[::1]' ||
+            host.endsWith('.local') ||
+            host.endsWith('.firebaseapp.com') ||
+            host.endsWith('.web.app')) {
+          return 'truthworld-1.firebaseapp.com';
+        }
+        if (host == 'truthworld.in' || host == 'www.truthworld.in') {
+          return defaultAuthDomain;
+        }
+      } catch (_) {}
+    }
+    return defaultAuthDomain;
+  }
+
   static FirebaseOptions forFlavor([AppFlavor? flavor]) {
     final activeFlavor = flavor ?? AppFlavor.active;
     if (kIsWeb) {
+      if (resolvedWebAuthDomain != defaultAuthDomain) {
+        return FirebaseOptions(
+          apiKey: web.apiKey,
+          appId: web.appId,
+          messagingSenderId: web.messagingSenderId,
+          projectId: web.projectId,
+          authDomain: resolvedWebAuthDomain,
+          databaseURL: web.databaseURL,
+          storageBucket: web.storageBucket,
+          measurementId: web.measurementId,
+        );
+      }
       return web;
     }
     switch (defaultTargetPlatform) {
@@ -58,7 +99,7 @@ class DefaultFirebaseOptions {
     appId: '1:768266102263:web:98ca3c36ec8a5038143af2',
     messagingSenderId: '768266102263',
     projectId: 'truthworld-1',
-    authDomain: 'truthworld-1.firebaseapp.com',
+    authDomain: defaultAuthDomain,
     databaseURL: 'https://truthworld-1-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'truthworld-1.firebasestorage.app',
     measurementId: 'G-2EV456S275',
@@ -125,7 +166,7 @@ class DefaultFirebaseOptions {
     appId: '1:768266102263:web:6680c0da5926caa1143af2',
     messagingSenderId: '768266102263',
     projectId: 'truthworld-1',
-    authDomain: 'truthworld-1.firebaseapp.com',
+    authDomain: defaultAuthDomain,
     databaseURL: 'https://truthworld-1-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'truthworld-1.firebasestorage.app',
     measurementId: 'G-W1RKKN8F3C',

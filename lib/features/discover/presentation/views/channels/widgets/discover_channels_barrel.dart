@@ -4,5 +4,6 @@ export 'discover_category_section.dart';
 export 'discover_channel_card.dart';
 export 'discover_channels_app_bar.dart';
 export 'discover_channels_constants.dart';
+export 'discover_creator_banner.dart';
 export 'discover_empty_state.dart';
 export 'discover_search_bar.dart';

@@ -4,6 +4,7 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
+import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 
 class PlaylistDetailController extends BaseController {
   final Rxn<PlaylistModel> activePlaylist = Rxn<PlaylistModel>();
@@ -18,6 +19,51 @@ class PlaylistDetailController extends BaseController {
   RxString selectedSort = 'Recent'.obs;
   RxBool isSearchVisible = false.obs;
   RxInt dragStartIndex = (-1).obs;
+
+  @override
+  void onInit() {
+    super.onInit();
+    initFromRoute();
+  }
+
+  void initFromRoute() {
+    final args = Get.arguments;
+    if (args != null) {
+      if (args is PlaylistModel) {
+        activePlaylist.value = args;
+        rxIsLoading.value = false;
+        return;
+      } else if (args is Map && args['playlist'] is PlaylistModel) {
+        activePlaylist.value = args['playlist'] as PlaylistModel;
+        rxIsLoading.value = false;
+        return;
+      }
+    }
+
+    if (Get.isRegistered<HomeController>()) {
+      final rawPlaylist = Get.find<HomeController>().selectedPlaylist.value;
+      if (rawPlaylist is PlaylistModel) {
+        activePlaylist.value = rawPlaylist;
+        rxIsLoading.value = false;
+        return;
+      }
+    }
+
+    final playlistId =
+        Get.parameters['playlistId'] ??
+        Get.parameters['list'] ??
+        Get.parameters['id'];
+    if (playlistId != null && playlistId.isNotEmpty) {
+      loadPlaylistFromDeepLink(playlistId);
+    }
+  }
+
+  void syncPlaylist(PlaylistModel? playlist) {
+    if (playlist != null && activePlaylist.value?.id != playlist.id) {
+      activePlaylist.value = playlist;
+      reset();
+    }
+  }
 
   Future<void> loadPlaylistFromDeepLink(String playlistId) async {
     final cached = DeepLinkService.instance.getPlaylistFromCache(playlistId);

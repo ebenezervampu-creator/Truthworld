@@ -225,10 +225,10 @@ void main() {
       expect(find.text('Cancel'), findsOneWidget);
       expect(find.text('Create Topic'), findsOneWidget);
 
-      // Fill in valid details to validate
       controller.nameController.text = 'Science Discovery';
       controller.handleController.text = 'science-discovery';
       controller.titleController.text = 'Science Discovery 2026';
+      controller.descriptionController.text = 'Exploring the latest breakthroughs in modern science.';
       controller.selectedVideoIds.add('v1');
 
       await tester.tap(find.text('Create Topic'));
@@ -286,6 +286,7 @@ void main() {
       controller.nameController.text = 'Valid Topic';
       controller.titleController.text = 'Valid Topic';
       controller.handleController.text = 'valid-topic';
+      controller.descriptionController.text = 'Valid topic description with more than 10 chars';
       controller.selectedVideoIds.clear();
 
       // Outside upload: must fail without videos
@@ -299,6 +300,37 @@ void main() {
       controller.isFromUpload.value = true;
       final uploadValid = await controller.validateFormBeforeSubmit();
       expect(uploadValid, isTrue);
+      expect(controller.profanityError.value, isEmpty);
+    });
+
+    test('CreateTopicController validation enforces at least 10 letters of description', () async {
+      controller.nameController.text = 'Valid Topic';
+      controller.titleController.text = 'Valid Topic';
+      controller.handleController.text = 'valid-topic';
+      controller.isFromUpload.value = true;
+
+      // 1. Empty description -> fails
+      controller.descriptionController.text = '';
+      var isValid = await controller.validateFormBeforeSubmit();
+      expect(isValid, isFalse);
+      expect(controller.profanityError.value, contains('Description is required'));
+
+      // 2. Whitespace only -> fails
+      controller.descriptionController.text = '    ';
+      isValid = await controller.validateFormBeforeSubmit();
+      expect(isValid, isFalse);
+      expect(controller.profanityError.value, contains('Description is required'));
+
+      // 3. 9 characters -> fails
+      controller.descriptionController.text = '123456789';
+      isValid = await controller.validateFormBeforeSubmit();
+      expect(isValid, isFalse);
+      expect(controller.profanityError.value, contains('at least 10 characters'));
+
+      // 4. 10 characters -> passes
+      controller.descriptionController.text = '1234567890';
+      isValid = await controller.validateFormBeforeSubmit();
+      expect(isValid, isTrue);
       expect(controller.profanityError.value, isEmpty);
     });
   });

@@ -44,5 +44,5 @@ description: Core project rules including icon colors and GetX state management 
   - TruthWorld stands for absolute truth, transparency, and epistemic honesty.
   - Never use marketing gimmick numbers like $9, $9.99, $14.99, $29.99, $99, 9999, or .99 in any pricing, tier, credit, or UI display.
   - Always use clear, round, honest numbers ($10, $15, $20, $25, $30, $50, $100).
-  - Creator trial credits and promotional bonuses must always show and award $10.00 (never $9.00). Legacy or accidental 9.0 trial credit must automatically normalize to the honest $10.00 standard.
+  - Promotional creator trial credits are completely discontinued to eliminate promotional farming vulnerabilities.
 

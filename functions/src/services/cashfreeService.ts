@@ -159,6 +159,9 @@ export class CashfreeService {
     const secretKey = this.getSecretKey();
 
     if (!appId || !secretKey) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error("[CashfreeService] Missing CASHFREE_APP_ID or CASHFREE_SECRET_KEY in production");
+      }
       console.warn("[CashfreeService] Warning: CASHFREE_APP_ID or CASHFREE_SECRET_KEY not set. Using sandbox fallback headers.");
     }
 
@@ -176,8 +179,8 @@ export class CashfreeService {
         return_url: params.orderMeta?.return_url || "https://www.truthworld.in/checkout?action=result&order_id={order_id}",
         notify_url: params.orderMeta?.notify_url,
       },
-      order_note: params.orderNote || "TruthWorld Payment",
-      order_tags: params.orderTags,
+      order_note: String(params.orderNote || "TruthWorld Payment").replace(/[()]/g, "").substring(0, 200),
+      order_tags: params.orderTags ? this.sanitizeOrderTags(params.orderTags) : undefined,
     };
 
     const response = await axios.post<CashfreeOrderResponse>(
@@ -197,17 +200,28 @@ export class CashfreeService {
 
   /**
    * Sanitizes tag dictionary to adhere to Cashfree's strict constraints
-   * (maximum 10 tags, alphanumeric/hyphens/underscores, <= 50 chars per value).
+   * (maximum 10 tags, key 3-40 chars [a-zA-Z0-9_], value 1-50 chars [a-zA-Z0-9_.-], NO SPACES).
    */
   public static sanitizeOrderTags(tags?: Record<string, any>): Record<string, string> {
-    if (!tags) return {};
+    if (!tags || typeof tags !== "object") return {};
     const sanitized: Record<string, string> = {};
     let count = 0;
     for (const [key, val] of Object.entries(tags)) {
       if (count >= 10) break;
-      const cleanKey = String(key).replace(/[^a-zA-Z0-9_]/g, "").substring(0, 40);
+      let cleanKey = String(key).replace(/[^a-zA-Z0-9_]/g, "").substring(0, 40);
       if (!cleanKey) continue;
-      const cleanVal = String(val ?? "").replace(/[^a-zA-Z0-9_\-\.\s]/g, "").substring(0, 50);
+      if (cleanKey.length < 3) {
+        cleanKey = `tag_${cleanKey}`;
+      }
+      cleanKey = cleanKey.substring(0, 40);
+
+      const cleanVal = String(val ?? "")
+        .trim()
+        .replace(/\s+/g, "_")
+        .replace(/[^a-zA-Z0-9_\-\.]/g, "")
+        .substring(0, 50);
+
+      if (!cleanVal) continue;
       sanitized[cleanKey] = cleanVal;
       count++;
     }
@@ -307,17 +321,30 @@ export class CashfreeService {
    * Creates a Cashfree recurring subscription plan (or retrieves existing on 409)
    */
   public static async createSubscriptionPlan(params: CreatePlanParams): Promise<CashfreePlanResponse> {
+    const cleanPlanName = String(params.planName)
+      .replace(/[()]/g, "")
+      .replace(/[^a-zA-Z0-9_\-\s]/g, "")
+      .trim()
+      .substring(0, 50);
+    const cleanPlanId = String(params.planId)
+      .replace(/[^a-zA-Z0-9_\-]/g, "")
+      .substring(0, 40);
+    const cleanPlanNote = String(params.planNote || "TruthWorld Subscription Plan")
+      .replace(/[()]/g, "")
+      .substring(0, 100);
+
     const payload = {
-      plan_id: params.planId,
-      plan_name: params.planName,
+      plan_id: cleanPlanId,
+      plan_name: cleanPlanName,
       plan_type: params.planType || "PERIODIC",
       plan_currency: params.planCurrency || "INR",
       plan_amount: Math.round(params.planAmount * 100) / 100,
+      plan_recurring_amount: Math.round(params.planAmount * 100) / 100,
       plan_max_amount: params.planMaxAmount || Math.max(15000, params.planAmount * 2),
       plan_interval_type: params.planIntervalType || "MONTH",
       plan_intervals: params.planIntervals || 1,
       plan_max_cycles: params.planMaxCycles || 120,
-      plan_note: params.planNote || "TruthWorld Subscription Plan",
+      plan_note: cleanPlanNote,
     };
 
     try {
@@ -350,8 +377,15 @@ export class CashfreeService {
    * Creates a Cashfree subscription mandate (Auto Pay) and returns auth_link
    */
   public static async createSubscription(params: CreateSubscriptionParams): Promise<CashfreeSubscriptionResponse> {
+    const cleanPlanId = String(params.planId)
+      .replace(/[^a-zA-Z0-9_\-]/g, "")
+      .substring(0, 40);
+    const cleanSubId = String(params.subscriptionId)
+      .replace(/[^a-zA-Z0-9_\-]/g, "")
+      .substring(0, 40);
+
     const payload = {
-      subscription_id: params.subscriptionId,
+      subscription_id: cleanSubId,
       customer_details: {
         customer_id: this.cleanCustomerId(params.customerDetails.customer_id),
         customer_name: params.customerDetails.customer_name || "TruthWorld User",
@@ -359,7 +393,7 @@ export class CashfreeService {
         customer_phone: this.cleanPhoneNumber(params.customerDetails.customer_phone),
       },
       plan_details: {
-        plan_id: params.planId,
+        plan_id: cleanPlanId,
       },
       subscription_meta: {
         return_url: params.returnUrl || "https://www.truthworld.in/checkout?action=result&subscription_id={subscription_id}",
@@ -369,8 +403,8 @@ export class CashfreeService {
         authorization_amount: params.authorizationAmount != null ? Math.round(params.authorizationAmount * 100) / 100 : undefined,
         payment_methods: params.paymentMethods || ["upi", "card", "enach"],
       },
-      subscription_tags: params.subscriptionTags,
-      subscription_note: params.subscriptionNote || "TruthWorld Recurring Auto Pay",
+      subscription_tags: params.subscriptionTags ? this.sanitizeOrderTags(params.subscriptionTags) : undefined,
+      subscription_note: String(params.subscriptionNote || "TruthWorld Recurring Auto Pay").replace(/[()]/g, "").substring(0, 100),
     };
 
     const response = await axios.post<CashfreeSubscriptionResponse>(

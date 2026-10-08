@@ -17,6 +17,9 @@ mixin TowerPlayerGesturesMixin on GetxController {
   RxBool get showCommentsPopup;
   RxBool get showTranscriptPopup;
   RxBool get showFactCheckPopup;
+  RxBool get showMoreVideos;
+  void openMoreVideos();
+  void closeMoreVideos();
   RxBool get isFullScreen;
   void toggleFullscreen();
   Future<void> togglePlayPause();
@@ -218,11 +221,18 @@ mixin TowerPlayerGesturesMixin on GetxController {
         // Only activate if vertical movement is dominant (avoids accidental triggers)
         if (_dragAccumulated.dy.abs() > _dragAccumulated.dx.abs() * 1.25) {
           _isVerticalSwipeActive = true;
+          cancelPendingTap();
         }
       }
     }
 
     if (!_isVerticalSwipeActive || size.height <= 0) return;
+
+    // In fullscreen, if drag starts from lower half and moves upward,
+    // this is a scroll-up gesture to show recommended videos. Avoid volume/brightness trigger.
+    if (isFullScreen.value && _dragStartPos.dy > size.height * 0.45 && _dragAccumulated.dy < 0) {
+      return;
+    }
 
     final isLeft = _dragStartPos.dx < size.width / 2;
     final delta = -d.delta.dy / size.height;
@@ -248,6 +258,18 @@ mixin TowerPlayerGesturesMixin on GetxController {
     _isVerticalSwipeActive = false;
 
     final velocity = d.primaryVelocity ?? 0;
+
+    // In fullscreen: upward swipe opens More Videos, downward swipe when open closes it
+    if (isFullScreen.value) {
+      if (velocity < -250 || _dragAccumulated.dy < -50) {
+        openMoreVideos();
+        return;
+      } else if (showMoreVideos.value && (velocity > 250 || _dragAccumulated.dy > 50)) {
+        closeMoreVideos();
+        return;
+      }
+    }
+
     if (velocity < -500) {
       if (!isFullScreen.value) toggleFullscreen();
     } else if (velocity > 500) {

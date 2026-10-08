@@ -41,6 +41,10 @@ class VideoBinding extends Bindings {
     MiniplayerBinding().dependencies();
     final videoId =
         (Get.arguments is Map ? (Get.arguments['video']?.id as String?) : null) ??
+        (Get.arguments is Map ? (Get.arguments['videoId'] as String?) : null) ??
+        (Get.arguments is Map ? (Get.arguments['targetVideoId'] as String?) : null) ??
+        (Get.arguments is Map ? (Get.arguments['video_id'] as String?) : null) ??
+        (Get.arguments is Map ? (Get.arguments['id'] as String?) : null) ??
         Get.parameters['v'] ??
         Get.parameters['videoId'] ??
         Get.parameters['id'];

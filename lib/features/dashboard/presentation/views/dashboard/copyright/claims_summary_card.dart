@@ -15,30 +15,26 @@ class ClaimsSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusColor = totalClaims > 0 ? AppColors.error : AppColors.success;
-    final iconColor = isDarkMode ? Colors.white : statusColor;
 
     return Container(
-      padding: const EdgeInsets.all(24),
-      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       decoration: BoxDecoration(
-        color: isDarkMode ? AppColors.bgSurface : AppColors.textPrimary,
-        border: Border(
-          bottom: BorderSide(
-            color: isDarkMode ? AppColors.bgDivider : AppColors.textSecondary,
-          ),
-        ),
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.bgDivider),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: statusColor.withValues(alpha: 0.1),
+              color: statusColor.withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
             child: Icon(
               totalClaims > 0 ? Icons.copyright : Icons.check_circle_outline,
-              color: iconColor,
+              color: statusColor,
               size: 28,
             ),
           ),
@@ -51,9 +47,11 @@ class ClaimsSummaryCard extends StatelessWidget {
                   totalClaims > 0
                       ? '$totalClaims Copyright claims'
                       : 'No copyright strikes',
-                  style: AppTextStyles.headlineSmall.copyWith(
-                    fontSize: 20,
-                    color: isDarkMode ? AppColors.textPrimary : Colors.black,
+                  style: const TextStyle(
+                    fontFamily: TWTypography.brandFamily,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -61,9 +59,10 @@ class ClaimsSummaryCard extends StatelessWidget {
                   totalClaims > 0
                       ? 'Review details to see how these affect your channel.'
                       : 'Your channel is in good standing.',
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    fontSize: 14,
-                    color: isDarkMode ? AppColors.textSecondary : Colors.black,
+                  style: const TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ],

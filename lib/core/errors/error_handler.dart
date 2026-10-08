@@ -83,13 +83,20 @@ class ErrorHandler {
         );
     }
 
-    // Record non-transient, non-info errors in Firebase Crashlytics on supported platforms
+    // Record non-transient, actionable errors in Firebase Crashlytics on supported platforms.
+    // Exclude informational/warning diagnostics and transient network drops/timeouts to prevent
+    // Crashlytics quota exhaustion and false crash metrics.
     final isCrashlyticsSupported = !kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.android ||
             defaultTargetPlatform == TargetPlatform.iOS ||
             defaultTargetPlatform == TargetPlatform.macOS);
+    final isActionableError = isFatal ||
+        appException.severity == ErrorSeverity.fatal ||
+        (appException.severity == ErrorSeverity.error &&
+            appException is! NetworkException);
+
     if (isCrashlyticsSupported &&
-        appException.severity != ErrorSeverity.info &&
+        isActionableError &&
         Firebase.apps.isNotEmpty) {
       try {
         unawaited(

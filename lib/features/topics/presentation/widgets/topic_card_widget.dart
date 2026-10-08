@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
@@ -13,7 +14,7 @@ import 'package:truthworld/features/topics/presentation/controllers/following_to
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Unified Responsive Topic Card Widget matching exact Channel Creation page fonts and theme architecture.
-/// Guarantees zero overflow errors across Mobile, Tablet, and Desktop.
+/// Guarantees zero overflow errors across Mobile, Tablet, and Desktop with dynamic aspect ratios (16:9, 1:1, etc.).
 class TopicCardWidget extends StatelessWidget {
   TopicCardWidget({
     super.key,
@@ -29,6 +30,7 @@ class TopicCardWidget extends StatelessWidget {
     this.totalItems,
     this.accentColor,
     this.trailing,
+    this.aspectRatio,
   });
 
   final Topic? topic;
@@ -43,11 +45,73 @@ class TopicCardWidget extends StatelessWidget {
   final int? totalItems;
   final Color? accentColor;
   final Widget? trailing;
+  final double? aspectRatio;
 
   final RxBool _isHovered = false.obs;
 
   FollowingTopicsController get _followingTopicsController =>
-      Get.find<FollowingTopicsController>();
+      Get.isRegistered<FollowingTopicsController>()
+          ? Get.find<FollowingTopicsController>()
+          : Get.put(FollowingTopicsController());
+
+  IconData _getCategoryIcon(String category) {
+    final cat = category.toLowerCase().trim();
+    if (cat.contains('music') ||
+        cat.contains('song') ||
+        cat.contains('worship') ||
+        cat.contains('praise') ||
+        cat.contains('audio') ||
+        cat.contains('sing')) {
+      return Icons.music_note_rounded;
+    }
+    if (cat.contains('gaming') || cat.contains('game') || cat.contains('play')) {
+      return Icons.sports_esports_rounded;
+    }
+    if (cat.contains('news') ||
+        cat.contains('politics') ||
+        cat.contains('current') ||
+        cat.contains('debate')) {
+      return Icons.newspaper_rounded;
+    }
+    if (cat.contains('tech') ||
+        cat.contains('code') ||
+        cat.contains('software') ||
+        cat.contains('ai') ||
+        cat.contains('dev')) {
+      return Icons.computer_rounded;
+    }
+    if (cat.contains('sport') ||
+        cat.contains('fitness') ||
+        cat.contains('gym') ||
+        cat.contains('workout')) {
+      return Icons.sports_soccer_rounded;
+    }
+    if (cat.contains('science') ||
+        cat.contains('space') ||
+        cat.contains('physics') ||
+        cat.contains('nature')) {
+      return Icons.science_rounded;
+    }
+    if (cat.contains('education') ||
+        cat.contains('learn') ||
+        cat.contains('study') ||
+        cat.contains('book')) {
+      return Icons.school_rounded;
+    }
+    if (cat.contains('movie') ||
+        cat.contains('film') ||
+        cat.contains('cinema') ||
+        cat.contains('entertainment')) {
+      return Icons.movie_creation_rounded;
+    }
+    if (cat.contains('business') ||
+        cat.contains('finance') ||
+        cat.contains('crypto') ||
+        cat.contains('money')) {
+      return Icons.attach_money_rounded;
+    }
+    return Icons.topic_rounded;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -77,9 +141,10 @@ class TopicCardWidget extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final hasBoundedHeight = constraints.hasBoundedHeight;
+        final effectiveAspectRatio = aspectRatio ?? (16 / 9);
 
         final Widget coverImageWidget = ClipRRect(
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -91,12 +156,85 @@ class TopicCardWidget extends StatelessWidget {
                   child: _buildCoverImage(currentTopic),
                 ),
               ),
-              if (trailing != null)
-                Positioned(
-                  top: 12,
-                  right: 12,
-                  child: trailing!,
+              // Category Pill (Top-Left)
+              Positioned(
+                top: 8,
+                left: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3.5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.7),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.18),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _getCategoryIcon(currentTopic.category),
+                        color: Colors.white,
+                        size: 11,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        currentTopic.category.isNotEmpty
+                            ? currentTopic.category
+                            : 'Topic',
+                        style: GoogleFonts.roboto(
+                          color: Colors.white,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+              ),
+              // Trailing / Video Count Pill (Top-Right)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: trailing ??
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3.5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.7),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.18),
+                          width: 0.8,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.play_arrow_rounded,
+                            color: Colors.white,
+                            size: 12,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            '${currentTopic.videoCount} ${currentTopic.videoCount == 1 ? 'video' : 'videos'}',
+                            style: GoogleFonts.roboto(
+                              color: Colors.white,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+              ),
             ],
           ),
         );
@@ -104,7 +242,7 @@ class TopicCardWidget extends StatelessWidget {
         final topPortion = hasBoundedHeight
             ? Expanded(child: coverImageWidget)
             : AspectRatio(
-                aspectRatio: 16 / 9,
+                aspectRatio: effectiveAspectRatio,
                 child: coverImageWidget,
               );
 
@@ -135,14 +273,18 @@ class TopicCardWidget extends StatelessWidget {
                 );
               }
             },
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             child: Container(
               decoration: BoxDecoration(
-                color: const Color(0xFF161618),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: const Color(0xFF27272A),
-                ),
+                color: const Color(0xFF14171F),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.35),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               clipBehavior: Clip.antiAlias,
               child: Column(
@@ -155,7 +297,10 @@ class TopicCardWidget extends StatelessWidget {
 
                   // 2. BOTTOM PORTION: Card Content (Title, Stats Line, Action Buttons Row)
                   Padding(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 11,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
@@ -163,11 +308,11 @@ class TopicCardWidget extends StatelessWidget {
                         // Title
                         Text(
                           currentTopic.title,
-                          style: const TextStyle(
-                            fontSize: 14,
+                          style: GoogleFonts.roboto(
+                            fontSize: 14.5,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
-                            height: 1.2,
+                            height: 1.25,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -178,46 +323,34 @@ class TopicCardWidget extends StatelessWidget {
                         // Stats Row (Video Count & Followers Count)
                         Row(
                           children: [
-                            const Icon(
-                              Icons.play_circle_outline_rounded,
-                              size: 12,
-                              color: Colors.white,
-                            ),
-                            const SizedBox(width: 4),
                             Text(
-                              '${FormatUtils.formatCount(currentTopic.videoCount)} Videos',
-                              style: const TextStyle(
-                                fontSize: 11,
+                              '${FormatUtils.formatCount(currentTopic.videoCount)} ${currentTopic.videoCount == 1 ? 'Video' : 'Videos'}',
+                              style: GoogleFonts.roboto(
+                                fontSize: 11.5,
                                 fontWeight: FontWeight.w500,
-                                color: AppColors.textSecondary,
+                                color: const Color(0xFF94A3B8),
                               ),
                             ),
-                            const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 6),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 5),
                               child: Text(
                                 '•',
-                                style: TextStyle(
+                                style: GoogleFonts.roboto(
                                   fontSize: 10,
-                                  color: AppColors.textTertiary,
+                                  color: const Color(0xFF64748B),
                                 ),
                               ),
                             ),
-                            const Icon(
-                              Icons.people_outline_rounded,
-                              size: 12,
-                              color: Colors.white,
-                            ),
-                            const SizedBox(width: 4),
                             Expanded(
                               child: Obx(() {
                                 final count = _followingTopicsController
                                     .getFollowerCount(currentTopic);
                                 return Text(
                                   '${FormatUtils.formatCount(count)} Followers',
-                                  style: const TextStyle(
-                                    fontSize: 11,
+                                  style: GoogleFonts.roboto(
+                                    fontSize: 11.5,
                                     fontWeight: FontWeight.w500,
-                                    color: AppColors.textSecondary,
+                                    color: const Color(0xFF94A3B8),
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -235,7 +368,7 @@ class TopicCardWidget extends StatelessWidget {
                             // Follow / Following / Edit Button
                             Expanded(
                               child: isOwner && showEditOption
-                                  ? _buildEditButton(currentTopic)
+                                  ? _buildEditButton(context, currentTopic)
                                   : _buildFollowButton(currentTopic),
                             ),
 
@@ -265,6 +398,7 @@ class TopicCardWidget extends StatelessWidget {
       return CachedNetworkImage(
         imageUrl: imageSrc,
         fit: BoxFit.cover,
+        filterQuality: FilterQuality.high,
         placeholder: (_, _) => _buildFallbackCover(),
         errorWidget: (_, _, _) => _buildFallbackCover(),
       );
@@ -277,10 +411,14 @@ class TopicCardWidget extends StatelessWidget {
   Widget _buildFallbackCover() {
     return Container(
       decoration: const BoxDecoration(
-        color: Color(0xFF18181B),
+        color: Color(0xFF0F1218),
       ),
-      child: const Center(
-        child: Icon(Icons.topic_rounded, color: Colors.white, size: 36),
+      child: Center(
+        child: Icon(
+          Icons.topic_rounded,
+          color: Colors.white.withValues(alpha: 0.4),
+          size: 36,
+        ),
       ),
     );
   }
@@ -288,7 +426,8 @@ class TopicCardWidget extends StatelessWidget {
   /// Follow Action Button
   Widget _buildFollowButton(Topic currentTopic) {
     return Obx(() {
-      final isFollowed = _followingTopicsController.isTopicFollowed(currentTopic.id);
+      final isFollowed =
+          _followingTopicsController.isTopicFollowed(currentTopic.id);
 
       return ElevatedButton.icon(
         onPressed: onFollowToggle ??
@@ -296,7 +435,7 @@ class TopicCardWidget extends StatelessWidget {
               _followingTopicsController.toggleFollowTopic(currentTopic);
             },
         icon: Icon(
-          isFollowed ? Icons.check_rounded : Icons.add_rounded,
+          isFollowed ? Icons.check_rounded : Icons.play_arrow_rounded,
           size: 14,
           color: isFollowed ? Colors.white : Colors.black,
         ),
@@ -310,18 +449,19 @@ class TopicCardWidget extends StatelessWidget {
         ),
         style: ElevatedButton.styleFrom(
           backgroundColor: isFollowed
-              ? const Color(0xFF18181B)
+              ? Colors.white.withValues(alpha: 0.15)
               : Colors.white,
           foregroundColor: isFollowed ? Colors.white : Colors.black,
           elevation: 0,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-            side: BorderSide(
-              color: isFollowed
-                  ? const Color(0xFF27272A)
-                  : Colors.transparent,
-            ),
+            borderRadius: BorderRadius.circular(20),
+            side: isFollowed
+                ? BorderSide(
+                    color: Colors.white.withValues(alpha: 0.25),
+                    width: 0.8,
+                  )
+                : BorderSide.none,
           ),
         ),
       );
@@ -329,20 +469,19 @@ class TopicCardWidget extends StatelessWidget {
   }
 
   /// Edit Action Button (for topic creator / owner)
-  Widget _buildEditButton(Topic currentTopic) {
+  Widget _buildEditButton(BuildContext context, Topic currentTopic) {
     return ElevatedButton.icon(
       onPressed: () {
         final topicManagementController = Get.isRegistered<TopicManagementController>()
             ? Get.find<TopicManagementController>()
             : Get.put(TopicManagementController());
 
-        Get.dialog(
-          EditTopicDialog(
-            topic: currentTopic,
-            channelId: currentTopic.channelId ?? '',
-            isDarkMode: true,
-            controller: topicManagementController,
-          ),
+        EditTopicDialog.show(
+          context: context,
+          topic: currentTopic,
+          channelId: currentTopic.channelId ?? '',
+          isDarkMode: true,
+          controller: topicManagementController,
         );
       },
       icon: const Icon(Icons.edit_rounded, size: 14, color: Colors.white),
@@ -355,13 +494,16 @@ class TopicCardWidget extends StatelessWidget {
         ),
       ),
       style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFF18181B),
+        backgroundColor: Colors.white.withValues(alpha: 0.15),
         foregroundColor: Colors.white,
         elevation: 0,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: const BorderSide(color: Color(0xFF27272A)),
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: Colors.white.withValues(alpha: 0.25),
+            width: 0.8,
+          ),
         ),
       ),
     );
@@ -370,21 +512,22 @@ class TopicCardWidget extends StatelessWidget {
   /// Share Icon Button Box
   Widget _buildShareButton(Topic currentTopic) {
     return Container(
-      width: 34,
-      height: 34,
+      width: 32,
+      height: 32,
       decoration: BoxDecoration(
-        color: const Color(0xFF18181B),
-        borderRadius: BorderRadius.circular(8),
+        color: Colors.white.withValues(alpha: 0.12),
+        shape: BoxShape.circle,
         border: Border.all(
-          color: const Color(0xFF27272A),
+          color: Colors.white.withValues(alpha: 0.18),
+          width: 0.8,
         ),
       ),
       child: IconButton(
         padding: EdgeInsets.zero,
         icon: const Icon(
-          Icons.share_outlined,
+          Icons.reply_rounded,
           color: Colors.white,
-          size: 16,
+          size: 17,
         ),
         onPressed: () {
           final topicUrl = DeepLinkService.topicUrl(currentTopic.slug);
@@ -478,6 +621,7 @@ class ResponsiveTopicGrid extends StatelessWidget {
     this.onFollowToggle,
     this.shrinkWrap = true,
     this.physics = const NeverScrollableScrollPhysics(),
+    this.aspectRatio,
   });
 
   final List<Topic> topics;
@@ -485,6 +629,7 @@ class ResponsiveTopicGrid extends StatelessWidget {
   final Function(Topic topic)? onFollowToggle;
   final bool shrinkWrap;
   final ScrollPhysics physics;
+  final double? aspectRatio;
 
   @override
   Widget build(BuildContext context) {
@@ -516,6 +661,7 @@ class ResponsiveTopicGrid extends StatelessWidget {
             final topic = topics[index];
             return TopicCardWidget(
               topic: topic,
+              aspectRatio: aspectRatio,
               onExploreTap: onExploreTap != null ? () => onExploreTap!(topic) : null,
               onFollowToggle: onFollowToggle != null ? () => onFollowToggle!(topic) : null,
             );

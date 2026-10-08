@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-
+import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/subtitles.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -35,25 +35,21 @@ class SubtitlesPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = isDarkMode ? AppColors.bgPage : AppColors.bgPage;
+    const bgColor = AppColors.bgPage;
     final surfaceColor =
-        isDarkMode ? AppColors.bgSurface : AppColors.textPrimary;
+        isDarkMode ? const Color(0xFF1E1E1E) : AppColors.bgSurface;
     final textColor =
-        isDarkMode ? AppColors.textPrimary : Colors.black;
+        isDarkMode ? AppColors.textPrimary : AppColors.textPrimary;
     final textSecondaryColor =
-        isDarkMode ? AppColors.textSecondary : Colors.black87;
+        isDarkMode ? AppColors.textSecondary : AppColors.textSecondary;
     final borderColor =
-        isDarkMode ? AppColors.bgDivider : AppColors.bgDivider;
+        isDarkMode ? AppColors.bgDivider : const Color(0xFF1E1E1E);
 
     return Scaffold(
       backgroundColor: bgColor,
       body: Obx(() {
         if (controller.isLoading) {
-          return const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.brand),
-            ),
-          );
+          return _buildSubtitlesSkeleton();
         }
 
         if (controller.isError) {
@@ -84,13 +80,14 @@ class SubtitlesPage extends StatelessWidget {
                   ElevatedButton(
                     onPressed: () => controller.onInit(),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2563EB),
-                      foregroundColor: Colors.white,
+                      backgroundColor: AppColors.brand,
+                      foregroundColor: Colors.black,
                     ),
-                    child: Text(
+                    child: const Text(
                       'Retry',
-                      style: AppTextStyles.buttonText.copyWith(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
@@ -214,9 +211,7 @@ class SubtitlesPage extends StatelessWidget {
         // Right Column: Active Video Subtitle Editor
         Expanded(
           child: ColoredBox(
-            color: isDarkMode
-                ? AppColors.bgPage
-                : const Color(0xFFF1F5F9),
+            color: AppColors.bgPage,
             child: controller.selectedVideo.value == null
                 ? SubtitlesEmptySelectionState(
                     textColor: textColor,
@@ -425,6 +420,55 @@ class SubtitlesPage extends StatelessWidget {
                 ),
         ),
       ],
+    );
+  }
+
+  Widget _buildSubtitlesSkeleton() {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFF1E1E1E),
+      highlightColor: AppColors.bgSurfaceHover,
+      child: Column(
+        children: [
+          // Top header skeleton
+          Container(
+            height: 60,
+            margin: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E1E1E),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.bgDivider),
+            ),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                // Video selector sidebar skeleton
+                Container(
+                  width: 280,
+                  margin: const EdgeInsets.only(left: 16, bottom: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E1E1E),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.bgDivider),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                // Main cues editor skeleton
+                Expanded(
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 16, bottom: 16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E1E1E),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.bgDivider),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

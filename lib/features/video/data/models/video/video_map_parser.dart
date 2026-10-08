@@ -8,9 +8,31 @@ class VideoMapParser {
   /// Parses a map of video attributes into a [Video] instance.
   static Video parse(Map<String, dynamic> data, [String? docId]) {
     final finalId = docId ?? data['id'] ?? data['videoId'] ?? '';
-    final rawVideoUrl = (data['videoUrl'] as String?) ??
-        (data['originalUrl'] as String?) ??
-        '';
+
+    String firstNonEmpty(List<dynamic> items) {
+      for (final item in items) {
+        if (item is String && item.trim().isNotEmpty) {
+          return item.trim();
+        }
+      }
+      return '';
+    }
+
+    final mediaMap = data['media'] is Map ? data['media'] as Map : null;
+    final rawVideoUrl = firstNonEmpty([
+      data['videoUrl'],
+      data['originalUrl'],
+      data['hlsUrl'],
+      data['dashUrl'],
+      data['url'],
+      data['downloadUrl'],
+      mediaMap?['videoUrl'],
+      mediaMap?['originalUrl'],
+      mediaMap?['hlsUrl'],
+      mediaMap?['dashUrl'],
+      mediaMap?['url'],
+      mediaMap?['downloadUrl'],
+    ]);
 
     // 1. Resolve adaptive resolutions with fallback
     var resolutionsList = (data['adaptiveResolutions'] as List? ?? [])
@@ -101,7 +123,12 @@ class VideoMapParser {
             ? (data['transcriptionUrl'] as String)
             : '');
 
-    final parsedThumbnailUrl = (data['thumbnailUrl'] as String?)?.trim() ?? '';
+    final parsedThumbnailUrl = firstNonEmpty([
+      data['thumbnailUrl'],
+      data['thumbnail'],
+      mediaMap?['thumbnailUrl'],
+      mediaMap?['thumbnail'],
+    ]);
     final thumbnailVariantsList =
         List<String>.from(data['thumbnailVariants'] ?? []);
     final animPreviewUrl =
@@ -190,8 +217,8 @@ class VideoMapParser {
       vTitleLowercase: data['titleLowercase'] ?? parsedTitle.toLowerCase(),
       description: data['description'] ?? '',
       moderationSummary: parsedModerationSummary,
-      originalUrl: data['originalUrl'] ?? rawVideoUrl,
-      videoUrl: data['videoUrl'] ?? rawVideoUrl,
+      originalUrl: firstNonEmpty([data['originalUrl'], rawVideoUrl]),
+      videoUrl: firstNonEmpty([data['videoUrl'], rawVideoUrl]),
       hlsUrl: parsedHlsUrl,
       dashUrl: parsedDashUrl,
       storyboardUrl: parsedStoryboardUrl,
@@ -212,10 +239,19 @@ class VideoMapParser {
           data['ownerName'] ??
           data['creatorName'] ??
           '',
-      channelAvatarUrl: data['channelAvatarUrl'] ??
-          data['ownerAvatarUrl'] ??
-          data['creatorAvatarUrl'] ??
-          '',
+      channelAvatarUrl: (data['channelImage'] as String?)?.trim().isNotEmpty == true
+          ? (data['channelImage'] as String).trim()
+          : (data['channelAvatarUrl'] as String?)?.trim().isNotEmpty == true
+              ? (data['channelAvatarUrl'] as String).trim()
+              : (data['avatarUrl'] as String?)?.trim().isNotEmpty == true
+                  ? (data['avatarUrl'] as String).trim()
+                  : (data['ownerAvatarUrl'] as String?)?.trim().isNotEmpty == true
+                      ? (data['ownerAvatarUrl'] as String).trim()
+                      : (data['creatorAvatarUrl'] as String?)?.trim().isNotEmpty == true
+                          ? (data['creatorAvatarUrl'] as String).trim()
+                          : (data['channelImageUrl'] as String?)?.trim().isNotEmpty == true
+                              ? (data['channelImageUrl'] as String).trim()
+                              : '',
       viewCount: (data['viewCount'] as num?)?.toInt() ??
           (data['views'] as num?)?.toInt() ??
           (data['stats'] is Map
@@ -232,13 +268,19 @@ class VideoMapParser {
       updatedAt: data['updatedAt'],
       status: () {
         final rawStatus = (data['status'] as String?)?.toLowerCase() ?? '';
+        final targetStatus = (data['targetStatus'] as String?)?.toLowerCase();
         final pipelineStage = ((data['aiFeatures'] is Map
                     ? data['aiFeatures']['pipelineStage']
                     : null) ??
                 data['pipelineStage'])
             ?.toString()
             .toLowerCase();
-        final isAlreadyPublished = pipelineStage == 'published' ||
+        final isAlreadyPublished = rawStatus == 'published' ||
+            rawStatus == 'ready' ||
+            rawStatus == 'active' ||
+            targetStatus == 'published' ||
+            targetStatus == 'ready' ||
+            pipelineStage == 'published' ||
             data['isPublished'] == true ||
             (data['publishedAt'] != null && data['publishedAt'] != 0);
 
@@ -256,9 +298,17 @@ class VideoMapParser {
           return VideoStatus.draft;
         }
         if (rawStatus == 'uploaded' || rawStatus == 'uploading') {
+          if (rawVideoUrl.isNotEmpty &&
+              (targetStatus == 'published' ||
+                  data['visibility']?.toString().toLowerCase() == 'public')) {
+            return VideoStatus.ready;
+          }
           return VideoStatus.uploading;
         }
         if (rawStatus == 'processing') {
+          if (rawVideoUrl.isNotEmpty || resolutionsList.isNotEmpty) {
+            return VideoStatus.ready;
+          }
           return VideoStatus.processing;
         }
         return VideoStatus.values.firstWhere(

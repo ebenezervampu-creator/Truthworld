@@ -14,9 +14,9 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart'
     as app_exceptions;
+import 'package:truthworld/core/utils/download_helper.dart';
 import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:universal_html/html.dart' as html;
 
 // ========================================================================
 // EXTENSION: Stream Retry Logic
@@ -282,14 +282,11 @@ class AppStateController extends BaseController {
   Future<void> downloadVideoToDevice(Uint8List bytes, String fileName) async {
     try {
       if (kIsWeb) {
-        final blob = html.Blob([bytes], 'video/mp4');
-        final url = html.Url.createObjectUrlFromBlob(blob);
-
-        html.AnchorElement(href: url)
-          ..setAttribute('download', fileName)
-          ..click();
-
-        html.Url.revokeObjectUrl(url);
+        await DownloadHelper.downloadBytes(
+          bytes,
+          fileName,
+          mimeType: 'video/mp4',
+        );
       } else {
         final dir = await getApplicationDocumentsDirectory();
         final file = io.File('${dir.path}/$fileName');
