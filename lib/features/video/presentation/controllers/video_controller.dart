@@ -1942,13 +1942,10 @@ class VideoController extends BaseController
 
 
     if (Get.arguments?['isAudioOnly'] == true) {
-
-
-
       isAudioOnly.value = true;
-
-
-
+    } else {
+      isAudioOnly.value = false;
+      TowerPlayerPreferences.globalAudioOnly = false;
     }
 
 

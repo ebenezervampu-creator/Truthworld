@@ -27,9 +27,48 @@ class IntelligenceIssuesSection extends StatelessWidget {
 
     final issueCards = <Widget>[];
 
-    // 1. Channel Moderation Status
+    // 1. Channel Moderation & Verification Status
     if (ch != null) {
-      if (ch.status == ChannelStatus.verificationRejected) {
+      if (ch.status == ChannelStatus.active || ch.geminiApproved == true) {
+        issueCards.add(
+          IntelligenceIssueCard(
+            title: 'Channel Approved by Truthworld',
+            description:
+                'Congratulations! Your channel details and branding are approved by Truthworld Verification System. You can now customize your channel and upload videos.',
+            statusType: 'APPROVED',
+            icon: Icons.check_circle_outline_rounded,
+            actions: [
+              ElevatedButton.icon(
+                onPressed: () => Get.toNamed('/upload'),
+                icon: const Icon(
+                  Icons.video_call_rounded,
+                  color: Colors.white,
+                  size: 15,
+                ),
+                label: const Text('Upload Video'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.success,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  textStyle: const TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontFamilyFallback: TWTypography.fallbackFamilies,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      } else if (ch.status == ChannelStatus.verificationRejected) {
         issueCards.add(
           IntelligenceIssueCard(
             title: 'Channel Branding Verification Rejected',
@@ -78,7 +117,8 @@ class IntelligenceIssuesSection extends StatelessWidget {
             ],
           ),
         );
-      } else if (ch.status == ChannelStatus.underReview) {
+      } else if (ch.status == ChannelStatus.underReview ||
+          ch.status == ChannelStatus.verificationPending) {
         issueCards.add(
           const IntelligenceIssueCard(
             title: 'Channel Branding Under Verification Review',
@@ -87,6 +127,31 @@ class IntelligenceIssuesSection extends StatelessWidget {
             statusType: 'PENDING',
             icon: Icons.sync_rounded,
             isLoading: true,
+          ),
+        );
+      } else if (ch.status == ChannelStatus.suspended) {
+        issueCards.add(
+          IntelligenceIssueCard(
+            title: 'Channel Suspended by Truthworld',
+            description: ch.moderationReason != null &&
+                    ch.moderationReason!.isNotEmpty
+                ? 'Truthworld Moderation Reason: ${ch.moderationReason}'
+                : 'Your channel has been suspended due to violations of Truthworld Community Guidelines.',
+            statusType: 'REJECTED',
+            icon: Icons.block_rounded,
+          ),
+        );
+      }
+
+      if (ch.infraConfig?.isWithdrawalHeld == true) {
+        issueCards.add(
+          IntelligenceIssueCard(
+            title: 'Creator Payouts On Hold by Truthworld',
+            description: ch.infraConfig!.withdrawalHoldReason.isNotEmpty
+                ? ch.infraConfig!.withdrawalHoldReason
+                : 'Creator earnings withdrawals are temporarily paused for review by Truthworld Trust & Safety.',
+            statusType: 'FLAGGED',
+            icon: Icons.pause_circle_outline_rounded,
           ),
         );
       }
@@ -158,6 +223,27 @@ class IntelligenceIssuesSection extends StatelessWidget {
 
     if (issueCards.isEmpty) return const SizedBox.shrink();
 
+    final hasUrgentIssue = (ch != null &&
+            (ch.status == ChannelStatus.verificationRejected ||
+                ch.avatarStatus == 'REJECTED' ||
+                ch.avatarStatus == 'FLAGGED' ||
+                ch.bannerStatus == 'REJECTED' ||
+                ch.bannerStatus == 'FLAGGED')) ||
+        copyrightCount > 0;
+
+    final headerColor = hasUrgentIssue ? AppColors.error : AppColors.brand;
+    final headerBg = hasUrgentIssue ? AppColors.errorContainer : AppColors.infoContainer;
+    final headerBorder = hasUrgentIssue
+        ? AppColors.error.withValues(alpha: 0.4)
+        : AppColors.brand.withValues(alpha: 0.4);
+    final headerIcon = hasUrgentIssue ? Icons.gavel_rounded : Icons.verified_rounded;
+    final headerTitle = hasUrgentIssue
+        ? 'TRUTHWORLD AUDITS & ACTION REQUIRED'
+        : 'TRUTHWORLD CHANNEL NOTICES & UPDATES';
+    final headerSubtitle = hasUrgentIssue
+        ? 'Real-time verification flags, moderation notices & policy health'
+        : 'Official verification status, branding updates & channel notices';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       padding: const EdgeInsets.all(18),
@@ -165,7 +251,9 @@ class IntelligenceIssuesSection extends StatelessWidget {
         color: AppColors.bgSurface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: AppColors.error.withValues(alpha: 0.5),
+          color: hasUrgentIssue
+              ? AppColors.error.withValues(alpha: 0.5)
+              : AppColors.brand.withValues(alpha: 0.4),
         ),
       ),
       child: Column(
@@ -176,38 +264,36 @@ class IntelligenceIssuesSection extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.errorContainer,
+                  color: headerBg,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: AppColors.error.withValues(alpha: 0.4),
-                  ),
+                  border: Border.all(color: headerBorder),
                 ),
-                child: const Icon(
-                  Icons.gavel_rounded,
+                child: Icon(
+                  headerIcon,
                   color: Colors.white,
                   size: 18,
                 ),
               ),
               const SizedBox(width: 12),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'TRUTHWORLD AUDITS & ACTIVE NOTICES',
+                      headerTitle,
                       style: TextStyle(
                         fontFamily: TWTypography.uiFamily,
                         fontFamilyFallback: TWTypography.fallbackFamilies,
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 1.1,
-                        color: AppColors.error,
+                        color: headerColor,
                       ),
                     ),
-                    SizedBox(height: 2),
+                    const SizedBox(height: 2),
                     Text(
-                      'Real-time verification flags, moderation notices & policy health',
-                      style: TextStyle(
+                      headerSubtitle,
+                      style: const TextStyle(
                         fontFamily: TWTypography.uiFamily,
                         fontFamilyFallback: TWTypography.fallbackFamilies,
                         fontSize: 12,

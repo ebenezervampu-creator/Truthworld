@@ -407,6 +407,19 @@
       console.error('[Truthworld Web Boot Error]', e.error || e.message);
     });
     window.addEventListener('unhandledrejection', function(e) {
+      var reasonStr = (e && e.reason) ? (e.reason.message || String(e.reason)) : '';
+      var nameStr = (e && e.reason && e.reason.name) ? String(e.reason.name) : '';
+      // Ignore benign media element interruptions / autoplay restrictions
+      if (nameStr === 'AbortError' ||
+          nameStr === 'NotAllowedError' ||
+          reasonStr.indexOf('The play() request was interrupted') !== -1 ||
+          reasonStr.indexOf('play() request was interrupted') !== -1 ||
+          reasonStr.indexOf('interrupted by a call to pause()') !== -1 ||
+          reasonStr.indexOf('interrupted by a new load request') !== -1 ||
+          reasonStr.indexOf('removed from the document') !== -1 ||
+          reasonStr.indexOf('user gesture') !== -1) {
+        return;
+      }
       console.error('[Truthworld Web Unhandled Rejection]', e.reason);
     });
 
@@ -885,294 +898,34 @@
   </script>
 
   <!-- ─────────────────────────────────────────────────────────────────────
-       Low-Latency Content-Aware Skeleton Pre-Render (YouTube-style)
+       Mobile Splash Screen (Android & iOS Only)
        ─────────────────────────────────────────────────────────────────────
-       Runs synchronously for ALL users (desktop + mobile "Continue in browser").
-       Detects the URL type and instantly paints a matching shimmer skeleton
-       BEFORE Flutter's CanvasKit WASM downloads. Flutter mounts on top naturally.
+       Removed splash screen and entire pre-rendered UI for Desktops.
+       Only mobile devices (Android & iOS) display a splash screen while
+       Flutter boots.
        ───────────────────────────────────────────────────────────────────── -->
   <script>
     (function () {
       'use strict';
 
-      // ── URL classification ─────────────────────────────────────────────
-      var pn   = window.location.pathname;
-      var qs   = window.location.search;
-      var segs = pn.split('/').filter(Boolean);
-      var seg0 = segs[0] ? segs[0].toLowerCase() : '';
-      var host = (window.location.hostname || '').toLowerCase();
+      // ── Platform check: Mobiles (Android, iOS) only ─────────────────────
+      var ua = navigator.userAgent || '';
+      var isAndroid = /Android/i.test(ua);
+      var isIOS     = /iPhone|iPad|iPod/i.test(ua);
+      var isMobileDevice = isAndroid || isIOS;
 
-      var isStudio = seg0 === 'studio' || host.startsWith('studio');
-      var isHome   = seg0 === '' || seg0 === 'home';
+      // Desktops: Do NOT show splash screen or entire UI
+      if (!isMobileDevice) return;
 
-      var isVideo    = seg0 === 'watch' || seg0 === 'v' || seg0 === 'shorts' ||
-                       seg0 === 'clip' || seg0 === 'clips' ||
-                       seg0 === 'chapter' || seg0 === 'chapters' ||
-                       (pn === '/watch' && qs.indexOf('v=') !== -1);
-      var isChannel  = seg0 === 'channel' || seg0 === 'c' || seg0 === 'user' ||
-                       (segs[0] && segs[0].startsWith('@')) ||
-                       (segs.length === 1 && !isVideo &&
-                        !['home','trending','browse','search','settings','about',
-                          'privacy','terms','studio','admin','upload','notifications',
-                          'library','history','likedvideos','watchlater',
-                          'subscriptions','advertisements','advertiser','ads',
-                          'explore','login','signup'].includes(seg0));
-      var isPlaylist = seg0 === 'playlist';
-      var isTopic    = seg0 === 't' || seg0 === 'topic' || seg0 === 'topics' || seg0 === 'T'.toLowerCase();
-
-      var hasSkeleton = !isHome && !isStudio && (isVideo || isChannel || isPlaylist || isTopic);
-
-      // ── Shared shimmer keyframe (injected only when a matching skeleton exists) ───
-      if (hasSkeleton) {
-        var styleEl = document.createElement('style');
-        styleEl.textContent = [
-          '@keyframes tw-shimmer{0%{background-position:-800px 0}100%{background-position:800px 0}}',
-          '.tw-sk{',
-            'background:linear-gradient(90deg,#1a1a2e 25%,#23234a 50%,#1a1a2e 75%);',
-            'background-size:800px 100%;',
-            'animation:tw-shimmer 1.4s infinite linear;',
-            'border-radius:4px;',
-          '}',
-          '.tw-sk-r8{border-radius:8px}',
-          '.tw-sk-r50{border-radius:50%}',
-          '.tw-sk-r12{border-radius:12px}',
-          /* Topnav */
-          '#tw-pre-sk{',
-            'position:fixed;inset:0;background:#0D0014;',
-            'display:flex;flex-direction:column;',
-            'overflow:hidden;z-index:1;',
-            'font-family:Roboto,-apple-system,sans-serif;',
-          '}',
-          '#tw-sk-nav{',
-            'height:56px;min-height:56px;',
-            'background:#0D0014;',
-            'border-bottom:1px solid rgba(255,255,255,0.06);',
-            'display:flex;align-items:center;',
-            'padding:0 20px;gap:16px;flex-shrink:0;',
-          '}',
-          '#tw-sk-body{flex:1;overflow:hidden;display:flex;}',
-        ].join('');
-        document.head.appendChild(styleEl);
-      }
-
-      // ── Shared nav skeleton ────────────────────────────────────────────
-      function nav() {
-        return '<div id="tw-sk-nav">' +
-          // Logo
-          '<div class="tw-sk tw-sk-r4" style="width:120px;height:22px;flex-shrink:0"></div>' +
-          '<div style="flex:1"></div>' +
-          // Search
-          '<div class="tw-sk tw-sk-r50" style="width:32px;height:32px;flex-shrink:0"></div>' +
-          '<div class="tw-sk tw-sk-r50" style="width:32px;height:32px;flex-shrink:0"></div>' +
-        '</div>';
-      }
-
-      // ── Shimmer rect helper ────────────────────────────────────────────
-      function sk(w, h, r, extra) {
-        r = r || '';
-        extra = extra || '';
-        return '<div class="tw-sk' + (r ? ' tw-sk-' + r : '') + '" ' +
-               'style="width:' + w + ';height:' + h + ';flex-shrink:0;' + extra + '"></div>';
-      }
-
-      // ── Video player skeleton ──────────────────────────────────────────
-      function videoSkeleton() {
-        var isMobile = window.innerWidth < 768;
-        if (isMobile) {
-          return '<div style="display:flex;flex-direction:column;width:100%;">' +
-            // Video area 16:9
-            '<div class="tw-sk" style="width:100%;padding-top:56.25%;border-radius:0;flex-shrink:0"></div>' +
-            '<div style="padding:16px;display:flex;flex-direction:column;gap:12px;">' +
-              // Title
-              sk('92%', '20px', 'r8') +
-              sk('70%', '20px', 'r8') +
-              // Meta row
-              '<div style="display:flex;gap:12px;align-items:center;margin-top:4px;">' +
-                sk('60px', '14px', 'r8') +
-                sk('4px', '14px') +
-                sk('80px', '14px', 'r8') +
-              '</div>' +
-              // Channel row
-              '<div style="display:flex;gap:12px;align-items:center;margin-top:8px;">' +
-                sk('40px', '40px', 'r50') +
-                '<div style="flex:1;display:flex;flex-direction:column;gap:6px;">' +
-                  sk('140px', '14px', 'r8') +
-                  sk('90px', '12px', 'r8') +
-                '</div>' +
-                sk('90px', '34px', 'r12') +
-              '</div>' +
-            '</div>' +
-          '</div>';
-        }
-        return '<div style="display:flex;width:100%;height:100%;gap:0;">' +
-          // Main column
-          '<div style="flex:1;min-width:0;padding:20px 24px;display:flex;flex-direction:column;gap:16px;overflow:hidden;">' +
-            // Player
-            '<div class="tw-sk" style="width:100%;padding-top:56.25%;border-radius:8px;flex-shrink:0"></div>' +
-            // Title
-            sk('88%', '24px', 'r8', 'margin-top:4px;') +
-            sk('60%', '24px', 'r8') +
-            // Meta + channel
-            '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">' +
-              '<div style="display:flex;gap:12px;align-items:center;">' +
-                sk('50px', '14px', 'r8') +
-                sk('100px', '14px', 'r8') +
-              '</div>' +
-              '<div style="display:flex;gap:8px;">' +
-                sk('80px', '34px', 'r12') +
-                sk('80px', '34px', 'r12') +
-                sk('80px', '34px', 'r12') +
-              '</div>' +
-            '</div>' +
-            '<div style="display:flex;gap:12px;align-items:center;padding:12px 0;border-top:1px solid rgba(255,255,255,0.06);border-bottom:1px solid rgba(255,255,255,0.06);">' +
-              sk('48px', '48px', 'r50') +
-              '<div style="flex:1;display:flex;flex-direction:column;gap:6px;">' +
-                sk('180px', '16px', 'r8') +
-                sk('110px', '13px', 'r8') +
-              '</div>' +
-              sk('110px', '36px', 'r12') +
-            '</div>' +
-            // Description
-            sk('100%', '14px', 'r8') +
-            sk('96%', '14px', 'r8') +
-            sk('80%', '14px', 'r8') +
-          '</div>' +
-          // Sidebar
-          '<div style="width:402px;min-width:402px;padding:20px 24px 20px 0;display:flex;flex-direction:column;gap:4px;overflow:hidden;">' +
-            _videoCardList(8) +
-          '</div>' +
-        '</div>';
-      }
-
-      // ── Small video card rows (for sidebar / feed) ─────────────────────
-      function _videoCardList(count) {
-        var html = '';
-        for (var i = 0; i < count; i++) {
-          html += '<div style="display:flex;gap:8px;margin-bottom:8px;">' +
-            sk('168px', '94px', 'r8', 'flex-shrink:0;') +
-            '<div style="flex:1;display:flex;flex-direction:column;gap:6px;padding-top:2px;">' +
-              sk('100%', '14px', 'r8') +
-              sk('85%', '14px', 'r8') +
-              sk('60%', '12px', 'r8', 'margin-top:2px;') +
-              sk('50%', '12px', 'r8') +
-            '</div>' +
-          '</div>';
-        }
-        return html;
-      }
-
-      // ── Grid video card (for feed/channel/home) ────────────────────────
-      function _videoGrid(count, cols) {
-        cols = cols || (window.innerWidth < 600 ? 1 : window.innerWidth < 900 ? 2 : window.innerWidth < 1200 ? 3 : 4);
-        var pct = (100 / cols) + '%';
-        var html = '<div style="display:flex;flex-wrap:wrap;gap:16px;padding:16px 0;">';
-        for (var i = 0; i < count; i++) {
-          var aspPct = (1 / 1.777 * 100) + '%'; // 16:9 aspect
-          html += '<div style="width:calc(' + pct + ' - ' + Math.ceil(16 * (cols - 1) / cols) + 'px);flex-shrink:0;">' +
-            '<div class="tw-sk tw-sk-r8" style="width:100%;padding-top:' + aspPct + ';margin-bottom:12px;"></div>' +
-            '<div style="display:flex;gap:10px;">' +
-              sk('36px', '36px', 'r50', 'flex-shrink:0;') +
-              '<div style="flex:1;display:flex;flex-direction:column;gap:6px;">' +
-                sk('100%', '15px', 'r8') +
-                sk('80%', '15px', 'r8') +
-                sk('55%', '12px', 'r8', 'margin-top:2px;') +
-              '</div>' +
-            '</div>' +
-          '</div>';
-        }
-        html += '</div>';
-        return html;
-      }
-
-      // ── Channel skeleton ───────────────────────────────────────────────
-      function channelSkeleton() {
-        var isMobile = window.innerWidth < 768;
-        var pad = isMobile ? '0 16px' : '0 24px';
-        return '<div style="display:flex;flex-direction:column;width:100%;overflow-y:auto;">' +
-          // Banner
-          '<div class="tw-sk" style="width:100%;height:' + (isMobile ? '100px' : '176px') + ';border-radius:0;flex-shrink:0;"></div>' +
-          '<div style="padding:' + pad + ';display:flex;flex-direction:column;gap:0;">' +
-            // Avatar + info row
-            '<div style="display:flex;align-items:flex-end;gap:16px;margin-top:' + (isMobile ? '-24px' : '-40px') + ';margin-bottom:16px;">' +
-              sk(isMobile ? '72px' : '120px', isMobile ? '72px' : '120px', 'r50', 'flex-shrink:0;border:3px solid #0D0014;') +
-              '<div style="flex:1;display:flex;flex-direction:column;gap:8px;padding-bottom:4px;">' +
-                sk('200px', isMobile ? '18px' : '24px', 'r8') +
-                sk('130px', '14px', 'r8') +
-                sk('180px', '13px', 'r8') +
-              '</div>' +
-              (!isMobile ? sk('110px', '36px', 'r12') : '') +
-            '</div>' +
-            // Tabs
-            '<div style="display:flex;gap:4px;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:0;margin-bottom:20px;">' +
-              sk('60px', '36px', 'r8') + sk('60px', '36px', 'r8') +
-              sk('60px', '36px', 'r8') + sk('60px', '36px', 'r8') +
-            '</div>' +
-            // Video grid
-            _videoGrid(isMobile ? 4 : 12) +
-          '</div>' +
-        '</div>';
-      }
-
-      // ── Playlist skeleton ──────────────────────────────────────────────
-      function playlistSkeleton() {
-        var isMobile = window.innerWidth < 768;
-        if (isMobile) {
-          return '<div style="display:flex;flex-direction:column;width:100%;padding:16px;gap:16px;overflow-y:auto;">' +
-            sk('100%', '200px', 'r8') +
-            sk('80%', '22px', 'r8') +
-            sk('55%', '16px', 'r8') +
-            '<div style="display:flex;flex-direction:column;gap:12px;margin-top:8px;">' +
-              _videoCardList(6) +
-            '</div>' +
-          '</div>';
-        }
-        return '<div style="display:flex;width:100%;height:100%;overflow:hidden;">' +
-          '<div style="width:340px;min-width:340px;padding:20px;display:flex;flex-direction:column;gap:12px;border-right:1px solid rgba(255,255,255,0.06);">' +
-            sk('100%', '200px', 'r8') +
-            sk('90%', '22px', 'r8', 'margin-top:4px;') +
-            sk('65%', '16px', 'r8') +
-            sk('50%', '14px', 'r8') +
-            sk('100%', '40px', 'r12', 'margin-top:8px;') +
-          '</div>' +
-          '<div style="flex:1;padding:20px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;">' +
-            _videoCardList(10) +
-          '</div>' +
-        '</div>';
-      }
-
-      // ── Topic skeleton ─────────────────────────────────────────────────
-      function topicSkeleton() {
-        var isMobile = window.innerWidth < 768;
-        var pad = isMobile ? '16px' : '24px';
-        return '<div style="display:flex;flex-direction:column;width:100%;overflow-y:auto;">' +
-          '<div class="tw-sk" style="width:100%;height:' + (isMobile ? '140px' : '220px') + ';border-radius:0;"></div>' +
-          '<div style="padding:' + pad + ';display:flex;flex-direction:column;gap:16px;">' +
-            sk('260px', '28px', 'r8') +
-            sk('180px', '16px', 'r8') +
-            _videoGrid(isMobile ? 4 : 12) +
-          '</div>' +
-        '</div>';
-      }
-
-      // ── Render skeleton into body ──────────────────────────────────────
-      var skBody = hasSkeleton
-        ? (isVideo    ? videoSkeleton()    :
-           isChannel  ? channelSkeleton()  :
-           isPlaylist ? playlistSkeleton() :
-           isTopic    ? topicSkeleton()    :
-                        null)
-        : null;
+      var preLoader = document.createElement('div');
+      preLoader.id = 'tw-pre-loader';
+      preLoader.style.cssText = 'position:fixed;inset:0;background:#0D0014;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999998;';
+      preLoader.innerHTML = '<img src="/icons/Icon-192.png" alt="Truthworld" style="width:72px;height:72px;border-radius:18px;margin-bottom:20px;box-shadow:0 8px 32px rgba(0,0,0,0.6);" onerror="this.style.display=\'none\'">' +
+        '<div style="width:28px;height:28px;border:2.5px solid rgba(255,255,255,0.15);border-top-color:#ffffff;border-radius:50%;animation:tw-loader-spin 0.8s linear infinite;"></div>' +
+        '<style>@keyframes tw-loader-spin{to{transform:rotate(360deg)}}</style>';
+      document.body.insertBefore(preLoader, document.body.firstChild);
 
       function removePreElements() {
-        var sk = document.getElementById('tw-pre-sk');
-        if (sk) {
-          sk.style.transition = 'opacity 0.2s ease';
-          sk.style.opacity = '0';
-          setTimeout(function () {
-            var el = document.getElementById('tw-pre-sk');
-            if (el && el.parentNode) { el.parentNode.removeChild(el); }
-          }, 220);
-        }
         var loader = document.getElementById('tw-pre-loader');
         if (loader) {
           loader.style.transition = 'opacity 0.2s ease';
@@ -1184,24 +937,6 @@
         }
       }
 
-      if (skBody) {
-        var skRoot = document.createElement('div');
-        skRoot.id = 'tw-pre-sk';
-        skRoot.innerHTML = nav() + '<div id="tw-sk-body">' + skBody + '</div>';
-        document.body.insertBefore(skRoot, document.body.firstChild);
-      } else {
-        var preLoader = document.createElement('div');
-        preLoader.id = 'tw-pre-loader';
-        preLoader.style.cssText = 'position:fixed;inset:0;background:#0D0014;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999998;';
-        preLoader.innerHTML = '<img src="/icons/Icon-192.png" alt="Truthworld" style="width:72px;height:72px;border-radius:18px;margin-bottom:20px;box-shadow:0 8px 32px rgba(0,0,0,0.6);" onerror="this.style.display=\'none\'">' +
-          '<div style="width:28px;height:28px;border:2.5px solid rgba(255,255,255,0.15);border-top-color:#ffffff;border-radius:50%;animation:tw-loader-spin 0.8s linear infinite;"></div>' +
-          '<style>@keyframes tw-loader-spin{to{transform:rotate(360deg)}}</style>';
-        document.body.insertBefore(preLoader, document.body.firstChild);
-      }
-
-      // ── Remove pre-loader/skeleton once Flutter mounts ───────────────────
-      // Flutter renders into a <flt-glass-pane> or <flutter-view> element.
-      // We watch for it and fade out the skeleton or loader.
       var observer = new MutationObserver(function (mutations) {
         for (var m = 0; m < mutations.length; m++) {
           var nodes = mutations[m].addedNodes;
@@ -1221,13 +956,11 @@
       });
       observer.observe(document.body, { childList: true, subtree: true });
 
-      // Immediate check in case Flutter view mounted synchronously or early
       if (document.querySelector('flt-glass-pane, flutter-view, canvas, #flutter_target')) {
         observer.disconnect();
         removePreElements();
       }
 
-      // Safety fallback: remove skeleton/loader after 12s regardless
       setTimeout(function () {
         observer.disconnect();
         removePreElements();

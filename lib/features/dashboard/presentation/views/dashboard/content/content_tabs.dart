@@ -7,6 +7,7 @@ import 'package:truthworld/features/dashboard/presentation/views/dashboard/conte
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/content/draft_scheduled_cards.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/content/video_content_card.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/drafts_screen.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/trash_restore_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -609,6 +610,27 @@ class ScheduledTab extends StatelessWidget {
       );
     });
   }
+}
 
+class TrashTab extends StatelessWidget {
+  const TrashTab({
+    required this.channelId,
+    required this.isDarkMode,
+    this.searchQuery = '',
+    super.key,
+  });
 
+  final String channelId;
+  final bool isDarkMode;
+  final String searchQuery;
+
+  @override
+  Widget build(BuildContext context) {
+    return TrashRestoreScreen(
+      channelId: channelId,
+      isDarkMode: isDarkMode,
+      searchQuery: searchQuery,
+      showBackButton: false,
+    );
+  }
 }

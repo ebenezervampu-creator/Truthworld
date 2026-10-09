@@ -587,7 +587,7 @@ class StudioSettingsPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Are you sure you want to delete "$channelName"? This action cannot be undone.',
+              'Are you sure you want to delete "$channelName"? Your channel will be hidden immediately and scheduled for deletion with a 30-day grace period. You can cancel the deletion anytime in Studio. After 30 days, your channel and all content will be deleted completely.',
               style: TextStyle(
                 fontFamily: TWTypography.uiFamily,
                 color: context.colors.textPrimary,

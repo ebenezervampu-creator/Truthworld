@@ -93,6 +93,109 @@ export interface CashfreeSubscriptionResponse {
 }
 
 export class CashfreeService {
+  /**
+   * Cashfree strictly restricts 9 countries in compliance with international
+   * sanctions and regulatory frameworks.
+   */
+  public static readonly RESTRICTED_COUNTRIES = new Set<string>([
+    "AF", "BY", "CU", "IR", "IQ", "PK", "RU", "SD", "SY",
+  ]);
+
+  /**
+   * 140+ currencies supported by Cashfree International Payment Gateway.
+   */
+  public static readonly SUPPORTED_CURRENCIES = new Set<string>([
+    "INR", "USD", "EUR", "GBP", "AUD", "CAD", "SGD", "AED", "SAR", "QAR",
+    "JPY", "CHF", "NZD", "ZAR", "BRL", "MYR", "THB", "SEK", "NOK", "DKK",
+    "HKD", "PLN", "MXN", "PHP", "IDR", "VND", "KRW", "KWD", "BHD", "OMR",
+    "ILS", "CLP", "COP", "PEN", "ARS", "EGP", "NGN", "KES", "GHS", "TRY",
+    "CZK", "HUF", "RON", "BGN", "HRK", "ISK", "TWD", "BDT", "LKR", "NPR",
+    "MAD", "DZD", "TND", "JOD", "LBP", "BAM", "RSD", "UAH", "KZT", "AZN",
+    "GEL", "AMD", "MNT", "UZS", "BOB", "CRC", "DOP", "GTQ", "HNL", "NIO",
+    "PAB", "PYG", "UYU", "TTD", "JMD", "BBD", "BSD", "BZD", "XCD", "FJD",
+    "PGK", "WST", "TOP", "VUV", "SBD", "MUR", "SCR", "BWP", "NAD", "SZL",
+    "LSL", "MZN", "AOA", "ZMW", "RWF", "UGX", "TZS", "ETB", "DJF", "MGA",
+    "MWK", "GMD", "SLL", "LRD", "GNF", "CVE", "STN", "XOF", "XAF", "CDF",
+    "KMF", "BIF", "BND", "KHR", "LAK", "MMK", "MOP", "MDL", "ALL", "MKD",
+    "BMD", "KYD", "GIP", "FKP", "SHP", "AWG", "ANG", "SRD", "GYD", "HTG",
+  ]);
+
+  public static readonly ZERO_DECIMAL_CURRENCIES = new Set<string>([
+    "JPY", "KRW", "VND", "IDR", "CLP", "PYG", "UGX", "RWF", "BIF", "DJF",
+    "GNF", "KMF", "MGA", "VUV", "XAF", "XOF",
+  ]);
+
+  public static isRestrictedCountry(countryCode?: string): boolean {
+    if (!countryCode) return false;
+    const clean = countryCode.trim().toUpperCase();
+    return this.RESTRICTED_COUNTRIES.has(clean);
+  }
+
+  public static isCountrySupported(countryCode?: string): boolean {
+    if (!countryCode) return true;
+    return !this.isRestrictedCountry(countryCode);
+  }
+
+  public static isCurrencySupported(currency?: string): boolean {
+    if (!currency) return false;
+    return this.SUPPORTED_CURRENCIES.has(currency.trim().toUpperCase());
+  }
+
+  public static isZeroDecimalCurrency(currency?: string): boolean {
+    if (!currency) return false;
+    return this.ZERO_DECIMAL_CURRENCIES.has(currency.trim().toUpperCase());
+  }
+
+  public static getMinimumAmount(currency?: string): number {
+    const cur = (currency || "INR").trim().toUpperCase();
+    if (cur === "INR") return 1.0;
+    if (this.isZeroDecimalCurrency(cur)) return 50.0;
+    return 0.50;
+  }
+
+  public static getCurrencySymbol(currency?: string): string {
+    const cur = (currency || "INR").trim().toUpperCase();
+    const symbols: Record<string, string> = {
+      INR: "₹",
+      USD: "$",
+      EUR: "€",
+      GBP: "£",
+      CAD: "CA$",
+      AUD: "A$",
+      SGD: "S$",
+      AED: "AED",
+      SAR: "SAR",
+      QAR: "QAR",
+      JPY: "¥",
+      CHF: "CHF",
+      NZD: "NZ$",
+      ZAR: "R",
+      BRL: "R$",
+      MYR: "RM",
+      THB: "฿",
+      SEK: "kr",
+      NOK: "kr",
+      DKK: "kr.",
+      HKD: "HK$",
+      PLN: "zł",
+      MXN: "MX$",
+      PHP: "₱",
+      IDR: "Rp",
+      VND: "₫",
+      KRW: "₩",
+    };
+    return symbols[cur] || cur;
+  }
+
+  public static formatCurrencyAmount(amount: number, currency?: string): string {
+    const cur = (currency || "INR").trim().toUpperCase();
+    const sym = this.getCurrencySymbol(cur);
+    if (this.isZeroDecimalCurrency(cur)) {
+      return `${sym}${Math.round(amount)}`;
+    }
+    return `${sym}${amount.toFixed(2)}`;
+  }
+
   private static getEnvironment(): "SANDBOX" | "PRODUCTION" {
     if (process.env.CASHFREE_ENV) {
       return process.env.CASHFREE_ENV.toUpperCase() === "PRODUCTION"
@@ -165,10 +268,16 @@ export class CashfreeService {
       console.warn("[CashfreeService] Warning: CASHFREE_APP_ID or CASHFREE_SECRET_KEY not set. Using sandbox fallback headers.");
     }
 
+    const currency = (params.orderCurrency || "INR").trim().toUpperCase();
+    const isZeroDec = this.isZeroDecimalCurrency(currency);
+    const orderAmount = isZeroDec
+      ? Math.round(params.orderAmount)
+      : Math.round(params.orderAmount * 100) / 100;
+
     const payload = {
       order_id: params.orderId,
-      order_amount: Math.round(params.orderAmount * 100) / 100,
-      order_currency: params.orderCurrency || "INR",
+      order_amount: orderAmount,
+      order_currency: currency,
       customer_details: {
         customer_id: this.cleanCustomerId(params.customerDetails.customer_id),
         customer_name: params.customerDetails.customer_name || "TruthWorld User",
@@ -176,7 +285,7 @@ export class CashfreeService {
         customer_phone: this.cleanPhoneNumber(params.customerDetails.customer_phone),
       },
       order_meta: {
-        return_url: params.orderMeta?.return_url || "https://www.truthworld.in/checkout?action=result&order_id={order_id}",
+        return_url: params.orderMeta?.return_url || "https://www.truthworld.in/payment-result?order_id={order_id}",
         notify_url: params.orderMeta?.notify_url,
       },
       order_note: String(params.orderNote || "TruthWorld Payment").replace(/[()]/g, "").substring(0, 200),
@@ -251,7 +360,7 @@ export class CashfreeService {
         customer_name: params.customerDetails.customer_name || "TruthWorld User",
       },
       link_meta: {
-        return_url: params.returnUrl || "https://www.truthworld.in/checkout?action=result&order_id={order_id}",
+        return_url: params.returnUrl || "https://www.truthworld.in/payment-result?order_id={order_id}",
         notify_url: params.notifyUrl,
       },
       link_notify: {
@@ -396,7 +505,7 @@ export class CashfreeService {
         plan_id: cleanPlanId,
       },
       subscription_meta: {
-        return_url: params.returnUrl || "https://www.truthworld.in/checkout?action=result&subscription_id={subscription_id}",
+        return_url: params.returnUrl || "https://www.truthworld.in/payment-result?subscription_id={subscription_id}",
         notify_url: params.notifyUrl,
       },
       authorization_details: {

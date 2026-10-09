@@ -399,4 +399,79 @@ class DistributedCounterService extends GetxService {
       return 0;
     }
   }
+
+  /// Atomically increments or decrements a randomly selected shard for channel subscribers.
+  ///
+  /// Distributes high-velocity subscription bursts across [numShards] sub-counters,
+  /// preventing write contention and transaction aborts when 100M channels receive viral subscription spikes.
+  Future<void> updateChannelSubscribers({
+    required String channelId,
+    required int delta,
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    if (channelId.trim().isEmpty || delta == 0) return;
+
+    try {
+      final shardId = _random.nextInt(numShards).toString();
+      final shardRef = _firestore
+          .collection(FirestoreCollections.channels)
+          .doc(channelId)
+          .collection('shards')
+          .doc(shardId);
+
+      await shardRef.set({
+        'subscriberDelta': FieldValue.increment(delta),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true)).timeout(timeout);
+
+      // Best-effort atomic increment on parent channel document for immediate O(1) UI reads
+      _firestore
+          .collection(FirestoreCollections.channels)
+          .doc(channelId)
+          .update({
+            'subscriberCount': FieldValue.increment(delta),
+            'lastActiveAt': FieldValue.serverTimestamp(),
+          })
+          .catchError((e, s) {
+            ErrorHandler.log(
+              e,
+              stackTrace: s,
+              tag: 'DistributedCounterService.channelParentSubscriberCount',
+            );
+          });
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'DistributedCounterService.updateChannelSubscribers',
+      );
+    }
+  }
+
+  /// Calculates total real-time subscriber count delta for a channel across all shards.
+  Future<int> getRealtimeChannelSubscriberDelta(String channelId) async {
+    if (channelId.trim().isEmpty) return 0;
+
+    try {
+      final snapshot = await _firestore
+          .collection(FirestoreCollections.channels)
+          .doc(channelId)
+          .collection('shards')
+          .get();
+
+      var total = 0;
+      for (final doc in snapshot.docs) {
+        final delta = (doc.data()['subscriberDelta'] as num?)?.toInt() ?? 0;
+        total += delta;
+      }
+      return total;
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'DistributedCounterService.getRealtimeChannelSubscriberDelta',
+      );
+      return 0;
+    }
+  }
 }

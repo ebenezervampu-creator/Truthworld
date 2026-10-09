@@ -24,6 +24,15 @@ mixin RevenueAnalyticsPayoutMixin on RevenueAnalyticsStateBase {
       return false;
     }
 
+    // Monthly Payout Window Gate (1st Day + 1-Day Grace on Day 2)
+    if (!isTodayPayoutDay) {
+      AppSnackbar.warning(
+        'Revenue withdrawals are only permitted during the monthly payout window (1st and 2nd of every month). Your balance safely rolls over to ${RevenueAnalyticsStateBase.upcomingFirstOfMonthFormatted}.',
+        title: 'Monthly Payout Schedule',
+      );
+      return false;
+    }
+
     if (amount < RevenueAnalyticsStateBase.minimumWithdrawalAmount) {
       AppSnackbar.warning(
         'Minimum withdrawal amount is ₹${RevenueAnalyticsStateBase.minimumWithdrawalAmount.toInt()} (100 Rupees).',
@@ -149,6 +158,15 @@ mixin RevenueAnalyticsPayoutMixin on RevenueAnalyticsStateBase {
     if (!isKycVerified) {
       AppSnackbar.warning(
         'KYC document verification (PAN & ID) is required before withdrawing earnings. Please complete verification first.',
+      );
+      return false;
+    }
+
+    // 1b. Monthly Payout Window Gate (1st Day + 1-Day Grace on Day 2)
+    if (!isTodayPayoutDay) {
+      AppSnackbar.warning(
+        'Revenue withdrawals are only permitted during the monthly payout window (1st and 2nd of every month). Your balance safely rolls over to ${RevenueAnalyticsStateBase.upcomingFirstOfMonthFormatted}.',
+        title: 'Monthly Payout Schedule',
       );
       return false;
     }

@@ -27,6 +27,9 @@ class DashboardViewController extends BaseController
   final FocusNode searchFocusNode = FocusNode();
 
   final RxBool isSelectingDefault = true.obs;
+  final Rxn<Channel> channelPendingDeletion = Rxn<Channel>();
+  final RxBool isChannelInDeletionGracePeriod = false.obs;
+  final RxBool isRestoringChannel = false.obs;
 
   Worker? _authWorker;
   Worker? _channelWorker;
@@ -241,6 +244,8 @@ class DashboardViewController extends BaseController
       resolvedChannel ??= authService.userChannel;
       resolvedChannel ??= await authService.ensureChannelLoaded();
 
+      Channel? foundDeletedChannel;
+
       if (resolvedChannel == null && user != null) {
         try {
           var snapshot = await FirebaseFirestore.instance
@@ -258,13 +263,22 @@ class DashboardViewController extends BaseController
           }
 
           if (snapshot.docs.isNotEmpty) {
-            final activeDocs = snapshot.docs
+            final allDocs = snapshot.docs
                 .map(Channel.fromDocumentSnapshot)
+                .toList();
+            final activeDocs = allDocs
                 .where((c) => c.status != ChannelStatus.deleted)
                 .toList();
             if (activeDocs.isNotEmpty) {
               resolvedChannel = activeDocs.first;
               authService.setUserChannel(resolvedChannel);
+            } else {
+              final deletedDocs = allDocs
+                  .where((c) => c.status == ChannelStatus.deleted)
+                  .toList();
+              if (deletedDocs.isNotEmpty) {
+                foundDeletedChannel = deletedDocs.first;
+              }
             }
           }
 
@@ -273,7 +287,8 @@ class DashboardViewController extends BaseController
                 .collection(FirestoreCollections.users)
                 .doc(user.uid)
                 .get();
-            final chId = userDoc.data()?['channelId'] as String?;
+            final chId = (userDoc.data()?['deletedChannelId'] ??
+                userDoc.data()?['channelId']) as String?;
             if (chId != null && chId.isNotEmpty) {
               final chDoc = await FirebaseFirestore.instance
                   .collection(FirestoreCollections.channels)
@@ -284,6 +299,8 @@ class DashboardViewController extends BaseController
                 if (ch.status != ChannelStatus.deleted) {
                   resolvedChannel = ch;
                   authService.setUserChannel(resolvedChannel);
+                } else {
+                  foundDeletedChannel ??= ch;
                 }
               }
             }
@@ -296,6 +313,18 @@ class DashboardViewController extends BaseController
           );
         }
       }
+
+      foundDeletedChannel ??= authService.deletedChannel;
+
+      if (resolvedChannel == null && foundDeletedChannel != null) {
+        channelPendingDeletion.value = foundDeletedChannel;
+        isChannelInDeletionGracePeriod.value = true;
+        isSelectingDefault.value = false;
+        return;
+      }
+
+      channelPendingDeletion.value = null;
+      isChannelInDeletionGracePeriod.value = false;
 
       if (resolvedChannel != null && authService.userChannel == null) {
         if (resolvedChannel is Channel) {
@@ -349,7 +378,7 @@ class DashboardViewController extends BaseController
         } else if (currentRoute.contains('/trash') ||
             tabParam == 'trash' ||
             tabParam == '13') {
-          ctrl.selectedIndex.value = 13;
+          ctrl.selectedIndex.value = 2;
         } else if (currentRoute.contains('/drafts') ||
             tabParam == 'drafts' ||
             tabParam == '20') {
@@ -513,6 +542,91 @@ class DashboardViewController extends BaseController
     }
 
     return false;
+  }
+
+  /// Cancels the scheduled channel deletion and restores the channel.
+  Future<bool> cancelChannelDeletion() async {
+    final channelToRestore = channelPendingDeletion.value;
+    final user = FirebaseAuth.instance.currentUser;
+    if (channelToRestore == null || user == null) {
+      AppSnackbar.error('Unable to restore channel. Please try again.');
+      return false;
+    }
+
+    if (channelToRestore.isPermanentDeletionExpired) {
+      AppSnackbar.error(
+        'The 30-day grace period for this channel has expired and it cannot be restored.',
+      );
+      return false;
+    }
+
+    try {
+      isRestoringChannel.value = true;
+
+      // 1. Restore channel document in Firestore
+      await FirebaseFirestore.instance
+          .collection(FirestoreCollections.channels)
+          .doc(channelToRestore.id)
+          .update({
+        'status': ChannelStatus.active.name,
+        'deletionScheduledAt': FieldValue.delete(),
+        'deletionGracePeriodExpiresAt': FieldValue.delete(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // 2. Restore user doc in Firestore
+      await FirebaseFirestore.instance
+          .collection(FirestoreCollections.users)
+          .doc(user.uid)
+          .set({
+        'hasChannel': true,
+        'channelId': channelToRestore.id,
+        'deletedChannelId': FieldValue.delete(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // 3. Update active Channel object
+      final restoredChannel = channelToRestore.copyWith(
+        status: ChannelStatus.active,
+      );
+
+      // 4. Update AuthService
+      final auth = AuthService.to;
+      auth.setUserChannel(restoredChannel);
+      auth.setDeletedChannel(null);
+      auth.hasChannel.value = true;
+
+      // 5. Update local view state
+      channelPendingDeletion.value = null;
+      isChannelInDeletionGracePeriod.value = false;
+
+      // 6. Update DashboardController
+      final ctrl = dashboardController;
+      ctrl.updateChannelId(restoredChannel.id);
+      ctrl.currentChannel.value = restoredChannel;
+      ctrl.retryLoad();
+
+      AppSnackbar.success(
+        'Channel deletion cancelled. Your channel has been fully restored!',
+        title: 'Channel Restored',
+      );
+
+      // Re-initialize dashboard
+      await resolveChannelAndInit();
+      return true;
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'DashboardViewController.cancelChannelDeletion',
+      );
+      AppSnackbar.error(
+        'Unable to restore channel. Please check your connection and try again.',
+      );
+      return false;
+    } finally {
+      isRestoringChannel.value = false;
+    }
   }
 
   @override

@@ -168,6 +168,46 @@ void main() {
       expect(DownloadResolutionManager.getResolutionBadge('240p', 240), equals('Low'));
       expect(DownloadResolutionManager.getResolutionBadge('144p', 144), equals('Data Saver'));
     });
+
+    test('6. getAvailableResolutionsForVideo guarantees complete ladder down to 144p when video has only 1080p and 720p', () async {
+      final video = Video(
+        id: 'vid_download_ladder_test',
+        ownerId: 'owner_1',
+        title: 'Download Ladder Test Video',
+        description: 'Test Description',
+        category: 'Education',
+        tags: const ['test'],
+        videoUrl: 'https://example.com/source.mp4',
+        thumbnailUrl: '',
+        channelId: 'ch_1',
+        channelName: 'Channel 1',
+        channelAvatarUrl: '',
+        createdAt: DateTime.now(),
+        adaptiveResolutions: [
+          VideoResolutionV2(
+            label: '1080p',
+            url: 'https://example.com/1080p.mp4',
+            width: 1920,
+            height: 1080,
+            bitrate: 4500000,
+          ),
+          VideoResolutionV2(
+            label: '720p',
+            url: 'https://example.com/720p.mp4',
+            width: 1280,
+            height: 720,
+            bitrate: 2500000,
+          ),
+        ],
+      );
+
+      final resolutions = await DownloadResolutionManager.getAvailableResolutionsForVideo(video);
+      expect(resolutions.length, 6);
+      expect(
+        resolutions.map((r) => r.label).toList(),
+        ['1080p', '720p', '480p', '360p', '240p', '144p'],
+      );
+    });
   });
 
   group('DownloadsController State & Sorting Tests', () {

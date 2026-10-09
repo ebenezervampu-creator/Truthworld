@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/security/biometric_security_service.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/analytics/data/models/creator_bank_account.dart';
 import 'package:truthworld/features/analytics/presentation/controllers/revenue_analytics_controller.dart';
@@ -47,6 +48,7 @@ class RevenueWithdrawalDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final available = controller.totalRevenue.value;
+    final isIndian = !Get.isRegistered<CurrencyLocalizationService>() || CurrencyLocalizationService.to.isIndianUser;
     amountController.text = available >= RevenueAnalyticsController.minimumWithdrawalAmount
         ? available.toStringAsFixed(2)
         : '100.00';
@@ -70,42 +72,48 @@ class RevenueWithdrawalDialog extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.account_balance_rounded,
-                          color: Colors.white,
-                          size: 22,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Withdraw to Bank Account',
-                            style: TextStyle(
-                              color: AppColors.textPrimary,
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                            ),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
                           ),
-                          Text(
-                            'Direct NEFT / IMPS Transfer',
-                            style: TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 11,
-                            ),
+                          child: const Icon(
+                            Icons.account_balance_rounded,
+                            color: Colors.white,
+                            size: 22,
                           ),
-                        ],
-                      ),
-                    ],
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Withdraw to Bank Account',
+                                style: TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                isIndian ? 'Direct NEFT / IMPS Transfer' : 'Direct ACH / SWIFT Transfer',
+                                style: const TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 11,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.close_rounded, color: Colors.white, size: 20),
@@ -156,18 +164,56 @@ class RevenueWithdrawalDialog extends StatelessWidget {
                             fontSize: 13,
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(6),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              '₹100 (100 Rupees Minimum)',
+                              style: TextStyle(
+                                color: Color(0xFFF59E0B),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                          child: const Text(
-                            '₹100 (100 Rupees Minimum)',
-                            style: TextStyle(
-                              color: Color(0xFFF59E0B),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Payout Schedule',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              controller.isTodayPayoutDay
+                                  ? (controller.isTodayGraceDay ? 'Grace Period (Day 2)' : 'Window Open (1st)')
+                                  : '1st of Month (${RevenueAnalyticsStateBase.nextPayoutShortMonth})',
+                              style: const TextStyle(
+                                color: Color(0xFF60A5FA),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ),
@@ -176,6 +222,7 @@ class RevenueWithdrawalDialog extends StatelessWidget {
                   ],
                 ),
               ),
+              _buildPayoutScheduleBanner(),
               // KYC Status & Verification Banner
               _buildKycStatusBanner(context),
               const SizedBox(height: 18),
@@ -263,33 +310,43 @@ class RevenueWithdrawalDialog extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 8),
-              Obx(() => Column(
-                children: [
-                  _buildMethodTile(
-                    'Direct Bank Transfer',
-                    'Direct NEFT / IMPS to Indian Bank Account & IFSC',
-                    Icons.account_balance_rounded,
-                  ),
-                  const SizedBox(height: 6),
-                  _buildMethodTile(
-                    'UPI / Instant Payout',
-                    'Instant mobile transfer to verified UPI ID',
-                    Icons.qr_code_rounded,
-                  ),
-                ],
-              )),
+              Obx(() {
+                final isInd = !Get.isRegistered<CurrencyLocalizationService>() ||
+                    CurrencyLocalizationService.to.isIndianUser;
+                return Column(
+                  children: [
+                    _buildMethodTile(
+                      'Direct Bank Transfer',
+                      isInd
+                          ? 'Direct NEFT / IMPS to Indian Bank Account & IFSC'
+                          : 'Direct ACH / SWIFT Wire to Bank Account',
+                      Icons.account_balance_rounded,
+                    ),
+                    const SizedBox(height: 6),
+                    _buildMethodTile(
+                      isInd ? 'UPI / Instant Payout' : 'PayPal / Direct Payout',
+                      isInd
+                          ? 'Instant mobile transfer to verified UPI ID'
+                          : 'Direct payout to registered PayPal address',
+                      isInd ? Icons.qr_code_rounded : Icons.payment_rounded,
+                    ),
+                  ],
+                );
+              }),
               const SizedBox(height: 16),
 
               // Dynamic Account Info Section based on Selected Method
               Obx(() {
+                final isInd = !Get.isRegistered<CurrencyLocalizationService>() ||
+                    CurrencyLocalizationService.to.isIndianUser;
                 if (selectedMethod.value == 'Direct Bank Transfer') {
                   final savedBank = controller.savedBankAccount.value;
                   if (savedBank != null && !isEditingBankDetails.value) {
                     return _buildSavedBankCard(savedBank);
                   }
-                  return _buildBankInputFields();
+                  return _buildBankInputFields(isInd);
                 } else {
-                  return _buildUpiInputField();
+                  return _buildSecondMethodInputField(isInd);
                 }
               }),
               const SizedBox(height: 24),
@@ -325,13 +382,27 @@ class RevenueWithdrawalDialog extends StatelessWidget {
                   );
                 }
 
+                final isPayoutDay = controller.isTodayPayoutDay;
                 return SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: isSubmitting ? null : _handleWithdrawalSubmit,
+                    onPressed: isSubmitting
+                        ? null
+                        : () {
+                            if (!isPayoutDay) {
+                              AppSnackbar.warning(
+                                'Revenue withdrawals are only permitted during the monthly payout window (1st and 2nd of each month). Next window opens on ${RevenueAnalyticsStateBase.upcomingFirstOfMonthFormatted}.',
+                                title: 'Monthly Payout Schedule',
+                              );
+                              return;
+                            }
+                            _handleWithdrawalSubmit();
+                          },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF10B981),
-                      foregroundColor: Colors.black,
+                      backgroundColor: isPayoutDay
+                          ? const Color(0xFF10B981)
+                          : const Color(0xFF3B82F6),
+                      foregroundColor: isPayoutDay ? Colors.black : Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
@@ -347,9 +418,11 @@ class RevenueWithdrawalDialog extends StatelessWidget {
                             ),
                           )
                         : Text(
-                            selectedMethod.value == 'Direct Bank Transfer'
-                                ? 'Withdraw Directly to Bank Account'
-                                : 'Confirm UPI Withdrawal',
+                            !isPayoutDay
+                                ? 'Withdrawals Open 1st of Month (Next: ${RevenueAnalyticsStateBase.nextPayoutShortMonth} 1st)'
+                                : (selectedMethod.value == 'Direct Bank Transfer'
+                                    ? (controller.isTodayGraceDay ? 'Withdraw (Grace Period Day 2)' : 'Withdraw Directly to Bank Account')
+                                    : (isIndian ? 'Confirm UPI Withdrawal' : 'Confirm PayPal Withdrawal')),
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
@@ -361,6 +434,52 @@ class RevenueWithdrawalDialog extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildPayoutScheduleBanner() {
+    if (controller.isTodayPayoutDay) return const SizedBox.shrink();
+
+    final nextDate = RevenueAnalyticsStateBase.upcomingFirstOfMonthFormatted;
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF3B82F6).withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.calendar_month_rounded, color: Colors.white, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'YouTube-Style Monthly Payout & Rollover',
+                  style: TextStyle(
+                    color: Color(0xFFBFDBFE),
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Cash withdrawals open on the 1st of every month with a 1-day grace period on Day 2. Your unwithdrawn earnings safely roll over to $nextDate.',
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 11,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -547,7 +666,7 @@ class RevenueWithdrawalDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildBankInputFields() {
+  Widget _buildBankInputFields(bool isIndian) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -585,30 +704,34 @@ class RevenueWithdrawalDialog extends StatelessWidget {
         // Account Number
         _buildTextField(
           controller: accountNumberController,
-          hint: 'Bank Account Number',
+          hint: isIndian ? 'Bank Account Number' : 'Account Number / IBAN',
           icon: Icons.pin_rounded,
-          isNumeric: true,
+          isNumeric: isIndian,
         ),
         const SizedBox(height: 10),
 
         // Confirm Account Number
         _buildTextField(
           controller: confirmAccountController,
-          hint: 'Confirm Bank Account Number',
+          hint: isIndian ? 'Confirm Bank Account Number' : 'Confirm Account / IBAN',
           icon: Icons.lock_outline_rounded,
-          isNumeric: true,
+          isNumeric: isIndian,
         ),
         const SizedBox(height: 10),
 
-        // IFSC Code
+        // IFSC or SWIFT Code
         _buildTextField(
           controller: ifscController,
-          hint: 'IFSC Code (e.g. SBIN0001234)',
+          hint: isIndian
+              ? 'IFSC Code (e.g. SBIN0001234)'
+              : 'SWIFT / BIC or Routing Code (e.g. CHASUS33)',
           icon: Icons.account_balance_outlined,
           onChanged: (val) {
-            final inferred = CreatorBankAccount.inferBankName(val);
-            if (inferred != 'Direct Bank Transfer' && bankNameController.text.isEmpty) {
-              bankNameController.text = inferred;
+            if (isIndian) {
+              final inferred = CreatorBankAccount.inferBankName(val);
+              if (inferred != 'Direct Bank Transfer' && bankNameController.text.isEmpty) {
+                bankNameController.text = inferred;
+              }
             }
           },
         ),
@@ -645,13 +768,15 @@ class RevenueWithdrawalDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildUpiInputField() {
+  Widget _buildSecondMethodInputField(bool isIndian) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'UPI ID / Virtual Payment Address',
-          style: TextStyle(
+        Text(
+          isIndian
+              ? 'UPI ID / Virtual Payment Address'
+              : 'PayPal Email Address',
+          style: const TextStyle(
             color: AppColors.textSecondary,
             fontSize: 13,
             fontWeight: FontWeight.w600,
@@ -660,8 +785,10 @@ class RevenueWithdrawalDialog extends StatelessWidget {
         const SizedBox(height: 6),
         _buildTextField(
           controller: upiController,
-          hint: 'Enter UPI ID (e.g. yourname@upi, gpay, phonepe)',
-          icon: Icons.qr_code_rounded,
+          hint: isIndian
+              ? 'Enter UPI ID (e.g. yourname@upi, gpay, phonepe)'
+              : 'Enter registered PayPal email (e.g. yourname@example.com)',
+          icon: isIndian ? Icons.qr_code_rounded : Icons.email_outlined,
         ),
       ],
     );
@@ -756,6 +883,14 @@ class RevenueWithdrawalDialog extends StatelessWidget {
   }
 
   Future<void> _handleWithdrawalSubmit() async {
+    if (!controller.isTodayPayoutDay) {
+      AppSnackbar.warning(
+        'Revenue withdrawals are only permitted during the monthly payout window (1st and 2nd of each month). The next window opens on ${RevenueAnalyticsStateBase.upcomingFirstOfMonthFormatted}.',
+        title: 'Monthly Payout Schedule',
+      );
+      return;
+    }
+
     final parsedAmount = double.tryParse(amountController.text.trim()) ?? 0.0;
 
     if (parsedAmount < RevenueAnalyticsController.minimumWithdrawalAmount) {
@@ -788,24 +923,41 @@ class RevenueWithdrawalDialog extends StatelessWidget {
         final ifsc = ifscController.text.trim().toUpperCase();
         var bank = bankNameController.text.trim();
 
+        final isInd = !Get.isRegistered<CurrencyLocalizationService>() ||
+            CurrencyLocalizationService.to.isIndianUser;
+
         if (holder.isEmpty) {
           AppSnackbar.warning('Please enter Account Holder Name.');
           return;
         }
-        if (!CreatorBankAccount.isValidAccountNumber(acc)) {
-          AppSnackbar.warning('Account number must be between 9 and 18 digits.');
-          return;
+        if (isInd) {
+          if (!CreatorBankAccount.isValidAccountNumber(acc)) {
+            AppSnackbar.warning('Account number must be between 9 and 18 digits.');
+            return;
+          }
+        } else {
+          if (acc.length < 5) {
+            AppSnackbar.warning('Please enter a valid Account Number or IBAN.');
+            return;
+          }
         }
         if (acc != confirmAcc) {
           AppSnackbar.warning('Bank Account numbers do not match.');
           return;
         }
-        if (!CreatorBankAccount.isValidIfsc(ifsc)) {
-          AppSnackbar.warning('Please enter a valid 11-character Indian IFSC code.');
-          return;
+        if (isInd) {
+          if (!CreatorBankAccount.isValidIfsc(ifsc)) {
+            AppSnackbar.warning('Please enter a valid 11-character Indian IFSC code.');
+            return;
+          }
+        } else {
+          if (ifsc.length < 4) {
+            AppSnackbar.warning('Please enter a valid SWIFT, BIC, or Routing Code.');
+            return;
+          }
         }
         if (bank.isEmpty) {
-          bank = CreatorBankAccount.inferBankName(ifsc);
+          bank = isInd ? CreatorBankAccount.inferBankName(ifsc) : 'International Bank';
         }
 
         bankAccountToUse = CreatorBankAccount(
@@ -817,12 +969,20 @@ class RevenueWithdrawalDialog extends StatelessWidget {
         );
       }
     } else {
-      final upi = upiController.text.trim();
-      if (upi.isEmpty) {
-        AppSnackbar.warning('Please enter your UPI ID.');
+      final isInd = !Get.isRegistered<CurrencyLocalizationService>() ||
+          CurrencyLocalizationService.to.isIndianUser;
+      final accountVal = upiController.text.trim();
+      if (accountVal.isEmpty) {
+        AppSnackbar.warning(
+          isInd ? 'Please enter your UPI ID.' : 'Please enter your PayPal email address.',
+        );
         return;
       }
-      upiToUse = upi;
+      if (!isInd && (!accountVal.contains('@') || !accountVal.contains('.'))) {
+        AppSnackbar.warning('Please enter a valid PayPal email address.');
+        return;
+      }
+      upiToUse = accountVal;
     }
 
     // 🔐 Biometric & Device PIN Re-Authentication Guard
@@ -843,9 +1003,11 @@ class RevenueWithdrawalDialog extends StatelessWidget {
         Get.back<void>();
       }
     } else if (upiToUse != null) {
+      final isInd = !Get.isRegistered<CurrencyLocalizationService>() ||
+          CurrencyLocalizationService.to.isIndianUser;
       final success = await controller.submitWithdrawalRequest(
         amount: parsedAmount,
-        paymentMethod: 'UPI',
+        paymentMethod: isInd ? 'UPI' : 'PayPal',
         accountDetails: upiToUse,
       );
       if (success) {

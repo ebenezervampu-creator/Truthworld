@@ -39,7 +39,7 @@ void main() {
     Get.reset();
     controller = Get.put<AdminController>(TestAdminController()) as TestAdminController;
     controller.isAdmin.value = true;
-    controller.currentAdminEmail.value = 'admin@truthworld.com';
+    controller.currentAdminEmail.value = 'hello@truthworld.in';
     controller.currentAdminRole.value = 'Super Admin';
     controller.currentAdminRoles.assignAll(['Super Admin']);
   });
@@ -157,7 +157,7 @@ void main() {
       expect(find.text('Console'), findsOneWidget);
       expect(find.text('MANAGEMENT'), findsOneWidget);
       expect(find.text('SYSTEM'), findsOneWidget);
-      expect(find.text('admin@truthworld.com'), findsOneWidget);
+      expect(find.text('hello@truthworld.in'), findsOneWidget);
 
       // Nav item selection changes tab
       await tester.tap(find.text('Topics Queue'));

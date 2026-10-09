@@ -159,14 +159,14 @@ void main() {
       // Verify Auto Pay UI elements
       expect(find.text('Auto Pay'), findsOneWidget);
       expect(find.text('RECOMMENDED'), findsOneWidget);
-      expect(find.text('Pay ₹40 with Auto Pay'), findsOneWidget);
+      expect(find.text('Pay ₹42 with Auto Pay'), findsOneWidget);
 
       // Toggle off Auto Pay
       controller.toggleAutoPay(false);
       await tester.pumpAndSettle();
 
       expect(find.text('ONE-TIME'), findsOneWidget);
-      expect(find.text('Pay ₹40 (One-Time)'), findsOneWidget);
+      expect(find.text('Pay ₹42 (One-Time)'), findsOneWidget);
     });
 
     test('PremiumController cancelAutoPay updates state gracefully', () async {

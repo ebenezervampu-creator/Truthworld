@@ -42,6 +42,13 @@ mixin ChannelDraftMixin on ChannelControllerBase {
           );
         }
 
+        if (draftData['customLinks'] != null && draftData['customLinks'] is Iterable) {
+          customLinks.value = (draftData['customLinks'] as Iterable)
+              .whereType<Map>()
+              .map((e) => Map<String, String>.from(e.map((k, v) => MapEntry(k.toString(), v.toString()))))
+              .toList();
+        }
+
         if (draftData['advancedSettings'] != null) {
           advancedSettings.value = Map<String, dynamic>.from(
             draftData['advancedSettings'],
@@ -109,6 +116,7 @@ mixin ChannelDraftMixin on ChannelControllerBase {
         'selectedPlan': selectedPlan.value,
         'categories': selectedCategories.toList(),
         'socialLinks': Map<String, dynamic>.from(socialLinks),
+        'customLinks': customLinks.toList(),
         'advancedSettings': Map<String, dynamic>.from(advancedSettings),
         'bannerUrl': bannerUrl.value,
         'avatarUrl': avatarUrl.value,

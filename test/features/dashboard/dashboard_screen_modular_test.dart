@@ -81,12 +81,12 @@ void main() {
             'Sign in to manage your channel, publish content, view analytics, and monetize your creations.'),
         findsOneWidget,
       );
-      expect(find.text('Sign In with Google'), findsOneWidget);
+      expect(find.text('Sign In to Continue'), findsOneWidget);
 
       final icon = tester.widget<Icon>(find.byIcon(Icons.dashboard_rounded));
       expect(icon.color, equals(AppColors.textPrimary));
 
-      await tester.tap(find.text('Sign In with Google'));
+      await tester.tap(find.text('Sign In to Continue'));
       await tester.pump();
       expect(signInTapped, isTrue);
     });

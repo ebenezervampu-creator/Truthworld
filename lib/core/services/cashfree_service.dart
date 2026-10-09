@@ -2,16 +2,19 @@ import 'dart:async';
 
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/network/ssl_pinning_manager.dart';
 import 'package:truthworld/core/security/rasp_security_service.dart';
 import 'package:truthworld/core/security/screen_security_service.dart';
-import 'package:truthworld/core/services/android_installer_detector.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/cashfree/cashfree_adapter.dart';
+import 'package:truthworld/core/services/cashfree/cashfree_country_support.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
+import 'package:truthworld/theme/app_colors.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Result object for a Cashfree transaction
@@ -30,7 +33,7 @@ class CashfreePaymentResult {
 }
 
 /// Central GetX Service managing Cashfree Payment Gateway flows across TruthWorld.
-class CashfreePaymentService extends GetxService {
+class CashfreePaymentService extends GetxService with WidgetsBindingObserver {
   static CashfreePaymentService get to {
     if (!Get.isRegistered<CashfreePaymentService>()) {
       Get.put(CashfreePaymentService(), permanent: true);
@@ -51,19 +54,174 @@ class CashfreePaymentService extends GetxService {
 
   Completer<CashfreePaymentResult>? _activeCompleter;
   String? _activePaymentLink;
+  String? _activeSubscriptionId;
+  bool _isAutoVerifying = false;
+  bool _isVerificationPromptOpen = false;
+
+  bool get _isMobile =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
 
   @override
   void onInit() {
     super.onInit();
+    WidgetsBinding.instance.addObserver(this);
     _initGatewayCallbacks();
+  }
+
+  @override
+  void onClose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.onClose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (isProcessing.value && activeOrderId.value.isNotEmpty && !_isAutoVerifying) {
+        _checkPaymentStatusOnResume();
+      }
+    }
+  }
+
+  Future<void> _checkPaymentStatusOnResume() async {
+    if (_isAutoVerifying) return;
+    final orderId = activeOrderId.value;
+    if (orderId.isEmpty) return;
+
+    _isAutoVerifying = true;
+    try {
+      // Brief pause to allow webhook or gateway state to finalize
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      if (!isProcessing.value || activeOrderId.value != orderId) {
+        _isAutoVerifying = false;
+        return;
+      }
+
+      final subId = _activeSubscriptionId;
+      if (subId != null && subId.isNotEmpty) {
+        final subRes = await verifySubscriptionOnServer(subId);
+        if (subRes.success) {
+          AppSnackbar.success('Auto Pay mandate verified successfully!');
+          _resolveActivePayment(subRes);
+          return;
+        }
+      }
+
+      final res = await verifyOrderOnServer(orderId);
+      if (res.success) {
+        AppSnackbar.success('Payment verified successfully!');
+        _resolveActivePayment(res);
+        return;
+      }
+
+      // If gateway is still finalizing transaction, wait and check a second time
+      await Future<void>.delayed(const Duration(milliseconds: 1500));
+      if (!isProcessing.value || activeOrderId.value != orderId) {
+        _isAutoVerifying = false;
+        return;
+      }
+
+      if (subId != null && subId.isNotEmpty) {
+        final subRes2 = await verifySubscriptionOnServer(subId);
+        if (subRes2.success) {
+          AppSnackbar.success('Auto Pay mandate verified successfully!');
+          _resolveActivePayment(subRes2);
+          return;
+        }
+      }
+
+      final res2 = await verifyOrderOnServer(orderId);
+      if (res2.success) {
+        AppSnackbar.success('Payment verified successfully!');
+        _resolveActivePayment(res2);
+        return;
+      }
+
+      // If still processing and unconfirmed after returning, display manual verification prompt
+      if (isProcessing.value && activeOrderId.value == orderId && !_isVerificationPromptOpen) {
+        if (subId != null && subId.isNotEmpty) {
+          _showSubscriptionVerificationPrompt(subId, orderId);
+        } else {
+          _showExternalVerificationPrompt(orderId);
+        }
+      }
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'CashfreePaymentService._checkPaymentStatusOnResume');
+    } finally {
+      _isAutoVerifying = false;
+    }
+  }
+
+  void _safeCloseDialog() {
+    try {
+      if (_isVerificationPromptOpen || (Get.isDialogOpen ?? false)) {
+        _isVerificationPromptOpen = false;
+        if (Get.isDialogOpen ?? false) {
+          Get.back();
+        } else {
+          final nav = Get.key.currentState;
+          if (nav != null && nav.canPop()) {
+            nav.pop();
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[CashfreePaymentService] Error closing dialog: $e');
+    }
+  }
+
+  /// Dispatched by deep link handlers (e.g. truthworld://payment-result or /checkout?action=result)
+  Future<void> handlePaymentResult({
+    required String orderId,
+    String? status,
+    String? subscriptionId,
+  }) async {
+    if (kDebugMode) {
+      debugPrint(
+        '[CashfreePaymentService] handlePaymentResult: orderId=$orderId, status=$status, subId=$subscriptionId',
+      );
+    }
+
+    _safeCloseDialog();
+
+    final normalizedStatus = status?.trim().toUpperCase();
+    if (normalizedStatus == 'CANCELLED' || normalizedStatus == 'FAILED') {
+      _resolveActivePayment(
+        CashfreePaymentResult(
+          success: false,
+          orderId: orderId,
+          errorMessage: 'Payment was not completed. Please try again.',
+        ),
+      );
+      return;
+    }
+
+    if (subscriptionId != null && subscriptionId.isNotEmpty) {
+      final subRes = await verifySubscriptionOnServer(subscriptionId);
+      if (subRes.success) {
+        AppSnackbar.success('Auto Pay mandate verified successfully!');
+        _resolveActivePayment(subRes);
+        return;
+      }
+    }
+
+    final res = await verifyOrderOnServer(orderId);
+    if (res.success) {
+      AppSnackbar.success('Payment verified successfully!');
+      _resolveActivePayment(res);
+    } else {
+      AppSnackbar.warning(
+        'Payment is pending or not yet confirmed by gateway. Please check your bank statement.',
+      );
+      _resolveActivePayment(res);
+    }
   }
 
   void _initGatewayCallbacks() {
     if (!enableNativeGateway) return;
-    final isMobile = !kIsWeb &&
-        (defaultTargetPlatform == TargetPlatform.android ||
-            defaultTargetPlatform == TargetPlatform.iOS);
-    if (!isMobile) return;
+    if (!_isMobile) return;
 
     try {
       _cfGateway.initCallbacks(
@@ -182,8 +340,11 @@ class CashfreePaymentService extends GetxService {
   }
 
   void _resolveActivePayment(CashfreePaymentResult result) {
+    _safeCloseDialog();
+    _isVerificationPromptOpen = false;
     isProcessing.value = false;
     _activePaymentLink = null;
+    _activeSubscriptionId = null;
     unawaited(ScreenSecurityService.to.disableSecureMode());
     if (_activeCompleter != null && !_activeCompleter!.isCompleted) {
       _activeCompleter!.complete(result);
@@ -191,14 +352,17 @@ class CashfreePaymentService extends GetxService {
     _activeCompleter = null;
   }
 
-  /// Initiates payment for any purpose across TruthWorld.
+  /// Initiates payment for any purpose across TruthWorld supporting all
+  /// countries provided by Cashfree (200+ countries, 140+ currencies).
   ///
-  /// [amount] in INR
-  /// [purpose] e.g., 'premium_subscription', 'advertiser_campaign', 'advertiser_wallet', 'channel_topup', 'superchat'
+  /// [amount] in specified [currency] (or user's localized currency / INR if not specified)
+  /// [purpose] e.g., 'premium_subscription', 'advertiser_campaign', 'advertiser_wallet', 'channel_topup', 'superchat', 'super_thanks'
+  /// [currency] 3-letter currency ISO code (e.g., 'INR', 'USD', 'EUR', 'GBP', 'AED', 'CAD', 'AUD', etc.)
   Future<CashfreePaymentResult> startPayment({
     required double amount,
     required String purpose,
     required String orderNote,
+    String? currency,
     String? customerPhone,
     Map<String, dynamic>? metadata,
   }) async {
@@ -215,12 +379,38 @@ class CashfreePaymentService extends GetxService {
       );
     }
 
-    if (amount.isNaN || amount.isInfinite || amount < 1.0) {
-      AppSnackbar.warning('Minimum transaction amount is ₹1.00.');
+    final userCountry = Get.isRegistered<CurrencyLocalizationService>()
+        ? CurrencyLocalizationService.to.userCountryCode.value
+        : 'IN';
+
+    // Verify country compliance against Cashfree restricted jurisdictions
+    if (CashfreeCountrySupport.isRestrictedCountry(userCountry)) {
+      AppSnackbar.warning(
+        'Payment services are currently unavailable in your region due to regulatory compliance restrictions.',
+        title: 'Region Unavailable',
+      );
       return const CashfreePaymentResult(
         success: false,
         orderId: '',
-        errorMessage: 'Transaction amount must be at least ₹1.00',
+        errorMessage: 'Cashfree payment services are unavailable in this region.',
+      );
+    }
+
+    // Resolve target currency
+    final effectiveCurrency = (currency != null && currency.trim().isNotEmpty)
+        ? currency.trim().toUpperCase()
+        : (Get.isRegistered<CurrencyLocalizationService>()
+            ? CurrencyLocalizationService.to.activeUserCurrency
+            : 'INR');
+
+    final minAmount = CashfreeCountrySupport.getMinimumAmount(effectiveCurrency);
+    if (amount.isNaN || amount.isInfinite || amount < minAmount) {
+      final minFormatted = CashfreeCountrySupport.formatAmount(minAmount, effectiveCurrency);
+      AppSnackbar.warning('Minimum transaction amount is $minFormatted.');
+      return CashfreePaymentResult(
+        success: false,
+        orderId: '',
+        errorMessage: 'Transaction amount must be at least $minFormatted',
       );
     }
 
@@ -271,11 +461,15 @@ class CashfreePaymentService extends GetxService {
       final createCallable = _functions.httpsCallable('createCashfreeOrder');
       final createResponse = await createCallable.call({
         'amount': sanitizedAmount,
-        'currency': 'INR',
+        'currency': effectiveCurrency,
         'purpose': purpose,
         'orderNote': orderNote,
         'customerPhone': customerPhone,
-        'metadata': metadata ?? {},
+        'metadata': {
+          ...?metadata,
+          'userCountry': userCountry,
+          'currency': effectiveCurrency,
+        },
       });
 
       final data = Map<String, dynamic>.from(createResponse.data as Map);
@@ -289,11 +483,8 @@ class CashfreePaymentService extends GetxService {
 
       activeOrderId.value = orderId;
       _activePaymentLink = paymentLink;
+      _activeSubscriptionId = isSubscription ? (subscriptionId ?? orderId) : null;
       _activeCompleter = Completer<CashfreePaymentResult>();
-
-      final isMobile = !kIsWeb &&
-          (defaultTargetPlatform == TargetPlatform.android ||
-              defaultTargetPlatform == TargetPlatform.iOS);
 
       if (isSubscription && authLink != null && authLink.isNotEmpty) {
         // Industry-Standard Cashfree Subscriptions Auto Pay Flow (UPI Autopay / e-Mandate)
@@ -317,7 +508,9 @@ class CashfreePaymentService extends GetxService {
         try {
           final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
           if (launched) {
-            _showSubscriptionVerificationPrompt(subscriptionId ?? orderId, orderId);
+            if (!_isMobile) {
+              _showSubscriptionVerificationPrompt(subscriptionId ?? orderId, orderId);
+            }
           } else {
             _resolveActivePayment(
               CashfreePaymentResult(
@@ -337,81 +530,22 @@ class CashfreePaymentService extends GetxService {
             ),
           );
         }
-      } else if (isMobile && paymentSessionId != null && paymentSessionId.isNotEmpty) {
-        // Native Mobile Flow via Cashfree PG SDK
-
-        // Cashfree native Android SDK enforces strict Google Play Store installer verification
-        // ('installer_package_not_approved') regardless of SANDBOX or PRODUCTION environment.
-        // Two cases must bypass the native SDK and use the hosted checkout link instead:
-        //   1. Debug/emulator builds (kDebugMode = true) — always sideloaded by definition.
-        //   2. Sideloaded release APKs (downloaded directly, not via Play/Galaxy/Amazon Store).
-        final isSideloaded = defaultTargetPlatform == TargetPlatform.android &&
-            await AndroidInstallerDetector.isSideloaded();
-
-        final shouldBypassNativeSdk = defaultTargetPlatform == TargetPlatform.android &&
-            (kDebugMode || isSideloaded) &&
-            paymentLink != null &&
-            paymentLink.isNotEmpty;
-
-        if (shouldBypassNativeSdk) {
-          if (kDebugMode) {
-            debugPrint(
-              '[CashfreePaymentService] Android non-Play-Store build detected '
-              '(debug=$kDebugMode, sideloaded=$isSideloaded, env=$envString). '
-              'Bypassing native installer check — launching secure hosted checkout.',
-            );
-          }
-          await _launchExternalCheckout(paymentLink, orderId);
-        } else {
-          try {
-            _initGatewayCallbacks();
-
-            _cfGateway.doPayment(
-              orderId: orderId,
-              paymentSessionId: paymentSessionId,
-              isProduction: envString == 'PRODUCTION',
-            );
-          } catch (nativeErr, stackTrace) {
-            ErrorHandler.log(
-              nativeErr,
-              stackTrace: stackTrace,
-              tag: 'CashfreePaymentService.nativePayment',
-            );
-            if (paymentLink != null && paymentLink.isNotEmpty) {
-              if (kDebugMode) {
-                debugPrint(
-                  '[CashfreePaymentService] Native payment invocation failed ($nativeErr). Falling back to hosted checkout.',
-                );
-              }
-              await _launchExternalCheckout(paymentLink, orderId);
-            } else {
-              _resolveActivePayment(
-                CashfreePaymentResult(
-                  success: false,
-                  orderId: orderId,
-                  errorMessage: 'Unable to start payment on this device. Please try again.',
-                ),
-              );
-            }
-          }
-        }
       } else if (paymentLink != null && paymentLink.isNotEmpty) {
-        // Web / Desktop / Fallback flow: launch hosted checkout URL
+        // Authoritative TruthWorld Hosted Checkout flow (works seamlessly on Android, iOS, Web, and Desktop)
+        // Loads Cashfree JS SDK v3 checkout container with full UPI app intent support
         await _launchExternalCheckout(paymentLink, orderId);
-      } else if (kIsWeb && paymentSessionId != null && paymentSessionId.isNotEmpty) {
-        // Web direct hosted checkout fallback
-        final checkoutUrl = envString == 'PRODUCTION'
-            ? 'https://payments.cashfree.com/order/#$paymentSessionId'
-            : 'https://payments-test.cashfree.com/order/#$paymentSessionId';
-        await _launchExternalCheckout(checkoutUrl, orderId);
+      } else if (paymentSessionId != null && paymentSessionId.isNotEmpty) {
+        // Fallback checkout link construction
+        final envParam = envString.toLowerCase();
+        final fallbackLink =
+            'https://www.truthworld.in/checkout?session_id=${Uri.encodeComponent(paymentSessionId)}&order_id=${Uri.encodeComponent(orderId)}&env=$envParam';
+        await _launchExternalCheckout(fallbackLink, orderId);
       } else {
         _resolveActivePayment(
           CashfreePaymentResult(
             success: false,
             orderId: orderId,
-            errorMessage: isMobile
-                ? 'Payment session could not be established. Please try again.'
-                : 'Direct checkout link is unavailable for this platform. Please use mobile or try again later.',
+            errorMessage: 'Payment session could not be established. Please try again.',
           ),
         );
       }
@@ -566,7 +700,9 @@ class CashfreePaymentService extends GetxService {
     try {
       final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (launched) {
-        _showExternalVerificationPrompt(orderId);
+        if (!_isMobile) {
+          _showExternalVerificationPrompt(orderId);
+        }
       } else {
         _resolveActivePayment(
           CashfreePaymentResult(
@@ -599,97 +735,244 @@ class CashfreePaymentService extends GetxService {
 
   /// For external/hosted browser checkout fallback: prompts user to confirm once done
   void _showExternalVerificationPrompt(String orderId) {
-    Get.defaultDialog(
-      title: 'Complete Payment',
-      middleText: 'Please complete the payment in your browser window, then click Verify.',
-      textConfirm: 'I Have Paid',
-      textCancel: 'Cancel',
-      confirmTextColor: Get.theme.colorScheme.onPrimary,
+    if (_isVerificationPromptOpen || (Get.isDialogOpen ?? false)) return;
+    _isVerificationPromptOpen = true;
+    Get.dialog(
+      PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) {
+          if (!didPop) {
+            _isVerificationPromptOpen = false;
+            _resolveActivePayment(
+              CashfreePaymentResult(
+                success: false,
+                orderId: orderId,
+                errorMessage: 'Payment was cancelled by user.',
+              ),
+            );
+          }
+        },
+        child: Dialog(
+          backgroundColor: AppColors.bgSurface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: AppColors.searchBorder),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Icon(
+                  Icons.payment_rounded,
+                  color: Colors.white,
+                  size: 40,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Complete Payment',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Please complete the transaction in the checkout window, then confirm below.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppColors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () async {
+                    final res = await verifyOrderOnServer(orderId);
+                    if (res.success) {
+                      AppSnackbar.success('Payment verified successfully!');
+                      _resolveActivePayment(res);
+                    } else {
+                      AppSnackbar.warning(
+                        'Payment is not yet confirmed by gateway. Please check your bank statement.',
+                      );
+                      _resolveActivePayment(res);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text(
+                    'I Have Paid',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () {
+                    _resolveActivePayment(
+                      CashfreePaymentResult(
+                        success: false,
+                        orderId: orderId,
+                        errorMessage: 'Payment was cancelled by user.',
+                      ),
+                    );
+                  },
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.textSecondary,
+                  ),
+                  child: const Text('Cancel Payment'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
       barrierDismissible: false,
-      onWillPop: () async {
-        _resolveActivePayment(
-          CashfreePaymentResult(
-            success: false,
-            orderId: orderId,
-            errorMessage: 'Payment was cancelled by user.',
-          ),
-        );
-        return true;
-      },
-      onConfirm: () async {
-        Get.back();
-        AppSnackbar.info('Verifying payment with gateway...');
-        final res = await verifyOrderOnServer(orderId);
-        if (res.success) {
-          AppSnackbar.success('Payment verified successfully!');
-          _resolveActivePayment(res);
-        } else {
-          AppSnackbar.warning('Payment is not yet confirmed by gateway. Please try again.');
-          _resolveActivePayment(res);
-        }
-      },
-      onCancel: () {
-        _resolveActivePayment(
-          CashfreePaymentResult(
-            success: false,
-            orderId: orderId,
-            errorMessage: 'Payment was cancelled by user.',
-          ),
-        );
-      },
     );
   }
 
   /// For Subscriptions / Auto Pay link authorization: prompts user to confirm mandate
   void _showSubscriptionVerificationPrompt(String subscriptionId, String orderId) {
-    Get.defaultDialog(
-      title: 'Authorize Auto Pay',
-      middleText:
-          'Please authorize the recurring mandate in the secure Cashfree window using your preferred UPI app, debit card, or netbanking, then click Verify.',
-      textConfirm: 'I Have Authorized',
-      textCancel: 'Cancel',
-      confirmTextColor: Get.theme.colorScheme.onPrimary,
-      barrierDismissible: false,
-      onWillPop: () async {
-        _resolveActivePayment(
-          CashfreePaymentResult(
-            success: false,
-            orderId: orderId,
-            errorMessage: 'Auto Pay authorization was cancelled.',
-          ),
-        );
-        return true;
-      },
-      onConfirm: () async {
-        Get.back();
-        AppSnackbar.info('Verifying Auto Pay mandate with gateway...');
-        final res = await verifySubscriptionOnServer(subscriptionId);
-        if (res.success) {
-          AppSnackbar.success('Auto Pay mandate verified successfully!');
-          _resolveActivePayment(res);
-        } else {
-          // Fallback to order verification if mandate confirmation is in transit
-          final orderRes = await verifyOrderOnServer(orderId);
-          if (orderRes.success) {
-            AppSnackbar.success('Payment verified successfully!');
-            _resolveActivePayment(orderRes);
-          } else {
-            AppSnackbar.warning(
-              'Mandate authorization is pending bank confirmation. It will activate once confirmed.',
+    if (_isVerificationPromptOpen || (Get.isDialogOpen ?? false)) return;
+    _isVerificationPromptOpen = true;
+    Get.dialog(
+      PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) {
+          if (!didPop) {
+            _isVerificationPromptOpen = false;
+            _resolveActivePayment(
+              CashfreePaymentResult(
+                success: false,
+                orderId: orderId,
+                errorMessage: 'Auto Pay authorization was cancelled.',
+              ),
             );
-            _resolveActivePayment(res);
           }
-        }
-      },
-      onCancel: () {
-        _resolveActivePayment(
-          CashfreePaymentResult(
-            success: false,
-            orderId: orderId,
-            errorMessage: 'Auto Pay authorization was cancelled.',
+        },
+        child: Dialog(
+          backgroundColor: AppColors.bgSurface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: AppColors.searchBorder),
           ),
-        );
-      },
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Icon(
+                  Icons.autorenew_rounded,
+                  color: Colors.white,
+                  size: 40,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Authorize Auto Pay',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Please authorize the recurring mandate in the secure Cashfree window using ${CashfreeCountrySupport.getMandateMethodsSummary(CurrencyLocalizationService.to.userCountryCode.value)}, then click Verify.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: AppColors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () async {
+                    final res = await verifySubscriptionOnServer(subscriptionId);
+                    if (res.success) {
+                      AppSnackbar.success('Auto Pay mandate verified successfully!');
+                      _resolveActivePayment(res);
+                    } else {
+                      // Fallback to order verification if mandate confirmation is in transit
+                      final orderRes = await verifyOrderOnServer(orderId);
+                      if (orderRes.success) {
+                        AppSnackbar.success('Payment verified successfully!');
+                        _resolveActivePayment(orderRes);
+                      } else {
+                        AppSnackbar.warning(
+                          'Mandate authorization is pending bank confirmation. It will activate once confirmed.',
+                        );
+                        _resolveActivePayment(res);
+                      }
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text(
+                    'I Have Authorized',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () {
+                    _resolveActivePayment(
+                      CashfreePaymentResult(
+                        success: false,
+                        orderId: orderId,
+                        errorMessage: 'Auto Pay authorization was cancelled.',
+                      ),
+                    );
+                  },
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.textSecondary,
+                  ),
+                  child: const Text('Cancel Authorization'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      barrierDismissible: false,
     );
   }
+
+  /// Checks whether Cashfree provides payment gateway for this country
+  bool isCountrySupported(String? countryCode) =>
+      CashfreeCountrySupport.isCountrySupported(countryCode);
+
+  /// Checks whether a currency is supported by Cashfree
+  bool isCurrencySupported(String? currencyCode) =>
+      CashfreeCountrySupport.isCurrencySupported(currencyCode);
+
+  /// Gets country metadata
+  CashfreeCountryInfo getCountryInfo(String? countryCode) =>
+      CashfreeCountrySupport.getCountryInfo(countryCode);
 }

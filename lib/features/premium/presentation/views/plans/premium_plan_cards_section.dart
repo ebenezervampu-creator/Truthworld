@@ -42,13 +42,10 @@ class PremiumPlanCard extends StatelessWidget {
     final effectivePriceUSD = ctrl.getEffectivePriceUSD(plan.id);
     final creditUSD = ctrl.getCreditAppliedUSD(plan.id);
 
-    var priceDisplay = plan.priceLabel.contains('/')
-        ? plan.priceLabel.split('/')[0]
-        : plan.priceLabel;
-    if (!isIndian) {
-      final usdPrice = ctrl.getPriceUSDForPlan(plan.id);
-      priceDisplay = '\$${usdPrice.toStringAsFixed(usdPrice == 0.50 ? 2 : 0)}';
-    }
+    final usdPrice = ctrl.getPriceUSDForPlan(plan.id);
+    final inrPrice = ctrl.getPriceForPlan(plan.id);
+
+    var priceDisplay = '\$${usdPrice.toStringAsFixed(usdPrice == 0.50 ? 2 : 0)}';
     String? originalPrice;
     String? upgradeBadgeText;
 
@@ -59,19 +56,11 @@ class PremiumPlanCard extends StatelessWidget {
     } else if (isUpgrading) {
       originalPrice = priceDisplay;
       if (isIndian) {
-        priceDisplay = '₹${effectivePrice.toInt()}';
-        if (credit == 40.0) {
-          upgradeBadgeText = r'Save ₹40 ($2 - 40 rupees)';
-        } else if (credit >= 160.0) {
-          upgradeBadgeText = r'Save $2 ($3 - $2)';
-        } else {
-          upgradeBadgeText = 'Save ₹${credit.toInt()}';
-        }
+        priceDisplay = ctrl.formatAmountINR(effectivePrice);
+        upgradeBadgeText = 'Save ${ctrl.formatAmountINR(credit)}';
       } else {
-        priceDisplay =
-            '\$${effectivePriceUSD.toStringAsFixed(effectivePriceUSD == 0.50 || effectivePriceUSD == 1.50 || effectivePriceUSD == 2.50 ? 2 : 0)}';
-        upgradeBadgeText =
-            'Save \$${creditUSD.toStringAsFixed(creditUSD == 0.50 ? 2 : 0)}';
+        priceDisplay = ctrl.formatAmountUSD(effectivePriceUSD);
+        upgradeBadgeText = 'Save ${ctrl.formatAmountUSD(creditUSD)}';
       }
     }
 
@@ -193,12 +182,11 @@ class PremiumPlanCard extends StatelessWidget {
                           if (plan.priceLabel.contains('/') && !isCurrent && !isLower) ...[
                             Builder(
                               builder: (context) {
-                                var period = plan.priceLabel.split('/')[1];
-                                if (!isIndian && period.contains('(')) {
-                                  period = period.split('(')[0].trim();
-                                }
+                                final periodText = isIndian
+                                    ? '/month (${ctrl.formatAmountINR(inrPrice)})'
+                                    : '/month';
                                 return Text(
-                                  '/$period',
+                                  periodText,
                                   style: const TextStyle(
                                     fontSize: 11,
                                     color: secondaryText,
@@ -346,7 +334,7 @@ class PremiumPlanSelectorSection extends StatelessWidget {
           : 'Choose the plan that fits for you';
 
       final subtitle = isPremium
-          ? r'Switch to higher tiers anytime. Your existing plan payment is automatically credited ($2 - 40 rupees for Premium, $3 - 40 rupees for Fact-Checked).'
+          ? 'Switch to higher tiers anytime. Your existing plan payment is automatically credited at today’s exchange rate.'
           : 'Ad-free videos, background play, offline downloads, and verified fact-checking.';
 
       return Column(

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/cashfree_service.dart';
 import 'package:truthworld/core/services/deep_link/deep_link_cache_manager.dart';
 import 'package:truthworld/core/services/deep_link/deep_link_url_parser.dart';
 import 'package:truthworld/core/services/deep_link/parsed_truthworld_url.dart';
@@ -157,6 +158,12 @@ mixin DeepLinkNavigator on DeepLinkCacheManager {
 
       case TruthworldUrlType.policy:
         _handlePolicyNavigation(parsed, replace: replace);
+
+      case TruthworldUrlType.paymentResult:
+        _handlePaymentResultNavigation(parsed);
+
+      case TruthworldUrlType.checkout:
+        break;
 
       case TruthworldUrlType.external:
       case TruthworldUrlType.unknown:
@@ -399,6 +406,27 @@ mixin DeepLinkNavigator on DeepLinkCacheManager {
         e,
         stackTrace: s,
         tag: 'DeepLinkService.launchNativeAppFromWeb',
+      );
+    }
+  }
+
+  /// Dispatches Cashfree payment completion deep links directly to CashfreePaymentService.
+  void _handlePaymentResultNavigation(ParsedTruthworldUrl parsed) {
+    final orderId = parsed.id ??
+        parsed.queryParameters['order_id'] ??
+        parsed.queryParameters['orderId'] ??
+        '';
+    final status = parsed.queryParameters['status'] ?? 'PAID';
+    final subscriptionId = parsed.queryParameters['subscription_id'] ??
+        parsed.queryParameters['subscriptionId'];
+
+    if (Get.isRegistered<CashfreePaymentService>()) {
+      unawaited(
+        CashfreePaymentService.to.handlePaymentResult(
+          orderId: orderId,
+          status: status,
+          subscriptionId: subscriptionId,
+        ),
       );
     }
   }

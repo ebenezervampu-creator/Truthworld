@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/cashfree/cashfree_country_support.dart';
 import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/live_chat_message.dart';
@@ -594,7 +595,7 @@ class LiveChatOverlay extends StatelessWidget {
                 labelText: isIndian ? 'Amount (INR)' : 'Amount (USD)',
                 helperText: isIndian
                     ? 'Direct creator tip in Indian Rupees (INR)'
-                    : 'Equivalent to ₹${rate.toStringAsFixed(2)} INR creator support per \$1 USD (Live)',
+                    : 'Direct creator tip in US Dollars (USD)',
                 helperStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
                 labelStyle: const TextStyle(color: AppColors.textSecondary),
                 filled: true,
@@ -622,6 +623,7 @@ class LiveChatOverlay extends StatelessWidget {
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.brand,
+                  foregroundColor: Colors.black,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
                 onPressed: () {
@@ -630,13 +632,13 @@ class LiveChatOverlay extends StatelessWidget {
                     AppSnackbar.warning('Please enter an amount to send Super Chat.');
                     return;
                   }
-                  final amountINR = isIndian ? amount : (amount * rate);
-                  if (amountINR < 1.0) {
-                    AppSnackbar.warning(
-                      'Minimum Super Chat amount is ₹1.00 (${CurrencyLocalizationService.to.formatForUser(price: 1.0, itemCurrency: "INR")}).',
-                    );
+                  final minAmount = isIndian ? 1.0 : 0.50;
+                  if (amount < minAmount) {
+                    final minStr = isIndian ? '₹1.00' : r'$0.50';
+                    AppSnackbar.warning('Minimum Super Chat amount is $minStr.');
                     return;
                   }
+                  final amountINR = isIndian ? amount : (amount * rate);
                   Get.back();
                   controller.sendSuperchatWithCashfree(
                     amountINR: amountINR,
@@ -660,6 +662,24 @@ class LiveChatOverlay extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Center(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.lock_outline_rounded, size: 13, color: AppColors.textTertiary),
+                  const SizedBox(width: 5),
+                  Text(
+                    'Secured by Cashfree • ${CashfreeCountrySupport.getPaymentMethodsSummary(isIndian ? "IN" : (Get.isRegistered<CurrencyLocalizationService>() ? CurrencyLocalizationService.to.userCountryCode.value : "US"))}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textTertiary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

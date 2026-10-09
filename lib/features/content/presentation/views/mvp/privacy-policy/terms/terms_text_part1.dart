@@ -181,13 +181,21 @@ We may remove content that:
 - Poses risks to users or the platform
 - Is subject to valid legal requests
 
-**Appeals Process:**
-- You may appeal content removal decisions
-- Submit appeals through your account settings
-- We will review appeals within 14 business days
-- Appeal decisions are final
+3.6 Epistemic Verification and Transparency Overlays
+
+**Non-Destructive Informational Overlays:**
+- You acknowledge and agree that Truthworld utilizes automated multimodal AI systems to verify empirical assertions in uploaded content and display contextual, claim-level fact-checking overlays.
+- These overlays operate strictly as non-destructive transparency and metadata annotations (analogous to Community Notes), keeping your original audiovisual stream completely unaltered and preserving your underlying copyright.
+
+**Creator Dispute Rights (Audi Alteram Partem):**
+- Creators retain the bilateral procedural right to challenge any automated claim extraction or veracity rating through our in-app dispute dialog.
+- Submitted counter-citations and evidence are evaluated under our cross-perspective verification protocols, and disputed claims are displayed transparently with a "Dispute Pending Review" status during active review.
+
+**Protection of Religious Faith and Subjective Expression:**
+- In strict adherence to constitutional freedom of conscience (Article 25), theological assertions, religious beliefs, and subjective value judgments are segregated from empirical evaluations and are never penalized under factual veracity metrics.
 
 4. ACCEPTABLE USE POLICY
+
 
 4.1 Permitted Uses
 

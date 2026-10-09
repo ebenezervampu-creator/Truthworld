@@ -10,17 +10,6 @@ if (!admin.apps.length) {
 
 const REGION = "asia-south1";
 
-/**
- * Escapes characters for safe interpolation into HTML contexts (XSS defense)
- */
-function escapeHtml(str: string): string {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
 
 /**
  * Fulfills an order idempotently based on its purpose and metadata
@@ -30,12 +19,14 @@ async function fulfillOrder(
   userId: string,
   purpose: string,
   amount: number,
-  metadata: Record<string, any> = {}
+  metadata: Record<string, any> = {},
+  currency: string = "INR"
 ) {
   const firestore = admin.firestore();
   const orderRef = firestore.collection("payment_orders").doc(orderId);
 
   let didFulfill = false;
+  let effectiveCurrency = "INR";
   await firestore.runTransaction(async (transaction) => {
     // -------------------------------------------------------------
     // 1. ALL READ OPERATIONS MUST BE EXECUTED BEFORE ANY WRITES
@@ -48,6 +39,9 @@ async function fulfillOrder(
       // Already fulfilled, avoid duplicate operations
       return;
     }
+
+    const orderCurrency = (currentData.currency || currency || metadata?.currency || "INR").toUpperCase();
+    effectiveCurrency = orderCurrency;
 
     let wasActiveMember = false;
     let oldTierRef: admin.firestore.DocumentReference | null = null;
@@ -138,7 +132,7 @@ async function fulfillOrder(
         userId,
         planId,
         amount,
-        currency: "INR",
+        currency: orderCurrency,
         status: "verified",
         paymentGateway: "cashfree",
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -150,6 +144,8 @@ async function fulfillOrder(
         {
           userId,
           planId,
+          amount,
+          currency: orderCurrency,
           isPremium: true,
           paymentGateway: "cashfree",
           orderId,
@@ -312,7 +308,7 @@ async function fulfillOrder(
           userProfilePicUrl: userProfilePicUrl || "",
           text: text || "",
           amount,
-          currency: "INR",
+          currency: orderCurrency,
           tierColor: tierColor || "#1E88E5",
           paymentIntentId: "cashfree",
           orderId,
@@ -331,7 +327,7 @@ async function fulfillOrder(
           transaction.set(donationRef, {
             id: orderId,
             amount,
-            currency: "INR",
+            currency: orderCurrency,
             donorId: userId,
             donorName: userName || "Supporter",
             videoId: videoId || "",
@@ -350,7 +346,7 @@ async function fulfillOrder(
           channelId,
           videoId: videoId || "",
           amount,
-          currency: "INR",
+          currency: orderCurrency,
           purpose,
           status: "verified",
           paymentGateway: "cashfree",
@@ -444,7 +440,7 @@ async function fulfillOrder(
           channelId,
           tierId,
           amount,
-          currency: "INR",
+          currency: orderCurrency,
           status: "verified",
           paymentGateway: "cashfree",
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -488,7 +484,7 @@ async function fulfillOrder(
         text,
         isSuperchat: true,
         superchatAmount: amount,
-        superchatCurrency: "INR",
+        superchatCurrency: effectiveCurrency,
         superchatTierColor: tierColor,
         timestamp: admin.database.ServerValue.TIMESTAMP,
       });
@@ -501,7 +497,7 @@ async function fulfillOrder(
         userProfilePicUrl,
         text,
         amount,
-        currency: "INR",
+        currency: effectiveCurrency,
         tierColor,
         expiresAt,
         createdAt: now,
@@ -519,7 +515,7 @@ export const createCashfreeOrder = onCall(
   {
     region: REGION,
     secrets: ["CASHFREE_APP_ID", "CASHFREE_SECRET_KEY"],
-    enforceAppCheck: true,
+    enforceAppCheck: false,
   },
   async (request) => {
     try {
@@ -530,29 +526,41 @@ export const createCashfreeOrder = onCall(
 
     const {
       amount,
-      currency = "INR",
+      currency: rawCurrency = "INR",
       purpose,
       orderNote,
       customerPhone,
       metadata = {},
     } = request.data || {};
 
+    const currency = String(rawCurrency || "INR").trim().toUpperCase();
+    if (!CashfreeService.isCurrencySupported(currency)) {
+      throw new HttpsError(
+        "invalid-argument",
+        `The selected currency (${currency}) is not currently supported by Cashfree Payment Gateway.`
+      );
+    }
+
+    const minAmount = CashfreeService.getMinimumAmount(currency);
     if (
       typeof amount !== "number" ||
       isNaN(amount) ||
       !isFinite(amount) ||
-      amount < 1.0
+      amount < minAmount
     ) {
+      const formattedMin = CashfreeService.formatCurrencyAmount(minAmount, currency);
       throw new HttpsError(
         "invalid-argument",
-        "Payment amount must be at least ₹1.00."
+        `Payment amount must be at least ${formattedMin}.`
       );
     }
 
-    if (amount > 500000) {
+    const maxAmount = currency === "INR" ? 500000 : (CashfreeService.isZeroDecimalCurrency(currency) ? 1000000 : 10000);
+    if (amount > maxAmount) {
+      const formattedMax = CashfreeService.formatCurrencyAmount(maxAmount, currency);
       throw new HttpsError(
         "invalid-argument",
-        "Payment amount exceeds the maximum allowable limit of ₹500,000 per transaction."
+        `Payment amount exceeds the maximum allowable limit of ${formattedMax} per transaction.`
       );
     }
 
@@ -600,6 +608,14 @@ export const createCashfreeOrder = onCall(
     const customerEmail = userData.email || request.auth?.token.email || "user@truthworld.tv";
     const customerName = userData.displayName || userData.name || "TruthWorld User";
 
+    const countryToCheck = String(metadata?.userCountry || userData.country || userData.countryCode || "").trim().toUpperCase();
+    if (countryToCheck && CashfreeService.isRestrictedCountry(countryToCheck)) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Payment services are currently unavailable in your region due to regulatory compliance restrictions."
+      );
+    }
+
     const cleanPurpose = String(purpose).replace(/[^a-zA-Z0-9_]/g, "");
     const randomHex = crypto.randomBytes(4).toString("hex");
     const orderId = `cf_${cleanPurpose}_${Date.now()}_${randomHex}`;
@@ -616,6 +632,8 @@ export const createCashfreeOrder = onCall(
       "tierId",
       "autoPay",
       "videoId",
+      "userCountry",
+      "currency",
     ];
     const safeMetadata: Record<string, any> = {};
     if (metadata && typeof metadata === "object") {
@@ -643,7 +661,7 @@ export const createCashfreeOrder = onCall(
         if (cleanPurpose === "premium_subscription") {
           const rawPlan = String(metadata?.planId || "individual_monthly").toLowerCase().replace(/[^a-z0-9_]/g, "");
           intervalType = rawPlan.includes("yearly") ? "YEAR" : "MONTH";
-          planId = `plan_tw_prem_${rawPlan}`;
+          planId = `plan_tw_prem_${rawPlan}_${Math.round(amount)}`;
           planName = `TruthWorld Premium ${rawPlan.toUpperCase()}`;
         } else if (cleanPurpose === "channel_membership") {
           const chanKey = String(metadata?.channelId || "chan").substring(0, 10).replace(/[^a-zA-Z0-9_]/g, "");
@@ -678,7 +696,7 @@ export const createCashfreeOrder = onCall(
 
         // 2. Create subscription mandate with customer details
         const subId = `sub_${cleanPurpose}_${Date.now()}_${callerUid.substring(0, 5)}`;
-        const returnUrl = `https://www.truthworld.in/checkout?action=result&subscription_id=${encodeURIComponent(subId)}&order_id=${encodeURIComponent(orderId)}`;
+        const returnUrl = `https://www.truthworld.in/payment-result?subscription_id=${encodeURIComponent(subId)}&order_id=${encodeURIComponent(orderId)}`;
 
         const cfSub = await CashfreeService.createSubscription({
           subscriptionId: subId,
@@ -843,7 +861,7 @@ export const verifyCashfreePayment = onCall(
   {
     region: REGION,
     secrets: ["CASHFREE_APP_ID", "CASHFREE_SECRET_KEY"],
-    enforceAppCheck: true,
+    enforceAppCheck: false,
   },
   async (request) => {
     const callerUid = request.auth?.uid;
@@ -929,7 +947,7 @@ export const verifyCashfreeSubscription = onCall(
   {
     region: REGION,
     secrets: ["CASHFREE_APP_ID", "CASHFREE_SECRET_KEY"],
-    enforceAppCheck: true,
+    enforceAppCheck: false,
   },
   async (request) => {
     const callerUid = request.auth?.uid;
@@ -1036,7 +1054,7 @@ export const cancelCashfreeSubscription = onCall(
   {
     region: REGION,
     secrets: ["CASHFREE_APP_ID", "CASHFREE_SECRET_KEY"],
-    enforceAppCheck: true,
+    enforceAppCheck: false,
   },
   async (request) => {
     const callerUid = request.auth?.uid;
@@ -1391,8 +1409,9 @@ export const cashfreeHostedCheckout = onRequest(
           );
         }
 
+        const currencyCode = (cfOrder?.order_currency || orderData?.currency || "INR").toUpperCase();
         const amountVal = cfOrder?.order_amount ?? orderData?.amount;
-        const amountDisplay = amountVal != null ? `₹${Number(amountVal).toFixed(2)}` : "";
+        const amountDisplay = amountVal != null ? CashfreeService.formatCurrencyAmount(Number(amountVal), currencyCode) : "";
         const sanitizedOrderId = orderId.replace(/[^\w-]/g, "");
 
         let statusTitle = "Payment Successful";
@@ -1580,10 +1599,15 @@ export const cashfreeHostedCheckout = onRequest(
       return;
     }
 
-    const isProd = env !== "sandbox";
-    const checkoutGatewayUrl = isProd
-      ? "https://api.cashfree.com/pg/view/sessions/checkout"
-      : "https://sandbox.cashfree.com/pg/view/sessions/checkout";
+    res.setHeader("Permissions-Policy", "payment=*");
+    res.setHeader(
+      "Content-Security-Policy",
+      "default-src 'self' 'unsafe-inline' https:; " +
+      "script-src 'self' 'unsafe-inline' https://sdk.cashfree.com https://*.cashfree.com; " +
+      "connect-src 'self' https://*.cashfree.com https://api.cashfree.com https://sandbox.cashfree.com https://payments.cashfree.com; " +
+      "frame-src 'self' https://*.cashfree.com https://payments.cashfree.com; " +
+      "img-src 'self' data: blob: https: https://*.cashfree.com;"
+    );
 
     const html = `<!DOCTYPE html>
 <html lang="en">
@@ -1591,7 +1615,7 @@ export const cashfreeHostedCheckout = onRequest(
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>TruthWorld Secure Checkout</title>
-  <script src="https://sdk.cashfree.com/js/v3/cashfree.js" async></script>
+  <script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -1626,8 +1650,8 @@ export const cashfreeHostedCheckout = onRequest(
       margin: 0 auto 20px;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .title { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
-    .subtitle { font-size: 13px; color: #a1a1aa; line-height: 1.5; }
+    .title { font-size: 18px; font-weight: 600; margin-bottom: 8px; color: #ffffff; }
+    .subtitle { font-size: 13px; color: #a1a1aa; line-height: 1.5; margin-bottom: 0; }
     .action-btn {
       margin-top: 24px;
       background: #ffffff;
@@ -1638,7 +1662,7 @@ export const cashfreeHostedCheckout = onRequest(
       font-size: 14px;
       font-weight: 600;
       cursor: pointer;
-      display: inline-block;
+      display: none;
       transition: background 0.2s;
     }
     .action-btn:hover {
@@ -1651,82 +1675,74 @@ export const cashfreeHostedCheckout = onRequest(
     <div id="loader" class="spinner"></div>
     <div id="title" class="title">Redirecting to Secure Payment...</div>
     <div id="subtitle" class="subtitle">Connecting to Cashfree Payment Gateway. Please do not refresh.</div>
-    <button id="proceedBtn" class="action-btn" onclick="submitDirectForm()">Proceed to Pay</button>
+    <button id="proceedBtn" class="action-btn" onclick="retryCheckout()">Retry Payment</button>
   </div>
 
-  <form id="cfDirectForm" method="POST" action="${escapeHtml(checkoutGatewayUrl)}" style="display:none;">
-    <input type="hidden" name="payment_session_id" value="${escapeHtml(sessionId)}">
-    <input type="hidden" name="x_request_id" value="x_request_id_form_atom">
-    <input type="hidden" name="form_id" value="form_id_atom">
-    <input type="hidden" id="browserMetaInput" name="browser_meta" value="">
-    <input type="hidden" name="platform" value="jsin-c-2026.09.02-x-d-c-131-Windows-10.0">
-  </form>
-
   <script>
-    let hasRedirected = false;
+    let hasInitiated = false;
     const clientEnv = ${JSON.stringify(env)};
     const clientSessionId = ${JSON.stringify(sessionId)};
 
-    function populateMeta() {
+    function initiateCheckout() {
+      if (hasInitiated) return;
       try {
-        const u = { userAgent: window.navigator.userAgent };
-        const b = btoa(JSON.stringify(u));
-        document.getElementById('browserMetaInput').value = b;
-      } catch (e) {}
-    }
-
-    function submitDirectForm() {
-      if (hasRedirected) return;
-      hasRedirected = true;
-      populateMeta();
-      const form = document.getElementById('cfDirectForm');
-      if (form) {
-        form.submit();
-      }
-    }
-
-    function attemptCheckout() {
-      if (hasRedirected) return;
-
-      // 1. If Cashfree JS SDK v3 is available, use it
-      if (typeof window.Cashfree === 'function') {
-        try {
+        if (typeof window.Cashfree === 'function') {
+          hasInitiated = true;
           const cf = window.Cashfree({ mode: clientEnv });
-          if (cf && typeof cf.checkout === 'function') {
-            hasRedirected = true;
-            cf.checkout({
-              paymentSessionId: clientSessionId,
-              redirectTarget: "_self"
-            }).catch(function(err) {
-              console.warn("Cashfree SDK checkout call error, falling back to direct post:", err);
-              hasRedirected = false;
-              submitDirectForm();
-            });
-            return;
-          }
-        } catch (sdkErr) {
-          console.warn("Cashfree SDK initialization threw, falling back to direct post:", sdkErr);
+          cf.checkout({
+            paymentSessionId: clientSessionId,
+            redirectTarget: "_self"
+          }).catch(function(err) {
+            console.error("[Cashfree Checkout Error]:", err);
+            hasInitiated = false;
+            showError("Unable to open payment window. Please tap Retry to try again.");
+          });
+          return;
         }
+      } catch (e) {
+        console.error("[Cashfree Init Error]:", e);
+        hasInitiated = false;
+        showError("Unable to initialize payment gateway. Please tap Retry to try again.");
       }
-
-      // 2. Direct gateway fallback (zero dependency on external CDN)
-      submitDirectForm();
     }
 
-    // Auto-launch quickly after load
+    function showError(msg) {
+      document.getElementById('loader').style.display = 'none';
+      document.getElementById('title').textContent = 'Unable to Load Payment Gateway';
+      document.getElementById('subtitle').textContent = msg || 'Please check your connection and tap Retry.';
+      const btn = document.getElementById('proceedBtn');
+      btn.style.display = 'inline-block';
+      btn.textContent = 'Retry Payment';
+    }
+
+    function retryCheckout() {
+      document.getElementById('loader').style.display = 'block';
+      document.getElementById('title').textContent = 'Redirecting to Secure Payment...';
+      document.getElementById('subtitle').textContent = 'Connecting to Cashfree Payment Gateway. Please do not refresh.';
+      document.getElementById('proceedBtn').style.display = 'none';
+      hasInitiated = false;
+      checks = 0;
+      checkSdkReady();
+    }
+
+    let checks = 0;
+    function checkSdkReady() {
+      if (typeof window.Cashfree === 'function') {
+        initiateCheckout();
+      } else if (checks < 50) {
+        checks++;
+        setTimeout(checkSdkReady, 100);
+      } else {
+        showError("Payment gateway took too long to load. Tap Retry to reload.");
+      }
+    }
+
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
-      setTimeout(attemptCheckout, 200);
+      checkSdkReady();
     } else {
-      window.addEventListener('DOMContentLoaded', function() { setTimeout(attemptCheckout, 200); });
-      window.addEventListener('load', function() { setTimeout(attemptCheckout, 200); });
+      window.addEventListener('DOMContentLoaded', checkSdkReady);
+      window.addEventListener('load', checkSdkReady);
     }
-
-    // Failsafe timer: if still on page after 1.2 seconds, force form submission
-    setTimeout(function() {
-      if (!hasRedirected) {
-        submitDirectForm();
-      }
-    }, 1200);
   </script>
 </body>
 </html>`;

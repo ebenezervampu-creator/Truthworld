@@ -26,9 +26,11 @@ export async function notifyUser(params: {
 
   try {
     const notificationId = db.collection(COL_NOTIFICATIONS).doc().id;
-    const notification: UserNotification = {
+    const channelId = params.metadata?.channelId || "";
+    const notification: any = {
       id: notificationId,
       userId: params.userId,
+      ...(channelId ? { channelId } : {}),
       type: params.type,
       severity: params.severity,
       title: params.title,
@@ -40,7 +42,13 @@ export async function notifyUser(params: {
       pushSent: true,
     };
 
-    await db.collection(COL_NOTIFICATIONS).doc(notificationId).set(notification);
+    const batch = db.batch();
+    batch.set(db.collection(COL_NOTIFICATIONS).doc(notificationId), notification);
+    batch.set(
+      db.collection("users").doc(params.userId).collection("notifications_active").doc(notificationId),
+      notification
+    );
+    await batch.commit();
     
     // Fire-and-forget: Push notification delivery is non-blocking.
     // The Firestore write above is the critical path; FCM delivery can

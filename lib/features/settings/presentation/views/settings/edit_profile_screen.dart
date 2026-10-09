@@ -6,6 +6,7 @@ import 'package:truthworld/components/ui/avatar_options_sheet.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/location/verified_location.dart';
 import 'package:truthworld/features/settings/presentation/controllers/edit_profile_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -302,7 +303,7 @@ class EditProfileScreen extends GetView<EditProfileController> {
             _buildSectionHeader('Location Settings & Google Maps'),
             const SizedBox(height: 6),
             Text(
-              'Share your city or exact Google Maps location to help Truthworld personalize your content recommendations.',
+              'Search and select your town, city, or village, or pin your exact location on Google Maps.',
               style: GoogleFonts.roboto(
                 fontSize: 13,
                 color: AppColors.textSecondary,
@@ -310,38 +311,183 @@ class EditProfileScreen extends GetView<EditProfileController> {
             ),
             const SizedBox(height: 12),
 
+            // Verified Locality Badge (if currently verified)
+            Obx(() {
+              if (!controller.isLocationVerified.value || controller.verifiedLocation.value == null) {
+                return const SizedBox.shrink();
+              }
+              final loc = controller.verifiedLocation.value!;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.green.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.green.withValues(alpha: 0.35)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.check_circle, color: Colors.greenAccent, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Verified ${loc.typeLabel}: ${loc.formattedAddress}',
+                        style: const TextStyle(
+                          color: Colors.greenAccent,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+
             // Location input field
-            TextField(
-              controller: controller.locationController,
-              inputFormatters: TruthworldTextInputFormatters.standard,
-              style: const TextStyle(color: AppColors.textPrimary),
-              decoration: InputDecoration(
-                labelText: 'Location (City, Country)',
-                labelStyle: const TextStyle(color: AppColors.textSecondary),
-                hintText: 'e.g. London, UK or 51.5074, -0.1278',
-                hintStyle: const TextStyle(color: AppColors.textTertiary),
-                helperText: 'Tap below to pick or share from Google Maps',
-                helperStyle: const TextStyle(color: AppColors.textTertiary),
-                filled: true,
-                fillColor: AppColors.bgInput,
-                suffixIcon: IconButton(
-                  icon: const Icon(
-                    Icons.clear,
-                    color: Colors.white,
-                    size: 18,
+            Obx(() {
+              final errorText = controller.locationErrorText.value;
+              final isSearching = controller.isSearchingLocation.value;
+              return TextField(
+                controller: controller.locationController,
+                inputFormatters: TruthworldTextInputFormatters.standard,
+                style: const TextStyle(color: AppColors.textPrimary),
+                decoration: InputDecoration(
+                  labelText: 'Locality (Town, City, or Village)',
+                  labelStyle: const TextStyle(color: AppColors.textSecondary),
+                  hintText: 'Search town, city, or village...',
+                  hintStyle: const TextStyle(color: AppColors.textTertiary),
+                  helperText: 'Select a verified locality or pin your location below',
+                  helperStyle: const TextStyle(color: AppColors.textTertiary),
+                  errorText: errorText,
+                  errorStyle: const TextStyle(color: AppColors.error),
+                  filled: true,
+                  fillColor: AppColors.bgInput,
+                  suffixIcon: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (isSearching)
+                        const Padding(
+                          padding: EdgeInsets.only(right: 8.0),
+                          child: SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          ),
+                        ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.clear,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                        onPressed: controller.locationController.clear,
+                      ),
+                    ],
                   ),
-                  onPressed: controller.locationController.clear,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.bgDivider),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.white),
+                  ),
                 ),
-                border: OutlineInputBorder(
+              );
+            }),
+
+            // Real-time Search Suggestions Dropdown List
+            Obx(() {
+              final suggestions = controller.locationSuggestions;
+              if (suggestions.isEmpty) return const SizedBox.shrink();
+
+              return Container(
+                margin: const EdgeInsets.only(top: 6),
+                constraints: const BoxConstraints(maxHeight: 220),
+                decoration: BoxDecoration(
+                  color: AppColors.bgElevated,
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.bgDivider),
+                  border: Border.all(color: AppColors.bgDivider),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.white),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  itemCount: suggestions.length,
+                  separatorBuilder: (_, _) => const Divider(
+                    color: AppColors.bgDivider,
+                    height: 1,
+                  ),
+                  itemBuilder: (context, index) {
+                    final loc = suggestions[index];
+                    final iconData = loc.localityType == LocalityType.village
+                        ? Icons.holiday_village
+                        : (loc.localityType == LocalityType.town
+                            ? Icons.location_city_outlined
+                            : Icons.location_city);
+
+                    return ListTile(
+                      dense: true,
+                      leading: Icon(iconData, color: Colors.white, size: 18),
+                      title: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              loc.name,
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              loc.typeLabel,
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      subtitle: Text(
+                        loc.formattedAddress,
+                        style: const TextStyle(
+                          color: AppColors.textTertiary,
+                          fontSize: 12,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      onTap: () => controller.selectLocationSuggestion(loc),
+                    );
+                  },
                 ),
-              ),
-            ),
+              );
+            }),
 
             const SizedBox(height: 14),
 
@@ -443,14 +589,14 @@ class EditProfileScreen extends GetView<EditProfileController> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              // 1. Open Google Maps
+              // 1. Pin on Map
               ActionChip(
                 avatar: const Icon(
-                  Icons.map_outlined,
+                  Icons.pin_drop,
                   color: Colors.white,
                   size: 16,
                 ),
-                label: const Text('Open Google Maps'),
+                label: const Text('Pin on Map'),
                 labelStyle: const TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 13,
@@ -458,7 +604,7 @@ class EditProfileScreen extends GetView<EditProfileController> {
                 ),
                 backgroundColor: AppColors.bgSurface,
                 side: const BorderSide(color: AppColors.bgDivider),
-                onPressed: controller.openGoogleMaps,
+                onPressed: () => controller.openMapPinPicker(context),
               ),
 
               // 2. Use Current Location
@@ -510,6 +656,24 @@ class EditProfileScreen extends GetView<EditProfileController> {
                 side: const BorderSide(color: AppColors.bgDivider),
                 onPressed: () => _showPasteMapLocationDialog(context),
               ),
+
+              // 4. Open Google Maps
+              ActionChip(
+                avatar: const Icon(
+                  Icons.map_outlined,
+                  color: Colors.white,
+                  size: 16,
+                ),
+                label: const Text('Open Google Maps'),
+                labelStyle: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+                backgroundColor: AppColors.bgSurface,
+                side: const BorderSide(color: AppColors.bgDivider),
+                onPressed: controller.openGoogleMaps,
+              ),
             ],
           ),
         ],
@@ -536,7 +700,7 @@ class EditProfileScreen extends GetView<EditProfileController> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Paste a Google Maps share link, query, or latitude/longitude coordinates (e.g. 40.7128, -74.0060).',
+              'Paste a Google Maps share link or coordinates (e.g. 40.7128, -74.0060). It will resolve to the nearest verified town, city, or village.',
               style: GoogleFonts.roboto(
                 fontSize: 13,
                 color: AppColors.textSecondary,
@@ -582,9 +746,9 @@ class EditProfileScreen extends GetView<EditProfileController> {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
-              foregroundColor: AppColors.bgPage,
+              foregroundColor: Colors.black, // Rule: Black foreground on white button
             ),
-            child: const Text('Apply'),
+            child: const Text('Apply & Verify', style: TextStyle(color: Colors.black)),
           ),
         ],
       ),

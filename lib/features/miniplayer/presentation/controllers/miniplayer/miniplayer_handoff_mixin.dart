@@ -14,6 +14,7 @@ import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
+import 'package:truthworld/features/video/presentation/services/video_playback_queue_service.dart';
 import 'package:video_player/video_player.dart';
 
 /// Mixin handling player initialization, handoff to full-screen watch view, and teardown.
@@ -93,6 +94,15 @@ mixin MiniplayerHandoffMixin on
       isAudioOnly: isAudioOnly,
     );
     currentVideo.value = video;
+    try {
+      VideoPlaybackQueueService.to.onVideoLoaded(video);
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'MiniplayerController.showWithVideo.queue',
+      );
+    }
     mode.value = MiniplayerMode.collapsed;
     dragProgress.value = 0.0;
     isPlaying.value = false;

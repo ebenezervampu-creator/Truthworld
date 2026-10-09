@@ -36,7 +36,7 @@ class _MobileFriendlyVideoPlayerState extends State<MobileFriendlyVideoPlayer> {
   void _initChewie() {
     _chewieController = ChewieController(
       videoPlayerController: widget.controller,
-      autoPlay: widget.autoPlay,
+      autoPlay: widget.autoPlay && widget.controller.value.isInitialized,
       looping: widget.looping,
       allowedScreenSleep: false,
     );

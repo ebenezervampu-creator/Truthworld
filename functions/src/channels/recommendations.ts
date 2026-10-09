@@ -45,8 +45,11 @@ function calculateDiscoveryScore(params: {
   weights?: AlgorithmWeights; // A/B test variant weights (optional)
 }): number {
   // ── Credibility Gate ─────────────────────────────────────────────────────
-  // If video has low trust score AND is flagged → GATE IT OUT completely
-  if (params.isFlagged && (params.trustScore ?? 10) < 2.0) {
+  // If video has proven low trust score (< 2.0 on 10 scale) or is flagged low trust → GATE IT OUT
+  if (params.trustScore !== undefined && params.trustScore < 2.0) {
+    return 0;
+  }
+  if (params.isFlagged && (params.trustScore ?? 10) < 3.0) {
     return 0;
   }
 
@@ -59,7 +62,9 @@ function calculateDiscoveryScore(params: {
   const ageHours = (now - params.createdAt) / 3600000;
 
   // ── Component Normalization (0-10) ────────────────────────────────────
-  const credibilityBonus = params.isCredibilityVerified ? 10 : 0;
+  const credibilityBonus = params.trustScore !== undefined
+    ? Math.min(10, Math.max(0, params.trustScore))
+    : (params.isCredibilityVerified ? 7.5 : 5.0);
   const engagementScore = Math.min(10, params.engagementRate * 100);
   const recencyScore = 10 * Math.exp(-ageHours / 72); // 72h half-life
   const followScore = params.isSubscribed ? 10 : 0;

@@ -71,7 +71,10 @@ void main() {
     Get.put<ConnectivityService>(FakeConnectivityService());
   });
 
-  tearDown(Get.reset);
+  tearDown(() async {
+    Get.reset();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+  });
 
   group('HoverPreviewCoordinator Mute Detection Tests', () {
     test('Returns false when no video players are registered', () {

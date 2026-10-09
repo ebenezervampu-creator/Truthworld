@@ -24,6 +24,7 @@ class ChannelMembershipTier {
     this.badgeIcon = 'star',
     this.description = '',
     this.isEnabled = true,
+    this.hasPremiumBundle = false,
     this.memberCount = 0,
     this.order = 0,
     this.createdAt,
@@ -37,13 +38,25 @@ class ChannelMembershipTier {
 
     final rawCreated = map['createdAt'];
     final rawUpdated = map['updatedAt'];
+    final perksList = List<String>.from(map['perks'] ?? []);
+    final hasBundle = (map['hasPremiumBundle'] as bool?) ??
+        (map['hasChannelPremium'] as bool?) ??
+        perksList.any((p) {
+          final s = p.toLowerCase();
+          return s.contains('channel premium') ||
+              s.contains('ad-free') ||
+              s.contains('no ads') ||
+              s.contains('2k') ||
+              s.contains('4k');
+        });
 
     return ChannelMembershipTier(
       id: id,
       name: map['name'] ?? 'Tier Name',
       price: rawPrice,
       currency: inferredCurrency,
-      perks: List<String>.from(map['perks'] ?? []),
+      perks: perksList,
+      hasPremiumBundle: hasBundle,
       badgeColorHex: map['badgeColorHex'] ?? '0xFF10B981',
       badgeIcon: map['badgeIcon'] ?? 'star',
       description: map['description'] ?? '',
@@ -54,6 +67,10 @@ class ChannelMembershipTier {
       updatedAt: rawUpdated is Timestamp ? rawUpdated.toDate() : (rawUpdated is DateTime ? rawUpdated : null),
     );
   }
+
+  /// Canonical perk title for Channel Premium Bundle.
+  static const String premiumBundlePerkTitle =
+      'Channel Premium: Zero ads & high resolutions up to 2K (entire channel)';
 
   /// Maximum number of membership tiers allowed per channel according to industry standards.
   static const int maxTiersPerChannel = 3;
@@ -67,11 +84,24 @@ class ChannelMembershipTier {
   static String minPriceLabel(String currency) =>
       currency.toUpperCase() == 'INR' ? '₹10 (10 rupees)' : r'$1 (1 dollar)';
 
+  /// Recommended pricing for Channel Premium Bundle ($5 for USD, ₹150 for INR).
+  static const double recommendedBundlePriceINR = 150.0;
+  static const double recommendedBundlePriceUSD = 5.0;
+
+  static double recommendedBundlePriceFor(String currency) =>
+      currency.toUpperCase() == 'INR'
+          ? recommendedBundlePriceINR
+          : recommendedBundlePriceUSD;
+
+  static String recommendedBundlePriceLabel(String currency) =>
+      currency.toUpperCase() == 'INR' ? '₹150' : r'$5';
+
   final String id;
   final String name;
   final double price;
   final String currency;
   final List<String> perks;
+  final bool hasPremiumBundle;
   final String badgeColorHex;
   final String badgeIcon;
   final String description;
@@ -80,6 +110,32 @@ class ChannelMembershipTier {
   final int order;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+
+  /// Whether this tier includes the Channel Premium Bundle (zero ads and up to 2K streaming).
+  bool get includesPremiumBundle =>
+      hasPremiumBundle ||
+      perks.any((p) {
+        final s = p.toLowerCase();
+        return s.contains('channel premium') ||
+            (s.contains('no ads') && (s.contains('2k') || s.contains('4k'))) ||
+            s.contains('ad-free') ||
+            s.contains('up to 2k');
+      });
+
+  /// Platform cut rate: 30% if tier includes Channel Premium bundle, 0% commission otherwise.
+  double get platformCutPercentage => includesPremiumBundle ? 0.30 : 0.0;
+
+  /// Creator take-home percentage: 70% if tier includes Channel Premium bundle, 100% otherwise.
+  double get creatorSharePercentage => includesPremiumBundle ? 0.70 : 1.0;
+
+  /// Recommended price for this tier ($5 USD or ₹150 INR if bundle is included).
+  double get recommendedPrice => includesPremiumBundle
+      ? recommendedBundlePriceFor(currency)
+      : minPriceFor(currency);
+
+  /// Whether this tier includes the Premium Bundle but is priced below the recommended threshold ($5/₹150).
+  bool get isBelowRecommendedBundlePrice =>
+      includesPremiumBundle && price < recommendedBundlePriceFor(currency);
 
   String get currencySymbol => currency.toUpperCase() == 'INR' ? '₹' : r'$';
 
@@ -133,6 +189,7 @@ class ChannelMembershipTier {
     'price': price,
     'currency': currency.toUpperCase(),
     'perks': perks,
+    'hasPremiumBundle': includesPremiumBundle,
     'badgeColorHex': badgeColorHex,
     'badgeIcon': badgeIcon,
     'description': description,
@@ -149,6 +206,7 @@ class ChannelMembershipTier {
     double? price,
     String? currency,
     List<String>? perks,
+    bool? hasPremiumBundle,
     String? badgeColorHex,
     String? badgeIcon,
     String? description,
@@ -164,6 +222,7 @@ class ChannelMembershipTier {
       price: price ?? this.price,
       currency: currency ?? this.currency,
       perks: perks ?? this.perks,
+      hasPremiumBundle: hasPremiumBundle ?? this.hasPremiumBundle,
       badgeColorHex: badgeColorHex ?? this.badgeColorHex,
       badgeIcon: badgeIcon ?? this.badgeIcon,
       description: description ?? this.description,
@@ -549,22 +608,61 @@ class MembershipsController extends BaseController with ContentValidationMixin {
     return total;
   }
 
-  /// Net monthly recurring revenue for creator (accounts for 30% platform cut when member ad-free playback is active).
+  /// Net monthly recurring revenue for creator (accounts for 30% platform cut on tiers with Channel Premium bundle).
   double get creatorMonthlyRecurringRevenue {
-    final gross = monthlyRecurringRevenue;
     if (noAdsForMembers.value) {
-      return gross * 0.70;
+      return monthlyRecurringRevenue * 0.70;
     }
-    return gross;
+
+    var netTotal = 0.0;
+    final isUsd = primaryCurrencySymbol == r'$';
+    final rate = Get.isRegistered<CurrencyLocalizationService>()
+        ? CurrencyLocalizationService.to.rate
+        : CurrencyLocalizationService.defaultRate;
+
+    if (members.isNotEmpty) {
+      for (final m in members.where((m) => m.status.toLowerCase() == 'active')) {
+        final tier = tiers.firstWhereOrNull((t) => t.id == m.tierId);
+        final hasBundle = tier?.includesPremiumBundle ?? false;
+        final share = hasBundle ? 0.70 : 1.0;
+
+        final memberIsUsd = m.currency.toUpperCase() == 'USD';
+        final double memberPrice;
+        if (isUsd && !memberIsUsd) {
+          memberPrice = m.price / rate;
+        } else if (!isUsd && memberIsUsd) {
+          memberPrice = m.price * rate;
+        } else {
+          memberPrice = m.price;
+        }
+        netTotal += memberPrice * share;
+      }
+    } else {
+      for (final t in tiers.where((t) => t.isEnabled)) {
+        final hasBundle = t.includesPremiumBundle;
+        final share = hasBundle ? 0.70 : 1.0;
+
+        final tierIsUsd = t.currency.toUpperCase() == 'USD';
+        final rawTierTotal = t.price * t.memberCount;
+        final double tierTotal;
+        if (isUsd && !tierIsUsd) {
+          tierTotal = rawTierTotal / rate;
+        } else if (!isUsd && tierIsUsd) {
+          tierTotal = rawTierTotal * rate;
+        } else {
+          tierTotal = rawTierTotal;
+        }
+        netTotal += tierTotal * share;
+      }
+    }
+    return netTotal;
   }
 
   /// Monthly recurring revenue retained by platform when member ad-free playback is active (30%).
   double get platformMonthlyRecurringRevenue {
     final gross = monthlyRecurringRevenue;
-    if (noAdsForMembers.value) {
-      return gross * 0.30;
-    }
-    return 0.0;
+    final creatorNet = creatorMonthlyRecurringRevenue;
+    return (gross - creatorNet).clamp(0.0, double.infinity);
   }
 
   int get activeTiersCount => tiers.where((t) => t.isEnabled).length;
@@ -646,6 +744,7 @@ class MembershipsController extends BaseController with ContentValidationMixin {
     String badgeIcon = 'star',
     String description = '',
     bool isEnabled = true,
+    bool hasPremiumBundle = false,
   }) async {
     _resolveChannelId();
     final activeId = _channelId.value;
@@ -725,6 +824,7 @@ class MembershipsController extends BaseController with ContentValidationMixin {
         badgeIcon: badgeIcon,
         description: description.trim(),
         isEnabled: isEnabled,
+        hasPremiumBundle: hasPremiumBundle,
         order: tiers.length,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
@@ -1040,6 +1140,7 @@ class MembershipsController extends BaseController with ContentValidationMixin {
 
   // Pre-configured popular perks list for 1-click addition in tier builder
   static const List<String> popularPerkSuggestions = [
+    ChannelMembershipTier.premiumBundlePerkTitle,
     'No ads while watching this channel',
     '4K Ultra HD (2160p) video streaming',
     'Channel Premium: Ad-free & 4K streaming',

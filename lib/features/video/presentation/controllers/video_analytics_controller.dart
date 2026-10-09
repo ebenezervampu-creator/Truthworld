@@ -44,18 +44,18 @@ class VideoAnalyticsController extends BaseController {
     }
   }
 
-  void stopTimer() {
+  void stopTimer({bool immediate = false}) {
     if (_watchStopwatch.isRunning) {
       _watchStopwatch.stop();
     }
-    VideoPresenceService.to.stopWatching();
+    VideoPresenceService.to.stopWatching(immediate: immediate);
   }
 
   void resetTimer() {
     _watchStopwatch.reset();
     _hasCountedQualifiedView = false;
     _firedMilestones.clear();
-    VideoPresenceService.to.stopWatching();
+    VideoPresenceService.to.stopWatching(immediate: true);
   }
 
   Future<void> resolveViewerIdentity() async {

@@ -55,6 +55,16 @@ class DashboardScreen extends StatelessWidget {
                   );
                 }
 
+                if (viewController.isChannelInDeletionGracePeriod.value &&
+                    viewController.channelPendingDeletion.value != null) {
+                  return ChannelDeletionGracePeriodPage(
+                    channel: viewController.channelPendingDeletion.value!,
+                    isRestoring: viewController.isRestoringChannel.value,
+                    onCancelDeletion: viewController.cancelChannelDeletion,
+                    onSignOut: viewController.handleSignOut,
+                  );
+                }
+
                 final mediaQuery = MediaQuery.of(context);
                 final isMobile = mediaQuery.size.width < 600;
                 final isTablet =

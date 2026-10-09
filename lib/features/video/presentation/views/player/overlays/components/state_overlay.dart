@@ -36,7 +36,15 @@ class StateOverlay extends StatelessWidget {
           tag: 'PlaybackStateOverlay.checkAutoSwitching',
         );
       }
-      if (isAutoSwitch || isRecovering) return const SizedBox.shrink();
+
+      final isPlaying = ctrl.isPlaying.value || ctrl.vv.isPlaying;
+      final isAutoMode = ctrl.abr.isAutoMode.value;
+
+      // In Auto mode while playing or during auto-resolution switch,
+      // user should NOT see any buffer spinner while playing. Auto mode adapts seamlessly.
+      if (isAutoSwitch || isRecovering || (isAutoMode && isPlaying && state != PlaybackState.stalled)) {
+        return const SizedBox.shrink();
+      }
 
       if (hasError) return _buildError();
       if (state == PlaybackState.stalled) return _buildStall();

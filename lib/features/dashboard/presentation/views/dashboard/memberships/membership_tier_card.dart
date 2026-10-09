@@ -109,6 +109,99 @@ class MembershipTierCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: tier.includesPremiumBundle
+                        ? const Color(0xFF6366F1).withValues(alpha: 0.15)
+                        : Colors.green.withValues(alpha: 0.12),
+                    borderRadius: TWRadius.mdBorderRadius,
+                    border: Border.all(
+                      color: tier.includesPremiumBundle
+                          ? const Color(0xFF6366F1).withValues(alpha: 0.4)
+                          : Colors.green.withValues(alpha: 0.25),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        tier.includesPremiumBundle
+                            ? Icons.workspace_premium_rounded
+                            : Icons.check_circle_rounded,
+                        size: 13,
+                        color: tier.includesPremiumBundle
+                            ? const Color(0xFF818CF8)
+                            : Colors.green,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        tier.includesPremiumBundle
+                            ? '70% Net (30% Cut)'
+                            : '100% Net (0% Cut)',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: tier.includesPremiumBundle
+                              ? (isDarkMode
+                                  ? const Color(0xFFA5B4FC)
+                                  : const Color(0xFF4338CA))
+                              : (isDarkMode
+                                  ? Colors.green.shade400
+                                  : Colors.green.shade800),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (tier.isBelowRecommendedBundlePrice) ...[
+                  const SizedBox(width: 6),
+                  Tooltip(
+                    message:
+                        'Recommend pricing at ${ChannelMembershipTier.recommendedBundlePriceLabel(tier.currency)}+ to comfortably cover 2K streaming CDN bandwidth.',
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: Colors.amber.shade700
+                              .withValues(alpha: 0.5),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.info_outline_rounded,
+                            size: 11,
+                            color: isDarkMode
+                                ? Colors.amber.shade300
+                                : Colors.amber.shade800,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            'Rec ${ChannelMembershipTier.recommendedBundlePriceLabel(tier.currency)}+',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: isDarkMode
+                                  ? Colors.amber.shade300
+                                  : Colors.amber.shade800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(width: 12),
                 PopupMenuButton<String>(
                   icon: const Icon(
@@ -254,28 +347,41 @@ class MembershipTierCard extends StatelessWidget {
                 spacing: 8,
                 runSpacing: 8,
                 children: tier.perks.map((perk) {
+                  final isPremiumBundle = perk ==
+                          ChannelMembershipTier.premiumBundlePerkTitle ||
+                      perk.toLowerCase().contains('channel premium');
                   return Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: isDarkMode
-                          ? AppColors.bgSurfaceHigh
-                          : Colors.grey.shade100,
+                      color: isPremiumBundle
+                          ? (isDarkMode
+                              ? const Color(0xFF1E1B4B)
+                              : const Color(0xFFEEF2FF))
+                          : (isDarkMode
+                              ? AppColors.bgSurfaceHigh
+                              : Colors.grey.shade100),
                       borderRadius: TWRadius.mdBorderRadius,
                       border: Border.all(
-                        color: isDarkMode
-                            ? AppColors.bgDivider
-                            : Colors.grey.shade300,
+                        color: isPremiumBundle
+                            ? const Color(0xFF6366F1)
+                            : (isDarkMode
+                                ? AppColors.bgDivider
+                                : Colors.grey.shade300),
                       ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
-                          Icons.check_circle_outline_rounded,
-                          color: Colors.green,
+                        Icon(
+                          isPremiumBundle
+                              ? Icons.workspace_premium_rounded
+                              : Icons.check_circle_outline_rounded,
+                          color: isPremiumBundle
+                              ? const Color(0xFF818CF8)
+                              : Colors.green,
                           size: 15,
                         ),
                         const SizedBox(width: 6),
@@ -283,10 +389,16 @@ class MembershipTierCard extends StatelessWidget {
                           perk,
                           style: TextStyle(
                             fontSize: 12,
-                            color: isDarkMode
-                                ? AppColors.textPrimary
-                                : Colors.black87,
-                            fontWeight: FontWeight.w500,
+                            color: isPremiumBundle
+                                ? (isDarkMode
+                                    ? const Color(0xFFA5B4FC)
+                                    : const Color(0xFF4338CA))
+                                : (isDarkMode
+                                    ? AppColors.textPrimary
+                                    : Colors.black87),
+                            fontWeight: isPremiumBundle
+                                ? FontWeight.bold
+                                : FontWeight.w500,
                           ),
                         ),
                       ],

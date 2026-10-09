@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
@@ -76,8 +77,15 @@ class PlaylistSyncManager {
               }
             }
 
-            channels.value = loaded;
-            logger.debug('✅ Channels loaded: ${channels.length}');
+            final currentIds = channels.map((c) => c.id).toList();
+            final newIds = loaded.map((c) => c.id).toList();
+            final hasChanged = currentIds.length != newIds.length ||
+                !listEquals(currentIds, newIds);
+
+            if (hasChanged || channels.isEmpty) {
+              channels.value = loaded;
+              logger.debug('✅ Channels loaded: ${channels.length}');
+            }
           },
           onError: (error, stackTrace) {
             ErrorHandler.log(

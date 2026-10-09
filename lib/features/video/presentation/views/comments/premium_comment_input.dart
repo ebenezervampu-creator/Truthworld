@@ -8,6 +8,7 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/cashfree/cashfree_country_support.dart';
 import 'package:truthworld/core/services/cashfree_service.dart';
 import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
@@ -547,8 +548,8 @@ class PremiumCommentInput extends StatelessWidget {
                     const SizedBox(height: 6),
                     Text(
                       isIndian
-                          ? 'Equivalent to ~ \$${(amountVal / rate).toStringAsFixed(2)} USD (Live forex: ₹${rate.toStringAsFixed(2)} / \$1 USD)'
-                          : 'Billed via Cashfree PG as ₹${amountINR.toStringAsFixed(2)} INR (Live forex: ₹${rate.toStringAsFixed(2)} / \$1 USD)',
+                          ? 'Billed in INR via Cashfree Payments (${CashfreeCountrySupport.getPaymentMethodsSummary("IN")})'
+                          : 'Billed directly in USD via Cashfree Global Gateway (${CashfreeCountrySupport.getPaymentMethodsSummary("US")})',
                       style: const TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 11,
@@ -684,9 +685,11 @@ class PremiumCommentInput extends StatelessWidget {
                                   return;
                                 }
 
-                                if (amountINR < 1.0) {
+                                final minAmount = isIndian ? 1.0 : 0.50;
+                                if (amountVal < minAmount) {
+                                  final minStr = isIndian ? '₹1.00' : r'$0.50';
                                   AppSnackbar.warning(
-                                    'Minimum transaction amount is ₹1.00.',
+                                    'Minimum transaction amount is $minStr.',
                                   );
                                   return;
                                 }
@@ -719,14 +722,16 @@ class PremiumCommentInput extends StatelessWidget {
                                   var paymentSucceeded = false;
                                   var transactionOrderId = '';
 
-                                  final orderNote = isIndian
-                                      ? 'Super Thanks on $effectiveVideoTitle ($amountStr)'
-                                      : 'Super Thanks on $effectiveVideoTitle ($amountStr ~ ₹${amountINR.toStringAsFixed(2)} INR)';
+                                  final chargeCurrency = isIndian ? 'INR' : 'USD';
+                                  final chargeAmount = isIndian ? amountINR : amountVal;
+                                  final orderNote =
+                                      'Super Thanks on $effectiveVideoTitle ($amountStr)';
 
                                   final paymentResult =
                                       await CashfreePaymentService.to
                                           .startPayment(
-                                    amount: amountINR,
+                                    amount: chargeAmount,
+                                    currency: chargeCurrency,
                                     purpose: 'super_thanks',
                                     orderNote: orderNote,
                                     metadata: {
@@ -740,8 +745,8 @@ class PremiumCommentInput extends StatelessWidget {
                                       'tierColor':
                                           currentTier['color']! as String,
                                       'originalAmount': amountVal,
-                                      'originalCurrency':
-                                          isIndian ? 'INR' : 'USD',
+                                      'originalCurrency': chargeCurrency,
+                                      'amountINR': amountINR,
                                     },
                                   );
 
@@ -820,8 +825,9 @@ class PremiumCommentInput extends StatelessWidget {
                                                 ? transactionOrderId
                                                 : null)
                                             .set({
-                                          'amount': amountINR,
+                                          'amount': isIndian ? amountINR : amountVal,
                                           'currency': isIndian ? 'INR' : 'USD',
+                                          'amountINR': amountINR,
                                           'originalAmount': amountVal,
                                           'donorId': AuthService.to.uid,
                                           'donorName':
@@ -878,6 +884,24 @@ class PremiumCommentInput extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 12),
+                    Center(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.lock_outline_rounded, size: 13, color: AppColors.textTertiary),
+                          const SizedBox(width: 5),
+                          Text(
+                            'Secured by Cashfree • ${CashfreeCountrySupport.getPaymentMethodsSummary(isIndian ? "IN" : (Get.isRegistered<CurrencyLocalizationService>() ? CurrencyLocalizationService.to.userCountryCode.value : "US"))}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textTertiary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12), 
                   ],
                 );
               }),

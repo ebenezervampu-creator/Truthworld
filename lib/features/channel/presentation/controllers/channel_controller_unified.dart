@@ -196,6 +196,8 @@ class ChannelController extends ChannelControllerBase
     'website': '',
   }.obs;
   @override
+  final RxList<Map<String, String>> customLinks = <Map<String, String>>[].obs;
+  @override
   final RxMap<String, dynamic> advancedSettings = <String, dynamic>{
     'allowComments': true,
     'moderationLevel': 'standard',

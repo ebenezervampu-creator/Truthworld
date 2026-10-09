@@ -143,6 +143,17 @@ void main() {
       expect(find.text('Custom Channel Infrastructure & Direct Earnings'), findsOneWidget);
       expect(find.text('ACTIVE'), findsOneWidget);
     });
+
+    testWidgets('renders qualification pending badge when isMonetized is false', (tester) async {
+      await tester.pumpWidget(
+        createTestWidget(
+          MonetizationHeaderSection(channel: standardChannel, isMonetized: false),
+        ),
+      );
+
+      expect(find.text('Channel Monetization'), findsOneWidget);
+      expect(find.text('QUALIFICATION PENDING'), findsOneWidget);
+    });
   });
 
   group('ChannelTypeCard & Detail Tiles', () {
@@ -207,6 +218,8 @@ void main() {
       expect(find.text('Partner Eligibility Status'), findsOneWidget);
       expect(find.text('Subscriber Gate'), findsOneWidget);
       expect(find.text('0 Required'), findsOneWidget);
+      expect(find.text('Channel Gate'), findsOneWidget);
+      expect(find.text('1k Views, 10h & KYC'), findsOneWidget);
       expect(find.text('Cash Out Gate'), findsOneWidget);
       expect(find.text('1k Views & 10h'), findsOneWidget);
       expect(find.text('AI Features'), findsOneWidget);
@@ -368,6 +381,47 @@ void main() {
       expect(find.text('Add Money'), findsOneWidget);
       expect(find.text('Spend on Features'), findsOneWidget);
       expect(find.text('Recent Wallet Activity'), findsOneWidget);
+    });
+  });
+
+  group('DashboardController Monetization Qualification Logic', () {
+    testWidgets('accurately evaluates channel monetization gates (1k views, 10h watch time, KYC)', (tester) async {
+      final controller = Get.put(
+        DashboardController(channelId: 'qual_test_ch', autoInitialize: false),
+      );
+      controller.currentChannel.value = standardChannel;
+
+      // Initially no videos
+      controller.recentVideos.clear();
+      expect(controller.hasAnyVideoCrossedThreshold, isFalse);
+      expect(controller.firstQualifiedVideo, isNull);
+      expect(controller.qualifiedVideoCount, equals(0));
+      expect(controller.pendingVideoCount, equals(0));
+      expect(controller.isChannelMonetizationOn(isKycVerified: false), isFalse);
+      expect(controller.isChannelMonetizationOn(isKycVerified: true), isFalse);
+
+      // Add only pending video (800 views, 4 hours watch time)
+      controller.recentVideos.assignAll([samplePendingVideo]);
+      expect(controller.hasAnyVideoCrossedThreshold, isFalse);
+      expect(controller.qualifiedVideoCount, equals(0));
+      expect(controller.pendingVideoCount, equals(1));
+      expect(controller.isChannelMonetizationOn(isKycVerified: false), isFalse);
+      expect(controller.isChannelMonetizationOn(isKycVerified: true), isFalse);
+
+      // Add qualified video (4500 views, 12 hours watch time)
+      controller.recentVideos.assignAll([sampleVideo, samplePendingVideo]);
+      expect(controller.hasAnyVideoCrossedThreshold, isTrue);
+      expect(controller.firstQualifiedVideo?.id, equals('vid_101'));
+      expect(controller.qualifiedVideoCount, equals(1));
+      expect(controller.pendingVideoCount, equals(1));
+
+      // Threshold met on a video, but KYC not verified: Monetization remains OFF
+      expect(controller.isChannelMonetizationOn(isKycVerified: false), isFalse);
+
+      // Threshold met on a video AND KYC verified: Monetization turns ON!
+      expect(controller.isChannelMonetizationOn(isKycVerified: true), isTrue);
+      expect(controller.isVideoWithdrawalEligible(sampleVideo), isTrue);
+      expect(controller.isVideoWithdrawalEligible(samplePendingVideo), isFalse);
     });
   });
 }

@@ -168,9 +168,15 @@ class CreateContentAISection extends StatelessWidget {
                   controller.aiFactCheckEnabled.value = val;
                   if (val) {
                     controller.aiFactCheckTier.value = 'full_ground';
+                  } else {
+                    controller.aiFactCheckTier.value = 'none';
                   }
                 },
               ),
+              if (isFactCheck) ...[
+                const SizedBox(height: 10),
+                _buildFactCheckReviewModeSelector(context, controller),
+              ],
               const SizedBox(height: 16),
               const Divider(color: Colors.white10),
               const SizedBox(height: 8),
@@ -518,6 +524,145 @@ class CreateContentAISection extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFactCheckReviewModeSelector(
+    BuildContext context,
+    UploadControllerBase controller,
+  ) {
+    final currentMode = controller.aiFactCheckReviewMode.value;
+
+    return Container(
+      margin: const EdgeInsets.only(left: 4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF101014),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: const Color(0xFF34D399).withValues(alpha: 0.2),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.rule_folder_rounded,
+                size: 15,
+                color: Color(0xFF34D399),
+              ),
+              SizedBox(width: 8),
+              Text(
+                'Fact-Check Results Delivery',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Choose whether verification results are immediately visible to users or held for your review first.',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.5),
+              fontSize: 11,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _buildReviewOptionTile(
+            title: 'Open for user directly',
+            subtitle:
+                'Results appear for viewers immediately once verification analysis completes.',
+            icon: Icons.public_rounded,
+            isSelected: currentMode == 'open_to_users',
+            onTap: () =>
+                controller.aiFactCheckReviewMode.value = 'open_to_users',
+          ),
+          const SizedBox(height: 8),
+          _buildReviewOptionTile(
+            title: 'Show results first to you',
+            subtitle:
+                'Hidden from viewers on video screen until you review & approve in Studio Notifications.',
+            icon: Icons.admin_panel_settings_rounded,
+            isSelected: currentMode == 'first_to_creator',
+            onTap: () =>
+                controller.aiFactCheckReviewMode.value = 'first_to_creator',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReviewOptionTile({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFF10B981).withValues(alpha: 0.12)
+              : const Color(0xFF16171B),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFF34D399)
+                : Colors.white.withValues(alpha: 0.08),
+            width: isSelected ? 1.2 : 1.0,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isSelected
+                  ? Icons.radio_button_checked_rounded
+                  : Icons.radio_button_off_rounded,
+              size: 16,
+              color: isSelected ? const Color(0xFF34D399) : Colors.white38,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: isSelected ? Colors.white : Colors.white70,
+                      fontSize: 12,
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      color: isSelected
+                          ? Colors.white.withValues(alpha: 0.7)
+                          : Colors.white38,
+                      fontSize: 10.5,
+                      height: 1.25,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

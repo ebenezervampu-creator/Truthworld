@@ -78,7 +78,9 @@ mixin UploadSubmissionMixin on
       'languages': effectiveSelectedLangs,
     };
 
-    if (pickedVideo.value == null && resumedVideoDraft.value == null) {
+    if (pickedVideo.value == null &&
+        resumedVideoDraft.value == null &&
+        videoUrl.value.trim().isEmpty) {
       AppSnackbar.warning('Please select a video.');
       throw Exception('Please select a video.');
     }
@@ -164,6 +166,13 @@ mixin UploadSubmissionMixin on
         durationMs = resumedVideoDraft.value!.durationMs > 0
             ? resumedVideoDraft.value!.durationMs
             : resumedVideoDraft.value!.durationValue.inMilliseconds;
+      }
+      if (durationMs <= 0) {
+        if (videoDuration.value.inMilliseconds > 0) {
+          durationMs = videoDuration.value.inMilliseconds;
+        } else if (videoDurationSeconds.value > 0) {
+          durationMs = videoDurationSeconds.value * 1000;
+        }
       }
 
       // Validate daily quota for selected channel before publishing
@@ -320,8 +329,8 @@ mixin UploadSubmissionMixin on
 
       final validLanguages = selectedLanguages.whereType<String>().toList();
 
-      // Use the ID that was created during video upload or generate a new one
-      currentVideoId ??= _uuid.v4();
+      // Use the ID that was created during video upload, or resumed draft ID, or generate a new one
+      currentVideoId ??= resumedVideoDraft.value?.id ?? _uuid.v4();
       final videoId = currentVideoId!;
 
       debugPrint('📄 Video ID: $videoId');
@@ -363,13 +372,22 @@ mixin UploadSubmissionMixin on
             : uploadQuality.value,
         'enableComments': enableComments.value,
         'allowRatings': allowRatings.value,
+        'duration': durationMs > 0
+            ? (durationMs ~/ 1000)
+            : ((docSnapshot.data()?['duration'] as int?) ??
+                ((docSnapshot.data()?['durationMs'] as int?) != null
+                    ? (docSnapshot.data()!['durationMs'] as int) ~/ 1000
+                    : 0)),
         'durationMs': durationMs > 0
             ? durationMs
-            : ((docSnapshot.data()?['duration'] as int?) != null
-                ? (docSnapshot.data()!['duration'] as int) * 1000
-                : durationMs),
+            : ((docSnapshot.data()?['durationMs'] as int?) ??
+                ((docSnapshot.data()?['duration'] as int?) != null
+                    ? (docSnapshot.data()!['duration'] as int) * 1000
+                    : 0)),
         'fileName': pickedVideo.value?.name ??
-            (docSnapshot.data()?['fileName'] as String? ?? 'unnamed_video.mp4'),
+            (resumedVideoDraft.value?.title.isNotEmpty == true
+                ? '${resumedVideoDraft.value!.title}.mp4'
+                : (docSnapshot.data()?['fileName'] as String? ?? 'unnamed_video.mp4')),
         'status': isDraft
             ? 'draft'
             : (isStillUploading
@@ -381,7 +399,18 @@ mixin UploadSubmissionMixin on
         'aiFeatures': buildFeaturesMap(
           pipelineStage: isDraft ? 'draft' : 'published',
         ),
-        'factCheckTier': aiFactCheckTier.value,
+        'factCheckTier': aiFactCheckEnabled.value
+            ? (aiFactCheckTier.value.isEmpty || aiFactCheckTier.value == 'none'
+                ? 'full_ground'
+                : aiFactCheckTier.value)
+            : 'none',
+        'enableFactCheck': aiFactCheckEnabled.value,
+        'factChecking': aiFactCheckEnabled.value,
+        'truthVerification': aiFactCheckEnabled.value,
+        'isFactChecked': aiFactCheckEnabled.value,
+        'factCheckReviewMode': aiFactCheckReviewMode.value,
+        'isFactCheckApproved':
+            aiFactCheckReviewMode.value != 'first_to_creator',
       };
 
       if (dubbingCost > 0) {
@@ -431,6 +460,33 @@ mixin UploadSubmissionMixin on
           throw Exception('Ownership verification failed');
         }
         await docRef.update(updateData);
+      }
+
+      if (isDraft) {
+        try {
+          await firestore.collection('user_drafts').doc(videoId).set({
+            'id': videoId,
+            'title': title.trim(),
+            'type': 'video',
+            'content': description.trim(),
+            'description': description.trim(),
+            'mediaUrl': thumbnailUrl.value,
+            'updatedAt': DateTime.now().toIso8601String(),
+            'status': 'draft',
+            'userId': userId,
+            'channelId': channelId.trim(),
+          }, SetOptions(merge: true));
+        } catch (e, stackTrace) {
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'UploadSubmissionMixin.syncUserDrafts',
+          );
+        }
+      } else {
+        try {
+          await firestore.collection('user_drafts').doc(videoId).delete();
+        } catch (_) {}
       }
 
       debugPrint('✅ Document updated with creator metadata');
@@ -702,6 +758,50 @@ mixin UploadSubmissionMixin on
               ? 'Your video was saved as a draft successfully.'
               : 'Video uploaded successfully!',
         );
+      }
+
+      if (aiFactCheckEnabled.value && !isDraft) {
+        try {
+          final notifId = firestore.collection('user_notifications').doc().id;
+          final isReviewFirst =
+              aiFactCheckReviewMode.value == 'first_to_creator';
+          final notifData = {
+            'id': notifId,
+            'userId': userId,
+            'channelId': channelId.trim(),
+            'type': 'fact_check_pending',
+            'severity': 'info',
+            'title': isReviewFirst
+                ? 'Truth Verification Queued (Private Review)'
+                : 'Truth Verification Queued',
+            'message': isReviewFirst
+                ? 'Fact-checking for "${title.trim()}" is in progress. Results will be held in Studio Notifications for your review and approval before viewers can watch them.'
+                : 'Fact-checking for "${title.trim()}" is in progress and will be published directly to viewers once analysis completes.',
+            'read': false,
+            'createdAt': FieldValue.serverTimestamp(),
+            'metadata': {
+              'videoId': videoId,
+              'channelId': channelId.trim(),
+              'videoTitle': title.trim(),
+              'factCheckReviewMode': aiFactCheckReviewMode.value,
+              'isFactCheckApproved': !isReviewFirst,
+            },
+          };
+          await Future.wait([
+            firestore
+                .collection('user_notifications')
+                .doc(notifId)
+                .set(notifData),
+            firestore
+                .collection(FirestoreCollections.users)
+                .doc(userId)
+                .collection('notifications_active')
+                .doc(notifId)
+                .set(notifData),
+          ]);
+        } catch (e) {
+          debugPrint('⚠️ Initial upload notification error (non-fatal): $e');
+        }
       }
 
       uploadProgress.value = 0.0;

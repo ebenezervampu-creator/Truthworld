@@ -53,7 +53,7 @@ const SUBJECTIVE_PHRASES: string[] = [
   "disgusting", "overrated", "underrated",
 ];
 
-/** Promotional / marketing signal phrases (Commercial CTAs) */
+/** Promotional / marketing signal phrases (Commercial CTAs across languages) */
 const PROMOTIONAL_SIGNALS: string[] = [
   "buy now", "limited offer", "sign up", "best product",
   "discount", "pricing", "free trial", "check it out", "check this out",
@@ -64,9 +64,16 @@ const PROMOTIONAL_SIGNALS: string[] = [
   "hit the bell", "smash the like", "like and subscribe", "comment below",
   "game changer for", "better than", "compared to",
   "alternative to", "switch to", "move to", "upgrade to",
+  // Multilingual signals (Spanish, Hindi, French, German, Portuguese, Arabic)
+  "comprar", "descuento", "código promocional", "enlace abajo", "suscríbete",
+  "achetez", "rabais", "code promo", "lien ci-dessous", "abonnez-vous",
+  "kaufen", "rabatt", "aktionscode", "abonnieren",
+  "compre agora", "desconto", "código promocional", "inscreva-se",
+  "खरीदें", "डिस्काउंट", "ऑफर", "प्रोमो कोड", "सब्सक्राइब", "लिंक नीचे",
+  "اشتر الآن", "خصم", "رمز ترويجي", "اشترك",
 ];
 
-/** Editorial / opinion signal phrases */
+/** Editorial / opinion signal phrases across languages */
 const EDITORIAL_SIGNALS: string[] = [
   "i think", "i believe", "in my opinion", "my take", "my view",
   "i feel", "i predict", "my prediction", "my analysis",
@@ -75,9 +82,16 @@ const EDITORIAL_SIGNALS: string[] = [
   "what nobody tells you", "the truth about", "the problem with",
   "should we", "is it worth", "i personally", "from my perspective",
   "my experience",
+  // Multilingual signals
+  "en mi opinión", "yo creo", "pienso que", "a mi parecer", "mi punto de vista",
+  "à mon avis", "je pense que", "selon moi", "mon avis",
+  "meiner meinung nach", "ich denke", "ich glaube",
+  "na minha opinião", "eu acho que", "no meu ponto de vista",
+  "मेरे अनुसार", "मुझे लगता है", "मेरी राय", "मेरा मानना है",
+  "في رأيي", "أعتقد أن", "وجهة نظري",
 ];
 
-/** Educational signal phrases */
+/** Educational signal phrases across languages */
 const EDUCATIONAL_SIGNALS: string[] = [
   "how to", "tutorial", "step by step", "step-by-step",
   "let me show you", "in this lesson", "in this tutorial",
@@ -85,18 +99,32 @@ const EDUCATIONAL_SIGNALS: string[] = [
   "beginner", "advanced", "complete guide", "ultimate guide",
   "everything you need to know", "101", "basics", "fundamentals",
   "learn", "course", "lecture", "class", "workshop",
+  // Multilingual signals
+  "cómo", "cómo hacer", "guía paso a paso", "aprender", "curso",
+  "comment faire", "tutoriel", "guide complet", "apprendre",
+  "anleitung", "schritt für schritt", "lernen", "kurs",
+  "como fazer", "passo a passo", "aprenda",
+  "कैसे करें", "ट्यूटोरियल", "स्टेप बाय स्टेप", "सीखें", "कक्षा",
+  "كيفية", "شرح", "خطوة بخطوة", "تعلم",
 ];
 
-/** Entertainment signal phrases */
+/** Entertainment signal phrases across languages */
 const ENTERTAINMENT_SIGNALS: string[] = [
   "vlog", "day in my life", "morning routine", "get ready with me",
   "challenge", "prank", "reaction", "reacting to", "storytime",
   "story time", "what happened", "you won't believe",
   "gone wrong", "gone right", "epic fail", "funny", "hilarious",
   "comedy", "skit", "parody", "roast",
+  // Multilingual signals
+  "comedia", "broma", "reacción", "divertido", "humor",
+  "blague", "drôle", "réaction",
+  "lustig", "streich", "unterhaltung",
+  "comédia", "pegadinha", "engraçado",
+  "कॉमेडी", "मजाक", "हंसी", "प्रैंक", "मनोरंजन",
+  "مضحك", "مقلب", "ردة فعل", "كوميديا",
 ];
 
-/** Testimonial signal phrases */
+/** Testimonial signal phrases across languages */
 const TESTIMONIAL_SIGNALS: string[] = [
   "it helped me", "changed my life", "my experience with",
   "my journey", "my story", "my results", "before and after",
@@ -105,6 +133,13 @@ const TESTIMONIAL_SIGNALS: string[] = [
   "what happened when i", "i switched to", "transformation",
   "testimony", "i was healed", "prayer changed", "god helped",
   "miracle", "my healing journey",
+  // Multilingual signals
+  "mi experiencia", "mi historia", "mi testimonio", "antes y después",
+  "mon expérience", "mon histoire", "avant et après",
+  "meine erfahrung", "meine geschichte", "vorher und nachher",
+  "minha experiência", "minha história", "antes e depois",
+  "मेरा अनुभव", "मेरी कहानी", "पहले और बाद",
+  "تجربتي", "قصتي", "شهادتي",
 ];
 
 // ─── Floor/Ceiling Configuration ──────────────────────────────────────────────
@@ -115,13 +150,13 @@ interface IntentBounds {
 }
 
 const INTENT_BOUNDS: Record<ContentIntentType, IntentBounds> = {
-  factual:       { floor: 0,  ceiling: 100 }, // Full range — hard news must be rigorous
-  promotional:   { floor: 55, ceiling: 85 },  // Can't be "Highly Reliable" but shouldn't be "Misleading"
-  editorial:     { floor: 50, ceiling: 90 },  // Opinions are valid; only penalize if presented as facts
+  factual:       { floor: 0,  ceiling: 100 }, // Full range — empirical news must be rigorous
+  promotional:   { floor: 0,  ceiling: 90 },  // No artificial shielding of promotional marketing claims
+  editorial:     { floor: 25, ceiling: 90 },  // Opinions are valid; only penalize if presented as false facts
   educational:   { floor: 0,  ceiling: 100 }, // Full range — educational content must be accurate
-  entertainment: { floor: 60, ceiling: 80 },  // Low-risk content gets generous floor
-  testimonial:   { floor: 50, ceiling: 85 },  // Personal experience; not verifiable but not harmful
-  commentary:    { floor: 65, ceiling: 95 },  // v5.1: Question-dominant legal/political commentary
+  entertainment: { floor: 35, ceiling: 85 },  // Low-risk creative content
+  testimonial:   { floor: 25, ceiling: 85 },  // Personal experience
+  commentary:    { floor: 25, ceiling: 95 },  // Critical analysis & investigative inquiry
 };
 
 // ─── Detector Class ───────────────────────────────────────────────────────────
@@ -179,53 +214,47 @@ export class ContentIntentDetector {
       scores[domainInfo.primaryIntent as ContentIntentType] += 12; // Decisive boost
     }
 
-    // 3.1. Keyword Signals (Primarily English-centric)
-    // Only run if we don't have a decisive LLM signal, or if language is likely English
-    const isEnglish = !domainInfo?.detectedLanguage || domainInfo.detectedLanguage === 'en';
-    
-    if (isEnglish) {
-      // Promotional signals
-      for (const signal of PROMOTIONAL_SIGNALS) {
-        if (fullText.includes(signal)) {
-          scores.promotional += 1;
-          matchedPromoSignals.push(signal);
-        }
+    // 3.1. Multilingual Keyword Signals
+    // Evaluates matched intent signals across English and international languages
+    for (const signal of PROMOTIONAL_SIGNALS) {
+      if (fullText.includes(signal)) {
+        scores.promotional += 1;
+        matchedPromoSignals.push(signal);
       }
+    }
 
-      // Editorial signals
-      for (const signal of EDITORIAL_SIGNALS) {
-        if (fullText.includes(signal)) {
-          scores.editorial += 1;
-        }
+    for (const signal of EDITORIAL_SIGNALS) {
+      if (fullText.includes(signal)) {
+        scores.editorial += 1;
       }
+    }
 
-      // Educational signals
-      for (const signal of EDUCATIONAL_SIGNALS) {
-        if (fullText.includes(signal)) {
-          scores.educational += 1;
-        }
+    for (const signal of EDUCATIONAL_SIGNALS) {
+      if (fullText.includes(signal)) {
+        scores.educational += 1;
       }
+    }
 
-      // Entertainment signals
-      for (const signal of ENTERTAINMENT_SIGNALS) {
-        if (fullText.includes(signal)) {
-          scores.entertainment += 1;
-        }
+    for (const signal of ENTERTAINMENT_SIGNALS) {
+      if (fullText.includes(signal)) {
+        scores.entertainment += 1;
       }
+    }
 
-      // Testimonial signals
-      for (const signal of TESTIMONIAL_SIGNALS) {
-        if (fullText.includes(signal)) {
-          scores.testimonial += 1;
-        }
+    for (const signal of TESTIMONIAL_SIGNALS) {
+      if (fullText.includes(signal)) {
+        scores.testimonial += 1;
       }
+    }
 
-      // 🚀 News / Geopolitical signals (v5.1)
-      const NEWS_SIGNALS = ["breaking", "report", "official", "confirmed", "denied", "statement", "press release", "coverage", "update", "news"];
-      for (const signal of NEWS_SIGNALS) {
-        if (fullText.includes(signal)) {
-          scores.factual += 2; // Strong boost for news keywords
-        }
+    // 🚀 News / Geopolitical signals (multilingual)
+    const NEWS_SIGNALS = [
+      "breaking", "report", "official", "confirmed", "denied", "statement", "press release", "coverage", "update", "news",
+      "noticias", "última hora", "comunicado", "nouvelles", "nachrichten", "ताज़ा ख़बर", "समाचार", "أخبار", "notícias"
+    ];
+    for (const signal of NEWS_SIGNALS) {
+      if (fullText.includes(signal)) {
+        scores.factual += 2; // Strong boost for news keywords
       }
     }
 
@@ -261,12 +290,15 @@ export class ContentIntentDetector {
     }
 
 
-    // 4. Factual baseline — if no strong intent signal, default to factual
-    // Factual gets a baseline score based on absence of other signals
+    // 4. Baseline distribution — balanced and non-punitive across languages
     const nonFactualTotal = scores.promotional + scores.editorial +
                             scores.educational + scores.entertainment + scores.testimonial;
     if (nonFactualTotal < 2) {
-      scores.factual = 5; // Strong factual baseline
+      // Balanced baseline prior — does not force non-English creative/vlog content into 0-floor factual
+      scores.factual = 3;
+      scores.educational = 2;
+      scores.editorial = 2;
+      scores.entertainment = 2;
     } else {
       scores.factual = Math.max(0, 3 - nonFactualTotal * 0.5);
     }

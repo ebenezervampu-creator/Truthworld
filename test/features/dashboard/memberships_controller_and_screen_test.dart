@@ -216,6 +216,112 @@ void main() {
       expect(controller.platformMonthlyRecurringRevenue, equals(30.0));
     });
 
+    test('ChannelMembershipTier hasPremiumBundle and platform cut calculations work correctly', () {
+      final standardTier = ChannelMembershipTier(
+        id: 'tier_standard',
+        name: 'Standard Tier',
+        price: 5.0,
+        perks: const ['VIP Discord Access', 'Exclusive Badges'],
+        hasPremiumBundle: false,
+      );
+      expect(standardTier.includesPremiumBundle, isFalse);
+      expect(standardTier.platformCutPercentage, equals(0.0));
+      expect(standardTier.creatorSharePercentage, equals(1.0));
+
+      final premiumTier = ChannelMembershipTier(
+        id: 'tier_premium',
+        name: 'Premium Tier',
+        price: 10.0,
+        perks: const [ChannelMembershipTier.premiumBundlePerkTitle],
+        hasPremiumBundle: true,
+      );
+      expect(premiumTier.includesPremiumBundle, isTrue);
+      expect(premiumTier.platformCutPercentage, equals(0.30));
+      expect(premiumTier.creatorSharePercentage, equals(0.70));
+
+      final copy = standardTier.copyWith(hasPremiumBundle: true);
+      expect(copy.includesPremiumBundle, isTrue);
+      expect(copy.platformCutPercentage, equals(0.30));
+      expect(copy.creatorSharePercentage, equals(0.70));
+
+      // Recommended Bundle Pricing Checks ($5 USD / ₹150 INR)
+      expect(ChannelMembershipTier.recommendedBundlePriceUSD, equals(5.0));
+      expect(ChannelMembershipTier.recommendedBundlePriceINR, equals(150.0));
+      expect(ChannelMembershipTier.recommendedBundlePriceFor('USD'), equals(5.0));
+      expect(ChannelMembershipTier.recommendedBundlePriceFor('INR'), equals(150.0));
+      expect(ChannelMembershipTier.recommendedBundlePriceLabel('USD'), equals(r'$5'));
+      expect(ChannelMembershipTier.recommendedBundlePriceLabel('INR'), equals('₹150'));
+
+      final cheapUsdBundleTier = ChannelMembershipTier(
+        id: 'tier_cheap_usd',
+        name: 'Cheap Bundle',
+        price: 2.0,
+        currency: 'USD',
+        perks: const [ChannelMembershipTier.premiumBundlePerkTitle],
+        hasPremiumBundle: true,
+      );
+      expect(cheapUsdBundleTier.isBelowRecommendedBundlePrice, isTrue);
+
+      final healthyUsdBundleTier = ChannelMembershipTier(
+        id: 'tier_healthy_usd',
+        name: 'Healthy Bundle',
+        price: 5.0,
+        currency: 'USD',
+        perks: const [ChannelMembershipTier.premiumBundlePerkTitle],
+        hasPremiumBundle: true,
+      );
+      expect(healthyUsdBundleTier.isBelowRecommendedBundlePrice, isFalse);
+
+      final cheapInrBundleTier = ChannelMembershipTier(
+        id: 'tier_cheap_inr',
+        name: 'Cheap INR Bundle',
+        price: 50.0,
+        currency: 'INR',
+        perks: const [ChannelMembershipTier.premiumBundlePerkTitle],
+        hasPremiumBundle: true,
+      );
+      expect(cheapInrBundleTier.isBelowRecommendedBundlePrice, isTrue);
+
+      final healthyInrBundleTier = ChannelMembershipTier(
+        id: 'tier_healthy_inr',
+        name: 'Healthy INR Bundle',
+        price: 150.0,
+        currency: 'INR',
+        perks: const [ChannelMembershipTier.premiumBundlePerkTitle],
+        hasPremiumBundle: true,
+      );
+      expect(healthyInrBundleTier.isBelowRecommendedBundlePrice, isFalse);
+    });
+
+    test('MRR calculates 70% creator / 30% platform for tiers with Premium Bundle and 100% creator for standard tiers', () {
+      final standardTier = ChannelMembershipTier(
+        id: 't_standard',
+        name: 'Standard',
+        price: 10.0,
+        perks: const ['Standard Perk'],
+        memberCount: 1,
+        hasPremiumBundle: false,
+      );
+      final premiumTier = ChannelMembershipTier(
+        id: 't_premium',
+        name: 'Premium',
+        price: 20.0,
+        perks: const [ChannelMembershipTier.premiumBundlePerkTitle],
+        memberCount: 1,
+        hasPremiumBundle: true,
+      );
+
+      controller.members.clear();
+      controller.tiers.assignAll([standardTier, premiumTier]);
+
+      // Total gross: 10 + 20 = 30
+      expect(controller.monthlyRecurringRevenue, equals(30.0));
+      // Creator net: (10 * 1.0) + (20 * 0.7) = 10 + 14 = 24.0
+      expect(controller.creatorMonthlyRecurringRevenue, equals(24.0));
+      // Platform cut: 30 - 24 = 6.0 (30% of $20)
+      expect(controller.platformMonthlyRecurringRevenue, equals(6.0));
+    });
+
     test('popularPerkSuggestions and starter bundles include ad-free and 4K Ultra HD perks', () {
       expect(
         MembershipsController.popularPerkSuggestions,

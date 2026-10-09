@@ -281,15 +281,15 @@ Below are reference examples. Use these to calibrate your decisions.
 
 6. ✅ APPROVE | "Modi/Biden/Trump is destroying the country — here are 10 reasons why" | topic: political_criticism | intent: commentary | riskLevel: safe | policyReason: "Political criticism in family-friendly language. Open debate."
 
-7. ✅ APPROVE | "How Hike's Rush gaming platform generated ₹100Cr revenue by charging entry fees" | topic: real_money_gaming | intent: news_reporting | riskLevel: low | policyReason: "Business journalism analyzing revenue. No gambling promotion."
+7. ✅ APPROVE | "How digital tournament platforms generate recurring revenue by charging entry fees" | topic: real_money_gaming | intent: news_reporting | riskLevel: low | policyReason: "Business journalism analyzing revenue. No gambling promotion."
 
-8. ✅ APPROVE | "Is Dream11 actually gambling? Legal analysis of fantasy sports in India" | topic: real_money_gaming | intent: commentary | riskLevel: low | policyReason: "Legal debate about gambling classification. No promotion."
+8. ✅ APPROVE | "Are daily fantasy leagues classified as games of skill or chance under international sports law?" | topic: real_money_gaming | intent: commentary | riskLevel: low | policyReason: "Legal debate about gambling classification. No promotion."
 
 9. ✅ APPROVE | "Inside ISIS — the rise and fall of the Islamic State" | topic: terrorism | intent: documentary | riskLevel: low | policyReason: "Historical documentary about a terrorist organization. Clean delivery."
 
 10. ✅ APPROVE | "The opioid crisis — how pharmaceutical companies fueled addiction" | topic: drug_crisis | intent: documentary | riskLevel: low | policyReason: "Documentary investigating systemic issues. Clean delivery."
 
-11. ✅ APPROVE | "5 killed in Delhi shootout — police investigation ongoing" | topic: crime_news | intent: news_reporting | riskLevel: low | policyReason: "Crime news reporting. No graphic visuals or profanity."
+11. ✅ APPROVE | "Breaking news report: Metropolitan police launch investigation following public disturbance" | topic: crime_news | intent: news_reporting | riskLevel: low | policyReason: "Crime news reporting. No graphic visuals or profanity."
 
 12. ✅ APPROVE | "Why I think [religion] is wrong — a philosophical debate" | topic: religious_debate | intent: commentary | riskLevel: safe | policyReason: "Religious/philosophical debate in clean language. Open platform."
 
@@ -297,7 +297,7 @@ Below are reference examples. Use these to calibrate your decisions.
 
 14. ✅ APPROVE | "My 5-year journey through alcohol addiction and recovery" | topic: substance_abuse | intent: personal_experience | riskLevel: low | policyReason: "Personal recovery story. Clean delivery."
 
-15. ✅ APPROVE | "India's Tejas fighter jet — engineering marvel of indigenous defense" | topic: military_technology | intent: educational | riskLevel: safe | policyReason: "Educational content about defense technology."
+15. ✅ APPROVE | "Next-generation supersonic aerospace propulsion — engineering marvel of modern aviation" | topic: military_technology | intent: educational | riskLevel: safe | policyReason: "Educational content about defense technology."
 
 16. ✅ APPROVE | "The Blackout Challenge is killing teenagers — what parents need to know" | topic: dangerous_challenges | intent: educational | riskLevel: low | policyReason: "Parental safety awareness. Clean delivery."
 
@@ -423,7 +423,7 @@ export function normalizeContentCategory(rawCategory?: string, topic?: string, i
   const rawStr = (rawCategory || "").toLowerCase();
   const combined = `${topicStr} ${intentStr} ${rawStr}`.toLowerCase();
 
-  if (combined.match(/\b(politic|political|election|government|parliament|biden|trump|modi|minister|policy|lawmaker|senate|democracy|party|candidate|campaign|vote|voting|diplomacy)\b/)) {
+  if (combined.match(/\b(politic|political|election|government|parliament|president|prime_minister|chancellor|leader|governor|official|minister|policy|lawmaker|senate|congress|democracy|party|candidate|campaign|vote|voting|diplomacy)\b/)) {
     return "Politics";
   }
   if (combined.match(/\b(news|journalism|breaking|report|war|conflict|strike|shootout|crime|investigation|press|geopolitics|media|world_event)\b/)) {
@@ -549,7 +549,7 @@ export class VideoModerationService {
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
         const model = this.vertexAI.getGenerativeModel({
-          model: PIPELINE_CONFIG.GEMINI_MODELS?.moderation || PIPELINE_CONFIG.GEMINI_MODELS?.synthesis || "gemini-3.1-flash-lite",
+          model: PIPELINE_CONFIG.GEMINI_MODELS?.moderation || "gemini-2.5-flash",
           systemInstruction: MODERATION_SYSTEM_PROMPT,
           generationConfig: {
             responseMimeType: "application/json",
@@ -659,7 +659,7 @@ export class VideoModerationService {
             explanation: "Moderation timed out — video approved pending async review.",
             violationReason: "",
             violationCategories: ["timeout_passthrough"],
-            summary: "Moderation timed out — video approved pending async review.",
+            summary: "", // Never pollute user-facing video summary with internal timeout messages
             category: "Other",
             processingTimeMs,
           };
@@ -695,7 +695,7 @@ export class VideoModerationService {
             explanation: "Moderation could not complete — video approved pending async review.",
             violationReason: "",
             violationCategories: ["retry_exhausted_passthrough"],
-            summary: "Moderation could not complete — video approved pending async review.",
+            summary: "", // Never pollute user-facing video summary with retry error messages
             category: "Other",
             processingTimeMs: Date.now() - t0,
           };

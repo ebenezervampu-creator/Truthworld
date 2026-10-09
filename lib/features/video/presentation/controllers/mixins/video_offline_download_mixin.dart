@@ -14,11 +14,13 @@ import 'package:truthworld/features/settings/presentation/controllers/user_setti
 import 'package:truthworld/features/video/data/datasources/local/database_helpers.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/downloadcontroller.dart';
+import 'package:truthworld/features/video/presentation/controllers/playback_source.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 
 /// Mixin handling offline playback loading and video/audio downloading.
 mixin VideoOfflineDownloadMixin on GetxController {
   Video get video;
+  RxBool get rxIsOffline;
   RxBool get isAudioOnly;
   RxBool get rxIsLoading;
   RxBool get videoError;
@@ -37,17 +39,31 @@ mixin VideoOfflineDownloadMixin on GetxController {
   Future<void> initializeOfflinePlayback() async {
     rxIsLoading.value = true;
     try {
-      final isAudio = isAudioOnly.value || (Get.arguments?['isAudioOnly'] == true);
-      if (isAudio) {
-        isAudioOnly.value = true;
+      final offlineMeta = await getOfflineVideoMetadata(video.id);
+      final isExplicitAudioArg = Get.arguments is Map && Get.arguments['isAudioOnly'] == true;
+      final isExplicitVideoArg = Get.arguments is Map && Get.arguments['isAudioOnly'] == false;
+      final isAudio = isExplicitAudioArg ||
+          (isAudioOnly.value && !isExplicitVideoArg) ||
+          (offlineMeta?.isAudioOnly == true && (rxIsOffline.value || isExplicitAudioArg));
+
+      isAudioOnly.value = isAudio;
+      if (!isAudio) {
+        TowerPlayerPreferences.globalAudioOnly = false;
       }
 
       // Sync isAudioOnly with TowerPlayerController
       if (Get.isRegistered<TowerPlayerController>(tag: video.id)) {
-        Get.find<TowerPlayerController>(tag: video.id).isAudioOnly.value =
-            isAudio;
+        final tpc = Get.find<TowerPlayerController>(tag: video.id);
+        tpc.isAudioOnly.value = isAudio;
+        tpc.playbackMode.value =
+            isAudio ? PlaybackMode.audio : PlaybackMode.video;
+        TowerPlayerController.globalAudioOnly = isAudio;
       } else if (Get.isRegistered<TowerPlayerController>()) {
-        Get.find<TowerPlayerController>().isAudioOnly.value = isAudio;
+        final tpc = Get.find<TowerPlayerController>();
+        tpc.isAudioOnly.value = isAudio;
+        tpc.playbackMode.value =
+            isAudio ? PlaybackMode.audio : PlaybackMode.video;
+        TowerPlayerController.globalAudioOnly = isAudio;
       }
 
       if (kIsWeb) {

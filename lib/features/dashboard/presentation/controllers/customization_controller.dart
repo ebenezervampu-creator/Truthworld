@@ -16,6 +16,20 @@ import 'package:truthworld/core/services/image_cropper_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart';
 
+class CustomLinkItem {
+  final TextEditingController titleController;
+  final TextEditingController urlController;
+
+  CustomLinkItem({String title = '', String url = ''})
+      : titleController = TextEditingController(text: title),
+        urlController = TextEditingController(text: url);
+
+  void dispose() {
+    titleController.dispose();
+    urlController.dispose();
+  }
+}
+
 class CustomizationController extends BaseController
     with ContentValidationMixin, GetSingleTickerProviderStateMixin {
   CustomizationController({
@@ -37,6 +51,12 @@ class CustomizationController extends BaseController
   @override
   void onClose() {
     tabController.dispose();
+    for (final item in customLinks) {
+      item.dispose();
+    }
+    for (final ctrl in extraSocialControllers.values) {
+      ctrl.dispose();
+    }
     super.onClose();
   }
 
@@ -71,9 +91,39 @@ class CustomizationController extends BaseController
   late final TextEditingController tagsController = trackTextController(TextEditingController());
 
   // Social links
+  late final TextEditingController youtubeController = trackTextController(TextEditingController());
   late final TextEditingController twitterController = trackTextController(TextEditingController());
   late final TextEditingController instagramController = trackTextController(TextEditingController());
   late final TextEditingController facebookController = trackTextController(TextEditingController());
+  late final TextEditingController linkedinController = trackTextController(TextEditingController());
+  late final TextEditingController tiktokController = trackTextController(TextEditingController());
+  late final TextEditingController whatsappController = trackTextController(TextEditingController());
+  late final TextEditingController telegramController = trackTextController(TextEditingController());
+  late final TextEditingController discordController = trackTextController(TextEditingController());
+  late final TextEditingController githubController = trackTextController(TextEditingController());
+  late final TextEditingController twitchController = trackTextController(TextEditingController());
+  late final TextEditingController redditController = trackTextController(TextEditingController());
+  late final TextEditingController patreonController = trackTextController(TextEditingController());
+  late final TextEditingController threadsController = trackTextController(TextEditingController());
+  final Map<String, TextEditingController> extraSocialControllers = {};
+
+  // Custom links
+  final RxList<CustomLinkItem> customLinks = <CustomLinkItem>[].obs;
+
+  void addCustomLink() {
+    if (customLinks.length >= 10) {
+      AppSnackbar.warning('You can add up to 10 custom links.');
+      return;
+    }
+    customLinks.add(CustomLinkItem());
+  }
+
+  void removeCustomLink(int index) {
+    if (index >= 0 && index < customLinks.length) {
+      final removed = customLinks.removeAt(index);
+      removed.dispose();
+    }
+  }
 
   // Settings (Reactive)
   final RxBool isPublic = true.obs;
@@ -146,10 +196,57 @@ class CustomizationController extends BaseController
 
         final socialLinks = data['socialLinks'] as Map<String, dynamic>?;
         if (socialLinks != null) {
-          twitterController.text = (socialLinks['twitter'] as String?) ?? '';
+          youtubeController.text = (socialLinks['youtube'] as String?) ?? '';
+          twitterController.text =
+              (socialLinks['twitter'] as String?) ?? (socialLinks['x'] as String?) ?? '';
           instagramController.text =
               (socialLinks['instagram'] as String?) ?? '';
           facebookController.text = (socialLinks['facebook'] as String?) ?? '';
+          linkedinController.text = (socialLinks['linkedin'] as String?) ?? '';
+          tiktokController.text = (socialLinks['tiktok'] as String?) ?? '';
+          whatsappController.text = (socialLinks['whatsapp'] as String?) ?? '';
+          telegramController.text = (socialLinks['telegram'] as String?) ?? '';
+          discordController.text = (socialLinks['discord'] as String?) ?? '';
+          githubController.text = (socialLinks['github'] as String?) ?? '';
+          twitchController.text = (socialLinks['twitch'] as String?) ?? '';
+          redditController.text = (socialLinks['reddit'] as String?) ?? '';
+          patreonController.text = (socialLinks['patreon'] as String?) ?? '';
+          threadsController.text = (socialLinks['threads'] as String?) ?? '';
+
+          final standardKeys = {
+            'youtube', 'twitter', 'x', 'instagram', 'facebook',
+            'linkedin', 'tiktok', 'whatsapp', 'telegram',
+            'discord', 'github', 'twitch', 'reddit', 'patreon', 'threads',
+            'website', 'customLinks',
+          };
+          for (final entry in socialLinks.entries) {
+            if (!standardKeys.contains(entry.key) && entry.value is String) {
+              if (extraSocialControllers.containsKey(entry.key)) {
+                extraSocialControllers[entry.key]!.text = entry.value as String;
+              } else {
+                extraSocialControllers[entry.key] =
+                    trackTextController(TextEditingController(text: entry.value as String));
+              }
+            }
+          }
+        }
+
+        // Load custom links
+        for (final item in customLinks) {
+          item.dispose();
+        }
+        customLinks.clear();
+        final rawCustomLinks = data['customLinks'] ?? (socialLinks != null ? socialLinks['customLinks'] : null);
+        if (rawCustomLinks is Iterable) {
+          for (final item in rawCustomLinks) {
+            if (item is Map) {
+              final title = (item['title'] ?? '').toString();
+              final url = (item['url'] ?? '').toString();
+              if (title.isNotEmpty || url.isNotEmpty) {
+                customLinks.add(CustomLinkItem(title: title, url: url));
+              }
+            }
+          }
         }
       }
     } catch (e) {
@@ -376,11 +473,27 @@ class CustomizationController extends BaseController
       }
     }
 
-    for (final entry in {
+    final allSocialEntries = <String, String>{
+      'YouTube': youtubeController.text.trim(),
       'Twitter': twitterController.text.trim(),
       'Instagram': instagramController.text.trim(),
       'Facebook': facebookController.text.trim(),
-    }.entries) {
+      'LinkedIn': linkedinController.text.trim(),
+      'TikTok': tiktokController.text.trim(),
+      'WhatsApp': whatsappController.text.trim(),
+      'Telegram': telegramController.text.trim(),
+      'Discord': discordController.text.trim(),
+      'GitHub': githubController.text.trim(),
+      'Twitch': twitchController.text.trim(),
+      'Reddit': redditController.text.trim(),
+      'Patreon': patreonController.text.trim(),
+      'Threads': threadsController.text.trim(),
+    };
+    for (final entry in extraSocialControllers.entries) {
+      allSocialEntries[entry.key] = entry.value.text.trim();
+    }
+
+    for (final entry in allSocialEntries.entries) {
       if (entry.value.isNotEmpty) {
         final linkVal = await validateContent(
           entry.value,
@@ -388,6 +501,33 @@ class CustomizationController extends BaseController
         );
         if (!linkVal.isValid) {
           AppSnackbar.warning(linkVal.message);
+          return;
+        }
+      }
+    }
+
+    // Validate custom links
+    for (var i = 0; i < customLinks.length; i++) {
+      final item = customLinks[i];
+      final title = item.titleController.text.trim();
+      final url = item.urlController.text.trim();
+      if (title.isNotEmpty || url.isNotEmpty) {
+        if (title.isEmpty) {
+          AppSnackbar.warning('Please enter a title for custom link #${i + 1}.');
+          return;
+        }
+        if (url.isEmpty) {
+          AppSnackbar.warning('Please enter a URL for custom link #${i + 1}.');
+          return;
+        }
+        final titleVal = await validateContent(title, fieldName: 'Custom Link Title');
+        if (!titleVal.isValid) {
+          AppSnackbar.warning(titleVal.message);
+          return;
+        }
+        final urlVal = await validateContent(url, fieldName: 'Custom Link URL');
+        if (!urlVal.isValid) {
+          AppSnackbar.warning(urlVal.message);
           return;
         }
       }
@@ -420,16 +560,54 @@ class CustomizationController extends BaseController
         );
       }
 
-      final socialLinks = {
-        if (twitterController.text.isNotEmpty)
-          'twitter': twitterController.text,
-        if (instagramController.text.isNotEmpty)
-          'instagram': instagramController.text,
-        if (facebookController.text.isNotEmpty)
-          'facebook': facebookController.text,
-        if (websiteUrlController.text.isNotEmpty)
-          'website': websiteUrlController.text,
+      final socialLinks = <String, dynamic>{
+        if (youtubeController.text.trim().isNotEmpty)
+          'youtube': youtubeController.text.trim(),
+        if (twitterController.text.trim().isNotEmpty)
+          'twitter': twitterController.text.trim(),
+        if (instagramController.text.trim().isNotEmpty)
+          'instagram': instagramController.text.trim(),
+        if (facebookController.text.trim().isNotEmpty)
+          'facebook': facebookController.text.trim(),
+        if (linkedinController.text.trim().isNotEmpty)
+          'linkedin': linkedinController.text.trim(),
+        if (tiktokController.text.trim().isNotEmpty)
+          'tiktok': tiktokController.text.trim(),
+        if (whatsappController.text.trim().isNotEmpty)
+          'whatsapp': whatsappController.text.trim(),
+        if (telegramController.text.trim().isNotEmpty)
+          'telegram': telegramController.text.trim(),
+        if (discordController.text.trim().isNotEmpty)
+          'discord': discordController.text.trim(),
+        if (githubController.text.trim().isNotEmpty)
+          'github': githubController.text.trim(),
+        if (twitchController.text.trim().isNotEmpty)
+          'twitch': twitchController.text.trim(),
+        if (redditController.text.trim().isNotEmpty)
+          'reddit': redditController.text.trim(),
+        if (patreonController.text.trim().isNotEmpty)
+          'patreon': patreonController.text.trim(),
+        if (threadsController.text.trim().isNotEmpty)
+          'threads': threadsController.text.trim(),
+        if (websiteUrlController.text.trim().isNotEmpty)
+          'website': websiteUrlController.text.trim(),
       };
+      for (final entry in extraSocialControllers.entries) {
+        final val = entry.value.text.trim();
+        if (val.isNotEmpty) {
+          socialLinks[entry.key] = val;
+        }
+      }
+
+      final savedCustomLinks = customLinks
+          .where((item) => item.urlController.text.trim().isNotEmpty)
+          .map((item) => {
+                'title': item.titleController.text.trim().isNotEmpty
+                    ? item.titleController.text.trim()
+                    : 'Link',
+                'url': item.urlController.text.trim(),
+              })
+          .toList();
 
       final updateData = <String, dynamic>{
         'name': channelNameController.text,
@@ -471,6 +649,7 @@ class CustomizationController extends BaseController
         'language': languageController.text,
         'tags': tags,
         'socialLinks': socialLinks.isNotEmpty ? socialLinks : null,
+        'customLinks': savedCustomLinks.isNotEmpty ? savedCustomLinks : null,
         'updatedAt': FieldValue.serverTimestamp(),
         'status': 'underReview',
         'geminiApproved': FieldValue.delete(),

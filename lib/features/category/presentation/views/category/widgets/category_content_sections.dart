@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/video_card.dart' as app_video_card;
@@ -72,8 +73,15 @@ class CategoryVideoGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final crossAxisCount = isDesktop ? 4 : (isTablet ? 3 : 2);
-    final childAspectRatio = isDesktop ? 1.1 : (isTablet ? 1.0 : 0.78);
+    final isMobileDevice = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final crossAxisCount = (!isMobileDevice && isDesktop)
+        ? (screenWidth >= 2100 ? 4 : (screenWidth >= 1600 ? 3 : 2))
+        : (isDesktop ? 4 : (isTablet ? 3 : 2));
+    final childAspectRatio = (!isMobileDevice && isDesktop)
+        ? 1.25
+        : (isDesktop ? 1.1 : (isTablet ? 1.0 : 0.78));
 
     return GridView.builder(
       shrinkWrap: true,

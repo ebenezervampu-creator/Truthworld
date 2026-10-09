@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/community_post_card.dart';
@@ -123,18 +124,33 @@ class RecommendationFeed extends StatelessWidget {
           ? LayoutBuilder(
               builder: (context, constraints) {
                 final width = constraints.maxWidth;
+                final isMobileDevice = defaultTargetPlatform == TargetPlatform.android ||
+                    defaultTargetPlatform == TargetPlatform.iOS;
                 var crossAxisCount = 1;
                 var aspectRatio = 1.2;
 
-                if (width > 1200) {
-                  crossAxisCount = 4;
-                  aspectRatio = 1.1;
-                } else if (width > 900) {
-                  crossAxisCount = 3;
-                  aspectRatio = 1.1;
-                } else if (width > 600) {
-                  crossAxisCount = 2;
-                  aspectRatio = 1.2;
+                if (!isMobileDevice && width >= 1000) {
+                  if (width >= 2100) {
+                    crossAxisCount = 4;
+                    aspectRatio = 1.25;
+                  } else if (width >= 1600) {
+                    crossAxisCount = 3;
+                    aspectRatio = 1.25;
+                  } else {
+                    crossAxisCount = 2;
+                    aspectRatio = 1.25;
+                  }
+                } else {
+                  if (width > 1200) {
+                    crossAxisCount = 4;
+                    aspectRatio = 1.1;
+                  } else if (width > 900) {
+                    crossAxisCount = 3;
+                    aspectRatio = 1.1;
+                  } else if (width > 600) {
+                    crossAxisCount = 2;
+                    aspectRatio = 1.2;
+                  }
                 }
 
                 return GridView.builder(

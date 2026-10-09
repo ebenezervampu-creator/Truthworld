@@ -219,8 +219,12 @@ class TowerPlayerLifecycleHelper {
   }) {
     subtitlesEnabled.value = TowerPlayerPreferences.globalSubtitlesEnabled;
     activeSubLang.value = TowerPlayerPreferences.globalActiveSubLang;
-    final shouldAudioOnly =
-        initialAudioOnly || (arguments is Map && arguments['isAudioOnly'] == true);
+    final explicitAudioOnly =
+        arguments is Map && arguments['isAudioOnly'] == true;
+    final explicitVideoMode =
+        arguments is Map && arguments['isAudioOnly'] == false;
+    final shouldAudioOnly = explicitAudioOnly ||
+        (initialAudioOnly && !explicitVideoMode);
     isAudioOnly.value = shouldAudioOnly;
     TowerPlayerPreferences.globalAudioOnly = shouldAudioOnly;
     playbackSpeed.value = TowerPlayerPreferences.globalPlaybackSpeed;
@@ -238,10 +242,16 @@ class TowerPlayerLifecycleHelper {
       });
     }
 
-    if (shouldAudioOnly) {
+    if (onSetAudioOnly != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!isClosed()) {
-          onToggleAudioOnly?.call();
+          onSetAudioOnly(shouldAudioOnly);
+        }
+      });
+    } else if (shouldAudioOnly && onToggleAudioOnly != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!isClosed()) {
+          onToggleAudioOnly();
         }
       });
     }

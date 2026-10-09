@@ -606,12 +606,23 @@ export const trackWatchEvent = onRequest(
               )
               .catch((err) => logger.warn("[WatchTime] Video shard write warning:", err));
 
-            // Best-effort update on parent video document for immediate UI reads without transaction lock
+            // Best-effort update on parent video document with epistemic duration ceiling
             db.collection("videos")
               .doc(body.videoId)
-              .update({
-                totalWatchTimeSeconds: admin.firestore.FieldValue.increment(creditedDelta),
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              .get()
+              .then((vDoc) => {
+                if (!vDoc.exists) return;
+                const vData = vDoc.data()!;
+                const vDur = duration || Number(vData.durationSeconds || 0) ||
+                  (vData.durationMs ? Math.floor(Number(vData.durationMs) / 1000) : 0);
+                const currentTotal = Number(vData.totalWatchTimeSeconds || 0);
+                const vViews = Math.max(1, Number(vData.viewCount || vData.views || 1));
+                const maxAllowed = vDur > 0 ? vViews * vDur : Infinity;
+                const nextTotal = Math.min(currentTotal + creditedDelta, maxAllowed);
+                return vDoc.ref.update({
+                  totalWatchTimeSeconds: nextTotal,
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
               })
               .catch(() => {});
           }

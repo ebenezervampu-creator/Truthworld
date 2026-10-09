@@ -48,7 +48,7 @@
           ".read": true,
           ".indexOn": ["timestamp"],
           "$messageId": {
-            ".write": "auth != null && (!data.exists() || data.child('userId').val() === auth.uid || auth.token.admin === true || (auth.token.email != null && auth.token.email_verified === true && auth.token.email.matches('.*@truthworld\\\\.in$')))",
+            ".write": "auth != null && (!data.exists() || data.child('userId').val() === auth.uid || auth.token.admin === true || (auth.token.email != null && auth.token.email_verified === true && auth.token.email.matches(/.*@truthworld\\.in$/)))",
             ".validate": "newData.hasChildren(['userId', 'userName', 'text', 'timestamp']) && newData.child('userId').val() === auth.uid && newData.child('text').isString() && newData.child('text').val().length > 0 && newData.child('text').val().length <= 500 && (!root.child('liveChat/' + $videoId + '/moderation/' + auth.uid).exists() || root.child('liveChat/' + $videoId + '/moderation/' + auth.uid + '/expiresAt').val() < now) && (!newData.hasChild('isSuperchat') || newData.child('isSuperchat').val() === false)"
           }
         },

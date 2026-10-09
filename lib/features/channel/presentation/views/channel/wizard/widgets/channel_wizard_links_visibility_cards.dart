@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -257,6 +258,42 @@ class ChannelWizardLinksCard extends StatelessWidget {
           'icon': Icons.send_outlined,
           'placeholder': 'https://t.me/yourchannel',
         },
+        {
+          'key': 'discord',
+          'label': 'Discord',
+          'icon': Icons.forum_outlined,
+          'placeholder': 'https://discord.gg/yourserver',
+        },
+        {
+          'key': 'github',
+          'label': 'GitHub',
+          'icon': Icons.code,
+          'placeholder': 'https://github.com/yourprofile',
+        },
+        {
+          'key': 'twitch',
+          'label': 'Twitch',
+          'icon': Icons.live_tv_outlined,
+          'placeholder': 'https://twitch.tv/yourchannel',
+        },
+        {
+          'key': 'reddit',
+          'label': 'Reddit',
+          'icon': Icons.chat_outlined,
+          'placeholder': 'https://reddit.com/r/yourcommunity',
+        },
+        {
+          'key': 'patreon',
+          'label': 'Patreon',
+          'icon': Icons.monetization_on_outlined,
+          'placeholder': 'https://patreon.com/yourpage',
+        },
+        {
+          'key': 'threads',
+          'label': 'Threads',
+          'icon': Icons.alternate_email_outlined,
+          'placeholder': 'https://threads.net/@yourhandle',
+        },
       ];
 
       final filteredStandard = standardLinks
@@ -443,6 +480,145 @@ class ChannelWizardLinksCard extends StatelessWidget {
               ),
             ),
           ],
+          const SizedBox(height: 24),
+          const Divider(color: Color(0xFF27272A)),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Custom Links',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              GestureDetector(
+                onTap: () {
+                  if (controller.customLinks.length >= 10) {
+                    AppSnackbar.warning('You can add up to 10 custom links.');
+                    return;
+                  }
+                  controller.customLinks.add({'title': '', 'url': ''});
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF18181B),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFF27272A)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.add, size: 14, color: Colors.white),
+                      SizedBox(width: 4),
+                      Text(
+                        'Add Custom Link',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Add links to your merchandise, portfolio, or other external sites.',
+            style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
+          ),
+          const SizedBox(height: 12),
+          if (controller.customLinks.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF121212),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFF27272A)),
+              ),
+              child: const Text(
+                'No custom links added yet. Tap "Add Custom Link" above to add your own links.',
+                style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
+              ),
+            )
+          else
+            ...List.generate(controller.customLinks.length, (idx) {
+              final linkMap = controller.customLinks[idx];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF121212),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFF27272A)),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: TextFormField(
+                          initialValue: linkMap['title'] ?? '',
+                          style: const TextStyle(color: Colors.white, fontSize: 13),
+                          decoration: const InputDecoration(
+                            hintText: 'Link Title (e.g. Store)',
+                            hintStyle: TextStyle(color: AppColors.textTertiary, fontSize: 12),
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.symmetric(vertical: 10),
+                          ),
+                          onChanged: (val) {
+                            controller.customLinks[idx] = {
+                              'title': val.trim(),
+                              'url': controller.customLinks[idx]['url'] ?? '',
+                            };
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      flex: 3,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF121212),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFF27272A)),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: TextFormField(
+                          initialValue: linkMap['url'] ?? '',
+                          style: const TextStyle(color: Colors.white, fontSize: 13),
+                          decoration: const InputDecoration(
+                            hintText: 'https://...',
+                            hintStyle: TextStyle(color: AppColors.textTertiary, fontSize: 12),
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.symmetric(vertical: 10),
+                          ),
+                          onChanged: (val) {
+                            controller.customLinks[idx] = {
+                              'title': controller.customLinks[idx]['title'] ?? '',
+                              'url': val.trim(),
+                            };
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline_rounded, color: AppColors.error, size: 20),
+                      onPressed: () {
+                        controller.customLinks.removeAt(idx);
+                      },
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+              );
+            }),
         ],
       );
     });

@@ -297,7 +297,37 @@ class DeepLinkUrlParser {
       );
     }
 
-    // 7. SETTINGS / ABOUT / POLICY / LEGAL ROUTES
+    // 7. PAYMENT & CHECKOUT RESULT PATTERNS:
+    if (firstSegment == 'payment-result' || firstSegment == 'payment_result') {
+      final orderId = queryParams['order_id'] ?? queryParams['orderId'] ?? '';
+      return ParsedTruthworldUrl(
+        type: TruthworldUrlType.paymentResult,
+        id: orderId,
+        rawUrl: rawUrl,
+        queryParameters: queryParams,
+      );
+    }
+
+    if (firstSegment == 'checkout') {
+      final orderId = queryParams['order_id'] ?? queryParams['orderId'] ?? '';
+      final action = (queryParams['action'] ?? '').toLowerCase();
+      if (action == 'result') {
+        return ParsedTruthworldUrl(
+          type: TruthworldUrlType.paymentResult,
+          id: orderId,
+          rawUrl: rawUrl,
+          queryParameters: queryParams,
+        );
+      }
+      return ParsedTruthworldUrl(
+        type: TruthworldUrlType.unknown,
+        id: orderId,
+        rawUrl: rawUrl,
+        queryParameters: queryParams,
+      );
+    }
+
+    // 8. SETTINGS / ABOUT / POLICY / LEGAL ROUTES
     if (firstSegment == 'settings') {
       return ParsedTruthworldUrl(
         type: TruthworldUrlType.settings,
@@ -362,6 +392,9 @@ class DeepLinkUrlParser {
       'playlistscreen',
       'clips',
       'premium',
+      'checkout',
+      'payment-result',
+      'payment_result',
       'upload',
       'uploadscreen',
       'create-post',

@@ -94,7 +94,7 @@ class DashboardTruthworldIssuesNotice extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Active issues: ${issues.join(" • ")}. Review audit details, guideline feedback, and appeal options on the Creator Intelligence page.',
+                  'Active issues: ${issues.join(" • ")}. Review audit details, guideline feedback, and appeal options on the Notifications page.',
                   style: TextStyle(
                     color: isDarkMode
                         ? AppColors.textSecondary
@@ -107,11 +107,11 @@ class DashboardTruthworldIssuesNotice extends StatelessWidget {
                 ElevatedButton.icon(
                   onPressed: onOpenIntelligence,
                   icon: const Icon(
-                    Icons.insights_rounded,
+                    Icons.notifications_rounded,
                     color: Colors.white,
                     size: 16,
                   ),
-                  label: const Text('Open Creator Intelligence'),
+                  label: const Text('Open Notifications'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.error,
                     foregroundColor: Colors.white,

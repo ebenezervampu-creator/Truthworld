@@ -12,6 +12,7 @@ import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playlist_controller.dart';
+import 'package:truthworld/features/video/presentation/services/video_playback_queue_service.dart';
 import 'package:video_player/video_player.dart';
 
 /// Mixin handling playlist traversal, video completion handling, and autoplay navigation.
@@ -108,8 +109,22 @@ mixin VideoPlaylistNavigationMixin on GetxController {
   }
 
   void autoplayNextVideo() {
+    if (!isAutoplay.value) return;
+
     if (recommendedVideos.isEmpty) {
-      debugPrint('[VideoController] No recommended videos for autoplay');
+      VideoPlaybackQueueService.to.fetchFallbackNextVideo(video.id).then((fallback) {
+        if (fallback != null && fallback.id != video.id) {
+          VideoPlaybackQueueService.to.pushCurrentForNext(fallback);
+          Get.offNamed(
+            '/watch?v=${fallback.id}',
+            arguments: {
+              'video': fallback,
+              'playlist': currentPlaylist.value,
+              'isAudioOnly': false,
+            },
+          );
+        }
+      });
       return;
     }
 
@@ -124,6 +139,7 @@ mixin VideoPlaylistNavigationMixin on GetxController {
     }
 
     debugPrint('[VideoController] Autoplaying next video: ${nextVideo.id}');
+    VideoPlaybackQueueService.to.pushCurrentForNext(nextVideo);
     Get.offNamed(
       '/watch?v=${nextVideo.id}',
       arguments: {
@@ -135,31 +151,47 @@ mixin VideoPlaylistNavigationMixin on GetxController {
   }
 
   void playNext() {
+    if (!isAutoplay.value) return;
+
     if (playlistVideos.isNotEmpty &&
         currentPlaylistIndex.value < playlistVideos.length - 1) {
+      final next = playlistVideos[currentPlaylistIndex.value + 1];
+      VideoPlaybackQueueService.to.pushCurrentForNext(next);
       playNextVideo();
       return;
+    }
+    if (VideoPlaybackQueueService.to.hasForwardVideo) {
+      final next = VideoPlaybackQueueService.to.nextForwardVideo;
+      if (next != null) {
+        VideoPlaybackQueueService.to.pushCurrentForNext(next);
+        Get.offNamed(
+          '/watch?v=${next.id}',
+          arguments: {
+            'video': next,
+            'playlist': currentPlaylist.value,
+            'isAudioOnly': false,
+          },
+        );
+        return;
+      }
     }
     autoplayNextVideo();
   }
 
   void playPrevious() {
+    if (!isAutoplay.value) return;
+
     if (playlistVideos.isNotEmpty && currentPlaylistIndex.value > 0) {
       videoPlaylistController.playPreviousPlaylistVideo();
       return;
     }
 
-    if (recommendedVideos.isEmpty) return;
-
-    final currentIndex =
-        recommendedVideos.indexWhere((v) => v.id == video.id);
-    Video? prevVideo;
-    if (currentIndex > 0) {
-      prevVideo = recommendedVideos[currentIndex - 1];
-    } else if (currentIndex == -1 && recommendedVideos.isNotEmpty) {
-      prevVideo = recommendedVideos.first;
+    if (!VideoPlaybackQueueService.to.hasPreviousVideo) {
+      // First video of the session: no back video!
+      return;
     }
 
+    final prevVideo = VideoPlaybackQueueService.to.popPreviousVideo();
     if (prevVideo != null && prevVideo.id != video.id) {
       debugPrint('[VideoController] Playing previous video: ${prevVideo.id}');
       Get.offNamed(

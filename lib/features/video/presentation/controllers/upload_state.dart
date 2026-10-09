@@ -87,6 +87,7 @@ class UploadState {
     this.aiTTSVoiceType = 'default',
     this.aiFactCheckEnabled = false,
     this.aiFactCheckTier = 'full_ground',
+    this.aiFactCheckReviewMode = 'open_to_users',
     this.voiceSampleFile,
     this.providedSources = const [],
 
@@ -182,6 +183,7 @@ class UploadState {
   final String aiTTSVoiceType;
   final bool aiFactCheckEnabled;
   final String aiFactCheckTier;
+  final String aiFactCheckReviewMode;
   final PlatformFile? voiceSampleFile;
   final List<String> providedSources;
 
@@ -335,6 +337,7 @@ class UploadState {
     String? aiTTSVoiceType,
     bool? aiFactCheckEnabled,
     String? aiFactCheckTier,
+    String? aiFactCheckReviewMode,
     Object? voiceSampleFile = _sentinel,
     List<String>? providedSources,
     String? selectedTopicId,
@@ -440,6 +443,8 @@ class UploadState {
       aiTTSVoiceType: aiTTSVoiceType ?? this.aiTTSVoiceType,
       aiFactCheckEnabled: aiFactCheckEnabled ?? this.aiFactCheckEnabled,
       aiFactCheckTier: aiFactCheckTier ?? this.aiFactCheckTier,
+      aiFactCheckReviewMode:
+          aiFactCheckReviewMode ?? this.aiFactCheckReviewMode,
       voiceSampleFile: identical(voiceSampleFile, _sentinel)
           ? this.voiceSampleFile
           : voiceSampleFile as PlatformFile?,
@@ -528,6 +533,7 @@ class UploadState {
         other.aiTTSVoiceType == aiTTSVoiceType &&
         other.aiFactCheckEnabled == aiFactCheckEnabled &&
         other.aiFactCheckTier == aiFactCheckTier &&
+        other.aiFactCheckReviewMode == aiFactCheckReviewMode &&
         other.voiceSampleFile == voiceSampleFile &&
         listEquals(other.providedSources, providedSources) &&
         other.selectedTopicId == selectedTopicId &&

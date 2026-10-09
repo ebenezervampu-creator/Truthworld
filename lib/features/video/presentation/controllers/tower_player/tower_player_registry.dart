@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/pip_service.dart';
+import 'package:truthworld/features/video/presentation/controllers/audio_only_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 
 /// Global registry managing active TowerPlayerController instances and picture-in-picture coordination.
@@ -55,6 +56,14 @@ class TowerPlayerRegistry {
         } catch (_) {}
         p.isPlaying.value = false;
       }
+    }
+    if (Get.isRegistered<AudioOnlyService>()) {
+      try {
+        final audioSvc = Get.find<AudioOnlyService>();
+        if (audioSvc.isActive.value || audioSvc.isPlaying.value) {
+          audioSvc.deactivateBackgroundPlayback();
+        }
+      } catch (_) {}
     }
   }
 

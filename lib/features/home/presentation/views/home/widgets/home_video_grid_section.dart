@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:shimmer/shimmer.dart';
@@ -123,10 +124,16 @@ class HomeVideoGridSection extends StatelessWidget {
   int _calculateCrossAxisCount(BuildContext context) {
     if (isMobile) return 1;
     if (isTablet) return 2;
+    final isMobileDevice = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    if (isMobileDevice) {
+      return 2;
+    }
     final width = MediaQuery.of(context).size.width;
-    if (width >= 2200) return 5;
-    if (width >= 1600) return 4;
-    return 3;
+    if (width >= 2800) return 5;
+    if (width >= 2100) return 4;
+    if (width >= 1600) return 3;
+    return 2;
   }
 
   Widget _buildLoadingGrid(BuildContext context) {
@@ -138,7 +145,7 @@ class HomeVideoGridSection extends StatelessWidget {
           crossAxisCount: crossAxisCount,
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
-          childAspectRatio: isMobile ? 1.2 : 0.8,
+          childAspectRatio: isMobile ? 1.2 : (isDesktop ? 1.25 : 0.85),
         ),
         delegate: SliverChildBuilderDelegate((context, index) {
           return Shimmer.fromColors(

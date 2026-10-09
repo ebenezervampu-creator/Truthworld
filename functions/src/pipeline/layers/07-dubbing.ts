@@ -98,9 +98,11 @@ export class DubbingEngine {
         throw new Error("Transcription must be completed before starting Dubbing Engine");
     }
 
-    await EdgeLayer.updateStageSync(jobId, "dubbing", {
-      status: "running", progress: 5, startedAt: Date.now(),
-    });
+    if (executionPlan.generateDubbing) {
+      await EdgeLayer.updateStageSync(jobId, "dubbing", {
+        status: "running", progress: 5, startedAt: Date.now(),
+      });
+    }
 
     try {
       // 1. Load transcript segments

@@ -30,8 +30,8 @@ void main() {
     });
 
     test('matches age groups exactly and case-insensitively', () {
-      expect(controller.matchAgeGroup('Under 13'), 'Under 13');
-      expect(controller.matchAgeGroup('under 13'), 'Under 13');
+      expect(controller.matchAgeGroup('18–24'), '18–24');
+      expect(controller.matchAgeGroup('18-24'), '18–24');
       expect(controller.matchAgeGroup('65+'), '65+');
       expect(controller.matchAgeGroup('Prefer not to say'), 'Prefer not to say');
     });
@@ -45,9 +45,11 @@ void main() {
       expect(controller.matchAgeGroup(' 25 - 34 '), '25–34');
     });
 
-    test('infers age group from numeric age', () {
-      expect(controller.inferAgeGroupFromAge(10), 'Under 13');
-      expect(controller.inferAgeGroupFromAge(15), '13–17');
+    test('infers age group from numeric age starting from 18 years and not below', () {
+      expect(controller.inferAgeGroupFromAge(10), isNull);
+      expect(controller.inferAgeGroupFromAge(15), isNull);
+      expect(controller.inferAgeGroupFromAge(17), isNull);
+      expect(controller.inferAgeGroupFromAge(18), '18–24');
       expect(controller.inferAgeGroupFromAge(21), '18–24');
       expect(controller.inferAgeGroupFromAge(30), '25–34');
       expect(controller.inferAgeGroupFromAge(40), '35–44');
@@ -202,6 +204,41 @@ void main() {
 
       controller.reinitialize();
       expect(controller.usernameController.text, 'custom_creator');
+    });
+  });
+
+  group('GoogleOnboardingController - Country Selection', () {
+    late GoogleOnboardingController controller;
+
+    setUp(() {
+      controller = GoogleOnboardingController();
+    });
+
+    tearDown(() {
+      controller.onClose();
+    });
+
+    test('initializes country from AuthService userCountry when set', () {
+      final auth = AuthService.to;
+      auth.userCountry.value = 'US';
+      controller.reinitialize();
+
+      expect(controller.selectedCountry.value, 'US');
+    });
+
+    test('allows changing and selecting country code', () {
+      controller.selectCountry('GB');
+      expect(controller.selectedCountry.value, 'GB');
+
+      controller.selectCountry('India');
+      expect(controller.selectedCountry.value, 'IN');
+    });
+
+    test('countryOptions includes popular supported countries and flag emojis', () {
+      final options = controller.countryOptions;
+      expect(options.any((c) => c.code == 'IN'), isTrue);
+      expect(options.any((c) => c.code == 'US'), isTrue);
+      expect(options.first.flagEmoji, isNotEmpty);
     });
   });
 }

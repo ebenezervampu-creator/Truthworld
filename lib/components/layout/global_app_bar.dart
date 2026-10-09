@@ -4,7 +4,6 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
-import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/get_instance_extensions.dart';
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
@@ -466,45 +465,6 @@ PopupMenuItem<String> _buildUserInfoMenuItem(BuildContext context) {
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              const SizedBox(height: 4),
-              Builder(
-                builder: (context) {
-                  if (Get.isRegistered<UserInterestProfileService>()) {
-                    final profileService =
-                        Get.find<UserInterestProfileService>();
-                    return Obx(() {
-                      final profile = profileService.profile.value;
-                      final score =
-                          profile?.echoChamberBreakScore.toStringAsFixed(0) ??
-                          '0';
-                      final badge =
-                          profile?.perspectiveBadge ?? 'Curious Mind';
-                      return Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF9C27B0).withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: const Color(0xFF9C27B0).withValues(alpha: 0.5),
-                          ),
-                        ),
-                        child: Text(
-                          '🪙 $score% $badge',
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      );
-                    });
-                  }
-                  return const SizedBox.shrink();
-                },
               ),
             ],
           ),

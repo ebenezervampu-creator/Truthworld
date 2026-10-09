@@ -16,7 +16,7 @@ describe('Unit: Security Headers & Session Utilities', () => {
     expect(headers['Strict-Transport-Security']).toBe('max-age=31536000; includeSubDomains; preload');
     expect(headers['Referrer-Policy']).toBe('strict-origin-when-cross-origin');
     expect(headers['Permissions-Policy']).toBe(
-      'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()'
+      'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(self "https://*.cashfree.com" "https://sdk.cashfree.com"), usb=()'
     );
     expect(headers['Cross-Origin-Opener-Policy']).toBe('same-origin-allow-popups');
     expect(headers['Cross-Origin-Resource-Policy']).toBe('cross-origin');

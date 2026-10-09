@@ -421,6 +421,37 @@ class PushNotificationService extends GetxService {
     );
   }
 
+  /// Subscribes the current device to an FCM channel broadcast topic.
+  ///
+  /// Industry Standard: Topics allow instantaneous, zero-cost push broadcasts to
+  /// mega channels (100M+ subscribers) in a single backend call without transactional locks.
+  Future<void> subscribeToChannelTopic(String channelId) async {
+    if (!_isSupportedPlatform || channelId.trim().isEmpty) return;
+    try {
+      final sanitizedId = channelId.trim().replaceAll(RegExp(r'[^a-zA-Z0-9-_.~%]'), '_');
+      await FirebaseMessaging.instance.subscribeToTopic('channel_$sanitizedId');
+    } catch (e) {
+      logger.warning(
+        'Failed to subscribe to FCM topic for channel $channelId: $e',
+        tag: 'PUSH_NOTIFICATIONS',
+      );
+    }
+  }
+
+  /// Unsubscribes the current device from an FCM channel broadcast topic.
+  Future<void> unsubscribeFromChannelTopic(String channelId) async {
+    if (!_isSupportedPlatform || channelId.trim().isEmpty) return;
+    try {
+      final sanitizedId = channelId.trim().replaceAll(RegExp(r'[^a-zA-Z0-9-_.~%]'), '_');
+      await FirebaseMessaging.instance.unsubscribeFromTopic('channel_$sanitizedId');
+    } catch (e) {
+      logger.warning(
+        'Failed to unsubscribe from FCM topic for channel $channelId: $e',
+        tag: 'PUSH_NOTIFICATIONS',
+      );
+    }
+  }
+
   @override
   void onClose() {
     _onMessageSubscription?.cancel();

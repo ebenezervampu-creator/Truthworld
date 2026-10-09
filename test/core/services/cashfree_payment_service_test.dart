@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:truthworld/core/services/cashfree/cashfree_country_support.dart';
 import 'package:truthworld/core/services/cashfree_service.dart';
 
 void main() {
@@ -119,6 +120,51 @@ void main() {
       expect(uri.queryParameters['session_id'], equals(sessionId));
       expect(uri.queryParameters['order_id'], equals(orderId));
       expect(uri.queryParameters['env'], equals(env));
+    });
+
+    test('CashfreeCountrySupport correctly identifies all supported and restricted countries', () {
+      // 9 restricted countries
+      const restricted = ['AF', 'BY', 'CU', 'IR', 'IQ', 'PK', 'RU', 'SD', 'SY'];
+      for (final code in restricted) {
+        expect(CashfreeCountrySupport.isRestrictedCountry(code), isTrue);
+        expect(CashfreeCountrySupport.isCountrySupported(code), isFalse);
+      }
+
+      // Major supported countries worldwide
+      const supported = ['IN', 'US', 'GB', 'CA', 'AU', 'DE', 'FR', 'IT', 'ES', 'AE', 'SA', 'SG', 'JP', 'BR', 'ZA'];
+      for (final code in supported) {
+        expect(CashfreeCountrySupport.isRestrictedCountry(code), isFalse);
+        expect(CashfreeCountrySupport.isCountrySupported(code), isTrue);
+      }
+
+      // Primary currencies for countries
+      expect(CashfreeCountrySupport.getCurrencyForCountry('IN'), equals('INR'));
+      expect(CashfreeCountrySupport.getCurrencyForCountry('US'), equals('USD'));
+      expect(CashfreeCountrySupport.getCurrencyForCountry('GB'), equals('GBP'));
+      expect(CashfreeCountrySupport.getCurrencyForCountry('DE'), equals('EUR'));
+      expect(CashfreeCountrySupport.getCurrencyForCountry('AE'), equals('AED'));
+      expect(CashfreeCountrySupport.getCurrencyForCountry('JP'), equals('JPY'));
+    });
+
+    test('Cashfree multi-currency validation and minimum amount rules', () {
+      expect(CashfreeCountrySupport.isCurrencySupported('INR'), isTrue);
+      expect(CashfreeCountrySupport.isCurrencySupported('USD'), isTrue);
+      expect(CashfreeCountrySupport.isCurrencySupported('EUR'), isTrue);
+      expect(CashfreeCountrySupport.isCurrencySupported('GBP'), isTrue);
+      expect(CashfreeCountrySupport.isCurrencySupported('AED'), isTrue);
+      expect(CashfreeCountrySupport.isCurrencySupported('JPY'), isTrue);
+      expect(CashfreeCountrySupport.isCurrencySupported('INVALID_XYZ'), isFalse);
+
+      // Minimum amounts
+      expect(CashfreeCountrySupport.getMinimumAmount('INR'), equals(1.0));
+      expect(CashfreeCountrySupport.getMinimumAmount('USD'), equals(0.50));
+      expect(CashfreeCountrySupport.getMinimumAmount('EUR'), equals(0.50));
+      expect(CashfreeCountrySupport.getMinimumAmount('JPY'), equals(50.0));
+
+      // Formatting
+      expect(CashfreeCountrySupport.formatAmount(100.0, 'INR'), equals('₹100.00'));
+      expect(CashfreeCountrySupport.formatAmount(5.0, 'USD'), equals(r'$5.00'));
+      expect(CashfreeCountrySupport.formatAmount(500.0, 'JPY'), equals('¥500'));
     });
   });
 }

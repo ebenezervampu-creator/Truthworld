@@ -86,7 +86,8 @@ mixin CreatorAnalyticsSummaryMixin on BaseController {
     totalWatchTime.value = analytics.totalWatchTimeFormatted;
     if (totalWatchTime.value.isEmpty ||
         totalWatchTime.value == '0 mins' ||
-        totalWatchTime.value == '0.0h') {
+        totalWatchTime.value == '0.0h' ||
+        totalWatchTime.value == '0h') {
       if (analytics.totalWatchTimeSeconds > 0) {
         totalWatchTime.value = WatchTimeFormatter.format(
           analytics.totalWatchTimeSeconds,

@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/chapters_controller.dart';
+import 'package:truthworld/features/video/data/models/video/video_duration_utils.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
 import 'package:truthworld/theme/app_colors.dart';
 
@@ -17,11 +18,16 @@ class ChapterDialogs {
     required bool isDarkMode,
   }) {
     final textController = TextEditingController();
-    final surfaceColor =
-        isDarkMode ? AppColors.bgSurface : AppColors.textPrimary;
+    final surfaceColor = isDarkMode
+        ? AppColors.bgSurface
+        : AppColors.textPrimary;
     final textColor = isDarkMode ? AppColors.textPrimary : Colors.black;
-    final textSecondaryColor =
-        isDarkMode ? AppColors.textSecondary : Colors.black;
+    final textSecondaryColor = isDarkMode
+        ? AppColors.textSecondary
+        : Colors.black;
+
+    final video = controller.selectedVideo.value;
+    final videoDuration = video?.durationValue ?? Duration.zero;
 
     Get.dialog(
       AlertDialog(
@@ -52,16 +58,44 @@ class ChapterDialogs {
                   color: textSecondaryColor,
                 ),
               ),
+              if (video != null && videoDuration > Duration.zero) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.brand.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.schedule_rounded,
+                        size: 15,
+                        color: AppColors.brand,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Video Duration: ${video.duration} (timestamps exceeding this will be skipped)',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.brand,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               Container(
                 decoration: BoxDecoration(
-                  color: isDarkMode
-                      ? AppColors.bgInput
-                      : Colors.grey.shade200,
+                  color: isDarkMode ? AppColors.bgInput : Colors.grey.shade200,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color:
-                        isDarkMode ? AppColors.bgDivider : Colors.black12,
+                    color: isDarkMode ? AppColors.bgDivider : Colors.black12,
                   ),
                 ),
                 child: TextField(
@@ -112,8 +146,10 @@ class ChapterDialogs {
     required bool isDarkMode,
     VideoChapter? chapter,
   }) {
-    final titleController =
-        TextEditingController(text: chapter?.title ?? '');
+    final titleController = TextEditingController(text: chapter?.title ?? '');
+
+    final video = controller.selectedVideo.value;
+    final videoDuration = video?.durationValue ?? Duration.zero;
 
     var timeText = '';
     if (chapter != null) {
@@ -121,16 +157,26 @@ class ChapterDialogs {
     } else {
       if (controller.currentChapters.isNotEmpty) {
         final last = controller.currentChapters.last.startTime;
-        final next = last + const Duration(minutes: 1);
+        var next = last + const Duration(minutes: 1);
 
-        String twoDigits(int n) => n.toString().padLeft(2, '0');
-        final minutes = twoDigits(next.inMinutes.remainder(60));
-        final seconds = twoDigits(next.inSeconds.remainder(60));
-        if (next.inHours > 0) {
-          timeText = '${twoDigits(next.inHours)}:$minutes:$seconds';
-        } else {
-          timeText = '$minutes:$seconds';
+        // Constrain suggested timestamp to stay strictly within video duration
+        if (videoDuration > Duration.zero && next >= videoDuration) {
+          final tenSecNext = last + const Duration(seconds: 10);
+          if (tenSecNext < videoDuration) {
+            next = tenSecNext;
+          } else if (last < videoDuration) {
+            final oneSecNext = last + const Duration(seconds: 1);
+            if (oneSecNext < videoDuration) {
+              next = oneSecNext;
+            } else {
+              next = last;
+            }
+          } else {
+            next = Duration.zero;
+          }
         }
+
+        timeText = VideoDurationUtils.formatDuration(next);
       } else {
         timeText = '00:00';
       }
@@ -138,11 +184,13 @@ class ChapterDialogs {
 
     final timeController = TextEditingController(text: timeText);
 
-    final surfaceColor =
-        isDarkMode ? AppColors.bgSurface : AppColors.textPrimary;
+    final surfaceColor = isDarkMode
+        ? AppColors.bgSurface
+        : AppColors.textPrimary;
     final textColor = isDarkMode ? AppColors.textPrimary : Colors.black;
-    final textSecondaryColor =
-        isDarkMode ? AppColors.textSecondary : Colors.black;
+    final textSecondaryColor = isDarkMode
+        ? AppColors.textSecondary
+        : Colors.black;
 
     Get.dialog(
       AlertDialog(
@@ -180,6 +228,40 @@ class ChapterDialogs {
                   color: textSecondaryColor,
                 ),
               ),
+              if (video != null && videoDuration > Duration.zero) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.brand.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: AppColors.brand.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.schedule_rounded,
+                        size: 15,
+                        color: AppColors.brand,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Video Duration: ${video.duration}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.brand,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
 
               // Timestamp Field
@@ -198,10 +280,17 @@ class ChapterDialogs {
                   fontSize: 14,
                   color: textColor,
                 ),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText: 'e.g. 02:45',
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(
+                  helperText: (video != null && videoDuration > Duration.zero)
+                      ? 'Allowed: 00:00 to < ${video.duration}'
+                      : null,
+                  helperStyle: TextStyle(
+                    fontSize: 11,
+                    color: textSecondaryColor,
+                  ),
+                  border: const OutlineInputBorder(),
+                  contentPadding: const EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 10,
                   ),
@@ -254,6 +343,11 @@ class ChapterDialogs {
                 return;
               }
 
+              if (timeVal.isEmpty) {
+                controller.showError('Timestamp cannot be empty.');
+                return;
+              }
+
               // Parse time string
               final parts = timeVal.split(':');
               Duration? duration;
@@ -280,24 +374,36 @@ class ChapterDialogs {
                 );
               }
 
-              if (duration == null) {
+              if (duration == null || duration < Duration.zero) {
                 controller.showError(
                   'Invalid timestamp format. Use MM:SS or HH:MM:SS.',
                 );
                 return;
               }
 
+              if (video != null && videoDuration > Duration.zero) {
+                if (duration >= videoDuration) {
+                  controller.showError(
+                    'Timestamp (${VideoDurationUtils.formatDuration(duration)}) cannot exceed video duration (${video.duration}).',
+                  );
+                  return;
+                }
+              }
+
+              final bool success;
               if (index == -1) {
-                controller.addChapter(title, duration);
+                success = controller.addChapter(title, duration);
               } else {
-                controller.updateChapter(
+                success = controller.updateChapter(
                   index,
                   title: title,
                   startTime: duration,
                 );
               }
 
-              Get.back();
+              if (success) {
+                Get.back();
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.brand,

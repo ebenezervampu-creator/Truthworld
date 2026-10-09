@@ -20,6 +20,7 @@ class ChannelEntity {
     this.category = 'other',
     this.categories = const [],
     this.visibility = 'Public',
+    this.country = 'IN',
   });
   final String id;
   final String name;
@@ -42,6 +43,7 @@ class ChannelEntity {
   final String category;
   final List<String> categories;
   final String visibility;
+  final String country;
 
   @override
   bool operator ==(Object other) =>

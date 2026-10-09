@@ -119,7 +119,7 @@ export const onVideoUploadedForModeration = onObjectFinalized(
           "moderation.explanation": "Automatic Gemini moderation bypassed per system settings. Held for manual admin decision.",
           "moderation.violationCategories": ["admin_manual_review_required"],
           "moderation.confidenceScore": 0,
-          "moderation.summary": "Video held for Admin manual review.",
+          "moderation.summary": "",
           "moderation.checkedAt": now,
           "moderation.model": "admin-manual-bypass",
           "moderation.bypassGemini": true,
@@ -205,7 +205,7 @@ export const onVideoUploadedForModeration = onObjectFinalized(
             explanation: "Vertex AI quota temporarily saturated; queued for graceful admin review or automatic background retry.",
             violationReason: "Temporarily held for review during peak traffic.",
             violationCategories: ["quota_backpressure_queued"],
-            summary: "Video verification in progress. Content held safely in review queue.",
+            summary: "",
             processingTimeMs: 0,
           };
         } else {
@@ -233,7 +233,7 @@ export const onVideoUploadedForModeration = onObjectFinalized(
         "moderation.detectedLanguage": result.detectedLanguage || "en",
         "moderation.processingTimeMs": result.processingTimeMs,
         "moderation.checkedAt": Date.now(),
-        "moderation.model": PIPELINE_CONFIG.GEMINI_MODELS?.moderation || PIPELINE_CONFIG.GEMINI_MODELS?.synthesis || "gemini-3.1-flash-lite",
+        "moderation.model": PIPELINE_CONFIG.GEMINI_MODELS?.moderation || "gemini-2.5-flash",
         "moderation.version": "v3.0-intent-aware",
         category: (result.category && result.category !== "Other")
           ? result.category
@@ -659,7 +659,7 @@ export const scheduledVideoModerationRetry = onSchedule(
             "moderation.summary": result.summary,
             "moderation.processingTimeMs": result.processingTimeMs,
             "moderation.checkedAt": Date.now(),
-            "moderation.model": PIPELINE_CONFIG.GEMINI_MODELS?.moderation || PIPELINE_CONFIG.GEMINI_MODELS?.synthesis || "gemini-3.1-flash-lite",
+            "moderation.model": PIPELINE_CONFIG.GEMINI_MODELS?.moderation || "gemini-2.5-flash",
             "moderation.version": "v3.0-intent-aware",
           });
 
@@ -672,6 +672,29 @@ export const scheduledVideoModerationRetry = onSchedule(
             "moderation.checkedAt": Date.now(),
           });
         }
+      }
+
+      // ─── SELF-HEAL: Clear any leaked moderation timeout / error strings in video summary ───
+      try {
+        const leakedSnap = await db.collection("videos")
+          .where("moderation.summary", "==", "Moderation timed out — video approved pending async review.")
+          .limit(20)
+          .get();
+
+        for (const leakedDoc of leakedSnap.docs) {
+          const vData = leakedDoc.data();
+          const cleanSummary = (vData?.summary && !vData.summary.includes("Moderation timed out"))
+            ? vData.summary
+            : "";
+          await leakedDoc.ref.update({
+            "moderation.summary": cleanSummary,
+            ...(vData?.summary && vData.summary.includes("Moderation timed out") ? { summary: cleanSummary } : {}),
+            ...(vData?.moderationSummary && vData.moderationSummary.includes("Moderation timed out") ? { moderationSummary: cleanSummary } : {}),
+          });
+          console.log(`[VideoModerationRetry] Cleaned leaked moderation summary for video ${leakedDoc.id}`);
+        }
+      } catch (cleanErr) {
+        console.warn("[VideoModerationRetry] Leaked summary cleaner encountered an issue:", cleanErr);
       }
     } catch (err) {
       console.error("[VideoModerationRetry] Scheduled processor error:", err);

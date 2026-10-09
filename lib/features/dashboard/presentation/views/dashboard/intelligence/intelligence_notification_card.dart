@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/creator_intelligence_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/intelligence/intelligence_verification_modal.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification_dashboard_page.dart';
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
@@ -23,6 +24,25 @@ class IntelligenceNotificationCard extends StatelessWidget {
   final String channelId;
   final bool isCriticalStyle;
 
+  bool get _isFactCheckNotification =>
+      notification.type.contains('fact_check') ||
+      notification.type.contains('factcheck') ||
+      notification.metadata?['factCheckReviewMode'] != null ||
+      (notification.metadata?['videoId'] != null &&
+          (notification.title.toLowerCase().contains('fact') ||
+              notification.title.toLowerCase().contains('truth') ||
+              notification.title.toLowerCase().contains('verification')));
+
+  bool get _isReviewFirst =>
+      notification.metadata?['factCheckReviewMode'] == 'first_to_creator';
+
+  bool get _isApproved =>
+      notification.metadata?['approved'] == true ||
+      notification.metadata?['isFactCheckApproved'] == true;
+
+  String get _videoId =>
+      (notification.metadata?['videoId'] as String?) ?? '';
+
   void _handleAction(BuildContext context, NotificationActionItem action) {
     switch (action.type) {
       case 'OPEN_ANALYTICS':
@@ -34,6 +54,20 @@ class IntelligenceNotificationCard extends StatelessWidget {
             isDarkMode: true,
           ),
         );
+      case 'APPROVE_FACT_CHECK':
+        final vid = (action.payload?['videoId'] as String?) ?? _videoId;
+        if (vid.isNotEmpty) {
+          controller.approveFactCheck(vid, notificationId: notification.id);
+        } else {
+          AppSnackbar.error('Video ID not found.');
+        }
+      case 'VIEW_FACT_CHECK':
+        final vid = (action.payload?['videoId'] as String?) ?? _videoId;
+        if (vid.isNotEmpty) {
+          Get.toNamed('/video/$vid');
+        } else {
+          AppSnackbar.error('Video ID not found.');
+        }
       default:
         AppSnackbar.info(action.label);
     }
@@ -47,7 +81,9 @@ class IntelligenceNotificationCard extends StatelessWidget {
     var badgeBg = AppColors.bgSurfaceHover;
     var badgeBorder = AppColors.bgDivider;
 
-    if (notification.type.contains('verification')) {
+    if (notification.type.contains('fact_check') ||
+        notification.type.contains('factcheck') ||
+        notification.type.contains('verification')) {
       if (notification.priority == NotificationPriority.critical ||
           notification.severity == NotificationSeverity.warning) {
         leadingIcon = Icons.cancel_rounded;
@@ -195,7 +231,8 @@ class IntelligenceNotificationCard extends StatelessWidget {
 
                 // Action Buttons Row
                 if (notification.actions.isNotEmpty ||
-                    notification.verificationReportId != null) ...[
+                    notification.verificationReportId != null ||
+                    _isFactCheckNotification) ...[
                   const SizedBox(height: 12),
                   const Divider(height: 1, color: AppColors.bgDivider),
                   const SizedBox(height: 10),
@@ -204,6 +241,116 @@ class IntelligenceNotificationCard extends StatelessWidget {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
+                      if (_isFactCheckNotification && _videoId.isNotEmpty) ...[
+                        if (_isReviewFirst && !_isApproved)
+                          ElevatedButton.icon(
+                            onPressed: () => controller.approveFactCheck(
+                              _videoId,
+                              notificationId: notification.id,
+                            ),
+                            icon: const Icon(
+                              Icons.check_circle_outline_rounded,
+                              size: 15,
+                              color: Colors.white,
+                            ),
+                            label: const Text('Approve & Publish Results'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF10B981),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 7,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              textStyle: const TextStyle(
+                                fontFamily: TWTypography.uiFamily,
+                                fontFamilyFallback:
+                                    TWTypography.fallbackFamilies,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        if (_isReviewFirst && _isApproved)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF10B981)
+                                  .withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: const Color(0xFF34D399)
+                                    .withValues(alpha: 0.4),
+                              ),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.verified_rounded,
+                                  size: 14,
+                                  color: Color(0xFF34D399),
+                                ),
+                                SizedBox(width: 5),
+                                Text(
+                                  'Approved for Viewers',
+                                  style: TextStyle(
+                                    color: Color(0xFF34D399),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            TruthVerificationDashboardPage.targetVideoId.value =
+                                _videoId;
+                            if (Get.isRegistered<DashboardController>()) {
+                              Get.find<DashboardController>().setSelectedIndex(15);
+                            } else {
+                              Get.to<void>(
+                                () => TruthVerificationDashboardPage(
+                                  channelId: channelId,
+                                  isDarkMode: true,
+                                  initialVideoId: _videoId,
+                                ),
+                              );
+                            }
+                          },
+                          icon: const Icon(
+                            Icons.fact_check_rounded,
+                            size: 15,
+                            color: Colors.black,
+                          ),
+                          label: const Text('Review in Fact-Checks Tab'),
+                          style: ElevatedButton.styleFrom(
+                            foregroundColor: Colors.black,
+                            backgroundColor: AppColors.brandVariant,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 7,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            textStyle: const TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              fontFamilyFallback:
+                                  TWTypography.fallbackFamilies,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
                       if (notification.verificationReportId != null)
                         ElevatedButton.icon(
                           onPressed: () =>

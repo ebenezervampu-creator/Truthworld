@@ -270,6 +270,7 @@ void main() {
       debugDefaultTargetPlatformOverride = TargetPlatform.windows;
       try {
         ctrl.isPlaying.value = false;
+        ctrl.isAutoplay.value = true;
 
         await tester.pumpWidget(
           MaterialApp(
@@ -280,8 +281,7 @@ void main() {
         );
 
         expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
-        expect(find.byIcon(Icons.replay_10_rounded), findsOneWidget);
-        expect(find.byIcon(Icons.forward_10_rounded), findsOneWidget);
+        expect(find.byIcon(Icons.skip_next_rounded), findsOneWidget);
 
         // Reactively changes icon when isPlaying becomes true
         ctrl.isPlaying.value = true;

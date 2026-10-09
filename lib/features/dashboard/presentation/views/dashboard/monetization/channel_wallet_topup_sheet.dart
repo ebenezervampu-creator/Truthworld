@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/cashfree/cashfree_country_support.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
@@ -253,6 +254,12 @@ class ChannelWalletTopupSheet {
                 final amt = selectedAmount.value;
                 final inrAmt = (amt * rate).toStringAsFixed(2);
 
+                final isIndian = !Get.isRegistered<CurrencyLocalizationService>() ||
+                    CurrencyLocalizationService.to.isIndianUser;
+                final displayCharge = isIndian
+                    ? '₹$inrAmt (≈ \$${amt.toStringAsFixed(2)} USD)'
+                    : '\$${amt.toStringAsFixed(2)} USD';
+
                 return Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
@@ -275,7 +282,7 @@ class ChannelWalletTopupSheet {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            '₹$inrAmt (≈ \$${amt.toStringAsFixed(2)} USD)',
+                            displayCharge,
                             style: const TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
@@ -349,6 +356,30 @@ class ChannelWalletTopupSheet {
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
                           ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+              const SizedBox(height: 12),
+              Obx(() {
+                final country = Get.isRegistered<CurrencyLocalizationService>()
+                    ? CurrencyLocalizationService.to.userCountryCode.value
+                    : 'IN';
+                final methods = CashfreeCountrySupport.getPaymentMethodsSummary(country);
+                return Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.lock_outline_rounded, size: 13, color: AppColors.textTertiary),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Secured by Cashfree • $methods',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textTertiary,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],

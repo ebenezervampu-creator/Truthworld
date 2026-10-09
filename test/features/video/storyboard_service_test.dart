@@ -25,7 +25,7 @@ thumbnails_1.jpg#xywh=0,90,160,90
     test('parses WebVTT sprite coordinates and timestamps accurately', () {
       final track = StoryboardService.parseWebVtt(
         vttSample,
-        baseUrl: 'https://cdn.truthworld.com/storyboards/',
+        baseUrl: 'https://cdn.truthworld.in/storyboards/',
       );
 
       expect(track.length, 4);
@@ -34,7 +34,7 @@ thumbnails_1.jpg#xywh=0,90,160,90
       final cue0 = track.cues[0];
       expect(cue0.start, Duration.zero);
       expect(cue0.end, const Duration(seconds: 2));
-      expect(cue0.imageUrl, 'https://cdn.truthworld.com/storyboards/thumbnails_0.jpg');
+      expect(cue0.imageUrl, 'https://cdn.truthworld.in/storyboards/thumbnails_0.jpg');
       expect(cue0.cropRect, const Rect.fromLTWH(0, 0, 160, 90));
 
       // Cue 1
@@ -47,7 +47,7 @@ thumbnails_1.jpg#xywh=0,90,160,90
       final cue3 = track.cues[3];
       expect(cue3.start, const Duration(seconds: 6));
       expect(cue3.end, const Duration(seconds: 8));
-      expect(cue3.imageUrl, 'https://cdn.truthworld.com/storyboards/thumbnails_1.jpg');
+      expect(cue3.imageUrl, 'https://cdn.truthworld.in/storyboards/thumbnails_1.jpg');
       expect(cue3.cropRect, const Rect.fromLTWH(0, 90, 160, 90));
     });
 
@@ -135,9 +135,9 @@ thumbnails_1.jpg#xywh=0,90,160,90
   group('StoryboardService fromMultiSheetGrid Tests', () {
     test('generates 1-second density cues across multiple sheets for long-form content', () {
       final sheets = [
-        'https://cdn.truthworld.com/storyboards/sheet_000.jpg',
-        'https://cdn.truthworld.com/storyboards/sheet_001.jpg',
-        'https://cdn.truthworld.com/storyboards/sheet_002.jpg',
+        'https://cdn.truthworld.in/storyboards/sheet_000.jpg',
+        'https://cdn.truthworld.in/storyboards/sheet_001.jpg',
+        'https://cdn.truthworld.in/storyboards/sheet_002.jpg',
       ];
       // 3 sheets * 100 frames = 300 seconds (5 minutes)
       const duration = Duration(seconds: 250);
@@ -186,7 +186,7 @@ thumbnails_1.jpg#xywh=0,90,160,90
     });
 
     test('handles multi-hour simulation (2 hours = 7200 cues) without error', () {
-      final sheets = List.generate(72, (i) => 'https://cdn.truthworld.com/storyboards/sheet_${i.toString().padLeft(3, '0')}.jpg');
+      final sheets = List.generate(72, (i) => 'https://cdn.truthworld.in/storyboards/sheet_${i.toString().padLeft(3, '0')}.jpg');
       const duration = Duration(hours: 2);
 
       final track = StoryboardService.fromMultiSheetGrid(
@@ -206,7 +206,7 @@ thumbnails_1.jpg#xywh=0,90,160,90
       expect(cue!.start, const Duration(seconds: 5025));
       expect(cue.end, const Duration(seconds: 5026));
       // 5025 ~/ 100 = sheet 50
-      expect(cue.imageUrl, 'https://cdn.truthworld.com/storyboards/sheet_050.jpg');
+      expect(cue.imageUrl, 'https://cdn.truthworld.in/storyboards/sheet_050.jpg');
     });
 
     test('returns empty track on invalid parameters', () {
@@ -251,21 +251,21 @@ thumbnails_1.jpg#xywh=0,90,160,90
     test('prioritizes multiSheetUrls over singleSheetUrl and thumbnailVariants', () {
       final track = StoryboardService.generateHighDensityTrack(
         totalDuration: const Duration(seconds: 100),
-        multiSheetUrls: ['https://cdn.truthworld.com/sheet_0.jpg'],
-        singleSheetUrl: 'https://cdn.truthworld.com/single.jpg',
-        thumbnailVariants: ['https://cdn.truthworld.com/variant.jpg'],
+        multiSheetUrls: ['https://cdn.truthworld.in/sheet_0.jpg'],
+        singleSheetUrl: 'https://cdn.truthworld.in/single.jpg',
+        thumbnailVariants: ['https://cdn.truthworld.in/variant.jpg'],
       );
 
-      expect(track.cues[0].imageUrl, 'https://cdn.truthworld.com/sheet_0.jpg');
+      expect(track.cues[0].imageUrl, 'https://cdn.truthworld.in/sheet_0.jpg');
     });
   });
 
   group('StoryboardTrack getImageUrlsAround Tests', () {
     test('returns distinct URLs within time window around scrub position', () {
       final sheets = [
-        'https://cdn.truthworld.com/sheet_0.jpg',
-        'https://cdn.truthworld.com/sheet_1.jpg',
-        'https://cdn.truthworld.com/sheet_2.jpg',
+        'https://cdn.truthworld.in/sheet_0.jpg',
+        'https://cdn.truthworld.in/sheet_1.jpg',
+        'https://cdn.truthworld.in/sheet_2.jpg',
       ];
       final track = StoryboardService.fromMultiSheetGrid(
         spriteUrls: sheets,

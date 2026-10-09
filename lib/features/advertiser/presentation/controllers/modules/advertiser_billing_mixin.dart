@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/cashfree_service.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -89,22 +90,33 @@ mixin AdvertiserBillingMixin {
   }
 
   Future<void> topUpWallet(double amount, {double? netAmount, double? taxAmount}) async {
-    if (amount.isNaN || amount.isInfinite || amount < 1.0) {
-      AppSnackbar.warning('Minimum wallet recharge amount is ₹1.00.');
+    final isIndian = !Get.isRegistered<CurrencyLocalizationService>() ||
+        CurrencyLocalizationService.to.isIndianUser;
+    final currency = isIndian ? 'INR' : 'USD';
+    final currencySymbol = isIndian ? '₹' : r'$';
+    final minAmount = isIndian ? 1.0 : 0.50;
+
+    if (amount.isNaN || amount.isInfinite || amount < minAmount) {
+      AppSnackbar.warning('Minimum wallet recharge amount is $currencySymbol${minAmount.toStringAsFixed(2)}.');
       return;
     }
 
     try {
       final sanitizedAmount = double.parse(amount.toStringAsFixed(2));
-      final spendable = netAmount ?? double.parse((sanitizedAmount * (100 / 118)).toStringAsFixed(2));
+      final defaultNet = isIndian
+          ? double.parse((sanitizedAmount * (100 / 118)).toStringAsFixed(2))
+          : sanitizedAmount;
+      final spendable = netAmount ?? defaultNet;
       final calculatedTax = taxAmount ?? double.parse((sanitizedAmount - spendable).toStringAsFixed(2));
 
       final paymentResult = await CashfreePaymentService.to.startPayment(
         amount: sanitizedAmount,
+        currency: currency,
         purpose: 'advertiser_wallet',
-        orderNote: 'Advertiser Wallet Top-Up',
+        orderNote: 'Advertiser Wallet Top-Up ($currency)',
         metadata: {
           'purpose': 'advertiser_wallet',
+          'currency': currency,
           'netAmount': spendable,
           'taxAmount': calculatedTax,
         },
@@ -125,7 +137,7 @@ mixin AdvertiserBillingMixin {
         });
 
         AppSnackbar.success(
-          '₹${spendable.toStringAsFixed(2)} added to your advertiser wallet balance successfully.',
+          '$currencySymbol${spendable.toStringAsFixed(2)} added to your advertiser wallet balance successfully.',
           title: 'Wallet Recharged',
         );
       } else if (paymentResult.errorMessage != null &&

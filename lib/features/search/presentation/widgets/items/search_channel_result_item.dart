@@ -1,8 +1,11 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
+import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
 import 'package:truthworld/features/search/data/models/search_result.dart';
+import 'package:truthworld/features/search/presentation/widgets/items/search_result_card.dart';
 import 'package:truthworld/features/search/presentation/widgets/items/search_subscribe_button.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -97,13 +100,24 @@ class SearchChannelResultItem extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    '${result.channelName} • $formattedViews subscribers',
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
-                    ),
-                  ),
+                  Obx(() {
+                    final subCtrl = Get.isRegistered<ChannelSubscriptionController>()
+                        ? Get.find<ChannelSubscriptionController>()
+                        : Get.put(ChannelSubscriptionController());
+                    final currentSubs = subCtrl.getSubscriberCount(
+                      result.id,
+                      fallback: result.views,
+                    );
+                    final displayCount =
+                        SearchResultCard.formatViews(currentSubs);
+                    return Text(
+                      '${result.channelName} • $displayCount subscribers',
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    );
+                  }),
                   const SizedBox(height: 6),
                   const Text(
                     'Official channel. Explore and join.',

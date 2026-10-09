@@ -145,6 +145,9 @@ class DiscoverChannelsController extends BaseController {
   }
 
   int getSubscriberCount(Channel channel) {
+    if (ChannelSubscriptionController.channelSubscriberCounts.containsKey(channel.channelId)) {
+      return ChannelSubscriptionController.channelSubscriberCounts[channel.channelId]!;
+    }
     return channelSubscriberCounts[channel.channelId] ?? channel.subscriberCount;
   }
 
@@ -166,7 +169,7 @@ class DiscoverChannelsController extends BaseController {
     // Optimistic UI updates
     if (currentlySubscribed) {
       subscribedChannelIds.remove(channelId);
-      channelSubscriberCounts[channelId] = (currentCount - 1).clamp(0, 999999999);
+      channelSubscriberCounts[channelId] = (currentCount - 1) < 0 ? 0 : (currentCount - 1);
     } else {
       subscribedChannelIds.add(channelId);
       channelSubscriberCounts[channelId] = currentCount + 1;

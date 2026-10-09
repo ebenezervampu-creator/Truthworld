@@ -160,6 +160,7 @@ abstract class UploadControllerBase extends BaseController
   RxString get aiTTSVoiceType;
   RxBool get aiFactCheckEnabled;
   RxString get aiFactCheckTier;
+  RxString get aiFactCheckReviewMode;
   Rx<PlatformFile?> get voiceSampleFile;
   RxList<String> get providedSources;
 

@@ -31,12 +31,12 @@ class MiniplayerExpandedDetails extends StatelessWidget {
                 trackHeight: 3,
                 thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
                 overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-                activeTrackColor: AppColors.error,
-                inactiveTrackColor: AppColors.bgDivider.withValues(
-                  alpha: 0.3,
+                activeTrackColor: AppColors.brand,
+                inactiveTrackColor: Colors.white.withValues(
+                  alpha: 0.24,
                 ),
-                thumbColor: AppColors.error,
-                overlayColor: AppColors.error.withValues(alpha: 0.15),
+                thumbColor: AppColors.brand,
+                overlayColor: AppColors.brand.withValues(alpha: 0.15),
               ),
               child: Slider(
                 value: durMs > 0 ? posMs.clamp(0.0, durMs) : 0.0,
@@ -77,52 +77,77 @@ class MiniplayerExpandedDetails extends StatelessWidget {
             );
           }),
           const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              IconButton(
-                tooltip: 'Rewind 10s',
-                icon: const Icon(
-                  Icons.replay_10_rounded,
-                  color: AppColors.textPrimary,
-                  size: 28,
+          Obx(() {
+            final isAutoplayOn = controller.isAutoplay.value;
+            final hasPrev = controller.hasPreviousVideo;
+            final hasNext = controller.hasNextVideo;
+            final playing = controller.isPlaying.value;
+
+            final playButton = Material(
+              color: AppColors.brand,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: controller.togglePlayPause,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Icon(
+                    playing
+                        ? Icons.pause_rounded
+                        : Icons.play_arrow_rounded,
+                    color: Colors.black,
+                    size: 32,
+                  ),
                 ),
-                onPressed: controller.seekBackward,
               ),
-              const SizedBox(width: 16),
-              Obx(() {
-                final playing = controller.isPlaying.value;
-                return Material(
-                  color: AppColors.brand,
-                  shape: const CircleBorder(),
-                  child: InkWell(
-                    customBorder: const CircleBorder(),
-                    onTap: controller.togglePlayPause,
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Icon(
-                        playing
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                        color: Colors.black,
-                        size: 32,
+            );
+
+            if (!isAutoplayOn) {
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [playButton],
+              );
+            }
+
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Opacity(
+                  opacity: hasPrev ? 1.0 : 0.0,
+                  child: IgnorePointer(
+                    ignoring: !hasPrev,
+                    child: IconButton(
+                      tooltip: hasPrev ? 'Previous Video' : 'No previous video',
+                      icon: const Icon(
+                        Icons.skip_previous_rounded,
+                        color: AppColors.textPrimary,
+                        size: 28,
                       ),
+                      onPressed: hasPrev ? controller.playPrevious : null,
                     ),
                   ),
-                );
-              }),
-              const SizedBox(width: 16),
-              IconButton(
-                tooltip: 'Forward 10s',
-                icon: const Icon(
-                  Icons.forward_10_rounded,
-                  color: AppColors.textPrimary,
-                  size: 28,
                 ),
-                onPressed: controller.seekForward,
-              ),
-            ],
-          ),
+                const SizedBox(width: 16),
+                playButton,
+                const SizedBox(width: 16),
+                Opacity(
+                  opacity: hasNext ? 1.0 : 0.0,
+                  child: IgnorePointer(
+                    ignoring: !hasNext,
+                    child: IconButton(
+                      tooltip: hasNext ? 'Next Video' : 'No next video',
+                      icon: const Icon(
+                        Icons.skip_next_rounded,
+                        color: AppColors.textPrimary,
+                        size: 28,
+                      ),
+                      onPressed: hasNext ? controller.playNext : null,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }),
           const SizedBox(height: 12),
           Obx(() {
             final info = controller.videoInfo.value;

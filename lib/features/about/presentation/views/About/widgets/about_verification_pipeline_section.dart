@@ -66,7 +66,7 @@ class AboutVerificationPipelineSection extends StatelessWidget {
                 _buildStepRow(
                   4,
                   'Public Credibility Scorecard',
-                  'Videos receive a transparent credibility badge (Verified ✓, Disputed ⚠, or Unverified ?), allowing viewers to inspect claims and sources before watching.',
+                  'Claim-level source grounding replaces opaque binary stamps. Viewers inspect timestamped claims cross-referenced with primary sources, with subjective faith protected and creator dispute rights preserved.',
                 ),
               ],
             ),

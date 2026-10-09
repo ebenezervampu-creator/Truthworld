@@ -5,6 +5,7 @@ import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/features/miniplayer/data/models/miniplayer_model.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/miniplayer/presentation/widgets/components/miniplayer_components.dart';
+import 'package:truthworld/features/video/presentation/services/video_playback_queue_service.dart';
 
 void main() {
   group('Miniplayer Modular Components Tests', () {
@@ -14,6 +15,7 @@ void main() {
       Get.testMode = true;
       Get.reset();
       Get.put<ConnectivityService>(ConnectivityService());
+      Get.put<VideoPlaybackQueueService>(VideoPlaybackQueueService());
       controller = Get.put<MiniplayerController>(
         MiniplayerController(),
         tag: 'miniplayer',
@@ -213,7 +215,10 @@ void main() {
       expect(controller.mode.value, equals(MiniplayerMode.collapsed));
     });
 
-    testWidgets('MiniplayerExpandedDetails renders scrubber, rewind, forward, title and channel', (tester) async {
+    testWidgets('MiniplayerExpandedDetails renders scrubber, Back Video, Center Play, Next Video, and meta', (tester) async {
+      controller.isAutoplay.value = true;
+      VideoPlaybackQueueService.to.clearSession();
+
       await tester.pumpWidget(
         createTestApp(
           MiniplayerExpandedDetails(controller: controller),
@@ -221,11 +226,51 @@ void main() {
       );
 
       expect(find.byType(Slider), findsOneWidget);
-      expect(find.byIcon(Icons.replay_10_rounded), findsOneWidget);
       expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.forward_10_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.skip_next_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.skip_previous_rounded), findsOneWidget);
       expect(find.text('TruthWorld Modular Architecture Review'), findsOneWidget);
       expect(find.text('TruthWorld Dev Team'), findsOneWidget);
+
+      // On first video, Back Video is wrapped with Opacity 0.0 and IgnorePointer
+      final backOpacity = tester.widget<Opacity>(
+        find.ancestor(
+          of: find.byIcon(Icons.skip_previous_rounded),
+          matching: find.byType(Opacity),
+        ).first,
+      );
+      expect(backOpacity.opacity, equals(0.0));
+
+      // When autoplay is OFF, Back Video and Next Video are hidden
+      controller.isAutoplay.value = false;
+      await tester.pump();
+
+      expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.skip_next_rounded), findsNothing);
+      expect(find.byIcon(Icons.skip_previous_rounded), findsNothing);
+    });
+
+    testWidgets('MiniplayerCenterControlsRow renders center play with back and next controls when autoplay ON', (tester) async {
+      controller.isAutoplay.value = true;
+      VideoPlaybackQueueService.to.clearSession();
+
+      await tester.pumpWidget(
+        createTestApp(
+          MiniplayerCenterControlsRow(controller: controller),
+        ),
+      );
+
+      expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.skip_next_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.skip_previous_rounded), findsOneWidget);
+
+      // When autoplay is OFF, only center play button is shown
+      controller.isAutoplay.value = false;
+      await tester.pump();
+
+      expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.skip_next_rounded), findsNothing);
+      expect(find.byIcon(Icons.skip_previous_rounded), findsNothing);
     });
   });
 }

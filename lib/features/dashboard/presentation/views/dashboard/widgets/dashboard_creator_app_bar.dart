@@ -110,7 +110,7 @@ class DashboardCreatorAppBar extends StatelessWidget
             icon: Icons.notifications_none_rounded,
             onPressed: () => dashboardController.setSelectedIndex(16),
             isDarkMode: isDarkMode,
-            tooltip: 'Creator Intelligence',
+            tooltip: 'Notifications',
           ),
           SizedBox(width: isMobile ? 4 : 8),
           DashboardActionButton(

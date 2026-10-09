@@ -49,6 +49,26 @@ class MiniplayerController extends MiniplayerStateBase
     WidgetsBinding.instance.addObserver(this);
     _setupConnectivityListener();
     _setupPipListener();
+    _setupAutoplayListener();
+  }
+
+  void _setupAutoplayListener() {
+    try {
+      if (Get.isRegistered<UserSettingsController>()) {
+        isAutoplay.value = UserSettingsController.to.playback.value.autoplayNext;
+        trackSubscription(
+          UserSettingsController.to.playback.listen((settings) {
+            isAutoplay.value = settings.autoplayNext;
+          }),
+        );
+      }
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'MiniplayerController.setupAutoplayListener',
+      );
+    }
   }
 
   void _setupPipListener() {

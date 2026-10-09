@@ -173,18 +173,6 @@ class DashboardSidebarMenu extends StatelessWidget {
         'target': 3,
       },
       {
-        'icon': Icons.auto_awesome_rounded,
-        'label': 'Creator Intelligence',
-        'action': 'select',
-        'target': 16,
-      },
-      {
-        'icon': Icons.category_rounded,
-        'label': 'Category Insights',
-        'action': 'select',
-        'target': 19,
-      },
-      {
         'icon': Icons.forum_rounded,
         'label': 'Comments',
         'action': 'select',
@@ -249,12 +237,6 @@ class DashboardSidebarMenu extends StatelessWidget {
         'target': 10,
       },
       {
-        'icon': Icons.delete_outline_rounded,
-        'label': 'Trash & Recovery',
-        'action': 'select',
-        'target': 13,
-      },
-      {
         'icon': Icons.topic_rounded,
         'label': 'Topic Management',
         'action': 'select',
@@ -262,7 +244,7 @@ class DashboardSidebarMenu extends StatelessWidget {
       },
       {
         'icon': Icons.verified_rounded,
-        'label': 'Truth Verification',
+        'label': 'Fact-Checks & Verification',
         'action': 'select',
         'target': 15,
       },

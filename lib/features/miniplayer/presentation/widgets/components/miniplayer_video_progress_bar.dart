@@ -70,12 +70,25 @@ class MiniplayerVideoProgressBar extends StatelessWidget {
                     Container(
                       width: width,
                       height: barHeight,
-                      color: AppColors.textPrimary.withValues(alpha: 0.25),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
                     Container(
                       width: width * value,
                       height: barHeight,
-                      color: AppColors.error,
+                      decoration: BoxDecoration(
+                        color: AppColors.brand,
+                        borderRadius: BorderRadius.circular(2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.white.withValues(alpha: 0.4),
+                            blurRadius: 4,
+                            spreadRadius: 0.5,
+                          ),
+                        ],
+                      ),
                     ),
                     if (isDraggingVal)
                       Positioned(
@@ -84,9 +97,16 @@ class MiniplayerVideoProgressBar extends StatelessWidget {
                         child: Container(
                           width: 10,
                           height: 10,
-                          decoration: const BoxDecoration(
-                            color: AppColors.textPrimary,
+                          decoration: BoxDecoration(
+                            color: AppColors.brand,
                             shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.white.withValues(alpha: 0.6),
+                                blurRadius: 4,
+                                spreadRadius: 0.5,
+                              ),
+                            ],
                           ),
                         ),
                       ),

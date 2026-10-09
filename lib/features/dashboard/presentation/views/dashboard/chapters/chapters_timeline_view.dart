@@ -87,6 +87,12 @@ class ChaptersTimelineView {
     required Color surfaceColor,
     required bool isDarkMode,
   }) {
+    final video = controller.selectedVideo.value;
+    final isExceeding =
+        video != null &&
+        video.durationValue > Duration.zero &&
+        chapter.startTime >= video.durationValue;
+
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -98,12 +104,13 @@ class ChaptersTimelineView {
                 width: 16,
                 height: 16,
                 decoration: BoxDecoration(
-                  color: AppColors.brand,
+                  color: isExceeding ? AppColors.error : AppColors.brand,
                   shape: BoxShape.circle,
                   border: Border.all(color: AppColors.textPrimary, width: 2),
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.brand.withValues(alpha: 0.4),
+                      color: (isExceeding ? AppColors.error : AppColors.brand)
+                          .withValues(alpha: 0.4),
                       blurRadius: 6,
                       spreadRadius: 1,
                     ),
@@ -140,7 +147,12 @@ class ChaptersTimelineView {
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: borderColor),
+                  side: BorderSide(
+                    color: isExceeding
+                        ? AppColors.error.withValues(alpha: 0.8)
+                        : borderColor,
+                    width: isExceeding ? 1.5 : 1,
+                  ),
                 ),
                 child: InkWell(
                   onTap: () => ChapterDialogs.showEditChapterDialog(
@@ -184,13 +196,19 @@ class ChaptersTimelineView {
                             vertical: 8,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.brand.withValues(alpha: 0.1),
+                            color:
+                                (isExceeding
+                                        ? AppColors.error
+                                        : AppColors.brand)
+                                    .withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             chapter.formattedStartTime,
-                            style: const TextStyle(
-                              color: AppColors.brand,
+                            style: TextStyle(
+                              color: isExceeding
+                                  ? AppColors.error
+                                  : AppColors.brand,
                               fontWeight: FontWeight.bold,
                               fontSize: 14,
                             ),
@@ -200,13 +218,47 @@ class ChaptersTimelineView {
 
                         // Title block
                         Expanded(
-                          child: Text(
-                            chapter.title,
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                              color: textColor,
-                            ),
+                          child: Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  chapter.title,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                    color: textColor,
+                                  ),
+                                ),
+                              ),
+                              if (isExceeding) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.error.withValues(
+                                      alpha: 0.15,
+                                    ),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(
+                                      color: AppColors.error.withValues(
+                                        alpha: 0.4,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'Exceeds duration (${video.duration})',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.error,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
 
@@ -228,8 +280,16 @@ class ChaptersTimelineView {
                             color: Colors.white,
                           ),
                           tooltip: 'Shift forward 5s',
-                          onPressed: () =>
-                              controller.shiftChapterTiming(index, 5000),
+                          onPressed:
+                              (isExceeding ||
+                                  (video != null &&
+                                      video.durationValue > Duration.zero &&
+                                      chapter.startTime +
+                                              const Duration(seconds: 5) >=
+                                          video.durationValue))
+                              ? null
+                              : () =>
+                                    controller.shiftChapterTiming(index, 5000),
                         ),
                         const VerticalDivider(),
 

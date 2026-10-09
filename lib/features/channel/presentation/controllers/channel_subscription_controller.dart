@@ -7,10 +7,14 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/algorithm/user_signal_tracker.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/distributed_counter_service.dart';
+import 'package:truthworld/core/services/push_notification_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/domain/usecases/channel/toggle_subscription_usecase.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/memberships_controller.dart';
+import 'package:truthworld/features/discover/presentation/controllers/discover_channels_controller.dart';
 import 'package:truthworld/features/subscriptions/presentation/controllers/subscription_controller.dart';
 
 class ChannelSubscriptionController extends BaseController {
@@ -49,7 +53,7 @@ class ChannelSubscriptionController extends BaseController {
     if (channelSubscriberCounts.containsKey(channelId)) {
       return channelSubscriberCounts[channelId]!;
     }
-    if (fallback != null && fallback > 0) {
+    if (fallback != null) {
       channelSubscriberCounts[channelId] = fallback;
       return fallback;
     }
@@ -131,58 +135,55 @@ class ChannelSubscriptionController extends BaseController {
     final channelRef = _firestore.collection(_channelsCol).doc(channelId);
 
     try {
-      if (_toggleSubscriptionUseCase != null) {
-        final res = await _toggleSubscriptionUseCase(
-          ToggleSubscriptionParams(channelId: channelId, userId: uid),
-        );
-        if (res.isFailure) {
-          throw res.exceptionOrNull ?? Exception('Failed to subscribe');
+      await _firestore.runTransaction((tx) async {
+        final txSubSnapshot = await tx.get(channelSubRef);
+        if (txSubSnapshot.exists) {
+          throw Exception('already_subscribed');
         }
-        legacySubRef.set({
+
+        final now = FieldValue.serverTimestamp();
+        tx.set(channelSubRef, {
           'userId': uid,
-          'channelId': channelId,
-          'subscribedAt': FieldValue.serverTimestamp(),
+          'timestamp': now,
           'notificationsEnabled': true,
           'notificationOption': 'personalized',
           'notificationPreference': 'personalized',
-        }).catchError((_) {});
-      } else {
-        await _firestore.runTransaction((tx) async {
-          final txSubSnapshot = await tx.get(channelSubRef);
-          if (txSubSnapshot.exists) {
-            throw Exception('already_subscribed');
-          }
+        });
+        tx.set(userSubRef, {
+          'channelId': channelId,
+          'timestamp': now,
+          'notificationPreference': 'personalized',
+          'notificationOption': 'personalized',
+          'notificationsEnabled': true,
+        });
+        tx.set(legacySubRef, {
+          'userId': uid,
+          'channelId': channelId,
+          'subscribedAt': now,
+          'notificationsEnabled': true,
+          'notificationOption': 'personalized',
+          'notificationPreference': 'personalized',
+        });
+      }, maxAttempts: 3);
 
-          final now = FieldValue.serverTimestamp();
-          tx.set(channelSubRef, {
-            'userId': uid,
-            'timestamp': now,
-            'notificationsEnabled': true,
-            'notificationOption': 'personalized',
-            'notificationPreference': 'personalized',
-          });
-          tx.set(userSubRef, {
-            'channelId': channelId,
-            'timestamp': now,
-            'notificationPreference': 'personalized',
-            'notificationOption': 'personalized',
-            'notificationsEnabled': true,
-          });
-          tx.set(legacySubRef, {
-            'userId': uid,
-            'channelId': channelId,
-            'subscribedAt': now,
-            'notificationsEnabled': true,
-            'notificationOption': 'personalized',
-            'notificationPreference': 'personalized',
-          });
+      // Decouple subscriber counter from transaction to eliminate single-document lock contention
+      // Spreads high-volume bursts across 20 shards and increments parent atomically
+      try {
+        final counterService = Get.isRegistered<DistributedCounterService>()
+            ? DistributedCounterService.to
+            : Get.put(DistributedCounterService());
+        counterService.updateChannelSubscribers(
+          channelId: channelId,
+          delta: 1,
+        );
+      } catch (_) {}
 
-          tx.update(channelRef, {
-            'subscriberCount': FieldValue.increment(1),
-            'lastActiveAt': now,
-          });
-        }, maxAttempts: 3);
-      }
+      // Instantaneous zero-cost topic push delivery for mega channels
+      try {
+        if (Get.isRegistered<PushNotificationService>()) {
+          PushNotificationService.to.subscribeToChannelTopic(channelId);
+        }
+      } catch (_) {}
 
       isSubscribed.value = true;
       notificationsEnabled.value = true;
@@ -193,9 +194,23 @@ class ChannelSubscriptionController extends BaseController {
         _notificationOptionMap[channelId] = 'personalized'.obs;
       }
       final current = channelSubscriberCounts[channelId] ?? subscriberCount.value;
-      setSubscriberCount(channelId, current + 1);
+      final newCount = current + 1;
+      setSubscriberCount(channelId, newCount);
       if (_subscribedMap.containsKey(channelId)) {
         _subscribedMap[channelId]!.value = true;
+      }
+      if (Get.isRegistered<DashboardController>()) {
+        final dash = Get.find<DashboardController>();
+        if (dash.channelId == channelId) {
+          dash.channelStats['subscribers'] = newCount.toString();
+          dash.channelStats['rawSubscribers'] = newCount;
+          dash.channelStats.refresh();
+        }
+      }
+      if (Get.isRegistered<DiscoverChannelsController>()) {
+        final disc = Get.find<DiscoverChannelsController>();
+        disc.channelSubscriberCounts[channelId] = newCount;
+        disc.subscribedChannelIds.add(channelId);
       }
       if (Get.isRegistered<SubscriptionController>()) {
         Get.find<SubscriptionController>().loadSubscriptions();
@@ -211,7 +226,7 @@ class ChannelSubscriptionController extends BaseController {
         if (_subscribedMap.containsKey(channelId)) {
           _subscribedMap[channelId]!.value = true;
         }
-        return false;
+        return true;
       }
       ErrorHandler.log(e, tag: 'ChannelSubscriptionController');
       _showErrorSnackbar('Unable to subscribe to channel. Please try again.');
@@ -235,31 +250,51 @@ class ChannelSubscriptionController extends BaseController {
     final channelRef = _firestore.collection(_channelsCol).doc(channelId);
 
     try {
-      if (_toggleSubscriptionUseCase != null) {
-        final res = await _toggleSubscriptionUseCase(
-          ToggleSubscriptionParams(channelId: channelId, userId: uid),
-        );
-        if (res.isFailure) {
-          throw res.exceptionOrNull ?? Exception('Failed to unsubscribe');
-        }
-        legacySubRef.delete().catchError((_) {});
-      } else {
-        await _firestore.runTransaction((tx) async {
-          final subDoc = await tx.get(channelSubRef);
-          if (!subDoc.exists) return; // Already unsubscribed
+      await _firestore.runTransaction((tx) async {
+        final subDoc = await tx.get(channelSubRef);
+        if (!subDoc.exists) return; // Already unsubscribed
 
-          tx.delete(channelSubRef);
-          tx.delete(userSubRef);
-          tx.delete(legacySubRef);
-          tx.update(channelRef, {'subscriberCount': FieldValue.increment(-1)});
-        }, maxAttempts: 3);
-      }
+        tx.delete(channelSubRef);
+        tx.delete(userSubRef);
+        tx.delete(legacySubRef);
+      }, maxAttempts: 3);
+
+      // Decouple subscriber decrement from transaction to eliminate write contention
+      try {
+        final counterService = Get.isRegistered<DistributedCounterService>()
+            ? DistributedCounterService.to
+            : Get.put(DistributedCounterService());
+        counterService.updateChannelSubscribers(
+          channelId: channelId,
+          delta: -1,
+        );
+      } catch (_) {}
+
+      try {
+        if (Get.isRegistered<PushNotificationService>()) {
+          PushNotificationService.to.unsubscribeFromChannelTopic(channelId);
+        }
+      } catch (_) {}
 
       isSubscribed.value = false;
       final current = channelSubscriberCounts[channelId] ?? subscriberCount.value;
-      setSubscriberCount(channelId, (current - 1).clamp(0, 999999999));
+      final nextCount = (current - 1) < 0 ? 0 : (current - 1);
+      setSubscriberCount(channelId, nextCount);
       if (_subscribedMap.containsKey(channelId)) {
         _subscribedMap[channelId]!.value = false;
+      }
+      if (Get.isRegistered<DashboardController>()) {
+        final dash = Get.find<DashboardController>();
+        if (dash.channelId == channelId) {
+          dash.channelStats['subscribers'] = nextCount.toString();
+          dash.channelStats['rawSubscribers'] = nextCount;
+          dash.channelStats.refresh();
+        }
+      }
+      if (Get.isRegistered<DiscoverChannelsController>()) {
+        final disc = Get.find<DiscoverChannelsController>();
+        disc.channelSubscriberCounts[channelId] = nextCount;
+        disc.subscribedChannelIds.remove(channelId);
       }
       if (Get.isRegistered<SubscriptionController>()) {
         Get.find<SubscriptionController>().loadSubscriptions();
@@ -288,7 +323,7 @@ class ChannelSubscriptionController extends BaseController {
     }
     final prevCount = channelSubscriberCounts[channelId] ?? subscriberCount.value;
     final delta = nextState ? 1 : -1;
-    final optimisticCount = (prevCount + delta).clamp(0, 999999999);
+    final optimisticCount = (prevCount + delta) < 0 ? 0 : (prevCount + delta);
     setSubscriberCount(channelId, optimisticCount);
 
     if (nextState) {
@@ -595,16 +630,22 @@ class ChannelSubscriptionController extends BaseController {
             } catch (_) {}
           }
 
-          try {
-            final subColSnap = await _firestore
-                .collection(FirestoreCollections.channelSubscribers(channelId))
-                .count()
-                .get();
-            final subColCount = subColSnap.count ?? 0;
-            if (subColCount > count) {
-              count = subColCount;
-            }
-          } catch (_) {}
+          // Only perform an aggregation count fallback if the document count is 0 or missing.
+          // For scaled channels (e.g. 100M subscribers), performing an unbounded collection
+          // aggregation query on snapshot listener fires incurs massive read latency and billing costs.
+          if (count == 0) {
+            try {
+              final subColSnap = await _firestore
+                  .collection(FirestoreCollections.channelSubscribers(channelId))
+                  .limit(100)
+                  .count()
+                  .get();
+              final subColCount = subColSnap.count ?? 0;
+              if (subColCount > count) {
+                count = subColCount;
+              }
+            } catch (_) {}
+          }
 
           setSubscriberCount(channelId, count);
         }, onError: (e, s) {

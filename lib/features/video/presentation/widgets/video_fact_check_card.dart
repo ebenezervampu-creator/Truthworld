@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/widgets/truth_lottie_animation.dart';
 import 'package:truthworld/features/video/data/models/fact_check_data_parser.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
@@ -28,9 +29,16 @@ class VideoFactCheckCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      // Never show AI credibility check if video is in a non-credibility category
-      // (e.g. music, entertainment) or if AI credibility is not enabled.
-      if (!controller.video.hasAiCredibility) {
+      final currentUid = AuthService.to.uid;
+      final userChannelId = AuthService.to.userChannel?.id;
+      final isOwner = currentUid.isNotEmpty &&
+          (controller.video.ownerId == currentUid ||
+              controller.video.userId == currentUid ||
+              (userChannelId != null &&
+                  userChannelId.isNotEmpty &&
+                  controller.video.channelId == userChannelId));
+      if (!controller.video.hasAiCredibility ||
+          (!controller.video.canPublicViewFactCheck && !isOwner)) {
         return const SizedBox.shrink();
       }
 

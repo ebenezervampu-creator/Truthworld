@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
@@ -26,6 +27,11 @@ class VideoCardThumbnail extends StatelessWidget {
     final theme = Theme.of(context);
     final effectiveBorderRadius =
         borderRadius ?? const BorderRadius.vertical(top: Radius.circular(16));
+
+    final isMobileDevice = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    final isDesktop = !isMobileDevice && MediaQuery.sizeOf(context).width >= 1000;
+    final cacheDimension = isDesktop ? 1080 : 720;
 
     return Hero(
       tag: '${controller.heroPrefix}_${video.id}',
@@ -68,8 +74,8 @@ class VideoCardThumbnail extends StatelessWidget {
                     CachedNetworkImage(
                       imageUrl: video.thumbnailUrl,
                       fit: BoxFit.cover,
-                      memCacheWidth: 720,
-                      maxWidthDiskCache: 720,
+                      memCacheWidth: cacheDimension,
+                      maxWidthDiskCache: cacheDimension,
                       placeholder: (context, url) =>
                           _buildThumbnailShimmer(theme),
                       errorWidget: (context, url, error) =>
@@ -88,7 +94,8 @@ class VideoCardThumbnail extends StatelessWidget {
                         ),
                       ),
                     ),
-                  if (video.isFactChecked || video.hasAiCredibility)
+                  if ((video.isFactChecked || video.hasAiCredibility) &&
+                      video.canPublicViewFactCheck)
                     const VideoCardFactCheckBadge(),
                   if (video.isPrivate)
                     const VideoCardPrivateBadge(),

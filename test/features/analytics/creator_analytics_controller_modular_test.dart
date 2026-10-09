@@ -4,6 +4,7 @@ import 'package:truthworld/features/analytics/data/models/watch_event_model.dart
 import 'package:truthworld/features/analytics/data/services/geolocation_service.dart';
 import 'package:truthworld/features/analytics/data/services/video_analytics_service.dart';
 import 'package:truthworld/features/analytics/presentation/controllers/creator_analytics_controller.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 import '../../test_helpers/mock_firebase.dart';
 
 void main() {
@@ -252,6 +253,34 @@ void main() {
       );
       expect(controller.returningViewerCount.value, equals(120));
       expect(controller.watchTimeTrendData.length, equals(7));
+    });
+
+    test('loadVideoAnalytics reconciles watch time with channelVideos (e.g. 5 mins / 328s)', () async {
+      final testVideo = Video(
+        id: 'vid_test_5min',
+        title: 'Mahonathuda song by Raj prakash paul worship conference',
+        description: 'Test song',
+        thumbnailUrl: '',
+        ownerId: 'owner_1',
+        channelId: 'chan_1',
+        channelName: 'Channel 1',
+        category: 'Music',
+        tags: const [],
+        viewCount: 1,
+        duration: '05:28',
+        vDurationValue: const Duration(seconds: 328),
+        totalWatchTimeSeconds: 328,
+      );
+
+      controller.channelVideos.add(testVideo);
+
+      // Load analytics for this video
+      await controller.loadVideoAnalytics('vid_test_5min', videoTitle: testVideo.title);
+
+      // Epistemic reconciliation: video watch time must be 328s (5 mins), NEVER 0 mins
+      expect(controller.videoAnalytics.value?.totalWatchTimeSeconds, equals(328));
+      expect(controller.totalWatchTime.value, equals('5 mins'));
+      expect(controller.videoLoadingError.value, isEmpty);
     });
   });
 }

@@ -26,10 +26,10 @@ export function applySecurityHeaders(res: Response): void {
   // Modern Referrer Policy
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
 
-  // Restrict browser features and sensors
+  // Restrict browser features and sensors while permitting verified payment APIs
   res.setHeader(
     "Permissions-Policy",
-    "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+    "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(self \"https://*.cashfree.com\" \"https://sdk.cashfree.com\"), usb=()"
   );
 
   // Cross-Origin policies

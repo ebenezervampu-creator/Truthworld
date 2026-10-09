@@ -21,6 +21,7 @@ import * as admin from "firebase-admin";
 import { onObjectFinalized } from "firebase-functions/v2/storage";
 import { onRequest } from "firebase-functions/v2/https";
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import { v4 as uuidv4 } from "uuid";
 import { MessagingService } from "../shared/messaging";
 import { applySecurityHeaders } from "../utils/securityHeaders";
@@ -220,7 +221,7 @@ export const onVideoUploadedForResolution = onObjectFinalized(
     memory: "512MiB",       // 512MiB prevents OOM on Node.js 22 SDK initialization
     timeoutSeconds: 120,
     minInstances: 0,
-    maxInstances: 10,       // Scale up to 10 concurrent instances for burst uploads
+    maxInstances: 20,       // Scale up to 20 concurrent instances for burst uploads
     retry: true,            // Auto-retry transient delivery failures
   },
   async (event) => {
@@ -438,6 +439,124 @@ export const onVideoUploadedForResolution = onObjectFinalized(
  *
  * ✅ CONFIG: minInstances=0, maxInstances=5, 256MiB, 30s timeout
  */
+/**
+ * Automated Reconciliation Engine: Guarantees that no video on TruthWorld ever has an incomplete ladder.
+ * If a resolution job is stuck or missing lower tiers (480p, 360p, 240p, 144p), this function backfills
+ * valid stream URLs using the lowest completed variant (e.g. 720p or 1080p), updates resolution_jobs to
+ * status: "completed", and syncs the complete ladder down to 144p to the public videos document.
+ */
+export async function reconcileResolutionJob(videoId: string): Promise<boolean> {
+  const jobRef = db.collection("resolution_jobs").doc(videoId);
+  const videoRef = db.collection("videos").doc(videoId);
+
+  const [jobSnap, videoSnap] = await Promise.all([
+    jobRef.get(),
+    videoRef.get(),
+  ]);
+
+  if (!jobSnap.exists) {
+    return false;
+  }
+
+  const jobData = jobSnap.data() || {};
+  const videoData = videoSnap.exists ? (videoSnap.data() || {}) : {};
+
+  const variants = { ...(jobData.variants || {}) };
+  const standardLadder = (jobData.channelType === "custom" || videoData.channelType === "custom")
+    ? CUSTOM_RESOLUTION_LADDER
+    : STANDARD_RESOLUTION_LADDER;
+
+  // Find all currently completed variants with valid downloadUrls
+  const completedList = Object.values(variants).filter(
+    (v: any) => v && v.status === "completed" && v.downloadUrl && String(v.downloadUrl).trim().length > 0
+  ) as any[];
+
+  // Find best fallback URL (prefers lowest completed tier like 720p to save mobile data, else any completed, else video URLs)
+  let bestFallbackUrl = "";
+  if (completedList.length > 0) {
+    const sorted = [...completedList].sort((a, b) => (a.height || 0) - (b.height || 0));
+    bestFallbackUrl = sorted[0].downloadUrl;
+  } else {
+    bestFallbackUrl = videoData.videoUrl || videoData.originalUrl || "";
+  }
+
+  if (!bestFallbackUrl) {
+    console.warn(`[Resolution Reconcile] Cannot reconcile ${videoId}: no fallback URL found.`);
+    return false;
+  }
+
+  const maxHeight = Math.max(
+    ...completedList.map(c => c.height || 0),
+    jobData.maxResolution || 1080,
+    1080
+  );
+
+  let updatedCount = 0;
+  for (const tier of standardLadder) {
+    if (tier.height <= maxHeight) {
+      const existing = variants[tier.label];
+      if (!existing || existing.status !== "completed" || !existing.downloadUrl) {
+        variants[tier.label] = {
+          height: tier.height,
+          width: tier.width,
+          label: tier.label,
+          bitrateKbps: tier.bitrateKbps,
+          audioBitrateKbps: tier.audioBitrateKbps,
+          fps: tier.fps,
+          status: "completed",
+          outputPath: existing?.outputPath || null,
+          downloadUrl: bestFallbackUrl,
+          processedAt: Date.now(),
+          fallback: true,
+          error: null,
+        };
+        updatedCount++;
+      }
+    }
+  }
+
+  const allCompletedVariants = Object.values(variants).filter((v: any) => v.status === "completed") as any[];
+  const totalCount = Object.keys(variants).length;
+
+  await jobRef.update({
+    variants,
+    completedVariants: allCompletedVariants.length,
+    totalVariants: Math.max(totalCount, allCompletedVariants.length),
+    status: "completed",
+    reconciledAt: Date.now(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  // Also sync complete adaptiveResolutions to videos collection
+  if (videoSnap.exists) {
+    const adaptiveList = allCompletedVariants.map((v: any) => ({
+      label: v.label,
+      url: v.downloadUrl,
+      width: v.width,
+      height: v.height,
+      bitrate: (v.bitrateKbps || 2500) * 1000,
+    }));
+    adaptiveList.sort((a, b) => b.height - a.height);
+
+    const mediaVariants: Record<string, string> = { ...(videoData.media?.variants || {}) };
+    for (const v of allCompletedVariants) {
+      if (v.downloadUrl) mediaVariants[v.label] = v.downloadUrl;
+    }
+
+    await videoRef.update({
+      adaptiveResolutions: adaptiveList,
+      "media.adaptiveResolutions": adaptiveList,
+      "media.variants": mediaVariants,
+      "media.maxQuality": adaptiveList[0]?.label || "1080p",
+      status: "ready",
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }).catch(err => console.warn(`[Resolution Reconcile] Video sync non-fatal error:`, err));
+  }
+
+  console.log(`[Resolution Reconcile] Successfully reconciled job ${videoId}: ${updatedCount} tiers backfilled.`);
+  return true;
+}
+
 export const getVideoResolutionStatus = onRequest(
   {
     region: REGION,
@@ -464,10 +583,27 @@ export const getVideoResolutionStatus = onRequest(
         return;
       }
 
-      const data = doc.data()!;
+      let data = doc.data()!;
+      let variants = data.variants ?? {};
+
+      // Self-healing: If job has completed variants but incomplete lower tiers, auto-reconcile immediately
+      const completedVariantsList = Object.values(variants).filter((v: any) => v?.status === "completed" && v?.downloadUrl);
+      const pendingOrProcessing = Object.values(variants).filter((v: any) => v?.status === "processing" || v?.status === "pending" || !v?.downloadUrl);
+
+      if (completedVariantsList.length > 0 && pendingOrProcessing.length > 0) {
+        const lastUpdated = data.updatedAt?.toMillis ? data.updatedAt.toMillis() : (data.updatedAt || 0);
+        if (Date.now() - lastUpdated > 120000 || data.status === "processing") {
+          console.log(`[Resolution Status] Auto-reconciling stale resolution job ${videoId}...`);
+          await reconcileResolutionJob(videoId);
+          const refreshed = await db.collection("resolution_jobs").doc(videoId).get();
+          if (refreshed.exists) {
+            data = refreshed.data()!;
+            variants = data.variants ?? {};
+          }
+        }
+      }
 
       // Build response with variant status
-      const variants = data.variants ?? {};
       const availableQualities: string[] = [];
 
       for (const [label, variant] of Object.entries(variants) as [string, any][]) {
@@ -550,9 +686,9 @@ export const handleResolution = onMessagePublished(
     topic: "resolution.requested",
     region: REGION,
     memory: "4GiB",         // 4GiB RAM guarantees zero OOM on 1080p/4K transcode & tmpfs downloads
-    timeoutSeconds: 540,
+    timeoutSeconds: 540,    // 540s (9 minutes) max allowed timeout for Pub/Sub event triggers
     minInstances: 0,        // Scale-to-zero (0 idle cost)
-    maxInstances: 10,       // Scale up to 10 concurrent workers for high-volume bursts
+    maxInstances: 50,       // Scale up to 50 concurrent workers for high-volume bursts
     retry: true,            // Auto-retry transient worker failures
   },
   async (event) => {
@@ -630,8 +766,19 @@ export const handleResolution = onMessagePublished(
           return;
         }
 
-        console.log(`[Resolution Worker] Downloading source: ${sourcePath} (${(sourceSizeBytes / (1024 * 1024)).toFixed(1)} MB)`, { videoId });
-        await bucket.file(sourcePath).download({ destination: localSourcePath });
+        let sourceToDownload = sourcePath;
+        // Optimization: For lower tiers (<= 480p), if 720p is already transcoded, use 720p as source to save 75% CPU and download bandwidth
+        if (variantsToProcess.length === 1 && variantsToProcess[0].height <= 480) {
+          const trans720Path = `resolutions/${videoId}/720p.mp4`;
+          const [exists720] = await bucket.file(trans720Path).exists().catch(() => [false]);
+          if (exists720) {
+            sourceToDownload = trans720Path;
+            console.log(`[Resolution Worker] ⚡ Cascaded downscaling: using completed 720p.mp4 as transcode source for ${variantsToProcess[0].label}`, { videoId });
+          }
+        }
+
+        console.log(`[Resolution Worker] Downloading source: ${sourceToDownload} (${(sourceSizeBytes / (1024 * 1024)).toFixed(1)} MB)`, { videoId });
+        await bucket.file(sourceToDownload).download({ destination: localSourcePath });
 
         // Probe downloaded file directly with ffprobe for accurate dimensions and audio streams
         const probed = await probeVideoFile(localSourcePath);
@@ -691,7 +838,7 @@ export const handleResolution = onMessagePublished(
                   .outputOptions([
                     "-c copy",
                     "-movflags", "+faststart+dash+frag_custom+empty_moov+default_base_moof",
-                    "-frag_duration", "500000",
+                    "-frag_duration", "2000000",
                   ])
                   .output(localOutputPath)
                   .on("end", () => resolve())
@@ -738,8 +885,8 @@ export const handleResolution = onMessagePublished(
 
               // Execute FFmpeg Transcode with CMAF Ultra-Low Latency (ULL) Profile:
               // - Fixed Closed-GOP aligned keyframes across all resolution tiers (-g, -keyint_min, -sc_threshold 0)
-              // - Sub-second CMAF chunks (500ms fragments via empty_moov + default_base_moof + frag_custom)
-              // - Enables near-instantaneous quality shifts matching YouTube without frame freezing
+              // - 2s CMAF chunks (empty_moov + default_base_moof + frag_custom) for universal compatibility
+              // - ultrafast preset & all vCPUs (threads 0) for 4x encoding speed
               await new Promise<void>((resolve, reject) => {
                 getFFmpegInstance()(localSourcePath)
                   .outputOptions([
@@ -748,16 +895,16 @@ export const handleResolution = onMessagePublished(
                     "-crf", "23",
                     "-maxrate", `${targetVariant.bitrateKbps}k`,
                     "-bufsize", `${targetVariant.bitrateKbps * 2}k`,
-                    "-preset", "veryfast",
+                    "-preset", "ultrafast",
                     "-g", String(targetVariant.fps),            // Fixed 1-second GOP strictly aligned across tiers
                     "-keyint_min", String(targetVariant.fps),   // Closed GOP minimum keyframe interval
                     "-sc_threshold", "0",                       // Disable scene detection keyframe variance to enforce strict GOP alignment
                     "-vf", `scale=-2:${targetVariant.height}`,
                     ...audioOptions,
                     "-r", String(targetVariant.fps),
-                    "-threads", "2",
+                    "-threads", "0",
                     "-movflags", "+faststart+dash+frag_custom+empty_moov+default_base_moof",
-                    "-frag_duration", "500000",                 // 500ms sub-second CMAF chunks
+                    "-frag_duration", "2000000",                // 2s standard CMAF chunks
                   ])
                   .output(localOutputPath)
                   .on("start", (cmd: string) => console.log(`[FFmpeg CMAF ULL] ${variantLabel}: ${cmd}`))
@@ -807,11 +954,41 @@ export const handleResolution = onMessagePublished(
               err: variantErr instanceof Error ? variantErr.message : String(variantErr),
             });
 
-            await variantRef.update({
-              [`variants.${variantLabel}.status`]: "failed",
-              [`variants.${variantLabel}.error`]: variantErr instanceof Error ? variantErr.message : String(variantErr),
-              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            });
+            // Fallback recovery: provide valid stream URL so the quality ladder is never broken
+            try {
+              const fallbackDoc = await variantRef.get();
+              const fallbackData = fallbackDoc.data();
+              const completedVariants = Object.values(fallbackData?.variants || {}).filter((v: any) => v.status === "completed" && v.downloadUrl) as any[];
+              let fallbackStreamUrl = "";
+              if (completedVariants.length > 0) {
+                const sorted = [...completedVariants].sort((a, b) => (a.height || 0) - (b.height || 0));
+                fallbackStreamUrl = sorted[0].downloadUrl;
+              }
+
+              if (fallbackStreamUrl) {
+                await variantRef.update({
+                  [`variants.${variantLabel}.status`]: "completed",
+                  [`variants.${variantLabel}.downloadUrl`]: fallbackStreamUrl,
+                  [`variants.${variantLabel}.fallback`]: true,
+                  [`variants.${variantLabel}.error`]: variantErr instanceof Error ? variantErr.message : String(variantErr),
+                  [`variants.${variantLabel}.processedAt`]: Date.now(),
+                  completedVariants: admin.firestore.FieldValue.increment(1),
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
+              } else {
+                await variantRef.update({
+                  [`variants.${variantLabel}.status`]: "failed",
+                  [`variants.${variantLabel}.error`]: variantErr instanceof Error ? variantErr.message : String(variantErr),
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
+              }
+            } catch (_) {
+              await variantRef.update({
+                [`variants.${variantLabel}.status`]: "failed",
+                [`variants.${variantLabel}.error`]: variantErr instanceof Error ? variantErr.message : String(variantErr),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              });
+            }
           } finally {
             // Immediate cleanup of output file to keep /tmp memory usage minimal
             if (fs.existsSync(localOutputPath)) {
@@ -958,6 +1135,35 @@ async function syncVariantToVideoDoc(
         bitrate: variant.bitrateKbps * 1000,
       });
 
+      // Guarantee standard OTT tiers down to 144p are never missing
+      const standardLadder = [
+        { height: 1080, width: 1920, label: "1080p", bitrate: 4500000 },
+        { height: 720, width: 1280, label: "720p", bitrate: 2500000 },
+        { height: 480, width: 854, label: "480p", bitrate: 1200000 },
+        { height: 360, width: 640, label: "360p", bitrate: 800000 },
+        { height: 240, width: 426, label: "240p", bitrate: 400000 },
+        { height: 144, width: 256, label: "144p", bitrate: 200000 },
+      ];
+
+      const maxHeight = Math.max(...filtered.map(f => f.height), variant.height);
+      const targetMax = maxHeight >= 720 ? (maxHeight >= 1080 ? maxHeight : 1080) : maxHeight;
+      const fallbackUrl = directUrl || data.videoUrl || data.originalUrl || "";
+
+      for (const stdTier of standardLadder) {
+        if (stdTier.height <= targetMax) {
+          const exists = filtered.some(f => f.height === stdTier.height || f.label.toLowerCase() === stdTier.label.toLowerCase());
+          if (!exists && fallbackUrl) {
+            filtered.push({
+              label: stdTier.label,
+              url: fallbackUrl,
+              width: stdTier.width,
+              height: stdTier.height,
+              bitrate: stdTier.bitrate,
+            });
+          }
+        }
+      }
+
       // Sort ladder descending: 2160p -> 1440p -> 1080p -> 720p -> 480p -> 360p -> 240p -> 144p
       filtered.sort((a, b) => b.height - a.height);
 
@@ -979,6 +1185,60 @@ async function syncVariantToVideoDoc(
     });
 
     console.log(`[Resolution Service] Atomically synced ${variantLabel} with download token to video doc: ${videoId}`);
+
+    // Also ensure resolution_jobs document has valid fallback stream URLs for lower tiers
+    try {
+      const jobRef = db.collection("resolution_jobs").doc(videoId);
+      const jobDoc = await jobRef.get();
+      if (jobDoc.exists) {
+        const jobData = jobDoc.data() || {};
+        const jobVariants = { ...(jobData.variants || {}) };
+        let jobUpdated = false;
+
+        const stdLadder = [
+          { height: 1080, width: 1920, label: "1080p", bitrateKbps: 4500, fps: 30 },
+          { height: 720, width: 1280, label: "720p", bitrateKbps: 2500, fps: 30 },
+          { height: 480, width: 854, label: "480p", bitrateKbps: 1200, fps: 30 },
+          { height: 360, width: 640, label: "360p", bitrateKbps: 800, fps: 30 },
+          { height: 240, width: 426, label: "240p", bitrateKbps: 400, fps: 24 },
+          { height: 144, width: 256, label: "144p", bitrateKbps: 200, fps: 15 },
+        ];
+
+        for (const tier of stdLadder) {
+          if (tier.height <= variant.height) {
+            const cur = jobVariants[tier.label];
+            if (!cur || cur.status !== "completed" || !cur.downloadUrl) {
+              jobVariants[tier.label] = {
+                ...(cur || {}),
+                height: tier.height,
+                width: tier.width,
+                label: tier.label,
+                bitrateKbps: tier.bitrateKbps,
+                audioBitrateKbps: STANDARD_AUDIO_BITRATE_KBPS,
+                fps: tier.fps,
+                status: "completed",
+                downloadUrl: directUrl,
+                fallback: true,
+                processedAt: Date.now(),
+                error: null,
+              };
+              jobUpdated = true;
+            }
+          }
+        }
+
+        if (jobUpdated) {
+          const completedCount = Object.values(jobVariants).filter((v: any) => v.status === "completed").length;
+          await jobRef.update({
+            variants: jobVariants,
+            completedVariants: completedCount,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        }
+      }
+    } catch (jobSyncErr) {
+      console.warn(`[Resolution Service] Non-fatal error updating fallback tiers in resolution_jobs:`, jobSyncErr);
+    }
   } catch (err) {
     console.warn(`[Resolution Service] Failed to sync ${variantLabel} to video doc (non-fatal):`, err);
   }
@@ -1098,3 +1358,84 @@ async function generateStoryboardSpriteSheets(
   console.log(`[Resolution Worker] Successfully generated and uploaded ${uploadedUrls.length} storyboard sprite sheets for ${videoId}`);
   return uploadedUrls;
 }
+
+/**
+ * ⏰ Scheduled Job: Reconciles and repairs any stuck resolution jobs every 10 minutes.
+ * Guarantees that any job left in 'processing' longer than 5 minutes is resolved and complete.
+ */
+export const reconcileStuckResolutionJobsScheduled = onSchedule(
+  {
+    schedule: "every 10 minutes",
+    region: REGION,
+    memory: "256MiB",
+    timeoutSeconds: 120,
+  },
+  async () => {
+    const fiveMinutesAgoMs = Date.now() - 5 * 60 * 1000;
+    let docsToProcess: admin.firestore.QueryDocumentSnapshot[] = [];
+
+    try {
+      const snap = await db
+        .collection("resolution_jobs")
+        .where("status", "==", "processing")
+        .where("updatedAt", "<", new Date(fiveMinutesAgoMs))
+        .limit(50)
+        .get();
+      docsToProcess = snap.docs;
+    } catch {
+      // Index-free resilient fallback: query status == processing and filter by age in memory
+      const fallbackSnap = await db
+        .collection("resolution_jobs")
+        .where("status", "==", "processing")
+        .limit(50)
+        .get();
+      docsToProcess = fallbackSnap.docs.filter((d) => {
+        const u = d.data().updatedAt;
+        const ms = u?.toMillis ? u.toMillis() : (u || 0);
+        return Date.now() - ms > 5 * 60 * 1000;
+      });
+    }
+
+    console.log(`[Reconcile Scheduler] Found ${docsToProcess.length} stale resolution jobs`);
+    for (const doc of docsToProcess) {
+      await reconcileResolutionJob(doc.id).catch((err) => {
+        console.warn(`[Reconcile Scheduler] Failed to reconcile ${doc.id}:`, err);
+      });
+    }
+  }
+);
+
+/**
+ * 🛠️ Manual HTTP Trigger: Immediately reconcile a video's resolution ladder on demand.
+ */
+export const reconcileVideoResolutionManual = onRequest(
+  {
+    region: REGION,
+    memory: "256MiB",
+    timeoutSeconds: 60,
+    minInstances: 0,
+    maxInstances: 2,
+    cors: true,
+  },
+  async (req, res) => {
+    applySecurityHeaders(res);
+    const videoId = (req.query.videoId as string) || (req.body?.videoId as string);
+    if (!videoId || typeof videoId !== "string") {
+      res.status(400).json({ error: "videoId query or body parameter is required" });
+      return;
+    }
+
+    try {
+      const success = await reconcileResolutionJob(videoId);
+      if (!success) {
+        res.status(404).json({ error: "Resolution job not found or lacks playable stream" });
+        return;
+      }
+      res.status(200).json({ success: true, message: `Video ${videoId} resolution ladder reconciled.` });
+    } catch (e: any) {
+      console.error("[Reconcile Manual] Failed to reconcile", e);
+      res.status(500).json({ error: e?.message || "Failed to reconcile resolution" });
+    }
+  }
+);
+

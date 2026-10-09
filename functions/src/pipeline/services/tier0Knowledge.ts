@@ -7,18 +7,21 @@ export interface Tier0Context {
 }
 
 export class Tier0KnowledgeService {
-  private static readonly WIKIPEDIA_SEARCH_URL = "https://en.wikipedia.org/w/api.php";
+  private static getWikipediaSearchUrl(lang: string = "en"): string {
+    const safeLang = /^[a-z]{2,5}$/i.test(lang) ? lang.toLowerCase() : "en";
+    return `https://${safeLang}.wikipedia.org/w/api.php`;
+  }
   private static readonly MAX_TIMEOUT_MS = 1500; // Fast timeout for Tier-0
 
   /**
    * Fetches Wikipedia context for a batch of claims concurrently.
    */
-  async getBatchContext(claims: { claimId: string; text: string }[]): Promise<Tier0Context[]> {
+  async getBatchContext(claims: { claimId: string; text: string }[], lang: string = "en"): Promise<Tier0Context[]> {
     if (claims.length === 0) return [];
 
     const promises = claims.map(async (claim) => {
       try {
-        const context = await this.fetchWikipediaContext(claim.text);
+        const context = await this.fetchWikipediaContext(claim.text, lang);
         return { claimId: claim.claimId, context };
       } catch (error) {
         logger.warn(`[Tier0] Failed to fetch Wikipedia context for claim ${claim.claimId}`, { error });
@@ -32,7 +35,7 @@ export class Tier0KnowledgeService {
   /**
    * Cleans claim text and fetches the top Wikipedia snippet.
    */
-  private async fetchWikipediaContext(query: string): Promise<string | null> {
+  private async fetchWikipediaContext(query: string, lang: string = "en"): Promise<string | null> {
     try {
       // 1. Clean the query (remove emojis and leading phrases)
       const cleanQuery = query
@@ -40,13 +43,15 @@ export class Tier0KnowledgeService {
         .replace(/^(The|A|An|In|According to) /i, '') // Remove common leading stop words
         .trim();
 
-      // For long claims, extract the first 6 words for better search matching
-      const searchTerms = cleanQuery.split(' ').slice(0, 6).join(' ');
+      // For long claims, extract the first 8 meaningful words for better search matching
+      const searchTerms = cleanQuery.split(/\s+/).slice(0, 8).join(' ');
 
       if (searchTerms.length < 3) return null;
 
+      const apiUrl = Tier0KnowledgeService.getWikipediaSearchUrl(lang);
+
       // 2. Search Wikipedia for the best matching page title
-      const searchRes = await axios.get(Tier0KnowledgeService.WIKIPEDIA_SEARCH_URL, {
+      const searchRes = await axios.get(apiUrl, {
         params: {
           action: 'query',
           list: 'search',
@@ -66,7 +71,7 @@ export class Tier0KnowledgeService {
       const topTitle = searchHits[0].title;
 
       // 3. Fetch the extract for the matching page
-      const extractRes = await axios.get(Tier0KnowledgeService.WIKIPEDIA_SEARCH_URL, {
+      const extractRes = await axios.get(apiUrl, {
         params: {
           action: 'query',
           prop: 'extracts',

@@ -12,6 +12,7 @@
 // ==========================================================================
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
@@ -127,12 +128,13 @@ class VideoMediaCredibility {
     final trustScore = (rawTrustScore is num) ? rawTrustScore.toDouble() : 0.0;
     final trustLabel =
         (data['trustLabel'] ?? data['label'] ?? data['state'])?.toString();
-    final summary = (data['summary'] ??
+    final rawSummary = (data['summary'] ??
             data['viewerNote'] ??
             data['narrative'] ??
             data['uiReport']?['narrative'] ??
             '')
         .toString();
+    final summary = UserFeedbackSanitizer.sanitizeVideoSummary(rawSummary);
 
     final rawFactors = data['scoringFactors'] ?? data['factors'];
     final scoringFactors = rawFactors != null && rawFactors is Map

@@ -446,6 +446,11 @@ class UserSettingsController extends BaseController {
     required String gender,
     int? age,
     String? location,
+    String? city,
+    String? state,
+    String? country,
+    double? latitude,
+    double? longitude,
   }) async {
     final auth = AuthService.to;
     final uid = auth.uid;
@@ -470,8 +475,20 @@ class UserSettingsController extends BaseController {
       auth.userAge.value = age;
       if (cleanLocation.isNotEmpty) {
         auth.userLocation.value = cleanLocation;
+        if (city != null && city.isNotEmpty) {
+          auth.userCity.value = city;
+        }
+        if (state != null && state.isNotEmpty) {
+          auth.userState.value = state;
+        }
+        if (country != null && country.isNotEmpty) {
+          auth.userCountry.value = country;
+        }
       } else {
         auth.userLocation.value = null;
+        auth.userCity.value = null;
+        auth.userState.value = null;
+        auth.userCountry.value = null;
       }
 
       // 2. Update FirebaseAuth currentUser displayName
@@ -498,11 +515,28 @@ class UserSettingsController extends BaseController {
 
       if (cleanLocation.isNotEmpty) {
         userUpdates['location'] = cleanLocation;
+        if (city != null && city.isNotEmpty) {
+          userUpdates['city'] = city;
+        }
+        if (state != null && state.isNotEmpty) {
+          userUpdates['state'] = state;
+        }
+        if (country != null && country.isNotEmpty) {
+          userUpdates['country'] = country;
+        }
+        if (latitude != null) {
+          userUpdates['latitude'] = latitude;
+        }
+        if (longitude != null) {
+          userUpdates['longitude'] = longitude;
+        }
       } else {
         userUpdates['location'] = FieldValue.delete();
         userUpdates['city'] = FieldValue.delete();
         userUpdates['state'] = FieldValue.delete();
         userUpdates['country'] = FieldValue.delete();
+        userUpdates['latitude'] = FieldValue.delete();
+        userUpdates['longitude'] = FieldValue.delete();
         auth.userCity.value = null;
         auth.userState.value = null;
         auth.userCountry.value = null;

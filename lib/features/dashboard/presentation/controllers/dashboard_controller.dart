@@ -9,6 +9,7 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/currency_localization_service.dart';
+import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/core/utils/watch_time_formatter.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/analytics/presentation/controllers/revenue_analytics_controller.dart';
@@ -82,6 +83,77 @@ class DashboardController extends BaseController {
   bool isVideoWithdrawalEligible(Video video) {
     return getVideoWatchHours(video) >= 10.0 &&
         video.viewCount >= videoWithdrawalViewsThreshold;
+  }
+
+  /// Checks if ANY video on the channel has crossed the threshold (1k views & 10 hours watch time)
+  bool get hasAnyVideoCrossedThreshold =>
+      recentVideos.any(isVideoWithdrawalEligible);
+
+  /// Returns the first video that crossed 1k views and 10 hours watch time (if any)
+  Video? get firstQualifiedVideo =>
+      recentVideos.firstWhereOrNull(isVideoWithdrawalEligible);
+
+  /// Count of videos that crossed the 1,000 views and 10 hours watch time threshold
+  int get qualifiedVideoCount =>
+      recentVideos.where(isVideoWithdrawalEligible).length;
+
+  /// Count of videos that have not yet crossed the 1,000 views and 10 hours watch time threshold
+  int get pendingVideoCount =>
+      recentVideos.where((v) => !isVideoWithdrawalEligible(v)).length;
+
+  /// Evaluates whether creator KYC verification is completed
+  bool get isCreatorKycVerified {
+    if (Get.isRegistered<RevenueAnalyticsController>()) {
+      return Get.find<RevenueAnalyticsController>().isKycVerified;
+    }
+    return currentChannel.value?.isVerified ?? false;
+  }
+
+  /// Evaluates if the channel's monetization is ON:
+  /// Monetization turns ON for every channel when:
+  /// 1. Any video of the channel has crossed 1,000 views AND 10 hours watch time.
+  /// 2. Creator KYC verification is completed.
+  /// Once ON, every video generates revenue.
+  bool isChannelMonetizationOn({bool? isKycVerified}) {
+    final ch = currentChannel.value;
+    if (ch != null) {
+      if (ch.channelType == ChannelType.custom) return true;
+      if (ch.monetizationTier != MonetizationTier.none) return true;
+      if (ch.monetizationSettings?['isMonetized'] == true) return true;
+    }
+    final kyc = isKycVerified ?? isCreatorKycVerified;
+    return hasAnyVideoCrossedThreshold && kyc;
+  }
+
+  /// Reactive getter indicating if monetization is currently active on the channel
+  bool get isChannelMonetizationActive => isChannelMonetizationOn();
+
+  /// Automatically activates monetization in Firestore if channel satisfies the qualification gates
+  Future<void> checkAndActivateMonetization() async {
+    if (channelId.isEmpty) return;
+    if (isChannelMonetizationOn()) {
+      try {
+        final ch = currentChannel.value;
+        if (ch != null &&
+            ch.monetizationTier == MonetizationTier.none &&
+            ch.monetizationSettings?['isMonetized'] != true) {
+          await _firestore
+              .collection(FirestoreCollections.channels)
+              .doc(channelId)
+              .update({
+            'monetizationTier': MonetizationTier.eligible.name,
+            'isMonetized': true,
+            'monetizationActivatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'DashboardController.checkAndActivateMonetization',
+        );
+      }
+    }
   }
 
   StreamSubscription? _statsSubscription;
@@ -224,24 +296,34 @@ class DashboardController extends BaseController {
           if (snapshot.exists) {
             final data = snapshot.data();
             if (data != null) {
+              var rawWatchSeconds = 0;
               if (data.containsKey('totalWatchTimeSeconds')) {
-                totalWatchTimeSeconds.value =
-                    (data['totalWatchTimeSeconds'] as num).toInt();
+                rawWatchSeconds = (data['totalWatchTimeSeconds'] as num).toInt();
               } else if (data.containsKey('totalWatchTimeMinutes')) {
-                totalWatchTimeSeconds.value =
+                rawWatchSeconds =
                     (((data['totalWatchTimeMinutes'] as num).toDouble()) * 60)
                         .toInt();
               } else if (data['metrics'] is Map &&
                   (data['metrics'] as Map)['totalWatchTimeMinutes'] != null) {
-                totalWatchTimeSeconds.value =
+                rawWatchSeconds =
                     ((((data['metrics'] as Map)['totalWatchTimeMinutes'] as num).toDouble()) * 60)
                         .toInt();
               } else if (data['metrics'] is Map &&
                   (data['metrics'] as Map)['totalWatchTimeSeconds'] != null) {
-                totalWatchTimeSeconds.value =
+                rawWatchSeconds =
                     ((data['metrics'] as Map)['totalWatchTimeSeconds'] as num)
                         .toInt();
               }
+              if (recentVideos.isNotEmpty) {
+                final maxAllowed = recentVideos.fold<int>(
+                  0,
+                  (acc, v) => acc + v.totalWatchTimeSeconds,
+                );
+                if (maxAllowed > 0 && rawWatchSeconds > maxAllowed) {
+                  rawWatchSeconds = maxAllowed;
+                }
+              }
+              totalWatchTimeSeconds.value = rawWatchSeconds;
 
               final superchat =
                   (data['superchatRevenueTotal'] as num?)?.toDouble() ?? 0.0;
@@ -294,6 +376,7 @@ class DashboardController extends BaseController {
               ...channelStats,
               'views': _formatNumber(channel.viewCount),
               'subscribers': _formatNumber(channel.subscriberCount),
+              'rawSubscribers': channel.subscriberCount,
               'watchTime': formattedWatchTime,
               'revenue': formattedRev,
               'viewsChange': channelStats['viewsChange'] ?? '+0%',
@@ -324,22 +407,42 @@ class DashboardController extends BaseController {
           final summaryWatchSeconds =
               (data['totalWatchTimeSeconds'] as num?)?.toInt() ?? 0;
           if (summaryWatchSeconds > 0) {
-            totalWatchTimeSeconds.value = summaryWatchSeconds;
+            var effectiveSummary = summaryWatchSeconds;
+            if (recentVideos.isNotEmpty) {
+              final maxAllowed = recentVideos.fold<int>(
+                0,
+                (acc, v) => acc + v.totalWatchTimeSeconds,
+              );
+              if (maxAllowed > 0 && effectiveSummary > maxAllowed) {
+                effectiveSummary = maxAllowed;
+              }
+            }
+            totalWatchTimeSeconds.value = effectiveSummary;
           }
           final currentTotalRev = rxTotalRevenue.value;
           final formattedRev = '₹${currentTotalRev.toStringAsFixed(2)}';
           final formattedChange =
               currentTotalRev > 0 ? '+₹${currentTotalRev.toStringAsFixed(2)}' : '+₹0.00';
 
+          final currentSubsCount = currentChannel.value?.subscriberCount ??
+              (channelStats['rawSubscribers'] as int?) ??
+              (data['subscribers'] as num?)?.toInt() ??
+              0;
+
+          final totalViewsCount = (data['totalViews'] as num?)?.toInt() ??
+              currentChannel.value?.viewCount ??
+              0;
+
           channelStats.value = {
             ...channelStats,
-            'views': _formatNumber(data['totalViews'] ?? channelStats['views'] ?? 0),
+            'views': _formatNumber(totalViewsCount),
             'watchTime': formattedWatchTime,
-            'subscribers': _formatNumber(data['subscribers'] ?? channelStats['subscribers'] ?? 0),
+            'subscribers': _formatNumber(currentSubsCount),
+            'rawSubscribers': currentSubsCount,
             'revenue': formattedRev,
-            'viewsChange': '+0%',
-            'watchTimeChange': '+0%',
-            'subscribersChange': '+0',
+            'viewsChange': channelStats['viewsChange'] ?? '+0%',
+            'watchTimeChange': channelStats['watchTimeChange'] ?? '+0%',
+            'subscribersChange': channelStats['subscribersChange'] ?? '+0',
             'revenueChange': formattedChange,
           };
         }
@@ -602,20 +705,24 @@ class DashboardController extends BaseController {
           }
         }
 
-        // Fallback watch time from recent videos if channel watch time is zero
-        if (totalWatchTimeSeconds.value == 0 && recentVideos.isNotEmpty) {
+        // Reconcile and clamp watch time from recent videos
+        if (recentVideos.isNotEmpty) {
           final totalVideoWatchSeconds = recentVideos.fold<int>(
             0,
             (acc, v) => acc + v.totalWatchTimeSeconds,
           );
           if (totalVideoWatchSeconds > 0) {
-            totalWatchTimeSeconds.value = totalVideoWatchSeconds;
-            channelStats.value = {
-              ...channelStats,
-              'watchTime': formattedWatchTime,
-            };
+            if (totalWatchTimeSeconds.value == 0 ||
+                totalWatchTimeSeconds.value > totalVideoWatchSeconds) {
+              totalWatchTimeSeconds.value = totalVideoWatchSeconds;
+              channelStats.value = {
+                ...channelStats,
+                'watchTime': formattedWatchTime,
+              };
+            }
           }
         }
+        checkAndActivateMonetization();
       },
       onError: (error, stackTrace) {
         ErrorHandler.log(
@@ -695,12 +802,7 @@ class DashboardController extends BaseController {
   }
 
   String _formatNumber(int number) {
-    if (number >= 1000000) {
-      return '${(number / 1000000).toStringAsFixed(1)}M';
-    } else if (number >= 1000) {
-      return '${(number / 1000).toStringAsFixed(1)}K';
-    }
-    return number.toString();
+    return FormatUtils.formatCount(number);
   }
 
   void setSelectedIndex(int index) => selectedIndex.value = index;

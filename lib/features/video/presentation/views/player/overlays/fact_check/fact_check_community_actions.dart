@@ -208,12 +208,12 @@ class NoFactCheckFallback extends StatelessWidget {
 
                   if (isAudioOnly) {
                     upgradeDescription =
-                        r'Viewing existing fact-checks is always free. Upgrade your $0.50 (₹40) plan to the $3 Fact-Checked Plan for only ₹209 ($3 - 40 rupees) to trigger on-demand AI claim verification on any unanalyzed video.';
-                    buttonLabel = r'Upgrade for ₹209 ($3 - 40 rupees)';
+                        r'Viewing existing fact-checks is always free. Upgrade your $0.50 plan to the $3 Fact-Checked Plan to trigger on-demand AI claim verification on any unanalyzed video with your previous payment credited directly.';
+                    buttonLabel = r'Upgrade to $3 Fact-Checked Plan';
                   } else if (hasFullPrem) {
                     upgradeDescription =
-                        r'Viewing existing fact-checks is always free. Upgrade your TruthWorld Premium ($2) to the $3 Fact-Checked Plan for only ₹80 ($3 - $2 credit applied) to trigger on-demand AI claim verification on any unanalyzed video.';
-                    buttonLabel = r'Upgrade for ₹80 ($3 - $2)';
+                        r'Viewing existing fact-checks is always free. Upgrade your TruthWorld Premium ($2) to the $3 Fact-Checked Plan to trigger on-demand AI claim verification on any unanalyzed video with your previous payment credited directly.';
+                    buttonLabel = r'Upgrade to $3 Fact-Checked Plan';
                   } else {
                     upgradeDescription =
                         r'Viewing published fact-checks is 100% free for everyone. The $3 Fact-Checked Plan unlocks on-demand AI verification, allowing you to queue epistemic fact-checking and truth analysis on any unanalyzed video.';

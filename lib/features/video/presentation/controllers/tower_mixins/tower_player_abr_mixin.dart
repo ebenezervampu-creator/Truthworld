@@ -5,6 +5,7 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/adaptive_bitrate_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
@@ -22,6 +23,7 @@ mixin TowerPlayerAbrMixin on GetxController {
   RxBool get isAudioOnly;
   void closeSettings();
   void trackAnalytics(PlayerEvent event);
+  void showToast(String msg);
 
   // ── ABR / quality ─────────────────────────────────────────
   final AdaptiveBitrateController abr = AdaptiveBitrateController();
@@ -37,6 +39,15 @@ mixin TowerPlayerAbrMixin on GetxController {
       if (Get.isRegistered<VideoController>(tag: tag)) {
         final vc = Get.find<VideoController>(tag: tag);
         if (vc.availableResolutions.isNotEmpty) {
+          final complete = VideoResolutionV2.ensureCompleteLadder(
+            vc.availableResolutions,
+            fallbackUrl: vc.video.videoUrl.isNotEmpty
+                ? vc.video.videoUrl
+                : vc.video.originalUrl,
+          );
+          if (complete.length != vc.availableResolutions.length) {
+            vc.availableResolutions.assignAll(complete);
+          }
           ladder = vc.availableResolutions.reversed
               .map(ResolutionTier.fromVideoResolution)
               .toList();
@@ -101,6 +112,7 @@ mixin TowerPlayerAbrMixin on GetxController {
         try {
           if (!Get.isRegistered<VideoController>(tag: tag)) return;
           final vc = Get.find<VideoController>(tag: tag);
+          if (vc.isClosed) return;
           if (vc.isSwitchingResolution.value) return;
           if (vc.rxIsOffline.value || isAudioOnly.value) return;
           if (tierIndex >= 0 && tierIndex < abr.resolutionLadder.length) {
@@ -265,6 +277,7 @@ mixin TowerPlayerAbrMixin on GetxController {
   void selectAutoQuality() {
     abr.enableAutoMode();
     TowerPlayerController.globalQualityPreference = 'Auto';
+    showToast('Quality: Auto');
     activePanel.value = '';
     closeSettings();
   }

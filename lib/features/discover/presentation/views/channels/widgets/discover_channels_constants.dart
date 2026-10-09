@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/app_categories.dart';
+import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/discover/presentation/controllers/discover_channels_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -31,9 +32,7 @@ const double kDesktopBreakpoint = 1200;
 // ==========================================================================
 
 String formatSubscriberCount(int count) {
-  if (count >= 1000000) return '${(count / 1000000).toStringAsFixed(1)}M';
-  if (count >= 1000) return '${(count / 1000).toStringAsFixed(1)}K';
-  return count.toString();
+  return FormatUtils.formatCount(count);
 }
 
 String getCategoryImage(String category) {

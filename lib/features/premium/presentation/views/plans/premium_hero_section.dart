@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/features/premium/presentation/controllers/premium_controller.dart';
 import 'package:truthworld/features/premium/presentation/views/plans/premium_constants.dart';
@@ -35,13 +36,25 @@ class PremiumHeroSection extends StatelessWidget {
       final ctrl = _effectiveController;
       final selectedId = ctrl.selectedPlanId.value;
 
-      var trialText = r'7 days free • Then $2/month (₹169)';
+      final isIndian = !Get.isRegistered<CurrencyLocalizationService>() ||
+          CurrencyLocalizationService.to.isIndianUser;
+      final formattedInr = ctrl.formatAmountINR(ctrl.getPriceForPlan(selectedId));
+
+      var trialText = isIndian
+          ? '7 days free • Then \$2/month ($formattedInr)'
+          : r'7 days free • Then $2/month';
       if (selectedId == 'audio_monthly') {
-        trialText = r'7 days free • Then $0.50/month (₹40) • Audio Ad-Free';
+        trialText = isIndian
+            ? '7 days free • Then \$0.50/month ($formattedInr) • Audio Ad-Free'
+            : r'7 days free • Then $0.50/month • Audio Ad-Free';
       } else if (selectedId == '4k_factchecked_monthly') {
-        trialText = r'7 days free • Then $3/month (₹249) • Fact-Checked';
+        trialText = isIndian
+            ? '7 days free • Then \$3/month ($formattedInr) • Fact-Checked'
+            : r'7 days free • Then $3/month • Fact-Checked';
       } else if (selectedId == 'family_monthly') {
-        trialText = r'7 days free • Then $5/month';
+        trialText = isIndian
+            ? '7 days free • Then \$5/month ($formattedInr)'
+            : r'7 days free • Then $5/month';
       }
 
       return Container(
@@ -99,7 +112,7 @@ class PremiumHeroSection extends StatelessWidget {
             ),
             const SizedBox(height: 18),
             Text(
-              r'Ad-Free Audio ($0.50 / ₹40), Video ($2) & Fact-Checked ($3)',
+              r'Ad-Free Audio ($0.50), Video ($2) & Fact-Checked ($3)',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: isDesktop ? 28 : (isTablet ? 24 : 20),
@@ -112,7 +125,7 @@ class PremiumHeroSection extends StatelessWidget {
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 620),
               child: const Text(
-                r'Choose the tier that fits you: enjoy ad-free audio playback at $0.50/mo (₹40), all-inclusive ad-free 4K video at $2/mo (₹169), or unlock comprehensive AI fact-checking on every video with on-demand user verification at $3/mo (₹249).',
+                r'Choose the tier that fits you: enjoy ad-free audio playback at $0.50/mo, all-inclusive ad-free 4K video at $2/mo, or unlock comprehensive AI fact-checking on every video with on-demand user verification at $3/mo.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 14,

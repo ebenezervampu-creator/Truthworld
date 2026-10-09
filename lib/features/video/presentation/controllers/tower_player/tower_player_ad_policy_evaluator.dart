@@ -24,7 +24,7 @@ class TowerPlayerAdPolicyEvaluator {
   /// Determines if ads should be suppressed based on:
   /// - Channel Member with Ad-Free Perk: Ad-free when watching a channel where creator enabled `noAdsForMembers`.
   /// - TruthWorld Premium ($2) & Fact-Checked ($3): Ad-free for all playback modes.
-  /// - Audio Premium (₹40): Ad-free specifically when playing in Audio-only Mode.
+  /// - Audio Premium ($0.50): Ad-free specifically when playing in Audio-only Mode.
   static bool shouldSuppressAds({
     required bool isAudioOnly,
     bool isChannelMember = false,

@@ -16,7 +16,7 @@ mixin AdminAuditLogMixin on GetxController {
       final user = FirebaseAuth.instance.currentUser;
       final payload = <String, dynamic>{
         'adminId': user?.uid ?? 'admin',
-        'adminEmail': user?.email ?? 'admin@truthworld.com',
+        'adminEmail': user?.email ?? 'hello@truthworld.in',
         'action': action,
         'reason': reason ?? '',
         'timestamp': FieldValue.serverTimestamp(),

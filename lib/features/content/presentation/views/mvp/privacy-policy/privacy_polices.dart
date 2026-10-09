@@ -30,8 +30,9 @@ class PrivacyPolicyScreen extends StatelessWidget {
   /// Parses the giant text string into a structured list of sections.
   /// This allows us to build the nav menu and content separately.
   void _parsePolicyText() {
-    // Regex to find headings like "1. INTRODUCTION" or "10. CHILDREN'S PRIVACY"
-    final regex = RegExp(r'\n(\d{1,2}\. [A-Z_ ]+)\n', multiLine: true);
+    // Regex to find headings like "1. INTRODUCTION", "7. DATA RETENTION & FORENSIC INTEGRITY", or "10. CHILDREN'S PRIVACY"
+    final regex =
+        RegExp(r"\n(\d{1,2}\. [A-Z0-9_\-&'/ ]+)\n", multiLine: true);
     final matches = regex.allMatches(_privacyPolicyText).toList();
 
     if (matches.isEmpty) {
@@ -419,14 +420,27 @@ With your consent, we may share:
 
 We do not sell personally identifiable information to advertisers without explicit consent.
 
-4.3 Legal Requirements
+4.3 Legal Requirements & Worldwide Statutory Law Enforcement Assistance
 
-We may disclose information when required to:
-• Comply with legal processes (subpoenas, court orders)
-• Respond to government requests
-• Enforce our Terms of Service
-• Protect the rights, property, or safety of Truthworld, users, or the public
-• Prevent fraud or security threats
+Truthworld cooperates with authorized domestic and international law enforcement agencies strictly through established legal mechanisms, adhering to international due process, statutory warrants, and constitutional protections across jurisdictions:
+
+• **India (Rule 3(1)(j) IT Rules, 2021 & Section 94 BNSS, 2023):**
+  - **Statutory Requisitions:** We disclose subscriber verification records, IP access logs, and electronic metadata upon receipt of a written order by a court or authorized agency under Section 94 of the Bharatiya Nagarik Suraksha Sanhita, 2023 (BNSS) (formerly Section 91 of the Code of Criminal Procedure, 1973).
+  - **72-Hour Response Window:** Lawful assistance is processed as soon as possible, but not later than seventy-two (72) hours from official receipt.
+  - **Shreya Singhal Doctrine:** In accordance with the Supreme Court ruling in Shreya Singhal v. Union of India (2015), content disabling or user data disclosure without user notice is conducted strictly pursuant to an order of a court of competent jurisdiction or authorized government notification under Section 69A of the IT Act.
+  - **Resident Grievance Officer Channel:** Inquiries must be served to hello@truthworld.in (+91 9390617877).
+
+• **United States (ECPA 18 U.S.C. §§ 2701–2712 & Fourth Amendment Safeguards):**
+  - **Basic Subscriber Information (BSI):** Disclosed only pursuant to a valid administrative, grand jury, or trial subpoena under 18 U.S.C. § 2703(c)(2).
+  - **Transactional Metadata & Non-Content Records:** Requires a court order issued by a judge of competent jurisdiction under 18 U.S.C. § 2703(d), demonstrating specific and articulable facts showing reasonable grounds to believe the records are relevant and material to an ongoing criminal investigation.
+  - **Stored Content & Stored Communications:** Video files, drafts, and private communications are disclosed solely upon receipt of a search warrant issued under Rule 41 of the Federal Rules of Criminal Procedure upon a showing of probable cause.
+  - **Preservation Requests (18 U.S.C. § 2703(f)):** Formal government requests to preserve account records for 90 days pending the issuance of official legal process are honored immediately.
+
+• **European Union & United Kingdom (Digital Services Act & GDPR / UK DPA):**
+  - **Orders to Provide Information (DSA Art. 10):** Addressed only when issued by a competent judicial or administrative authority conforming to the requirements of Article 10 of Regulation (EU) 2022/2065.
+  - **Orders to Act Against Illegal Content (DSA Art. 9):** Processed in accordance with statutory grounds and territorial scope specified under applicable EU/national law.
+  - **Extra-Territorial Coercive Process:** Foreign law enforcement requests originating outside the jurisdiction of corporate incorporation require a formal Mutual Legal Assistance Treaty (MLAT) request, diplomatic letters rogatory, or an international cross-border cooperation order.
+
 
 4.4 Business Transfers
 
@@ -521,14 +535,17 @@ To exercise any of these rights:
 
 We will respond to verified requests within 30 days (or as required by law).
 
-7. DATA RETENTION
+7. DATA RETENTION & FORENSIC INTEGRITY
  
-We retain your information for as long as necessary to provide our services and fulfill the purposes described in this policy:
+We retain your information for as long as necessary to provide our services, maintain evidentiary integrity, and fulfill statutory compliance across global jurisdictions:
  
-• Account Information: Retained while your account is active and for a minimum of 180 days after deletion in compliance with Rule 3(1)(g) of the Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021.
-• Content: Videos remain available until you delete them; deleted or removed content and associated user registration records are retained for at least 180 days for statutory verification and law enforcement assistance as mandated by law.
-• Analytics Data: Aggregated and anonymized data may be retained indefinitely.
-• Legal Obligations: Some data may be retained longer when required by court orders or statutory government directives.
+• **Account Information & 180-Day Rule:** Retained while your account is active and for a mandatory minimum of 180 days after deletion in compliance with Rule 3(1)(g) of the Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021.
+• **Content & Upload Forensic Logs:** Uploaded media, raw transcripts, timestamped verification audit trails, and associated IP address logs are maintained throughout the content lifecycle. Deleted or removed content and associated user logs are preserved for at least 180 days for statutory verification and law enforcement assistance.
+• **Cryptographic Chain of Custody & BSA Section 63 Certification:** To ensure electronic records are tamper-proof and legally admissible in judicial proceedings, Truthworld computes and logs SHA-256 cryptographic checksums of raw video assets and audit logs. Where required for police inquiries, FIR investigations, or judicial proceedings, these records are certified under Section 63 of the Bharatiya Sakshya Adhiniyam, 2023 (BSA) (formerly Section 65B of the Indian Evidence Act, 1872).
+• **United States Preservation Protocols (18 U.S.C. § 2703(f)):** Upon receipt of a statutory preservation request from a US law enforcement agency, we preserve relevant subscriber records, transactional logs, and stored electronic communications for 90 days (renewable for an additional 90-day period) pending formal legal process.
+• **European Union Digital Services Act (DSA) Compliance:** Records of notices submitted under Article 16 and internal complaint-handling decisions under Article 20 are retained for a minimum of six (6) months from the date of final resolution to support out-of-court dispute reviews and DSA transparency reporting.
+• **GDPR & DPDPA Storage Limitation:** In accordance with GDPR Article 5(1)(e) and DPDPA Section 8(7), personal data that is no longer necessary for specified legal or operational purposes is permanently purged or cryptographically anonymized.
+
 
 8. COOKIES AND TRACKING TECHNOLOGIES
 
@@ -605,14 +622,21 @@ We comply with the Children's Online Privacy Protection Act (COPPA) for U.S. use
 
 11. INTERNATIONAL DATA TRANSFERS
 
-Truthworld operates globally. Your information may be transferred to and processed in countries other than your country of residence. For Indian users, we primarily store data within India to comply with data localization requirements under applicable Indian laws.
+Truthworld operates globally to deliver distributed, source-grounded fact checking and video streaming. Your information may be transferred to, stored, and processed in cloud data centers located in India, the United States, and the European Union.
 
-For data transferred outside India, we ensure appropriate safeguards are in place, such as:
-• Standard Contractual Clauses approved by the European Commission
-• Privacy Shield certification (where applicable)
-• Consent for specific transfers
+11.1 Cross-Border Safeguards & Standard Contractual Clauses (SCCs)
+For personal data transfers originating in the European Economic Area (EEA), the United Kingdom, or Switzerland to countries not recognized as providing an adequate level of data protection, Truthworld relies upon:
+• **European Commission Standard Contractual Clauses (SCCs):** Commission Implementing Decision (EU) 2021/914, incorporating Module 1 (Controller-to-Controller) for platform relationships and Module 2 (Controller-to-Processor) for third-party infrastructure vendors.
+• **UK International Data Transfer Addendum (IDTA):** Issued by the Information Commissioner’s Office (ICO) under S119A(1) Data Protection Act 2018.
+• **Indian DPDPA Compliance:** Cross-border transfers of personal data for Indian users comply with Section 16 of the Digital Personal Data Protection Act, 2023, ensuring data is not transferred to restricted jurisdictions notified by the Central Government.
 
-By using our Platform, you consent to the transfer of your information internationally.
+11.2 Supplementary Technical and Organizational Measures (TOMs)
+To safeguard international transfers against unauthorized foreign interception:
+• **End-to-End & Rest Encryption:** All data in transit is protected using TLS 1.3 cryptographic protocols; stored data is encrypted at rest using AES-256.
+• **Pseudonymization:** Telemetry, view counts, and interaction audit trails are pseudonymized to minimize the risk of re-identification.
+• **Access Segmentation:** Production data access is strictly isolated using zero-trust role-based access control (RBAC) and hardware-backed multi-factor authentication (MFA).
+
+By using our Platform, you acknowledge that your information may be processed across these international cloud environments in accordance with this Privacy Policy.
 
 12. CHANGES TO THIS PRIVACY POLICY
 
@@ -640,44 +664,54 @@ Third-party services we integrate with:
 
 Some browsers transmit "Do Not Track" (DNT) signals. Our Platform does not currently respond to DNT signals, as there is no industry standard for how to interpret them. We will update this policy if we adopt a DNT standard.
 
-15. CONTACT INFORMATION
+15. CONTACT INFORMATION & GLOBAL STATUTORY DIRECTORY
 
-For privacy-related questions, concerns, or rights requests, please contact us:
+For privacy-related questions, concerns, statutory notices, or rights requests, please contact our dedicated jurisdictional officers:
 
+**Corporate Entity:**
 TowerVSP Services (OPC) Private Limited
-Platform: Truthworld
-Email: hello@truthworld.in
-Phone: +91 9390617877
+(Operating Platform: Truthworld)
+CIN: U63111TS2025OPC207488
+Registered Office: Ramaram, Yadadri Bhuvanagiri, Telangana - 508116, India
+Corporate Office: Telangana, India
 
-Registered Office:
-TowerVSP Services (OPC) Private Limited
-Ramaram, Yadadri Bhuvanagiri, Telangana - 508116, India
-
-Corporate Office:
-Telangana, India
-
-Grievance Officer (India & Global):
+**Statutory Resident Grievance Officer (India & Global):**
 Vampu Ebenezer
 Email: hello@truthworld.in
 Phone: +91 9390617877
 Support Hours: Mon – Fri, 9:00 AM – 6:00 PM IST
+Statutory Timelines: Acknowledgment within 24 hours; Disposal within 15 days (Rule 3(2) IT Rules, 2021)
+Expedited Action (Rule 3(2)(b)): 24 hours for non-consensual sexual content / deepfakes
 
-Data Protection Officer (EU):
-hello@truthworld.in
+**United States Legal Process & DMCA Designated Agent:**
+Truthworld US Legal Compliance
+Email: hello@truthworld.in
+Phone: +91 9390617877
+Scope: DMCA Copyright Notices (17 U.S.C. § 512), ECPA Law Enforcement Subpoenas & Preservation Requests (18 U.S.C. § 2703)
 
-We will acknowledge inquiries within 24 hours and resolve them within 15 days in accordance with statutory guidelines.
+**European Union Single Points of Contact (Digital Services Act & GDPR):**
+• Single Point of Contact for EU Authorities (DSA Art. 11): dsa@truthworld.in / hello@truthworld.in
+• Single Point of Contact for Recipients of the Service (DSA Art. 12): dsa@truthworld.in / hello@truthworld.in
+• Data Protection Officer (GDPR Art. 37): hello@truthworld.in
+Languages for Communication: English and official EU languages via certified translation
 
 16. JURISDICTION-SPECIFIC NOTICES
 
-16.1 European Economic Area (EEA)
+16.1 European Economic Area (EEA) & United Kingdom
 
 Legal Basis for Processing:
-• Consent: When you provide explicit consent
-• Contract: To fulfill our Terms of Service
-• Legitimate Interests: To improve our services and prevent fraud
-• Legal Compliance: To meet legal obligations
+• Consent: When you provide explicit, freely given consent
+• Contract: To fulfill our Terms of Service and provide platform functionality
+• Legitimate Interests: To improve platform safety, combat disinformation, and prevent fraud
+• Legal Compliance: To meet statutory obligations under EU/Member State laws
 
 Data Controller: TowerVSP Services (OPC) Private Limited is the data controller for your personal information.
+
+Digital Services Act (DSA - Regulation (EU) 2022/2065) Rights:
+• Notice & Action Mechanism (Art. 16): Easy electronic reporting of illegal content.
+• Internal Complaint-Handling System (Art. 20): Right to lodge complaints free of charge against content moderation decisions within 6 months.
+• Out-of-Court Dispute Settlement (Art. 21): Right to select any certified out-of-court dispute body in an EU Member State to resolve moderation disputes without prejudice to judicial remedies.
+• Supervisory Authority: You have the right to lodge a complaint with your local EU Data Protection Authority or the relevant Digital Services Coordinator.
 
 16.2 California Residents
 

@@ -275,18 +275,18 @@ export const onVideoUpload = onObjectFinalized(
 /**
  * 🎤 Submit transcription — triggered by video-uploaded event
  *
- * CONFIG: minInstances=0, maxInstances=20, 256MiB, 120s timeout
+ * CONFIG: minInstances=0, maxInstances=20, 1GiB, 540s timeout
  */
 export const handleTranscription = onMessagePublished(
   {
     topic: "video.uploaded",
     region: "asia-south1",
-    timeoutSeconds: 120,
-    memory: "256MiB",
+    timeoutSeconds: 540,
+    memory: "1GiB",
     minInstances: 0,
     maxInstances: 20,
     retry: true,
-    secrets: ["ASSEMBLYAI_KEY"],
+    secrets: ["ASSEMBLYAI_KEY", "GEMINI_API_KEY"],
   },
   async (event) => {
     try {

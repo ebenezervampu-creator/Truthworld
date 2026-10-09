@@ -54,7 +54,21 @@ class QualityPanel extends StatelessWidget {
       var none = false;
       try {
         if (Get.isRegistered<VideoController>(tag: ctrl.tag)) {
-          avail = Get.find<VideoController>(tag: ctrl.tag).availableResolutions;
+          final vc = Get.find<VideoController>(tag: ctrl.tag);
+          avail = vc.availableResolutions;
+          if (avail.isNotEmpty) {
+            final baseMediaUrl = vc.video.videoUrl.isNotEmpty
+                ? vc.video.videoUrl
+                : vc.video.originalUrl;
+            final complete = VideoResolutionV2.ensureCompleteLadder(
+              avail,
+              fallbackUrl: baseMediaUrl,
+            );
+            if (complete.length != avail.length) {
+              vc.availableResolutions.assignAll(complete);
+            }
+            avail = vc.availableResolutions;
+          }
           none = avail.isEmpty;
         }
       } catch (e, s) {
@@ -178,11 +192,14 @@ class QualityPanel extends StatelessWidget {
                     onTap: ctrl.selectAutoQuality,
                   ),
                   ...tiers.reversed
-                      .where((t) => avail.any((r) =>
-                          r.label.toLowerCase() == t.label.toLowerCase() ||
-                          (r.height == t.height &&
-                              (r.is60Fps == t.is60Fps ||
-                                  avail.where((x) => x.height == t.height).length == 1))))
+                      .where((t) =>
+                          avail.isEmpty ||
+                          avail.any((r) =>
+                              r.label.toLowerCase() == t.label.toLowerCase() ||
+                              (r.height == t.height &&
+                                  (r.is60Fps == t.is60Fps ||
+                                      avail.where((x) => x.height == t.height).length == 1)) ||
+                              r.height == t.height))
                       .map((tier) {
                         final idx = tiers.indexOf(tier);
                         final isPremiumRes = tier.height > 1040;

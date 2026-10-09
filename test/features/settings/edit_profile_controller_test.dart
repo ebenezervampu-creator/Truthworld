@@ -3,7 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/location/location_lookup_service.dart';
+import 'package:truthworld/core/services/location/verified_location.dart';
 import 'package:truthworld/features/settings/presentation/controllers/edit_profile_controller.dart';
+import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
 
 import '../../test_helpers/mock_firebase.dart';
 
@@ -36,11 +39,12 @@ void main() {
     Get.reset();
     Get.testMode = true;
     Get.put<AuthService>(AuthService());
+    Get.put<UserSettingsController>(UserSettingsController());
   });
 
   tearDown(Get.reset);
 
-  group('EditProfileController - Age Constraints (1–120)', () {
+  group('EditProfileController - Age Constraints (18–120)', () {
     late EditProfileController controller;
 
     setUp(() {
@@ -52,8 +56,8 @@ void main() {
       controller.onClose();
     });
 
-    test('accepts valid ages between 1 and 120', () {
-      controller.validateAge('1');
+    test('accepts valid ages between 18 and 120', () {
+      controller.validateAge('18');
       expect(controller.ageErrorText.value, isNull);
 
       controller.validateAge('25');
@@ -78,19 +82,22 @@ void main() {
       expect(controller.ageErrorText.value, 'Age cannot exceed 120 years');
     });
 
-    test('rejects age less than 1 or non-numeric', () {
+    test('rejects age less than 18 or non-numeric', () {
+      controller.validateAge('17');
+      expect(controller.ageErrorText.value, 'Truthworld is for users aged 18 and older');
+
       controller.validateAge('0');
-      expect(controller.ageErrorText.value, 'Age must be at least 1 year');
+      expect(controller.ageErrorText.value, 'Truthworld is for users aged 18 and older');
 
       controller.validateAge('-5');
-      expect(controller.ageErrorText.value, 'Age must be at least 1 year');
+      expect(controller.ageErrorText.value, 'Truthworld is for users aged 18 and older');
 
       controller.validateAge('abc');
       expect(controller.ageErrorText.value, 'Please enter a valid numeric age');
     });
   });
 
-  group('EditProfileController - Google Maps Location Tools', () {
+  group('EditProfileController - Google Maps Location Tools & Locality Verification', () {
     late EditProfileController controller;
 
     setUp(() {
@@ -102,28 +109,126 @@ void main() {
       controller.onClose();
     });
 
-    test('parses and sets latitude/longitude coordinates', () {
-      final parsed = controller.parseAndSetMapLocation('37.7749, -122.4194');
+    test('parses and sets latitude/longitude coordinates', () async {
+      final parsed = await controller.parseAndSetMapLocation('37.7749, -122.4194');
       expect(parsed, isTrue);
       expect(controller.locationController.text, '37.7749, -122.4194');
 
-      final parsed2 = controller.parseAndSetMapLocation('12.9716, 77.5946');
+      final parsed2 = await controller.parseAndSetMapLocation('12.9716, 77.5946');
       expect(parsed2, isTrue);
       expect(controller.locationController.text, '12.9716, 77.5946');
     });
 
-    test('parses and extracts location from Google Maps URL query', () {
-      final parsed = controller.parseAndSetMapLocation(
+    test('parses and extracts location from Google Maps URL query', () async {
+      final parsed = await controller.parseAndSetMapLocation(
         'https://www.google.com/maps?q=Central+Park,+New+York',
       );
       expect(parsed, isTrue);
       expect(controller.locationController.text, 'Central Park, New York');
     });
 
-    test('sets plain text location directly', () {
-      final parsed = controller.parseAndSetMapLocation('Paris, France');
+    test('sets plain text location directly in test mode', () async {
+      final parsed = await controller.parseAndSetMapLocation('Paris, France');
       expect(parsed, isTrue);
       expect(controller.locationController.text, 'Paris, France');
+    });
+
+    test('selectLocationSuggestion updates controller and marks as verified', () {
+      const sampleLoc = VerifiedLocation(
+        name: 'Indiranagar',
+        localityType: LocalityType.town,
+        state: 'Karnataka',
+        country: 'India',
+        latitude: 12.9784,
+        longitude: 77.6408,
+        formattedAddress: 'Indiranagar, Bengaluru, Karnataka, India',
+      );
+
+      controller.selectLocationSuggestion(sampleLoc);
+
+      expect(controller.locationController.text, 'Indiranagar, Bengaluru, Karnataka, India');
+      expect(controller.isLocationVerified.value, isTrue);
+      expect(controller.verifiedLocation.value, equals(sampleLoc));
+      expect(controller.locationErrorText.value, isNull);
+    });
+
+    test('editing location text clears verified status until verified again', () {
+      const sampleLoc = VerifiedLocation(
+        name: 'Indiranagar',
+        localityType: LocalityType.town,
+        state: 'Karnataka',
+        country: 'India',
+        latitude: 12.9784,
+        longitude: 77.6408,
+        formattedAddress: 'Indiranagar, Bengaluru, Karnataka, India',
+      );
+
+      controller.selectLocationSuggestion(sampleLoc);
+      expect(controller.isLocationVerified.value, isTrue);
+
+      controller.locationController.text = 'Indiranagar (modified)';
+      expect(controller.isLocationVerified.value, isFalse);
+    });
+  });
+
+  group('LocationLookupService - Coordinate & Maps URL Parsing', () {
+    test('parses latitude and longitude from string', () {
+      final target = LocationLookupService.parseGoogleMapsUrlOrCoordinates('40.7128, -74.0060');
+      expect(target, isNotNull);
+      expect(target!.latitude, 40.7128);
+      expect(target.longitude, -74.0060);
+    });
+
+    test('parses @lat,lon from Google Maps URL', () {
+      final target = LocationLookupService.parseGoogleMapsUrlOrCoordinates(
+        'https://www.google.com/maps/place/San+Francisco/@37.7749,-122.4194,14z/data=...',
+      );
+      expect(target, isNotNull);
+      expect(target!.latitude, 37.7749);
+      expect(target.longitude, -122.4194);
+    });
+
+    test('parses query parameter from Google Maps search URL', () {
+      final target = LocationLookupService.parseGoogleMapsUrlOrCoordinates(
+        'https://maps.google.com/?q=Palo+Alto,+CA',
+      );
+      expect(target, isNotNull);
+      expect(target!.query, 'Palo Alto, CA');
+    });
+  });
+
+  group('VerifiedLocation - Model & Locality Types', () {
+    test('correctly identifies city, town, and village locality types', () {
+      expect(LocalityType.fromString('city'), LocalityType.city);
+      expect(LocalityType.fromString('pplc'), LocalityType.city);
+      expect(LocalityType.fromString('town'), LocalityType.town);
+      expect(LocalityType.fromString('village'), LocalityType.village);
+      expect(LocalityType.fromString('ppl'), LocalityType.village);
+      expect(LocalityType.fromString('hamlet'), LocalityType.hamlet);
+    });
+
+    test('serializes and deserializes VerifiedLocation faithfully', () {
+      const loc = VerifiedLocation(
+        name: 'Oakhurst',
+        localityType: LocalityType.town,
+        state: 'California',
+        county: 'Madera',
+        country: 'United States',
+        countryCode: 'US',
+        latitude: 37.328,
+        longitude: -119.649,
+        formattedAddress: 'Oakhurst, Madera, California, United States',
+      );
+
+      final map = loc.toMap();
+      final reconstituted = VerifiedLocation.fromMap(map);
+
+      expect(reconstituted.name, loc.name);
+      expect(reconstituted.localityType, loc.localityType);
+      expect(reconstituted.formattedAddress, loc.formattedAddress);
+      expect(reconstituted.latitude, loc.latitude);
+      expect(reconstituted.longitude, loc.longitude);
+      expect(reconstituted.typeLabel, 'Town');
     });
   });
 

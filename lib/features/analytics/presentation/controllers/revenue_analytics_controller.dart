@@ -158,7 +158,9 @@ class RevenueAnalyticsController extends RevenueAnalyticsStateBase
     if (Get.isRegistered<DashboardController>()) {
       final dash = Get.find<DashboardController>();
       dash.setSelectedIndex(18); // Memberships Tab
-      Get.back<void>();
+      if (Get.key.currentState?.canPop() ?? false) {
+        Get.back<void>();
+      }
     } else {
       Get.to<void>(
         () => MembershipsScreen(channelId: chId),
@@ -170,11 +172,13 @@ class RevenueAnalyticsController extends RevenueAnalyticsStateBase
   void navigateToMonetization() {
     if (Get.isRegistered<DashboardController>()) {
       final dash = Get.find<DashboardController>();
-      dash.setSelectedIndex(5); // Monetization Tab
-      Get.back<void>();
+      dash.setSelectedIndex(5); // Monetization/Earnings Tab
+      if (Get.key.currentState?.canPop() ?? false) {
+        Get.back<void>();
+      }
     } else {
       Get.to<void>(
-        () => const MonetizationScreen(isDarkMode: true),
+        () => const MonetizationScreen(),
       );
     }
   }

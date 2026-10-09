@@ -42,6 +42,10 @@ export * from "./pipeline/pipelineTriggers";
 export {
   onVideoUploadedForResolution,
   handleResolution,
+  getVideoResolutionStatus,
+  getResolutionProfiles,
+  reconcileStuckResolutionJobsScheduled,
+  reconcileVideoResolutionManual,
 } from "./resolution/resolution";
 
 // ─── Publish Gate & Fan-Out (Modularized) ─────────────────────────────────────
@@ -95,7 +99,11 @@ export {
   processSuperchat,
   pruneLiveChatBacklogs,
 } from "./livechat/liveChat";
-export { onChannelCreatedSyncUser } from "./channels/channels";
+export {
+  onChannelCreatedSyncUser,
+  dispatchChannelWelcomeEmail,
+  cleanupExpiredDeletedChannelsScheduled,
+} from "./channels/channels";
 export {
   followChannel,
   unfollowChannel,
@@ -137,7 +145,7 @@ export {
   onUserNotificationCreated,
 } from "./notifications/triggers";
 export { trackActivity } from "./users/signals";
-export { onUserDeleted, purgeUserAccount } from "./users/userLifecycle";
+export { onUserCreated, onUserDeleted, purgeUserAccount } from "./users/userLifecycle";
 
 // ─── Comments & Community ─────────────────────────────────────────────────────
 export {

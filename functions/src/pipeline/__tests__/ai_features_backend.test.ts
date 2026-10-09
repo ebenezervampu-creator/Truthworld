@@ -116,6 +116,17 @@ function testAudioTranslationAndDubbing() {
   assert(resolveDubMode(voiceClone) === "voice_clone", "Voice clone dubbing mode resolved");
   assert(resolveDubMode(standardDub) === "standard", "Standard dubbing mode resolved");
   assert(resolveDubMode(noDub) === "none", "No dubbing mode resolved");
+
+  // Dubbing stage status when skipped vs enabled
+  const resolveDubStage = (enableDubbing: boolean) => enableDubbing ? { status: "pending", progress: 0 } : { status: "skipped", progress: 100 };
+  assert(resolveDubStage(false).status === "skipped", "Dubbing stage is skipped when generateDubbing is false");
+  assert(resolveDubStage(false).progress === 100, "Dubbing stage has 100 progress when skipped");
+  assert(resolveDubStage(true).status === "pending", "Dubbing stage is pending when generateDubbing is true");
+
+  // Dubbing aggregation stage status
+  const resolveDubbingAggregatedStatus = (stageName: string, generateDubbing: boolean) => (stageName === "dubbing" && !generateDubbing) ? "skipped" : "completed";
+  assert(resolveDubbingAggregatedStatus("dubbing", false) === "skipped", "Aggregation marks dubbing as skipped when generateDubbing is false");
+  assert(resolveDubbingAggregatedStatus("dubbing", true) === "completed", "Aggregation marks dubbing as completed when generateDubbing is true");
 }
 
 // ----------------------------------------------------------------------
@@ -242,8 +253,42 @@ function testAISummaryPersistence() {
 function testTruthVerificationWiring() {
   console.log("\n--- [Feature 6] Testing Truth Verification & Credibility Wiring ---");
 
-  const aiFeatures = { factChecking: true };
-  const enableFactChecking = aiFeatures.factChecking ?? false;
+  const resolveFactChecking = (aiFeatures: any, afterData: any = {}) => {
+    return Boolean(
+      aiFeatures.factChecking === true ||
+      aiFeatures.enableFactCheck === true ||
+      aiFeatures.truthVerification === true ||
+      afterData.enableFactCheck === true ||
+      afterData.factChecking === true ||
+      afterData.truthVerification === true ||
+      afterData.isFactChecked === true ||
+      (afterData.factCheckTier && afterData.factCheckTier !== "none" && afterData.factCheckTier !== "off" && afterData.factCheckTier !== "") ||
+      (aiFeatures.factCheckTier && aiFeatures.factCheckTier !== "none" && aiFeatures.factCheckTier !== "off" && aiFeatures.factCheckTier !== "")
+    );
+  };
+
+  // Case A: standard factChecking: true
+  assert(resolveFactChecking({ factChecking: true }) === true, "resolves factChecking: true");
+
+  // Case B: enableFactCheck: true in aiFeatures
+  assert(resolveFactChecking({ enableFactCheck: true }) === true, "resolves enableFactCheck: true in aiFeatures");
+
+  // Case C: truthVerification: true in aiFeatures
+  assert(resolveFactChecking({ truthVerification: true }) === true, "resolves truthVerification: true in aiFeatures");
+
+  // Case D: enableFactCheck: true on video root
+  assert(resolveFactChecking({}, { enableFactCheck: true }) === true, "resolves enableFactCheck: true on video root");
+
+  // Case E: factCheckTier: 'full_ground' on video root
+  assert(resolveFactChecking({}, { factCheckTier: "full_ground" }) === true, "resolves factCheckTier: 'full_ground' on video root");
+
+  // Case F: factCheckTier: 'full_ground' in aiFeatures
+  assert(resolveFactChecking({ factCheckTier: "full_ground" }, {}) === true, "resolves factCheckTier: 'full_ground' in aiFeatures");
+
+  // Case G: explicitly false/none
+  assert(resolveFactChecking({ factChecking: false, factCheckTier: "none" }, { factCheckTier: "none" }) === false, "resolves false when explicitly disabled");
+
+  const enableFactChecking = resolveFactChecking({ factChecking: true });
 
   const executionPlan = {
     enablePath1: enableFactChecking,

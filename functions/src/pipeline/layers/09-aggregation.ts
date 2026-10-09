@@ -16,6 +16,7 @@ import { SpeakerReputationService } from "../services/speakerReputationService";
 import { CredibilityResult } from "../types";
 import { getAnalysisRepository, AnalysisRepository } from "../services/analysisRepository.js";
 import { normalizeLanguageCode } from "../../shared/language-normalizer";
+import { notifyUser } from "../../notifications/notifications";
 
 const db = () => admin.firestore();
 
@@ -65,9 +66,13 @@ export class AggregationLayer {
 
     logger.info("[Aggregation] Stage completed, evaluating truth table", { jobId, stageName });
 
-    // Ensure the stage is marked as completed in the canonical ledger
+    // Ensure the stage is marked as completed (or skipped if not enabled) in the canonical ledger
+    const stageStatus = (stageName === "dubbing" && !executionPlan.generateDubbing)
+      ? "skipped"
+      : "completed";
+
     await EdgeLayer.updateStageSync(jobId, stageName, {
-      status: "completed",
+      status: stageStatus,
       progress: 100,
       completedAt: Date.now(),
     });
@@ -502,7 +507,22 @@ export class AggregationLayer {
             finalStatus = vData?.status && vData.status !== "processing" && vData.status !== "uploading" ? vData.status : "published";
           }
 
-          const existingSummary = vData?.summary || vData?.moderationSummary || (jobData as any)?.gatewayDecision?.summary || jobOutputs.summary || (jobData as any)?.summary || "";
+          // Ensure technical moderation messages are never propagated as the public video summary
+          const isInvalidSummary = (s?: string) => !s || /moderation timed out|video approved pending|async review|moderation could not complete|verification in progress|held safely in review queue|video held for admin|admin manual review|gemini ai bypassed/i.test(s);
+          
+          let resolvedSummary = "";
+          if (!isInvalidSummary(jobOutputs.summary)) {
+            resolvedSummary = jobOutputs.summary || "";
+          } else if (!isInvalidSummary((jobData as any)?.gatewayDecision?.summary)) {
+            resolvedSummary = String((jobData as any)?.gatewayDecision?.summary || "");
+          } else if (cred && !isInvalidSummary(cred.summary)) {
+            resolvedSummary = cred.summary || "";
+          } else if (vData && !isInvalidSummary(vData.summary)) {
+            resolvedSummary = vData.summary || "";
+          } else if (vData && !isInvalidSummary(vData.moderationSummary)) {
+            resolvedSummary = vData.moderationSummary || "";
+          }
+
           const resolvedChapters = (vData?.autoChapters && vData.autoChapters.length > 0)
             ? vData.autoChapters
             : ((vData?.chapters && vData.chapters.length > 0)
@@ -513,8 +533,8 @@ export class AggregationLayer {
 
           transaction.update(vRef, {
             status: finalStatus,
-            summary: existingSummary,
-            moderationSummary: existingSummary,
+            summary: resolvedSummary,
+            moderationSummary: resolvedSummary,
             autoChapters: resolvedChapters,
             chapters: resolvedChapters,
             trustIndex: null, // v12.0: Scoring removed
@@ -533,6 +553,8 @@ export class AggregationLayer {
             },
             trustLabel: null,
             isVerified: !!cred, // v12.0: Flag for recommendations
+            ...(vData?.factCheckReviewMode ? { factCheckReviewMode: vData.factCheckReviewMode } : {}),
+            ...(vData?.isFactCheckApproved !== undefined ? { isFactCheckApproved: vData.isFactCheckApproved } : {}),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           });
 
@@ -694,6 +716,53 @@ export class AggregationLayer {
           }
           
           logger.info("[Aggregation] Early propagation: Credibility scores", { jobId, videoCount: linkedVideoIds.length });
+
+          // Dispatch Fact-Checking notification to Studio notifications
+          const notifFlag = (jobData as any)?.factCheckNotified;
+          if (!notifFlag) {
+            for (const vid of linkedVideoIds) {
+              try {
+                const vSnap = await db().collection("videos").doc(vid).get();
+                if (vSnap.exists) {
+                  const vData = vSnap.data();
+                  const reviewMode = vData?.factCheckReviewMode || vData?.aiFeatures?.factCheckReviewMode || "open_to_users";
+                  const isReviewFirst = reviewMode === "first_to_creator";
+                  const recipientId = vData?.userId || vData?.ownerId || userId;
+                  const channelId = vData?.channelId || "";
+                  const videoTitle = vData?.title || "Your video";
+
+                  if (recipientId) {
+                    const notifTitle = isReviewFirst
+                      ? "Fact-Check Ready for Review"
+                      : "Fact-Check Completed";
+                    const notifMsg = isReviewFirst
+                      ? `Fact-checking analysis is complete for "${videoTitle}". Review the results now to approve them for viewers.`
+                      : `Fact-checking analysis is complete for "${videoTitle}". Verification results are now visible to viewers.`;
+
+                    await notifyUser({
+                      userId: recipientId,
+                      type: "fact_check_ready" as any,
+                      severity: isReviewFirst ? "info" as any : "success" as any,
+                      title: notifTitle,
+                      message: notifMsg,
+                      actionUrl: `/video/${vid}`,
+                      metadata: {
+                        videoId: vid,
+                        channelId,
+                        videoTitle,
+                        factCheckReviewMode: reviewMode,
+                        isFactCheckApproved: !isReviewFirst,
+                        approved: !isReviewFirst,
+                      },
+                    });
+                  }
+                }
+              } catch (notifErr) {
+                logger.warn("[Aggregation] Failed to dispatch fact-check notification", { vid, err: String(notifErr) });
+              }
+            }
+            await db().collection("video_jobs").doc(jobId).set({ factCheckNotified: true }, { merge: true }).catch(() => {});
+          }
         } catch (err) {
           logger.error("[Aggregation] Early propagation failed: Credibility", { jobId, err: String(err) });
         }

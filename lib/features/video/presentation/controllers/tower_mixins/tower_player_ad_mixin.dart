@@ -506,8 +506,12 @@ mixin TowerPlayerAdMixin on GetxController {
       await videoPlayerController.play();
       isPlaying.value = true;
       rxValue.value = videoPlayerController.value;
-      chewieController?.play();
-      videoController?.chewieController?.play();
+      try {
+        chewieController?.play();
+      } catch (_) {}
+      try {
+        videoController?.chewieController?.play();
+      } catch (_) {}
       videoPlaybackSource?.play();
     } catch (e, s) {
       ErrorHandler.log(

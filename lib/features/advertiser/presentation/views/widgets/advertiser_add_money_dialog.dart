@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/ad_service.dart';
+import 'package:truthworld/core/services/cashfree/cashfree_country_support.dart';
 import 'package:truthworld/core/services/cashfree_service.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -32,36 +34,65 @@ class AdvertiserAddMoneyDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final selectedOption = 1000.0.obs;
+    final isIndian = !Get.isRegistered<CurrencyLocalizationService>() ||
+        CurrencyLocalizationService.to.isIndianUser;
+    final currency = isIndian ? 'INR' : 'USD';
+    final currencySymbol = isIndian ? '₹' : r'$';
+    final minAmount = isIndian ? 100.0 : 5.0;
+
+    final presetOptions = isIndian
+        ? [
+            {
+              'amount': 500.0,
+              'label': 'Basic Boost',
+              'impressions': '~2,500 views',
+            },
+            {
+              'amount': 1000.0,
+              'label': 'Popular Choice',
+              'impressions': '~5,000 views',
+            },
+            {
+              'amount': 2000.0,
+              'label': 'Growth Pack',
+              'impressions': '~12,000 views',
+            },
+            {
+              'amount': 5000.0,
+              'label': 'Supercharge',
+              'impressions': '~35,000 views',
+            },
+          ]
+        : [
+            {
+              'amount': 10.0,
+              'label': 'Basic Boost',
+              'impressions': '~2,500 views',
+            },
+            {
+              'amount': 25.0,
+              'label': 'Popular Choice',
+              'impressions': '~6,500 views',
+            },
+            {
+              'amount': 50.0,
+              'label': 'Growth Pack',
+              'impressions': '~15,000 views',
+            },
+            {
+              'amount': 100.0,
+              'label': 'Supercharge',
+              'impressions': '~35,000 views',
+            },
+          ];
+
+    final selectedOption = (isIndian ? 1000.0 : 25.0).obs;
     final isCustom = false.obs;
     final customAmountController = TextEditingController();
 
     final progressStep = 0.obs;
     final isSuccess = false.obs;
     final errorMessage = ''.obs;
-
-    final presetOptions = [
-      {
-        'amount': 500.0,
-        'label': 'Basic Boost',
-        'impressions': '~2,500 views',
-      },
-      {
-        'amount': 1000.0,
-        'label': 'Popular Choice',
-        'impressions': '~5,000 views',
-      },
-      {
-        'amount': 2000.0,
-        'label': 'Growth Pack',
-        'impressions': '~12,000 views',
-      },
-      {
-        'amount': 5000.0,
-        'label': 'Supercharge',
-        'impressions': '~35,000 views',
-      },
-    ];
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -259,7 +290,7 @@ class AdvertiserAddMoneyDialog extends StatelessWidget {
                                         MainAxisAlignment.spaceBetween,
                                     children: [
                                       Text(
-                                        '₹${amount.toStringAsFixed(0)}',
+                                        '$currencySymbol${amount.toStringAsFixed(0)}',
                                         style: const TextStyle(
                                           fontFamily: TWTypography.brandFamily,
                                           color: Colors.white,
@@ -340,31 +371,31 @@ class AdvertiserAddMoneyDialog extends StatelessWidget {
                                       color: Colors.white,
                                       fontSize: 14,
                                     ),
-                                    decoration: const InputDecoration(
-                                      prefixText: '₹ ',
-                                      prefixStyle: TextStyle(
+                                    decoration: InputDecoration(
+                                      prefixText: '$currencySymbol ',
+                                      prefixStyle: const TextStyle(
                                         color: Colors.white,
                                         fontWeight: FontWeight.bold,
                                       ),
-                                      hintText: 'Min ₹100',
-                                      hintStyle: TextStyle(
+                                      hintText: 'Min $currencySymbol${minAmount.toStringAsFixed(0)}',
+                                      hintStyle: const TextStyle(
                                         color: AppColors.textSecondary,
                                         fontSize: 12,
                                       ),
                                       isDense: true,
-                                      contentPadding: EdgeInsets.symmetric(
+                                      contentPadding: const EdgeInsets.symmetric(
                                         horizontal: 10,
                                         vertical: 8,
                                       ),
-                                      border: OutlineInputBorder(
+                                      border: const OutlineInputBorder(
                                         borderSide:
                                             BorderSide(color: Color(0xFF3F3F46)),
                                       ),
-                                      enabledBorder: OutlineInputBorder(
+                                      enabledBorder: const OutlineInputBorder(
                                         borderSide:
                                             BorderSide(color: Color(0xFF3F3F46)),
                                       ),
-                                      focusedBorder: OutlineInputBorder(
+                                      focusedBorder: const OutlineInputBorder(
                                         borderSide:
                                             BorderSide(color: Colors.white),
                                       ),
@@ -399,7 +430,7 @@ class AdvertiserAddMoneyDialog extends StatelessWidget {
                                   ),
                                 ),
                                 Text(
-                                  '+₹${activeAmount.toStringAsFixed(0)}',
+                                  '+$currencySymbol${activeAmount.toStringAsFixed(0)}',
                                   style: const TextStyle(
                                     fontFamily: TWTypography.brandFamily,
                                     color: Colors.white,
@@ -422,7 +453,7 @@ class AdvertiserAddMoneyDialog extends StatelessWidget {
                                   ),
                                 ),
                                 Text(
-                                  '₹${newBudget.toStringAsFixed(0)}',
+                                  '$currencySymbol${newBudget.toStringAsFixed(0)}',
                                   style: const TextStyle(
                                     fontFamily: TWTypography.brandFamily,
                                     color: Colors.white,
@@ -445,7 +476,7 @@ class AdvertiserAddMoneyDialog extends StatelessWidget {
                                   ),
                                 ),
                                 Text(
-                                  '₹${newRemaining.toStringAsFixed(2)}',
+                                  '$currencySymbol${newRemaining.toStringAsFixed(2)}',
                                   style: const TextStyle(
                                     fontFamily: TWTypography.brandFamily,
                                     color: Color(0xFF10B981),
@@ -482,23 +513,25 @@ class AdvertiserAddMoneyDialog extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(width: 12),
-                            const Expanded(
+                            Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Cashfree Payment Gateway',
-                                    style: TextStyle(
+                                    isIndian
+                                        ? 'Cashfree Payment Gateway'
+                                        : 'Cashfree Global Gateway',
+                                    style: const TextStyle(
                                       fontFamily: TWTypography.brandFamily,
                                       color: Colors.white,
                                       fontSize: 13,
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
-                                  SizedBox(height: 2),
+                                  const SizedBox(height: 2),
                                   Text(
-                                    'UPI, Cards, NetBanking • 100% Encrypted',
-                                    style: TextStyle(
+                                    '${CashfreeCountrySupport.getPaymentMethodsSummary(currency == 'INR' ? 'IN' : 'US')} • 100% Encrypted',
+                                    style: const TextStyle(
                                       fontFamily: TWTypography.uiFamily,
                                       color: AppColors.textSecondary,
                                       fontSize: 11,
@@ -512,12 +545,13 @@ class AdvertiserAddMoneyDialog extends StatelessWidget {
                       ),
                       const SizedBox(height: 20),
                       ElevatedButton(
-                        onPressed: activeAmount < 100
+                        onPressed: activeAmount < minAmount
                             ? null
                             : () async {
                                 progressStep.value = 1;
                                 final paymentResult = await CashfreePaymentService.to.startPayment(
                                   amount: activeAmount,
+                                  currency: currency,
                                   purpose: 'advertiser_campaign',
                                   orderNote: 'Top-up for Campaign: ${campaign.title}',
                                   metadata: {
@@ -538,7 +572,7 @@ class AdvertiserAddMoneyDialog extends StatelessWidget {
                                     isSuccess.value = true;
                                     progressStep.value = 4;
                                     AppSnackbar.success(
-                                      '₹${activeAmount.toStringAsFixed(0)} added to "${campaign.title}". New budget: ₹${newBudget.toStringAsFixed(0)}',
+                                      '$currencySymbol${activeAmount.toStringAsFixed(0)} added to "${campaign.title}". New budget: $currencySymbol${newBudget.toStringAsFixed(0)}',
                                       title: 'Funds Added',
                                     );
                                   } else {
@@ -569,9 +603,9 @@ class AdvertiserAddMoneyDialog extends StatelessWidget {
                           elevation: 0,
                         ),
                         child: Text(
-                          activeAmount < 100
-                              ? 'Enter Valid Amount (Min ₹100)'
-                              : 'Pay ₹${activeAmount.toStringAsFixed(0)} with Cashfree',
+                          activeAmount < minAmount
+                              ? 'Enter Valid Amount (Min $currencySymbol${minAmount.toStringAsFixed(0)})'
+                              : 'Pay $currencySymbol${activeAmount.toStringAsFixed(0)} with Cashfree',
                           style: const TextStyle(
                             fontFamily: TWTypography.uiFamily,
                             fontWeight: FontWeight.bold,

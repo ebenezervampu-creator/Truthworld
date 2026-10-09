@@ -67,9 +67,9 @@ void main() {
       'title': 'Modular Video Testing',
       'channelId': 'chan_abc',
       'channelName': 'TruthWorld Engineering',
-      'videoUrl': 'https://cdn.truthworld.com/video/vid_test_123/master.mp4',
-      'hlsUrl': 'https://cdn.truthworld.com/video/vid_test_123/master.m3u8',
-      'thumbnailUrl': 'https://cdn.truthworld.com/thumbs/vid_test_123.jpg',
+      'videoUrl': 'https://cdn.truthworld.in/video/vid_test_123/master.mp4',
+      'hlsUrl': 'https://cdn.truthworld.in/video/vid_test_123/master.m3u8',
+      'thumbnailUrl': 'https://cdn.truthworld.in/thumbs/vid_test_123.jpg',
       'likeCount': 42,
       'dislikeCount': 2,
       'viewCount': 1500,
@@ -183,7 +183,7 @@ void main() {
       expect(resolvedGs, contains('alt=media'));
 
       // Direct CDN domain
-      const customCdn = 'https://cdn.truthworld.com/video/vid_test_123/master.mp4';
+      const customCdn = 'https://cdn.truthworld.in/video/vid_test_123/master.mp4';
       final resolvedCustom = await StorageUtils.resolveUrl(customCdn);
       expect(resolvedCustom, equals(customCdn));
     });

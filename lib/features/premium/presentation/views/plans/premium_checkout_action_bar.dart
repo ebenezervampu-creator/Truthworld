@@ -32,9 +32,7 @@ class PremiumCheckoutButton extends StatelessWidget {
       final isCurrent = ctrl.isCurrentPlan(selectedId);
       final isLower = ctrl.isLowerTier(selectedId);
       final effectivePrice = ctrl.getEffectivePrice(selectedId);
-      final credit = ctrl.getCreditApplied(selectedId);
       final effectivePriceUSD = ctrl.getEffectivePriceUSD(selectedId);
-      final creditUSD = ctrl.getCreditAppliedUSD(selectedId);
 
       final isAutoPay = ctrl.isAutoPay.value;
       final periodText = selectedId.contains('yearly') ? 'year' : 'month';
@@ -51,60 +49,20 @@ class PremiumCheckoutButton extends StatelessWidget {
       } else if (isUpgrading) {
         final autoPrefix = isAutoPay ? 'Upgrade with Auto Pay' : 'Upgrade (One-Time)';
         if (isIndian) {
-          if (selectedId == 'individual_monthly') {
-            label = '$autoPrefix • Pay ₹129';
-          } else if (selectedId == '4k_factchecked_monthly') {
-            if (credit >= 160) {
-              label = '$autoPrefix • Pay ₹80';
-            } else {
-              label = '$autoPrefix • Pay ₹209';
-            }
-          } else {
-            label = '$autoPrefix • Pay ₹${effectivePrice.toInt()}';
-          }
+          final priceFormatted = ctrl.formatAmountINR(effectivePrice);
+          label = '$autoPrefix • Pay $priceFormatted';
         } else {
-          if (selectedId == 'individual_monthly') {
-            label = '$autoPrefix • Pay \$1.50';
-          } else if (selectedId == '4k_factchecked_monthly') {
-            if (creditUSD >= 2.0) {
-              label = '$autoPrefix • Pay \$1';
-            } else {
-              label = '$autoPrefix • Pay \$2.50';
-            }
-          } else {
-            label = '$autoPrefix • Pay \$${effectivePriceUSD.toStringAsFixed(effectivePriceUSD == 0.5 || effectivePriceUSD == 1.5 || effectivePriceUSD == 2.5 ? 2 : 0)}';
-          }
+          final priceFormatted = ctrl.formatAmountUSD(effectivePriceUSD);
+          label = '$autoPrefix • Pay $priceFormatted';
         }
       } else {
         final autoSuffix = isAutoPay ? 'with Auto Pay' : '(One-Time)';
         if (isIndian) {
-          if (selectedId == 'audio_monthly') {
-            label = 'Pay ₹40 $autoSuffix';
-          } else if (selectedId == '4k_factchecked_monthly') {
-            label = 'Pay ₹249 $autoSuffix';
-          } else if (selectedId == 'individual_monthly') {
-            label = 'Pay ₹169 $autoSuffix';
-          } else if (selectedId == 'family_monthly') {
-            label = 'Pay ₹400 $autoSuffix';
-          } else if (selectedId == 'individual_yearly') {
-            label = 'Pay ₹1,490 $autoSuffix';
-          } else {
-            label = 'Pay ₹169 $autoSuffix';
-          }
+          final priceFormatted = ctrl.formatAmountINR(effectivePrice);
+          label = 'Pay $priceFormatted $autoSuffix';
         } else {
-          if (selectedId == 'audio_monthly') {
-            label = 'Pay \$0.50 $autoSuffix';
-          } else if (selectedId == '4k_factchecked_monthly') {
-            label = 'Pay \$3 $autoSuffix';
-          } else if (selectedId == 'individual_monthly') {
-            label = 'Pay \$2 $autoSuffix';
-          } else if (selectedId == 'family_monthly') {
-            label = 'Pay \$5 $autoSuffix';
-          } else if (selectedId == 'individual_yearly') {
-            label = 'Pay \$18 $autoSuffix';
-          } else {
-            label = 'Pay \$2 $autoSuffix';
-          }
+          final priceFormatted = ctrl.formatAmountUSD(effectivePriceUSD);
+          label = 'Pay $priceFormatted $autoSuffix';
         }
       }
 
@@ -267,6 +225,27 @@ class PremiumCheckoutButton extends StatelessWidget {
                     ),
             ),
           ),
+          if (canCheckout) ...[
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.lock_outline_rounded,
+                  size: 13,
+                  color: AppColors.textTertiary,
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  'Secured by Cashfree • ${CurrencyLocalizationService.to.paymentMethodsSummary}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textTertiary,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       );
     });

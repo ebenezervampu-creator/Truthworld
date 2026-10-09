@@ -50,7 +50,7 @@ Video _makeVideo({
     category: 'News & Politics',
     tags: tags,
     topics: topics,
-    videoUrl: 'https://cdn.truthworld.com/video_$id.mp4',
+    videoUrl: 'https://cdn.truthworld.in/video_$id.mp4',
     isApproved: true,
     geminiApproved: true,
     trustScore: trustScore,
@@ -433,7 +433,7 @@ void main() {
         final bitrate = (i.isEven) ? (h * 4000) : (h * 4);
         return VideoResolutionV2(
           label: '${h}p',
-          url: 'https://cdn.truthworld.com/streams/$h.m3u8',
+          url: 'https://cdn.truthworld.in/streams/$h.m3u8',
           width: (h * 16 / 9).round(),
           height: h,
           bitrate: bitrate,

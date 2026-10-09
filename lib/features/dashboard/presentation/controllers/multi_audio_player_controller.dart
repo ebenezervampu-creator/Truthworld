@@ -104,7 +104,6 @@ class MultiAudioPlayerController extends BaseController {
       chewieController = ChewieController(
         videoPlayerController: _videoCtrl!,
         showControls: false,
-        autoInitialize: true,
         allowedScreenSleep: false,
         aspectRatio: _videoCtrl!.value.aspectRatio,
         placeholder: const ColoredBox(

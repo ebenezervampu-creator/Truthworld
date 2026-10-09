@@ -229,8 +229,9 @@ class ChannelHeaderWidget extends StatelessWidget {
                     _buildExpandableDescription(channel, isDesktop: isDesktop),
                     const SizedBox(height: 8),
                     if ((channel.socialLinks?.isNotEmpty ?? false) ||
+                        channel.customLinks.isNotEmpty ||
                         channel.websiteUrl.isNotEmpty)
-                      _buildChannelLinks(channel),
+                      _buildChannelLinks(context, channel),
                   ],
                 ),
               ),
@@ -300,29 +301,217 @@ class ChannelHeaderWidget extends StatelessWidget {
 
 
 
-  Widget _buildChannelLinks(Channel channel) {
-    if (channel.websiteUrl.isEmpty) return const SizedBox.shrink();
+  Widget _buildChannelLinks(BuildContext context, Channel channel) {
+    final allLinks = <Map<String, dynamic>>[];
 
-    final uri = Uri.tryParse(channel.websiteUrl);
-    final domain = uri?.host.replaceAll('www.', '') ?? channel.websiteUrl;
+    if (channel.websiteUrl.isNotEmpty) {
+      final uri = Uri.tryParse(channel.websiteUrl);
+      final domain = uri?.host.replaceAll('www.', '') ?? channel.websiteUrl;
+      allLinks.add({
+        'title': 'Website',
+        'display': domain,
+        'url': channel.websiteUrl,
+        'icon': Icons.language,
+      });
+    }
+
+    if (channel.socialLinks != null) {
+      final platformLabels = {
+        'youtube': 'YouTube',
+        'twitter': 'Twitter / X',
+        'x': 'Twitter / X',
+        'instagram': 'Instagram',
+        'facebook': 'Facebook',
+        'linkedin': 'LinkedIn',
+        'tiktok': 'TikTok',
+        'whatsapp': 'WhatsApp',
+        'telegram': 'Telegram',
+        'discord': 'Discord',
+        'github': 'GitHub',
+        'twitch': 'Twitch',
+        'reddit': 'Reddit',
+        'patreon': 'Patreon',
+        'threads': 'Threads',
+      };
+      final platformIcons = {
+        'youtube': Icons.smart_display_outlined,
+        'twitter': Icons.alternate_email,
+        'x': Icons.alternate_email,
+        'instagram': Icons.camera_alt_outlined,
+        'facebook': Icons.facebook,
+        'linkedin': Icons.work_outline,
+        'tiktok': Icons.music_note_outlined,
+        'whatsapp': Icons.chat_outlined,
+        'telegram': Icons.send_outlined,
+        'discord': Icons.forum_outlined,
+        'github': Icons.code,
+        'twitch': Icons.live_tv_outlined,
+        'reddit': Icons.chat_bubble_outline,
+        'patreon': Icons.monetization_on_outlined,
+        'threads': Icons.alternate_email_outlined,
+      };
+
+      for (final entry in channel.socialLinks!.entries) {
+        if (entry.key == 'website' || entry.key == 'customLinks') continue;
+        if (entry.value is String && (entry.value as String).trim().isNotEmpty) {
+          final url = (entry.value as String).trim();
+          final uri = Uri.tryParse(url);
+          final domain = uri?.host.replaceAll('www.', '') ?? url;
+          final key = entry.key.toLowerCase();
+          allLinks.add({
+            'title': platformLabels[key] ?? (key.isNotEmpty ? (key[0].toUpperCase() + key.substring(1)) : 'Link'),
+            'display': domain,
+            'url': url,
+            'icon': platformIcons[key] ?? Icons.link_rounded,
+          });
+        }
+      }
+    }
+
+    for (final customLink in channel.customLinks) {
+      final title = (customLink['title'] ?? '').trim();
+      final url = (customLink['url'] ?? '').trim();
+      if (url.isNotEmpty) {
+        final uri = Uri.tryParse(url);
+        final domain = uri?.host.replaceAll('www.', '') ?? url;
+        allLinks.add({
+          'title': title.isNotEmpty ? title : 'Link',
+          'display': domain,
+          'url': url,
+          'icon': Icons.link_rounded,
+        });
+      }
+    }
+
+    if (allLinks.isEmpty) return const SizedBox.shrink();
+
+    final firstLink = allLinks.first;
+    final remainingCount = allLinks.length - 1;
 
     return InkWell(
-      onTap: () => ChannelDetailsStateWidgets.launchURL(channel.websiteUrl),
+      onTap: () {
+        if (allLinks.length == 1) {
+          ChannelDetailsStateWidgets.launchURL(firstLink['url'] as String);
+        } else {
+          _showAllLinksSheet(context, allLinks);
+        }
+      },
+      borderRadius: BorderRadius.circular(4),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            domain,
+            firstLink['display'] as String,
             style: const TextStyle(fontSize: 12, color: ytLinkBlue),
           ),
-          if (channel.socialLinks?.isNotEmpty ?? false) ...[
+          if (remainingCount > 0) ...[
             Text(
-              ' and ${channel.socialLinks!.length} more links',
+              ' and $remainingCount more links',
               style: const TextStyle(fontSize: 12, color: ytTextSecondary),
             ),
           ],
         ],
       ),
+    );
+  }
+
+  void _showAllLinksSheet(BuildContext context, List<Map<String, dynamic>> links) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF1E1E22),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Links',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white, size: 20),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: links.length,
+                    separatorBuilder: (context, index) => const Divider(
+                      color: Color(0xFF2E2E34),
+                      height: 1,
+                    ),
+                    itemBuilder: (c, idx) {
+                      final item = links[idx];
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF27272A),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            item['icon'] as IconData,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
+                        title: Text(
+                          item['title'] as String,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                        subtitle: Text(
+                          item['url'] as String,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: ytLinkBlue,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: const Icon(
+                          Icons.open_in_new_rounded,
+                          size: 16,
+                          color: AppColors.textTertiary,
+                        ),
+                        onTap: () {
+                          Navigator.of(ctx).pop();
+                          ChannelDetailsStateWidgets.launchURL(
+                            item['url'] as String,
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

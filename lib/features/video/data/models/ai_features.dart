@@ -38,6 +38,7 @@ class AIFeatures {
     this.tts = const TTSConfig(),
     this.factChecking = false,
     this.factCheckTier = 'standard',
+    this.factCheckReviewMode = 'open_to_users',
     this.diarization = false,
     this.summary = false,
     this.autoChapters = false,
@@ -55,6 +56,8 @@ class AIFeatures {
         : const TTSConfig(),
     factChecking: data['factChecking'] ?? false,
     factCheckTier: (data['factCheckTier'] as String?) ?? 'standard',
+    factCheckReviewMode: (data['factCheckReviewMode'] as String?) ??
+        (data['factCheckReviewFirst'] == true ? 'first_to_creator' : 'open_to_users'),
     diarization: data['diarization'] ?? false,
     summary: data['summary'] ?? false,
     autoChapters: data['autoChapters'] ?? false,
@@ -68,6 +71,7 @@ class AIFeatures {
   final TTSConfig tts;
   final bool factChecking; // Gemini
   final String factCheckTier; // "short" | "standard" | "full_ground"
+  final String factCheckReviewMode; // "first_to_creator" | "open_to_users"
   final bool diarization;
   final bool summary;
   final bool autoChapters; // AssemblyAI
@@ -82,6 +86,7 @@ class AIFeatures {
     'tts': tts.toMap(),
     'factChecking': factChecking,
     'factCheckTier': factCheckTier,
+    'factCheckReviewMode': factCheckReviewMode,
     'diarization': diarization,
     'summary': summary,
     'autoChapters': autoChapters,

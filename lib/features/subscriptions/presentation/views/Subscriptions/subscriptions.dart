@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:get/get.dart';
@@ -93,14 +94,18 @@ class SubscriptionsPage extends GetView<SubscriptionController> {
 
                     final isMobile = context.isMobile;
                     final isTablet = ResponsiveContext(context).isTablet;
+                    final isMobileDevice = defaultTargetPlatform == TargetPlatform.android ||
+                        defaultTargetPlatform == TargetPlatform.iOS;
                     final screenWidth = MediaQuery.of(context).size.width;
                     final crossAxisCount = isMobile
                         ? 1
-                        : (isTablet
+                        : (isTablet || isMobileDevice
                             ? 2
-                            : (screenWidth >= 2200
+                            : (screenWidth >= 2800
                                 ? 5
-                                : (screenWidth >= 1600 ? 4 : 3)));
+                                : (screenWidth >= 2100
+                                    ? 4
+                                    : (screenWidth >= 1600 ? 3 : 2))));
 
                     return SliverPadding(
                       padding: EdgeInsets.symmetric(horizontal: spacing),
@@ -342,7 +347,18 @@ class SubscriptionsPage extends GetView<SubscriptionController> {
   Widget _buildLoadingState(BuildContext context) {
     final isMobile = context.isMobile;
     final isTablet = ResponsiveContext(context).isTablet;
-    final crossAxisCount = isMobile ? 1 : (isTablet ? 2 : 3);
+    final isMobileDevice = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final crossAxisCount = isMobile
+        ? 1
+        : (isTablet || isMobileDevice
+            ? 2
+            : (screenWidth >= 2800
+                ? 5
+                : (screenWidth >= 2100
+                    ? 4
+                    : (screenWidth >= 1600 ? 3 : 2))));
 
     return SliverPadding(
       padding: EdgeInsets.symmetric(horizontal: context.layoutSpacing),
@@ -351,7 +367,7 @@ class SubscriptionsPage extends GetView<SubscriptionController> {
           crossAxisCount: crossAxisCount,
           crossAxisSpacing: 8,
           mainAxisSpacing: 8,
-          childAspectRatio: isMobile ? 1.2 : 0.8,
+          childAspectRatio: isMobile ? 1.2 : (!isMobileDevice && screenWidth >= 1000 ? 1.25 : 0.8),
         ),
         delegate: SliverChildBuilderDelegate(
           (context, index) => Shimmer.fromColors(

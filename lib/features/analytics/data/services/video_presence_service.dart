@@ -37,7 +37,8 @@ class VideoPresenceService extends GetxService {
 
   int _lastWatchedSeconds = 0;
   double _lastPosition = 0;
-  bool _isTransitioning = false;
+  Timer? _stopDebounceTimer;
+  Future<void>? _transitionLock;
   bool _isPermissionDenied = false;
   DateTime _lastHeartbeatSent = DateTime(2000);
 
@@ -122,30 +123,45 @@ class VideoPresenceService extends GetxService {
     }
   }
 
-  /// Start tracking live viewer presence for a video (idempotent and race-guarded).
+  Future<void> _enqueueTransition(Future<void> Function() action) {
+    final next = (_transitionLock ?? Future<void>.value())
+        .then((_) => action())
+        .catchError((Object e, StackTrace s) {
+      ErrorHandler.log(e, stackTrace: s, tag: '$_tag.enqueueTransition');
+    });
+    _transitionLock = next;
+    return next;
+  }
+
+  /// Start tracking live viewer presence for a video (idempotent, serialized, and debounced).
   Future<void> startWatching({
     required String videoId,
     double position = 0,
     int watchedSeconds = 0,
-  }) async {
-    if (videoId.isEmpty) return;
+  }) {
+    if (videoId.isEmpty) return Future<void>.value();
 
-    // Reset permission denied flag on new video session in case auth state changed
-    _isPermissionDenied = false;
-
-    // Idempotent fast-path: if already watching the exact same video with active session
-    if (_currentVideoId == videoId && _currentSessionRef != null) {
+    // Cancel pending teardown if resuming the exact same video
+    if (_stopDebounceTimer != null && _currentVideoId == videoId) {
+      _stopDebounceTimer?.cancel();
+      _stopDebounceTimer = null;
       heartbeat(position: position, watchedSeconds: watchedSeconds);
-      return;
+      return Future<void>.value();
     }
 
-    if (_isTransitioning) {
-      // Small delay to allow previous transition to settle
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-    }
+    return _enqueueTransition(() async {
+      _stopDebounceTimer?.cancel();
+      _stopDebounceTimer = null;
 
-    _isTransitioning = true;
-    try {
+      // Reset permission denied flag on new video session in case auth state changed
+      _isPermissionDenied = false;
+
+      // Idempotent fast-path: if already watching the exact same video with active session
+      if (_currentVideoId == videoId && _currentSessionRef != null) {
+        heartbeat(position: position, watchedSeconds: watchedSeconds);
+        return;
+      }
+
       // Stop previous session cleanly if switching videos
       if (isWatching) {
         await _internalStopWatching();
@@ -171,44 +187,43 @@ class VideoPresenceService extends GetxService {
         'updatedAt': ServerValue.timestamp,
       };
 
-      // Set initial data and register onDisconnect handler
-      await ref.set(sessionData);
-      await ref.onDisconnect().remove();
+      try {
+        await ref.set(sessionData);
+        await ref.onDisconnect().remove();
 
-      logger.info(
-        'Live presence started for video: $videoId (session: $_currentSessionId)',
-        tag: _tag,
-      );
-
-      // Start periodic heartbeat (every 8s for high fault-tolerance)
-      _startHeartbeatTimer();
-    } catch (e, stackTrace) {
-      final errStr = e.toString().toLowerCase();
-      final isPermDenied = errStr.contains('permission');
-      if (isPermDenied) {
-        _isPermissionDenied = true;
-      }
-      _currentSessionRef = null;
-      _currentVideoId = null;
-      _currentSessionId = null;
-      _heartbeatTimer?.cancel();
-      _heartbeatTimer = null;
-
-      if (!isPermDenied) {
-        logger.error(
-          'Failed to start live presence for video: $videoId: $e',
-          stackTrace: stackTrace,
-          tag: _tag,
-        );
-      } else {
         logger.info(
-          'Live presence disabled for video: $videoId (unauthenticated or permission restricted)',
+          'Live presence started for video: $videoId (session: $_currentSessionId)',
           tag: _tag,
         );
+
+        // Start periodic heartbeat (every 8s for high fault-tolerance)
+        _startHeartbeatTimer();
+      } catch (e, stackTrace) {
+        final errStr = e.toString().toLowerCase();
+        final isPermDenied = errStr.contains('permission');
+        if (isPermDenied) {
+          _isPermissionDenied = true;
+        }
+        _currentSessionRef = null;
+        _currentVideoId = null;
+        _currentSessionId = null;
+        _heartbeatTimer?.cancel();
+        _heartbeatTimer = null;
+
+        if (!isPermDenied) {
+          logger.error(
+            'Failed to start live presence for video: $videoId: $e',
+            stackTrace: stackTrace,
+            tag: _tag,
+          );
+        } else {
+          logger.info(
+            'Live presence disabled for video: $videoId (unauthenticated or permission restricted)',
+            tag: _tag,
+          );
+        }
       }
-    } finally {
-      _isTransitioning = false;
-    }
+    });
   }
 
   /// Update active viewer presence heartbeat
@@ -276,14 +291,27 @@ class VideoPresenceService extends GetxService {
     });
   }
 
-  /// Stop watching and immediately remove presence session
-  Future<void> stopWatching() async {
-    _isTransitioning = true;
-    try {
-      await _internalStopWatching();
-    } finally {
-      _isTransitioning = false;
+  /// Stop watching with optional debounce grace period to absorb transient pauses, buffering, quality switches, and handoffs.
+  Future<void> stopWatching({bool immediate = false}) async {
+    _stopDebounceTimer?.cancel();
+    _stopDebounceTimer = null;
+
+    if (!immediate) {
+      // Industry standard: 6-second grace period before tearing down live presence session
+      final completer = Completer<void>();
+      _stopDebounceTimer = Timer(const Duration(seconds: 6), () async {
+        _stopDebounceTimer = null;
+        await _enqueueTransition(() async {
+          await _internalStopWatching();
+        });
+        if (!completer.isCompleted) completer.complete();
+      });
+      return completer.future;
     }
+
+    return _enqueueTransition(() async {
+      await _internalStopWatching();
+    });
   }
 
   Future<void> _internalStopWatching() async {
@@ -368,7 +396,9 @@ class VideoPresenceService extends GetxService {
   @override
   void onClose() {
     _connectionSubscription?.cancel();
-    stopWatching();
+    _stopDebounceTimer?.cancel();
+    _stopDebounceTimer = null;
+    stopWatching(immediate: true);
     super.onClose();
   }
 }

@@ -79,7 +79,45 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                     height: 1.5,
                   ),
                 ),
-                const SizedBox(height: 56),
+                const SizedBox(height: 20),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final result = await Get.toNamed(
+                      '/channel-plan-comparison',
+                      arguments: {
+                        'initialPlan': controller.selectedPlan.value ?? ChannelPlanType.standard,
+                      },
+                    );
+                    if (result is String) {
+                      controller.selectedPlan.value = result == 'custom'
+                          ? ChannelPlanType.custom
+                          : ChannelPlanType.standard;
+                    } else if (result is ChannelPlanType) {
+                      controller.selectedPlan.value = result;
+                    }
+                  },
+                  icon: const Icon(
+                    Icons.compare_arrows_rounded,
+                    size: 18,
+                    color: Color(0xFF818CF8),
+                  ),
+                  label: const Text(
+                    'Compare Standard vs Custom Benefits',
+                    style: TextStyle(
+                      color: Color(0xFF818CF8),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFF6366F1)),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 36),
 
                 // Plan Cards
                 if (isDesktop)

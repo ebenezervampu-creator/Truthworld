@@ -6,8 +6,9 @@ class VideoChapterParser {
 
   /// Regex matching timestamp pattern: (H:)MM:SS or HH:MM:SS
   /// Matches standard YouTube timestamps such as: 0:00, 00:00, 1:23, 01:23, 1:04:15, 01:04:15
-  static final RegExp _timestampRegex =
-      RegExp(r'(?:(\d{1,2}):)?(\d{1,2}):(\d{2})');
+  static final RegExp _timestampRegex = RegExp(
+    r'(?:(\d{1,2}):)?(\d{1,2}):(\d{2})',
+  );
 
   /// Parses YouTube-style description timestamps into a list of [VideoChapter].
   ///
@@ -18,7 +19,10 @@ class VideoChapterParser {
   /// 4. Chapters must be in ascending chronological order.
   ///
   /// Returns an empty list if any requirement is violated.
-  static List<VideoChapter> extractDescriptionChapters(String description) {
+  static List<VideoChapter> extractDescriptionChapters(
+    String description, {
+    Duration? maxDuration,
+  }) {
     if (description.trim().isEmpty) return const [];
 
     final lines = description.split(RegExp(r'\r?\n'));
@@ -41,6 +45,12 @@ class VideoChapterParser {
           minutes: minutes,
           seconds: seconds,
         );
+
+        if (maxDuration != null &&
+            maxDuration > Duration.zero &&
+            duration >= maxDuration) {
+          continue;
+        }
 
         var title = trimmed.replaceFirst(match.group(0)!, '').trim();
         // Remove standard separator characters (-, –, —, :, ;, |, brackets, parentheses)
@@ -90,18 +100,25 @@ class VideoChapterParser {
     required String description,
     required dynamic rawAutoChapters,
     required bool autoChaptersEnabled,
+    Duration? maxDuration,
   }) {
     // 1. Explicit manual chapters (e.g. from studio editor)
     if (explicitChapters != null && explicitChapters.isNotEmpty) {
-      final parsed = explicitChapters
+      var parsed = explicitChapters
           .whereType<Map>()
           .map((e) => VideoChapter.fromMap(Map<String, dynamic>.from(e)))
           .toList();
+      if (maxDuration != null && maxDuration > Duration.zero) {
+        parsed = parsed.where((c) => c.startTime < maxDuration).toList();
+      }
       if (parsed.isNotEmpty) return parsed;
     }
 
     // 2. Manual chapter upload via video description timestamps
-    final descChapters = extractDescriptionChapters(description);
+    final descChapters = extractDescriptionChapters(
+      description,
+      maxDuration: maxDuration,
+    );
     if (descChapters.isNotEmpty) {
       return descChapters;
     }
@@ -114,10 +131,14 @@ class VideoChapterParser {
 
     // 4. Auto-chapters fallback when enabled
     if (rawAutoChapters is List && rawAutoChapters.isNotEmpty) {
-      return rawAutoChapters
+      var parsed = rawAutoChapters
           .whereType<Map>()
           .map((e) => VideoChapter.fromMap(Map<String, dynamic>.from(e)))
           .toList();
+      if (maxDuration != null && maxDuration > Duration.zero) {
+        parsed = parsed.where((c) => c.startTime < maxDuration).toList();
+      }
+      return parsed;
     }
 
     return const [];

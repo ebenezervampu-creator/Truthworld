@@ -10,6 +10,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/utils/web_platform_utils.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:video_player/video_player.dart';
@@ -24,6 +25,7 @@ class ResolutionTier {
     required this.height,
     required this.bitrate,
     required this.minBandwidth,
+    this.isSynthetic = false,
   });
 
   /// Factory to normalize and convert a VideoResolutionV2 into a ResolutionTier.
@@ -45,6 +47,7 @@ class ResolutionTier {
       height: v.height,
       bitrate: kbps,
       minBandwidth: (kbps * 1.2).toInt(),
+      isSynthetic: v.isSynthetic,
     );
   }
 
@@ -65,6 +68,7 @@ class ResolutionTier {
   final int height; // Vertical pixels
   final int bitrate; // Target bitrate in kbps
   final int minBandwidth;
+  final bool isSynthetic;
 
   bool get is60Fps => label.contains('60');
   int get fps => is60Fps ? 60 : 30;
@@ -202,6 +206,9 @@ class AdaptiveBitrateController extends BaseController {
   VideoPlayerController? _vpc;
   int? maxHeightCap;
 
+  /// Whether the ladder has concrete playable stream URLs (not generic placeholders)
+  bool get hasConcreteStreams => resolutionLadder.any((t) => t.url.isNotEmpty);
+
   // ABR tuning constants (Optimized for CMAF Ultra-Low Latency 500ms chunking)
   static const double _bandwidthSafetyFactor = 0.85; // 85% of measured BW with CMAF
   static const double _upgradeHysteresisFactor =
@@ -322,7 +329,13 @@ class AdaptiveBitrateController extends BaseController {
   }
 
   double _getInitialBandwidthHint() {
-    if (!kIsWeb) return 5000;
+    if (!kIsWeb) {
+      if (Get.isRegistered<ConnectivityService>()) {
+        final isWifi = ConnectivityService.to.isWifi;
+        if (!isWifi) return 1500; // Mobile / cellular data: conservative 1.5 Mbps start (480p)
+      }
+      return 5000;
+    }
     return WebPlatformUtils.getInitialBandwidthHint();
   }
 
@@ -340,11 +353,17 @@ class AdaptiveBitrateController extends BaseController {
 
   void enableAutoMode() {
     isAutoMode.value = true;
+    _runAbrDecision();
   }
 
   void attachVideoController(VideoPlayerController vpc) {
     _vpc?.removeListener(_onVideoPlayerUpdate);
     _vpc = vpc;
+    _lastKnownPosition = Duration.zero;
+    final now = DateTime.now();
+    _lastPositionUpdate = now;
+    _playbackStartTime = now;
+    _lastTierSwitchTime = now;
     _vpc!.addListener(_onVideoPlayerUpdate);
   }
 
@@ -377,7 +396,7 @@ class AdaptiveBitrateController extends BaseController {
   }
 
   void _runAbrDecision({bool forceHighest = false}) {
-    if (_vpc == null || resolutionLadder.isEmpty) return;
+    if (_vpc == null || resolutionLadder.isEmpty || !hasConcreteStreams) return;
     if (playbackState.value == PlaybackState.error) return;
 
     final now = DateTime.now();
@@ -399,19 +418,29 @@ class AdaptiveBitrateController extends BaseController {
     }
 
     // ── Find best sustainable tier ──
-    var bestTier = 0;
+    // Industry standard: Only concrete, non-synthetic tiers with distinct bitrate streams are eligible for auto-switching
+    final eligibleIndices = <int>[];
     for (var i = 0; i < resolutionLadder.length; i++) {
-      if (maxHeightCap == null || resolutionLadder[i].height <= maxHeightCap!) {
-        bestTier = i;
-        break;
+      final tier = resolutionLadder[i];
+      if (maxHeightCap != null && tier.height > maxHeightCap!) continue;
+      if (!tier.isSynthetic) {
+        eligibleIndices.add(i);
       }
     }
-    for (var i = resolutionLadder.length - 1; i >= 0; i--) {
-      if (maxHeightCap != null && resolutionLadder[i].height > maxHeightCap!) {
-        continue;
+    // If no tiers are explicitly marked non-synthetic, allow all within cap
+    if (eligibleIndices.isEmpty) {
+      for (var i = 0; i < resolutionLadder.length; i++) {
+        if (maxHeightCap == null || resolutionLadder[i].height <= maxHeightCap!) {
+          eligibleIndices.add(i);
+        }
       }
-      if (effectiveBw >= resolutionLadder[i].minBandwidth) {
-        bestTier = i;
+    }
+
+    var bestTier = eligibleIndices.isNotEmpty ? eligibleIndices.first : 0;
+    for (var k = eligibleIndices.length - 1; k >= 0; k--) {
+      final idx = eligibleIndices[k];
+      if (effectiveBw >= resolutionLadder[idx].minBandwidth) {
+        bestTier = idx;
         break;
       }
     }
@@ -513,12 +542,17 @@ class AdaptiveBitrateController extends BaseController {
   }
 
   void _measureBandwidth() {
-    if (_vpc == null) return;
+    if (isClosed || _vpc == null) return;
 
     // Use the video player's buffered bytes as a proxy for download rate
     // This is the most reliable method in Flutter Web without dart:io
-    final value = _vpc!.value;
-    if (!value.isInitialized) return;
+    final VideoPlayerValue value;
+    try {
+      value = _vpc!.value;
+      if (!value.isInitialized) return;
+    } catch (_) {
+      return;
+    }
 
     final buffered = value.buffered;
     if (buffered.isEmpty) return;
@@ -594,16 +628,34 @@ class AdaptiveBitrateController extends BaseController {
   bool Function()? isAdPlaying;
 
   void _checkForStall() {
-    if (_vpc == null) return;
+    if (isClosed || _vpc == null) return;
     if (isAdPlaying?.call() == true) {
       _lastPositionUpdate = DateTime.now();
       return;
     }
-    final value = _vpc!.value;
-    if (!value.isPlaying) return;
+    final VideoPlayerValue value;
+    try {
+      value = _vpc!.value;
+      if (!value.isPlaying) return;
+    } catch (_) {
+      return;
+    }
 
     final now = DateTime.now();
     final currentPos = value.position;
+
+    // During initial startup grace period or immediately after a tier switch,
+    // let stream establish initial playback buffer and start decoding without false stalls.
+    final isWithinStartupGrace =
+        now.difference(_playbackStartTime) < _startupGracePeriod;
+    final isWithinDwellPeriod =
+        now.difference(_lastTierSwitchTime) < _minDwellDuration;
+
+    if (isWithinStartupGrace || isWithinDwellPeriod) {
+      _lastPositionUpdate = now;
+      _lastKnownPosition = currentPos;
+      return;
+    }
 
     // Update buffer health first so stall check has fresh buffer metrics
     if (value.buffered.isNotEmpty) {
@@ -659,8 +711,13 @@ class AdaptiveBitrateController extends BaseController {
   }
 
   void _onVideoPlayerUpdate() {
-    if (_vpc == null) return;
-    final value = _vpc!.value;
+    if (isClosed || _vpc == null) return;
+    final VideoPlayerValue value;
+    try {
+      value = _vpc!.value;
+    } catch (_) {
+      return;
+    }
 
     // Update FSM state
     final err = value.errorDescription ?? '';
@@ -704,7 +761,10 @@ class AdaptiveBitrateController extends BaseController {
 
   @override
   void onClose() {
-    _vpc?.removeListener(_onVideoPlayerUpdate);
+    try {
+      _vpc?.removeListener(_onVideoPlayerUpdate);
+    } catch (_) {}
+    _vpc = null;
     super.onClose();
   }
 }

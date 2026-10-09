@@ -6,6 +6,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/presentation/controllers/audio_only_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/playback_source.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
@@ -200,6 +201,99 @@ void main() {
         args['isAudioOnly'] = false;
       }
       expect(args['isAudioOnly'], isFalse);
+    });
+
+    test('TowerPlayerController toggleAudioOnly off cleanses Get.arguments and resets audio mode', () async {
+      final vpc = VideoPlayerController.networkUrl(Uri.parse('https://example.com/video.mp4'));
+      final tpc = TowerPlayerController(
+        videoPlayerController: vpc,
+        tag: 'vid_args_test',
+      );
+      Get.routing.args = <String, dynamic>{'isAudioOnly': true};
+
+      tpc.isAudioOnly.value = true;
+      tpc.playbackMode.value = PlaybackMode.audio;
+      TowerPlayerController.globalAudioOnly = true;
+
+      await tpc.toggleAudioOnly();
+
+      expect(tpc.isAudioOnly.value, isFalse);
+      expect(tpc.playbackMode.value, PlaybackMode.video);
+      expect(TowerPlayerController.globalAudioOnly, isFalse);
+      if (Get.arguments is Map) {
+        expect((Get.arguments as Map)['isAudioOnly'], isFalse);
+      }
+    });
+
+    test('handleExitBackground deactivates active AudioOnlyService on Android resume even if isBackgroundAudioActive is false', () async {
+      final vpc = VideoPlayerController.networkUrl(Uri.parse('https://example.com/video.mp4'));
+      final tpc = TowerPlayerController(
+        videoPlayerController: vpc,
+        tag: 'vid_resume_test',
+      );
+
+      final audioSvc = AudioOnlyService();
+      Get.put<AudioOnlyService>(audioSvc);
+      audioSvc.isActive.value = true;
+      audioSvc.isPlaying.value = true;
+      tpc.audioService = audioSvc;
+
+      // isBackgroundAudioActive is false (e.g. fresh controller or destroyed activity)
+      tpc.isBackgroundAudioActive = false;
+
+      await tpc.handleExitBackground();
+
+      expect(audioSvc.isActive.value, isFalse);
+      expect(audioSvc.isPlaying.value, isFalse);
+    });
+
+    test('TowerPlayerController onInit deactivates lingering AudioOnlyService', () {
+      final audioSvc = AudioOnlyService();
+      Get.put<AudioOnlyService>(audioSvc);
+      audioSvc.isActive.value = true;
+      audioSvc.isPlaying.value = true;
+
+      final vpc = VideoPlayerController.networkUrl(Uri.parse('https://example.com/video.mp4'));
+      final tpc = TowerPlayerController(
+        videoPlayerController: vpc,
+        tag: 'vid_oninit_deactivate_test',
+      );
+      Get.put<TowerPlayerController>(tpc, tag: 'vid_oninit_deactivate_test');
+
+      expect(audioSvc.isActive.value, isFalse);
+      expect(audioSvc.isPlaying.value, isFalse);
+      tpc.onClose();
+    });
+
+    test('applyInitialPreferences ensures explicit isAudioOnly: false overrides initialAudioOnly true', () {
+      final isAudioOnly = false.obs;
+      final subtitlesEnabled = false.obs;
+      final activeSubLang = 'Off'.obs;
+      final playbackSpeed = 1.0.obs;
+      final vpc = VideoPlayerController.networkUrl(Uri.parse('https://example.com/video.mp4'));
+
+      TowerPlayerPreferences.globalAudioOnly = true;
+
+      TowerPlayerLifecycleHelper.applyInitialPreferences(
+        arguments: {'isAudioOnly': false},
+        subtitlesEnabled: subtitlesEnabled,
+        activeSubLang: activeSubLang,
+        isAudioOnly: isAudioOnly,
+        playbackSpeed: playbackSpeed,
+        vpc: vpc,
+        isClosed: () => false,
+        initialAudioOnly: true, // Simulates previous controller having audio-only
+      );
+
+      // Must be forced to false by explicit navigation argument!
+      expect(isAudioOnly.value, isFalse);
+      expect(TowerPlayerPreferences.globalAudioOnly, isFalse);
+    });
+
+    test('VideoController defaults isAudioOnly to false for standard video navigation', () {
+      final vc = VideoController(tag: 'test_online_1');
+      expect(vc.isAudioOnly.value, isFalse);
+      expect(TowerPlayerPreferences.globalAudioOnly, isFalse);
     });
   });
 }

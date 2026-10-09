@@ -157,7 +157,7 @@ import 'package:truthworld/theme/app_theme.dart';
           ),
           const SizedBox(height: 12),
           const Text(
-            '• Payout Schedule: Monthly automatic transfer to your verified creator account.\n'
+            '• Payout Schedule: YouTube-style monthly cycle — open on the 1st of every month with a 1-day grace period on Day 2 (Min ₹100 threshold • Missed earnings roll over automatically).\n'
             '• Zero-Debt Guarantee: Payout is protected at a floor of ₹0.00 — creator balance never goes negative.\n'
             '• Instant AI Features: Unwithdrawn revenue can be used anytime for AI Subtitles and Dubbing!',
             style: TextStyle(

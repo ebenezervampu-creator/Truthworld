@@ -27,6 +27,7 @@ import 'package:truthworld/features/category/presentation/views/category/categor
 import 'package:truthworld/features/channel/presentation/views/channel/channel_details_screen.dart'
     deferred as channel_details;
 import 'package:truthworld/features/channel/presentation/views/channel/channel_screen_wizard.dart';
+import 'package:truthworld/features/channel/presentation/views/channel/plan_comparison/plan_comparison_barrel.dart';
 import 'package:truthworld/features/community/community_post_upload_binding.dart';
 import 'package:truthworld/features/community/community_post_upload_screen.dart';
 import 'package:truthworld/features/community/presentation/bindings/saved_comments_binding.dart';
@@ -54,6 +55,8 @@ import 'package:truthworld/features/myvideos/presentation/views/myvideos/my_vide
     deferred as my_videos;
 import 'package:truthworld/features/notifications/presentation/bindings/notifications_binding.dart';
 import 'package:truthworld/features/notifications/presentation/views/notifications/notification.dart';
+import 'package:truthworld/features/onboarding/presentation/bindings/onboarding_profile_binding.dart';
+import 'package:truthworld/features/onboarding/presentation/views/onboarding_profile_screen.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/create_playlist_screen.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_detail_screen.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_screen.dart'
@@ -115,8 +118,7 @@ class AppPages {
           final email = user?.email?.toLowerCase();
           final isOwner = email != null && (
             email == 'hello@truthworld.in' ||
-            email == 'ebenezervampu4@gmail.com' ||
-            email == 'admin@truthworld.com'
+            email == 'ebenezervampu4@gmail.com'
           );
           final hasAdminClaim = isOwner || (Get.isRegistered<AdminController>() && Get.find<AdminController>().isAdmin.value);
           if (hasAdminClaim) {
@@ -143,8 +145,7 @@ class AppPages {
             final email = user?.email?.toLowerCase();
             final isOwner = email != null && (
               email == 'hello@truthworld.in' ||
-              email == 'ebenezervampu4@gmail.com' ||
-              email == 'admin@truthworld.com'
+              email == 'ebenezervampu4@gmail.com'
             );
             final hasAdminClaim = isOwner || (Get.isRegistered<AdminController>() && Get.find<AdminController>().isAdmin.value);
             if (hasAdminClaim) {
@@ -233,6 +234,11 @@ class AppPages {
       binding: DashboardBinding(),
     ),
     GetPage(
+      name: '/onboarding',
+      page: () => const OnboardingProfileScreen(),
+      binding: OnboardingProfileBinding(),
+    ),
+    GetPage(
       name: '/home',
       page: () {
         if (AppFlavor.isStudio) {
@@ -256,6 +262,11 @@ class AppPages {
       name: '/channelscreen',
       page: ChannelScreen.new,
       middlewares: [ChannelCreationGuard()],
+      binding: ChannelBinding(),
+    ),
+    GetPage(
+      name: '/channel-plan-comparison',
+      page: ChannelPlanComparisonScreen.new,
       binding: ChannelBinding(),
     ),
     GetPage(
@@ -872,6 +883,14 @@ class AppPages {
       ),
     ),
     GetPage(
+      name: '/payment-result',
+      page: () => const _PaymentHandoffScreen(),
+    ),
+    GetPage(
+      name: '/checkout',
+      page: () => const _PaymentHandoffScreen(),
+    ),
+    GetPage(
       name: '/:handle',
       page: () {
         final channel = Get.arguments?['channel'];
@@ -885,4 +904,19 @@ class AppPages {
       binding: ChannelBinding(),
     ),
   ];
+}
+
+/// Lightweight transparent handoff screen that auto-pops itself when payment deep links return
+class _PaymentHandoffScreen extends StatelessWidget {
+  const _PaymentHandoffScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+    });
+    return const SizedBox.shrink();
+  }
 }

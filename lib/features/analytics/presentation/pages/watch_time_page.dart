@@ -18,15 +18,27 @@ class WatchTimePage extends StatelessWidget {
     final channelId = args['channelId'] as String? ?? '';
     final videoId = args['videoId'] as String? ?? '';
     final videoTitle = args['videoTitle'] as String? ?? '';
+    final initialWatchTime = args['watchTime'] as String? ?? '';
+
+    // Immediately seed initial watch time if available to prevent showing 0 mins
+    if (initialWatchTime.isNotEmpty &&
+        (controller.totalWatchTime.value == '0 mins' ||
+            controller.totalWatchTime.value == '0h' ||
+            controller.totalWatchTime.value.isEmpty)) {
+      controller.totalWatchTime.value = initialWatchTime;
+    }
 
     // Load analytics on init
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (channelId.isNotEmpty) {
+        controller.selectedChannelId.value = channelId;
+      }
       if (videoId.isNotEmpty) {
         controller.selectedVideoId.value = videoId;
-        controller.loadVideoAnalytics(videoId, videoTitle: videoTitle);
+        await controller.loadVideoAnalytics(videoId, videoTitle: videoTitle);
       } else if (channelId.isNotEmpty) {
-        controller.selectedChannelId.value = channelId;
-        controller.fetchChannelVideos(channelId);
+        controller.selectedVideoId.value = '';
+        await controller.loadChannelAnalytics(channelId);
       }
     });
 
@@ -79,9 +91,16 @@ class WatchTimePage extends StatelessWidget {
                     child: InkWell(
                       onTap: () {
                         controller.selectedVideoId.value = '';
-                        controller.loadChannelAnalytics(
-                          controller.selectedChannelId.value,
-                        );
+                        final targetChan = controller.selectedChannelId.value.isNotEmpty
+                            ? controller.selectedChannelId.value
+                            : (channelId.isNotEmpty
+                                ? channelId
+                                : (controller.channelVideos.isNotEmpty
+                                    ? controller.channelVideos.first.channelId
+                                    : ''));
+                        if (targetChan.isNotEmpty) {
+                          controller.loadChannelAnalytics(targetChan);
+                        }
                       },
                       borderRadius: BorderRadius.circular(8),
                       child: const Padding(
@@ -138,6 +157,7 @@ class WatchTimePage extends StatelessWidget {
     Map<String, dynamic> args,
   ) {
     final watchTimeChange = args['watchTimeChange'] as String? ?? '+0%';
+    final initialWatchTime = args['watchTime'] as String? ?? '';
     final isPositive = watchTimeChange.startsWith('+');
 
     return _GlassCard(
@@ -161,34 +181,69 @@ class WatchTimePage extends StatelessWidget {
             );
           }),
           const SizedBox(height: 8),
-          Builder(
-            builder: (context) {
-              var displayTime = controller.totalWatchTime.value;
+          Obx(() {
+            var displayTime = controller.totalWatchTime.value;
+            final isVideoSelected = controller.selectedVideoId.value.isNotEmpty;
+
+            if (isVideoSelected) {
+              final currentVideo = controller.channelVideos.firstWhereOrNull(
+                (v) => v.id == controller.selectedVideoId.value,
+              );
+              final expectedSeconds = (currentVideo != null && currentVideo.totalWatchTimeSeconds > 0)
+                  ? currentVideo.totalWatchTimeSeconds
+                  : (controller.videoAnalytics.value?.totalWatchTimeSeconds ?? 0);
+
+              if (expectedSeconds > 0) {
+                final currentSeconds =
+                    controller.videoAnalytics.value?.totalWatchTimeSeconds ?? 0;
+                if ((displayTime.isEmpty ||
+                        displayTime == '0 mins' ||
+                        displayTime == '0h' ||
+                        displayTime == '0.0h') ||
+                    currentSeconds == 0 ||
+                    currentSeconds < expectedSeconds ||
+                    currentSeconds > expectedSeconds) {
+                  displayTime = WatchTimeFormatter.format(expectedSeconds);
+                }
+              }
+            } else if (controller.channelVideos.isNotEmpty) {
+              final totalSec = controller.channelVideos.fold<int>(
+                0,
+                (sum, v) => sum + v.totalWatchTimeSeconds,
+              );
               if ((displayTime.isEmpty ||
                       displayTime == '0 mins' ||
                       displayTime == '0h' ||
                       displayTime == '0.0h') &&
-                  controller.channelVideos.isNotEmpty &&
-                  controller.selectedVideoId.value.isEmpty) {
-                final totalSec = controller.channelVideos.fold<int>(
-                  0,
-                  (sum, v) => sum + v.totalWatchTimeSeconds,
-                );
-                if (totalSec > 0) {
+                  totalSec > 0) {
+                displayTime = WatchTimeFormatter.format(totalSec);
+              } else if (totalSec > 0) {
+                final currentSeconds =
+                    controller.channelAnalytics.value?.totalWatchTimeSeconds ?? 0;
+                if (currentSeconds > totalSec || currentSeconds == 0) {
                   displayTime = WatchTimeFormatter.format(totalSec);
                 }
               }
-              return Text(
-                displayTime.isNotEmpty ? displayTime : '0 mins',
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 48,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -1,
-                ),
-              );
-            },
-          ),
+            }
+
+            if ((displayTime.isEmpty ||
+                    displayTime == '0 mins' ||
+                    displayTime == '0h' ||
+                    displayTime == '0.0h') &&
+                initialWatchTime.isNotEmpty) {
+              displayTime = initialWatchTime;
+            }
+
+            return Text(
+              displayTime.isNotEmpty ? displayTime : '0 mins',
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 48,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -1,
+              ),
+            );
+          }),
           const SizedBox(height: 4),
           Row(
             children: [
@@ -217,62 +272,64 @@ class WatchTimePage extends StatelessWidget {
   }
 
   Widget _buildTrendChart(CreatorAnalyticsController controller) {
-    final hasData = controller.watchTimeTrendData.isNotEmpty;
-    final minDate = hasData
-        ? controller.watchTimeTrendData.first.date
-        : DateTime.now().subtract(const Duration(days: 28));
-    final maxDate = hasData
-        ? controller.watchTimeTrendData.last.date
-        : DateTime.now();
+    return Obx(() {
+      final hasData = controller.watchTimeTrendData.isNotEmpty;
+      final minDate = hasData
+          ? controller.watchTimeTrendData.first.date
+          : DateTime.now().subtract(const Duration(days: 28));
+      final maxDate = hasData
+          ? controller.watchTimeTrendData.last.date
+          : DateTime.now();
 
-    return _GlassCard(
-      child: SizedBox(
-        height: 240,
-        child: SfCartesianChart(
-          plotAreaBorderWidth: 0,
-          margin: EdgeInsets.zero,
-          primaryXAxis: DateTimeAxis(
-            majorGridLines: const MajorGridLines(width: 0),
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 10),
-            axisLine: const AxisLine(width: 0),
-            minimum: minDate,
-            maximum: maxDate,
-            intervalType: DateTimeIntervalType.days,
-          ),
-          primaryYAxis: NumericAxis(
-            majorGridLines: MajorGridLines(
-              width: 1,
-              color: AppColors.textPrimary.withValues(alpha: 0.05),
-              dashArray: const [5, 5],
+      return _GlassCard(
+        child: SizedBox(
+          height: 240,
+          child: SfCartesianChart(
+            plotAreaBorderWidth: 0,
+            margin: EdgeInsets.zero,
+            primaryXAxis: DateTimeAxis(
+              majorGridLines: const MajorGridLines(width: 0),
+              labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 10),
+              axisLine: const AxisLine(width: 0),
+              minimum: minDate,
+              maximum: maxDate,
+              intervalType: DateTimeIntervalType.days,
             ),
-            labelStyle: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 10,
-            ),
-            axisLine: const AxisLine(width: 0),
-            labelFormat: '{value}h',
-          ),
-          tooltipBehavior: TooltipBehavior(enable: true),
-          series: <CartesianSeries<WatchTimeTrendModel, DateTime>>[
-            SplineAreaSeries<WatchTimeTrendModel, DateTime>(
-              dataSource: controller.watchTimeTrendData,
-              xValueMapper: (data, _) => data.date,
-              yValueMapper: (data, _) => data.watchTimeHours,
-              gradient: LinearGradient(
-                colors: [
-                  const Color(0xFF3B82F6).withValues(alpha: 0.3),
-                  const Color(0xFF3B82F6).withValues(alpha: 0),
-                ],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
+            primaryYAxis: NumericAxis(
+              majorGridLines: MajorGridLines(
+                width: 1,
+                color: AppColors.textPrimary.withValues(alpha: 0.05),
+                dashArray: const [5, 5],
               ),
-              borderColor: const Color(0xFF3B82F6),
-              name: 'Watch Time',
+              labelStyle: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 10,
+              ),
+              axisLine: const AxisLine(width: 0),
+              labelFormat: '{value}h',
             ),
-          ],
+            tooltipBehavior: TooltipBehavior(enable: true),
+            series: <CartesianSeries<WatchTimeTrendModel, DateTime>>[
+              SplineAreaSeries<WatchTimeTrendModel, DateTime>(
+                dataSource: controller.watchTimeTrendData.toList(),
+                xValueMapper: (data, _) => data.date,
+                yValueMapper: (data, _) => data.watchTimeHours,
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFF3B82F6).withValues(alpha: 0.3),
+                    const Color(0xFF3B82F6).withValues(alpha: 0),
+                  ],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+                borderColor: const Color(0xFF3B82F6),
+                name: 'Watch Time',
+              ),
+            ],
+          ),
         ),
-      ),
-    );
+      );
+    });
   }
 
   Widget _buildVideosList(CreatorAnalyticsController controller) {
@@ -318,28 +375,46 @@ class WatchTimePage extends StatelessWidget {
   }
 
   Widget _buildInsightsGrid(CreatorAnalyticsController controller) {
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      childAspectRatio: 1.5,
-      children: [
-        _buildInsightItem(
-          'Avg Duration',
-          controller.averageWatchTime.value,
-          Icons.speed,
-          const Color(0xFF8B5CF6),
-        ),
-        _buildInsightItem(
-          'Returning',
-          '${controller.returningViewerCount.value}',
-          Icons.person_add,
-          const Color(0xFFEC4899),
-        ),
-      ],
-    );
+    return Obx(() {
+      var avgDuration = controller.averageWatchTime.value;
+      if (avgDuration == '0s' || avgDuration == '0:00' || avgDuration.isEmpty) {
+        if (controller.selectedVideoId.value.isNotEmpty) {
+          final v = controller.channelVideos.firstWhereOrNull((v) => v.id == controller.selectedVideoId.value);
+          if (v != null && v.totalWatchTimeSeconds > 0 && v.viewCount > 0) {
+            avgDuration = CreatorGeoTaxonomyHelper.formatSeconds((v.totalWatchTimeSeconds / v.viewCount).round());
+          }
+        } else if (controller.channelVideos.isNotEmpty) {
+          final totalSec = controller.channelVideos.fold<int>(0, (s, v) => s + v.totalWatchTimeSeconds);
+          final totalV = controller.channelVideos.fold<int>(0, (s, v) => s + v.viewCount);
+          if (totalSec > 0 && totalV > 0) {
+            avgDuration = CreatorGeoTaxonomyHelper.formatSeconds((totalSec / totalV).round());
+          }
+        }
+      }
+
+      return GridView.count(
+        crossAxisCount: 2,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 1.5,
+        children: [
+          _buildInsightItem(
+            'Avg Duration',
+            avgDuration.isNotEmpty ? avgDuration : '0s',
+            Icons.speed,
+            const Color(0xFF8B5CF6),
+          ),
+          _buildInsightItem(
+            'Returning',
+            '${controller.returningViewerCount.value}',
+            Icons.person_add,
+            const Color(0xFFEC4899),
+          ),
+        ],
+      );
+    });
   }
 
   Widget _buildInsightItem(

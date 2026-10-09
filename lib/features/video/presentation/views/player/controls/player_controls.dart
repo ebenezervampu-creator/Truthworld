@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
@@ -34,6 +35,15 @@ class MainControls extends StatelessWidget {
 
       return Stack(
         children: [
+          // Background dismiss layer on Web: tapping outside buttons closes controls
+          if (kIsWeb)
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: ctrl.onBackgroundTapWeb,
+              ),
+            ),
+
           // Top controls (Fullscreen Top Bar)
           Positioned(
             top: 0,

@@ -121,12 +121,30 @@ export const rollupVideoCounterShards = onSchedule(
         const totalQualified = aggData.totalQualified
           ? Number(aggData.totalQualified)
           : 0;
-        const totalWatchTimeSeconds = aggData.totalWatchTimeSeconds
+        let totalWatchTimeSeconds = aggData.totalWatchTimeSeconds
           ? Number(aggData.totalWatchTimeSeconds)
           : 0;
 
         if (totalViews > 0 || totalWatchTimeSeconds > 0) {
           const videoRef = db.collection("videos").doc(videoId);
+          let videoDuration = 0;
+          try {
+            const vSnap = await videoRef.get();
+            if (vSnap.exists) {
+              const vData = vSnap.data();
+              videoDuration = Number(vData?.durationSeconds || 0) ||
+                (vData?.durationMs ? Math.floor(Number(vData.durationMs) / 1000) : 0);
+            }
+          } catch (_) {}
+
+          if (videoDuration > 0 && totalWatchTimeSeconds > 0) {
+            const viewsCeiling = Math.max(1, totalViews);
+            const maxAllowedWatchTime = viewsCeiling * videoDuration;
+            if (totalWatchTimeSeconds > maxAllowedWatchTime) {
+              totalWatchTimeSeconds = maxAllowedWatchTime;
+            }
+          }
+
           const updateData: Record<string, any> = {
             lastShardRollupAt: admin.firestore.FieldValue.serverTimestamp(),
           };
@@ -164,6 +182,7 @@ export const rollupVideoCounterShards = onSchedule(
         const aggSnap = await shardsCollection.aggregate({
           totalViews: admin.firestore.AggregateField.sum("views"),
           totalWatchTimeSeconds: admin.firestore.AggregateField.sum("watchTimeSeconds"),
+          totalSubscriberDelta: admin.firestore.AggregateField.sum("subscriberDelta"),
         }).get();
 
         const aggData = aggSnap.data();
@@ -171,8 +190,11 @@ export const rollupVideoCounterShards = onSchedule(
         const totalWatchTimeSeconds = aggData.totalWatchTimeSeconds
           ? Number(aggData.totalWatchTimeSeconds)
           : 0;
+        const totalSubscriberDelta = aggData.totalSubscriberDelta
+          ? Number(aggData.totalSubscriberDelta)
+          : 0;
 
-        if (totalViews > 0 || totalWatchTimeSeconds > 0) {
+        if (totalViews > 0 || totalWatchTimeSeconds > 0 || totalSubscriberDelta !== 0) {
           const channelRef = db.collection("channels").doc(channelId);
           const updateData: Record<string, any> = {
             lastShardRollupAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -184,6 +206,9 @@ export const rollupVideoCounterShards = onSchedule(
           if (totalWatchTimeSeconds > 0) {
             updateData.totalWatchTimeSeconds = totalWatchTimeSeconds;
             updateData["metrics.totalWatchTimeMinutes"] = Math.floor(totalWatchTimeSeconds / 60);
+          }
+          if (totalSubscriberDelta !== 0) {
+            updateData.shardSubscriberSyncDelta = totalSubscriberDelta;
           }
           batch.set(channelRef, updateData, { merge: true });
           ops++;

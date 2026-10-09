@@ -8,7 +8,6 @@ class AdminRolesConfig {
   static const List<String> authorizedOwnerEmails = [
     'hello@truthworld.in',
     'ebenezervampu4@gmail.com',
-    'admin@truthworld.com',
     String.fromEnvironment('ADMIN_OWNER_EMAIL', defaultValue: 'hello@truthworld.in'),
     String.fromEnvironment('ADMIN_SECONDARY_EMAIL', defaultValue: 'hello@truthworld.in'),
   ];

@@ -41,7 +41,9 @@ class VideoPlayerSettingsSheet {
               _settingsTile(
                 Icons.loop_rounded,
                 'Loop Video',
-                controller.chewieController?.looping ?? false ? 'On' : 'Off',
+                (controller.videoPlayerController?.value.isLooping ?? false)
+                    ? 'On'
+                    : 'Off',
                 () {},
               ),
             ],

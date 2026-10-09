@@ -56,13 +56,7 @@ class CreateContentController extends GetxController {
     playlistController = Get.find<PlaylistController>();
 
     if (existingVideo != null) {
-      final video = existingVideo!;
-      titleController.text = video.title;
-      descriptionController.text = video.description;
-      tagsController.text = video.tags.join(', ');
-      uploadController.videoUrl.value = video.videoUrl;
-      uploadController.thumbnailUrl.value = video.thumbnailUrl;
-      uploadController.selectedCategory.value = video.category;
+      applyDraftVideo(existingVideo!);
     } else {
       loadDraftFromArguments();
     }
@@ -79,64 +73,225 @@ class CreateContentController extends GetxController {
     super.onClose();
   }
 
+  /// Thoroughly applies an existing Video draft to form inputs and UploadController
+  void applyDraftVideo(Video video) {
+    if (video.title.isNotEmpty &&
+        video.title != 'Uploading...' &&
+        video.title != 'Untitled' &&
+        video.title != 'Untitled Draft') {
+      titleController.text = video.title;
+    }
+    if (video.description.isNotEmpty && video.description != 'Processing...') {
+      descriptionController.text = video.description;
+    }
+    if (video.tags.isNotEmpty) {
+      tagsController.text = video.tags.join(', ');
+    }
+
+    uploadController.loadFromVideo(video);
+    uploadController.resumedVideoDraft.value = video;
+    uploadController.currentVideoId = video.id;
+
+    final effectiveVideoUrl =
+        video.originalUrl.isNotEmpty ? video.originalUrl : video.videoUrl;
+    if (effectiveVideoUrl.isNotEmpty) {
+      uploadController.videoUrl.value = effectiveVideoUrl;
+    }
+
+    if (video.thumbnailUrl.isNotEmpty) {
+      uploadController.thumbnailUrl.value = video.thumbnailUrl;
+      uploadController.finalstatus.value = 'APPROVED';
+    }
+
+    if (video.category.isNotEmpty) {
+      uploadController.selectedCategory.value = video.category;
+    }
+
+    if (video.visibility.isNotEmpty &&
+        video.visibility.toLowerCase() != 'draft') {
+      uploadController.selectedVisibility.value = video.visibility;
+    }
+
+    if (video.topics.isNotEmpty) {
+      uploadController.selectedTopicId.value = video.topics.first;
+    }
+
+    uploadController.isUploading.value = false;
+    uploadController.isProcessing.value = false;
+    uploadController.uploadProgress.value = 1.0;
+    uploadController.videoUploadProgress.value = 1.0;
+
+    if (video.durationMs > 0) {
+      uploadController.videoDuration.value =
+          Duration(milliseconds: video.durationMs);
+      uploadController.videoDurationSeconds.value = video.durationMs ~/ 1000;
+    } else if (video.durationValue.inMilliseconds > 0) {
+      uploadController.videoDuration.value = video.durationValue;
+      uploadController.videoDurationSeconds.value =
+          video.durationValue.inSeconds;
+    }
+
+    if (video.channelId.isNotEmpty && uploadController.channels.isNotEmpty) {
+      final matching = uploadController.channels.firstWhereOrNull(
+        (c) => c.channelId == video.channelId || c.id == video.channelId,
+      );
+      if (matching != null) {
+        uploadController.selectedChannel.value = matching;
+      }
+    }
+
+    if (uploadController.videoUrl.value.isNotEmpty) {
+      uploadController.initializeVideoPlayer();
+    }
+
+    if (video.isFactChecked ||
+        video.hasAiCredibility ||
+        video.factCheckTier == 'full_ground' ||
+        video.factCheckTier == 'standard') {
+      uploadController.aiFactCheckEnabled.value = true;
+      uploadController.aiFactCheckTier.value =
+          video.factCheckTier.isNotEmpty ? video.factCheckTier : 'full_ground';
+    }
+    if (video.factCheckReviewMode.isNotEmpty) {
+      uploadController.aiFactCheckReviewMode.value = video.factCheckReviewMode;
+    }
+
+    uploadController.update();
+    debugPrint(
+      '🎬 Successfully applied draft video: ${video.id} ("${video.title}")',
+    );
+  }
+
+  Future<void> _loadVideoDocById(
+    String videoId, {
+    DraftModel? fallbackDraft,
+  }) async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('videos')
+          .doc(videoId)
+          .get();
+      if (doc.exists && doc.data() != null) {
+        final v = Video.fromMap(doc.data()!, doc.id);
+        applyDraftVideo(v);
+
+        final rawFileName = doc.data()!['fileName'] as String?;
+        final moderation = doc.data()!['moderation'] as Map<String, dynamic>?;
+
+        if (titleController.text.isEmpty &&
+            rawFileName != null &&
+            rawFileName.isNotEmpty) {
+          final cleanName = rawFileName
+              .replaceAll(
+                RegExp(r'\.(mp4|mov|avi|mkv|webm)$', caseSensitive: false),
+                '',
+              )
+              .replaceAll('_', ' ')
+              .replaceAll('-', ' ');
+          titleController.text = cleanName;
+        }
+
+        if (descriptionController.text.isEmpty && moderation != null) {
+          final summary = moderation['summary'] as String?;
+          if (summary != null && summary.isNotEmpty) {
+            descriptionController.text = summary;
+          }
+        }
+
+        final aiFeaturesMap = doc.data()!['aiFeatures'] as Map<String, dynamic>?;
+        if (aiFeaturesMap != null) {
+          final factCheckFlag = aiFeaturesMap['factChecking'] == true ||
+              aiFeaturesMap['enableFactCheck'] == true ||
+              aiFeaturesMap['truthVerification'] == true ||
+              doc.data()!['enableFactCheck'] == true ||
+              doc.data()!['factChecking'] == true ||
+              doc.data()!['truthVerification'] == true ||
+              doc.data()!['factCheckTier'] == 'full_ground';
+          if (factCheckFlag) {
+            uploadController.aiFactCheckEnabled.value = true;
+            uploadController.aiFactCheckTier.value = 'full_ground';
+          }
+        }
+      } else {
+        // Document not found in 'videos', check 'user_drafts' collection
+        final draftDoc = await FirebaseFirestore.instance
+            .collection('user_drafts')
+            .doc(videoId)
+            .get();
+        if (draftDoc.exists && draftDoc.data() != null) {
+          final dm = DraftModel.fromMap(draftDoc.data()!, draftDoc.id);
+          _applyDraftModel(dm);
+        } else if (fallbackDraft != null) {
+          _applyDraftModel(fallbackDraft);
+        }
+      }
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'CreateContentController._loadVideoDocById',
+      );
+      if (fallbackDraft != null) {
+        _applyDraftModel(fallbackDraft);
+      }
+    }
+  }
+
+  void _applyDraftModel(DraftModel draft) {
+    if (draft.title.isNotEmpty) {
+      titleController.text = draft.title;
+    }
+    if (draft.content.isNotEmpty) {
+      descriptionController.text = draft.content;
+    }
+    uploadController.currentVideoId = draft.id;
+    if (draft.mediaUrl != null && draft.mediaUrl!.isNotEmpty) {
+      uploadController.thumbnailUrl.value = draft.mediaUrl!;
+      uploadController.finalstatus.value = 'APPROVED';
+    }
+    if (draft.channelId.isNotEmpty && uploadController.channels.isNotEmpty) {
+      final matching = uploadController.channels.firstWhereOrNull(
+        (c) => c.channelId == draft.channelId || c.id == draft.channelId,
+      );
+      if (matching != null) {
+        uploadController.selectedChannel.value = matching;
+      }
+    }
+    uploadController.update();
+  }
+
   void loadDraftFromArguments() {
     final args = Get.arguments;
+    if (args == null) return;
+
+    if (args is Video) {
+      applyDraftVideo(args);
+      return;
+    }
+
+    if (args is String && args.isNotEmpty) {
+      _loadVideoDocById(args);
+      return;
+    }
+
     if (args is Map) {
       final videoArg = args['video'] ?? args['draftVideo'];
       final draftArg = args['draft'];
-      final videoId = (args['videoId'] as String?) ?? (args['id'] as String?);
+      final videoId = (args['videoId'] as String?) ??
+          (args['id'] as String?) ??
+          (args['draftId'] as String?);
 
       if (videoArg is Video) {
-        titleController.text = videoArg.title;
-        descriptionController.text = videoArg.description;
-        tagsController.text = videoArg.tags.join(', ');
-        uploadController.videoUrl.value = videoArg.videoUrl;
-        uploadController.thumbnailUrl.value = videoArg.thumbnailUrl;
-        uploadController.selectedCategory.value = videoArg.category;
-        debugPrint('🎬 Resumed Video Draft from Video Object: ${videoArg.id}');
+        applyDraftVideo(videoArg);
       } else if (videoId != null && videoId.isNotEmpty) {
-        FirebaseFirestore.instance.collection('videos').doc(videoId).get().then((doc) {
-          if (doc.exists && doc.data() != null) {
-            final v = Video.fromMap(doc.data()!, doc.id);
-            titleController.text = v.title;
-            descriptionController.text = v.description;
-            tagsController.text = v.tags.join(', ');
-            uploadController.videoUrl.value = v.videoUrl;
-            uploadController.thumbnailUrl.value = v.thumbnailUrl;
-            uploadController.selectedCategory.value = v.category;
-
-            final rawFileName = doc.data()!['fileName'] as String?;
-            final moderation = doc.data()!['moderation'] as Map<String, dynamic>?;
-
-            if (titleController.text.isEmpty &&
-                rawFileName != null &&
-                rawFileName.isNotEmpty) {
-              final cleanName = rawFileName
-                  .replaceAll(
-                    RegExp(r'\.(mp4|mov|avi|mkv|webm)$', caseSensitive: false),
-                    '',
-                  )
-                  .replaceAll('_', ' ')
-                  .replaceAll('-', ' ');
-              titleController.text = cleanName;
-            }
-
-            if (descriptionController.text.isEmpty && moderation != null) {
-              final summary = moderation['summary'] as String?;
-              if (summary != null && summary.isNotEmpty) {
-                descriptionController.text = summary;
-              }
-            }
-
-            uploadController.update();
-            debugPrint('🎬 Resumed Video Draft from Firestore ID: $videoId');
-          }
-        }).catchError((e) {
-          debugPrint('⚠️ Error loading video draft $videoId: $e');
-        });
+        _loadVideoDocById(
+          videoId,
+          fallbackDraft: draftArg is DraftModel ? draftArg : null,
+        );
+      } else if (draftArg is Video) {
+        applyDraftVideo(draftArg);
       } else if (draftArg is DraftModel) {
-        titleController.text = draftArg.title;
-        descriptionController.text = draftArg.content;
+        _applyDraftModel(draftArg);
       }
     }
   }
@@ -283,7 +438,7 @@ class CreateContentController extends GetxController {
         );
         return;
       }
-      if (status != 'APPROVED') {
+      if (uploadController.pickedImage.value != null && status != 'APPROVED') {
         AppSnackbar.info(
           'Your thumbnail is still being verified. Please wait a moment.',
           title: 'Verification Pending',
@@ -351,7 +506,7 @@ class CreateContentController extends GetxController {
           errorMessage = cleanMsg;
         }
       }
-      AppSnackbar.error(errorMessage, title: 'Upload Failed');
+      AppSnackbar.error(errorMessage);
     } finally {
       uploadController.isProcessing.value = false;
     }

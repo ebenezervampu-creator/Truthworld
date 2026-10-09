@@ -22,7 +22,7 @@ class AuthPremiumManager {
     return DateTime.now().millisecondsSinceEpoch > exp;
   }
 
-  /// Whether user is specifically subscribed to the Audio Premium tier (₹40/mo).
+  /// Whether user is specifically subscribed to the Audio Premium tier ($0.50/mo).
   bool get isAudioPremiumOnly =>
       isPremiumUser.value && premiumPlanId.value == 'audio_monthly';
 

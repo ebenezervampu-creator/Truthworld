@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
 import 'package:truthworld/features/discover/presentation/controllers/discover_channels_controller.dart';
 import 'package:truthworld/features/discover/presentation/views/channels/widgets/discover_channels_constants.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
@@ -152,15 +153,19 @@ class DiscoverChannelCard extends StatelessWidget {
                   const SizedBox(height: 2),
 
                   // Subscribers & Videos Stats
-                  Text(
-                    '${formatSubscriberCount(subscriberCount)} subscribers • ${channel.videoCount} videos',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.60),
-                      fontSize: 12,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  Obx(() {
+                    final dynamicCount = ChannelSubscriptionController.channelSubscriberCounts[channel.channelId] ??
+                        (controller?.getSubscriberCount(channel) ?? subscriberCount);
+                    return Text(
+                      '${formatSubscriberCount(dynamicCount)} subscribers • ${channel.videoCount} videos',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.60),
+                        fontSize: 12,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    );
+                  }),
                   const SizedBox(height: 5),
 
                   // Bio / Description

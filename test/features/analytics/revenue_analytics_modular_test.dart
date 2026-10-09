@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/features/analytics/data/models/creator_bank_account.dart';
 import 'package:truthworld/features/analytics/data/models/creator_kyc_verification.dart';
 import 'package:truthworld/features/analytics/presentation/controllers/revenue_analytics_controller.dart';
 import 'package:truthworld/features/analytics/presentation/pages/revenue/revenue_analytics_widgets.dart';
 import 'package:truthworld/features/analytics/presentation/pages/revenue_analytics_page.dart';
+import 'package:truthworld/features/analytics/presentation/widgets/revenue_withdrawal_dialog.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import '../../test_helpers/mock_firebase.dart';
 
@@ -25,7 +27,10 @@ void main() {
     }
   });
 
-  tearDown(Get.reset);
+  tearDown(() {
+    RevenueAnalyticsStateBase.debugDateOverride = null;
+    Get.reset();
+  });
 
   Widget createHarness(Widget child) {
     return GetMaterialApp(
@@ -175,7 +180,9 @@ void main() {
       expect(find.text('Watch Time: 10%'), findsOneWidget);
     });
 
-    testWidgets('buildWithdrawalThresholdCard handles below and above ₹100 threshold', (tester) async {
+    testWidgets('buildWithdrawalThresholdCard handles below and above ₹100 threshold, plus Day 2 grace period', (tester) async {
+      // Set to 1st of month for initial threshold test
+      RevenueAnalyticsStateBase.debugDateOverride = DateTime(2026, 10);
       final ctrl = Get.put(RevenueAnalyticsController());
       ctrl.membershipsRevenue.value = 50.0;
       ctrl.totalRevenue.value = 50.0; // below 100
@@ -190,15 +197,30 @@ void main() {
 
       expect(find.text('Cash Payout & Withdrawal'), findsOneWidget);
       expect(find.text('Min ₹100'), findsOneWidget);
-      expect(find.textContaining('more needed to reach the ₹100'), findsOneWidget);
+      expect(find.textContaining('more needed to reach ₹100'), findsOneWidget);
       expect(find.text('Withdraw Earnings (Minimum ₹100)'), findsOneWidget);
 
-      // Now above threshold
+      // Now above threshold on Day 1 (1st of month) -> Unlocked!
       ctrl.membershipsRevenue.value = 250.0;
       ctrl.totalRevenue.value = 250.0;
       await tester.pump();
       expect(find.text('Unlocked'), findsOneWidget);
       expect(find.text('Withdraw Funds'), findsOneWidget);
+
+      // Day 2 (1-day Grace Period) -> Grace Period (Day 2)
+      RevenueAnalyticsStateBase.debugDateOverride = DateTime(2026, 10, 2);
+      await tester.pump();
+      expect(find.text('Grace Period (Day 2)'), findsOneWidget);
+      expect(find.text('Withdraw Funds (Grace Period Day 2)'), findsOneWidget);
+      expect(find.textContaining('Missed Day 1? 1-Day grace period is active today (Day 2)!'), findsOneWidget);
+
+      // When today is after grace period (Day 9) -> Locked until 1st of next month, balance safely rolls over
+      RevenueAnalyticsStateBase.debugDateOverride = DateTime(2026, 10, 9);
+      await tester.pump();
+      expect(find.text('Opens 1st Nov'), findsOneWidget);
+      expect(find.text('Withdraw on 1st of Month (Opens Nov 1st)'), findsOneWidget);
+      expect(find.textContaining('Cash withdrawals open on the 1st day of every month'), findsOneWidget);
+      expect(find.textContaining('YouTube-style cycle'), findsOneWidget);
     });
 
     testWidgets('buildDirectBankAccountCard renders unlinked and linked bank account', (tester) async {
@@ -288,6 +310,66 @@ void main() {
 
       expect(find.byType(RevenueAnalyticsPage), findsOneWidget);
       expect(find.text('Revenue Analytics'), findsOneWidget);
+    });
+
+    testWidgets('buildWithdrawalThresholdCard and RevenueWithdrawalDialog render international ACH/SWIFT & PayPal options for global creators', (tester) async {
+      tester.view.physicalSize = const Size(1280, 1000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      CurrencyLocalizationService.enablePersistentStorage = false;
+      final curr = Get.put<CurrencyLocalizationService>(CurrencyLocalizationService(), permanent: true);
+      curr.userCountryCode.value = 'US';
+
+      // Set Day 1
+      RevenueAnalyticsStateBase.debugDateOverride = DateTime(2026, 10);
+      final ctrl = Get.put(RevenueAnalyticsController());
+      ctrl.membershipsRevenue.value = 500.0;
+      ctrl.totalRevenue.value = 500.0;
+
+      await tester.pumpWidget(
+        createHarness(
+          Builder(
+            builder: (ctx) => Obx(() => buildWithdrawalThresholdCard(ctx, ctrl)),
+          ),
+        ),
+      );
+
+      // On Day 1, international creator sees "to your bank or PayPal"
+      expect(find.textContaining('to your bank or PayPal'), findsOneWidget);
+
+      // On Day 2 grace period, international creator sees "Grace Period (Day 2 of 2): Available for cash withdrawal to your bank or PayPal"
+      RevenueAnalyticsStateBase.debugDateOverride = DateTime(2026, 10, 2);
+      await tester.pump();
+      expect(find.textContaining('Grace Period (Day 2 of 2): Available for cash withdrawal to your bank or PayPal'), findsOneWidget);
+
+      // Now open RevenueWithdrawalDialog in international mode with verified KYC
+      ctrl.channelKycStatus.value = 'verified';
+      await tester.pumpWidget(
+        GetMaterialApp(
+          theme: buildAppTheme(),
+          home: Scaffold(
+            body: RevenueWithdrawalDialog(),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Verify International Bank rails
+      expect(find.text('Direct ACH / SWIFT Transfer'), findsOneWidget);
+      expect(find.text('Direct ACH / SWIFT Wire to Bank Account'), findsOneWidget);
+      expect(find.text('PayPal / Direct Payout'), findsOneWidget);
+      expect(find.text('Account Number / IBAN'), findsOneWidget);
+      expect(find.text('SWIFT / BIC or Routing Code (e.g. CHASUS33)'), findsOneWidget);
+
+      // Tap on PayPal option
+      await tester.tap(find.text('PayPal / Direct Payout'));
+      await tester.pump();
+
+      // Verify PayPal fields
+      expect(find.text('PayPal Email Address'), findsOneWidget);
+      expect(find.text('Enter registered PayPal email (e.g. yourname@example.com)'), findsOneWidget);
+      expect(find.text('Confirm PayPal Withdrawal'), findsOneWidget);
     });
   });
 }

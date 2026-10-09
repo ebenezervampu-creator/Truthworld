@@ -8,10 +8,13 @@ import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/playback_source.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/services/sleep_timer_service.dart';
+import 'package:truthworld/features/video/presentation/services/video_playback_queue_service.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
+import 'package:video_player/video_player.dart';
 
 mixin TowerPlayerNavigationMixin on GetxController {
   // Host controller dependencies
+  VideoPlayerValue get vv;
   PlaybackSource get activePlayback;
   VideoController? get videoController;
   String? get tag;
@@ -27,18 +30,16 @@ mixin TowerPlayerNavigationMixin on GetxController {
   RxBool get showMoreVideos;
   void openMoreVideos();
 
-  // ── Playlist navigation ───────────────────────────────────
+  // ── Playlist & queue navigation ───────────────────────────
   bool get hasPreviousVideo {
     isAudioOnly.value; // Guarantee Rx access for Obx
+    if (!isAutoplay.value) return false;
     try {
       final vc = videoController;
-      if (vc != null) {
-        if (vc.playlistVideos.isNotEmpty && vc.currentPlaylistIndex.value > 0) {
-          return true;
-        }
-        final idx = vc.recommendedVideos.indexWhere((v) => v.id == vc.video.id);
-        return idx > 0 || (idx == -1 && vc.recommendedVideos.isNotEmpty);
+      if (vc != null && vc.playlistVideos.isNotEmpty) {
+        return vc.currentPlaylistIndex.value > 0;
       }
+      return VideoPlaybackQueueService.to.hasPreviousVideo;
     } catch (e, s) {
       ErrorHandler.log(
         e,
@@ -51,17 +52,15 @@ mixin TowerPlayerNavigationMixin on GetxController {
 
   bool get hasNextVideo {
     isAudioOnly.value; // Guarantee Rx access for Obx
+    if (!isAutoplay.value) return false;
     try {
       final vc = videoController;
-      if (vc != null) {
-        if (vc.playlistVideos.isNotEmpty &&
-            vc.currentPlaylistIndex.value < vc.playlistVideos.length - 1) {
-          return true;
-        }
-        final idx = vc.recommendedVideos.indexWhere((v) => v.id == vc.video.id);
-        if (idx >= 0) return idx < vc.recommendedVideos.length - 1;
-        return vc.recommendedVideos.isNotEmpty;
+      if (vc != null && vc.playlistVideos.isNotEmpty) {
+        return vc.currentPlaylistIndex.value < vc.playlistVideos.length - 1;
       }
+      if (VideoPlaybackQueueService.to.hasForwardVideo) return true;
+      if (vc != null && vc.recommendedVideos.isNotEmpty) return true;
+      return true;
     } catch (e, s) {
       ErrorHandler.log(
         e,
@@ -76,56 +75,79 @@ mixin TowerPlayerNavigationMixin on GetxController {
   final RxBool isNavigatingToVideo = false.obs;
 
   void playNext() {
+    if (!isAutoplay.value) return;
     trackAnalytics(PlayerEvent('next'));
     final vc = videoController;
     if (vc == null) return;
 
     if (vc.playlistVideos.isNotEmpty &&
         vc.currentPlaylistIndex.value < vc.playlistVideos.length - 1) {
-      executeNavigateToVideo(
-        vc.playlistVideos[vc.currentPlaylistIndex.value + 1],
-        vc,
-      );
+      final next = vc.playlistVideos[vc.currentPlaylistIndex.value + 1];
+      VideoPlaybackQueueService.to.pushCurrentForNext(next);
+      executeNavigateToVideo(next, vc);
       return;
     }
-    if (vc.recommendedVideos.isNotEmpty) {
-      final idx = vc.recommendedVideos.indexWhere((v) => v.id == vc.video.id);
-      Video? next;
-      if (idx >= 0 && idx < vc.recommendedVideos.length - 1) {
-        next = vc.recommendedVideos[idx + 1];
-      } else if (idx == -1) {
-        next = vc.recommendedVideos.first;
-      }
-      if (next != null && next.id != vc.video.id) {
+
+    if (VideoPlaybackQueueService.to.hasForwardVideo) {
+      final next = VideoPlaybackQueueService.to.nextForwardVideo;
+      if (next != null) {
+        VideoPlaybackQueueService.to.pushCurrentForNext(next);
         executeNavigateToVideo(next, vc);
+        return;
       }
     }
+
+    if (vc.recommendedVideos.isNotEmpty) {
+      final next = vc.recommendedVideos.firstWhereOrNull(
+        (v) => v.id != vc.video.id,
+      ) ?? vc.recommendedVideos.first;
+      if (next.id != vc.video.id) {
+        VideoPlaybackQueueService.to.pushCurrentForNext(next);
+        executeNavigateToVideo(next, vc);
+        return;
+      }
+    }
+
+    VideoPlaybackQueueService.to.fetchFallbackNextVideo(vc.video.id).then((fallback) {
+      if (fallback != null && fallback.id != vc.video.id) {
+        VideoPlaybackQueueService.to.pushCurrentForNext(fallback);
+        executeNavigateToVideo(fallback, vc);
+      } else {
+        showToast('No more videos available');
+      }
+    });
   }
 
   void playPrevious() {
+    if (!isAutoplay.value) return;
     trackAnalytics(PlayerEvent('previous'));
     final vc = videoController;
     if (vc == null) return;
 
-    if (vc.playlistVideos.isNotEmpty && vc.currentPlaylistIndex.value > 0) {
-      executeNavigateToVideo(
-        vc.playlistVideos[vc.currentPlaylistIndex.value - 1],
-        vc,
-      );
+    if (vv.position > const Duration(seconds: 3)) {
+      seekTo(Duration.zero);
       return;
     }
-    if (vc.recommendedVideos.isNotEmpty) {
-      final idx = vc.recommendedVideos.indexWhere((v) => v.id == vc.video.id);
-      Video? prev;
-      if (idx > 0) {
-        prev = vc.recommendedVideos[idx - 1];
-      } else if (idx == -1) {
-        prev = vc.recommendedVideos.first;
-      }
-      if (prev != null && prev.id != vc.video.id) {
+
+    if (vc.playlistVideos.isNotEmpty) {
+      if (vc.currentPlaylistIndex.value > 0) {
+        final prev = vc.playlistVideos[vc.currentPlaylistIndex.value - 1];
         executeNavigateToVideo(prev, vc);
+      } else {
+        seekTo(Duration.zero);
+      }
+      return;
+    }
+
+    if (VideoPlaybackQueueService.to.hasPreviousVideo) {
+      final prev = VideoPlaybackQueueService.to.popPreviousVideo();
+      if (prev != null) {
+        executeNavigateToVideo(prev, vc);
+        return;
       }
     }
+
+    seekTo(Duration.zero);
   }
 
   void executeNavigateToVideo(Video video, VideoController vc) {

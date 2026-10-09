@@ -1,11 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/features/premium/presentation/controllers/premium_controller.dart';
 import 'package:truthworld/features/premium/presentation/views/premium_plans_screen.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(() {
+    CurrencyLocalizationService.enablePersistentStorage = false;
+  });
+
+  tearDownAll(() {
+    CurrencyLocalizationService.enablePersistentStorage = true;
+  });
 
   late PremiumController controller;
 
@@ -29,7 +38,7 @@ void main() {
       );
 
       expect(find.text('All-Inclusive Benefits'), findsOneWidget);
-      expect(find.text(r'Ad-Free Audio Mode ($0.50 / ₹40)'), findsOneWidget);
+      expect(find.text(r'Ad-Free Audio Mode ($0.50)'), findsOneWidget);
       expect(find.text(r'Ad-Free Video Playback ($2)'), findsOneWidget);
       expect(find.text(r'Every Video Fact-Checked ($3)'), findsOneWidget);
       expect(find.text(r'4K Ultra HD Streaming ($2 & $3)'), findsOneWidget);
@@ -50,7 +59,7 @@ void main() {
       );
 
       expect(find.text('All-Inclusive Benefits'), findsOneWidget);
-      expect(find.text(r'Ad-Free Audio Mode ($0.50 / ₹40)'), findsOneWidget);
+      expect(find.text(r'Ad-Free Audio Mode ($0.50)'), findsOneWidget);
     });
   });
 
@@ -128,16 +137,17 @@ void main() {
         ),
       );
 
+      final expectedPrice = controller.formatAmountINR(controller.getEffectivePrice('4k_factchecked_monthly'));
       expect(find.text('Auto Pay'), findsOneWidget);
       expect(find.text('RECOMMENDED'), findsOneWidget);
-      expect(find.text('Pay ₹249 with Auto Pay'), findsOneWidget);
+      expect(find.text('Pay $expectedPrice with Auto Pay'), findsOneWidget);
 
       // Toggle auto pay off
       controller.toggleAutoPay(false);
       await tester.pumpAndSettle();
 
       expect(find.text('ONE-TIME'), findsOneWidget);
-      expect(find.text('Pay ₹249 (One-Time)'), findsOneWidget);
+      expect(find.text('Pay $expectedPrice (One-Time)'), findsOneWidget);
     });
   });
 
@@ -206,9 +216,11 @@ void main() {
           home: PremiumPlansScreen(),
         ),
       );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
       expect(find.text('Truthworld Premium'), findsWidgets);
-      expect(find.text(r'Ad-Free Audio ($0.50 / ₹40), Video ($2) & Fact-Checked ($3)'), findsOneWidget);
+      expect(find.text(r'Ad-Free Audio ($0.50), Video ($2) & Fact-Checked ($3)'), findsOneWidget);
     });
 
     testWidgets('renders Choose the plan that fits for you before All-Inclusive Benefits', (tester) async {
@@ -217,6 +229,8 @@ void main() {
           home: PremiumPlansScreen(),
         ),
       );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
       final planHeaderFinder = find.text('Choose the plan that fits for you');
       final benefitsHeaderFinder = find.text('All-Inclusive Benefits');

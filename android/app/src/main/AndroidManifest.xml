@@ -56,17 +56,17 @@
 
                 <!-- Entity Path Prefixes -->
                 <data android:pathPrefix="/watch" />
-                <data android:pathPrefix="/v" />
+                <data android:pathPrefix="/v/" />
                 <data android:pathPrefix="/shorts" />
                 <data android:pathPrefix="/channel" />
                 <data android:pathPrefix="/@" />
-                <data android:pathPrefix="/c" />
+                <data android:pathPrefix="/c/" />
                 <data android:pathPrefix="/user" />
                 <data android:pathPrefix="/playlist" />
                 <data android:pathPrefix="/topic" />
                 <data android:pathPrefix="/topics" />
-                <data android:pathPrefix="/T" />
-                <data android:pathPrefix="/t" />
+                <data android:pathPrefix="/T/" />
+                <data android:pathPrefix="/t/" />
                 <data android:pathPrefix="/clip" />
                 <data android:pathPrefix="/clips" />
                 <data android:pathPrefix="/chapter" />
@@ -77,6 +77,7 @@
                 <data android:pathPrefix="/ads" />
                 <data android:pathPrefix="/post" />
                 <data android:pathPrefix="/community" />
+                <data android:pathPrefix="/payment-result" />
             </intent-filter>
 
             <!-- Apex Domain Android App Links for https://truthworld.in -->
@@ -90,17 +91,17 @@
 
                 <!-- Entity Path Prefixes -->
                 <data android:pathPrefix="/watch" />
-                <data android:pathPrefix="/v" />
+                <data android:pathPrefix="/v/" />
                 <data android:pathPrefix="/shorts" />
                 <data android:pathPrefix="/channel" />
                 <data android:pathPrefix="/@" />
-                <data android:pathPrefix="/c" />
+                <data android:pathPrefix="/c/" />
                 <data android:pathPrefix="/user" />
                 <data android:pathPrefix="/playlist" />
                 <data android:pathPrefix="/topic" />
                 <data android:pathPrefix="/topics" />
-                <data android:pathPrefix="/T" />
-                <data android:pathPrefix="/t" />
+                <data android:pathPrefix="/T/" />
+                <data android:pathPrefix="/t/" />
                 <data android:pathPrefix="/clip" />
                 <data android:pathPrefix="/clips" />
                 <data android:pathPrefix="/chapter" />
@@ -111,6 +112,7 @@
                 <data android:pathPrefix="/ads" />
                 <data android:pathPrefix="/post" />
                 <data android:pathPrefix="/community" />
+                <data android:pathPrefix="/payment-result" />
             </intent-filter>
 
             <!-- HTTP Fallback Intent Filter (Separate non-autoVerify filter to preserve App Link validation) -->
@@ -123,17 +125,17 @@
                 <data android:scheme="http" android:host="truthworld.in" />
 
                 <data android:pathPrefix="/watch" />
-                <data android:pathPrefix="/v" />
+                <data android:pathPrefix="/v/" />
                 <data android:pathPrefix="/shorts" />
                 <data android:pathPrefix="/channel" />
                 <data android:pathPrefix="/@" />
-                <data android:pathPrefix="/c" />
+                <data android:pathPrefix="/c/" />
                 <data android:pathPrefix="/user" />
                 <data android:pathPrefix="/playlist" />
                 <data android:pathPrefix="/topic" />
                 <data android:pathPrefix="/topics" />
-                <data android:pathPrefix="/T" />
-                <data android:pathPrefix="/t" />
+                <data android:pathPrefix="/T/" />
+                <data android:pathPrefix="/t/" />
                 <data android:pathPrefix="/clip" />
                 <data android:pathPrefix="/clips" />
                 <data android:pathPrefix="/chapter" />
@@ -144,6 +146,7 @@
                 <data android:pathPrefix="/ads" />
                 <data android:pathPrefix="/post" />
                 <data android:pathPrefix="/community" />
+                <data android:pathPrefix="/payment-result" />
             </intent-filter>
 
             <!-- Custom Schemes for Direct Native App Launch -->

@@ -31,6 +31,7 @@ class GeneralAccountSection extends StatelessWidget {
           _buildPhoneVerificationTile(context),
           _buildEmailVerificationTile(context),
           _buildAgeAndGenderTile(context),
+          _buildLocationSettingsTile(context),
           _buildSubscriptionTile(context),
           _buildWalletTile(context),
           _buildAccountStatusTile(context),
@@ -539,6 +540,45 @@ class GeneralAccountSection extends StatelessWidget {
           color: AppColors.textPrimary,
         ),
         onTap: () => GoogleOnboardingSheet.show(context),
+      );
+    });
+  }
+
+  Widget _buildLocationSettingsTile(BuildContext context) {
+    final authService = AuthService.to;
+    return Obx(() {
+      final locationText = authService.userLocation.value;
+      final hasLocation = locationText != null && locationText.trim().isNotEmpty;
+
+      return ListTile(
+        leading: const Icon(
+          Icons.location_on_outlined,
+          color: AppColors.textPrimary,
+        ),
+        title: const Text(
+          'Location Settings & Google Maps',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        subtitle: Text(
+          hasLocation
+              ? '${locationText.trim()} • Tap to change or pin on Google Maps'
+              : 'Set your verified city, town, or village via Google Maps',
+          style: TextStyle(
+            fontSize: 13,
+            color: context.colors.textSecondary,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: const Icon(
+          Icons.chevron_right,
+          color: AppColors.textPrimary,
+        ),
+        onTap: () => _showEditProfileDialog(context),
       );
     });
   }

@@ -11,6 +11,8 @@ enum TruthworldUrlType {
   upload,
   home,
   policy,
+  paymentResult,
+  checkout,
   external,
   unknown,
 }

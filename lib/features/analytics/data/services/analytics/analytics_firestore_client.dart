@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
@@ -6,6 +8,7 @@ import 'package:truthworld/features/analytics/data/models/watch_event_model.dart
 import 'package:truthworld/features/analytics/data/services/analytics/channel_analytics_aggregator.dart';
 import 'package:truthworld/features/analytics/data/services/analytics/fraud_overview.dart';
 import 'package:truthworld/features/analytics/data/services/analytics/video_analytics_aggregator.dart';
+import 'package:truthworld/features/video/data/models/video/video_duration_utils.dart';
 
 /// Client executing Firestore queries and live counter fallbacks for video and channel analytics.
 class AnalyticsFirestoreClient {
@@ -64,21 +67,71 @@ class AnalyticsFirestoreClient {
       }
 
       final data = doc.data()!;
-      final viewCount = (data['viewCount'] as num?)?.toInt() ?? 0;
-      final watchTime = (data['totalWatchTimeSeconds'] as num?)?.toInt() ?? 0;
+      final viewCount = (data['viewCount'] as num?)?.toInt() ??
+          (data['views'] as num?)?.toInt() ??
+          (data['stats'] is Map
+              ? (data['stats']['views'] as num?)?.toInt()
+              : null) ??
+          0;
+      var watchTime = (data['totalWatchTimeSeconds'] as num?)?.toInt() ??
+          (data['metrics'] is Map
+              ? (data['metrics']['totalWatchTimeSeconds'] as num?)?.toInt()
+              : null) ??
+          (data['stats'] is Map
+              ? (data['stats']['totalWatchTimeSeconds'] as num?)?.toInt()
+              : null) ??
+          0;
+      final durationSec = (data['durationSeconds'] as num?)?.toInt() ??
+          ((data['durationMs'] as num?) != null
+              ? (data['durationMs'] as num).toInt() ~/ 1000
+              : (data['duration'] != null
+                  ? VideoDurationUtils.parseDuration(data['duration']).inSeconds
+                  : 0));
+
+      if (durationSec > 0 && watchTime > 0) {
+        final maxAllowed = math.max(1, viewCount) * durationSec;
+        if (watchTime > maxAllowed) {
+          watchTime = maxAllowed;
+        }
+      }
+
+      final avgDuration = viewCount > 0
+          ? (durationSec > 0
+              ? (watchTime / viewCount).clamp(0.0, durationSec.toDouble())
+              : (watchTime / viewCount))
+          : (watchTime > 0 ? watchTime.toDouble() : 0.0);
+
+      final avgPercentage = durationSec > 0
+          ? ((avgDuration / durationSec) * 100).clamp(0.0, 100.0)
+          : 0.0;
+
+      final categoryCount = <WatchtimeCategory, int>{
+        for (final cat in WatchtimeCategory.values) cat: 0,
+      };
+      if (viewCount > 0 && durationSec > 0) {
+        if (avgPercentage >= 100.0) {
+          categoryCount[WatchtimeCategory.complete] = viewCount;
+        } else if (avgPercentage >= 75.0) {
+          categoryCount[WatchtimeCategory.lessThan75] = viewCount;
+        } else if (avgPercentage >= 50.0) {
+          categoryCount[WatchtimeCategory.lessThan50] = viewCount;
+        } else if (avgPercentage >= 25.0) {
+          categoryCount[WatchtimeCategory.lessThan25] = viewCount;
+        } else {
+          categoryCount[WatchtimeCategory.lessThan20] = viewCount;
+        }
+      }
 
       return VideoAnalyticsSnapshot(
         videoId: videoId,
         title: data['title'] as String? ?? title,
         totalViews: viewCount,
         totalUniqueViewers: viewCount,
-        averageWatchDuration: viewCount > 0 ? watchTime / viewCount : 0,
-        averageWatchPercentage: 0,
+        averageWatchDuration: avgDuration,
+        averageWatchPercentage: avgPercentage,
         totalWatchTimeSeconds: watchTime,
-        usersCompletedVideo: 0,
-        watchtimeCategoryCount: {
-          for (final cat in WatchtimeCategory.values) cat: 0,
-        },
+        usersCompletedVideo: avgPercentage >= 100.0 ? viewCount : 0,
+        watchtimeCategoryCount: categoryCount,
         stateTraffic: {},
         stateTrafficPercentage: {},
         deviceTypeBreakdown: {},
@@ -189,32 +242,44 @@ class AnalyticsFirestoreClient {
               .round();
       final subCount = (data['subscriberCount'] as num?)?.toInt() ?? 0;
 
-      // If views or watch time are 0, aggregate from channel videos
-      if (views == 0 || watchTimeSec == 0) {
-        try {
-          final videosSnap = await _firestore
-              .collection('videos')
-              .where('channelId', isEqualTo: channelId)
-              .get();
-          var aggregatedViews = 0;
-          var aggregatedWatchSec = 0;
-          for (final vDoc in videosSnap.docs) {
-            final vData = vDoc.data();
-            aggregatedViews += (vData['viewCount'] as num?)?.toInt() ?? 0;
-            aggregatedWatchSec +=
-                (vData['totalWatchTimeSeconds'] as num?)?.toInt() ?? 0;
+      // Aggregate from channel videos to ensure watch time never exceeds video durations
+      try {
+        final videosSnap = await _firestore
+            .collection('videos')
+            .where('channelId', isEqualTo: channelId)
+            .get();
+        var aggregatedViews = 0;
+        var aggregatedWatchSec = 0;
+        for (final vDoc in videosSnap.docs) {
+          final vData = vDoc.data();
+          final vViews = (vData['viewCount'] as num?)?.toInt() ?? 0;
+          var vWatchSec =
+              (vData['totalWatchTimeSeconds'] as num?)?.toInt() ?? 0;
+          final vDurSec = (vData['durationSeconds'] as num?)?.toInt() ??
+              ((vData['durationMs'] as num?) != null
+                  ? (vData['durationMs'] as num).toInt() ~/ 1000
+                  : 0);
+          if (vDurSec > 0 && vWatchSec > 0) {
+            final maxAllowed = math.max(1, vViews) * vDurSec;
+            if (vWatchSec > maxAllowed) {
+              vWatchSec = maxAllowed;
+            }
           }
-          if (views == 0 && aggregatedViews > 0) views = aggregatedViews;
-          if (watchTimeSec == 0 && aggregatedWatchSec > 0) {
-            watchTimeSec = aggregatedWatchSec;
-          }
-        } catch (e, s) {
-          ErrorHandler.log(
-            e,
-            stackTrace: s,
-            tag: 'AnalyticsFirestoreClient.aggregateChannelMetrics',
-          );
+          aggregatedViews += vViews;
+          aggregatedWatchSec += vWatchSec;
         }
+        if (views == 0 && aggregatedViews > 0) views = aggregatedViews;
+        if (watchTimeSec == 0 && aggregatedWatchSec > 0) {
+          watchTimeSec = aggregatedWatchSec;
+        } else if (aggregatedWatchSec > 0 && watchTimeSec > aggregatedWatchSec) {
+          watchTimeSec = aggregatedWatchSec;
+        }
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'AnalyticsFirestoreClient.aggregateChannelMetrics',
+        );
       }
 
       return ChannelAnalyticsSnapshot(

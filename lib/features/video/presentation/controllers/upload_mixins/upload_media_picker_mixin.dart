@@ -165,36 +165,56 @@ mixin UploadMediaPickerMixin on UploadControllerBase {
 
   @override
   Future<void> initializeVideoPlayer() async {
-    if (pickedVideo.value == null) return;
-
-    final file = pickedVideo.value!;
+    if (pickedVideo.value == null && videoUrl.value.trim().isEmpty) return;
 
     if (videoPlayerController != null) {
-      await videoPlayerController!.dispose();
+      try {
+        await videoPlayerController!.dispose();
+      } catch (_) {}
       videoPlayerController = null;
     }
 
-    if (kIsWeb) {
-      if (file.bytes == null) return;
-      final url = WebPlatformUtils.createBlobUrl(file.bytes!);
-      videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(url));
-    } else {
-      if (file.path == null || !File(file.path!).existsSync()) return;
-      videoPlayerController = VideoPlayerController.file(File(file.path!));
+    try {
+      if (pickedVideo.value != null) {
+        final file = pickedVideo.value!;
+        if (kIsWeb) {
+          if (file.bytes == null) return;
+          final url = WebPlatformUtils.createBlobUrl(file.bytes!);
+          videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(url));
+        } else {
+          if (file.path == null || !File(file.path!).existsSync()) return;
+          videoPlayerController = VideoPlayerController.file(File(file.path!));
+        }
+      } else if (videoUrl.value.trim().isNotEmpty) {
+        final uri = Uri.tryParse(videoUrl.value.trim());
+        if (uri != null && uri.hasScheme) {
+          videoPlayerController = VideoPlayerController.networkUrl(uri);
+        }
+      }
+
+      if (videoPlayerController != null) {
+        await videoPlayerController!.initialize();
+        videoPlayerController!.setLooping(true);
+
+        final size = videoPlayerController!.value.size;
+        final duration = videoPlayerController!.value.duration;
+        if (duration.inMilliseconds > 0) {
+          videoDuration.value = duration;
+          videoDurationSeconds.value = duration.inSeconds;
+        }
+        // Auto-detect if video is a Short (duration <= 60 seconds and vertical aspect ratio)
+        isShort.value = size.height > size.width && duration.inSeconds <= 60;
+        debugPrint(
+          '🎥 Auto-detected isShort: ${isShort.value} (size: $size, duration: ${duration.inSeconds}s)',
+        );
+      }
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'UploadMediaPickerMixin.initializeVideoPlayer',
+      );
     }
-
-    await videoPlayerController!.initialize();
-    videoPlayerController!.setLooping(true);
-
-    final size = videoPlayerController!.value.size;
-    final duration = videoPlayerController!.value.duration;
-    videoDuration.value = duration;
-    videoDurationSeconds.value = duration.inSeconds;
-    // Auto-detect if video is a Short (duration <= 60 seconds and vertical aspect ratio)
-    isShort.value = size.height > size.width && duration.inSeconds <= 60;
-    debugPrint(
-      '🎥 Auto-detected isShort: ${isShort.value} (size: $size, duration: ${duration.inSeconds}s)',
-    );
 
     update();
   }

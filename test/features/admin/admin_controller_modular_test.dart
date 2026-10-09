@@ -226,7 +226,7 @@ void main() {
         {
           'id': 'rej_1',
           'action': 'Quarantine NSFW',
-          'adminEmail': 'mod@truthworld.com',
+          'adminEmail': 'mod@truthworld.in',
           'rejectedAt': '2026-01-01T12:00:00Z',
         }
       ];
@@ -235,7 +235,7 @@ void main() {
         {
           'id': 'act_1',
           'action': 'ban_user',
-          'adminEmail': 'admin@truthworld.com',
+          'adminEmail': 'hello@truthworld.in',
           'createdAt': '2026-01-02T12:00:00Z',
         }
       ];

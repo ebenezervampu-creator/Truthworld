@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/premium/presentation/controllers/premium_controller.dart';
 import 'package:truthworld/features/premium/presentation/views/plans/premium_constants.dart';
@@ -137,17 +138,27 @@ class PremiumMembershipStatusCard extends StatelessWidget {
     }
 
     if (isPremium) {
+      final ctrl = Get.isRegistered<PremiumController>()
+          ? Get.find<PremiumController>()
+          : Get.put(PremiumController());
+      final isIndian = !Get.isRegistered<CurrencyLocalizationService>() ||
+          CurrencyLocalizationService.to.isIndianUser;
+
+      final activePlanId = planId ?? 'individual_monthly';
+      final usd = ctrl.getPriceUSDForPlan(activePlanId);
+      final inr = ctrl.getPriceForPlan(activePlanId);
+      final formattedUsd = usd == 0.5 ? '0.50' : (usd == usd.truncateToDouble() ? usd.toInt().toString() : usd.toStringAsFixed(2));
+      final planPrice = isIndian
+          ? '\$$formattedUsd/month (${ctrl.formatAmountINR(inr)})'
+          : '\$$formattedUsd/month';
+
       var planName = r'$2 TruthWorld Premium Plan';
-      var planPrice = r'$2/month (₹169)';
       if (planId == 'audio_monthly') {
         planName = r'$0.50 Audio Premium Plan';
-        planPrice = r'$0.50/month (₹40)';
       } else if (planId == '4k_factchecked_monthly') {
         planName = r'$3 Premium + Fact-Checked Plan';
-        planPrice = r'$3/month (₹249)';
       } else if (planId == 'family_monthly') {
         planName = r'$5 Family Plan';
-        planPrice = r'$5/month';
       }
 
       return Container(
@@ -203,16 +214,18 @@ class PremiumMembershipStatusCard extends StatelessWidget {
                     color: AppColors.textPrimary.withValues(alpha: 0.12),
                   ),
                 ),
-                child: const Column(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.upgrade_rounded, color: Colors.white, size: 18),
-                        SizedBox(width: 6),
+                        const Icon(Icons.upgrade_rounded, color: Colors.white, size: 18),
+                        const SizedBox(width: 6),
                         Text(
-                          r'Upgrades Available ($0.50 / ₹40 Credit Applied)',
-                          style: TextStyle(
+                          isIndian
+                              ? 'Upgrades Available (\$0.50 / ${ctrl.formatAmountINR(ctrl.getPriceForPlan("audio_monthly"))} Credit Applied)'
+                              : r'Upgrades Available ($0.50 Credit Applied)',
+                          style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
                             color: primaryText,
@@ -220,10 +233,12 @@ class PremiumMembershipStatusCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                    SizedBox(height: 6),
+                    const SizedBox(height: 6),
                     Text(
-                      r'Upgrade to $2 Premium for ₹129 ($2 - 40 rupees) or $3 Fact-Checked for ₹209 ($3 - 40 rupees). Select a plan below to upgrade.',
-                      style: TextStyle(
+                      isIndian
+                          ? 'Upgrade to \$2 Premium for ${ctrl.formatAmountINR(ctrl.getEffectivePrice("individual_monthly"))} or \$3 Fact-Checked for ${ctrl.formatAmountINR(ctrl.getEffectivePrice("4k_factchecked_monthly"))}. Select a plan below to upgrade.'
+                          : 'Upgrade to \$2 Premium for \$${ctrl.getEffectivePriceUSD("individual_monthly").toStringAsFixed(2)} or \$3 Fact-Checked for \$${ctrl.getEffectivePriceUSD("4k_factchecked_monthly").toStringAsFixed(2)}. Select a plan below to upgrade.',
+                      style: const TextStyle(
                         fontSize: 12,
                         color: secondaryText,
                         height: 1.35,
@@ -243,15 +258,15 @@ class PremiumMembershipStatusCard extends StatelessWidget {
                     color: AppColors.textPrimary.withValues(alpha: 0.12),
                   ),
                 ),
-                child: const Column(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    const Row(
                       children: [
                         Icon(Icons.upgrade_rounded, color: Colors.white, size: 18),
                         SizedBox(width: 6),
                         Text(
-                          r'Upgrade to Fact-Checked ($3 - $2)',
+                          r'Upgrade to Fact-Checked ($3 - $2 credit applied)',
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
@@ -260,10 +275,12 @@ class PremiumMembershipStatusCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                    SizedBox(height: 6),
+                    const SizedBox(height: 6),
                     Text(
-                      r'Upgrade to the $3 Fact-Checked Plan for only ₹80 ($3 - $2) to get every video fact-checked + on-demand verification. Select below to upgrade.',
-                      style: TextStyle(
+                      isIndian
+                          ? 'Upgrade to the \$3 Fact-Checked Plan for only ${ctrl.formatAmountINR(ctrl.getEffectivePrice("4k_factchecked_monthly"))} to get every video fact-checked + on-demand verification. Select below to upgrade.'
+                          : 'Upgrade to the \$3 Fact-Checked Plan for only \$${ctrl.getEffectivePriceUSD("4k_factchecked_monthly").toStringAsFixed(2)} to get every video fact-checked + on-demand verification. Select below to upgrade.',
+                      style: const TextStyle(
                         fontSize: 12,
                         color: secondaryText,
                         height: 1.35,

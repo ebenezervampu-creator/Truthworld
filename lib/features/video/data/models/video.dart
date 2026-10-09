@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/constants/app_categories.dart';
 import 'package:truthworld/core/utils/timestamp_utils.dart';
+import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/domain/entities/video_entity.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
@@ -64,6 +65,8 @@ class Video {
     this.sourceLinks = const [],
     this.isFactChecked = false,
     this.factCheckTier = 'standard',
+    this.factCheckReviewMode = 'open_to_users',
+    this.isFactCheckApproved = true,
     this.isVerified = false,
     List<String>? likedBy,
     Map<String, String>? mediaSubtitles,
@@ -227,6 +230,7 @@ class Video {
 
   // Ownership & Context
   final String ownerId;
+  String get userId => ownerId;
   final String channelId;
   final String channelName;
   final String channelAvatarUrl;
@@ -268,6 +272,8 @@ class Video {
   final List<String>? sourceLinks;
   final bool isFactChecked;
   final String factCheckTier; // "short" | "standard" | "full_ground"
+  final String factCheckReviewMode; // "open_to_users" | "first_to_creator"
+  final bool isFactCheckApproved;
   final bool isVerified;
   bool isSeen = false;
   final String? channelStatus;
@@ -291,11 +297,16 @@ class Video {
   final Map<String, String> _directAudioTracks;
 
   // Summary getter with priority: moderation.summary -> credibility.summary -> description
-  String get summary => moderationSummary.isNotEmpty
-      ? moderationSummary
-      : (VideoMediaService.credibilityCache[id]?.summary.isNotEmpty == true
-          ? VideoMediaService.credibilityCache[id]!.summary
-          : description);
+  String get summary {
+    if (UserFeedbackSanitizer.isValidVideoSummary(moderationSummary)) {
+      return moderationSummary;
+    }
+    final credSummary = VideoMediaService.credibilityCache[id]?.summary;
+    if (UserFeedbackSanitizer.isValidVideoSummary(credSummary)) {
+      return credSummary!;
+    }
+    return description;
+  }
 
   // Getters lookup direct first, then VideoMediaService static caches
   Map<String, String> get mediaSubtitles => _directMediaSubtitles.isNotEmpty
@@ -389,6 +400,19 @@ class Video {
                 uiReport?.summary.rating != null));
   }
 
+  /// Whether the creator specified that fact-check results should be reviewed before viewers can see them
+  bool get isFactCheckCreatorReviewFirst => factCheckReviewMode == 'first_to_creator';
+
+  /// Whether fact-checking is set to private creator review first and not yet approved by the channel
+  bool get isFactCheckPendingApproval =>
+      isFactCheckCreatorReviewFirst && !isFactCheckApproved;
+
+  /// Whether regular viewers (public) can see fact-checking results & verification icon
+  bool get canPublicViewFactCheck => !isFactCheckPendingApproval;
+
+  /// Public visibility check for AI credibility (must have credibility AND not be pending creator review)
+  bool get hasPublicAiCredibility => hasAiCredibility && canPublicViewFactCheck;
+
   /// Lazily cached, pre-normalized tokens for O(1) category matching & search.
   Set<String> get categoryTokens {
     if (_categoryTokens != null) return _categoryTokens!;
@@ -468,6 +492,8 @@ class Video {
     List<String>? sourceLinks,
     bool? isFactChecked,
     String? factCheckTier,
+    String? factCheckReviewMode,
+    bool? isFactCheckApproved,
     bool? isVerified,
     List<String>? likedBy,
     bool? isSeen,
@@ -532,6 +558,8 @@ class Video {
       sourceLinks: sourceLinks ?? this.sourceLinks,
       isFactChecked: isFactChecked ?? this.isFactChecked,
       factCheckTier: factCheckTier ?? this.factCheckTier,
+      factCheckReviewMode: factCheckReviewMode ?? this.factCheckReviewMode,
+      isFactCheckApproved: isFactCheckApproved ?? this.isFactCheckApproved,
       isVerified: isVerified ?? this.isVerified,
       likedBy: likedBy ?? this.likedBy,
       isSeen: isSeen ?? this.isSeen,

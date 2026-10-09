@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/video_card/video_card_avatar.dart';
@@ -21,6 +22,9 @@ class VideoCardGridInfo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isMobileDevice = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    final isDesktop = !isMobileDevice && MediaQuery.sizeOf(context).width >= 1000;
 
     return Obx(() {
       final avatarUrl = controller.realChannelAvatarUrl.value;
@@ -29,23 +33,23 @@ class VideoCardGridInfo extends StatelessWidget {
           : video.channelName;
 
       return Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 12, 16),
+        padding: EdgeInsets.fromLTRB(16, isDesktop ? 16 : 14, 12, isDesktop ? 18 : 16),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             VideoCardAvatar(
               imageUrl: avatarUrl,
-              radius: 22,
+              radius: isDesktop ? 24 : 22,
               placeholderText: channelName.isEmpty ? '?' : channelName,
             ),
-            const SizedBox(width: 14),
+            SizedBox(width: isDesktop ? 16 : 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   SizedBox(
-                    height: 40,
+                    height: isDesktop ? 46 : 40,
                     child: Align(
                       alignment: Alignment.topLeft,
                       child: Text(
@@ -56,22 +60,22 @@ class VideoCardGridInfo extends StatelessWidget {
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
                           height: 1.25,
-                          fontSize: 15,
+                          fontSize: isDesktop ? 16 : 15,
                           letterSpacing: -0.1,
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  SizedBox(height: isDesktop ? 6 : 6),
                   SizedBox(
-                    height: 18,
+                    height: isDesktop ? 20 : 18,
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
                         '$channelName  •  ${VideoCardFormatters.formatViews(video.views)} ${video.views == 1 ? 'view' : 'views'}  •  ${VideoCardFormatters.formatTimestamp(video.uploadedAt)}',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: const Color(0xFFAAAAAA),
-                          fontSize: 12.5,
+                          fontSize: isDesktop ? 13 : 12.5,
                           fontWeight: FontWeight.normal,
                           height: 1.2,
                         ),
@@ -84,9 +88,9 @@ class VideoCardGridInfo extends StatelessWidget {
               ),
             ),
             IconButton(
-              icon: const Icon(
+              icon: Icon(
                 Icons.more_vert,
-                size: 20,
+                size: isDesktop ? 22 : 20,
                 color: Colors.white,
               ),
               onPressed: () => VideoOptionsSheet.show(context, video),

@@ -22,10 +22,10 @@ const POSITIVE_STATUSES: ClaimStatus[] = [
   'verified_true', 'mostly_true',
 ];
 const NEGATIVE_STATUSES: ClaimStatus[] = [
-  'false_claim', 'misleading', 'disputed',
+  'false_claim', 'misleading',
 ];
 const NEUTRAL_STATUSES: ClaimStatus[] = [
-  'inconclusive', 'limited_support', 'unverified',
+  'inconclusive', 'limited_support', 'unverified', 'disputed',
 ];
 const OPINION_STATUSES: ClaimStatus[] = [
   'opinion_claim', 'religious_belief', 'satire_claim',

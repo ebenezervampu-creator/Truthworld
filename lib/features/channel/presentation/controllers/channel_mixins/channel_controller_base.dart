@@ -155,6 +155,7 @@ abstract class ChannelControllerBase extends BaseController
   RxBool get agreeGuidelines;
   RxInt get formChangeTrigger;
   RxMap<String, String> get socialLinks;
+  RxList<Map<String, String>> get customLinks;
   RxMap<String, dynamic> get advancedSettings;
   RxBool get notificationAll;
   RxBool get notificationPersonalized;

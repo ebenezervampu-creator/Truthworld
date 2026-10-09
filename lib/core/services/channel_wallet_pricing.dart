@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:truthworld/core/constants/ai_languages.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/channel_wallet_models.dart';
 
@@ -483,8 +484,9 @@ class ChannelWalletPricing {
     }
 
     if (selectedFeatures.contains('dubbing')) {
+      final dubbingCount = targetLanguages.where(isDubbingSupported).length;
       cost += calculateDubbingCost(
-        languageCount: langCount,
+        languageCount: dubbingCount,
         durationSeconds: durationSeconds,
         channelType: channelType,
       );

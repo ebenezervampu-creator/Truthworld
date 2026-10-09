@@ -20,14 +20,6 @@ class PremiumController extends BaseController {
     isAutoPay.value = value ?? !isAutoPay.value;
   }
 
-  static const Map<String, double> planPricesINR = {
-    'audio_monthly': 40.0,
-    'individual_monthly': 169.0,
-    '4k_factchecked_monthly': 249.0,
-    'family_monthly': 400.0,
-    'individual_yearly': 1490.0,
-  };
-
   static const Map<String, double> planPricesUSD = {
     'audio_monthly': 0.50,
     'individual_monthly': 2.0,
@@ -36,8 +28,17 @@ class PremiumController extends BaseController {
     'individual_yearly': 18.0,
   };
 
+  /// Fallback baseline prices in INR (1 USD = ₹84.0)
+  static const Map<String, double> planPricesINR = {
+    'audio_monthly': 42.0,
+    'individual_monthly': 168.0,
+    '4k_factchecked_monthly': 252.0,
+    'family_monthly': 420.0,
+    'individual_yearly': 1512.0,
+  };
+
   static const Map<String, String> planTitles = {
-    'audio_monthly': r'TruthWorld Audio Premium (Monthly - $0.50 / ₹40)',
+    'audio_monthly': r'TruthWorld Audio Premium (Monthly - $0.50)',
     'individual_monthly': r'TruthWorld Premium (Monthly - $2)',
     '4k_factchecked_monthly': r'TruthWorld Premium + Fact-Checked (Monthly - $3)',
     'family_monthly': 'TruthWorld Family (Monthly)',
@@ -66,11 +67,28 @@ class PremiumController extends BaseController {
   }
 
   double getPriceForPlan(String planId) {
-    return planPricesINR[planId] ?? 169.0;
+    final usdPrice = getPriceUSDForPlan(planId);
+    final rate = Get.isRegistered<CurrencyLocalizationService>()
+        ? CurrencyLocalizationService.to.rate
+        : CurrencyLocalizationService.defaultRate;
+    final inr = usdPrice * rate;
+    return double.parse(inr.toStringAsFixed(2));
   }
 
   double getPriceUSDForPlan(String planId) {
     return planPricesUSD[planId] ?? 2.0;
+  }
+
+  /// Format an INR amount (e.g. ₹42 or ₹42.50)
+  String formatAmountINR(double amount) {
+    final isWhole = amount == amount.truncateToDouble();
+    return '₹${isWhole ? amount.toInt() : amount.toStringAsFixed(2)}';
+  }
+
+  /// Format a USD amount (e.g. $2 or $0.50)
+  String formatAmountUSD(double amount) {
+    final isWhole = amount == amount.truncateToDouble();
+    return '\$${isWhole ? amount.toInt() : amount.toStringAsFixed(2)}';
   }
 
   /// Checks if the target plan is an upgrade relative to user's currently active plan
@@ -108,11 +126,8 @@ class PremiumController extends BaseController {
     return targetPrice < currentPrice;
   }
 
-  /// Calculates the effective payable price in INR.
+  /// Calculates the effective payable price in INR based on live dollar exchange rate.
   /// If upgrading: target base price MINUS amount already paid for current active tier.
-  /// - Audio Premium (₹40) -> $2 Premium (₹169): 169 - 40 = ₹129 ($2 - 40 rupees)
-  /// - Audio Premium (₹40) -> $3 Fact-Checked (₹249): 249 - 40 = ₹209 ($3 - 40 rupees)
-  /// - $2 Premium (₹169) -> $3 Fact-Checked (₹249): 249 - 169 = ₹80 ($3 - $2)
   double getEffectivePrice(String targetPlanId) {
     final basePrice = getPriceForPlan(targetPlanId);
     if (!isUpgrade(targetPlanId)) {
@@ -125,7 +140,7 @@ class PremiumController extends BaseController {
 
     final currentPrice = getPriceForPlan(currentPlanId);
     final upgradeCost = basePrice - currentPrice;
-    return upgradeCost > 0 ? upgradeCost : 0.0;
+    return upgradeCost > 0 ? double.parse(upgradeCost.toStringAsFixed(2)) : 0.0;
   }
 
   /// Calculates the effective payable price in USD for non-Indian viewers.
@@ -141,7 +156,7 @@ class PremiumController extends BaseController {
 
     final currentPrice = getPriceUSDForPlan(currentPlanId);
     final upgradeCost = basePrice - currentPrice;
-    return upgradeCost > 0 ? upgradeCost : 0.0;
+    return upgradeCost > 0 ? double.parse(upgradeCost.toStringAsFixed(2)) : 0.0;
   }
 
   /// Amount of credit deducted from existing subscription (INR)
@@ -167,8 +182,8 @@ class PremiumController extends BaseController {
     final isIndian = !Get.isRegistered<CurrencyLocalizationService>() ||
         CurrencyLocalizationService.to.isIndianUser;
     if (isIndian) {
-      final price = planPricesINR[planId] ?? 169.0;
-      return '₹${price.toInt()}';
+      final price = getPriceForPlan(planId);
+      return formatAmountINR(price);
     } else {
       final price = planPricesUSD[planId] ?? 2.0;
       return '\$${price.toStringAsFixed(price == 0.50 ? 2 : 0)}';
@@ -205,16 +220,23 @@ class PremiumController extends BaseController {
       final title = planTitles[planId] ?? 'TruthWorld Premium';
 
       final autoPaySuffix = isAutoPay.value ? ' (Auto Pay)' : ' (One-Time)';
+      final formattedCreditINR = formatAmountINR(creditINR);
+      final formattedCreditUSD = formatAmountUSD(creditUSD);
       final orderNote = isIndian
           ? (isUpgrading
-              ? 'Upgrade to $title$autoPaySuffix (₹${creditINR.toInt()} credit applied)'
+              ? 'Upgrade to $title$autoPaySuffix ($formattedCreditINR credit applied)'
               : '$title$autoPaySuffix Subscription')
           : (isUpgrading
-              ? 'Upgrade to $title$autoPaySuffix (\$${creditUSD.toStringAsFixed(creditUSD == 0.5 ? 2 : 0)} USD credit applied)'
+              ? 'Upgrade to $title$autoPaySuffix ($formattedCreditUSD USD credit applied)'
               : '$title$autoPaySuffix Subscription');
 
+      final finalAmount = isIndian
+          ? amountINR
+          : math.max(0.50, double.parse(amountUSD.toStringAsFixed(2)));
+
       final paymentResult = await CashfreePaymentService.to.startPayment(
-        amount: amountINR,
+        amount: finalAmount,
+        currency: isIndian ? 'INR' : 'USD',
         purpose: 'premium_subscription',
         orderNote: orderNote,
         metadata: {
@@ -222,7 +244,7 @@ class PremiumController extends BaseController {
           'planTitle': title,
           'isUpgrade': isUpgrading,
           'previousPlanId': auth.premiumPlanId.value,
-          'creditApplied': creditINR,
+          'creditApplied': isIndian ? creditINR : creditUSD,
           'currency': isIndian ? 'INR' : 'USD',
           'autoPay': isAutoPay.value,
           'billingType': isAutoPay.value ? 'recurring' : 'one_time',
@@ -269,10 +291,10 @@ class PremiumController extends BaseController {
 
         final successMessage = isIndian
             ? (isUpgrading
-                ? 'Your plan has been upgraded to $title. ₹${creditINR.toInt()} credit was applied!$autoPayNote'
+                ? 'Your plan has been upgraded to $title. $formattedCreditINR credit was applied!$autoPayNote'
                 : 'Your $title is now active. Enjoy ad-free 4K streaming and AI fact-checking!$autoPayNote')
             : (isUpgrading
-                ? 'Your plan has been upgraded to $title. \$${creditUSD.toStringAsFixed(creditUSD == 0.5 ? 2 : 0)} USD credit was applied!$autoPayNote'
+                ? 'Your plan has been upgraded to $title. $formattedCreditUSD USD credit was applied!$autoPayNote'
                 : 'Your $title is now active. Enjoy ad-free 4K streaming and AI fact-checking!$autoPayNote');
 
         AppSnackbar.success(

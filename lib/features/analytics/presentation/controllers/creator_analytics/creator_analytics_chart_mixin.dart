@@ -1,8 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/features/analytics/data/models/watch_event_model.dart';
 import 'package:truthworld/features/analytics/presentation/controllers/creator_analytics/creator_analytics_models.dart';
 import 'package:truthworld/features/analytics/presentation/controllers/creator_analytics/creator_geo_taxonomy_helper.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 
 /// Mixin managing reactive chart datasets and visual transformation pipelines
 /// for Creator Analytics.
@@ -69,7 +72,10 @@ mixin CreatorAnalyticsChartMixin on BaseController {
   }
 
   /// Update channel chart models
-  void updateChannelChartData(ChannelAnalyticsSnapshot analytics) {
+  void updateChannelChartData(
+    ChannelAnalyticsSnapshot analytics, {
+    List<Video>? videos,
+  }) {
     buildStateTrafficChart(
       analytics.stateTrafficPercentage,
       analytics.stateTraffic,
@@ -80,6 +86,86 @@ mixin CreatorAnalyticsChartMixin on BaseController {
       analytics.totalVideoWatches,
     );
     buildAreaTypeChart(analytics.urbanViewers, analytics.ruralViewers);
+    if (videos != null && videos.isNotEmpty) {
+      buildChannelRetentionFromVideos(videos);
+    }
+  }
+
+  /// Build retention distribution pie chart for channel from its videos
+  void buildChannelRetentionFromVideos(List<Video> videos) {
+    if (videos.isEmpty) {
+      watchtimeChartData.clear();
+      return;
+    }
+
+    final categoryCounts = <WatchtimeCategory, int>{
+      for (final cat in WatchtimeCategory.values) cat: 0,
+    };
+
+    var totalWatches = 0;
+    for (final video in videos) {
+      if (video.totalWatchTimeSeconds <= 0 && video.viewCount <= 0) continue;
+      final dur = video.durationSeconds > 0
+          ? video.durationSeconds
+          : (video.durationMs > 0 ? video.durationMs ~/ 1000 : 0);
+      final views = math.max(1, video.viewCount);
+      final avgSeconds = video.totalWatchTimeSeconds / views;
+
+      totalWatches += views;
+      if (avgSeconds < 20) {
+        categoryCounts[WatchtimeCategory.lessThan20] =
+            (categoryCounts[WatchtimeCategory.lessThan20] ?? 0) + views;
+      } else if (dur > 0) {
+        final pct = avgSeconds / dur;
+        if (pct < 0.25) {
+          categoryCounts[WatchtimeCategory.lessThan25] =
+              (categoryCounts[WatchtimeCategory.lessThan25] ?? 0) + views;
+        } else if (pct < 0.50) {
+          categoryCounts[WatchtimeCategory.lessThan50] =
+              (categoryCounts[WatchtimeCategory.lessThan50] ?? 0) + views;
+        } else if (pct < 0.75) {
+          categoryCounts[WatchtimeCategory.lessThan75] =
+              (categoryCounts[WatchtimeCategory.lessThan75] ?? 0) + views;
+        } else {
+          categoryCounts[WatchtimeCategory.complete] =
+              (categoryCounts[WatchtimeCategory.complete] ?? 0) + views;
+        }
+      } else {
+        categoryCounts[WatchtimeCategory.complete] =
+            (categoryCounts[WatchtimeCategory.complete] ?? 0) + views;
+      }
+    }
+
+    if (totalWatches == 0) {
+      watchtimeChartData.clear();
+      return;
+    }
+
+    const colors = [
+      0xFFEF4444, // Red: < 20 seconds (bounced)
+      0xFFF97316, // Orange: < 25%
+      0xFF8B5CF6, // Purple: < 50%
+      0xFF3B82F6, // Blue: < 75%
+      0xFF22C55E, // Green: 100%
+    ];
+
+    final chartData = <PieChartDataModel>[];
+    var colorIdx = 0;
+    for (final category in WatchtimeCategory.values) {
+      final count = categoryCounts[category] ?? 0;
+      if (count > 0) {
+        chartData.add(
+          PieChartDataModel(
+            title: category.label,
+            value: count.toDouble(),
+            percentage: (count / totalWatches) * 100,
+            color: colors[colorIdx % colors.length],
+          ),
+        );
+      }
+      colorIdx++;
+    }
+    watchtimeChartData.value = chartData;
   }
 
   /// Build regional state traffic pie chart

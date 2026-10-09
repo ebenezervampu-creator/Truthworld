@@ -262,8 +262,7 @@ class VideoRecommendationsController extends BaseController {
           try {
             final candidatesQuery = await FirebaseFirestore.instance
                 .collection(FirestoreCollections.videos)
-                .where('status', isEqualTo: 'public')
-                .where('visibility', isEqualTo: 'public')
+                .where('status', whereIn: const ['ready', 'published', 'public'])
                 .limit(60)
                 .get();
 
@@ -295,33 +294,43 @@ class VideoRecommendationsController extends BaseController {
           final channelId = video.channelId;
 
           // Single efficient fetch for channel videos
-          final channelVidsQuery = await FirebaseFirestore.instance
-              .collection(FirestoreCollections.videos)
-              .where('channelId', isEqualTo: channelId)
-              .where(FieldPath.documentId, isNotEqualTo: videoId)
-              .limit(10)
-              .get();
+          final channelVideos = <Video>[];
+          if (channelId.isNotEmpty) {
+            try {
+              final channelVidsQuery = await FirebaseFirestore.instance
+                  .collection(FirestoreCollections.videos)
+                  .where('channelId', isEqualTo: channelId)
+                  .limit(15)
+                  .get();
 
-          final channelVideos = channelVidsQuery.docs
-              .map(Video.fromDocumentSnapshot)
-              .where(VideoVisibilityPolicy.isVisibleForRecommendation)
-              .toList();
+              channelVideos.addAll(
+                channelVidsQuery.docs
+                    .map(Video.fromDocumentSnapshot)
+                    .where((v) => v.id != videoId)
+                    .where(VideoVisibilityPolicy.isVisibleForRecommendation),
+              );
+            } catch (e, s) {
+              ErrorHandler.log(e, stackTrace: s, tag: 'VideoRecommendationsController.channelVideos');
+            }
+          }
 
           // Fill the rest with general videos
-          final generalVidsQuery = await FirebaseFirestore.instance
-              .collection(FirestoreCollections.videos)
-              .where(FieldPath.documentId, isNotEqualTo: videoId)
-              .limit(20)
-              .get();
+          final generalVideos = <Video>[];
+          try {
+            final generalVidsQuery = await FirebaseFirestore.instance
+                .collection(FirestoreCollections.videos)
+                .limit(30)
+                .get();
 
-          final generalVideos = generalVidsQuery.docs
-              .map(Video.fromDocumentSnapshot)
-              .where(VideoVisibilityPolicy.isVisibleForRecommendation)
-              .where(
-                (v) =>
-                    v.id != videoId && !channelVideos.any((cv) => cv.id == v.id),
-              )
-              .toList();
+            generalVideos.addAll(
+              generalVidsQuery.docs
+                  .map(Video.fromDocumentSnapshot)
+                  .where((v) => v.id != videoId && !channelVideos.any((cv) => cv.id == v.id))
+                  .where(VideoVisibilityPolicy.isVisibleForRecommendation),
+            );
+          } catch (e, s) {
+            ErrorHandler.log(e, stackTrace: s, tag: 'VideoRecommendationsController.generalVideos');
+          }
 
           moreFromChannel.value = channelVideos;
           final rawRecommended = {...channelVideos, ...generalVideos}.toList();

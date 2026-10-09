@@ -86,7 +86,7 @@ void main() {
           category: (i % 3 == 0) ? 'News & Politics' : (i % 3 == 1) ? 'Technology' : 'Documentary',
           tags: ['news', 'factcheck', 'truthworld'],
           topics: ['journalism', 'tech'],
-          videoUrl: 'https://cdn.truthworld.com/v_$i.mp4',
+          videoUrl: 'https://cdn.truthworld.in/v_$i.mp4',
           isApproved: true,
           geminiApproved: true,
           createdAt: now,

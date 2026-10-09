@@ -145,57 +145,28 @@ export class ClaimVerificationService {
   }
 
   /**
-   * Helper to determine if a claim mentions a recent event or launch
+   * Helper to determine if a claim warrants live search grounding.
+   * Standard: Empirical, historical, scientific, and factual assertions
+   * receive grounding to prevent LLM hallucination and ensure epistemic rigor.
    */
   private shouldGroundClaim(text: string, isLaunchNews: boolean = false): boolean {
-    if (isLaunchNews) return true; // v5.2: Force grounding for launches
-    
+    if (isLaunchNews) return true;
+    if (!text || text.trim().length < 5) return false;
+
     const textLower = text.toLowerCase();
 
-    // v11.3 & v11.5: "Knowledge-Only" Skip List (Historical/Scientific/Trivia Constants)
-    // These are known by Gemini training data and do NOT need 15s search latency.
-    const historicalMarkers = [
-      /\bancient\b/i, /\bhistorical\b/i, /\bcentury\b/i, /\bgupta\b/i, /\bindus valley\b/i,
-      /\bdynasty\b/i, /\bmythology\b/i, /\bscripture\b/i, /\bbce\b/i, /\barchaeology\b/i,
-      /\bhistory of\b/i, /\borigin of\b/i, /\binvented by\b/i, /\bdiscovered by\b/i
+    // Purely subjective personal preference statements do not warrant search grounding
+    const purelySubjective = [
+      /^(i feel|i think|in my personal opinion|i prefer|i like|i love|i hate)\b/i,
+      /\b(my favorite|my personal preference|personally speaking)\b/i,
     ];
 
-    const geographyMarkers = [
-      /\bborder\b/i, /\bcapital of\b/i, /\bhemisphere\b/i, /\bmeridian\b/i, /\bequator\b/i,
-      /\bstate of\b/i, /\bcountry\b/i, /\bocean\b/i, /\bcontinent\b/i, /\blatitude\b/i, /\blongitude\b/i,
-      /\bsouthernmost\b/i, /\bnorthernmost\b/i, /\beasternmost\b/i, /\bwesternmost\b/i,
-      /\bhottest temperature\b/i, /\bcoldest temperature\b/i, /\bhighest peak\b/i, /\bdeepest\b/i
-    ];
-
-    const scienceMarkers = [
-      /\bboiling point\b/i, /\bfreezing point\b/i, /\belements\b/i, /\bperiodic table\b/i,
-      /\bspeed of light\b/i, /\bgravity\b/i, /\bmolecule\b/i, /\batom\b/i, /\bdna\b/i,
-      /\bplanet\b/i, /\bsolar system\b/i, /\bgalaxy\b/i, /\bmathematics\b/i, /\bformula\b/i,
-      /\banatomy\b/i, /\bheart\b/i, /\bspecies\b/i, /\bmammal\b/i, /\banimal\b/i, /\binvertebrate\b/i,
-      /\bblood\b/i, /\bskeleton\b/i, /\bgrowth\b/i, /\bsleep\b/i, /\bgestation\b/i, /\bhabitat\b/i
-    ];
-
-    const freshMarkers = [
-      /\blaunched\b/i, /\bannounced\b/i, /\breleased\b/i, /\bjust in\b/i,
-      /\brecently\b/i, /\bnew product\b/i, /\bupcoming\b/i, /\bfeature\b/i,
-      /\btoday\b/i, /\byesterday\b/i, /\bthis week\b/i, /\bbreaking\b/i,
-      /\bdeployment\b/i, /\brollout\b/i, /\bupdate\b/i
-    ];
-
-    if (freshMarkers.some(regex => regex.test(textLower))) {
-      return true;
-    }
-
-    if (
-      historicalMarkers.some(regex => regex.test(textLower)) ||
-      geographyMarkers.some(regex => regex.test(textLower)) ||
-      scienceMarkers.some(regex => regex.test(textLower))
-    ) {
-      logger.info(`[ClaimVerification] Grounding skipped: Deterministic context detected in "${text.substring(0, 50)}..."`);
+    if (purelySubjective.some(regex => regex.test(textLower))) {
       return false;
     }
 
-    return false;
+    // Factual, historical, scientific, political, and empirical claims are grounded
+    return true;
   }
 
   /**
@@ -470,8 +441,9 @@ PROTOCOL:
    - "doi": DOI link or identifier if known (for journals).
 
    EXAMPLES of precise sources:
-   {"title": "Savarkar and His Times", "sourceType": "book", "author": "Dhananjay Keer", "bookTitle": "Savarkar and His Times", "yearPublished": 1950, "chapter": "Chapter 14", "pageNumbers": "pp. 287-290", "url": "https://archive.org/details/savarkarandhistimes", "snippet": "Savarkar declared himself an atheist rationalist who opposed religious dogmas."}
-   {"title": "Modern Asian Studies — Savarkar's Hindutva", "sourceType": "journal", "author": "Vinayak Chaturvedi", "journalName": "Modern Asian Studies", "volume": "Vol. 40, No. 2", "yearPublished": 2006, "doi": "10.1017/S0026749X06001983", "pageNumbers": "pp. 403-436", "url": "https://doi.org/10.1017/S0026749X06001983", "snippet": "Savarkar's rationalism was central to his political ideology."}
+   {"title": "Astrophysical Journal — Gravitational Waves in Binary Mergers", "sourceType": "journal", "author": "B.P. Abbott et al.", "journalName": "The Astrophysical Journal", "volume": "Vol. 818, No. 2", "yearPublished": 2016, "doi": "10.3847/2041-8205/818/2/L22", "pageNumbers": "pp. 1-12", "url": "https://doi.org/10.3847/2041-8205/818/2/L22", "snippet": "Observation of gravitational waves confirmed general relativity in strong-field regimes."}
+   {"title": "United Nations Treaty Series — Vienna Convention on Diplomatic Relations", "sourceType": "legal", "author": "United Nations", "bookTitle": "UN Treaty Series", "volume": "Vol. 500", "yearPublished": 1961, "pageNumbers": "pp. 95-126", "url": "https://treaties.un.org/doc/Publication/UNTS/Volume%20500/v500.pdf", "snippet": "The premises of the diplomatic mission shall be inviolable under Article 22."}
+   {"title": "The Lancet — Global Vaccine Efficacy Analysis", "sourceType": "journal", "author": "M. Voysey et al.", "journalName": "The Lancet", "volume": "Vol. 397, No. 10269", "yearPublished": 2021, "doi": "10.1016/S0140-6736(20)32661-1", "pageNumbers": "pp. 99-111", "url": "https://doi.org/10.1016/S0140-6736(20)32661-1", "snippet": "Demonstrated 70.4% pooled efficacy against symptomatic laboratory-confirmed infection."}
 10. TIMELESS CLAIMS: For timeless historical, religious, or supernatural claims, you may output "Timeless" in the "freshness" field, and set the rating accordingly without penalizing for lack of recent news.
 ${tier0Injection}
 ### BATCH TO VERIFY:

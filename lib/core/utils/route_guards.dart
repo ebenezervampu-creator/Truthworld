@@ -127,7 +127,10 @@ class ChannelCreationGuard extends GetMiddleware {
     final auth = _authService;
     if (auth != null &&
         auth.isAuthenticated.value &&
-        (auth.hasChannel.value || auth.userChannel != null)) {
+        (auth.hasChannel.value ||
+            auth.userChannel != null ||
+            (auth.deletedChannel != null &&
+                !auth.deletedChannel!.isPermanentDeletionExpired))) {
       if (AppFlavor.isStudio) {
         return const RouteSettings(name: '/studio');
       }

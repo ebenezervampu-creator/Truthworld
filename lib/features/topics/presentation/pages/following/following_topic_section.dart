@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/community_post_card.dart';
@@ -237,8 +238,14 @@ class FollowingTopicSection extends StatelessWidget {
 
           final screenWidth = MediaQuery.of(context).size.width;
           final isTablet = screenWidth >= 600 && screenWidth < 1024;
-          final sectionHeight = isMobile ? 260.0 : (isTablet ? 290.0 : 310.0);
-          final cardWidth = isMobile ? 280.0 : (isTablet ? 320.0 : 360.0);
+          final isMobileDevice = defaultTargetPlatform == TargetPlatform.android ||
+              defaultTargetPlatform == TargetPlatform.iOS;
+          final sectionHeight = isMobile
+              ? 260.0
+              : (isTablet || isMobileDevice ? 290.0 : 360.0);
+          final cardWidth = isMobile
+              ? 280.0
+              : (isTablet || isMobileDevice ? 320.0 : 420.0);
 
           return SizedBox(
             height: sectionHeight,

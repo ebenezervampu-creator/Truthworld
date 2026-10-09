@@ -211,8 +211,8 @@ Each claim MUST be classified into one of these buckets:
 
 3. **🚨 ANTI-SUPPRESSION RULE (v12.0) — HISTORICAL & SCIENTIFIC**:
     - Identify [Innovation/Event] + [Actor] + [Date/Place] as factual.
-    - Examples (Factual): "India invented buttons", "Diamonds were first found in India", "Sugar was crystallized in 350 AD".
-    - Examples (Opinion): "India is the best country", "I love this history", "It was a great time".
+    - Examples (Factual): "Johannes Gutenberg developed the movable type printing press around 1440", "Alexander Fleming discovered penicillin in 1928", "The magnetic compass was invented in China during the Han dynasty".
+    - Examples (Opinion): "This was the greatest technological breakthrough", "I love this era of history", "It was a wonderful golden age".
 
 4. **Subjective Language Filtering**:
     - Do NOT extract purely subjective adjectives as claims.
@@ -717,7 +717,7 @@ Return ONLY valid JSON according to:
 2. BUCKET 1 (Verifiable Fact): Treat as empirical. Distinguish between "Unproven" (no evidence found) and "False" (contradicted by evidence). "Unproven" should NOT be penalized as heavily as "False".
 3. BUCKET 2/3 (Opinion/Belief): Respect fully. DO NOT attempt to verify for truth.
 4. HONESTY FLAG: The ONLY violation for Bucket 2/3 is framing. If a speaker says "Scientists have proven [Belief]" or "It is a verified fact that [Opinion]", flag as a FRAMING VIOLATION.
-5. SCRIPTURAL CONTEXT: "You can say Jesus walked on water. We label it as religious belief. But note: no archaeological or scientific evidence exists to date." This is transparency, not an attack.
+5. SCRIPTURAL CONTEXT: For scriptural narratives, spiritual doctrines, or miraculous traditions across world faiths, classify them respectfully as religious/faith belief without applying physical falsification to personal theological beliefs.
 6. MANIPULATION: Distinguish between "Marketing Hype" (scored low) and "Rage-bait" (scored high).
 7. INTELLIGENT NEUTRALITY: If the transcript is primarily legal or political inquiries, suggest specific types of sources (e.g., "consult court rulings") rather than making definitive conclusions.`;
 

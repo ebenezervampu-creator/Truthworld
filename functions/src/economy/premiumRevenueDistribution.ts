@@ -145,13 +145,15 @@ async function runDistribution(
       // Determine subscription amount
       const planId: string = subData.planId || "individual_monthly";
       const planAmounts: Record<string, number> = {
-        audio_monthly: 40,
-        individual_monthly: 169,
-        "4k_factchecked_monthly": 249,
-        family_monthly: 399,
-        individual_yearly: Math.round(1490 / 12), // ≈ 124/month
+        audio_monthly: 42,
+        individual_monthly: 168,
+        "4k_factchecked_monthly": 252,
+        family_monthly: 420,
+        individual_yearly: Math.round(1512 / 12),
       };
-      const monthlyAmountINR = planAmounts[planId] ?? 169;
+      const monthlyAmountINR = (typeof subData.amount === "number" && subData.amount > 0)
+        ? subData.amount
+        : (planAmounts[planId] ?? 168);
 
       // Pro-rate: if yearly plan, monthly amount is already divided above
       const proratedContributionINR = monthlyAmountINR * (overlapDays / BILLING_DAYS);

@@ -68,11 +68,11 @@ void main() {
         'media': {
           'jobId': 'job_12345',
           'audioTracks': {
-            'te': 'https://storage.truthworld.com/audio/te.mp3',
-            'be': 'https://storage.truthworld.com/audio/be.mp3',
+            'te': 'https://storage.truthworld.in/audio/te.mp3',
+            'be': 'https://storage.truthworld.in/audio/be.mp3',
           },
           'dubbedVideos': {
-            'be': 'https://storage.truthworld.com/video/be.mp4',
+            'be': 'https://storage.truthworld.in/video/be.mp4',
           },
         },
       };
@@ -80,9 +80,9 @@ void main() {
       final video = VideoMapParser.parse(docMap, 'vid_456');
 
       expect(video.jobId, equals('job_12345'));
-      expect(video.audioTracks['te'], equals('https://storage.truthworld.com/audio/te.mp3'));
-      expect(video.audioTracks['be'], equals('https://storage.truthworld.com/audio/be.mp3'));
-      expect(video.dubbedVideos['be'], equals('https://storage.truthworld.com/video/be.mp4'));
+      expect(video.audioTracks['te'], equals('https://storage.truthworld.in/audio/te.mp3'));
+      expect(video.audioTracks['be'], equals('https://storage.truthworld.in/audio/be.mp3'));
+      expect(video.dubbedVideos['be'], equals('https://storage.truthworld.in/video/be.mp4'));
     });
 
     test('Video.copyWith preserves or updates audioTracks and jobId', () {

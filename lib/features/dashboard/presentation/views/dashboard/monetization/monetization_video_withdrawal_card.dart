@@ -35,7 +35,7 @@ class PerVideoWithdrawalSection extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Track views and watch hours per video. Money generated becomes withdrawable once that video reaches 1,000 views and 10 hours of watch time.',
+            'Track views and watch hours per video. Once any video reaches 1,000 views & 10 hours watch time and KYC is completed, channel monetization is ON and all videos generate revenue. Earnings become withdrawable per video after reaching 1,000 views and 10 hours of watch time; otherwise, wait or spend immediately on TruthWorld AI features (dubbing, subtitles, etc.)!',
             style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 16),

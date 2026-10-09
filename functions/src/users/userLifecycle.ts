@@ -10,12 +10,13 @@
  *   3. Realtime Database: user presence, session logs, live chat handles.
  */
 
-import { auth, logger } from "firebase-functions/v1";
+import { auth, logger, runWith } from "firebase-functions/v1";
 import { onRequest } from "firebase-functions/v2/https";
 import type { UserRecord } from "firebase-admin/auth";
 import * as admin from "firebase-admin";
 import { verifyAuth, setCorsHeaders } from "../utils/auth";
 import { isSessionRecent } from "../utils/securityHeaders";
+import { EmailService } from "../services/emailService";
 
 const db = () => admin.firestore();
 const storage = () => admin.storage();
@@ -284,6 +285,69 @@ export async function purgeAllUserData(uid: string): Promise<{
     };
   }
 }
+
+/**
+ * ⚡ ON USER CREATED (Auth Trigger)
+ * Automatically triggers when any new user registers via Firebase Auth
+ * (Email/Password, Google Sign-in, Apple ID, etc.).
+ *
+ * Dispatches a branded HTML welcome email via native Google/Gmail SMTP,
+ * guarded by Firestore idempotency to prevent duplicate emails on retries.
+ */
+export const onUserCreated = runWith({
+  secrets: ["SMTP_USER", "SMTP_PASS"],
+})
+  .auth.user()
+  .onCreate(async (user: UserRecord) => {
+  const uid = user.uid;
+  const email = user.email;
+  const displayName = user.displayName || null;
+
+  logger.info(`[onUserCreated] Triggered for user: ${uid} (email: ${email || "no-email"})`);
+
+  if (!email) {
+    logger.info(`[onUserCreated] User ${uid} registered without an email; welcome email skipped.`);
+    return;
+  }
+
+  const firestore = db();
+  const userRef = firestore.collection("users").doc(uid);
+
+  try {
+    // 1. Idempotency Check: Verify if welcome email has already been dispatched
+    const userSnap = await userRef.get().catch(() => null);
+    if (userSnap?.exists && userSnap.data()?.welcomeEmailSent === true) {
+      logger.info(`[onUserCreated] User ${uid} already received welcome email; skipping.`);
+      return;
+    }
+
+    // 2. Dispatch Welcome Email via EmailService (Google SMTP)
+    const result = await EmailService.sendWelcomeEmail({
+      to: email,
+      displayName,
+    });
+
+    if (result.success) {
+      // 3. Mark idempotency flag in Firestore
+      await userRef.set(
+        {
+          welcomeEmailSent: true,
+          welcomeEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
+          welcomeEmailMessageId: result.messageId || null,
+        },
+        { merge: true }
+      );
+      logger.info(`[onUserCreated] Successfully sent welcome email to ${email} for user ${uid}.`);
+    } else if (result.skipped) {
+      logger.info(`[onUserCreated] Welcome email skipped for user ${uid} (${result.error}).`);
+    } else {
+      logger.warn(`[onUserCreated] Welcome email could not be delivered to ${email}: ${result.error}`);
+    }
+  } catch (error) {
+    // Non-fatal: Log error so Cloud Function does not crash the lifecycle pipeline
+    logger.error(`[onUserCreated] Unexpected error sending welcome email for ${uid}:`, error);
+  }
+});
 
 /**
  * ⚡ ON USER DELETED (Auth Trigger)

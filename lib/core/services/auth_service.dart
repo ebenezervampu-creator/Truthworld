@@ -76,9 +76,14 @@ class AuthService extends GetxService {
   RxBool get hasChannel => _channelManager.hasChannel;
   Channel? get userChannel => _channelManager.userChannel;
   Rxn<Channel> get rxUserChannel => _channelManager.rxUserChannel;
+  Channel? get deletedChannel => _channelManager.deletedChannel;
+  Rxn<Channel> get rxDeletedChannel => _channelManager.rxDeletedChannel;
 
   void setUserChannel(Channel? channel) =>
       _channelManager.setUserChannel(channel, _user.value?.uid);
+
+  void setDeletedChannel(Channel? channel) =>
+      _channelManager.setDeletedChannel(channel);
 
   void clearUserChannel() =>
       _channelManager.clearUserChannel(_user.value?.uid);
@@ -156,19 +161,22 @@ class AuthService extends GetxService {
   );
 
   Future<void> updateUserProfileOnboarding({
+    String? country,
     String? ageGroup,
     String? gender,
     String? username,
     String? displayName,
   }) => _profileManager.updateUserProfileOnboarding(
     user,
+    country: country,
     ageGroup: ageGroup,
     gender: gender,
     username: username,
     displayName: displayName,
   );
 
-  Future<void> skipUserOnboarding() => _profileManager.skipUserOnboarding(user);
+  Future<void> skipUserOnboarding({String? defaultCountry}) =>
+      _profileManager.skipUserOnboarding(user, defaultCountry: defaultCountry);
 
   Future<void> checkAndPromptOnboarding([BuildContext? context]) =>
       _profileManager.checkAndPromptOnboarding(

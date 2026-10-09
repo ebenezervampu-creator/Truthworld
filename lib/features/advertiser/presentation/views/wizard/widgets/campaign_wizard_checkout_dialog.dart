@@ -3,7 +3,9 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/cashfree/cashfree_country_support.dart';
 import 'package:truthworld/core/services/cashfree_service.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
 import 'package:truthworld/features/advertiser/presentation/views/widgets/advertiser_input_field.dart';
@@ -38,10 +40,15 @@ void showCampaignCheckoutDialog(
   final progressStep = 0.obs;
   final checkoutSuccess = false.obs;
 
-  double cost = 2000;
-  if (budgetTier == 'startup') cost = 500;
-  if (budgetTier == 'growth') cost = 5000;
-  if (budgetTier == 'enterprise') cost = 15000;
+  final isIndian = !Get.isRegistered<CurrencyLocalizationService>() ||
+      CurrencyLocalizationService.to.isIndianUser;
+  final currency = isIndian ? 'INR' : 'USD';
+  final currencySymbol = isIndian ? '₹' : r'$';
+
+  var cost = isIndian ? 2000.0 : 25.0;
+  if (budgetTier == 'startup') cost = isIndian ? 500.0 : 10.0;
+  if (budgetTier == 'growth') cost = isIndian ? 5000.0 : 50.0;
+  if (budgetTier == 'enterprise') cost = isIndian ? 15000.0 : 150.0;
 
   final audienceParts = <String>[];
   if (targetAgeGroups != null && targetAgeGroups.isNotEmpty) {
@@ -192,7 +199,7 @@ void showCampaignCheckoutDialog(
                       ),
                     ),
                     Text(
-                      '₹${cost.toStringAsFixed(0)}',
+                      '$currencySymbol${cost.toStringAsFixed(0)}',
                       style: const TextStyle(
                         fontFamily: TWTypography.brandFamily,
                         fontSize: 16,
@@ -275,23 +282,25 @@ void showCampaignCheckoutDialog(
                         ),
                       ),
                       const SizedBox(width: 12),
-                      const Expanded(
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Cashfree Payment Gateway',
-                              style: TextStyle(
+                              isIndian
+                                  ? 'Cashfree Payment Gateway'
+                                  : 'Cashfree Global Payment Gateway',
+                              style: const TextStyle(
                                 fontFamily: TWTypography.brandFamily,
                                 color: Colors.white,
                                 fontSize: 13,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                            SizedBox(height: 2),
+                            const SizedBox(height: 2),
                             Text(
-                              'UPI (GPay/PhonePe), Cards, NetBanking • 100% Secure',
-                              style: TextStyle(
+                              '${CashfreeCountrySupport.getPaymentMethodsSummary(currency == "INR" ? "IN" : "US")} • 100% Secure',
+                              style: const TextStyle(
                                 fontFamily: TWTypography.uiFamily,
                                 color: AppColors.textSecondary,
                                 fontSize: 11,
@@ -360,6 +369,7 @@ void showCampaignCheckoutDialog(
                             final paymentResult =
                                 await CashfreePaymentService.to.startPayment(
                               amount: cost,
+                              currency: currency,
                               purpose: 'advertiser_campaign',
                               orderNote: 'Campaign: $title',
                               metadata: {
@@ -448,7 +458,7 @@ void showCampaignCheckoutDialog(
                   child: Text(
                     existingCampaign != null
                         ? 'Save & Resubmit Campaign'
-                        : 'Pay ₹${cost.toStringAsFixed(0)} with Cashfree',
+                        : 'Pay $currencySymbol${cost.toStringAsFixed(0)} with Cashfree',
                     style: const TextStyle(
                       fontFamily: TWTypography.uiFamily,
                       fontSize: 16,

@@ -73,7 +73,7 @@ typedef FaqItem = PremiumFaqItem;
 const List<PremiumFeatureItem> kDefaultPremiumFeatures = [
   PremiumFeatureItem(
     icon: Icons.headphones_rounded,
-    title: r'Ad-Free Audio Mode ($0.50 / ₹40)',
+    title: r'Ad-Free Audio Mode ($0.50)',
     description:
         'Listen to any video in Audio-only Mode completely free of ads. Uninterrupted playback for podcasts and music.',
   ),
@@ -119,7 +119,7 @@ const List<PremiumPlanDetails> kDefaultPremiumPlans = [
   PremiumPlanDetails(
     id: 'audio_monthly',
     title: r'$0.50 Audio Premium Plan',
-    priceLabel: r'$0.50/month (₹40)',
+    priceLabel: r'$0.50/month',
     tagline: 'Ad-Free Audio-Only Mode',
     description:
         'Play any video in Truthworld in Audio-only Mode completely ads free. Perfect for uninterrupted podcasts, music, and background listening.',
@@ -127,7 +127,7 @@ const List<PremiumPlanDetails> kDefaultPremiumPlans = [
   PremiumPlanDetails(
     id: 'individual_monthly',
     title: r'$2 TruthWorld Premium Plan',
-    priceLabel: r'$2/month (₹169)',
+    priceLabel: r'$2/month',
     tagline: 'All Features • Ad-Free Everything',
     description:
         'Zero ads across all videos and audios, offline downloads, background play & PiP, 4K Ultra HD streaming, and multilingual AI dubbing.',
@@ -135,7 +135,7 @@ const List<PremiumPlanDetails> kDefaultPremiumPlans = [
   PremiumPlanDetails(
     id: '4k_factchecked_monthly',
     title: r'$3 Premium + Fact-Checked Plan',
-    priceLabel: r'$3/month (₹249)',
+    priceLabel: r'$3/month',
     tagline: 'Every Video Fact-Checked + On-Demand',
     description:
         'Everything in TruthWorld Premium included, plus every video is fact-checked. If any video is not yet fact-checked, you can fact-check it on demand.',
@@ -145,19 +145,19 @@ const List<PremiumPlanDetails> kDefaultPremiumPlans = [
 const List<PremiumFaqItem> kDefaultPremiumFaqs = [
   PremiumFaqItem(
     q: 'What are the Truthworld Premium plans?',
-    a: r'Truthworld offers three subscription tiers: 1) Audio Premium ($0.50/month ~ ₹40) for ad-free listening in audio-only mode. 2) Truthworld Premium ($2/month ~ ₹169) for ad-free video streaming, 4K quality, offline downloads, background play, and AI dubbing. 3) Truthworld Premium + Fact-Checked ($3/month ~ ₹249) for all premium features plus verified fact-checking on every video, including on-demand fact-checking.',
+    a: r'Truthworld offers three subscription tiers: 1) Audio Premium ($0.50/month) for ad-free listening in audio-only mode. 2) Truthworld Premium ($2/month) for ad-free video streaming, 4K quality, offline downloads, background play, and AI dubbing. 3) Truthworld Premium + Fact-Checked ($3/month) for all premium features plus verified fact-checking on every video, including on-demand fact-checking. For users paying in rupees, prices are converted exactly at today’s live dollar exchange rate.',
   ),
   PremiumFaqItem(
-    q: r'How does the $0.50 (₹40) Audio Premium plan work?',
+    q: r'How does the $0.50 Audio Premium plan work?',
     a: 'With Audio Premium, any video played in Audio-only Mode is completely free of ads. It is designed for listeners who enjoy podcasts, interviews, lectures, and music without video playback.',
   ),
   PremiumFaqItem(
     q: r'What is included in the $2 TruthWorld Premium Plan?',
-    a: r'The $2/month (~₹169) plan unlocks ad-free playback on all videos and audios, background playback, PiP, offline video downloads, 4K Ultra HD resolution, and AI voice dubbing.',
+    a: r'The $2/month plan unlocks ad-free playback on all videos and audios, background playback, PiP, offline video downloads, 4K Ultra HD resolution, and AI voice dubbing.',
   ),
   PremiumFaqItem(
     q: r'What is included in the $3 Premium + Fact-Checked Plan?',
-    a: r'The $3/month (~₹249) plan includes all Truthworld Premium features plus full AI fact-checking across every video. If a video is not yet fact-checked, subscribers can trigger on-demand AI fact-checking directly.',
+    a: r'The $3/month plan includes all Truthworld Premium features plus full AI fact-checking across every video. If a video is not yet fact-checked, subscribers can trigger on-demand AI fact-checking directly.',
   ),
   PremiumFaqItem(
     q: 'Can I fact-check any video if it is not yet fact-checked?',
@@ -173,6 +173,6 @@ const List<PremiumFaqItem> kDefaultPremiumFaqs = [
   ),
   PremiumFaqItem(
     q: 'How does upgrading between plans work?',
-    a: r'Upgrades are prorated with your previous plan fee credited directly! If you have the $0.50 (₹40) Audio Premium plan and want to upgrade to Truthworld Premium ($2 / ₹169), you only pay $2 - 40 rupees (₹129). To upgrade from Audio Premium to the $3 Fact-Checked plan (₹249), you only pay ₹209 ($3 - ₹40). If you have the $2 plan and want to upgrade to the $3 plan, you pay only ₹80 ($3 - $2).',
+    a: r'Upgrades are prorated with your previous plan fee credited directly! If you have the $0.50 Audio Premium plan and want to upgrade to Truthworld Premium ($2), you only pay the difference ($1.50). To upgrade from Audio Premium to the $3 Fact-Checked plan, you only pay $2.50 ($3 - $0.50). If you have the $2 plan and want to upgrade to the $3 plan, you pay only $1 ($3 - $2). In India, you pay the exact rupee equivalent of the difference at today’s dollar exchange rate.',
   ),
 ];

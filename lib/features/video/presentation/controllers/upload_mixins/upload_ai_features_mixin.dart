@@ -21,12 +21,9 @@ mixin UploadAiFeaturesMixin on UploadControllerBase {
   bool get isFactCheckRelevant =>
       isFactCheckNeededForCategory(selectedCategory.value);
 
-  /// Select a category and handle fact check toggle availability
+  /// Select a category and handle category update
   void selectCategory(String cat) {
     selectedCategory.value = cat;
-    if (!isFactCheckRelevant) {
-      aiFactCheckEnabled.value = false;
-    }
   }
 
   /// Whether sources validation passes (if fact checking is enabled, at least 1 source is required)
@@ -93,6 +90,11 @@ mixin UploadAiFeaturesMixin on UploadControllerBase {
   /// Build the AI features map for Firestore.
   @override
   Map<String, dynamic> buildFeaturesMap({String? pipelineStage}) {
+    final effectiveTier = aiFactCheckEnabled.value
+        ? (aiFactCheckTier.value.isEmpty || aiFactCheckTier.value == 'none'
+            ? 'full_ground'
+            : aiFactCheckTier.value)
+        : 'none';
     final map = AIFeatures(
       genLangSubs: aiGenerateSubtitles.value,
       generateDubbing: aiGenerateDubbing.value,
@@ -104,7 +106,8 @@ mixin UploadAiFeaturesMixin on UploadControllerBase {
             : 'standard',
       ),
       factChecking: aiFactCheckEnabled.value,
-      factCheckTier: aiFactCheckTier.value,
+      factCheckTier: effectiveTier,
+      factCheckReviewMode: aiFactCheckReviewMode.value,
       diarization: aiDiarizationEnabled.value,
       summary: true,
       autoChapters: aiChaptersEnabled.value,
@@ -112,6 +115,10 @@ mixin UploadAiFeaturesMixin on UploadControllerBase {
     ).toMap();
     map['providedSources'] = List<String>.from(providedSources);
     map['dubbingLanguages'] = List<String>.from(aiDubbingLanguages);
+    map['isFactCheckApproved'] =
+        aiFactCheckReviewMode.value != 'first_to_creator';
+    map['enableFactCheck'] = aiFactCheckEnabled.value;
+    map['truthVerification'] = aiFactCheckEnabled.value;
     return map;
   }
 

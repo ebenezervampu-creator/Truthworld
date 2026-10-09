@@ -1,3 +1,6 @@
+import 'dart:math' as math;
+
+import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
@@ -34,56 +37,14 @@ class VideoMapParser {
       mediaMap?['downloadUrl'],
     ]);
 
-    // 1. Resolve adaptive resolutions with fallback
-    var resolutionsList = (data['adaptiveResolutions'] as List? ?? [])
+    // 1. Resolve adaptive resolutions with fallback (guarantee complete ladder down to 144p)
+    final rawResolutions = (data['adaptiveResolutions'] as List? ?? [])
         .map((e) => VideoResolutionV2.fromMap(Map<String, dynamic>.from(e)))
         .toList();
-    if (resolutionsList.isEmpty && rawVideoUrl.isNotEmpty) {
-      resolutionsList = [
-        VideoResolutionV2(
-          label: '1080p',
-          url: rawVideoUrl,
-          width: 1920,
-          height: 1080,
-          bitrate: 4500000,
-        ),
-        VideoResolutionV2(
-          label: '720p',
-          url: rawVideoUrl,
-          width: 1280,
-          height: 720,
-          bitrate: 2500000,
-        ),
-        VideoResolutionV2(
-          label: '480p',
-          url: rawVideoUrl,
-          width: 854,
-          height: 480,
-          bitrate: 1200000,
-        ),
-        VideoResolutionV2(
-          label: '360p',
-          url: rawVideoUrl,
-          width: 640,
-          height: 360,
-          bitrate: 800000,
-        ),
-        VideoResolutionV2(
-          label: '240p',
-          url: rawVideoUrl,
-          width: 426,
-          height: 240,
-          bitrate: 400000,
-        ),
-        VideoResolutionV2(
-          label: '144p',
-          url: rawVideoUrl,
-          width: 256,
-          height: 144,
-          bitrate: 200000,
-        ),
-      ];
-    }
+    final resolutionsList = VideoResolutionV2.ensureCompleteLadder(
+      rawResolutions,
+      fallbackUrl: rawVideoUrl,
+    );
 
     // 2. Infer clean title if missing or untitled
     var parsedTitle = (data['title'] as String?) ?? '';
@@ -107,21 +68,23 @@ class VideoMapParser {
     }
 
     // 3. Fallback FactCheck & Transcription URLs
-    final parsedFactCheckUrl = (data['media'] != null &&
+    final parsedFactCheckUrl =
+        (data['media'] != null &&
             data['media']['factCheckUrl'] != null &&
             (data['media']['factCheckUrl'] as String).isNotEmpty)
         ? (data['media']['factCheckUrl'] as String)
         : ((data['factCheckUrl'] as String?)?.isNotEmpty == true
-            ? (data['factCheckUrl'] as String)
-            : '');
+              ? (data['factCheckUrl'] as String)
+              : '');
 
-    final parsedTranscriptUrl = (data['media'] != null &&
+    final parsedTranscriptUrl =
+        (data['media'] != null &&
             data['media']['transcriptionUrl'] != null &&
             (data['media']['transcriptionUrl'] as String).isNotEmpty)
         ? (data['media']['transcriptionUrl'] as String)
         : ((data['transcriptionUrl'] as String?)?.isNotEmpty == true
-            ? (data['transcriptionUrl'] as String)
-            : '');
+              ? (data['transcriptionUrl'] as String)
+              : '');
 
     final parsedThumbnailUrl = firstNonEmpty([
       data['thumbnailUrl'],
@@ -129,8 +92,9 @@ class VideoMapParser {
       mediaMap?['thumbnailUrl'],
       mediaMap?['thumbnail'],
     ]);
-    final thumbnailVariantsList =
-        List<String>.from(data['thumbnailVariants'] ?? []);
+    final thumbnailVariantsList = List<String>.from(
+      data['thumbnailVariants'] ?? [],
+    );
     final animPreviewUrl =
         (data['animatedPreviewUrl'] as String?)?.trim() ?? '';
     var resolvedThumbnailUrl = parsedThumbnailUrl;
@@ -141,40 +105,44 @@ class VideoMapParser {
       resolvedThumbnailUrl = animPreviewUrl;
     }
 
-    final moderationMap =
-        data['moderation'] is Map ? data['moderation'] as Map : null;
-    final moderationStatus =
-        moderationMap?['status']?.toString().toLowerCase();
-    final policyAction =
-        moderationMap?['policyAction']?.toString().toLowerCase();
+    final moderationMap = data['moderation'] is Map
+        ? data['moderation'] as Map
+        : null;
+    final moderationStatus = moderationMap?['status']?.toString().toLowerCase();
+    final policyAction = moderationMap?['policyAction']
+        ?.toString()
+        .toLowerCase();
     final isModApproved =
         moderationStatus == 'approved' || policyAction == 'allow';
 
-    final parsedGeminiApproved = data['geminiApproved'] as bool? ??
+    final parsedGeminiApproved =
+        data['geminiApproved'] as bool? ??
         (moderationMap?['geminiApproved'] as bool?) ??
         (isModApproved ? true : null);
-    final parsedIsApproved = data['isApproved'] as bool? ??
+    final parsedIsApproved =
+        data['isApproved'] as bool? ??
         (moderationMap?['isApproved'] as bool?) ??
         (isModApproved ? true : null) ??
         (data['gatewayStatus'] == 'APPROVED' ? true : null) ??
         (data['isVerified'] == true ? true : null) ??
         (data['credibilityVerified'] == true ? true : null);
 
-    final parsedModerationSummary = (data['moderation'] is Map &&
-            data['moderation']['summary'] != null &&
-            (data['moderation']['summary'] as String).isNotEmpty)
-        ? (data['moderation']['summary'] as String)
-        : ((data['summary'] as String?)?.isNotEmpty == true
-            ? (data['summary'] as String)
-            : ((data['moderation'] is Map &&
-                    data['moderation']['explanation'] != null &&
-                    (data['moderation']['explanation'] as String).isNotEmpty)
-                ? (data['moderation']['explanation'] as String)
-                : ''));
+    final topLevelSummary = (data['summary'] as String?)?.trim() ?? '';
+    final modMap = data['moderation'] is Map ? data['moderation'] as Map : null;
+    final modSummary = (modMap?['summary'] as String?)?.trim() ?? '';
 
-    final aiFeatures =
-        data['aiFeatures'] is Map ? data['aiFeatures'] as Map : null;
-    final parsedAutoChaptersEnabled = (data['autoChaptersEnabled'] as bool?) ??
+    var parsedModerationSummary = '';
+    if (UserFeedbackSanitizer.isValidVideoSummary(topLevelSummary)) {
+      parsedModerationSummary = topLevelSummary;
+    } else if (UserFeedbackSanitizer.isValidVideoSummary(modSummary)) {
+      parsedModerationSummary = modSummary;
+    }
+
+    final aiFeatures = data['aiFeatures'] is Map
+        ? data['aiFeatures'] as Map
+        : null;
+    final parsedAutoChaptersEnabled =
+        (data['autoChaptersEnabled'] as bool?) ??
         (data['allowAutoChapters'] as bool?) ??
         (data['autoChapters'] is bool ? data['autoChapters'] as bool : null) ??
         (aiFeatures != null && aiFeatures['autoChapters'] is bool
@@ -182,34 +150,92 @@ class VideoMapParser {
             : null) ??
         true;
 
+    final parsedDuration = () {
+      if (data['durationMs'] is num && (data['durationMs'] as num) > 0) {
+        return Duration(milliseconds: (data['durationMs'] as num).toInt());
+      }
+      if (data['durationSeconds'] is num &&
+          (data['durationSeconds'] as num) > 0) {
+        return Duration(seconds: (data['durationSeconds'] as num).toInt());
+      }
+      if (data['duration'] != null) {
+        final parsed = VideoDurationUtils.parseDuration(data['duration']);
+        if (parsed != Duration.zero) return parsed;
+      }
+      return Duration.zero;
+    }();
+
     final resolvedChapters = VideoChapterParser.resolveChapters(
       explicitChapters: data['chapters'] as List?,
       description: (data['description'] as String?) ?? '',
       rawAutoChapters: data['autoChapters'],
       autoChaptersEnabled: parsedAutoChaptersEnabled,
+      maxDuration: parsedDuration,
     );
 
     final parsedHlsUrl = _cleanHlsUrl(
       data['hlsUrl'] ?? (data['media'] is Map ? data['media']['hlsUrl'] : null),
     );
     final parsedDashUrl = _cleanDashUrl(
-      data['dashUrl'] ?? (data['media'] is Map ? data['media']['dashUrl'] : null),
+      data['dashUrl'] ??
+          (data['media'] is Map ? data['media']['dashUrl'] : null),
     );
 
-    final parsedStoryboardUrl = (data['storyboardUrl'] as String?)?.trim() ??
+    final parsedStoryboardUrl =
+        (data['storyboardUrl'] as String?)?.trim() ??
         (data['spriteUrl'] as String?)?.trim() ??
         (data['media'] is Map
-            ? ((data['media']['storyboardUrl'] ?? data['media']['spriteUrl']) as String?)?.trim()
+            ? ((data['media']['storyboardUrl'] ?? data['media']['spriteUrl'])
+                      as String?)
+                  ?.trim()
             : null) ??
         '';
 
     final parsedStoryboardVariants = data['storyboardVariants'] is List
-        ? (data['storyboardVariants'] as List).map((e) => e.toString()).where((e) => e.trim().isNotEmpty).toList()
+        ? (data['storyboardVariants'] as List)
+              .map((e) => e.toString())
+              .where((e) => e.trim().isNotEmpty)
+              .toList()
         : (data['spriteVariants'] is List
-            ? (data['spriteVariants'] as List).map((e) => e.toString()).where((e) => e.trim().isNotEmpty).toList()
-            : (data['media'] is Map && data['media']['storyboardVariants'] is List
-                ? (data['media']['storyboardVariants'] as List).map((e) => e.toString()).where((e) => e.trim().isNotEmpty).toList()
-                : const <String>[]));
+              ? (data['spriteVariants'] as List)
+                    .map((e) => e.toString())
+                    .where((e) => e.trim().isNotEmpty)
+                    .toList()
+              : (data['media'] is Map &&
+                        data['media']['storyboardVariants'] is List
+                    ? (data['media']['storyboardVariants'] as List)
+                          .map((e) => e.toString())
+                          .where((e) => e.trim().isNotEmpty)
+                          .toList()
+                    : const <String>[]));
+
+    final resolvedViewCount =
+        (data['viewCount'] as num?)?.toInt() ??
+        (data['views'] as num?)?.toInt() ??
+        (data['stats'] is Map
+            ? (data['stats']['views'] as num?)?.toInt()
+            : null) ??
+        0;
+
+    final rawWatchTime =
+        (data['totalWatchTimeSeconds'] as num?)?.toInt() ??
+        (data['metrics'] is Map
+            ? (data['metrics']['totalWatchTimeSeconds'] as num?)?.toInt()
+            : null) ??
+        (data['stats'] is Map
+            ? (data['stats']['totalWatchTimeSeconds'] as num?)?.toInt()
+            : null) ??
+        0;
+
+    final resolvedWatchTime = () {
+      final durSec = parsedDuration.inSeconds;
+      if (durSec > 0 && rawWatchTime > 0) {
+        // Epistemic ceiling: Total watch time can NEVER mathematically exceed Math.max(1, views) * durationSeconds
+        final maxAllowed = math.max(1, resolvedViewCount) * durSec;
+        return math.min(rawWatchTime, maxAllowed);
+      }
+      return rawWatchTime;
+    }();
 
     return Video(
       id: finalId,
@@ -233,49 +259,46 @@ class VideoMapParser {
       channelId: (data['channelId'] as String?)?.trim().isNotEmpty == true
           ? data['channelId']
           : ((data['ownerId'] as String?)?.trim().isNotEmpty == true
-              ? data['ownerId']
-              : (data['userId'] ?? '')),
-      channelName: data['channelName'] ??
-          data['ownerName'] ??
-          data['creatorName'] ??
-          '',
-      channelAvatarUrl: (data['channelImage'] as String?)?.trim().isNotEmpty == true
+                ? data['ownerId']
+                : (data['userId'] ?? '')),
+      channelName:
+          data['channelName'] ?? data['ownerName'] ?? data['creatorName'] ?? '',
+      channelAvatarUrl:
+          (data['channelImage'] as String?)?.trim().isNotEmpty == true
           ? (data['channelImage'] as String).trim()
           : (data['channelAvatarUrl'] as String?)?.trim().isNotEmpty == true
-              ? (data['channelAvatarUrl'] as String).trim()
-              : (data['avatarUrl'] as String?)?.trim().isNotEmpty == true
-                  ? (data['avatarUrl'] as String).trim()
-                  : (data['ownerAvatarUrl'] as String?)?.trim().isNotEmpty == true
-                      ? (data['ownerAvatarUrl'] as String).trim()
-                      : (data['creatorAvatarUrl'] as String?)?.trim().isNotEmpty == true
-                          ? (data['creatorAvatarUrl'] as String).trim()
-                          : (data['channelImageUrl'] as String?)?.trim().isNotEmpty == true
-                              ? (data['channelImageUrl'] as String).trim()
-                              : '',
-      viewCount: (data['viewCount'] as num?)?.toInt() ??
-          (data['views'] as num?)?.toInt() ??
-          (data['stats'] is Map
-              ? (data['stats']['views'] as num?)?.toInt()
-              : null) ??
-          0,
+          ? (data['channelAvatarUrl'] as String).trim()
+          : (data['avatarUrl'] as String?)?.trim().isNotEmpty == true
+          ? (data['avatarUrl'] as String).trim()
+          : (data['ownerAvatarUrl'] as String?)?.trim().isNotEmpty == true
+          ? (data['ownerAvatarUrl'] as String).trim()
+          : (data['creatorAvatarUrl'] as String?)?.trim().isNotEmpty == true
+          ? (data['creatorAvatarUrl'] as String).trim()
+          : (data['channelImageUrl'] as String?)?.trim().isNotEmpty == true
+          ? (data['channelImageUrl'] as String).trim()
+          : '',
+      viewCount: resolvedViewCount,
       likeCount: data['likeCount'] ?? 0,
       dislikeCount: data['dislikeCount'] ?? 0,
       commentCount: data['commentCount'] ?? 0,
       shareCount: data['shareCount'] ?? 0,
-      vDurationValue: Duration(milliseconds: data['durationMs'] ?? 0),
+      vDurationValue: parsedDuration,
+      duration: VideoDurationUtils.formatDuration(parsedDuration),
       createdAt: data['createdAt'],
       uploadedAt: data['uploadedAt'] ?? data['publishedAt'],
       updatedAt: data['updatedAt'],
       status: () {
         final rawStatus = (data['status'] as String?)?.toLowerCase() ?? '';
         final targetStatus = (data['targetStatus'] as String?)?.toLowerCase();
-        final pipelineStage = ((data['aiFeatures'] is Map
-                    ? data['aiFeatures']['pipelineStage']
-                    : null) ??
-                data['pipelineStage'])
-            ?.toString()
-            .toLowerCase();
-        final isAlreadyPublished = rawStatus == 'published' ||
+        final pipelineStage =
+            ((data['aiFeatures'] is Map
+                        ? data['aiFeatures']['pipelineStage']
+                        : null) ??
+                    data['pipelineStage'])
+                ?.toString()
+                .toLowerCase();
+        final isAlreadyPublished =
+            rawStatus == 'published' ||
             rawStatus == 'ready' ||
             rawStatus == 'active' ||
             targetStatus == 'published' ||
@@ -313,7 +336,8 @@ class VideoMapParser {
         }
         return VideoStatus.values.firstWhere(
           (e) => e.name == data['status'],
-          orElse: () => (rawStatus == 'uploaded' ||
+          orElse: () =>
+              (rawStatus == 'uploaded' ||
                   rawStatus == 'uploading' ||
                   rawStatus == 'processing')
               ? VideoStatus.draft
@@ -335,48 +359,51 @@ class VideoMapParser {
       isShort: data['isShort'] ?? false,
       isKidFriendly: data['isKidFriendly'] ?? false,
       enableComments: data['enableComments'] ?? true,
-      allowClipping: data['allowClipping'] as bool? ??
-          data['allowClips'] as bool? ??
-          true,
+      allowClipping:
+          data['allowClipping'] as bool? ?? data['allowClips'] as bool? ?? true,
       isMonetized: data['isMonetized'] ?? false,
       mediaSubtitles:
           data['media'] != null && data['media']['subtitles'] != null
-              ? Map<String, String>.from(data['media']['subtitles'] as Map)
-              : (data['subtitles'] != null
-                  ? Map<String, String>.from(data['subtitles'] as Map)
-                  : const {}),
+          ? Map<String, String>.from(data['media']['subtitles'] as Map)
+          : (data['subtitles'] != null
+                ? Map<String, String>.from(data['subtitles'] as Map)
+                : const {}),
       dubbedVideos:
           data['media'] != null && data['media']['dubbedVideos'] != null
-              ? Map<String, String>.from(data['media']['dubbedVideos'] as Map)
-              : (data['dubbedVideos'] != null
-                  ? Map<String, String>.from(data['dubbedVideos'] as Map)
-                  : (data['media'] != null && data['media']['dubbed'] != null
+          ? Map<String, String>.from(data['media']['dubbedVideos'] as Map)
+          : (data['dubbedVideos'] != null
+                ? Map<String, String>.from(data['dubbedVideos'] as Map)
+                : (data['media'] != null && data['media']['dubbed'] != null
                       ? Map<String, String>.from(data['media']['dubbed'] as Map)
                       : (data['dubbed'] != null
-                          ? Map<String, String>.from(data['dubbed'] as Map)
-                          : const {}))),
-      audioTracks:
-          data['media'] != null && data['media']['audioTracks'] != null
-              ? Map<String, String>.from(data['media']['audioTracks'] as Map)
-              : (data['audioTracks'] != null
-                  ? Map<String, String>.from(data['audioTracks'] as Map)
-                  : (data['media'] != null && data['media']['audio'] != null
+                            ? Map<String, String>.from(data['dubbed'] as Map)
+                            : const {}))),
+      audioTracks: data['media'] != null && data['media']['audioTracks'] != null
+          ? Map<String, String>.from(data['media']['audioTracks'] as Map)
+          : (data['audioTracks'] != null
+                ? Map<String, String>.from(data['audioTracks'] as Map)
+                : (data['media'] != null && data['media']['audio'] != null
                       ? Map<String, String>.from(data['media']['audio'] as Map)
                       : (data['audio'] != null
-                          ? Map<String, String>.from(data['audio'] as Map)
-                          : const {}))),
-      jobId: ((data['jobId'] ?? data['pipelineJobId']) ??
-              (data['media'] is Map
-                  ? (data['media']['jobId'] ?? data['media']['pipelineJobId'])
-                  : null)) as String?,
+                            ? Map<String, String>.from(data['audio'] as Map)
+                            : const {}))),
+      jobId:
+          ((data['jobId'] ?? data['pipelineJobId']) ??
+                  (data['media'] is Map
+                      ? (data['media']['jobId'] ??
+                            data['media']['pipelineJobId'])
+                      : null))
+              as String?,
       factCheckUrl: parsedFactCheckUrl,
       transcriptionUrl: parsedTranscriptUrl,
       allowRatings: data['allowRatings'] ?? false,
-      showLikeCount: data['showLikeCount'] ??
+      showLikeCount:
+          data['showLikeCount'] ??
           data['showLikesCount'] ??
           data['showLikes'] ??
           true,
-      showDislikeCount: data['showDislikeCount'] ??
+      showDislikeCount:
+          data['showDislikeCount'] ??
           data['showDislikesCount'] ??
           data['showDislikes'] ??
           true,
@@ -385,23 +412,32 @@ class VideoMapParser {
       sourceLinks: List<String>.from(data['sourceLinks'] ?? []),
       isFactChecked:
           (data['isFactChecked'] as bool?) ?? parsedFactCheckUrl.isNotEmpty,
-      factCheckTier: (data['factCheckTier'] ??
+      factCheckTier:
+          (data['factCheckTier'] ??
+                  (data['aiFeatures'] is Map
+                      ? data['aiFeatures']['factCheckTier']
+                      : null) ??
+                  (data['media'] is Map
+                      ? data['media']['factCheckTier']
+                      : null) ??
+                  'standard')
+              .toString(),
+      factCheckReviewMode: (data['factCheckReviewMode'] ??
               (data['aiFeatures'] is Map
-                  ? data['aiFeatures']['factCheckTier']
+                  ? data['aiFeatures']['factCheckReviewMode']
                   : null) ??
-              (data['media'] is Map ? data['media']['factCheckTier'] : null) ??
-              'standard')
+              (data['factCheckReviewFirst'] == true ? 'first_to_creator' : null) ??
+              'open_to_users')
           .toString(),
+      isFactCheckApproved: (data['isFactCheckApproved'] as bool?) ??
+          (data['factCheckApproved'] as bool?) ??
+          ((data['factCheckReviewMode'] ??
+                  (data['aiFeatures'] is Map
+                      ? data['aiFeatures']['factCheckReviewMode']
+                      : null)) != 'first_to_creator'),
       isVerified: data['isVerified'] ?? false,
       chapters: resolvedChapters,
-      totalWatchTimeSeconds: (data['totalWatchTimeSeconds'] as num?)?.toInt() ??
-          (data['metrics'] is Map
-              ? (data['metrics']['totalWatchTimeSeconds'] as num?)?.toInt()
-              : null) ??
-          (data['stats'] is Map
-              ? (data['stats']['totalWatchTimeSeconds'] as num?)?.toInt()
-              : null) ??
-          0,
+      totalWatchTimeSeconds: resolvedWatchTime,
       likedBy: List<String>.from(data['likedBy'] ?? []),
       trustLabel: data['trustLabel'],
       channelStatus: data['channelStatus'],
@@ -473,7 +509,9 @@ class VideoMapParser {
     final url = raw.trim();
     if (url.isEmpty) return '';
     final lower = url.toLowerCase();
-    if (lower.contains('.m3u8') || lower.contains('/hls/') || lower.contains('/cmaf/')) {
+    if (lower.contains('.m3u8') ||
+        lower.contains('/hls/') ||
+        lower.contains('/cmaf/')) {
       return url;
     }
     return '';

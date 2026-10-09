@@ -132,8 +132,6 @@ void showCreateCampaignWizard(
   ].obs;
 
   const availableAgeGroups = [
-    'Under 13',
-    '13–17',
     '18–24',
     '25–34',
     '35–44',

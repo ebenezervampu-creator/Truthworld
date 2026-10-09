@@ -274,7 +274,7 @@ class LibraryNavList extends StatelessWidget {
                 final planId = AuthService.to.premiumPlanId.value;
                 var planLabel = 'Premium Taken';
                 if (planId == 'audio_monthly') {
-                  planLabel = r'Premium Taken ($0.50 Audio / ₹40)';
+                  planLabel = r'Premium Taken ($0.50 Audio)';
                 } else if (planId == 'individual_monthly') {
                   planLabel = r'Premium Taken ($2 Premium)';
                 } else if (planId == '4k_factchecked_monthly') {

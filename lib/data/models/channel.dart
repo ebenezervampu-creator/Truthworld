@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/cashfree/cashfree_country_support.dart';
 import 'package:truthworld/core/utils/timestamp_utils.dart';
 import 'package:truthworld/domain/entities/channel_entity.dart';
 
@@ -185,6 +186,7 @@ class Channel {
     this.monetizationSettings,
     this.brandingSettings,
     this.socialLinks,
+    this.customLinks = const [],
     this.featuredVideoIds = const [],
     this.moderationReason = '',
     this.channelType = ChannelType.standard,
@@ -199,6 +201,9 @@ class Channel {
     this.superchatRevenueTotal = 0.0,
     this.withdrawnRevenueTotal = 0.0,
     this.noAdsForMembers = false,
+    this.country = 'IN',
+    this.deletionScheduledAt,
+    this.deletionGracePeriodExpiresAt,
   }) : metrics = metrics ?? ChannelMetricsV2();
 
   factory Channel.fromMap(Map<String, dynamic> data, String docId) {
@@ -324,6 +329,25 @@ class Channel {
       socialLinks: data['socialLinks'] is Map
           ? Map<String, dynamic>.from(data['socialLinks'] as Map)
           : null,
+      customLinks: data['customLinks'] is Iterable
+          ? (data['customLinks'] as Iterable)
+              .whereType<Map>()
+              .map((m) => {
+                    'title': (m['title'] ?? '').toString(),
+                    'url': (m['url'] ?? '').toString(),
+                  })
+              .where((e) => (e['url'] ?? '').trim().isNotEmpty)
+              .toList()
+          : (data['socialLinks'] is Map && data['socialLinks']['customLinks'] is Iterable
+              ? (data['socialLinks']['customLinks'] as Iterable)
+                  .whereType<Map>()
+                  .map((m) => {
+                        'title': (m['title'] ?? '').toString(),
+                        'url': (m['url'] ?? '').toString(),
+                      })
+                  .where((e) => (e['url'] ?? '').trim().isNotEmpty)
+                  .toList()
+              : const []),
       featuredVideoIds: data['featuredVideoIds'] is Iterable
           ? List<String>.from(data['featuredVideoIds'] as Iterable)
           : const [],
@@ -369,6 +393,15 @@ class Channel {
                   (data['monetizationSettings']['memberAdFreeEnabled'] as bool?))
               : null) ??
           false,
+      country: (data['country'] as String?)?.trim().isNotEmpty == true
+          ? (data['country'] as String).trim()
+          : 'IN',
+      deletionScheduledAt: data['deletionScheduledAt'] != null
+          ? TimestampUtils.parse(data['deletionScheduledAt'])
+          : null,
+      deletionGracePeriodExpiresAt: data['deletionGracePeriodExpiresAt'] != null
+          ? TimestampUtils.parse(data['deletionGracePeriodExpiresAt'])
+          : null,
     );
   }
 
@@ -420,6 +453,7 @@ class Channel {
     dynamic monetizationSettings,
     dynamic brandingSettings,
     Map<String, dynamic>? socialLinks,
+    List<Map<String, String>>? customLinks,
     List<String>? featuredVideoIds,
     String? moderationReason,
     ChannelType? channelType,
@@ -437,6 +471,9 @@ class Channel {
     String? ownerId,
     Timestamp? createdAt,
     Timestamp? updatedAt,
+    String? country,
+    Timestamp? deletionScheduledAt,
+    Timestamp? deletionGracePeriodExpiresAt,
   }) {
     return Channel(
       id: id ?? this.id,
@@ -469,6 +506,7 @@ class Channel {
       monetizationSettings: monetizationSettings ?? this.monetizationSettings,
       brandingSettings: brandingSettings ?? this.brandingSettings,
       socialLinks: socialLinks ?? this.socialLinks,
+      customLinks: customLinks ?? this.customLinks,
       featuredVideoIds: featuredVideoIds ?? this.featuredVideoIds,
       moderationReason: moderationReason ?? this.moderationReason,
       channelType: channelType ?? this.channelType,
@@ -490,6 +528,10 @@ class Channel {
       ownerId: ownerId ?? this.ownerId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      country: country ?? this.country,
+      deletionScheduledAt: deletionScheduledAt ?? this.deletionScheduledAt,
+      deletionGracePeriodExpiresAt:
+          deletionGracePeriodExpiresAt ?? this.deletionGracePeriodExpiresAt,
     );
   }
   final String id;
@@ -529,7 +571,10 @@ class Channel {
   final List<String> categories;
   final String language;
   final String visibility;
+  final String country;
   final String? moderationReason;
+  final Timestamp? deletionScheduledAt;
+  final Timestamp? deletionGracePeriodExpiresAt;
 
   // Monetization & Infrastructure
   final MonetizationTier monetizationTier;
@@ -554,6 +599,7 @@ class Channel {
   brandingSettings; // Primary/Secondary colors, Custom font
   final Map<String, dynamic>?
   socialLinks; // { "twitter": "url", "insta": "url" }
+  final List<Map<String, dynamic>> customLinks;
 
   // Optimization:
   // - Banned Users & Mods moved to subcollections or separate docs for millions of users.
@@ -566,8 +612,39 @@ class Channel {
   String get channelName => name;
   String get bannerImageUrl => bannerUrl;
   bool get isArchived => status == ChannelStatus.deleted;
+  bool get isDeleted => status == ChannelStatus.deleted;
+  bool get isPendingDeletion =>
+      status == ChannelStatus.deleted && !isPermanentDeletionExpired;
+
+  bool get isPermanentDeletionExpired {
+    if (status != ChannelStatus.deleted) return false;
+    final expiry = scheduledPermanentDeletionDate;
+    return DateTime.now().isAfter(expiry);
+  }
+
+  int get gracePeriodDaysRemaining {
+    if (status != ChannelStatus.deleted) return 0;
+    final expiry = scheduledPermanentDeletionDate;
+    final remaining = expiry.difference(DateTime.now()).inDays;
+    return remaining.clamp(0, 30);
+  }
+
+  DateTime get scheduledPermanentDeletionDate {
+    if (deletionGracePeriodExpiresAt != null) {
+      return deletionGracePeriodExpiresAt!.toDate();
+    }
+    if (deletionScheduledAt != null) {
+      return deletionScheduledAt!.toDate().add(const Duration(days: 30));
+    }
+    return updatedAt.toDate().add(const Duration(days: 30));
+  }
   bool get isMembersOnly => visibility.toLowerCase() == 'members' || visibility.toLowerCase() == 'members only';
   String get websiteUrl => socialLinks?['website'] ?? '';
+  String get countryCode => CashfreeCountrySupport.normalizeCode(country);
+  String get currency => CashfreeCountrySupport.getCurrencyForCountry(country);
+  String get currencySymbol => CashfreeCountrySupport.getSymbolForCurrency(currency);
+  String get paymentMethodsSummary => CashfreeCountrySupport.getPaymentMethodsSummary(country);
+  String get paymentMethodsDescription => CashfreeCountrySupport.getPaymentMethodsDescription(country);
 
   // Standard Channel Constraints (10 min daily upload limit, up to 10 min duration per day)
   int get maxAllowedVideos => 100000;
@@ -621,6 +698,7 @@ class Channel {
       'language': language,
       'visibility': visibility,
       'isPublic': visibility == 'Public',
+      'country': country,
       'monetizationTier': monetizationTier.name,
       'monetizationSettings': monetizationSettings,
       'channelType': channelType.name,
@@ -638,8 +716,11 @@ class Channel {
       'nextBillingCycleDate': nextBillingCycleDate,
       'brandingSettings': brandingSettings,
       'socialLinks': socialLinks,
+      'customLinks': customLinks.isNotEmpty ? customLinks : null,
       'featuredVideoIds': featuredVideoIds,
       'moderationReason': moderationReason,
+      'deletionScheduledAt': deletionScheduledAt,
+      'deletionGracePeriodExpiresAt': deletionGracePeriodExpiresAt,
     };
   }
 
@@ -661,6 +742,7 @@ class Channel {
       category: category,
       categories: categories,
       visibility: visibility,
+      country: country,
       createdAt: createdAt.toDate(),
       updatedAt: updatedAt.toDate(),
     );
@@ -698,6 +780,7 @@ class Channel {
       category: entity.category,
       categories: entity.categories,
       visibility: entity.visibility,
+      country: entity.country,
     );
   }
 }

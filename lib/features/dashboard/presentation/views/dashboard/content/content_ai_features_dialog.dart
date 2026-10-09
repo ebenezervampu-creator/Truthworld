@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/constants/ai_languages.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
@@ -14,6 +15,8 @@ import 'package:truthworld/theme/app_theme.dart';
     Video video,
     VideoManagementController controller, {
     ChannelType? channelType,
+    Set<String>? initialFeatures,
+    Set<String>? initialLangs,
   }) {
     final effectiveChannelType = channelType ??
         (Get.isRegistered<DashboardController>()
@@ -32,26 +35,70 @@ import 'package:truthworld/theme/app_theme.dart';
     );
     final dubbingTier =
         ChannelWalletService.getDubbingDurationTier(videoDurationSec);
-    final selectedLangs = <String>{'te', 'hi'}.obs;
-    final selectedFeatures = <String>{
+    final isSubtitlesPreselected = initialFeatures != null &&
+        initialFeatures.contains('subtitles') &&
+        !initialFeatures.contains('dubbing');
+    final isDubbingPreselected = initialFeatures != null &&
+        initialFeatures.contains('dubbing');
+    final isFactCheckPreselected = initialFeatures != null &&
+        initialFeatures.contains('factcheck') &&
+        !initialFeatures.contains('dubbing');
+    final isChaptersPreselected = initialFeatures != null &&
+        initialFeatures.contains('chapters') &&
+        !initialFeatures.contains('dubbing');
+
+    final dialogTitle = isSubtitlesPreselected
+        ? 'Generate Subtitles & Captions'
+        : (isDubbingPreselected
+            ? 'Multilingual AI Dubbing Studio'
+            : (isFactCheckPreselected
+                ? 'Run Credibility & Fact-Check'
+                : (isChaptersPreselected
+                    ? 'Generate Auto-Chapters'
+                    : 'AI Features & Advanced Settings')));
+
+    final dialogSubtitle = isSubtitlesPreselected
+        ? 'Select target languages to generate synchronized native closed captions (SRT/VTT).'
+        : (isDubbingPreselected
+            ? 'Select target languages to generate voice-matched multilingual audio dubbing with vocal identity.'
+            : (isFactCheckPreselected
+                ? 'Extract spoken claims from speech transcripts and evaluate authenticity against verified sources.'
+                : (isChaptersPreselected
+                    ? 'Detect semantic topic shifts across your video to generate timestamped chapters.'
+                    : 'Generate subtitles, dubbed audio tracks, fact-checking, AI summaries, and chapters anytime on demand.')));
+
+    final selectedLangs = (initialLangs ?? <String>{'te', 'hi'}).toSet().obs;
+    final selectedFeatures = (initialFeatures ?? <String>{
       'subtitles',
       'dubbing',
       'factcheck',
       'chapters',
-    }.obs;
+    }).toSet().obs;
     final selectedFactCheckTier = 'standard'.obs;
     final isAccuracyMode = true.obs;
     final showAdvanced = false.obs;
 
-    final availableLangs = [
-      {'code': 'te', 'name': 'Telugu (తెలుగు)'},
-      {'code': 'hi', 'name': 'Hindi (हिन्दी)'},
-      {'code': 'en', 'name': 'English'},
-      {'code': 'ta', 'name': 'Tamil (தமிழ்)'},
-      {'code': 'kn', 'name': 'Kannada (ಕನ್ನಡ)'},
-      {'code': 'ml', 'name': 'Malayalam (മലയാളം)'},
-      {'code': 'es', 'name': 'Spanish'},
-    ];
+    final initialFilter = isDubbingPreselected ? 'dubbing' : 'all';
+    final searchQuery = ''.obs;
+    final regionFilter = initialFilter.obs; // 'all', 'dubbing', 'Indian', 'Global'
+    final filteredLanguages = RxList<AILanguage>(
+      isDubbingPreselected ? kElevenLabsDubbingLanguages : kAllAILanguages,
+    );
+
+    void applyFilter() {
+      final q = searchQuery.value.toLowerCase().trim();
+      final r = regionFilter.value;
+      filteredLanguages.value = kAllAILanguages.where((lang) {
+        final matchesCategory = r == 'all' ||
+            (r == 'dubbing' && lang.supportsDubbing) ||
+            lang.region == r;
+        final matchesQuery = q.isEmpty ||
+            lang.name.toLowerCase().contains(q) ||
+            lang.native.toLowerCase().contains(q) ||
+            lang.code.toLowerCase().contains(q);
+        return matchesCategory && matchesQuery;
+      }).toList();
+    }
 
     Get.dialog<void>(
       Dialog(
@@ -66,21 +113,50 @@ import 'package:truthworld/theme/app_theme.dart';
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Obx(
-                () => Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                () {
+                  final isDubbingSelected = selectedFeatures.contains('dubbing');
+                  final dubbingLangsSelected = selectedLangs
+                      .where(isDubbingSupported)
+                      .toList();
+                  final dubbingSubtotal = isDubbingSelected
+                      ? (dubbingLangsSelected.length * flatDubbingRate)
+                      : 0.0;
+                  final totalEstimatedCost =
+                      ChannelWalletService.calculateAIFeatureCost(
+                    selectedFeatures: selectedFeatures.toSet(),
+                    targetLanguages: isDubbingSelected
+                        ? dubbingLangsSelected
+                        : selectedLangs.toList(),
+                    durationSeconds: videoDurationSec,
+                    channelType: effectiveChannelType,
+                    factCheckTier: selectedFactCheckTier.value,
+                  );
+                  final walletBalance =
+                      currentChannel?.walletBalanceUSD ?? 0.0;
+
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                     Row(
                       children: [
-                        const Icon(
-                          Icons.auto_awesome_rounded,
+                        Icon(
+                          isSubtitlesPreselected
+                              ? Icons.subtitles_rounded
+                              : (isDubbingPreselected
+                                  ? Icons.record_voice_over_rounded
+                                  : (isFactCheckPreselected
+                                      ? Icons.fact_check_rounded
+                                      : (isChaptersPreselected
+                                          ? Icons.view_timeline_rounded
+                                          : Icons.auto_awesome_rounded))),
                           color: AppColors.textPrimary,
                           size: 24,
                         ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            'AI Features & Advanced Settings',
+                            dialogTitle,
                             style: AppTextStyles.titleLarge.copyWith(
                               color: AppColors.textPrimary,
                               fontWeight: FontWeight.bold,
@@ -101,7 +177,7 @@ import 'package:truthworld/theme/app_theme.dart';
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Generate subtitles, dubbed audio tracks, fact-checking, AI summaries, and chapters anytime on demand.',
+                      dialogSubtitle,
                       style: AppTextStyles.bodySmall.copyWith(
                         color: AppColors.textSecondary,
                         height: 1.3,
@@ -110,46 +186,158 @@ import 'package:truthworld/theme/app_theme.dart';
                     const Divider(height: 24),
 
                     // Section 1: Target Languages
-                    Text(
-                      'Select Target Languages',
-                      style: AppTextStyles.labelMedium.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
+                    Row(
+                      children: [
+                        Text(
+                          'Target Languages',
+                          style: AppTextStyles.labelMedium.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Obx(
+                          () => Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.brand.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: AppColors.brand.withValues(alpha: 0.4),
+                              ),
+                            ),
+                            child: Text(
+                              '${selectedLangs.length} selected',
+                              style: AppTextStyles.caption.copyWith(
+                                color: AppColors.brand,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const Spacer(),
+                        TextButton(
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          onPressed: () {
+                            selectedLangs.addAll(kAllAILanguages.map((l) => l.code));
+                          },
+                          child: const Text('Select All', style: TextStyle(fontSize: 11.5)),
+                        ),
+                        const SizedBox(width: 6),
+                        TextButton(
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          onPressed: () {
+                            selectedLangs.clear();
+                            selectedLangs.add('te');
+                          },
+                          child: const Text('Clear', style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Search bar
+                    Container(
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: AppColors.bgInput,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.bgDivider),
+                      ),
+                      child: TextField(
+                        style: AppTextStyles.bodySmall.copyWith(color: AppColors.textPrimary),
+                        decoration: InputDecoration(
+                          hintText: 'Search 135+ languages (e.g. Telugu, Spanish, Japanese)...',
+                          hintStyle: AppTextStyles.bodySmall.copyWith(
+                            color: AppColors.textTertiary,
+                            fontSize: 12,
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.search_rounded,
+                            size: 16,
+                            color: AppColors.textSecondary,
+                          ),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                        ),
+                        onChanged: (val) {
+                          searchQuery.value = val;
+                          applyFilter();
+                        },
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: availableLangs.map((lang) {
-                        final code = lang['code']!;
-                        final name = lang['name']!;
-                        final isSelected = selectedLangs.contains(code);
-                        return FilterChip(
-                          label: Text(name),
-                          selected: isSelected,
-                          selectedColor: AppColors.brand.withValues(alpha: 0.2),
-                          checkmarkColor: AppColors.brand,
-                          labelStyle: AppTextStyles.labelMedium.copyWith(
-                            fontSize: 12,
-                            fontWeight: isSelected
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                            color: isSelected
-                                ? AppColors.brand
-                                : AppColors.textPrimary,
+
+                    // Region Filter Chips
+                    Obx(
+                      () => SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _buildLanguageRegionChip('All Subtitles (${kGoogleCloudTranslationLanguages.length})', 'all', regionFilter, applyFilter),
+                            const SizedBox(width: 6),
+                            _buildLanguageRegionChip('ElevenLabs Dubbing (${kElevenLabsDubbingLanguages.length})', 'dubbing', regionFilter, applyFilter),
+                            const SizedBox(width: 6),
+                            _buildLanguageRegionChip('Indian (23)', 'Indian', regionFilter, applyFilter),
+                            const SizedBox(width: 6),
+                            _buildLanguageRegionChip('Global (115)', 'Global', regionFilter, applyFilter),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Scrollable Language Chips
+                    Container(
+                      constraints: const BoxConstraints(maxHeight: 140),
+                      child: SingleChildScrollView(
+                        child: Obx(
+                          () => Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: filteredLanguages.map((lang) {
+                              final isSelected = selectedLangs.contains(lang.code);
+                              final isDubbingMode = selectedFeatures.contains('dubbing');
+                              final labelText = (isDubbingMode && !lang.supportsDubbing)
+                                  ? '${lang.name} (${lang.native} • Subs only)'
+                                  : '${lang.name} (${lang.native})';
+                              return FilterChip(
+                                label: Text(labelText),
+                                selected: isSelected,
+                                selectedColor: AppColors.brand.withValues(alpha: 0.2),
+                                checkmarkColor: Colors.white,
+                                labelStyle: AppTextStyles.labelMedium.copyWith(
+                                  fontSize: 11.5,
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  color: isSelected ? Colors.white : AppColors.textPrimary,
+                                ),
+                                onSelected: (val) {
+                                  if (val) {
+                                    selectedLangs.add(lang.code);
+                                  } else {
+                                    if (selectedLangs.length > 1) {
+                                      selectedLangs.remove(lang.code);
+                                    }
+                                  }
+                                },
+                              );
+                            }).toList(),
                           ),
-                          onSelected: (val) {
-                            if (val) {
-                              selectedLangs.add(code);
-                            } else {
-                              if (selectedLangs.length > 1) {
-                                selectedLangs.remove(code);
-                              }
-                            }
-                          },
-                        );
-                      }).toList(),
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 20),
 
@@ -345,7 +533,177 @@ import 'package:truthworld/theme/app_theme.dart';
                       ),
                     ],
 
-                    const SizedBox(height: 18),
+                    // Dubbing Flat Cost Breakdown Card
+                    if (isDubbingSelected) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.bgSurfaceHover,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: AppColors.brand.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.receipt_long_rounded,
+                                  size: 16,
+                                  color: Colors.white,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'AI Dubbing Flat Rate Estimation',
+                                  style: AppTextStyles.labelMedium.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                                const Spacer(),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.brand.withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    dubbingTier.label,
+                                    style: AppTextStyles.caption.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.brand,
+                                      fontSize: 10.5,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Rate per Language:',
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                                Text(
+                                  '\$${flatDubbingRate.toStringAsFixed(2)} flat',
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: AppColors.textPrimary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'ElevenLabs Dubbing Languages (${dubbingLangsSelected.length}):',
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                                Text(
+                                  '${dubbingLangsSelected.length} × \$${flatDubbingRate.toStringAsFixed(2)} = \$${dubbingSubtotal.toStringAsFixed(2)}',
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: AppColors.textPrimary,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (selectedLangs.length > dubbingLangsSelected.length) ...[
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Subtitles-Only Languages (${selectedLangs.length - dubbingLangsSelected.length}):',
+                                    style: AppTextStyles.caption.copyWith(
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                  Text(
+                                    r'FREE ($0.00)',
+                                    style: AppTextStyles.caption.copyWith(
+                                      color: AppColors.success,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                            const SizedBox(height: 4),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Channel Wallet Balance:',
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                                Text(
+                                  '\$${walletBalance.toStringAsFixed(2)}',
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: walletBalance >= dubbingSubtotal
+                                        ? AppColors.success
+                                        : AppColors.warning,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ] else if (selectedFeatures.contains('subtitles')) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.success.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: AppColors.success.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.check_circle_outline_rounded,
+                              size: 16,
+                              color: AppColors.success,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Subtitles & Closed Captions are 100% Free across all ${selectedLangs.length} target languages.',
+                                style: AppTextStyles.caption.copyWith(
+                                  color: AppColors.success,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(height: 16),
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -416,7 +774,7 @@ import 'package:truthworld/theme/app_theme.dart';
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               const Text(
-                                'Estimated Cost:',
+                                'Estimated Total:',
                                 style: TextStyle(
                                   fontSize: 11,
                                   color: AppColors.textSecondary,
@@ -424,13 +782,7 @@ import 'package:truthworld/theme/app_theme.dart';
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                '\$${ChannelWalletService.calculateAIFeatureCost(
-                                  selectedFeatures: selectedFeatures.toSet(),
-                                  targetLanguages: selectedLangs.toList(),
-                                  durationSeconds: videoDurationSec,
-                                  channelType: effectiveChannelType,
-                                  factCheckTier: selectedFactCheckTier.value,
-                                ).toStringAsFixed(2)}',
+                                '\$${totalEstimatedCost.toStringAsFixed(2)}',
                                 style: AppTextStyles.titleMedium.copyWith(
                                   color: AppColors.textPrimary,
                                   fontWeight: FontWeight.bold,
@@ -473,7 +825,9 @@ import 'package:truthworld/theme/app_theme.dart';
                             size: 18,
                           ),
                           label: Text(
-                            'Generate & Pay from Balance',
+                            totalEstimatedCost > 0
+                                ? 'Generate & Pay \$${totalEstimatedCost.toStringAsFixed(2)}'
+                                : 'Generate AI Features (Free)',
                             style: AppTextStyles.buttonText.copyWith(
                               fontWeight: FontWeight.bold,
                               color: Colors.black,
@@ -502,12 +856,45 @@ import 'package:truthworld/theme/app_theme.dart';
                       ],
                     ),
                   ],
-                ),
-              ),
+                );
+              },
+            ),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildLanguageRegionChip(
+    String label,
+    String regionKey,
+    RxString currentFilter,
+    VoidCallback onSelected,
+  ) {
+    final isSelected = currentFilter.value == regionKey;
+    return FilterChip(
+      label: Text(label),
+      selected: isSelected,
+      selectedColor: AppColors.brand,
+      checkmarkColor: Colors.black,
+      backgroundColor: AppColors.bgSurfaceHover,
+      labelStyle: TextStyle(
+        color: isSelected ? Colors.black : AppColors.textPrimary,
+        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        fontSize: 11,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: isSelected ? AppColors.brand : AppColors.bgDivider,
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      onSelected: (_) {
+        currentFilter.value = regionKey;
+        onSelected();
+      },
     );
   }
 
@@ -561,17 +948,7 @@ import 'package:truthworld/theme/app_theme.dart';
       'factcheck',
     }.obs;
 
-    final selectedLangs = <String>{'en', 'es'}.obs;
-
-    final availableLangs = [
-      {'code': 'en', 'name': 'English'},
-      {'code': 'es', 'name': 'Spanish'},
-      {'code': 'hi', 'name': 'Hindi'},
-      {'code': 'te', 'name': 'Telugu'},
-      {'code': 'ta', 'name': 'Tamil'},
-      {'code': 'kn', 'name': 'Kannada'},
-      {'code': 'ml', 'name': 'Malayalam'},
-    ];
+    final selectedLangs = <String>{'en', 'es', 'te', 'hi'}.obs;
 
     Get.dialog<void>(
       Dialog(
@@ -682,52 +1059,84 @@ import 'package:truthworld/theme/app_theme.dart';
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
-              Text(
-                'Target Languages',
-                style: AppTextStyles.bodyMedium.copyWith(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.bold,
-                ),
+              Row(
+                children: [
+                  Text(
+                    'Target Languages',
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: () {
+                      selectedLangs.addAll(kAllAILanguages.map((l) => l.code));
+                    },
+                    child: const Text('Select All', style: TextStyle(fontSize: 11.5)),
+                  ),
+                  const SizedBox(width: 6),
+                  TextButton(
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: () {
+                      selectedLangs.clear();
+                      selectedLangs.add('en');
+                    },
+                    child: const Text(
+                      'Clear',
+                      style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 8),
-              Obx(
-                () => Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: availableLangs.map((lang) {
-                    final isSel = selectedLangs.contains(lang['code']);
-                    return FilterChip(
-                      label: Text(
-                        lang['name']!,
-                        style: TextStyle(
-                          color: isSel ? Colors.black : AppColors.textPrimary,
-                          fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                          fontSize: 12,
-                        ),
-                      ),
-                      selected: isSel,
-                      selectedColor: AppColors.brand,
-                      checkmarkColor: Colors.black,
-                      backgroundColor: AppColors.bgSurfaceHover,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        side: BorderSide(
-                          color: isSel ? AppColors.brand : AppColors.bgDivider,
-                        ),
-                      ),
-                      onSelected: (val) {
-                        final code = lang['code'];
-                        if (code != null) {
-                          if (val) {
-                            selectedLangs.add(code);
-                          } else if (selectedLangs.length > 1) {
-                            selectedLangs.remove(code);
-                          }
-                        }
-                      },
-                    );
-                  }).toList(),
+              Container(
+                constraints: const BoxConstraints(maxHeight: 120),
+                child: SingleChildScrollView(
+                  child: Obx(
+                    () => Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: kAllAILanguages.map((lang) {
+                        final isSel = selectedLangs.contains(lang.code);
+                        return FilterChip(
+                          label: Text('${lang.name} (${lang.native})'),
+                          selected: isSel,
+                          selectedColor: AppColors.brand,
+                          checkmarkColor: Colors.black,
+                          backgroundColor: AppColors.bgSurfaceHover,
+                          labelStyle: TextStyle(
+                            color: isSel ? Colors.black : AppColors.textPrimary,
+                            fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                            fontSize: 11,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: BorderSide(
+                              color: isSel ? AppColors.brand : AppColors.bgDivider,
+                            ),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          onSelected: (val) {
+                            if (val) {
+                              selectedLangs.add(lang.code);
+                            } else if (selectedLangs.length > 1) {
+                              selectedLangs.remove(lang.code);
+                            }
+                          },
+                        );
+                      }).toList(),
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 24),

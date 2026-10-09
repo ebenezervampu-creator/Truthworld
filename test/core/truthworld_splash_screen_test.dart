@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:truthworld/core/widgets/app_logo.dart';
@@ -73,5 +74,100 @@ void main() {
     // "Truthworld" and message should NOT be rendered when they do not fit
     expect(find.text('Truthworld'), findsNothing);
     expect(find.text('Love everyone Trust no one'), findsNothing);
+  });
+
+  testWidgets('TruthworldSplashScreen is bypassed entirely on Desktops (Windows/macOS/Linux)',
+      (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    try {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      TruthworldSplashScreen.reset();
+      var onCompletedCalled = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TruthworldSplashScreen(
+            duration: const Duration(milliseconds: 500),
+            onCompleted: () => onCompletedCalled = true,
+            child: const Scaffold(body: Text('Desktop Home View')),
+          ),
+        ),
+      );
+
+      // Initial frame
+      await tester.pump();
+
+      // The child UI should be immediately rendered
+      expect(find.text('Desktop Home View'), findsOneWidget);
+
+      // Splash screen logo and text should NOT be present on Desktops
+      expect(find.byType(AppLogo), findsNothing);
+      expect(find.text('Truthworld'), findsNothing);
+      expect(find.text('Love everyone Trust no one'), findsNothing);
+      expect(onCompletedCalled, isTrue);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
+  testWidgets('TruthworldSplashScreen is bypassed when screen is desktop width (>= 1024px)',
+      (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    TruthworldSplashScreen.reset();
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: TruthworldSplashScreen(
+          duration: Duration(milliseconds: 500),
+          child: Scaffold(body: Text('Wide Screen Content')),
+        ),
+      ),
+    );
+
+    await tester.pump();
+
+    expect(find.text('Wide Screen Content'), findsOneWidget);
+    expect(find.byType(AppLogo), findsNothing);
+    expect(find.text('Truthworld'), findsNothing);
+  });
+
+  testWidgets('TruthworldSplashScreen renders on iOS mobile devices',
+      (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    try {
+      tester.view.physicalSize = const Size(393, 852);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      TruthworldSplashScreen.reset();
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: TruthworldSplashScreen(
+            duration: Duration(milliseconds: 500),
+            child: Scaffold(body: Text('iOS Home Content')),
+          ),
+        ),
+      );
+
+      await tester.pump();
+
+      // AppLogo must be present on iOS mobile
+      expect(find.byType(AppLogo), findsOneWidget);
+
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(find.text('Truthworld'), findsOneWidget);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
   });
 }

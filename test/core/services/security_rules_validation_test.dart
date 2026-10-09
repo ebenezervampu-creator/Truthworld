@@ -6,7 +6,6 @@ void main() {
       const adminEmails = [
         'hello@truthworld.in',
         'ebenezervampu4@gmail.com',
-        'admin@truthworld.com',
       ];
 
       bool checkIsAdmin({
@@ -23,7 +22,7 @@ void main() {
 
       // Attacker registers unverified account with admin email
       expect(
-        checkIsAdmin(email: 'admin@truthworld.com', emailVerified: false),
+        checkIsAdmin(email: 'hello@truthworld.in', emailVerified: false),
         isFalse,
         reason: 'Unverified email must NOT be granted admin privileges',
       );
@@ -36,14 +35,14 @@ void main() {
 
       // Legitimate admin with verified email
       expect(
-        checkIsAdmin(email: 'admin@truthworld.com', emailVerified: true),
+        checkIsAdmin(email: 'hello@truthworld.in', emailVerified: true),
         isTrue,
         reason: 'Verified admin email MUST be granted bootstrap privileges',
       );
 
       // Custom claims take precedence regardless
       expect(
-        checkIsAdmin(email: 'moderator@truthworld.com', emailVerified: true, hasAdminClaim: true),
+        checkIsAdmin(email: 'moderator@truthworld.in', emailVerified: true, hasAdminClaim: true),
         isTrue,
       );
     });
@@ -286,7 +285,6 @@ void main() {
         const bootstrapAdmins = [
           'hello@truthworld.in',
           'ebenezervampu4@gmail.com',
-          'admin@truthworld.com',
         ];
         if (email != null && emailVerified && bootstrapAdmins.contains(email.toLowerCase())) {
           return true;
@@ -301,7 +299,7 @@ void main() {
       );
       // Impersonator with unverified email
       expect(
-        isCallableAdmin(hasAdminClaim: false, email: 'admin@truthworld.com', emailVerified: false),
+        isCallableAdmin(hasAdminClaim: false, email: 'hello@truthworld.in', emailVerified: false),
         isFalse,
       );
       // Valid admin
@@ -1073,6 +1071,201 @@ void main() {
       expect(areKeysAllowed(['commentCount', 'updatedAt'], allowedCommentShardKeys), isTrue);
       expect(areKeysAllowed(['views', 'watchTimeSeconds'], allowedChannelShardKeys), isTrue);
       expect(areKeysAllowed(['count', 'illegalField'], allowedVideoShardKeys), isFalse);
+    });
+
+    test('L-56: Payout Engine Isolation - Client write to /payouts is strictly forbidden', () {
+      // Security Rule: match /payouts/{payoutId} { allow write: if false; }
+      bool canClientWritePayout({required bool isAuthenticated, bool isAdmin = false}) {
+        // Rule: allow write: if false;
+        return false;
+      }
+
+      // Neither regular users, channel owners, nor attackers can write to /payouts directly
+      expect(canClientWritePayout(isAuthenticated: true), isFalse);
+      expect(canClientWritePayout(isAuthenticated: false), isFalse);
+      expect(canClientWritePayout(isAuthenticated: true, isAdmin: true), isFalse);
+    });
+
+    test('L-57: Payout Engine Isolation - Client write to /channel_wallet_transactions is strictly forbidden', () {
+      // Security Rule: match /channel_wallet_transactions/{txId} { allow write: if false; }
+      bool canClientWriteWalletTransaction({required bool isAuthenticated, bool isAdmin = false}) {
+        // Immutable ledger authored exclusively by Cloud Functions
+        return false;
+      }
+
+      expect(canClientWriteWalletTransaction(isAuthenticated: true), isFalse);
+      expect(canClientWriteWalletTransaction(isAuthenticated: false), isFalse);
+      expect(canClientWriteWalletTransaction(isAuthenticated: true, isAdmin: true), isFalse);
+    });
+
+    test('L-58: Payout Engine Isolation - Client cannot tamper with channel revenue or balance fields', () {
+      // Protected financial fields that client diff cannot contain
+      const protectedFinancialFields = {
+        'superchatRevenueTotal',
+        'adsRevenueTotal',
+        'membershipRevenueTotal',
+        'membershipsRevenueTotal',
+        'premiumSubsRevenueTotal',
+        'walletBalanceUSD',
+        'walletBalance',
+        'withdrawnRevenueTotal',
+      };
+
+      bool canClientUpdateChannelFields({
+        required bool isAuthenticated,
+        required String callerUid,
+        required String channelOwnerId,
+        required Set<String> changedFields,
+        bool isAdmin = false,
+      }) {
+        if (!isAuthenticated) return false;
+        if (isAdmin) return true;
+        if (callerUid != channelOwnerId) return false;
+        // Owners CANNOT alter protected financial fields directly
+        if (changedFields.any(protectedFinancialFields.contains)) {
+          return false;
+        }
+        return true;
+      }
+
+      // Owner updating cosmetic profile info -> ALLOWED
+      expect(
+        canClientUpdateChannelFields(
+          isAuthenticated: true,
+          callerUid: 'owner_123',
+          channelOwnerId: 'owner_123',
+          changedFields: {'channelName', 'description', 'avatarUrl'},
+        ),
+        isTrue,
+      );
+
+      // Malicious attempt to credit wallet balance directly -> BLOCKED
+      expect(
+        canClientUpdateChannelFields(
+          isAuthenticated: true,
+          callerUid: 'owner_123',
+          channelOwnerId: 'owner_123',
+          changedFields: {'walletBalance'},
+        ),
+        isFalse,
+      );
+
+      // Malicious attempt to reset withdrawn revenue -> BLOCKED
+      expect(
+        canClientUpdateChannelFields(
+          isAuthenticated: true,
+          callerUid: 'owner_123',
+          channelOwnerId: 'owner_123',
+          changedFields: {'withdrawnRevenueTotal'},
+        ),
+        isFalse,
+      );
+
+      // Malicious attempt to fabricate ads or membership revenue -> BLOCKED
+      expect(
+        canClientUpdateChannelFields(
+          isAuthenticated: true,
+          callerUid: 'owner_123',
+          channelOwnerId: 'owner_123',
+          changedFields: {'adsRevenueTotal', 'membershipRevenueTotal'},
+        ),
+        isFalse,
+      );
+    });
+
+    test('L-59: Payout Engine Isolation - Client payout_requests rules enforce owner binding, threshold & status=pending', () {
+      bool canClientCreatePayoutRequest({
+        required bool isAuthenticated,
+        required String? callerUid,
+        required Map<String, dynamic> requestData,
+        required Map<String, dynamic> channelData,
+      }) {
+        if (!isAuthenticated || callerUid == null) return false;
+        if (requestData['userId'] != callerUid) return false;
+        if (requestData['amount'] is! num || (requestData['amount'] as num) < 100) return false;
+        // Crucial: Client can ONLY create requests with status == 'pending'
+        if (requestData['status'] != 'pending') return false;
+        final channelId = requestData['channelId'] as String?;
+        if (channelId == null || channelId.isEmpty) return false;
+        // Channel owner must match caller
+        if (channelData['ownerId'] != callerUid) return false;
+        return true;
+      }
+
+      bool canClientUpdatePayoutRequest({bool isAdmin = false}) {
+        // Clients CANNOT mark requests as 'approved', 'processing', or 'completed'
+        return isAdmin;
+      }
+
+      final validChannel = {'ownerId': 'creator_456', 'channelName': 'TechInsights'};
+
+      // 1. Valid request created by legitimate creator
+      expect(
+        canClientCreatePayoutRequest(
+          isAuthenticated: true,
+          callerUid: 'creator_456',
+          channelData: validChannel,
+          requestData: {
+            'userId': 'creator_456',
+            'channelId': 'ch_001',
+            'amount': 250.0,
+            'status': 'pending',
+          },
+        ),
+        isTrue,
+      );
+
+      // 2. Attacker trying to self-approve / trigger direct transfer by setting status='completed' -> BLOCKED
+      expect(
+        canClientCreatePayoutRequest(
+          isAuthenticated: true,
+          callerUid: 'creator_456',
+          channelData: validChannel,
+          requestData: {
+            'userId': 'creator_456',
+            'channelId': 'ch_001',
+            'amount': 250.0,
+            'status': 'completed', // Bypassing backend Payout Engine
+          },
+        ),
+        isFalse,
+      );
+
+      // 3. Attacker trying to withdraw money under another creator's channel -> BLOCKED
+      expect(
+        canClientCreatePayoutRequest(
+          isAuthenticated: true,
+          callerUid: 'attacker_789',
+          channelData: validChannel, // owned by creator_456
+          requestData: {
+            'userId': 'attacker_789',
+            'channelId': 'ch_001',
+            'amount': 500.0,
+            'status': 'pending',
+          },
+        ),
+        isFalse,
+      );
+
+      // 4. Request below minimum threshold of ₹100 -> BLOCKED
+      expect(
+        canClientCreatePayoutRequest(
+          isAuthenticated: true,
+          callerUid: 'creator_456',
+          channelData: validChannel,
+          requestData: {
+            'userId': 'creator_456',
+            'channelId': 'ch_001',
+            'amount': 50.0, // Below ₹100
+            'status': 'pending',
+          },
+        ),
+        isFalse,
+      );
+
+      // 5. Client trying to update or alter payout status directly -> BLOCKED
+      expect(canClientUpdatePayoutRequest(), isFalse);
+      expect(canClientUpdatePayoutRequest(isAdmin: true), isTrue);
     });
   });
 }

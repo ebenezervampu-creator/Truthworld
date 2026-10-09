@@ -1,12 +1,14 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/widgets/app_logo.dart';
 
 // =============================================================
 // TRUTHWORLD LONG VIDEO - MOTION SYSTEM & SPLASH IN ONE FILE
-// Works for Mobile, Tablet, Foldable, Web, Desktop
+// Splash screen enabled ONLY for Mobile (Android & iOS).
+// Removed for Desktops (Windows, macOS, Linux, and Desktop Web).
 // =============================================================
 
 abstract class TLong {
@@ -51,18 +53,40 @@ class TruthworldSplashScreen extends StatefulWidget {
     _dismissSignal.value = false;
   }
 
+  /// Checks whether splash screen should be shown.
+  /// Shows ONLY on mobiles (Android and iOS).
+  /// Removed for Desktops (Windows, macOS, Linux, and Desktop Web).
+  static bool shouldShowSplashScreen([BuildContext? context]) {
+    // Check if target platform is mobile (Android or iOS)
+    final isMobilePlatform = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    if (!isMobilePlatform) {
+      return false;
+    }
+
+    // On Web or responsive layouts, if context is provided, ensure it's not a desktop screen size
+    if (context != null) {
+      final width = MediaQuery.sizeOf(context).width;
+      if (width >= 1024) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   @override
   State<TruthworldSplashScreen> createState() => _TruthworldSplashScreenState();
 }
 
 class _TruthworldSplashScreenState extends State<TruthworldSplashScreen>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _logoScale;
-  late final Animation<double> _logoFade;
-  late final Animation<double> _textFade;
-  late final Animation<double> _exitScale;
-  late final Animation<double> _exitFade;
+  AnimationController? _controller;
+  Animation<double>? _logoScale;
+  Animation<double>? _logoFade;
+  Animation<double>? _textFade;
+  Animation<double>? _exitScale;
+  Animation<double>? _exitFade;
 
   final RxBool _done = false.obs;
   Worker? _dismissWorker;
@@ -70,25 +94,34 @@ class _TruthworldSplashScreenState extends State<TruthworldSplashScreen>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: widget.duration);
+
+    // Skip splash screen entirely on non-mobile (Desktop/Web desktop) platforms
+    if (!TruthworldSplashScreen.shouldShowSplashScreen()) {
+      _done.value = true;
+      widget.onCompleted?.call();
+      return;
+    }
+
+    final controller = AnimationController(vsync: this, duration: widget.duration);
+    _controller = controller;
 
     _logoScale = Tween<double>(begin: 0.92, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: const Interval(0.0, 0.70, curve: TLong.curve)),
+      CurvedAnimation(parent: controller, curve: const Interval(0.0, 0.70, curve: TLong.curve)),
     );
     _logoFade = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: const Interval(0.0, 0.55, curve: Curves.easeOut)),
+      CurvedAnimation(parent: controller, curve: const Interval(0.0, 0.55, curve: Curves.easeOut)),
     );
     _textFade = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: const Interval(0.35, 0.70, curve: Curves.easeOut)),
+      CurvedAnimation(parent: controller, curve: const Interval(0.35, 0.70, curve: Curves.easeOut)),
     );
     _exitScale = Tween<double>(begin: 1.0, end: 1.06).animate(
-      CurvedAnimation(parent: _controller, curve: const Interval(0.70, 1.0, curve: TLong.curve)),
+      CurvedAnimation(parent: controller, curve: const Interval(0.70, 1.0, curve: TLong.curve)),
     );
     _exitFade = Tween<double>(begin: 1.0, end: 0.0).animate(
-      CurvedAnimation(parent: _controller, curve: const Interval(0.70, 1.0, curve: Curves.easeOut)),
+      CurvedAnimation(parent: controller, curve: const Interval(0.70, 1.0, curve: Curves.easeOut)),
     );
 
-    _controller.addStatusListener((s) {
+    controller.addStatusListener((s) {
       if (s == AnimationStatus.completed) {
         _done.value = true;
         widget.onCompleted?.call();
@@ -101,8 +134,8 @@ class _TruthworldSplashScreenState extends State<TruthworldSplashScreen>
     } else {
       _dismissWorker = ever(TruthworldSplashScreen._dismissSignal, (dismiss) {
         if (dismiss && mounted && !_done.value) {
-          if (_controller.value < 0.70) {
-            _controller.animateTo(
+          if (controller.value < 0.70) {
+            controller.animateTo(
               1.0,
               duration: const Duration(milliseconds: 160),
               curve: Curves.easeOut,
@@ -110,19 +143,28 @@ class _TruthworldSplashScreenState extends State<TruthworldSplashScreen>
           }
         }
       });
-      _controller.forward();
+      controller.forward();
     }
   }
 
   @override
   void dispose() {
     _dismissWorker?.dispose();
-    _controller.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (!TruthworldSplashScreen.shouldShowSplashScreen(context)) {
+      return widget.child;
+    }
+
+    final controller = _controller;
+    if (controller == null) {
+      return widget.child;
+    }
+
     return Obx(() {
       if (_done.value) return widget.child;
 
@@ -131,13 +173,17 @@ class _TruthworldSplashScreenState extends State<TruthworldSplashScreen>
         children: [
           TickerMode(enabled: true, child: widget.child),
           AnimatedBuilder(
-            animation: _controller,
+            animation: controller,
             builder: (context, _) {
-              if (_exitFade.value <= 0.01) return const SizedBox.shrink();
+              final exitFadeVal = _exitFade?.value ?? 1.0;
+              if (exitFadeVal <= 0.01) return const SizedBox.shrink();
+              final logoScaleVal = _logoScale?.value ?? 1.0;
+              final exitScaleVal = _exitScale?.value ?? 1.0;
+
               return Opacity(
-                opacity: _exitFade.value,
+                opacity: exitFadeVal,
                 child: Transform.scale(
-                  scale: _logoScale.value * _exitScale.value,
+                  scale: logoScaleVal * exitScaleVal,
                   child: ColoredBox(
                     color: widget.backgroundColor,
                     child: LayoutBuilder(
@@ -174,7 +220,7 @@ class _TruthworldSplashScreenState extends State<TruthworldSplashScreen>
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   FadeTransition(
-                                    opacity: _logoFade,
+                                    opacity: _logoFade!,
                                     child: AppLogo(
                                       size: logoSize,
                                       borderRadius: logoSize * 0.22,
@@ -183,7 +229,7 @@ class _TruthworldSplashScreenState extends State<TruthworldSplashScreen>
                                   if (fitsText) ...[
                                     SizedBox(height: spacing),
                                     FadeTransition(
-                                      opacity: _textFade,
+                                      opacity: _textFade!,
                                       child: Column(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [

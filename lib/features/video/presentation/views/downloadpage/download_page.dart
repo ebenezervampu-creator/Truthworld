@@ -464,6 +464,7 @@ class DownloadsPage extends GetView<DownloadsController> {
             itemBuilder: (context, index) {
               final video = displayList[index];
               return _RecommendedDownloadCard(
+                key: ValueKey(video.id),
                 video: video,
                 isDownloaded: downloadedIds.contains(video.id),
                 isDownloading: downloadingIds.contains(video.id),
@@ -791,37 +792,47 @@ class _DownloadVideoListCard extends StatelessWidget {
   }
 }
 
-class _RecommendedDownloadCard extends StatelessWidget {
-  _RecommendedDownloadCard({
+class _RecommendedDownloadCard extends StatefulWidget {
+  const _RecommendedDownloadCard({
     required this.video,
     required this.isDownloaded,
     required this.onDownload,
+    super.key,
     this.isDownloading = false,
   });
+
   final Video video;
   final bool isDownloaded;
   final bool isDownloading;
-  final VoidCallback onDownload;
+  final Future<void> Function() onDownload;
 
-  final RxBool isInitiating = false.obs;
+  @override
+  State<_RecommendedDownloadCard> createState() =>
+      _RecommendedDownloadCardState();
+}
+
+class _RecommendedDownloadCardState extends State<_RecommendedDownloadCard> {
+  bool _isInitiating = false;
 
   @override
   Widget build(BuildContext context) {
+    final active = widget.isDownloading || _isInitiating;
+
     return InkWell(
       onTap: () async {
-        if (isDownloaded) {
+        if (widget.isDownloaded) {
           final downloadsCtrl = Get.isRegistered<DownloadsController>()
               ? Get.find<DownloadsController>()
               : Get.put(DownloadsController());
           var offline = downloadsCtrl.videos
-              .firstWhereOrNull((v) => v.id == video.id);
-          offline ??= await downloadsCtrl.getOfflineVideo(video.id);
+              .firstWhereOrNull((v) => v.id == widget.video.id);
+          offline ??= await downloadsCtrl.getOfflineVideo(widget.video.id);
           if (offline != null) {
             downloadsCtrl.playVideo(offline);
             return;
           }
         }
-        MiniplayerNavigationHelper.navigateToVideoScreen(video: video);
+        MiniplayerNavigationHelper.navigateToVideoScreen(video: widget.video);
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -833,7 +844,7 @@ class _RecommendedDownloadCard extends StatelessWidget {
               child: Stack(
                 children: [
                   CachedNetworkImage(
-                    imageUrl: video.thumbnailUrl,
+                    imageUrl: widget.video.thumbnailUrl,
                     width: 140,
                     height: 80,
                     fit: BoxFit.cover,
@@ -842,7 +853,7 @@ class _RecommendedDownloadCard extends StatelessWidget {
                     errorWidget: (context, url, error) =>
                         Container(color: AppColors.bgSurfaceHover),
                   ),
-                  if (video.duration.isNotEmpty)
+                  if (widget.video.duration.isNotEmpty)
                     Positioned(
                       bottom: 4,
                       right: 4,
@@ -856,7 +867,7 @@ class _RecommendedDownloadCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
-                          video.duration,
+                          widget.video.duration,
                           style: const TextStyle(
                             color: AppColors.textPrimary,
                             fontSize: 10,
@@ -874,7 +885,7 @@ class _RecommendedDownloadCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    video.title,
+                    widget.video.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -885,7 +896,7 @@ class _RecommendedDownloadCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${video.channelName} • ${FormatUtils.formatCount(video.views)} views',
+                    '${widget.video.channelName} • ${FormatUtils.formatCount(widget.video.views)} views',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -897,37 +908,38 @@ class _RecommendedDownloadCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Obx(() {
-              final active = isDownloading || isInitiating.value;
-              return IconButton(
-                onPressed: (isDownloaded || active)
-                    ? null
-                    : () async {
-                        isInitiating.value = true;
-                        try {
-                          onDownload();
-                        } finally {
-                          isInitiating.value = false;
+            IconButton(
+              onPressed: (widget.isDownloaded || active)
+                  ? null
+                  : () async {
+                      if (mounted) {
+                        setState(() => _isInitiating = true);
+                      }
+                      try {
+                        await widget.onDownload();
+                      } finally {
+                        if (mounted) {
+                          setState(() => _isInitiating = false);
                         }
-                      },
-                icon: active
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.brand,
-                        ),
-                      )
-                    : Icon(
-                        isDownloaded
-                            ? Icons.download_done_rounded
-                            : Icons.download_for_offline_outlined,
-                        color: AppColors.textPrimary,
-                        size: 26,
+                      }
+                    },
+              icon: active
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.brand,
                       ),
-              );
-            }),
+                    )
+                  : Icon(
+                      widget.isDownloaded
+                          ? Icons.download_done_rounded
+                          : Icons.download_for_offline_outlined,
+                      color: AppColors.textPrimary,
+                      size: 26,
+                    ),
+            ),
           ],
         ),
       ),

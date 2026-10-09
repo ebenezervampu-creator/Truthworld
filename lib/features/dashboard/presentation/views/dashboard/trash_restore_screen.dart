@@ -15,7 +15,7 @@ class TrashRestoreController extends BaseController {
   final String channelId;
 
   final RxString selectedFilter =
-      'All'.obs; // 'All', 'Channel', 'Video', 'Topic', 'Playlist'
+      'All'.obs; // 'All', 'Video', 'Topic', 'Playlist'
   final RxBool rxIsLoading = false.obs;
   final RxList<Map<String, dynamic>> trashItems = <Map<String, dynamic>>[].obs;
 
@@ -32,31 +32,7 @@ class TrashRestoreController extends BaseController {
       final loadedItems = <Map<String, dynamic>>[];
       final firestore = FirebaseFirestore.instance;
 
-      // 1. Check if the current channel itself is deletion_pending
-      if (channelId.isNotEmpty) {
-        final channelSnap = await firestore
-            .collection(FirestoreCollections.channels)
-            .doc(channelId)
-            .get();
-        if (channelSnap.exists) {
-          final data = channelSnap.data();
-          if (data != null && data['status'] == 'deletion_pending') {
-            loadedItems.add({
-              'id': channelSnap.id,
-              'type': 'Channel',
-              'title':
-                  data['channelName'] ?? data['name'] ?? 'Untitled Channel',
-              'imageUrl': data['avatarUrl'] ?? '',
-              'deletedAt':
-                  (data['deletionRequestedAt'] as Timestamp?)?.toDate() ??
-                  DateTime.now(),
-              'ref': channelSnap.reference,
-            });
-          }
-        }
-      }
-
-      // 2. Fetch deleted videos belonging to this channel
+      // 1. Fetch deleted videos belonging to this channel
       if (channelId.isNotEmpty) {
         final videosSnap = await firestore
             .collection(FirestoreCollections.videos)
@@ -226,10 +202,14 @@ class TrashRestoreScreen extends StatelessWidget {
   const TrashRestoreScreen({
     required this.channelId,
     required this.isDarkMode,
+    this.searchQuery = '',
+    this.showBackButton = false,
     super.key,
   });
   final String channelId;
   final bool isDarkMode;
+  final String searchQuery;
+  final bool showBackButton;
 
   @override
   Widget build(BuildContext context) {
@@ -253,7 +233,7 @@ class TrashRestoreScreen extends StatelessWidget {
                   Expanded(
                     child: Row(
                       children: [
-                        if (Navigator.canPop(context)) ...[
+                        if (showBackButton && Navigator.canPop(context)) ...[
                           IconButton(
                             icon: const Icon(
                               Icons.arrow_back_rounded,
@@ -281,7 +261,7 @@ class TrashRestoreScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'Deleted channels, videos, topics, and playlists are retained for 30 days before permanent deletion.',
+                                'Deleted videos, topics, and playlists are retained for 30 days before permanent deletion.',
                                 style: TextStyle(
                                   fontFamily: TWTypography.uiFamily,
                                   fontFamilyFallback: TWTypography.fallbackFamilies,
@@ -336,8 +316,17 @@ class TrashRestoreScreen extends StatelessWidget {
                   }
 
                   final filteredList = controller.trashItems.where((item) {
-                    if (controller.selectedFilter.value == 'All') return true;
-                    return item['type'] == controller.selectedFilter.value;
+                    if (controller.selectedFilter.value != 'All' &&
+                        item['type'] != controller.selectedFilter.value) {
+                      return false;
+                    }
+                    if (searchQuery.isNotEmpty) {
+                      final title = (item['title'] ?? '').toString().toLowerCase();
+                      if (!title.contains(searchQuery.toLowerCase())) {
+                        return false;
+                      }
+                    }
+                    return true;
                   }).toList();
 
                   if (filteredList.isEmpty) {
@@ -355,7 +344,7 @@ class TrashRestoreScreen extends StatelessWidget {
   }
 
   Widget _buildFiltersRow(TrashRestoreController controller) {
-    final filters = ['All', 'Channel', 'Video', 'Topic', 'Playlist'];
+    final filters = ['All', 'Video', 'Topic', 'Playlist'];
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(

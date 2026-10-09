@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
@@ -36,8 +37,11 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
 
   bool get isAlreadyWatchedVideo {
     if (isAlreadyWatched) return true;
+    final dur = video.durationSeconds > 0
+        ? video.durationSeconds
+        : (videoPlayerController?.value.duration.inSeconds ?? 0);
     if (Get.isRegistered<WatchHistoryService>() &&
-        WatchHistoryService.to.isVideoFullyWatched(video.id)) {
+        WatchHistoryService.to.isVideoFullyWatched(video.id, totalDuration: dur)) {
       isAlreadyWatched = true;
       return true;
     }
@@ -120,7 +124,9 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
     final currentWatchSeconds = watchStopwatch.elapsed.inSeconds;
     final delta = currentWatchSeconds - lastPingWatchSeconds;
     if (delta > 0 && isVpcInitialized && videoPlayerController != null) {
-      final totalDuration = videoPlayerController!.value.duration.inSeconds;
+      final totalDuration = videoPlayerController!.value.duration.inSeconds > 0
+          ? videoPlayerController!.value.duration.inSeconds
+          : video.durationSeconds;
       lastPingWatchSeconds = currentWatchSeconds;
       if (isAlreadyWatchedVideo) {
         return; // Never count watch time again for already watched video!
@@ -135,8 +141,24 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
     int duration,
     int deltaSeconds,
   ) async {
-    if (deltaSeconds <= 0 && eventType == 'watch_ping') return;
     if (isAlreadyWatchedVideo) return; // Never record watch time for re-watching!
+    final totalDur = duration > 0
+        ? duration
+        : (video.durationSeconds > 0
+            ? video.durationSeconds
+            : (videoPlayerController?.value.duration.inSeconds ?? 0));
+
+    var effectiveDelta = deltaSeconds;
+    if (effectiveDelta > 0 && totalDur > 0 && Get.isRegistered<WatchHistoryService>()) {
+      final cumWatch = WatchHistoryService.to.getCumulativeWatchSeconds(video.id);
+      final remainingAllowed = math.max(0, totalDur - cumWatch);
+      effectiveDelta = math.min(effectiveDelta, remainingAllowed);
+      if (effectiveDelta > 0) {
+        WatchHistoryService.to.addCumulativeWatchSeconds(video.id, effectiveDelta, totalDur);
+      }
+    }
+
+    if (effectiveDelta <= 0 && eventType == 'watch_ping') return;
     final isSub = isSubscribed.value;
 
     mainController.trackWatchEvent(
@@ -144,8 +166,8 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
       channelId: video.channelId,
       eventType: eventType,
       position: position,
-      duration: duration,
-      watchTimeSecondsDelta: deltaSeconds,
+      duration: totalDur,
+      watchTimeSecondsDelta: effectiveDelta,
       isSubscriber: isSub,
       isNotSubscriber: !isSub,
       trafficSource: trafficSource,
@@ -208,18 +230,36 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
     }
 
     final currentWatch = watchStopwatch.elapsed.inSeconds;
-    final delta = isAlreadyWatchedVideo ? 0 : (currentWatch - lastPingWatchSeconds);
-    if (delta > 0) {
+    final rawDelta = isAlreadyWatchedVideo ? 0 : (currentWatch - lastPingWatchSeconds);
+    if (rawDelta > 0) {
       lastPingWatchSeconds = currentWatch;
     }
+
+    final totalDur = duration > 0
+        ? duration
+        : (video.durationSeconds > 0
+            ? video.durationSeconds
+            : (videoPlayerController?.value.duration.inSeconds ?? 0));
+
+    var effectiveDelta = rawDelta > 0 ? rawDelta : 0;
+    if (effectiveDelta > 0 && totalDur > 0 && Get.isRegistered<WatchHistoryService>()) {
+      final cumWatch = WatchHistoryService.to.getCumulativeWatchSeconds(video.id);
+      final remainingAllowed = math.max(0, totalDur - cumWatch);
+      effectiveDelta = math.min(effectiveDelta, remainingAllowed);
+      if (effectiveDelta > 0) {
+        WatchHistoryService.to.addCumulativeWatchSeconds(video.id, effectiveDelta, totalDur);
+      }
+    }
+
+    if (totalDur <= 0) return;
 
     mainController.trackWatchEvent(
       videoId: video.id,
       channelId: video.channelId,
       eventType: eventType,
       position: position,
-      duration: duration,
-      watchTimeSecondsDelta: delta > 0 ? delta : 0,
+      duration: totalDur,
+      watchTimeSecondsDelta: effectiveDelta,
       isSubscriber: isSub,
       isNotSubscriber: !isSub,
       trafficSource: trafficSource,
@@ -265,8 +305,18 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
     }
 
     try {
-      final percentage = totalDuration > 0
-          ? ((currentWatchSeconds / totalDuration) * 100).clamp(0, 100)
+      final cumWatch = Get.isRegistered<WatchHistoryService>()
+          ? WatchHistoryService.to.getCumulativeWatchSeconds(video.id)
+          : currentWatchSeconds;
+      final effectiveWatch = math.max(currentWatchSeconds, cumWatch);
+      final effectiveDuration = totalDuration > 0
+          ? totalDuration
+          : (video.durationSeconds > 0
+              ? video.durationSeconds
+              : video.durationValue.inSeconds);
+
+      final percentage = effectiveDuration > 0
+          ? ((effectiveWatch / effectiveDuration) * 100).clamp(0, 100)
           : 0;
 
       await FirebaseFirestore.instance
@@ -284,7 +334,7 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
             'duration': video.duration,
             'durationMs': video.durationValue.inMilliseconds > 0
                 ? video.durationValue.inMilliseconds
-                : totalDuration * 1000,
+                : effectiveDuration * 1000,
             'views': video.views,
             'likeCount': video.likeCount,
             'category': video.category,
@@ -293,11 +343,12 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
             'videoUrl': video.originalUrl,
             'ownerId': video.ownerId,
             'watchedAt': FieldValue.serverTimestamp(),
-            'watchedDuration': currentWatchSeconds,
+            'watchedDuration': effectiveWatch,
             'watchPercentage': percentage,
+            'isCompleted': percentage >= 90.0,
             'lastPosition':
                 videoPlayerController?.value.position.inSeconds ?? 0,
-            'videoDuration': totalDuration,
+            'videoDuration': effectiveDuration,
           }, SetOptions(merge: true));
 
       // Only mark video as watched in recommendation profile if user actually watched >= 80%
@@ -315,7 +366,7 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
           category: video.category,
           topics: video.topics,
           channelId: video.channelId,
-          durationSec: currentWatchSeconds,
+          durationSec: effectiveWatch,
           completion: (percentage / 100.0).clamp(0.0, 1.0),
           isFactChecked: video.isFactChecked || video.trustScore >= 3.5,
         );

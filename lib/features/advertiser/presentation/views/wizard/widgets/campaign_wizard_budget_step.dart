@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/features/advertiser/presentation/views/wizard/widgets/campaign_wizard_options.dart';
 import 'package:truthworld/features/advertiser/presentation/views/wizard/widgets/campaign_wizard_targeting_widgets.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -51,6 +52,8 @@ class CampaignWizardBudgetStep extends StatelessWidget {
       final isSkippable = adFormat.value == 'skippable';
       final isSponsor = adFormat.value == 'video_sponsor';
       final isScroll = adFormat.value == 'scroll';
+      final isIndian = !Get.isRegistered<CurrencyLocalizationService>() ||
+          CurrencyLocalizationService.to.isIndianUser;
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -187,7 +190,7 @@ class CampaignWizardBudgetStep extends StatelessWidget {
             children: [
               CampaignWizardBudgetOption(
                 tierName: 'Bootstrap Package',
-                cost: '₹500',
+                cost: isIndian ? '₹500' : r'$10',
                 subtitle: 'Estimated 2,500 impressions',
                 value: 'startup',
                 isSelected: selectedBudget.value == 'startup',
@@ -196,7 +199,7 @@ class CampaignWizardBudgetStep extends StatelessWidget {
               const SizedBox(height: 8),
               CampaignWizardBudgetOption(
                 tierName: 'Starter Pack',
-                cost: '₹2,000',
+                cost: isIndian ? '₹2,000' : r'$25',
                 subtitle: 'Estimated 10,000 impressions',
                 value: 'starter',
                 isSelected: selectedBudget.value == 'starter',
@@ -205,7 +208,7 @@ class CampaignWizardBudgetStep extends StatelessWidget {
               const SizedBox(height: 8),
               CampaignWizardBudgetOption(
                 tierName: 'Growth Booster',
-                cost: '₹5,000',
+                cost: isIndian ? '₹5,000' : r'$50',
                 subtitle: 'Estimated 35,000 impressions',
                 value: 'growth',
                 isSelected: selectedBudget.value == 'growth',
@@ -214,7 +217,7 @@ class CampaignWizardBudgetStep extends StatelessWidget {
               const SizedBox(height: 8),
               CampaignWizardBudgetOption(
                 tierName: 'Enterprise Scale',
-                cost: '₹15,000',
+                cost: isIndian ? '₹15,000' : r'$150',
                 subtitle: 'Estimated 120,000 impressions',
                 value: 'enterprise',
                 isSelected: selectedBudget.value == 'enterprise',

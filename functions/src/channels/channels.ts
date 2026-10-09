@@ -1,8 +1,10 @@
 import * as admin from "firebase-admin";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import { logger } from "firebase-functions/v2";
 import { Channel, ChannelType } from "../pipeline/types";
+import { EmailService } from "../services/emailService";
 
 const db = () => admin.firestore();
 
@@ -329,8 +331,137 @@ export const switchChannelType = onCall(
 );
 
 /**
+ * 📧 DISPATCH CHANNEL WELCOME EMAIL
+ * Dispatches a branded HTML welcome email to the channel creator via native Google/Gmail SMTP,
+ * guarded by Firestore idempotency to prevent duplicate emails on retries.
+ */
+export async function dispatchChannelWelcomeEmail(
+  channelId: string,
+  channelData: any
+): Promise<{ success: boolean; skipped?: boolean; error?: string; messageId?: string } | null> {
+  if (!channelData || channelData.status === "deleted") {
+    return null;
+  }
+
+  // Idempotency: Skip if already marked sent in data
+  if (channelData.welcomeEmailSent === true) {
+    logger.info(`[dispatchChannelWelcomeEmail] Channel ${channelId} already received welcome email; skipping.`);
+    return { success: true, skipped: true };
+  }
+
+  const channelRef = db().collection(CHANNELS_COLLECTION).doc(channelId);
+
+  // 1. Double check current document in Firestore for idempotency
+  const channelSnap = await channelRef.get().catch(() => null);
+  if (channelSnap?.exists && channelSnap.data()?.welcomeEmailSent === true) {
+    logger.info(`[dispatchChannelWelcomeEmail] Channel ${channelId} already received welcome email in Firestore; skipping.`);
+    return { success: true, skipped: true };
+  }
+
+  // 2. Resolve recipient email and creator details
+  const ownerId = channelData.ownerId || channelData.userId;
+  let targetEmail: string | null = null;
+  let resolvedOwnerName: string | null = null;
+
+  // Priority 1: Check contactEmail on channel doc if valid
+  if (
+    channelData.contactEmail &&
+    typeof channelData.contactEmail === "string" &&
+    channelData.contactEmail.includes("@")
+  ) {
+    targetEmail = channelData.contactEmail.trim();
+  }
+
+  // Priority 2: Query Firestore users collection
+  if (ownerId) {
+    try {
+      const userSnap = await db().collection(USERS_COLLECTION).doc(ownerId).get();
+      if (userSnap.exists) {
+        const userData = userSnap.data();
+        if (
+          !targetEmail &&
+          userData?.email &&
+          typeof userData.email === "string" &&
+          userData.email.includes("@")
+        ) {
+          targetEmail = userData.email.trim();
+        }
+        resolvedOwnerName = userData?.displayName || userData?.name || null;
+      }
+    } catch (userErr) {
+      logger.debug(`[dispatchChannelWelcomeEmail] Could not query user doc for ${ownerId}:`, userErr);
+    }
+  }
+
+  // Priority 3: Fallback to Firebase Auth user record
+  if (!targetEmail && ownerId) {
+    try {
+      const authUser = await admin.auth().getUser(ownerId);
+      if (authUser?.email && authUser.email.includes("@")) {
+        targetEmail = authUser.email.trim();
+      }
+      if (!resolvedOwnerName && authUser?.displayName) {
+        resolvedOwnerName = authUser.displayName;
+      }
+    } catch (authErr) {
+      logger.debug(`[dispatchChannelWelcomeEmail] Could not query auth record for ${ownerId}:`, authErr);
+    }
+  }
+
+  if (!targetEmail) {
+    logger.info(
+      `[dispatchChannelWelcomeEmail] Channel ${channelId} (owner: ${ownerId}) has no valid email; welcome email skipped.`
+    );
+    return { success: false, skipped: true, error: "No recipient email found" };
+  }
+
+  const channelName =
+    channelData.channelName ||
+    channelData.displayName ||
+    channelData.name ||
+    "TruthWorld Creator";
+  const handle = channelData.handle || channelData.customUrl || channelData.slug || null;
+
+  // 3. Dispatch Channel Welcome Email via EmailService
+  const result = await EmailService.sendChannelWelcomeEmail({
+    to: targetEmail,
+    channelName,
+    ownerDisplayName: resolvedOwnerName,
+    handle,
+  });
+
+  if (result.success) {
+    // 4. Mark idempotency flag in Firestore channel doc
+    await channelRef.set(
+      {
+        welcomeEmailSent: true,
+        welcomeEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
+        welcomeEmailMessageId: result.messageId || null,
+        welcomeEmailRecipient: targetEmail,
+      },
+      { merge: true }
+    );
+    logger.info(
+      `[dispatchChannelWelcomeEmail] Successfully sent welcome email to ${targetEmail} for channel ${channelId}.`
+    );
+  } else if (result.skipped) {
+    logger.info(
+      `[dispatchChannelWelcomeEmail] Channel welcome email skipped for channel ${channelId} (${result.error}).`
+    );
+  } else {
+    logger.warn(
+      `[dispatchChannelWelcomeEmail] Channel welcome email could not be delivered to ${targetEmail}: ${result.error}`
+    );
+  }
+
+  return result;
+}
+
+/**
  * 🔒 ON CHANNEL WRITTEN SYNC USER (Firestore Trigger)
  * Automatically keeps user document in sync and enforces the strict 1-channel rule in Firestore.
+ * Also dispatches a branded HTML welcome email via native Google/Gmail SMTP when a new channel is created,
+ * guarded by Firestore idempotency to prevent duplicate emails on retries.
  */
 export const onChannelCreatedSyncUser = onDocumentWritten(
   {
@@ -338,6 +469,7 @@ export const onChannelCreatedSyncUser = onDocumentWritten(
     region: "asia-south1",
     retry: false,
     maxInstances: 5,
+    secrets: ["SMTP_USER", "SMTP_PASS"],
   },
   async (event) => {
     const channelId = event.params.channelId;
@@ -428,7 +560,125 @@ export const onChannelCreatedSyncUser = onDocumentWritten(
         },
         { merge: true }
       );
+
+      // ─── Welcome Email for New Channel ─────────────────────────────────────
+      // Exactly like onUserCreated for new users:
+      // Dispatches branded HTML welcome email via native Google/Gmail SMTP,
+      // guarded by Firestore idempotency to prevent duplicate emails on retries.
+      if (afterData.welcomeEmailSent !== true) {
+        try {
+          await dispatchChannelWelcomeEmail(channelId, afterData);
+        } catch (emailErr) {
+          // Non-fatal: Log error so Cloud Function does not crash lifecycle pipeline
+          logger.error(
+            `[onChannelCreatedSyncUser] Unexpected error sending welcome email for channel ${channelId}:`,
+            emailErr
+          );
+        }
+      }
     }
+  }
+);
+
+/**
+ * 🧹 30-DAY CHANNEL DELETION GRACE PERIOD PURGE SCHEDULER
+ *
+ * Runs daily to permanently delete channels whose 30-day grace period has expired.
+ * Permanently deletes video files and docs, storage assets, handles, channel subcollections,
+ * and clears user document channel associations.
+ */
+export const cleanupExpiredDeletedChannelsScheduled = onSchedule(
+  {
+    schedule: "0 2 * * *", // Daily at 02:00 UTC (07:30 IST)
+    region: "asia-south1",
+    memory: "512MiB",
+    timeoutSeconds: 300,
+    minInstances: 0,
+    maxInstances: 1,
+  },
+  async () => {
+    logger.info("[ChannelCleanup] Checking for channels with expired 30-day deletion grace period...");
+    const thirtyDaysAgoMs = Date.now() - 30 * 24 * 60 * 60 * 1000;
+
+    const snapshot = await db()
+      .collection(CHANNELS_COLLECTION)
+      .where("status", "==", "deleted")
+      .limit(50)
+      .get();
+
+    if (snapshot.empty) {
+      logger.info("[ChannelCleanup] No deleted channels found.");
+      return;
+    }
+
+    const bucket = admin.storage().bucket();
+    let purgedCount = 0;
+
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      const expiry = data.deletionGracePeriodExpiresAt;
+      const scheduled = data.deletionScheduledAt || data.updatedAt;
+
+      const isExpired =
+        (expiry && expiry.toMillis && expiry.toMillis() <= Date.now()) ||
+        (scheduled && scheduled.toMillis && scheduled.toMillis() <= thirtyDaysAgoMs);
+
+      if (!isExpired) {
+        continue;
+      }
+
+      const channelId = doc.id;
+      const ownerId = data.ownerId || data.userId;
+      logger.info(`[ChannelCleanup] 30-day grace period expired for channel ${channelId}. Permanently purging all assets...`);
+
+      // 1. Purge channel videos from storage and Firestore
+      const videosSnap = await db()
+        .collection("videos")
+        .where("channelId", "==", channelId)
+        .get()
+        .catch(() => ({ docs: [] } as any));
+
+      for (const vDoc of videosSnap.docs) {
+        await bucket.deleteFiles({ prefix: `videos/${vDoc.id}/` }).catch(() => {});
+        await db().recursiveDelete(vDoc.ref).catch((e) => {
+          logger.warn(`[ChannelCleanup] Error recursive deleting video ${vDoc.id}:`, e);
+        });
+      }
+
+      // 2. Purge channel storage assets (avatars, banners)
+      await bucket.deleteFiles({ prefix: `channels/${channelId}/` }).catch(() => {});
+
+      // 3. Purge channel handle reservation
+      if (data.handle) {
+        const handleDoc = await db().collection("channel_handles").doc(data.handle.toLowerCase()).get().catch(() => null);
+        if (handleDoc && handleDoc.exists) {
+          await handleDoc.ref.delete().catch(() => {});
+        }
+      }
+
+      // 4. Recursive delete channel document and subcollections
+      await db().recursiveDelete(doc.ref).catch((e) => {
+        logger.warn(`[ChannelCleanup] Error recursive deleting channel ${channelId}:`, e);
+      });
+
+      // 5. Update owner user doc to clear channel references permanently
+      if (ownerId) {
+        await db().collection(USERS_COLLECTION).doc(ownerId).set(
+          {
+            hasChannel: false,
+            channelId: null,
+            deletedChannelId: null,
+            channelsCount: 0,
+            updatedAt: Date.now(),
+          },
+          { merge: true }
+        ).catch(() => {});
+      }
+
+      purgedCount++;
+    }
+
+    logger.info(`[ChannelCleanup] Completed grace period purge: ${purgedCount} expired channels permanently deleted.`);
   }
 );
 

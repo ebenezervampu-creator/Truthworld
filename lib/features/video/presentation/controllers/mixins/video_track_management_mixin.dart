@@ -29,6 +29,7 @@ mixin VideoTrackManagementMixin on GetxController {
   RxBool get isSwitchingResolution;
   RxBool get isAutoSwitching;
   VideoPlayerController? get videoPlayerController;
+  bool get isVpcInitialized;
   RxList<SubtitleTrack> get availableSubtitles;
   RxList<AudioTrack> get availableAudioTracks;
   VideoTranscriptController get transcriptController;
@@ -51,6 +52,7 @@ mixin VideoTrackManagementMixin on GetxController {
   Future<void> initializeVideoPlayer({String? overrideUrl});
 
   Future<void> fetchAvailableResolutions() async {
+    if (isClosed) return;
     try {
       final docId = video.id;
       debugPrint('[VideoController] 🔍 Fetching resolutions for: $docId');
@@ -59,6 +61,8 @@ mixin VideoTrackManagementMixin on GetxController {
           .collection('resolution_jobs')
           .doc(docId)
           .getCacheFirst();
+
+      if (isClosed) return;
 
       if (doc.exists) {
         final data = doc.data();
@@ -134,22 +138,46 @@ mixin VideoTrackManagementMixin on GetxController {
 
           if (fetchTasks.isNotEmpty) {
             final results = await Future.wait(fetchTasks);
+            if (isClosed) return;
             foundVariants.addAll(results.whereType<VideoResolutionV2>());
           }
 
           if (foundVariants.isNotEmpty) {
-            // Sort by height descending, then fps descending
-            foundVariants.sort((a, b) {
-              final cmp = b.height.compareTo(a.height);
-              if (cmp != 0) return cmp;
-              return b.fps.compareTo(a.fps);
-            });
-            availableResolutions.assignAll(foundVariants);
+            final sortedFound = [...foundVariants]
+              ..sort((a, b) => a.height.compareTo(b.height));
+            final lowestFoundUrl = sortedFound.first.url;
 
-            // Update ABR ladder with real variants
+            final baseMediaUrl = video.originalUrl.isNotEmpty &&
+                    !video.originalUrl.contains('.m3u8') &&
+                    !video.originalUrl.contains('.mpd')
+                ? video.originalUrl
+                : (video.videoUrl.isNotEmpty &&
+                        !video.videoUrl.contains('.m3u8') &&
+                        !video.videoUrl.contains('.mpd')
+                    ? video.videoUrl
+                    : lowestFoundUrl);
+
+            // Merge with existing adaptiveResolutions from video model if present
+            final combinedVariants = <VideoResolutionV2>[...foundVariants];
+            for (final modelRes in video.adaptiveResolutions) {
+              if (modelRes.url.trim().isNotEmpty &&
+                  !combinedVariants.any((r) =>
+                      r.label.toLowerCase() == modelRes.label.toLowerCase() ||
+                      (r.height == modelRes.height && r.fps == modelRes.fps))) {
+                combinedVariants.add(modelRes);
+              }
+            }
+
+            final completeLadder = VideoResolutionV2.ensureCompleteLadder(
+              combinedVariants,
+              fallbackUrl: baseMediaUrl,
+            );
+            availableResolutions.assignAll(completeLadder);
+
+            // Update ABR ladder with complete variants
             final abr = _resolveAbr();
             if (abr != null) {
-              final ladder = foundVariants.reversed
+              final ladder = completeLadder.reversed
                   .map(ResolutionTier.fromVideoResolution)
                   .toList();
               if (ladder.isNotEmpty) {
@@ -162,7 +190,7 @@ mixin VideoTrackManagementMixin on GetxController {
             }
 
             debugPrint(
-              '[VideoController] ✅ Successfully loaded ${availableResolutions.length} resolutions',
+              '[VideoController] ✅ Successfully loaded ${availableResolutions.length} resolutions (complete ladder guaranteed)',
             );
           }
         } else {
@@ -179,12 +207,25 @@ mixin VideoTrackManagementMixin on GetxController {
             .where((r) => r.url.trim().isNotEmpty)
             .toList();
         if (modelResolutions.isNotEmpty) {
-          modelResolutions.sort((a, b) => b.height.compareTo(a.height));
-          availableResolutions.assignAll(modelResolutions);
+          final baseMediaUrl = video.originalUrl.isNotEmpty &&
+                  !video.originalUrl.contains('.m3u8') &&
+                  !video.originalUrl.contains('.mpd')
+              ? video.originalUrl
+              : (video.videoUrl.isNotEmpty &&
+                      !video.videoUrl.contains('.m3u8') &&
+                      !video.videoUrl.contains('.mpd')
+                  ? video.videoUrl
+                  : (modelResolutions.isNotEmpty ? modelResolutions.last.url : ''));
+
+          final completeLadder = VideoResolutionV2.ensureCompleteLadder(
+            modelResolutions,
+            fallbackUrl: baseMediaUrl,
+          );
+          availableResolutions.assignAll(completeLadder);
 
           final abr = _resolveAbr();
           if (abr != null) {
-            final ladder = modelResolutions.reversed
+            final ladder = completeLadder.reversed
                 .map(ResolutionTier.fromVideoResolution)
                 .toList();
             if (ladder.isNotEmpty) {
@@ -284,6 +325,43 @@ mixin VideoTrackManagementMixin on GetxController {
           );
         }
       }
+
+      // FINAL GUARANTEE: A video must NEVER have an incomplete resolution ladder.
+      // If higher resolutions (e.g. 1080p, 720p) exist but lower tiers (480p, 360p, 240p, 144p) are missing,
+      // backfill them immediately so the viewer always has access to all standard resolution options.
+      if (availableResolutions.isNotEmpty) {
+        final baseMediaUrl = video.originalUrl.isNotEmpty &&
+                !video.originalUrl.contains('.m3u8') &&
+                !video.originalUrl.contains('.mpd')
+            ? video.originalUrl
+            : (video.videoUrl.isNotEmpty &&
+                    !video.videoUrl.contains('.m3u8') &&
+                    !video.videoUrl.contains('.mpd')
+                ? video.videoUrl
+                : availableResolutions.last.url);
+
+        final completeLadder = VideoResolutionV2.ensureCompleteLadder(
+          availableResolutions,
+          fallbackUrl: baseMediaUrl,
+        );
+
+        if (completeLadder.length != availableResolutions.length) {
+          availableResolutions.assignAll(completeLadder);
+          final abr = _resolveAbr();
+          if (abr != null) {
+            final ladder = completeLadder.reversed
+                .map(ResolutionTier.fromVideoResolution)
+                .toList();
+            if (ladder.isNotEmpty) {
+              abr.updateLadder(
+                ladder,
+                activeHeight: currentResolution.value?.height,
+                activeFps: currentResolution.value?.fps,
+              );
+            }
+          }
+        }
+      }
     } catch (e, s) {
       ErrorHandler.log(
         e,
@@ -364,10 +442,11 @@ mixin VideoTrackManagementMixin on GetxController {
   }
 
   /// Proactively finds, downloads, and parses the transcript/subtitles for this video
-  Future<void> loadTranscriptForVideo() =>
+  Future<void> loadTranscriptForVideo({bool forceRefresh = false}) =>
       transcriptController.loadTranscriptForVideo(
         video,
         defaultSubtitleUrl: availableSubtitles.firstOrNull?.url,
+        forceRefresh: forceRefresh,
       );
 
   /// Fetches the AI Summary from moderation.summary in the video document or credibility cache
@@ -722,47 +801,41 @@ mixin VideoTrackManagementMixin on GetxController {
     VideoResolutionV2 res, {
     bool isManual = true,
   }) async {
+    if (isClosed) return;
+    if (isSwitchingResolution.value) return;
     if (currentResolution.value?.url == res.url &&
         currentResolution.value?.label == res.label) {
       return;
     }
 
     if (videoPlayerController != null &&
-        videoPlayerController!.value.isInitialized &&
+        isVpcInitialized &&
         videoPlayerController!.dataSource == res.url) {
       currentResolution.value = res;
       return;
     }
 
-    final currentPosition =
-        videoPlayerController?.value.position ?? Duration.zero;
-    final wasPlaying = videoPlayerController?.value.isPlaying ?? false;
-    final speed = videoPlayerController?.value.playbackSpeed ?? 1.0;
-    final volume = videoPlayerController?.value.volume ?? 1.0;
-
     isSwitchingResolution.value = true;
     isAutoSwitching.value = !isManual;
     currentResolution.value = res;
 
-    // Pre-seed initialSeekPosition so player immediately resumes at the exact frame
-    initialSeekPosition = currentPosition;
+    final towerCtrl = TowerPlayerController.getForTagOrActive(video.id);
+
+    if (isManual) {
+      // Manual resolution selection (e.g. 720p, 480p, 1080p):
+      // The user explicitly requested this resolution. This CAN cause buffering.
+      // Immediately set buffering so the player displays the buffering spinner while loading the requested quality.
+      towerCtrl?.isBuffering.value = true;
+      towerCtrl?.abr.playbackState.value = PlaybackState.buffering;
+      try {
+        videoPlayerController?.pause();
+      } catch (_) {}
+    }
 
     try {
       await initializeVideoPlayer(overrideUrl: res.url);
 
-      if (videoPlayerController != null) {
-        if (currentPosition > Duration.zero) {
-          await videoPlayerController!.seekTo(currentPosition);
-        }
-        await videoPlayerController!.setPlaybackSpeed(speed);
-        await videoPlayerController!.setVolume(volume);
-        if (wasPlaying) {
-          await videoPlayerController!.play();
-        }
-      }
-
-      // Display seamless HUD toast notification
-      final towerCtrl = TowerPlayerController.getForTagOrActive(video.id);
+      // Display HUD toast notification
       final qualityText = isManual
           ? 'Quality: ${res.label}'
           : 'Quality: ${res.label} (Auto)';
@@ -776,6 +849,13 @@ mixin VideoTrackManagementMixin on GetxController {
     } finally {
       isSwitchingResolution.value = false;
       isAutoSwitching.value = false;
+      if (isManual) {
+        towerCtrl?.isBuffering.value =
+            videoPlayerController?.value.isBuffering ?? false;
+        if (videoPlayerController?.value.isPlaying == true) {
+          towerCtrl?.abr.playbackState.value = PlaybackState.playing;
+        }
+      }
     }
   }
 

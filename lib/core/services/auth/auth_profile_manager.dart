@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
-import 'package:truthworld/components/ui/google_onboarding_sheet.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
@@ -323,9 +322,10 @@ class AuthProfileManager {
     needsOnboarding.value = false;
   }
 
-  /// Updates profile with optional Age Group, optional Gender, and optional Username/Handle after Sign-In or Settings update.
+  /// Updates profile with Country, optional Age Group, optional Gender, and optional Username/Handle after Sign-In or Settings update.
   Future<void> updateUserProfileOnboarding(
     User? currentUser, {
+    String? country,
     String? ageGroup,
     String? gender,
     String? username,
@@ -337,6 +337,12 @@ class AuthProfileManager {
       'hasCompletedOnboarding': true,
       'updatedAt': FieldValue.serverTimestamp(),
     };
+
+    if (country != null && country.trim().isNotEmpty) {
+      final trimmedCountry = country.trim().toUpperCase();
+      updateData['country'] = trimmedCountry;
+      userCountry.value = trimmedCountry;
+    }
 
     if (ageGroup != null && ageGroup.trim().isNotEmpty) {
       final trimmedAge = ageGroup.trim();
@@ -396,13 +402,26 @@ class AuthProfileManager {
   }
 
   /// Skips onboarding while marking it as completed for the current user.
-  Future<void> skipUserOnboarding(User? currentUser) async {
+  Future<void> skipUserOnboarding(User? currentUser, {String? defaultCountry}) async {
     if (currentUser == null) return;
+
+    final updateData = <String, dynamic>{
+      'hasCompletedOnboarding': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    if (defaultCountry != null &&
+        defaultCountry.trim().isNotEmpty &&
+        (userCountry.value == null || userCountry.value!.isEmpty)) {
+      final trimmed = defaultCountry.trim().toUpperCase();
+      updateData['country'] = trimmed;
+      userCountry.value = trimmed;
+    }
 
     await FirebaseFirestore.instance
         .collection(FirestoreCollections.users)
         .doc(currentUser.uid)
-        .update({'hasCompletedOnboarding': true});
+        .set(updateData, SetOptions(merge: true));
 
     needsOnboarding.value = false;
   }
@@ -433,7 +452,7 @@ class AuthProfileManager {
     if (ctx.mounted && !_isOnboardingPromptShowing) {
       _isOnboardingPromptShowing = true;
       try {
-        await GoogleOnboardingSheet.show(ctx);
+        await Get.toNamed('/onboarding');
       } finally {
         _isOnboardingPromptShowing = false;
       }

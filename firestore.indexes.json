@@ -587,6 +587,14 @@
         { "fieldPath": "category", "order": "ASCENDING" },
         { "fieldPath": "videoCount", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "resolution_jobs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [

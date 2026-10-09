@@ -45,20 +45,4 @@ class CategoryRepositoryImpl extends BaseRepository implements CategoryRepositor
       return snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
     });
   }
-
-  @override
-  Future<Result<Map<String, dynamic>>> getCategoryInsights(String category) async {
-    return safeFetch(() async {
-      final doc = await _firestore
-          .collection(FirestoreCollections.categories)
-          .doc(category)
-          .get();
-
-      if (!doc.exists) {
-        return <String, dynamic>{'category': category, 'totalVideos': 0, 'totalViews': 0};
-      }
-
-      return {'id': doc.id, ...doc.data()!};
-    });
-  }
 }

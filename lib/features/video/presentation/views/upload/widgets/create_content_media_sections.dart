@@ -25,7 +25,13 @@ class CreateContentVideoFileSection extends StatelessWidget {
       final isUploading = uploadController.isUploading.value;
       final progressPercent = uploadController.uploadProgressPercent;
       final playerCtrl = uploadController.videoPlayerController;
-      final hasVideo = pickedVideo != null || videoUrl.isNotEmpty;
+      final resumedDraft = uploadController.resumedVideoDraft.value;
+      final hasVideo =
+          pickedVideo != null || videoUrl.isNotEmpty || resumedDraft != null;
+      final videoName = pickedVideo?.name ??
+          (resumedDraft?.title.isNotEmpty == true
+              ? resumedDraft!.title
+              : 'Video File Ready');
 
       return Container(
         padding: const EdgeInsets.all(20),
@@ -129,15 +135,15 @@ class CreateContentVideoFileSection extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.all(24),
                         alignment: Alignment.center,
-                        child: Row(
+                        child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.movie_creation_outlined,
+                            Icon(Icons.movie_creation_outlined,
                                 color: Colors.white, size: 28),
-                            const SizedBox(width: 12),
+                            SizedBox(width: 12),
                             Text(
-                              pickedVideo?.name ?? 'Video File Ready',
-                              style: const TextStyle(
+                              'Video Uploaded & Ready',
+                              style: TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 14),
@@ -157,7 +163,7 @@ class CreateContentVideoFileSection extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  pickedVideo?.name ?? 'Video File Ready',
+                                  videoName,
                                   style: const TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.bold,
@@ -171,6 +177,14 @@ class CreateContentVideoFileSection extends StatelessWidget {
                                     style: TextStyle(
                                         color: Colors.white
                                             .withValues(alpha: 0.7),
+                                        fontSize: 11),
+                                  )
+                                else
+                                  Text(
+                                    hasVideo ? 'Video attached and ready' : '',
+                                    style: TextStyle(
+                                        color: Colors.white
+                                            .withValues(alpha: 0.6),
                                         fontSize: 11),
                                   ),
                               ],

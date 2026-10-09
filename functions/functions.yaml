@@ -5,7 +5,7 @@
       "availableMemoryMb": 512,
       "timeoutSeconds": 120,
       "minInstances": 0,
-      "maxInstances": 10,
+      "maxInstances": 20,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
@@ -28,7 +28,7 @@
       "availableMemoryMb": 4096,
       "timeoutSeconds": 540,
       "minInstances": 0,
-      "maxInstances": 10,
+      "maxInstances": 50,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
@@ -47,6 +47,81 @@
         "retry": true
       },
       "entryPoint": "handleResolution"
+    },
+    "getVideoResolutionStatus": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": 30,
+      "minInstances": 0,
+      "maxInstances": 2,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "httpsTrigger": {},
+      "entryPoint": "getVideoResolutionStatus"
+    },
+    "getResolutionProfiles": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": 10,
+      "minInstances": 0,
+      "maxInstances": 2,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "httpsTrigger": {},
+      "entryPoint": "getResolutionProfiles"
+    },
+    "reconcileStuckResolutionJobsScheduled": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": 120,
+      "minInstances": null,
+      "maxInstances": 100,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "scheduleTrigger": {
+        "schedule": "every 10 minutes",
+        "retryConfig": {}
+      },
+      "entryPoint": "reconcileStuckResolutionJobsScheduled"
+    },
+    "reconcileVideoResolutionManual": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": 60,
+      "minInstances": 0,
+      "maxInstances": 2,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "httpsTrigger": {},
+      "entryPoint": "reconcileVideoResolutionManual"
     },
     "scheduledVideoPublisher": {
       "availableMemoryMb": 512,
@@ -641,6 +716,14 @@
       "region": [
         "asia-south1"
       ],
+      "secretEnvironmentVariables": [
+        {
+          "key": "SMTP_USER"
+        },
+        {
+          "key": "SMTP_PASS"
+        }
+      ],
       "labels": {},
       "eventTrigger": {
         "eventType": "google.cloud.firestore.document.v1.written",
@@ -654,6 +737,27 @@
         "retry": false
       },
       "entryPoint": "onChannelCreatedSyncUser"
+    },
+    "cleanupExpiredDeletedChannelsScheduled": {
+      "availableMemoryMb": 512,
+      "timeoutSeconds": 300,
+      "minInstances": 0,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "scheduleTrigger": {
+        "schedule": "0 2 * * *",
+        "retryConfig": {}
+      },
+      "entryPoint": "cleanupExpiredDeletedChannelsScheduled"
     },
     "followChannel": {
       "availableMemoryMb": 256,
@@ -1288,6 +1392,33 @@
       "callableTrigger": {},
       "entryPoint": "trackActivity"
     },
+    "onUserCreated": {
+      "platform": "gcfv1",
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": null,
+      "ingressSettings": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "secretEnvironmentVariables": [
+        {
+          "key": "SMTP_USER"
+        },
+        {
+          "key": "SMTP_PASS"
+        }
+      ],
+      "eventTrigger": {
+        "eventType": "providers/firebase.auth/eventTypes/user.create",
+        "eventFilters": {
+          "resource": "projects/truthworld-1"
+        },
+        "retry": false
+      },
+      "labels": {},
+      "entryPoint": "onUserCreated"
+    },
     "onUserDeleted": {
       "platform": "gcfv1",
       "availableMemoryMb": null,
@@ -1486,6 +1617,24 @@
       "labels": {},
       "callableTrigger": {},
       "entryPoint": "reportCommentNested"
+    },
+    "approveCommentNested": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 15,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "approveCommentNested"
     },
     "cleanupProcessedEvents": {
       "availableMemoryMb": 256,
@@ -2450,8 +2599,8 @@
       "entryPoint": "onVideoUpload"
     },
     "handleTranscription": {
-      "availableMemoryMb": 256,
-      "timeoutSeconds": 120,
+      "availableMemoryMb": 1024,
+      "timeoutSeconds": 540,
       "minInstances": 0,
       "maxInstances": 20,
       "ingressSettings": null,
@@ -2466,6 +2615,9 @@
       "secretEnvironmentVariables": [
         {
           "key": "ASSEMBLYAI_KEY"
+        },
+        {
+          "key": "GEMINI_API_KEY"
         }
       ],
       "labels": {},

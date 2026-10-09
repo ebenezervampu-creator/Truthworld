@@ -24,6 +24,7 @@ mixin VideoEngagementActionsMixin on GetxController {
   RxBool get showThumbnail;
   RxBool get isSubscribed;
   RxDouble get rxAspectRatio;
+  RxBool get isSwitchingResolution;
 
   VideoEngagementController get engagementController;
   VideoAnalyticsController get analyticsController;
@@ -132,6 +133,11 @@ mixin VideoEngagementActionsMixin on GetxController {
         );
       }
     } else {
+      // Industry standard: Do not stop stopwatch or tear down presence while actively switching resolution
+      if (isSwitchingResolution.value) {
+        return;
+      }
+
       if (watchStopwatch.isRunning) {
         watchStopwatch.stop();
         analyticsController.stopTimer();

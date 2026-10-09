@@ -5,6 +5,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
+import 'package:truthworld/core/utils/watch_time_formatter.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_analytics_controller.dart';
@@ -116,7 +117,7 @@ void main() {
       'title': 'Transparent Watchtime Video',
       'channelId': 'chan_tw_001',
       'channelName': 'TruthWorld Transparency',
-      'videoUrl': 'https://cdn.truthworld.com/video/vid_truth_100/master.mp4',
+      'videoUrl': 'https://cdn.truthworld.in/video/vid_truth_100/master.mp4',
       'duration': 100,
       'viewCount': 10,
     }, 'vid_truth_100');
@@ -205,7 +206,7 @@ void main() {
         'title': 'Scrub Drag Video',
         'channelId': 'chan_tw_002',
         'channelName': 'TruthWorld Transparency',
-        'videoUrl': 'https://cdn.truthworld.com/video/vid_truth_scrub_4/master.mp4',
+        'videoUrl': 'https://cdn.truthworld.in/video/vid_truth_scrub_4/master.mp4',
         'duration': 100,
         'viewCount': 5,
       }, 'vid_truth_scrub_4');
@@ -231,6 +232,68 @@ void main() {
       // Transparent rule: Must NOT be marked as already watched because actual elapsed watch time < 85%
       expect(controller.isAlreadyWatched, isFalse);
       expect(WatchHistoryService.to.isVideoFullyWatched(scrubVideo.id), isFalse);
+    });
+
+    test('5. Single user viewing multiple sessions cannot exceed video duration watch time (328s / 5m 28s)', () async {
+      final videoUnder6Min = Video.fromMap({
+        'title': 'Mahonathuda song by Raj prakash paul worship conference',
+        'channelId': 'chan_raj_001',
+        'channelName': 'Raj Prakash Paul',
+        'videoUrl': 'https://cdn.truthworld.in/video/vid_mahonathuda_328/master.mp4',
+        'duration': '05:28',
+        'durationSeconds': 328,
+        'viewCount': 1,
+      }, 'vid_mahonathuda_328');
+
+      expect(videoUnder6Min.durationSeconds, equals(328));
+
+      // Session 1: User watches 200 seconds (first session)
+      final session1Ctrl = VideoController();
+      session1Ctrl.video = videoUnder6Min;
+
+      await session1Ctrl.pingWatchEvent('watch_ping', 200, 328, 200);
+
+      expect(WatchHistoryService.to.getCumulativeWatchSeconds('vid_mahonathuda_328'), equals(200));
+      expect(mockMainCtrl.trackedEvents.last['watchTimeSecondsDelta'], equals(200));
+
+      // Session 2: User watches another 200 seconds in a separate playback session
+      final session2Ctrl = VideoController();
+      session2Ctrl.video = videoUnder6Min;
+
+      // Only remaining 128 seconds allowed (328 - 200) before reaching duration ceiling!
+      await session2Ctrl.pingWatchEvent('watch_ping', 200, 328, 200);
+
+      expect(WatchHistoryService.to.getCumulativeWatchSeconds('vid_mahonathuda_328'), equals(328));
+      // Delta MUST be clamped to 128s, NEVER 200s!
+      expect(mockMainCtrl.trackedEvents.last['watchTimeSecondsDelta'], equals(128));
+
+      // Video is now fully watched!
+      expect(WatchHistoryService.to.isVideoFullyWatched('vid_mahonathuda_328', totalDuration: 328), isTrue);
+
+      // Session 3: User tries to watch yet again
+      final session3Ctrl = VideoController();
+      session3Ctrl.video = videoUnder6Min;
+      expect(session3Ctrl.isAlreadyWatchedVideo, isTrue);
+
+      final eventCountBefore = mockMainCtrl.trackedEvents.length;
+      await session3Ctrl.pingWatchEvent('watch_ping', 100, 328, 100);
+      // No ping event emitted!
+      expect(mockMainCtrl.trackedEvents.length, equals(eventCountBefore));
+    });
+
+    test('6. Video parser & UI metrics self-heal corrupted watch times beyond duration ceiling', () {
+      // 1 view, duration 05:28 (328s), but corrupted totalWatchTimeSeconds in Firestore is 428s (7 mins)
+      final parsed = Video.fromMap({
+        'title': 'Corrupted Watchtime Video',
+        'duration': '05:28',
+        'durationSeconds': 328,
+        'viewCount': 1,
+        'totalWatchTimeSeconds': 428,
+      }, 'vid_corrupted');
+
+      // Epistemic ceiling clamps totalWatchTimeSeconds to 328s (5 mins), NEVER 428s (7 mins)
+      expect(parsed.totalWatchTimeSeconds, equals(328));
+      expect(WatchTimeFormatter.format(parsed.totalWatchTimeSeconds), equals('5 mins'));
     });
   });
 }

@@ -8,12 +8,13 @@ import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/theme/app_colors.dart';
 
 /// Modal bottom sheet presented after a Google Sign-In or from Settings to collect / edit:
-/// 1. Optional Age Group (Under 13, 13–17, 18–24, 25–34, 35–44, 45–54, 55–64, 65+, Prefer not to say)
-/// 2. Optional Gender (Male, Female, Non-binary, Prefer not to say, Self-describe)
+/// 1. Country / Region (India, United States, United Kingdom, etc.)
+/// 2. Optional Age Group starting from 18+ (18–24, 25–34, 35–44, 45–54, 55–64, 65+, Prefer not to say)
+/// 3. Optional Gender (Male, Female, Non-binary, Prefer not to say, Self-describe)
 class GoogleOnboardingSheet extends StatelessWidget {
   const GoogleOnboardingSheet({super.key});
 
-  /// Helper to display the onboarding sheet as a modal bottom sheet
+  /// Helper to route to the dedicated onboarding profile page
   static Future<void> show(BuildContext context) async {
     // Safety guard: Never show for unsigned, anonymous, or unauthenticated users
     final auth = AuthService.to;
@@ -24,27 +25,7 @@ class GoogleOnboardingSheet extends StatelessWidget {
       return;
     }
 
-    if (!Get.isRegistered<GoogleOnboardingController>()) {
-      Get.put(GoogleOnboardingController());
-    } else {
-      Get.find<GoogleOnboardingController>().reinitialize();
-    }
-
-    try {
-      await showModalBottomSheet<void>(
-        context: context,
-        useRootNavigator: true,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (context) => const GoogleOnboardingSheet(),
-      );
-    } finally {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (Get.isRegistered<GoogleOnboardingController>()) {
-          Get.delete<GoogleOnboardingController>();
-        }
-      });
-    }
+    await Get.toNamed('/onboarding');
   }
 
   @override
@@ -221,7 +202,126 @@ class GoogleOnboardingSheet extends StatelessWidget {
               const SizedBox(height: 24),
             ],
 
-            // Age Group Section (Optional)
+            // Country / Region Section
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Country / Region',
+                  style: GoogleFonts.outfit(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.bgElevated,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Country',
+                    style: GoogleFonts.roboto(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w400,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Truthworld localizes your content recommendations, currency, and payment options based on your country.',
+              style: GoogleFonts.roboto(
+                fontSize: 12,
+                color: AppColors.textTertiary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Obx(() {
+              final selectedCode = controller.selectedCountry.value;
+              final countryList = controller.countryOptions;
+              final hasSelected = selectedCode != null &&
+                  countryList.any((c) => c.code == selectedCode);
+              final effectiveVal = hasSelected
+                  ? selectedCode
+                  : (countryList.isNotEmpty ? countryList.first.code : null);
+
+              return DropdownButtonFormField<String>(
+                value: effectiveVal,
+                dropdownColor: AppColors.bgSurface,
+                icon: const Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  color: Colors.white,
+                ),
+                style: GoogleFonts.roboto(
+                  fontSize: 15,
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w500,
+                ),
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(
+                    Icons.public_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  filled: true,
+                  fillColor: AppColors.bgInput,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.bgDivider),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.bgDivider),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.white),
+                  ),
+                ),
+                items: countryList.map((country) {
+                  return DropdownMenuItem<String>(
+                    value: country.code,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          country.flagEmoji,
+                          style: const TextStyle(fontSize: 18),
+                        ),
+                        const SizedBox(width: 10),
+                        Flexible(
+                          child: Text(
+                            '${country.name} (${country.code})',
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.roboto(
+                              fontSize: 14,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+                onChanged: (val) {
+                  if (val != null) {
+                    controller.selectCountry(val);
+                  }
+                },
+              );
+            }),
+            const SizedBox(height: 24),
+
+            // Age Group Section (Optional - 18+ Only)
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -241,7 +341,7 @@ class GoogleOnboardingSheet extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    'Optional',
+                    '18+',
                     style: GoogleFonts.roboto(
                       fontSize: 11,
                       fontWeight: FontWeight.w400,
@@ -253,7 +353,7 @@ class GoogleOnboardingSheet extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'Helps Truthworld recommend age-appropriate videos and comply with content safety guidelines.',
+              'Truthworld is exclusively for users aged 18 and older. Helps recommend age-appropriate content.',
               style: GoogleFonts.roboto(
                 fontSize: 12,
                 color: AppColors.textTertiary,

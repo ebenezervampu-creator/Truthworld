@@ -56,6 +56,8 @@ class VideoSerializer {
       'sourceLinks': video.sourceLinks,
       'isFactChecked': video.isFactChecked,
       'factCheckTier': video.factCheckTier,
+      'factCheckReviewMode': video.factCheckReviewMode,
+      'isFactCheckApproved': video.isFactCheckApproved,
       'isVerified': video.isVerified,
       'qualifiedViewCount': video.viewCount,
       'totalWatchTimeSeconds': video.totalWatchTimeSeconds,

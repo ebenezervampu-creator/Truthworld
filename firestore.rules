@@ -126,9 +126,11 @@ service cloud.firestore {
                         ])) ||
                        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['subscriberCount', 'lastActiveAt', 'videoCount']) &&
                         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['subscriberCount']) ||
+                         ((!('subscriberCount' in resource.data) || resource.data.subscriberCount == null) && request.resource.data.subscriberCount == 1) ||
                          request.resource.data.subscriberCount == resource.data.subscriberCount + 1 ||
                          request.resource.data.subscriberCount == resource.data.subscriberCount - 1 ||
-                         request.resource.data.subscriberCount == resource.data.subscriberCount))
+                         request.resource.data.subscriberCount == resource.data.subscriberCount ||
+                         (resource.data.subscriberCount <= 0 && request.resource.data.subscriberCount == 0)))
                      );
       
       // Allow owners or admins to delete their channels
@@ -178,11 +180,11 @@ service cloud.firestore {
                           get(/databases/$(database)/documents/channels/$(channelId)).data.ownerId == request.auth.uid;
       }
 
-      // Distributed Counter Shards (20 shards for channel views & watch time)
+      // Distributed Counter Shards (20 shards for channel views, watch time & subscribers)
       match /shards/{shardId} {
         allow read: if true;
-        allow create: if isAuthenticated() && request.resource.data.keys().hasOnly(['views', 'watchTimeSeconds', 'updatedAt']);
-        allow update: if isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'watchTimeSeconds', 'updatedAt']);
+        allow create: if isAuthenticated() && request.resource.data.keys().hasOnly(['views', 'watchTimeSeconds', 'subscriberDelta', 'updatedAt']);
+        allow update: if isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'watchTimeSeconds', 'subscriberDelta', 'updatedAt']);
       }
 
       // Videos subcollection (alternate path)
@@ -754,6 +756,11 @@ service cloud.firestore {
 
       // User Watch Later subcollection
       match /watch_later/{videoId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // User Watch History subcollection
+      match /watch_history/{videoId} {
         allow read, write: if isOwner(userId);
       }
 

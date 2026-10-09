@@ -32,27 +32,43 @@ void main() {
       expect(controller.currentChapters[0].title, equals('Introduction'));
       expect(controller.currentChapters[0].startTime, equals(Duration.zero));
       expect(controller.currentChapters[1].title, equals('Main Content'));
-      expect(controller.currentChapters[1].startTime, equals(const Duration(minutes: 3)));
+      expect(
+        controller.currentChapters[1].startTime,
+        equals(const Duration(minutes: 3)),
+      );
       expect(controller.currentChapters[2].title, equals('Outro'));
-      expect(controller.currentChapters[2].startTime, equals(const Duration(minutes: 10)));
+      expect(
+        controller.currentChapters[2].startTime,
+        equals(const Duration(minutes: 10)),
+      );
       expect(controller.hasUnsavedChanges.value, isTrue);
     });
 
-    test('addChapter replaces existing chapter when startTime is duplicated', () {
-      controller.addChapter('Original Intro', Duration.zero);
-      controller.addChapter('Updated Intro', Duration.zero);
+    test(
+      'addChapter replaces existing chapter when startTime is duplicated',
+      () {
+        controller.addChapter('Original Intro', Duration.zero);
+        controller.addChapter('Updated Intro', Duration.zero);
 
-      expect(controller.currentChapters.length, equals(1));
-      expect(controller.currentChapters.first.title, equals('Updated Intro'));
-      expect(controller.hasUnsavedChanges.value, isTrue);
-    });
+        expect(controller.currentChapters.length, equals(1));
+        expect(controller.currentChapters.first.title, equals('Updated Intro'));
+        expect(controller.hasUnsavedChanges.value, isTrue);
+      },
+    );
 
     test('updateChapter modifies existing chapter properly', () {
       controller.addChapter('Chapter 1', Duration.zero);
-      controller.updateChapter(0, title: 'Renamed Chapter 1', startTime: const Duration(seconds: 15));
+      controller.updateChapter(
+        0,
+        title: 'Renamed Chapter 1',
+        startTime: const Duration(seconds: 15),
+      );
 
       expect(controller.currentChapters[0].title, equals('Renamed Chapter 1'));
-      expect(controller.currentChapters[0].startTime, equals(const Duration(seconds: 15)));
+      expect(
+        controller.currentChapters[0].startTime,
+        equals(const Duration(seconds: 15)),
+      );
     });
 
     test('deleteChapter removes chapter at specified index', () {
@@ -68,11 +84,122 @@ void main() {
     test('shiftChapterTiming shifts timestamp forward and backward', () {
       controller.addChapter('Chapter 1', const Duration(seconds: 30));
       controller.shiftChapterTiming(0, 5000); // +5 seconds
-      expect(controller.currentChapters[0].startTime, equals(const Duration(seconds: 35)));
+      expect(
+        controller.currentChapters[0].startTime,
+        equals(const Duration(seconds: 35)),
+      );
 
       controller.shiftChapterTiming(0, -10000); // -10 seconds
-      expect(controller.currentChapters[0].startTime, equals(const Duration(seconds: 25)));
+      expect(
+        controller.currentChapters[0].startTime,
+        equals(const Duration(seconds: 25)),
+      );
     });
+
+    test('enforces video duration limit when video is under 6 minutes', () {
+      final shortVideo = Video.fromMap({
+        'title': 'Under 6 Min Video',
+        'channelId': 'chan_1',
+        'videoUrl': 'https://example.com/short.mp4',
+        'duration': '05:30',
+        'durationMs': (5 * 60 + 30) * 1000,
+      }, 'vid_short');
+
+      controller.selectedVideo.value = shortVideo;
+
+      // 1. Adding chapter within duration succeeds
+      final addedValid = controller.addChapter(
+        'Intro',
+        const Duration(minutes: 2),
+      );
+      expect(addedValid, isTrue);
+      expect(controller.currentChapters.length, equals(1));
+
+      // 2. Adding chapter exceeding 5:30 fails
+      final addedPastDuration = controller.addChapter(
+        'Out of bounds',
+        const Duration(minutes: 6),
+      );
+      expect(addedPastDuration, isFalse);
+      expect(controller.currentChapters.length, equals(1));
+
+      // 3. Adding chapter exactly at 5:30 fails
+      final addedAtDuration = controller.addChapter(
+        'End boundary',
+        const Duration(minutes: 5, seconds: 30),
+      );
+      expect(addedAtDuration, isFalse);
+      expect(controller.currentChapters.length, equals(1));
+
+      // 4. Negative timestamp fails
+      final addedNegative = controller.addChapter(
+        'Negative',
+        const Duration(seconds: -5),
+      );
+      expect(addedNegative, isFalse);
+      expect(controller.currentChapters.length, equals(1));
+
+      // 5. Updating chapter past duration fails
+      final updatedPast = controller.updateChapter(
+        0,
+        startTime: const Duration(minutes: 7),
+      );
+      expect(updatedPast, isFalse);
+      expect(
+        controller.currentChapters[0].startTime,
+        equals(const Duration(minutes: 2)),
+      );
+
+      // 6. Shifting chapter past duration is blocked
+      controller.shiftChapterTiming(0, 4 * 60 * 1000); // 2m + 4m = 6m > 5m30s
+      expect(
+        controller.currentChapters[0].startTime,
+        equals(const Duration(minutes: 2)),
+      );
+
+      // 7. Shifting backwards cannot go below 0
+      controller.shiftChapterTiming(0, -3 * 60 * 1000); // 2m - 3m -> 0
+      expect(controller.currentChapters[0].startTime, equals(Duration.zero));
+    });
+
+    test(
+      'importFromTimestampFormat skips timestamps exceeding video duration',
+      () {
+        final shortVideo = Video.fromMap({
+          'title': 'Under 6 Min Video',
+          'channelId': 'chan_1',
+          'videoUrl': 'https://example.com/short.mp4',
+          'duration': '05:30',
+          'durationMs': (5 * 60 + 30) * 1000,
+        }, 'vid_short');
+
+        controller.selectedVideo.value = shortVideo;
+
+        const importText = '''
+00:00 Introduction
+02:15 Topic Discussion
+05:10 Conclusion
+06:00 Extra Out of Bounds
+07:30 Bonus Not Allowed
+''';
+
+        controller.importFromTimestampFormat(importText);
+
+        expect(controller.currentChapters.length, equals(3));
+        expect(
+          controller.currentChapters[0].formattedStartTime,
+          equals('00:00'),
+        );
+        expect(
+          controller.currentChapters[1].formattedStartTime,
+          equals('02:15'),
+        );
+        expect(
+          controller.currentChapters[2].formattedStartTime,
+          equals('05:10'),
+        );
+      },
+    );
   });
 
   group('AudioTrackItem Tests', () {
@@ -98,7 +225,10 @@ void main() {
 
     setUp(() {
       Get.reset();
-      controller = DashboardController(channelId: 'test_channel_123', autoInitialize: false);
+      controller = DashboardController(
+        channelId: 'test_channel_123',
+        autoInitialize: false,
+      );
     });
 
     test('filteredVideos returns reactive copy and filters properly', () {
@@ -136,63 +266,75 @@ void main() {
       expect(controller.filteredVideos.length, equals(2));
     });
 
-    testWidgets('Obx with analyticsData.toList() does not throw GetX improper use error', (tester) async {
-      await tester.pumpWidget(
-        Directionality(
-          textDirection: TextDirection.ltr,
-          child: Obx(() {
-            final data = controller.analyticsData.toList();
-            return Text('Count: ${data.length}');
-          }),
-        ),
-      );
+    testWidgets(
+      'Obx with analyticsData.toList() does not throw GetX improper use error',
+      (tester) async {
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: Obx(() {
+              final data = controller.analyticsData.toList();
+              return Text('Count: ${data.length}');
+            }),
+          ),
+        );
 
-      expect(find.text('Count: 0'), findsOneWidget);
+        expect(find.text('Count: 0'), findsOneWidget);
 
-      controller.analyticsData.assignAll([
-        AnalyticsData(DateTime(2026), 100),
-        AnalyticsData(DateTime(2026, 1, 2), 250),
-      ]);
-      await tester.pump();
+        controller.analyticsData.assignAll([
+          AnalyticsData(DateTime(2026), 100),
+          AnalyticsData(DateTime(2026, 1, 2), 250),
+        ]);
+        await tester.pump();
 
-      expect(find.text('Count: 2'), findsOneWidget);
-    });
+        expect(find.text('Count: 2'), findsOneWidget);
+      },
+    );
 
-    test('channelStats revenue reflects actual computed earnings (e.g. ₹9.60)', () {
-      controller.rxMembershipsRevenue.value = 9.60;
-      controller.updateRevenueStats();
+    test(
+      'channelStats revenue reflects actual computed earnings (e.g. ₹9.60)',
+      () {
+        controller.rxMembershipsRevenue.value = 9.60;
+        controller.updateRevenueStats();
 
-      expect(controller.rxTotalRevenue.value, equals(9.60));
-      expect(controller.channelStats['revenue'], equals('₹9.60'));
-      expect(controller.channelStats['revenueChange'], equals('+₹9.60'));
-    });
+        expect(controller.rxTotalRevenue.value, equals(9.60));
+        expect(controller.channelStats['revenue'], equals('₹9.60'));
+        expect(controller.channelStats['revenueChange'], equals('+₹9.60'));
+      },
+    );
 
-    test('channelStats dynamically formats revenue and does not trap stale ₹0.00', () {
-      // Simulate initial zero revenue
-      controller.channelStats.value = {
-        'revenue': '₹0.00',
-        'revenueChange': '+₹0.00',
-      };
+    test(
+      'channelStats dynamically formats revenue and does not trap stale ₹0.00',
+      () {
+        // Simulate initial zero revenue
+        controller.channelStats.value = {
+          'revenue': '₹0.00',
+          'revenueChange': '+₹0.00',
+        };
 
-      // Now revenue becomes available (e.g., from authentic tier supporter of $0.10 USD)
-      controller.rxMembershipsRevenue.value = 9.60;
-      controller.updateRevenueStats();
+        // Now revenue becomes available (e.g., from authentic tier supporter of $0.10 USD)
+        controller.rxMembershipsRevenue.value = 9.60;
+        controller.updateRevenueStats();
 
-      expect(controller.channelStats['revenue'], equals('₹9.60'));
-      expect(controller.channelStats['revenueChange'], equals('+₹9.60'));
-    });
+        expect(controller.channelStats['revenue'], equals('₹9.60'));
+        expect(controller.channelStats['revenueChange'], equals('+₹9.60'));
+      },
+    );
 
-    test('bidirectional sync between RevenueAnalyticsController and DashboardController', () {
-      Get.put<DashboardController>(controller);
-      final revCtrl = Get.put(RevenueAnalyticsController());
-      revCtrl.channelId.value = 'test_channel_123';
-      revCtrl.membershipsRevenue.value = 9.60;
+    test(
+      'bidirectional sync between RevenueAnalyticsController and DashboardController',
+      () {
+        Get.put<DashboardController>(controller);
+        final revCtrl = Get.put(RevenueAnalyticsController());
+        revCtrl.channelId.value = 'test_channel_123';
+        revCtrl.membershipsRevenue.value = 9.60;
 
-      // When RevenueAnalyticsController recalculates, it should sync to matching DashboardController
-      revCtrl.setCurrencyView('INR'); // triggers _recalculateTotal
+        // When RevenueAnalyticsController recalculates, it should sync to matching DashboardController
+        revCtrl.setCurrencyView('INR'); // triggers _recalculateTotal
 
-      expect(controller.rxMembershipsRevenue.value, equals(9.60));
-      expect(controller.channelStats['revenue'], equals('₹9.60'));
-    });
+        expect(controller.rxMembershipsRevenue.value, equals(9.60));
+        expect(controller.channelStats['revenue'], equals('₹9.60'));
+      },
+    );
   });
 }

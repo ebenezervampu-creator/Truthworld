@@ -81,26 +81,33 @@ class CreatorIntelligenceController extends BaseController {
 
   bool get hasActiveIssues {
     final ch = currentChannel.value;
-    final hasChannelStatusIssue = ch != null &&
+    final hasChannelStatusNotice = ch != null &&
         (ch.status == ChannelStatus.verificationRejected ||
-            ch.status == ChannelStatus.underReview);
-    final hasAvatarIssue = ch != null &&
+            ch.status == ChannelStatus.underReview ||
+            ch.status == ChannelStatus.verificationPending ||
+            ch.status == ChannelStatus.suspended ||
+            ch.status == ChannelStatus.active ||
+            ch.geminiApproved == true ||
+            (ch.infraConfig?.isWithdrawalHeld == true));
+    final hasAvatarNotice = ch != null &&
         (ch.avatarStatus == 'REJECTED' ||
             ch.avatarStatus == 'FLAGGED' ||
             ch.avatarStatus == 'MANUAL_REVIEW' ||
-            ch.avatarStatus == 'PENDING');
-    final hasBannerIssue = ch != null &&
+            ch.avatarStatus == 'PENDING' ||
+            ch.avatarStatus == 'APPROVED');
+    final hasBannerNotice = ch != null &&
         (ch.bannerStatus == 'REJECTED' ||
             ch.bannerStatus == 'FLAGGED' ||
             ch.bannerStatus == 'MANUAL_REVIEW' ||
-            ch.bannerStatus == 'PENDING');
+            ch.bannerStatus == 'PENDING' ||
+            ch.bannerStatus == 'APPROVED');
     final hasCopyrightIssues = copyrightClaimsCount.value > 0;
     final hasCriticalNotifications = filteredNotifications
         .any((n) => n.priority == NotificationPriority.critical);
 
-    return hasChannelStatusIssue ||
-        hasAvatarIssue ||
-        hasBannerIssue ||
+    return hasChannelStatusNotice ||
+        hasAvatarNotice ||
+        hasBannerNotice ||
         hasCopyrightIssues ||
         hasCriticalNotifications;
   }
@@ -109,7 +116,10 @@ class CreatorIntelligenceController extends BaseController {
     var count = 0;
     final ch = currentChannel.value;
     if (ch != null) {
-      if (ch.status == ChannelStatus.verificationRejected) count++;
+      if (ch.status == ChannelStatus.verificationRejected ||
+          ch.status == ChannelStatus.suspended) {
+        count++;
+      }
       if (ch.avatarStatus == 'REJECTED' ||
           ch.avatarStatus == 'FLAGGED' ||
           ch.avatarStatus == 'MANUAL_REVIEW') {
@@ -118,6 +128,9 @@ class CreatorIntelligenceController extends BaseController {
       if (ch.bannerStatus == 'REJECTED' ||
           ch.bannerStatus == 'FLAGGED' ||
           ch.bannerStatus == 'MANUAL_REVIEW') {
+        count++;
+      }
+      if (ch.infraConfig?.isWithdrawalHeld == true) {
         count++;
       }
     }
@@ -228,62 +241,108 @@ class CreatorIntelligenceController extends BaseController {
     }
   }
 
+  final Map<String, UserNotification> _activeDocs = {};
+  final Map<String, UserNotification> _legacyDocs = {};
+  final Map<String, UserNotification> _channelNotifDocs = {};
+
+  void _syncMergedNotifications() {
+    final merged = <String, UserNotification>{};
+    merged.addAll(_legacyDocs);
+    merged.addAll(_activeDocs);
+    merged.addAll(_channelNotifDocs);
+    final list = merged.values.toList();
+    list.sort((a, b) {
+      if (a.priority == NotificationPriority.critical &&
+          b.priority != NotificationPriority.critical) {
+        return -1;
+      }
+      if (b.priority == NotificationPriority.critical &&
+          a.priority != NotificationPriority.critical) {
+        return 1;
+      }
+      return b.createdAt.compareTo(a.createdAt);
+    });
+    notifications.value = list;
+    unreadCount.value = list.where((n) => !n.read).length;
+    rxIsLoading.value = false;
+  }
+
   void listenToNotifications() {
-    if (creatorId.isEmpty) {
+    if (creatorId.isEmpty && channelId.isEmpty) {
       rxIsLoading.value = false;
       return;
     }
 
     rxIsLoading.value = true;
 
-    // Listen to users/{creatorId}/notifications_active collection
-    trackSubscription(_firestore
-        .collection(FirestoreCollections.users)
-        .doc(creatorId)
-        .collection('notifications_active')
-        .orderBy('createdAt', descending: true)
-        .limit(200)
-        .snapshots()
-        .listen(
-          (snapshot) {
-            if (snapshot.docs.isNotEmpty) {
-              final list = snapshot.docs
-                  .map(UserNotification.fromDocumentSnapshot)
-                  .toList();
-              notifications.value = list;
-              unreadCount.value = list.where((n) => !n.read).length;
-            } else {
-              // Fallback to legacy user_notifications if active subcollection is empty
-              _listenToLegacyNotifications();
-            }
-            rxIsLoading.value = false;
-          },
-          onError: (err) {
-            debugPrint('[CreatorIntelligence] Firestore Stream Error: $err');
-            _listenToLegacyNotifications();
-          },
-        ));
-  }
+    if (creatorId.isNotEmpty) {
+      // Listen to users/{creatorId}/notifications_active collection
+      trackSubscription(_firestore
+          .collection(FirestoreCollections.users)
+          .doc(creatorId)
+          .collection('notifications_active')
+          .orderBy('createdAt', descending: true)
+          .limit(200)
+          .snapshots()
+          .listen(
+            (snapshot) {
+              _activeDocs.clear();
+              for (final doc in snapshot.docs) {
+                _activeDocs[doc.id] = UserNotification.fromDocumentSnapshot(doc);
+              }
+              _syncMergedNotifications();
+            },
+            onError: (err) {
+              debugPrint('[CreatorIntelligence] Firestore Stream Error: $err');
+              _syncMergedNotifications();
+            },
+          ));
 
-  void _listenToLegacyNotifications() {
-    _firestore
-        .collection('user_notifications')
-        .where('userId', isEqualTo: creatorId)
-        .orderBy('createdAt', descending: true)
-        .limit(100)
-        .get()
-        .then((snapshot) {
-          final list = snapshot.docs
-              .map(UserNotification.fromDocumentSnapshot)
-              .toList();
-          notifications.value = list;
-          unreadCount.value = list.where((n) => !n.read).length;
-          rxIsLoading.value = false;
-        })
-        .catchError((err) {
-          debugPrint('[CreatorIntelligence] Legacy Fetch Error: $err');
-          rxIsLoading.value = false;
-        });
+      // Also listen to user_notifications collection for creatorId
+      trackSubscription(_firestore
+          .collection('user_notifications')
+          .where('userId', isEqualTo: creatorId)
+          .orderBy('createdAt', descending: true)
+          .limit(200)
+          .snapshots()
+          .listen(
+            (snapshot) {
+              _legacyDocs.clear();
+              for (final doc in snapshot.docs) {
+                _legacyDocs[doc.id] = UserNotification.fromDocumentSnapshot(doc);
+              }
+              _syncMergedNotifications();
+            },
+            onError: (err) {
+              debugPrint('[CreatorIntelligence] Legacy Fetch Error: $err');
+              _syncMergedNotifications();
+            },
+          ));
+    }
+
+    // Also listen to user_notifications specifically addressed to this channelId
+    if (channelId.isNotEmpty && channelId != creatorId) {
+      trackSubscription(_firestore
+          .collection('user_notifications')
+          .where('channelId', isEqualTo: channelId)
+          .limit(200)
+          .snapshots()
+          .listen(
+            (snapshot) {
+              _channelNotifDocs.clear();
+              for (final doc in snapshot.docs) {
+                _channelNotifDocs[doc.id] =
+                    UserNotification.fromDocumentSnapshot(doc);
+              }
+              _syncMergedNotifications();
+            },
+            onError: (err) {
+              debugPrint(
+                  '[CreatorIntelligence] Channel Notifications Stream Error: $err');
+              _syncMergedNotifications();
+            },
+          ));
+    }
   }
 
   List<UserNotification> get filteredNotifications {
@@ -381,12 +440,20 @@ class CreatorIntelligenceController extends BaseController {
         unreadCount.value = notifications.where((n) => !n.read).length;
       }
 
-      await _firestore
-          .collection(FirestoreCollections.users)
-          .doc(creatorId)
-          .collection('notifications_active')
-          .doc(notificationId)
-          .update({'read': true, 'status': 'read'});
+      await Future.wait([
+        _firestore
+            .collection('user_notifications')
+            .doc(notificationId)
+            .update({'read': true, 'status': 'read'})
+            .catchError((_) {}),
+        _firestore
+            .collection(FirestoreCollections.users)
+            .doc(creatorId)
+            .collection('notifications_active')
+            .doc(notificationId)
+            .update({'read': true, 'status': 'read'})
+            .catchError((_) {}),
+      ]);
     } catch (e, stackTrace) {
       ErrorHandler.log(
         e,
@@ -405,18 +472,60 @@ class CreatorIntelligenceController extends BaseController {
           .toList();
       unreadCount.value = 0;
 
-      final snap = await _firestore
-          .collection(FirestoreCollections.users)
-          .doc(creatorId)
-          .collection('notifications_active')
-          .where('read', isEqualTo: false)
-          .get();
+      final futures = <Future>[];
 
-      final batch = _firestore.batch();
-      for (final doc in snap.docs) {
-        batch.update(doc.reference, {'read': true, 'status': 'read'});
+      // Update in user_notifications
+      futures.add(() async {
+        final legacySnap = await _firestore
+            .collection('user_notifications')
+            .where('userId', isEqualTo: creatorId)
+            .where('read', isEqualTo: false)
+            .get();
+        if (legacySnap.docs.isNotEmpty) {
+          final batch = _firestore.batch();
+          for (final doc in legacySnap.docs) {
+            batch.update(doc.reference, {'read': true, 'status': 'read'});
+          }
+          await batch.commit();
+        }
+      }().catchError((_) {}));
+
+      // Update in notifications_active
+      futures.add(() async {
+        final activeSnap = await _firestore
+            .collection(FirestoreCollections.users)
+            .doc(creatorId)
+            .collection('notifications_active')
+            .where('read', isEqualTo: false)
+            .get();
+        if (activeSnap.docs.isNotEmpty) {
+          final batch = _firestore.batch();
+          for (final doc in activeSnap.docs) {
+            batch.update(doc.reference, {'read': true, 'status': 'read'});
+          }
+          await batch.commit();
+        }
+      }().catchError((_) {}));
+
+      // Update in user_notifications for channelId
+      if (channelId.isNotEmpty && channelId != creatorId) {
+        futures.add(() async {
+          final chanSnap = await _firestore
+              .collection('user_notifications')
+              .where('channelId', isEqualTo: channelId)
+              .where('read', isEqualTo: false)
+              .get();
+          if (chanSnap.docs.isNotEmpty) {
+            final batch = _firestore.batch();
+            for (final doc in chanSnap.docs) {
+              batch.update(doc.reference, {'read': true, 'status': 'read'});
+            }
+            await batch.commit();
+          }
+        }().catchError((_) {}));
       }
-      await batch.commit();
+
+      await Future.wait(futures);
     } catch (e, stackTrace) {
       ErrorHandler.log(
         e,
@@ -435,20 +544,28 @@ class CreatorIntelligenceController extends BaseController {
       unreadCount.value = notifications.where((n) => !n.read).length;
 
       if (notif != null) {
-        // Move to archive collection
-        await _firestore
-            .collection(FirestoreCollections.users)
-            .doc(creatorId)
-            .collection('notifications_archive')
-            .doc(notificationId)
-            .set(notif.toJson());
-
-        await _firestore
-            .collection(FirestoreCollections.users)
-            .doc(creatorId)
-            .collection('notifications_active')
-            .doc(notificationId)
-            .delete();
+        await Future.wait([
+          // Move to archive collection
+          _firestore
+              .collection(FirestoreCollections.users)
+              .doc(creatorId)
+              .collection('notifications_archive')
+              .doc(notificationId)
+              .set(notif.toJson())
+              .catchError((_) {}),
+          _firestore
+              .collection(FirestoreCollections.users)
+              .doc(creatorId)
+              .collection('notifications_active')
+              .doc(notificationId)
+              .delete()
+              .catchError((_) {}),
+          _firestore
+              .collection('user_notifications')
+              .doc(notificationId)
+              .delete()
+              .catchError((_) {}),
+        ]);
       }
     } catch (e, stackTrace) {
       ErrorHandler.log(
@@ -476,5 +593,61 @@ class CreatorIntelligenceController extends BaseController {
       );
     }
     return null;
+  }
+
+  Future<void> approveFactCheck(String videoId, {String? notificationId}) async {
+    try {
+      await _firestore.collection('videos').doc(videoId).update({
+        'isFactCheckApproved': true,
+        'aiFeatures.isFactCheckApproved': true,
+      });
+
+      if (notificationId != null && notificationId.isNotEmpty) {
+        await Future.wait([
+          if (creatorId.isNotEmpty)
+            _firestore
+                .collection(FirestoreCollections.users)
+                .doc(creatorId)
+                .collection('notifications_active')
+                .doc(notificationId)
+                .set({
+                  'metadata': {'approved': true, 'isFactCheckApproved': true},
+                  'read': true,
+                }, SetOptions(merge: true))
+                .catchError((_) {}),
+          _firestore
+              .collection('user_notifications')
+              .doc(notificationId)
+              .set({
+                'metadata': {'approved': true, 'isFactCheckApproved': true},
+                'read': true,
+              }, SetOptions(merge: true))
+              .catchError((_) {}),
+        ]);
+
+        final idx = notifications.indexWhere((n) => n.id == notificationId);
+        if (idx != -1) {
+          final notif = notifications[idx];
+          final updatedMeta = Map<String, dynamic>.from(notif.metadata ?? {});
+          updatedMeta['approved'] = true;
+          updatedMeta['isFactCheckApproved'] = true;
+          notifications[idx] = notif.copyWith(
+            metadata: updatedMeta,
+            read: true,
+          );
+        }
+      }
+
+      AppSnackbar.success(
+        'Fact-checking results approved! Viewers can now watch verification results on the video screen.',
+      );
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'CreatorIntelligenceController.approveFactCheck',
+      );
+      AppSnackbar.error('Failed to approve fact-check. Please try again.');
+    }
   }
 }

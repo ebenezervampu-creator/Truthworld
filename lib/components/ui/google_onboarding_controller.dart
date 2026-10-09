@@ -4,10 +4,13 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/cashfree/cashfree_country_support.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 
-/// Controller managing state and actions for the age group & gender selection sheet.
+/// Controller managing state and actions for the country, age group & gender selection sheet.
 class GoogleOnboardingController extends BaseController {
+  final Rx<String?> selectedCountry = Rx<String?>(null);
   final Rx<String?> selectedAgeGroup = Rx<String?>(null);
   final Rx<String?> selectedGender = Rx<String?>(null);
   final RxBool isSaving = false.obs;
@@ -16,9 +19,8 @@ class GoogleOnboardingController extends BaseController {
   final Rx<String?> usernameError = Rx<String?>(null);
   bool _isClosing = false;
 
+  /// Age groups starting from 18 years and above (Truthworld is exclusively 18+)
   static const List<String> ageGroupOptions = [
-    'Under 13',
-    '13–17',
     '18–24',
     '25–34',
     '35–44',
@@ -38,6 +40,24 @@ class GoogleOnboardingController extends BaseController {
 
   List<String> get ageGroups => ageGroupOptions;
   List<String> get genders => genderOptions;
+
+  /// List of selectable countries ensuring selected country is always present in items
+  List<CashfreeCountryInfo> get countryOptions {
+    final list = List<CashfreeCountryInfo>.from(CashfreeCountrySupport.selectableCountries);
+    final cur = selectedCountry.value;
+    if (cur != null && cur.isNotEmpty && !list.any((c) => c.code == cur)) {
+      list.add(CashfreeCountrySupport.getCountryInfo(cur));
+    }
+    return list;
+  }
+
+  void selectCountry(String? code) {
+    if (code != null && code.isNotEmpty) {
+      selectedCountry.value = CashfreeCountrySupport.normalizeCode(code);
+    } else {
+      selectedCountry.value = null;
+    }
+  }
 
   /// Returns true if user is in first-time onboarding mode
   bool get isFirstTimeOnboarding {
@@ -148,6 +168,16 @@ class GoogleOnboardingController extends BaseController {
         selectedGender.value = null;
         selfDescribeController.text = '';
       }
+
+      // 3. Initialize Country (Priority: Auth profile -> Currency localization detected -> 'IN')
+      final currentCountry = auth.userCountry.value;
+      if (currentCountry != null && currentCountry.trim().isNotEmpty) {
+        selectedCountry.value = CashfreeCountrySupport.normalizeCode(currentCountry);
+      } else if (Get.isRegistered<CurrencyLocalizationService>()) {
+        selectedCountry.value = CurrencyLocalizationService.to.userCountryCode.value;
+      } else {
+        selectedCountry.value = 'IN';
+      }
     } catch (e, stackTrace) {
       ErrorHandler.log(
         e,
@@ -183,10 +213,9 @@ class GoogleOnboardingController extends BaseController {
     return null;
   }
 
-  /// Incurs age group from numeric age
+  /// Infers age group from numeric age (starting from 18 years, not below)
   String? inferAgeGroupFromAge(int age) {
-    if (age < 13) return 'Under 13';
-    if (age <= 17) return '13–17';
+    if (age < 18) return null;
     if (age <= 24) return '18–24';
     if (age <= 34) return '25–34';
     if (age <= 44) return '35–44';
@@ -280,6 +309,7 @@ class GoogleOnboardingController extends BaseController {
       isSaving.value = true;
 
       await AuthService.to.updateUserProfileOnboarding(
+        country: selectedCountry.value,
         ageGroup: selectedAgeGroup.value,
         gender: genderValue,
         username: cleanUsername,
@@ -305,7 +335,9 @@ class GoogleOnboardingController extends BaseController {
 
     try {
       if (isFirstTimeOnboarding) {
-        await AuthService.to.skipUserOnboarding();
+        await AuthService.to.skipUserOnboarding(
+          defaultCountry: selectedCountry.value,
+        );
       }
       if (context.mounted) {
         _isClosing = true;

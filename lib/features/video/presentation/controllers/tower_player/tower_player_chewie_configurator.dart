@@ -36,7 +36,6 @@ class TowerPlayerChewieConfigurator {
       videoPlayerController: videoPlayerController,
       looping: isLooping,
       showControls: false,
-      autoInitialize: !videoPlayerController.value.isInitialized,
       allowedScreenSleep: false,
       placeholder: const ColoredBox(
         color: AppColors.bgPage,

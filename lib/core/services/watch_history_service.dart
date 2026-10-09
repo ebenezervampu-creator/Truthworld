@@ -78,9 +78,21 @@ class WatchHistoryService extends GetxService {
                 final percentage =
                     (data['watchPercentage'] as num?)?.toDouble() ?? 0.0;
                 final lastPos = (data['lastPosition'] as num?)?.toInt() ?? 0;
+                final watchedDur = (data['watchedDuration'] as num?)?.toInt() ?? 0;
+                final vidDur = (data['videoDuration'] as num?)?.toInt() ?? 0;
 
                 _watchProgress[videoId] = percentage;
                 _lastPositions[videoId] = lastPos;
+
+                if (watchedDur > 0) {
+                  _storage.write('cumulative_watch_$videoId', watchedDur);
+                }
+                if (percentage >= 90.0 ||
+                    data['isCompleted'] == true ||
+                    (vidDur > 0 && watchedDur >= (vidDur * 0.90))) {
+                  _storage.write('fully_watched_$videoId', true);
+                  _watchProgress[videoId] = 100.0;
+                }
               }
             },
             onError: (e) {
@@ -257,8 +269,38 @@ class WatchHistoryService extends GetxService {
     return set;
   }
 
+  /// Get cumulative watched seconds for this video across all sessions
+  int getCumulativeWatchSeconds(String videoId) {
+    if (videoId.isEmpty) return 0;
+    try {
+      final localSec = _storage.read<int>('cumulative_watch_$videoId');
+      if (localSec != null && localSec > 0) return localSec;
+    } catch (_) {}
+    return 0;
+  }
+
+  /// Add watch delta to cumulative seconds and auto-mark fully watched if reaching 90%
+  void addCumulativeWatchSeconds(String videoId, int deltaSeconds, int totalDuration) {
+    if (videoId.isEmpty || deltaSeconds <= 0) return;
+    try {
+      final current = getCumulativeWatchSeconds(videoId);
+      final newTotal = current + deltaSeconds;
+      final clamped = totalDuration > 0 ? (newTotal > totalDuration ? totalDuration : newTotal) : newTotal;
+      _storage.write('cumulative_watch_$videoId', clamped);
+      if (totalDuration > 0 && clamped >= (totalDuration * 0.90)) {
+        markVideoFullyWatched(videoId);
+      }
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'WatchHistoryService.addCumulativeWatchSeconds',
+      );
+    }
+  }
+
   /// Check if a video has been fully watched (>= 90% true watch time or marked completed)
-  bool isVideoFullyWatched(String videoId) {
+  bool isVideoFullyWatched(String videoId, {int? totalDuration}) {
     if (videoId.isEmpty) return false;
     final pct = getProgress(videoId);
     if (pct >= 90.0) return true;
@@ -267,6 +309,12 @@ class WatchHistoryService extends GetxService {
       if (local != null && local['isCompleted'] == true) return true;
       final watchedFlag = _storage.read<bool>('fully_watched_$videoId');
       if (watchedFlag == true) return true;
+
+      final cumulativeSec = getCumulativeWatchSeconds(videoId);
+      final dur = totalDuration ?? (local != null ? (local['duration'] as num?)?.toInt() : null);
+      if (dur != null && dur > 0 && cumulativeSec >= (dur * 0.90)) {
+        return true;
+      }
     } catch (e, s) {
       ErrorHandler.log(
         e,

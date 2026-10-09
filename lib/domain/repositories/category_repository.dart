@@ -12,7 +12,4 @@ abstract class CategoryRepository {
     int limit = 20,
     String sortBy = 'trending',
   });
-
-  /// Fetch category insights/stats.
-  Future<Result<Map<String, dynamic>>> getCategoryInsights(String category);
 }

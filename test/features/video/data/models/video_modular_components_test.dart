@@ -132,6 +132,47 @@ void main() {
       expect(video.adaptiveResolutions.last.label, '144p');
     });
 
+    test('guarantees complete ladder down to 144p when only 1080p and 720p exist in adaptiveResolutions', () {
+      final video = Video.fromMap({
+        'id': 'vid_partial_res_test',
+        'title': 'Partial Resolution Video',
+        'videoUrl': 'https://example.com/source.mp4',
+        'ownerId': 'owner_1',
+        'channelId': 'ch_1',
+        'adaptiveResolutions': [
+          {
+            'label': '1080p',
+            'url': 'https://example.com/1080p.mp4',
+            'width': 1920,
+            'height': 1080,
+            'bitrate': 4500000,
+          },
+          {
+            'label': '720p',
+            'url': 'https://example.com/720p.mp4',
+            'width': 1280,
+            'height': 720,
+            'bitrate': 2500000,
+          },
+        ],
+      });
+
+      // Must NEVER have only 720p and 1080p — all 6 tiers down to 144p must be present!
+      expect(video.adaptiveResolutions.length, 6);
+      final labels = video.adaptiveResolutions.map((r) => r.label).toList();
+      expect(labels, ['1080p', '720p', '480p', '360p', '240p', '144p']);
+
+      // 1080p and 720p preserve their dedicated transcode URLs
+      expect(video.adaptiveResolutions[0].url, 'https://example.com/1080p.mp4');
+      expect(video.adaptiveResolutions[1].url, 'https://example.com/720p.mp4');
+
+      // Lower tiers use the lower bandwidth stream URL (720p)
+      expect(video.adaptiveResolutions[2].url, 'https://example.com/720p.mp4');
+      expect(video.adaptiveResolutions[3].url, 'https://example.com/720p.mp4');
+      expect(video.adaptiveResolutions[4].url, 'https://example.com/720p.mp4');
+      expect(video.adaptiveResolutions[5].url, 'https://example.com/720p.mp4');
+    });
+
     test('infers title from autoChapters when title is empty', () {
       final video = Video.fromMap({
         'id': 'vid_chap_title',

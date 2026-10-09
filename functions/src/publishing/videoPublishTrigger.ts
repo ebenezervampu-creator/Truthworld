@@ -281,12 +281,33 @@ export const onVideoPublished = onDocumentUpdated(
       const rawRequestedLanguages: string[] = getTranslationLangs(afterData);
       const requestedLanguages: string[] = normalizeLanguageCodes(rawRequestedLanguages);
       const hasTargetLanguages = requestedLanguages.length > 0;
-      const enableFactChecking = aiFeatures.factChecking ?? false;
+      const enableFactChecking = Boolean(
+        aiFeatures.factChecking === true ||
+        aiFeatures.enableFactCheck === true ||
+        aiFeatures.factCheck === true ||
+        aiFeatures.truthVerification === true ||
+        afterData.enableFactCheck === true ||
+        afterData.factChecking === true ||
+        afterData.factCheck === true ||
+        afterData.truthVerification === true ||
+        afterData.isFactChecked === true ||
+        (afterData.factCheckTier && afterData.factCheckTier !== "none" && afterData.factCheckTier !== "off" && afterData.factCheckTier !== "") ||
+        (aiFeatures.factCheckTier && aiFeatures.factCheckTier !== "none" && aiFeatures.factCheckTier !== "off" && aiFeatures.factCheckTier !== "")
+      );
       // TruthWorld Unified Standard: All fact-checked content receives Complete Ground-Truth Verification
-      const factCheckTier: "short" | "standard" | "full_ground" = "full_ground";
+      const factCheckTier: "short" | "standard" | "full_ground" = enableFactChecking ? "full_ground" : "standard";
 
       const enableGenLangSubs = aiFeatures.genLangSubs ?? (hasTargetLanguages || (aiFeatures.generateSubtitles ?? false));
-      const enableDubbing = aiFeatures.generateDubbing ?? false;
+      const enableDubbing = Boolean(
+        aiFeatures.generateDubbing === true ||
+        aiFeatures.dubbing === true ||
+        afterData.generateDubbing === true ||
+        afterData.dubbing === true ||
+        (Array.isArray(aiFeatures.dubbingLanguages) && aiFeatures.dubbingLanguages.length > 0) ||
+        (Array.isArray(afterData.dubbingLanguages) && afterData.dubbingLanguages.length > 0) ||
+        (aiFeatures.dubbingMode && aiFeatures.dubbingMode !== "none") ||
+        (afterData.dubbingMode && afterData.dubbingMode !== "none")
+      );
       const enableSummary = aiFeatures.summary ?? false;
       const enableDiarization = (aiFeatures.diarization ?? aiFeatures.enableDiarization) ?? false;
       const enableAutoChapters = (aiFeatures.autoChapters ?? aiFeatures.chapters) ?? false;
@@ -322,9 +343,10 @@ export const onVideoPublished = onDocumentUpdated(
         enablePath2,
         enableTruthEngine: enableFactChecking,
         enableReachEngine: enablePath2,
-        enableAuxiliary: enableSummary,
+        enableAuxiliary: enableSummary || enableFactChecking,
         enableDiarization,
         diarization: enableDiarization,
+        factCheckEnabled: enableFactChecking,
         dubbingLanguages: Array.isArray(aiFeatures.dubbingLanguages) ? normalizeLanguageCodes(aiFeatures.dubbingLanguages) : [],
         primaryLanguage: channelLang,
         languages: Array.from(new Set([channelLang, ...requestedLanguages])),
@@ -347,6 +369,7 @@ export const onVideoPublished = onDocumentUpdated(
         duration: afterData.duration ? parseInt(String(afterData.duration)) : undefined,
         videoCategory: afterData.category || afterData.videoCategory || "Other",
       };
+      (executionPlan as any).enableFactChecking = enableFactChecking;
 
       const now = Date.now();
       const shard = EdgeLayer.shardKey(userId);
@@ -363,7 +386,7 @@ export const onVideoPublished = onDocumentUpdated(
         transcription: { status: "pending", progress: 0 },
         copyright: { status: "pending", progress: 0 },
         credibility: enableFactChecking ? { status: "pending", progress: 0 } : { status: "skipped", progress: 100 },
-        dubbing: enablePath2 ? { status: "pending", progress: 0 } : { status: "skipped", progress: 100 },
+        dubbing: enableDubbing ? { status: "pending", progress: 0 } : { status: "skipped", progress: 100 },
         rendering: { status: "pending", progress: 0 },
         finalizing: { status: "pending", progress: 0 },
         aggregation: { status: "pending", progress: 0 },
@@ -421,6 +444,8 @@ export const onVideoPublished = onDocumentUpdated(
           batch.update(db.collection("videos").doc(videoId), {
             jobId,
             factCheckTier,
+            enableFactCheck: enableFactChecking,
+            factChecking: enableFactChecking,
             status: "processing",
             updatedAt: now,
           });
@@ -540,7 +565,9 @@ export const onVideoPublished = onDocumentUpdated(
 
       const updatePayload: Record<string, any> = {
         executionPlan: updatedPlan,
-        "stages.dubbing": { status: "pending", progress: 0, startedAt: Date.now() },
+        "stages.dubbing": updatedPlan.generateDubbing
+          ? { status: "pending", progress: 0, startedAt: Date.now() }
+          : { status: "skipped", progress: 100 },
         processedLocalizationVersions: admin.firestore.FieldValue.arrayUnion(localizationVersion),
         updatedAt: Date.now(),
       };
@@ -548,7 +575,9 @@ export const onVideoPublished = onDocumentUpdated(
       const targetLangs = (normRelangs || []).filter((l: string) => normalizeLanguageCode(l) !== scenarioBChannelLang);
       for (const lang of targetLangs) {
         updatePayload[`stages.translating_${lang}`] = { status: "pending", progress: 0 };
-        updatePayload[`stages.dubbing_${lang}`] = { status: "pending", progress: 0 };
+        if (updatedPlan.generateDubbing) {
+          updatePayload[`stages.dubbing_${lang}`] = { status: "pending", progress: 0 };
+        }
       }
 
       await jobDoc.ref.update(updatePayload);
@@ -556,14 +585,137 @@ export const onVideoPublished = onDocumentUpdated(
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // SCENARIO C: Re-publish (job already exists) → Skip (idempotent)
+    // SCENARIO C: Re-publish / Metadata Update (job already exists)
+    // Reconcile Truth Verification and Dubbing if requested/skipped by creator
     // ═══════════════════════════════════════════════════════════════════════════
-    if (becamePublished && afterData.jobId) {
-      logger.info("[PublishGate] Re-publish detected but job already exists — skipping", {
-        videoId,
-        jobId: afterData.jobId,
-      });
-      return;
+    if (afterData.jobId) {
+      const existingJobId = afterData.jobId;
+      const enableFactCheckingOnReconcile = Boolean(
+        aiFeatures.factChecking === true ||
+        aiFeatures.enableFactCheck === true ||
+        aiFeatures.truthVerification === true ||
+        afterData.enableFactCheck === true ||
+        afterData.factChecking === true ||
+        afterData.truthVerification === true ||
+        afterData.isFactChecked === true ||
+        (afterData.factCheckTier && afterData.factCheckTier !== "none" && afterData.factCheckTier !== "off" && afterData.factCheckTier !== "") ||
+        (aiFeatures.factCheckTier && aiFeatures.factCheckTier !== "none" && aiFeatures.factCheckTier !== "off" && aiFeatures.factCheckTier !== "")
+      );
+
+      const enableDubbingOnReconcile = Boolean(
+        aiFeatures.generateDubbing === true ||
+        aiFeatures.dubbing === true ||
+        afterData.generateDubbing === true ||
+        afterData.dubbing === true ||
+        (Array.isArray(aiFeatures.dubbingLanguages) && aiFeatures.dubbingLanguages.length > 0) ||
+        (Array.isArray(afterData.dubbingLanguages) && afterData.dubbingLanguages.length > 0) ||
+        (aiFeatures.dubbingMode && aiFeatures.dubbingMode !== "none") ||
+        (afterData.dubbingMode && afterData.dubbingMode !== "none")
+      );
+
+      const jobSnap = await db.collection("video_jobs").doc(existingJobId).get();
+      if (jobSnap.exists) {
+        const jobData = jobSnap.data()!;
+        const existingCredStatus = jobData.stages?.credibility?.status;
+        const existingTruthEngine = jobData.executionPlan?.enableTruthEngine;
+        const existingDubStatus = jobData.stages?.dubbing?.status;
+
+        // Reconcile Dubbing if creator skipped dubbing but job has it pending or completed
+        if (!enableDubbingOnReconcile && existingDubStatus !== "skipped") {
+          logger.info("[PublishGate] Creator skipped dubbing — reconciling stages.dubbing to skipped on existing job", {
+            videoId,
+            jobId: existingJobId,
+            previousStatus: existingDubStatus,
+          });
+          await jobSnap.ref.update({
+            "stages.dubbing": { status: "skipped", progress: 100 },
+            "config.generateDubbing": false,
+            "config.dubbingMode": "none",
+            "executionPlan.generateDubbing": false,
+            "executionPlan.dubbingMode": "none",
+            updatedAt: Date.now(),
+          });
+        }
+
+        if (enableFactCheckingOnReconcile && (existingCredStatus === "skipped" || !existingTruthEngine)) {
+          logger.info("[PublishGate] Reconciling Truth Verification on existing job", {
+            videoId,
+            jobId: existingJobId,
+            previousStatus: existingCredStatus,
+          });
+
+          const reconciledPlan: ExecutionPlan = {
+            ...jobData.executionPlan,
+            enablePath1: true,
+            enableTruthEngine: true,
+            factCheckEnabled: true,
+            factCheckTier: "full_ground",
+            maxClaims: 200,
+            synthesisTier: "deep",
+            jobId: existingJobId,
+          };
+          (reconciledPlan as any).enableFactChecking = true;
+
+          const jobUpdates: Record<string, any> = {
+            executionPlan: reconciledPlan,
+            "stages.credibility": { status: "pending", progress: 0, startedAt: Date.now() },
+            "config.enableFactCheck": true,
+            "config.factCheckTier": "full_ground",
+            updatedAt: Date.now(),
+          };
+          await jobSnap.ref.update(jobUpdates);
+
+          if (jobData.stages?.transcription?.status === "completed") {
+            logger.info("[PublishGate] Transcription already completed — launching fact-processing immediately for reconciled job", { videoId, jobId: existingJobId });
+            await distributionLayer.publish("fact-processing", {
+              eventId: `fact_reconcile_${existingJobId}_${Date.now()}`,
+              eventType: "fact-processing",
+              jobId: existingJobId,
+              userId: jobData.userId || afterData.userId || afterData.ownerId || "unknown",
+              timestamp: Date.now(),
+              data: {
+                executionPlan: reconciledPlan,
+                videoUrl: jobData.videoUrl || afterData.videoUrl || "",
+              },
+              retryCount: 0,
+              source: "publish-gate-reconcile",
+            });
+          }
+
+          try {
+            const { fastMultimodalTriageService } = require("../pipeline/services/fastMultimodalTriageService");
+            fastMultimodalTriageService
+              .triageVideo(videoId, jobData.videoUrl || afterData.videoUrl || "", afterData.title || title)
+              .catch((err: any) =>
+                logger.warn("[PublishGate] Fast multimodal triage non-fatal error", { videoId, err: String(err) })
+              );
+          } catch (err: any) {
+            logger.warn("[PublishGate] Failed to invoke fast triage service", { videoId, err: String(err) });
+          }
+
+          await db.collection("videos").doc(videoId).set(
+            {
+              factCheckTier: "full_ground",
+              enableFactCheck: true,
+              factChecking: true,
+              isFactChecked: true,
+              credibilityStatus: "processing",
+              updatedAt: Date.now(),
+            },
+            { merge: true }
+          );
+
+          return;
+        }
+      }
+
+      if (becamePublished) {
+        logger.info("[PublishGate] Re-publish detected but job already exists — skipping", {
+          videoId,
+          jobId: afterData.jobId,
+        });
+        return;
+      }
     }
   }
 );
@@ -575,7 +727,39 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
   const channelNameStr = creatorName || video.channelName || "Unknown Channel";
   const creatorId = video.ownerId || video.userId;
 
+  // 1. INDUSTRY STANDARD TOPIC BROADCAST (Zero-cost, parallel delivery to 100M+ subscribers)
+  // Reaches all subscribed devices in a single call without consuming Firestore write operations or timing out.
+  if (channelId) {
+    try {
+      const sanitizedChannelId = String(channelId).trim().replace(/[^a-zA-Z0-9-_.~%]/g, "_");
+      await admin.messaging().send({
+        topic: `channel_${sanitizedChannelId}`,
+        notification: {
+          title: `New Video from ${channelNameStr}`,
+          body: `${channelNameStr} just uploaded: ${title || "Untitled Video"}`,
+        },
+        data: {
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+          type: "new_video_followed",
+          channelId: String(channelId),
+          videoId: String(videoId),
+          actionUrl: `/video/${videoId}`,
+          thumbnailUrl: video.thumbnailUrl || "",
+          avatarUrl: video.channelImage || "",
+        },
+      });
+      logger.info(`[FanOut] Dispatched broadcast topic push for channel_${sanitizedChannelId}`);
+    } catch (fcmErr) {
+      logger.warn(`[FanOut] FCM broadcast topic error (non-fatal):`, fcmErr);
+    }
+  }
+
+  // 2. Controlled In-App Inbox Materialization for Active Subscribers
+  // Bounded to MAX_FANOUT_BATCHES to strictly adhere to Cloud Function timeout (540s) and memory budgets.
+  // Mega channels rely on FCM topic push + dynamic pull-on-read ingestion on app open.
   const BATCH_SIZE = 400;
+  const MAX_FANOUT_BATCHES = 5;
+  let batchCount = 0;
   let lastDoc: FirebaseFirestore.QueryDocumentSnapshot | undefined;
   let totalNotified = 0;
   const notifiedUserIds = new Set<string>();
@@ -592,7 +776,7 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
   const isHighlight = video.isHighlight === true;
   const isPersonalizedEligible = isVerified || isFeatured || isHighTruth || isHighTrust || isHighlight;
 
-  while (true) {
+  while (batchCount < MAX_FANOUT_BATCHES) {
     let query = db.collection("subscriptions")
       .where("channelId", "==", channelId)
       .limit(BATCH_SIZE);
@@ -600,6 +784,8 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
 
     const snap = await query.get();
     if (snap.empty) break;
+
+    batchCount++;
 
     const batch = db.batch();
     const notifications: Promise<any>[] = [];

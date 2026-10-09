@@ -18,6 +18,19 @@ class AudioOnlyOverlay extends StatelessWidget {
       final video = ctrl.videoController?.video;
       final currentSub = ctrl.currentSubtitle.value;
 
+      if (ctrl.isPiP.value) {
+        return const ColoredBox(
+          color: Color(0xFF08080C),
+          child: Center(
+            child: Icon(
+              Icons.graphic_eq_rounded,
+              size: 28,
+              color: Colors.white70,
+            ),
+          ),
+        );
+      }
+
       return Stack(
         fit: StackFit.expand,
         children: [
@@ -26,20 +39,24 @@ class AudioOnlyOverlay extends StatelessWidget {
             duration: const Duration(milliseconds: 300),
             child: KeyedSubtree(
               key: ValueKey<AudioPlayerTheme>(activeTheme),
-              child: _buildThemeStage(
-                activeTheme: activeTheme,
-                isPlaying: isPlaying,
-                video: video,
-                currentSubtitle: currentSub,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: _buildThemeStage(
+                  activeTheme: activeTheme,
+                  isPlaying: isPlaying,
+                  video: video,
+                  currentSubtitle: currentSub,
+                ),
               ),
             ),
           ),
 
-          // ── Top Theme Switcher Pill ──────────────────────────────────────
-          Positioned(
-            top: 14,
-            right: 14,
-            child: Material(
+          // ── Top Theme Switcher Pill (Hidden in PiP) ──────────────────────
+          if (!ctrl.isPiP.value)
+            Positioned(
+              top: 14,
+              right: 14,
+              child: Material(
               color: Colors.transparent,
               child: InkWell(
                 onTap: () {

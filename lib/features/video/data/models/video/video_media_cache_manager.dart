@@ -40,6 +40,8 @@ class VideoMediaCacheManager {
     double? intentToMisleadScore,
     UIReport? uiReport,
   }) {
+    if (id.isEmpty) return;
+
     // 1. Localization cache
     if ((mediaSubtitles != null && mediaSubtitles.isNotEmpty) ||
         (dubbedVideos != null && dubbedVideos.isNotEmpty) ||

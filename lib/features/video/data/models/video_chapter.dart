@@ -6,11 +6,29 @@ class VideoChapter {
   });
 
   factory VideoChapter.fromMap(Map<String, dynamic> map) {
-    // Support both 'startMs' (AI pipeline autoChapters) and 'startTimeMs' (manual chapters)
-    final startMs = (map['startMs'] ?? map['startTimeMs'] ?? 0) as num;
+    // Support 'startTimeMs' (manual chapters in Firestore), 'startMs' (AI pipeline), and 'startTime' (seconds or ms or Duration)
+    var parsedStartTime = Duration.zero;
+    final rawStart =
+        map['startTimeMs'] ??
+        map['startMs'] ??
+        map['startTime'] ??
+        map['startSeconds'];
+
+    if (rawStart is Duration) {
+      parsedStartTime = rawStart;
+    } else if (rawStart is num) {
+      if (map.containsKey('startTimeMs') || map.containsKey('startMs')) {
+        parsedStartTime = Duration(milliseconds: rawStart.toInt());
+      } else if (rawStart > 100000) {
+        parsedStartTime = Duration(milliseconds: rawStart.toInt());
+      } else {
+        parsedStartTime = Duration(seconds: rawStart.toInt());
+      }
+    }
+
     return VideoChapter(
       title: map['title'] ?? '',
-      startTime: Duration(milliseconds: startMs.toInt()),
+      startTime: parsedStartTime,
       thumbnailUrl: map['thumbnailUrl'],
     );
   }

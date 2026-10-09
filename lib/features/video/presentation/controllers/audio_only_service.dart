@@ -38,6 +38,7 @@ class AudioOnlyService extends GetxService {
   // ── Web Audio API Adapter ──────────────────────────────────
   WebAudioPlayerAdapter? _webAudioPlayer;
   Timer? _positionTimer;
+  String? _currentLoadedUrl;
 
   // ── Equalizer state ────────────────────────────────────────
   final RxDouble bassGain = 0.0.obs;
@@ -196,6 +197,14 @@ class AudioOnlyService extends GetxService {
 
     final audioUrl = _resolveAudioUrl(videoUrl);
 
+    if (_currentLoadedUrl == audioUrl && isActive.value && isPlaying.value) {
+      if (startPosition != null && startPosition > Duration.zero) {
+        seekTo(startPosition);
+      }
+      return;
+    }
+    _currentLoadedUrl = audioUrl;
+
     if (kIsWeb) {
       try {
         _webAudioPlayer?.loadAndPlay(
@@ -276,6 +285,7 @@ class AudioOnlyService extends GetxService {
       } else {
         await _nativePlayer?.pause();
       }
+      isPlaying.value = false;
     } catch (e, stackTrace) {
       ErrorHandler.log(
         e,
@@ -347,13 +357,17 @@ class AudioOnlyService extends GetxService {
 
   Duration deactivate() {
     final currentPos = currentPosition;
+    _currentLoadedUrl = null;
     if (kIsWeb) {
       _webAudioPlayer?.pause();
+      _webAudioPlayer?.stop();
       _stopPositionTracking();
     } else {
       _nativePlayer?.pause();
+      _nativePlayer?.stop();
     }
     isActive.value = false;
+    isPlaying.value = false;
     isAudioOnly.value = false;
     isBackgroundPlayback.value = false;
     return currentPos;

@@ -12,6 +12,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/config/app_config.dart';
+import 'package:truthworld/core/constants/ai_languages.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
@@ -571,8 +572,9 @@ class VideoManagementController extends BaseController with ContentValidationMix
       if (features.contains('dubbing') && channel != null) {
         final walletService = ChannelWalletService();
         final balance = await walletService.getSpendableBalanceForChannelId(channel.id);
+        final dubbingLanguages = targetLanguages.where(isDubbingSupported).toList();
         final dubbingCost = ChannelWalletService.calculateDubbingCost(
-          languageCount: targetLanguages.length,
+          languageCount: dubbingLanguages.length,
           durationSeconds: durationSeconds,
           channelType: channel.channelType,
         );
@@ -583,7 +585,7 @@ class VideoManagementController extends BaseController with ContentValidationMix
             channelType: channel.channelType,
           );
           AppSnackbar.warning(
-            'Dubbing is not free. Your channel balance of \$${balance.totalSpendableBalance.toStringAsFixed(2)} is insufficient for the flat dubbing cost of \$${dubbingCost.toStringAsFixed(2)} (\$${rate.toStringAsFixed(2)}/lang × ${targetLanguages.length} languages for ${durationSeconds}s video). Please add funds to your wallet.',
+            'Dubbing is not free. Your channel balance of \$${balance.totalSpendableBalance.toStringAsFixed(2)} is insufficient for the flat dubbing cost of \$${dubbingCost.toStringAsFixed(2)} (\$${rate.toStringAsFixed(2)}/lang × ${dubbingLanguages.length} languages for ${durationSeconds}s video). Please add funds to your wallet.',
           );
           return;
         }

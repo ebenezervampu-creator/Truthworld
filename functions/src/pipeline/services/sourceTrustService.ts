@@ -24,27 +24,62 @@ export class SourceTrustService {
   private FETCH_INTERVAL_MS = 600_000; // 10 minutes cache
 
   private static readonly TRUST_GRAPH: Record<string, SourceReputation> = {
-    // Tier A: Global Institutional / Scientific Bodies
+    // Tier A: Global Multilateral / Scientific Bodies & Space Agencies
     "who.int": { domain: "who.int", tier: "A", reputationScore: 1.0, verticals: ["health"], isOfficial: true },
+    "un.org": { domain: "un.org", tier: "A", reputationScore: 1.0, verticals: ["geopolitics", "human_rights"], isOfficial: true },
+    "unesco.org": { domain: "unesco.org", tier: "A", reputationScore: 1.0, verticals: ["culture", "education", "science"], isOfficial: true },
+    "wmo.int": { domain: "wmo.int", tier: "A", reputationScore: 1.0, verticals: ["climate", "weather"], isOfficial: true },
+    "ipcc.ch": { domain: "ipcc.ch", tier: "A", reputationScore: 1.0, verticals: ["climate", "science"], isOfficial: true },
+    "iaea.org": { domain: "iaea.org", tier: "A", reputationScore: 1.0, verticals: ["nuclear", "science"], isOfficial: true },
+    "icrc.org": { domain: "icrc.org", tier: "A", reputationScore: 1.0, verticals: ["human_rights", "humanitarian"], isOfficial: true },
+    "unicef.org": { domain: "unicef.org", tier: "A", reputationScore: 1.0, verticals: ["human_rights", "children"], isOfficial: true },
+    "fao.org": { domain: "fao.org", tier: "A", reputationScore: 1.0, verticals: ["agriculture", "food"], isOfficial: true },
+    "imf.org": { domain: "imf.org", tier: "A", reputationScore: 1.0, verticals: ["finance", "economics"], isOfficial: true },
+    "worldbank.org": { domain: "worldbank.org", tier: "A", reputationScore: 1.0, verticals: ["finance", "economics"], isOfficial: true },
     "cdc.gov": { domain: "cdc.gov", tier: "A", reputationScore: 1.0, verticals: ["health"], isOfficial: true },
     "nih.gov": { domain: "nih.gov", tier: "A", reputationScore: 1.0, verticals: ["health", "science"], isOfficial: true },
     "noaa.gov": { domain: "noaa.gov", tier: "A", reputationScore: 1.0, verticals: ["climate", "weather", "ocean"], isOfficial: true },
     "nasa.gov": { domain: "nasa.gov", tier: "A", reputationScore: 1.0, verticals: ["space", "science"], isOfficial: true },
-    "un.org": { domain: "un.org", tier: "A", reputationScore: 1.0, verticals: ["geopolitics", "human_rights"], isOfficial: true },
-    "imf.org": { domain: "imf.org", tier: "A", reputationScore: 1.0, verticals: ["finance", "economics"], isOfficial: true },
-    "worldbank.org": { domain: "worldbank.org", tier: "A", reputationScore: 1.0, verticals: ["finance", "economics"], isOfficial: true },
-    "britannica.com": { domain: "britannica.com", tier: "A", reputationScore: 0.98, verticals: ["history", "science", "general"], isOfficial: false },
+    "esa.int": { domain: "esa.int", tier: "A", reputationScore: 1.0, verticals: ["space", "science"], isOfficial: true },
+    "isro.gov.in": { domain: "isro.gov.in", tier: "A", reputationScore: 1.0, verticals: ["space", "science"], isOfficial: true },
+    "jaxa.jp": { domain: "jaxa.jp", tier: "A", reputationScore: 1.0, verticals: ["space", "science"], isOfficial: true },
+    "cern.ch": { domain: "cern.ch", tier: "A", reputationScore: 1.0, verticals: ["physics", "science"], isOfficial: true },
     "nature.com": { domain: "nature.com", tier: "A", reputationScore: 1.0, verticals: ["science", "medical"], isOfficial: false },
     "science.org": { domain: "science.org", tier: "A", reputationScore: 1.0, verticals: ["science"], isOfficial: false },
+    "thelancet.com": { domain: "thelancet.com", tier: "A", reputationScore: 1.0, verticals: ["medical", "health"], isOfficial: false },
+    "cell.com": { domain: "cell.com", tier: "A", reputationScore: 1.0, verticals: ["biology", "science"], isOfficial: false },
+    "pnas.org": { domain: "pnas.org", tier: "A", reputationScore: 1.0, verticals: ["science"], isOfficial: false },
+    "nejm.org": { domain: "nejm.org", tier: "A", reputationScore: 1.0, verticals: ["medical"], isOfficial: false },
+    "bmj.com": { domain: "bmj.com", tier: "A", reputationScore: 1.0, verticals: ["medical"], isOfficial: false },
+    "britannica.com": { domain: "britannica.com", tier: "A", reputationScore: 0.98, verticals: ["history", "science", "general"], isOfficial: false },
 
-    // Tier B: Gold Standard News Agencies
+    // Tier B: Gold Standard Global News & Verified Fact-Checking Networks
     "reuters.com": { domain: "reuters.com", tier: "B", reputationScore: 0.95, verticals: ["news", "geopolitics"], isOfficial: false },
     "apnews.com": { domain: "apnews.com", tier: "B", reputationScore: 0.95, verticals: ["news", "geopolitics"], isOfficial: false },
+    "afp.com": { domain: "afp.com", tier: "B", reputationScore: 0.95, verticals: ["news", "geopolitics"], isOfficial: false },
+    "dw.com": { domain: "dw.com", tier: "B", reputationScore: 0.94, verticals: ["news", "geopolitics"], isOfficial: false },
+    "nhk.or.jp": { domain: "nhk.or.jp", tier: "B", reputationScore: 0.94, verticals: ["news", "culture"], isOfficial: false },
     "bloomberg.com": { domain: "bloomberg.com", tier: "B", reputationScore: 0.95, verticals: ["finance", "economics"], isOfficial: false },
     "wsj.com": { domain: "wsj.com", tier: "B", reputationScore: 0.95, verticals: ["finance", "news"], isOfficial: false },
-    "nytimes.com": { domain: "nytimes.com", tier: "B", reputationScore: 0.92, verticals: ["news", "politics"], isOfficial: false },
     "ft.com": { domain: "ft.com", tier: "B", reputationScore: 0.95, verticals: ["finance", "economics"], isOfficial: false },
     "bbc.com": { domain: "bbc.com", tier: "B", reputationScore: 0.92, verticals: ["news", "geopolitics"], isOfficial: false },
+    "nytimes.com": { domain: "nytimes.com", tier: "B", reputationScore: 0.92, verticals: ["news", "politics"], isOfficial: false },
+    "thehindu.com": { domain: "thehindu.com", tier: "B", reputationScore: 0.93, verticals: ["news", "politics"], isOfficial: false },
+    "indianexpress.com": { domain: "indianexpress.com", tier: "B", reputationScore: 0.92, verticals: ["news", "investigative"], isOfficial: false },
+    "aljazeera.com": { domain: "aljazeera.com", tier: "B", reputationScore: 0.91, verticals: ["news", "geopolitics"], isOfficial: false },
+    "lemonde.fr": { domain: "lemonde.fr", tier: "B", reputationScore: 0.92, verticals: ["news", "geopolitics"], isOfficial: false },
+    "elpais.com": { domain: "elpais.com", tier: "B", reputationScore: 0.92, verticals: ["news", "geopolitics"], isOfficial: false },
+    "allafrica.com": { domain: "allafrica.com", tier: "B", reputationScore: 0.90, verticals: ["news", "africa"], isOfficial: false },
+    "clarin.com": { domain: "clarin.com", tier: "B", reputationScore: 0.90, verticals: ["news", "latin_america"], isOfficial: false },
+    "straitstimes.com": { domain: "straitstimes.com", tier: "B", reputationScore: 0.91, verticals: ["news", "asia"], isOfficial: false },
+    "fullfact.org": { domain: "fullfact.org", tier: "B", reputationScore: 0.95, verticals: ["fact_check"], isOfficial: false },
+    "snopes.com": { domain: "snopes.com", tier: "B", reputationScore: 0.95, verticals: ["fact_check"], isOfficial: false },
+    "politifact.com": { domain: "politifact.com", tier: "B", reputationScore: 0.94, verticals: ["fact_check"], isOfficial: false },
+    "factcheck.org": { domain: "factcheck.org", tier: "B", reputationScore: 0.95, verticals: ["fact_check"], isOfficial: false },
+    "africacheck.org": { domain: "africacheck.org", tier: "B", reputationScore: 0.94, verticals: ["fact_check"], isOfficial: false },
+    "chequeado.com": { domain: "chequeado.com", tier: "B", reputationScore: 0.93, verticals: ["fact_check"], isOfficial: false },
+    "boomlive.in": { domain: "boomlive.in", tier: "B", reputationScore: 0.93, verticals: ["fact_check"], isOfficial: false },
+    "verafiles.org": { domain: "verafiles.org", tier: "B", reputationScore: 0.92, verticals: ["fact_check"], isOfficial: false },
 
     // Tier C: Encyclopedic / Deep Knowledge
     "wikipedia.org": { domain: "wikipedia.org", tier: "C", reputationScore: 0.85, verticals: ["general"], isOfficial: false },
@@ -388,6 +423,42 @@ export class SourceTrustService {
       defaultTier: "B" as SourceTier,
       domains: ["factcheck.org"],
       socialHandles: ["x.com/factcheckdotorg"]
+    },
+    {
+      name: "AFP",
+      defaultTier: "B" as SourceTier,
+      domains: ["afp.com", "factcheck.afp.com"],
+      socialHandles: ["x.com/afp", "x.com/afpfactcheck"]
+    },
+    {
+      name: "Deutsche Welle",
+      defaultTier: "B" as SourceTier,
+      domains: ["dw.com"],
+      socialHandles: ["x.com/dwnews"]
+    },
+    {
+      name: "NHK",
+      defaultTier: "B" as SourceTier,
+      domains: ["nhk.or.jp"],
+      socialHandles: ["x.com/nhk_news"]
+    },
+    {
+      name: "UNESCO",
+      defaultTier: "A" as SourceTier,
+      domains: ["unesco.org"],
+      socialHandles: ["x.com/unesco"]
+    },
+    {
+      name: "The Hindu",
+      defaultTier: "B" as SourceTier,
+      domains: ["thehindu.com"],
+      socialHandles: ["x.com/the_hindu"]
+    },
+    {
+      name: "Full Fact",
+      defaultTier: "B" as SourceTier,
+      domains: ["fullfact.org"],
+      socialHandles: ["x.com/fullfact"]
     }
   ];
 
@@ -470,13 +541,21 @@ export class SourceTrustService {
       tier = "E";
       reputationScore = 0.2;
     }
-    // 3. .gov / .mil / .int
-    else if (domain.endsWith(".gov") || domain.endsWith(".mil") || domain.endsWith(".int")) {
+    // 3. International government & intergovernmental bodies (.gov, .gov.*, .gob.*, .gouv.*, .govt.*, .go.*, .mil, .int, etc.)
+    const isGov = /(?:^|\.)(?:gov|gob|gouv|govt|go|mil|int)(?:\.[a-z]{2,3})?$/i.test(domain) ||
+                  domain.endsWith(".gov") || domain.endsWith(".mil") || domain.endsWith(".int") ||
+                  domain.includes(".gov.") || domain.includes(".gob.") || domain.includes(".gouv.") ||
+                  domain.includes(".govt.") || domain.includes(".go.") || domain.endsWith(".admin.ch");
+
+    if (isGov) {
       tier = "A";
       reputationScore = 1.0;
     }
-    // 4. Academic/Educational
-    else if (domain.endsWith(".edu") || domain === "ac.uk" || domain.endsWith(".ac.uk") || domain.includes(".ac.") || domain.endsWith(".edu.cn") || domain.endsWith(".edu.in")) {
+    // 4. International Academic / Educational institutions (.edu, .edu.*, .ac, .ac.*, etc.)
+    else if (/(?:^|\.)(?:edu|ac)(?:\.[a-z]{2,3})?$/i.test(domain) ||
+             domain.endsWith(".edu") || domain.includes(".edu.") || domain.includes(".ac.") ||
+             domain.endsWith(".ac.uk") || domain.endsWith(".edu.cn") || domain.endsWith(".edu.in") ||
+             domain.endsWith(".res.in")) {
       tier = "B";
       reputationScore = 0.9;
     }

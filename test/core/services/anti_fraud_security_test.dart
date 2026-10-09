@@ -121,7 +121,6 @@ void main() {
       const adminEmails = [
         'hello@truthworld.in',
         'ebenezervampu4@gmail.com',
-        'admin@truthworld.com',
       ];
 
       bool checkIsAdmin({required String email, required bool isEmailVerified, bool hasAdminClaim = false}) {
@@ -131,11 +130,11 @@ void main() {
 
       // Attack: attacker signs up with hello@truthworld.in without email verification
       expect(checkIsAdmin(email: 'hello@truthworld.in', isEmailVerified: false), isFalse);
-      expect(checkIsAdmin(email: 'admin@truthworld.com', isEmailVerified: false), isFalse);
+      expect(checkIsAdmin(email: 'ebenezervampu4@gmail.com', isEmailVerified: false), isFalse);
 
       // Legitimate admin with email verification
       expect(checkIsAdmin(email: 'hello@truthworld.in', isEmailVerified: true), isTrue);
-      expect(checkIsAdmin(email: 'admin@truthworld.com', isEmailVerified: true), isTrue);
+      expect(checkIsAdmin(email: 'ebenezervampu4@gmail.com', isEmailVerified: true), isTrue);
     });
 
     test('Anti-Bypass: Channel membership creation strictly rejected for clients (backend only)', () {

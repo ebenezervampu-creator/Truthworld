@@ -143,7 +143,7 @@ class ChannelBrandingBannerPreviewContent extends StatelessWidget {
                     ),
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'truthworld.com/@${controller.customUrl.text.isNotEmpty ? controller.customUrl.text : "channel"}',
+                      'truthworld.in/@${controller.customUrl.text.isNotEmpty ? controller.customUrl.text : "channel"}',
                       style: const TextStyle(
                         fontSize: 9,
                         color: AppColors.textTertiary,

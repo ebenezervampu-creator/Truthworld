@@ -26,7 +26,7 @@ class IntelligenceHeaderBanner extends StatelessWidget {
             border: Border.all(color: AppColors.bgDivider),
           ),
           child: const Icon(
-            Icons.insights_rounded,
+            Icons.notifications_rounded,
             color: Colors.white,
             size: 26,
           ),
@@ -37,7 +37,7 @@ class IntelligenceHeaderBanner extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Creator Intelligence',
+                'Notifications',
                 style: TextStyle(
                   fontFamily: TWTypography.brandFamily,
                   fontFamilyFallback: TWTypography.fallbackFamilies,
@@ -49,7 +49,7 @@ class IntelligenceHeaderBanner extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               const Text(
-                'Real-time channel milestones, performance insights & verification audits',
+                'Real-time channel milestones, updates & verification audits',
                 style: TextStyle(
                   fontFamily: TWTypography.uiFamily,
                   fontFamilyFallback: TWTypography.fallbackFamilies,

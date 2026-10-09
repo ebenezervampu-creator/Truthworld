@@ -92,10 +92,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Creator Intelligence'), findsOneWidget);
+      expect(find.text('Notifications'), findsOneWidget);
       expect(find.text('3 UNREAD'), findsOneWidget);
       expect(find.text('Mark all as read'), findsOneWidget);
-      expect(find.byIcon(Icons.insights_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.notifications_rounded), findsOneWidget);
     });
 
     testWidgets('2. IntelligenceFilterChips renders categories and handles tap',
@@ -139,12 +139,12 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('No Creator Insights Yet'), findsOneWidget);
+      expect(find.text('No Notifications Yet'), findsOneWidget);
       expect(
-        find.textContaining('Milestones, video verification audit reports'),
+        find.textContaining('Channel milestones, updates, video verification audit reports'),
         findsOneWidget,
       );
-      expect(find.byIcon(Icons.insights_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.notifications_none_rounded), findsOneWidget);
     });
 
     testWidgets('4. IntelligenceIssueCard renders badge, message and action buttons',

@@ -61,9 +61,50 @@ class ChannelWizardPlanSelectionView extends StatelessWidget {
               ),
             ],
           ),
-          IconButton(
-            icon: const Icon(Icons.close, color: Colors.white),
-            onPressed: () => (onClose ?? Get.back)(),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final result = await Get.toNamed(
+                    '/channel-plan-comparison',
+                    arguments: {
+                      'initialPlan': controller.selectedPlan.value,
+                    },
+                  );
+                  if (result is String &&
+                      (result == 'standard' || result == 'custom')) {
+                    controller.selectedPlan.value = result;
+                  }
+                },
+                icon: const Icon(
+                  Icons.compare_arrows_rounded,
+                  size: 16,
+                  color: Color(0xFF818CF8),
+                ),
+                label: const Text(
+                  'Compare Plans',
+                  style: TextStyle(
+                    color: Color(0xFF818CF8),
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFF6366F1)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.close, color: Colors.white),
+                onPressed: () => (onClose ?? Get.back)(),
+              ),
+            ],
           ),
         ],
       );
@@ -100,6 +141,51 @@ class ChannelWizardPlanSelectionView extends StatelessWidget {
             fontFamily: TWTypography.uiFamily,
             fontSize: 12,
             color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 10),
+        InkWell(
+          onTap: () async {
+            final result = await Get.toNamed(
+              '/channel-plan-comparison',
+              arguments: {
+                'initialPlan': controller.selectedPlan.value,
+              },
+            );
+            if (result is String &&
+                (result == 'standard' || result == 'custom')) {
+              controller.selectedPlan.value = result;
+            }
+          },
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF6366F1).withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: const Color(0xFF6366F1).withValues(alpha: 0.3),
+              ),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.compare_arrows_rounded,
+                  size: 14,
+                  color: Color(0xFF818CF8),
+                ),
+                SizedBox(width: 6),
+                Text(
+                  'Compare Standard vs Custom Benefits',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF818CF8),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ],

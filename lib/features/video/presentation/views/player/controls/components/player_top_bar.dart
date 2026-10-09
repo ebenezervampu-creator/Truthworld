@@ -150,6 +150,17 @@ class PlayerTopBar extends StatelessWidget {
     VideoController vc,
   ) {
     final video = vc.video;
+    final currentUid = AuthService.to.uid;
+    final userChannelId = AuthService.to.userChannel?.id;
+    final isOwner = currentUid.isNotEmpty &&
+        (video.ownerId == currentUid ||
+            video.userId == currentUid ||
+            (userChannelId != null &&
+                userChannelId.isNotEmpty &&
+                video.channelId == userChannelId));
+    final canView = video.canPublicViewFactCheck || isOwner;
+    if (!canView) return const SizedBox.shrink();
+
     final isFactChecked = video.hasAiCredibility;
 
     if (!isFactChecked && !ctrl.isAnalyzingTruth) return const SizedBox.shrink();

@@ -35,6 +35,9 @@ abstract class RevenueAnalyticsStateBase extends BaseController {
   // Currency View Selection (INR vs USD)
   final RxString displayCurrency = 'INR'.obs;
 
+  // Active Sub-Tab on Unified Earnings Page (0: All, 1: Revenue & Payouts, 2: Ways You Earn, 3: Video Eligibility, 4: Tier & Rules)
+  final RxInt selectedEarningsTab = 0.obs;
+
   // Earnings Breakdown
   final RxDouble totalRevenue = 0.0.obs; // In INR for Bank Payout
   final RxDouble totalRevenueUSD = 0.0.obs; // In USD equivalent
@@ -75,13 +78,99 @@ abstract class RevenueAnalyticsStateBase extends BaseController {
       channelKycStatus.value.toLowerCase() == 'not_submitted' ||
       channelKycStatus.value.isEmpty;
 
+  // ---------------------------------------------------------------------------
+  // YouTube-Style Monthly Payout Window Configuration (1st + 1-Day Grace)
+  // ---------------------------------------------------------------------------
+  /// Optional debug/test reactive override for current date in payout window calculations.
+  static final Rx<DateTime?> rxDebugDateOverride = Rx<DateTime?>(null);
+
+  static DateTime? get debugDateOverride => rxDebugDateOverride.value;
+  static set debugDateOverride(DateTime? val) => rxDebugDateOverride.value = val;
+
+  static DateTime get currentDate => rxDebugDateOverride.value ?? DateTime.now();
+
+  /// True on the primary payout day (1st of the month).
+  static bool get isPrimaryPayoutDay => currentDate.day == 1;
+
+  /// True during the 1-day grace period if creator missed the 1st (2nd of the month).
+  static bool get isGracePeriodDay => currentDate.day == 2;
+
+  /// True if today is within the YouTube-style monthly payout window (1st day or 2nd day grace period).
+  static bool get isPayoutDay => isPrimaryPayoutDay || isGracePeriodDay;
+
+  /// Next payout date (current day if today is within Days 1-2, or 1st day of next month).
+  static DateTime get nextPayoutDate {
+    final now = currentDate;
+    if (now.day == 1 || now.day == 2) {
+      return DateTime(now.year, now.month, now.day);
+    }
+    if (now.month == 12) {
+      return DateTime(now.year + 1);
+    } else {
+      return DateTime(now.year, now.month + 1);
+    }
+  }
+
+  /// Calculates upcoming month's 1st day (for rollover display when window closes).
+  static DateTime get upcomingFirstOfMonth {
+    final now = currentDate;
+    if (now.month == 12) {
+      return DateTime(now.year + 1);
+    } else {
+      return DateTime(now.year, now.month + 1);
+    }
+  }
+
+  static const List<String> _monthNames = <String>[
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+
+  static const List<String> _shortMonthNames = <String>[
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+
+  static String get nextPayoutDateFormatted {
+    final target = (currentDate.day == 1 || currentDate.day == 2)
+        ? nextPayoutDate
+        : upcomingFirstOfMonth;
+    final dayNum = target.day;
+    final suffix = dayNum == 1 ? '1st' : (dayNum == 2 ? '2nd' : '${dayNum}th');
+    return '$suffix ${_monthNames[target.month - 1]} ${target.year}';
+  }
+
+  static String get upcomingFirstOfMonthFormatted {
+    final target = upcomingFirstOfMonth;
+    return '1st ${_monthNames[target.month - 1]} ${target.year}';
+  }
+
+  static String get nextPayoutShortMonth {
+    final target = (currentDate.day == 1 || currentDate.day == 2)
+        ? nextPayoutDate
+        : upcomingFirstOfMonth;
+    return _shortMonthNames[target.month - 1];
+  }
+
   // Withdrawal States
   final RxBool isSubmittingWithdrawal = false.obs;
   final RxBool isWithdrawalHeld = false.obs;
   final RxString withdrawalHoldReason = ''.obs;
 
+  bool get isTodayPayoutDay => RevenueAnalyticsStateBase.isPayoutDay;
+  bool get isTodayGraceDay => RevenueAnalyticsStateBase.isGracePeriodDay;
+  bool get hasReachedThreshold =>
+      totalRevenue.value >= minimumWithdrawalAmount;
+
+  /// True only when balance reaches minimum threshold, withdrawal is not held,
+  /// and today is within the monthly payout window (1st or 2nd day of the month).
   bool get canWithdraw =>
-      totalRevenue.value >= minimumWithdrawalAmount && !isWithdrawalHeld.value;
+      hasReachedThreshold && !isWithdrawalHeld.value && isTodayPayoutDay;
+
+  /// True when creator reached threshold but withdrawal window is locked until 1st of next month.
+  bool get isThresholdMetButAwaitingFirstOfMonth =>
+      hasReachedThreshold && !isWithdrawalHeld.value && !isTodayPayoutDay;
+
   double get remainingToWithdraw =>
       (minimumWithdrawalAmount - totalRevenue.value)
           .clamp(0.0, minimumWithdrawalAmount);

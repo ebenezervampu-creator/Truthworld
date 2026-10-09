@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
@@ -312,13 +313,14 @@ class VideoDescriptionBox extends StatelessWidget {
         );
       }
 
-      final summary = controller.moderationSummary.value.isNotEmpty
-          ? controller.moderationSummary.value
-          : (controller.video.moderationSummary.isNotEmpty
-              ? controller.video.moderationSummary
-              : (VideoMediaService.credibilityCache[controller.video.id]?.summary.isNotEmpty == true
-                  ? VideoMediaService.credibilityCache[controller.video.id]!.summary
-                  : ''));
+      var summary = '';
+      if (UserFeedbackSanitizer.isValidVideoSummary(controller.moderationSummary.value)) {
+        summary = controller.moderationSummary.value;
+      } else if (UserFeedbackSanitizer.isValidVideoSummary(controller.video.moderationSummary)) {
+        summary = controller.video.moderationSummary;
+      } else if (UserFeedbackSanitizer.isValidVideoSummary(VideoMediaService.credibilityCache[controller.video.id]?.summary)) {
+        summary = VideoMediaService.credibilityCache[controller.video.id]!.summary;
+      }
 
       if (summary.isEmpty) {
         return Container(
@@ -406,9 +408,12 @@ class VideoDescriptionBox extends StatelessWidget {
 
     if (controller.transcriptSegments.isEmpty &&
         (playerCtrl == null || playerCtrl.subtitleSegments.isEmpty) &&
+        !controller.transcriptController.hasAttemptedTranscriptFetch.value &&
         !controller.isLoadingTranscript.value) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (controller.transcriptSegments.isEmpty && !controller.isLoadingTranscript.value) {
+        if (controller.transcriptSegments.isEmpty &&
+            !controller.transcriptController.hasAttemptedTranscriptFetch.value &&
+            !controller.isLoadingTranscript.value) {
           controller.loadTranscriptForVideo();
         }
       });
@@ -469,7 +474,7 @@ class VideoDescriptionBox extends StatelessWidget {
                 ),
               ),
               InkWell(
-                onTap: controller.loadTranscriptForVideo,
+                onTap: () => controller.loadTranscriptForVideo(forceRefresh: true),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   child: Text(

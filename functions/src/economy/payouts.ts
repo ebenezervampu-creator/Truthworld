@@ -85,6 +85,30 @@ export const onPayoutRequestCreated = onDocumentCreated(
       return;
     }
 
+    // ── 2a. Monthly Payout Schedule Gate (1st Day + 1-Day Grace Period on 2nd) ───
+    // Accommodates all global time zones (IST, UTC, and US Americas) so international creators
+    // on Day 1 or Day 2 in their local timezone are seamlessly accepted.
+    const nowIST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    const nowUS = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles" }));
+    const nowUTC = new Date();
+    const dayIST = nowIST.getDate();
+    const dayUTC = nowUTC.getUTCDate();
+    const dayUS = nowUS.getDate();
+
+    const isPayoutWindow =
+      dayIST === 1 || dayIST === 2 ||
+      dayUTC === 1 || dayUTC === 2 ||
+      dayUS === 1 || dayUS === 2;
+
+    const bypassScheduleCheck = channelData.allowAnytimePayout === true || data.bypassScheduleCheck === true;
+    if (!isPayoutWindow && !bypassScheduleCheck) {
+      await reject(
+        "Creator revenue withdrawals are only permitted during the monthly payout window (1st of the month, with a 1-day grace period on the 2nd). Any unwithdrawn earnings safely roll over to next month's payout window.",
+        `request outside payout window: IST day ${dayIST}, UTC day ${dayUTC}, US day ${dayUS}`
+      );
+      return;
+    }
+
     // Anti-overdraft check: verified spendable balance must cover the requested amount
     const adsRev = Number(channelData.adsRevenueTotal || 0);
     const premRev = Number(channelData.premiumSubsRevenueTotal || 0);
@@ -126,29 +150,77 @@ export const onPayoutRequestCreated = onDocumentCreated(
     // ── 3. KYC must be verified ───────────────────────────────────────────────
     if (channelData.kycStatus !== "verified") {
       await reject(
-        "Identity verification (KYC) is required before withdrawing funds. Please complete your PAN and ID verification.",
+        "Identity verification (KYC) is required before withdrawing funds. Please complete your identity verification (PAN / Passport / Government ID).",
         `KYC status: ${channelData?.kycStatus ?? "missing"}`
       );
       return;
     }
 
-    // ── 4. Fraud review flag — blocks confirmed or suspected fraud ─────────
-      if (channelData.payoutsBlocked === true) {
-        await reject(
-          channelData.payoutsBlockedReason ||
-          "Payouts are currently blocked on this account. Please contact support.",
-          "payoutsBlocked=true (confirmed fraud)"
-        );
-        return;
-      }
+    // ── 3b. Authentic View Qualification Gate (Anti-Bot Farming) ──────────────
+    // A channel must meet the authentic qualification threshold (minimum 1,000 qualified views
+    // and 10 hours / 600 mins watch time on authentic content) to unlock revenue cash withdrawals.
+    const isChannelMonetized =
+      channelData.isMonetized === true ||
+      channelData.monetizationEnabled === true ||
+      channelData.monetizationStatus === "active";
 
-      if (channelData.fraudReviewFlag === true) {
-        await hold(
-          "Your account is undergoing a routine revenue integrity review. Funds will be released within 7 business days if no issues are found. No action is required from you.",
-          `fraudReviewFlag=true | reason: ${channelData.revenueHoldReason ?? "unknown"}`
-        );
-        return;
-      }
+    const qualifiedViews = Number(
+      channelData.qualifiedViewCount ??
+      channelData.metrics?.qualifiedViews ??
+      channelData.viewCount ??
+      0
+    );
+    const watchMinutes = Number(
+      channelData.totalWatchTimeMinutes ??
+      channelData.metrics?.totalWatchTimeMinutes ??
+      (Number(channelData.totalWatchTimeSeconds ?? 0) / 60)
+    );
+
+    if (!isChannelMonetized && (qualifiedViews < 1000 || watchMinutes < 600)) {
+      await reject(
+        "Channel has not met authentic view qualification (minimum 1,000 qualified views and 10 hours watch time required for monetization payouts).",
+        `unqualified channel: qualifiedViews=${qualifiedViews} < 1000 or watchMinutes=${Math.round(watchMinutes)} < 600`
+      );
+      return;
+    }
+
+    // ── 3c. Bot Click-Farm Anomaly Ratio Check ──────────────────────────────
+    // If raw views are high (>= 1,000) but qualified views are < 20% of raw views, hold for bot farm review
+    const rawViews = Number(
+      channelData.viewCount ??
+      channelData.views ??
+      channelData.metrics?.totalViews ??
+      0
+    );
+    if (rawViews >= 1000 && qualifiedViews > 0 && (qualifiedViews / rawViews) < 0.20) {
+      await hold(
+        "Your account is undergoing authentic view verification due to an abnormal ratio of bounced or unverified views. Funds will be reviewed within 7 business days.",
+        `bot farm suspected: qualifiedViews ${qualifiedViews} is < 20% of rawViews ${rawViews}`
+      );
+      return;
+    }
+
+    // ── 4. Fraud review flag — blocks confirmed or suspected fraud ─────────
+    if (channelData.payoutsBlocked === true) {
+      await reject(
+        channelData.payoutsBlockedReason ||
+        "Payouts are currently blocked on this account. Please contact support.",
+        "payoutsBlocked=true (confirmed fraud)"
+      );
+      return;
+    }
+
+    if (
+      channelData.fraudReviewFlag === true ||
+      channelData.viewFraudReviewFlag === true ||
+      channelData.botViewSuspected === true
+    ) {
+      await hold(
+        "Your account is undergoing a routine revenue integrity review. Funds will be released within 7 business days if no issues are found. No action is required from you.",
+        `fraudReviewFlag=${channelData.fraudReviewFlag} | viewFraudReviewFlag=${channelData.viewFraudReviewFlag} | reason: ${channelData.revenueHoldReason ?? "unknown"}`
+      );
+      return;
+    }
 
       // ── 4. New channel 30-day hold ────────────────────────────────────────
       const channelCreatedAt = channelData.createdAt?.toMillis?.() ?? Date.now();
@@ -286,10 +358,19 @@ export const onPayoutRequestCreated = onDocumentCreated(
       });
 
       if (userId) {
+        const isPayPal = paymentMethod === "PayPal";
+        const isUpi = paymentMethod === "UPI";
+        const methodDesc = isPayPal
+          ? "PayPal"
+          : (isUpi ? "UPI" : (bankName || "Bank Account"));
+        const railDesc = isPayPal
+          ? "PayPal Direct Payout"
+          : (isUpi ? "UPI Instant Payout" : "NEFT / IMPS / SWIFT Wire");
+
         await db().collection("notifications").add({
           userId,
           title: "Withdrawal Processing",
-          body: `Your withdrawal of ₹${payoutAmount.toFixed(2)} to ${bankName || "Bank Account"} (${accountNumberMasked || ""}) is being processed via NEFT/IMPS.`,
+          body: `Your withdrawal of ₹${payoutAmount.toFixed(2)} to ${methodDesc} (${accountNumberMasked || ""}) is being processed via ${railDesc}.`,
           type: "monetization_payout",
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           isRead: false,

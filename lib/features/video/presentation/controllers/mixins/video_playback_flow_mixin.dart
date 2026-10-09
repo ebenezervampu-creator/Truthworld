@@ -6,8 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
-import 'package:truthworld/core/services/ad_service.dart';
-import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
@@ -50,7 +49,7 @@ mixin VideoPlaybackFlowMixin on GetxController {
   Future<void> fetchAvailableResolutions();
   Future<void> fetchAvailableSubtitles();
   Future<void> fetchAvailableAudioTracks();
-  Future<void> loadTranscriptForVideo();
+  Future<void> loadTranscriptForVideo({bool forceRefresh = false});
   Future<void> loadFactCheckData([String? overrideUrl, bool force = false]);
   Future<void> initializeVideoPlayer({String? overrideUrl});
   void disposePlayer();
@@ -91,31 +90,21 @@ mixin VideoPlaybackFlowMixin on GetxController {
     required VoidCallback onChewieEvent,
     required Future<void> Function() onRetry,
   }) {
-    final auth = Get.isRegistered<AuthService>() ? AuthService.to : null;
-    final isPrem = auth?.isPremiumUser.value ?? false;
-    final isAudioOnlyPlan = isPrem && auth?.premiumPlanId.value == 'audio_monthly';
-    final suppressAds = isPrem && (!isAudioOnlyPlan || isAudioOnly.value);
-    final hasPreRollAd = !suppressAds &&
-        Get.isRegistered<AdService>() &&
-        (AdService.to.getSponsorAdForVideo(videoId) != null ||
-            AdService.to.getSkippableVideoAds().isNotEmpty);
-
     final cc = ChewieController(
       videoPlayerController: vpc,
-      autoPlay: !hasPreRollAd,
       allowedScreenSleep: false,
       showControlsOnInitialize: false,
       placeholder: const ColoredBox(
         color: AppColors.bgPage,
         child: Center(
-          child: CircularProgressIndicator(color: AppColors.error),
+          child: CircularProgressIndicator(color: AppColors.brand),
         ),
       ),
       materialProgressColors: ChewieProgressColors(
-        playedColor: AppColors.error,
-        handleColor: AppColors.error,
-        backgroundColor: AppColors.textSecondary.withValues(alpha: 0.5),
-        bufferedColor: AppColors.textPrimary.withValues(alpha: 0.3),
+        playedColor: AppColors.brand,
+        handleColor: AppColors.brand,
+        backgroundColor: AppColors.brand.withValues(alpha: 0.2),
+        bufferedColor: AppColors.brand.withValues(alpha: 0.33),
       ),
       customControls: TowerCustomPlayer(
         videoPlayerController: vpc,
@@ -199,18 +188,24 @@ mixin VideoPlaybackFlowMixin on GetxController {
     if (shouldStartMiniplayer) {
       var pos = Duration.zero;
       try {
-        pos = videoPlayerController!.value.position;
+        if (isVpcInitialized && videoPlayerController != null) {
+          pos = videoPlayerController!.value.position;
+        }
       } catch (_) {}
       final videoToPlay = video;
       final selectedResUrl = currentResolution.value?.url;
 
       try {
-        videoPlayerController!.pause();
+        if (isVpcInitialized && videoPlayerController != null) {
+          videoPlayerController!.pause().catchError((_) {});
+        }
       } catch (_) {}
 
       try {
-        videoPlayerController!.removeListener(videoErrorListener);
-        videoPlayerController!.removeListener(videoListener);
+        if (videoPlayerController != null) {
+          videoPlayerController!.removeListener(videoErrorListener);
+          videoPlayerController!.removeListener(videoListener);
+        }
       } catch (_) {}
 
       try {
@@ -336,11 +331,35 @@ mixin VideoPlaybackFlowMixin on GetxController {
   Future<void> startPlaybackFlow({String? overrideUrl}) async {
     // 0. Check offline storage metadata first for instant 0ms offline playback
     try {
+      final isExplicitOffline = Get.arguments is Map && Get.arguments['isOffline'] == true;
+      final isExplicitAudio = isAudioOnly.value || (Get.arguments is Map && Get.arguments['isAudioOnly'] == true);
+      final isDeviceOffline = Get.isRegistered<ConnectivityService>() &&
+          !ConnectivityService.to.isConnected;
+
       final offlineMeta = await getOfflineVideoMetadata(video.id);
       if (offlineMeta != null) {
-        rxIsOffline.value = true;
-        if (offlineMeta.isAudioOnly) {
+        if (isExplicitOffline || isDeviceOffline) {
+          rxIsOffline.value = true;
+          if (offlineMeta.isAudioOnly) {
+            isAudioOnly.value = true;
+          }
+        } else if (!offlineMeta.isAudioOnly && !isExplicitAudio) {
+          // Full video offline file on disk: safe to play offline to save data while showing full video
+          rxIsOffline.value = true;
+          isAudioOnly.value = false;
+        } else if (offlineMeta.isAudioOnly && isExplicitAudio) {
+          rxIsOffline.value = true;
           isAudioOnly.value = true;
+        } else {
+          // User is online and wants video, but offline download is only audio:
+          // Do NOT hijack video playback into audio mode! Stream normal video from network.
+          rxIsOffline.value = false;
+          isAudioOnly.value = false;
+          TowerPlayerPreferences.globalAudioOnly = false;
+        }
+      } else {
+        if (!isExplicitOffline && !isDeviceOffline) {
+          rxIsOffline.value = false;
         }
       }
     } catch (_) {}
@@ -373,15 +392,18 @@ mixin VideoPlaybackFlowMixin on GetxController {
     // 1. Kick off metadata loading in background concurrently:
     // Localization, credibility, subtitles, and audio tracks run without blocking playback.
     final Future<void> metadataFuture = () async {
+      if (isClosed) return;
       await Future.wait<dynamic>([
         mediaService.getLocalization(video.id),
         mediaService.getCredibility(video.id),
       ]);
+      if (isClosed) return;
       await Future.wait<void>([
         fetchAvailableResolutions(),
         fetchAvailableSubtitles(),
         fetchAvailableAudioTracks(),
       ]);
+      if (isClosed) return;
       unawaited(loadTranscriptForVideo());
       if (video.factCheckUrl.isNotEmpty) {
         unawaited(loadFactCheckData());
@@ -398,6 +420,7 @@ mixin VideoPlaybackFlowMixin on GetxController {
         );
       }
       metadataFuture.then((_) {
+        if (isClosed) return;
         if (availableResolutions.isNotEmpty) {
           final match = availableResolutions.firstWhereOrNull(
             (r) => r.url == overrideUrl,
@@ -422,6 +445,7 @@ mixin VideoPlaybackFlowMixin on GetxController {
 
       // Once metadata finishes, update resolutions reactively without re-initializing player
       metadataFuture.then((_) {
+        if (isClosed) return;
         if (availableResolutions.isNotEmpty) {
           final best = availableResolutions.firstWhereOrNull(
             (r) => r.url.isNotEmpty && !r.url.contains('.m3u8'),
@@ -446,6 +470,7 @@ mixin VideoPlaybackFlowMixin on GetxController {
         hlsSuccess = true;
         // Once metadata finishes, update the quality/resolution menu reactively
         metadataFuture.then((_) {
+          if (isClosed) return;
           if (availableResolutions.isNotEmpty) {
             final best = availableResolutions.first;
             if (currentResolution.value?.url != best.url) {
@@ -532,6 +557,7 @@ mixin VideoPlaybackFlowMixin on GetxController {
 
       // Reactively wire metadata when background loading completes
       metadataFuture.then((_) {
+        if (isClosed) return;
         if (availableResolutions.isNotEmpty) {
           final mp4Res = availableResolutions.firstWhereOrNull(
             (r) =>

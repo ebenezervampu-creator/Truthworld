@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/constants/ai_languages.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/cashfree_service.dart';
@@ -430,16 +431,24 @@ class ChannelWalletService {
       final rate = Get.isRegistered<CurrencyLocalizationService>()
           ? CurrencyLocalizationService.to.rate
           : CurrencyLocalizationService.defaultRate;
-      final amountINR = math.max(1.0, double.parse((plan.priceUSD * rate).toStringAsFixed(2)));
+      final isIndian = !Get.isRegistered<CurrencyLocalizationService>() ||
+          CurrencyLocalizationService.to.isIndianUser;
+      final currency = isIndian ? 'INR' : 'USD';
+      final chargeAmount = isIndian
+          ? math.max(1.0, double.parse((plan.priceUSD * rate).toStringAsFixed(2)))
+          : plan.priceUSD;
       final autoPaySuffix = autoPay ? ' (Auto Pay)' : ' (One-Time)';
       final paymentResult = await CashfreePaymentService.to.startPayment(
-        amount: amountINR,
+        amount: chargeAmount,
+        currency: currency,
         purpose: 'custom_channel_plan',
         orderNote: 'Custom Channel Plan$autoPaySuffix: ${plan.title}',
         metadata: {
           'channelId': channel.id,
           'planTier': plan.id,
           'priceUSD': plan.priceUSD,
+          'currency': currency,
+          'chargeAmount': chargeAmount,
           'autoPay': autoPay,
           'billingType': autoPay ? 'recurring' : 'one_time',
           'category': 'customChannelPlan',
@@ -563,9 +572,15 @@ class ChannelWalletService {
       final rate = Get.isRegistered<CurrencyLocalizationService>()
           ? CurrencyLocalizationService.to.rate
           : CurrencyLocalizationService.defaultRate;
-      final amountINR = math.max(1.0, double.parse((pack.priceUSD * rate).toStringAsFixed(2)));
+      final isIndian = !Get.isRegistered<CurrencyLocalizationService>() ||
+          CurrencyLocalizationService.to.isIndianUser;
+      final currency = isIndian ? 'INR' : 'USD';
+      final chargeAmount = isIndian
+          ? math.max(1.0, double.parse((pack.priceUSD * rate).toStringAsFixed(2)))
+          : pack.priceUSD;
       final paymentResult = await CashfreePaymentService.to.startPayment(
-        amount: amountINR,
+        amount: chargeAmount,
+        currency: currency,
         purpose: 'channel_topup',
         orderNote: 'Storage Top-Up: ${pack.title}',
         metadata: {
@@ -574,6 +589,8 @@ class ChannelWalletService {
           'gigabytes': pack.gigabytes,
           'category': 'storageTopup',
           'description': 'Storage Add-on via Cashfree: ${pack.title}',
+          'currency': currency,
+          'chargeAmount': chargeAmount,
         },
       );
 
@@ -598,9 +615,15 @@ class ChannelWalletService {
       final rate = Get.isRegistered<CurrencyLocalizationService>()
           ? CurrencyLocalizationService.to.rate
           : CurrencyLocalizationService.defaultRate;
-      final amountINR = math.max(1.0, double.parse((pack.priceUSD * rate).toStringAsFixed(2)));
+      final isIndian = !Get.isRegistered<CurrencyLocalizationService>() ||
+          CurrencyLocalizationService.to.isIndianUser;
+      final currency = isIndian ? 'INR' : 'USD';
+      final chargeAmount = isIndian
+          ? math.max(1.0, double.parse((pack.priceUSD * rate).toStringAsFixed(2)))
+          : pack.priceUSD;
       final paymentResult = await CashfreePaymentService.to.startPayment(
-        amount: amountINR,
+        amount: chargeAmount,
+        currency: currency,
         purpose: 'channel_topup',
         orderNote: 'Bandwidth Top-Up: ${pack.title}',
         metadata: {
@@ -609,6 +632,8 @@ class ChannelWalletService {
           'gigabytes': pack.gigabytes,
           'category': 'bandwidthTopup',
           'description': 'Bandwidth Add-on via Cashfree: ${pack.title}',
+          'currency': currency,
+          'chargeAmount': chargeAmount,
         },
       );
 
@@ -700,7 +725,8 @@ class ChannelWalletService {
           'durationSeconds': durationSeconds,
           'flatDubbingCostUSD': features.contains('dubbing')
               ? calculateDubbingCost(
-                  languageCount: targetLanguages.length,
+                  languageCount:
+                      targetLanguages.where(isDubbingSupported).length,
                   durationSeconds: durationSeconds,
                   channelType: channel.channelType,
                 )
@@ -777,19 +803,26 @@ class ChannelWalletService {
       final rate = Get.isRegistered<CurrencyLocalizationService>()
           ? CurrencyLocalizationService.to.rate
           : CurrencyLocalizationService.defaultRate;
+      final isIndian = !Get.isRegistered<CurrencyLocalizationService>() ||
+          CurrencyLocalizationService.to.isIndianUser;
+      final currency = isIndian ? 'INR' : 'USD';
       final amountINR = math.max(1.0, double.parse((amountUSD * rate).toStringAsFixed(2)));
+      final chargeAmount = isIndian ? amountINR : amountUSD;
 
       final paymentResult = await CashfreePaymentService.to.startPayment(
-        amount: amountINR,
+        amount: chargeAmount,
+        currency: currency,
         purpose: 'channel_wallet_topup',
-        orderNote: 'Channel Wallet Top-Up (\$${amountUSD.toStringAsFixed(2)})',
+        orderNote: 'Channel Wallet Top-Up (${isIndian ? '₹$amountINR' : '\$${amountUSD.toStringAsFixed(2)}'})',
         metadata: {
           'channelId': channel.id,
           'amountUSD': amountUSD,
           'amountINR': amountINR,
+          'currency': currency,
+          'chargeAmount': chargeAmount,
           'packType': 'balance',
           'category': 'walletTopup',
-          'description': 'Channel Wallet Deposit (+\$${amountUSD.toStringAsFixed(2)})',
+          'description': 'Channel Wallet Deposit (+${isIndian ? '₹$amountINR' : '\$${amountUSD.toStringAsFixed(2)}'})',
         },
       );
 

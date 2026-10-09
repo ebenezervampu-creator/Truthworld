@@ -1,17 +1,20 @@
-import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:http/http.dart' as http;
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/location/location_lookup_service.dart';
+import 'package:truthworld/core/services/location/verified_location.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
+import 'package:truthworld/features/settings/presentation/views/settings/widgets/location_pin_picker_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Controller for the Edit Profile Details screen.
-/// Enforces age constraint (1–120) and provides Google Maps location integration.
+/// Enforces age constraint (18–120), real-time locality verification (town/city/village),
+/// map pin placement, and Google Maps location integration.
 class EditProfileController extends BaseController {
   static EditProfileController get to => Get.find<EditProfileController>();
 
@@ -34,6 +37,14 @@ class EditProfileController extends BaseController {
   final RxnString ageErrorText = RxnString();
   final RxBool isDetectingLocation = false.obs;
   final RxBool isSaving = false.obs;
+
+  // Real-time settlement verification & search properties
+  final Rx<VerifiedLocation?> verifiedLocation = Rx<VerifiedLocation?>(null);
+  final RxBool isLocationVerified = false.obs;
+  final RxList<VerifiedLocation> locationSuggestions = <VerifiedLocation>[].obs;
+  final RxBool isSearchingLocation = false.obs;
+  final RxnString locationErrorText = RxnString();
+  final RxString locationSearchQuery = ''.obs;
 
   @override
   void onInit() {
@@ -65,9 +76,37 @@ class EditProfileController extends BaseController {
       validateAge(ageController.text);
     });
 
+    final initialLocation = auth.userLocation.value;
     locationController = trackTextController(TextEditingController(
-      text: auth.userLocation.value ?? '',
+      text: initialLocation ?? '',
     ));
+
+    if (initialLocation != null && initialLocation.trim().isNotEmpty) {
+      isLocationVerified.value = true;
+    }
+
+    locationController.addListener(() {
+      final text = locationController.text.trim();
+      if (verifiedLocation.value != null &&
+          verifiedLocation.value!.formattedAddress != text) {
+        isLocationVerified.value = false;
+      }
+      if (text.isEmpty) {
+        locationErrorText.value = null;
+        locationSuggestions.clear();
+        isLocationVerified.value = false;
+        verifiedLocation.value = null;
+      } else {
+        locationSearchQuery.value = text;
+      }
+    });
+
+    // Debounced worker for live town/city/village search
+    debounce<String>(
+      locationSearchQuery,
+      _performLocationSearch,
+      time: const Duration(milliseconds: 350),
+    );
 
     final currentGender = auth.userGender.value;
     if (currentGender != null && currentGender.isNotEmpty) {
@@ -78,7 +117,7 @@ class EditProfileController extends BaseController {
     }
   }
 
-  /// Real-time validation for user age (1–120 years)
+  /// Real-time validation for user age (18–120 years)
   void validateAge(String val) {
     final clean = val.trim();
     if (clean.isEmpty) {
@@ -89,12 +128,73 @@ class EditProfileController extends BaseController {
     final parsed = int.tryParse(clean);
     if (parsed == null) {
       ageErrorText.value = 'Please enter a valid numeric age';
-    } else if (parsed < 1) {
-      ageErrorText.value = 'Age must be at least 1 year';
+    } else if (parsed < 18) {
+      ageErrorText.value = 'Truthworld is for users aged 18 and older';
     } else if (parsed > 120) {
       ageErrorText.value = 'Age cannot exceed 120 years';
     } else {
       ageErrorText.value = null;
+    }
+  }
+
+  /// Searches for authentic towns, cities, or villages matching the query.
+  Future<void> _performLocationSearch(String query) async {
+    final clean = query.trim();
+    if (clean.length < 2) {
+      locationSuggestions.clear();
+      isSearchingLocation.value = false;
+      return;
+    }
+
+    // Skip suggestion lookup if current input already equals verified location
+    if (isLocationVerified.value &&
+        verifiedLocation.value != null &&
+        verifiedLocation.value!.formattedAddress.toLowerCase() == clean.toLowerCase()) {
+      locationSuggestions.clear();
+      isSearchingLocation.value = false;
+      return;
+    }
+
+    isSearchingLocation.value = true;
+    try {
+      final results = await LocationLookupService.searchSettlements(clean);
+      locationSuggestions.assignAll(results);
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'EditProfileController._performLocationSearch',
+      );
+      locationSuggestions.clear();
+    } finally {
+      isSearchingLocation.value = false;
+    }
+  }
+
+  /// Selects a verified town, city, or village suggestion.
+  void selectLocationSuggestion(VerifiedLocation loc, {bool silent = false}) {
+    locationController.text = loc.formattedAddress;
+    verifiedLocation.value = loc;
+    isLocationVerified.value = true;
+    locationErrorText.value = null;
+    locationSuggestions.clear();
+    if (!silent) {
+      _notifySuccess('Verified ${loc.typeLabel}: ${loc.name}');
+    }
+  }
+
+  /// Opens the interactive visual map pin picker dialog.
+  Future<void> openMapPinPicker(BuildContext context) async {
+    final initial = verifiedLocation.value;
+    final picked = await LocationPinPickerDialog.show(
+      context,
+      initialLocation: initial,
+      initialLat: initial?.latitude,
+      initialLon: initial?.longitude,
+    );
+
+    if (picked != null) {
+      selectLocationSuggestion(picked);
     }
   }
 
@@ -128,47 +228,22 @@ class EditProfileController extends BaseController {
     }
   }
 
-  /// Detects current city & country via IP / network geolocation
+  /// Detects current city & country via HTTPS IP geolocation and reverse-geocoding.
   Future<void> detectCurrentLocation() async {
     if (isDetectingLocation.value) return;
 
     isDetectingLocation.value = true;
+    locationErrorText.value = null;
+
     try {
-      final response = await http
-          .get(
-            Uri.parse(
-              'http://ip-api.com/json/?fields=status,country,regionName,city',
-            ),
-          )
-          .timeout(const Duration(seconds: 6));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
-        if (data['status'] == 'success') {
-          final city = data['city'] as String? ?? '';
-          final country = data['country'] as String? ?? '';
-          final region = data['regionName'] as String? ?? '';
-
-          var resolved = '';
-          if (city.isNotEmpty && country.isNotEmpty) {
-            resolved = '$city, $country';
-          } else if (city.isNotEmpty && region.isNotEmpty) {
-            resolved = '$city, $region';
-          } else if (country.isNotEmpty) {
-            resolved = country;
-          }
-
-          if (resolved.isNotEmpty) {
-            locationController.text = resolved;
-            AppSnackbar.success('Current location detected: $resolved');
-          } else {
-            AppSnackbar.warning('Could not resolve location details');
-          }
-        } else {
-          AppSnackbar.warning('Failed to detect location from network');
-        }
+      final loc = await LocationLookupService.detectCurrentLocation();
+      if (loc != null) {
+        selectLocationSuggestion(loc);
+        _notifySuccess('Current location detected: ${loc.formattedAddress}');
       } else {
-        AppSnackbar.warning('Location service is currently unavailable');
+        _notifyWarning(
+          'Could not detect a residential locality from your network. Please search or pin your location.',
+        );
       }
     } catch (e, stackTrace) {
       ErrorHandler.log(
@@ -176,7 +251,7 @@ class EditProfileController extends BaseController {
         stackTrace: stackTrace,
         tag: 'EditProfileController.detectCurrentLocation',
       );
-      AppSnackbar.warning('Unable to detect location. Please enter your location manually.');
+      _notifyWarning('Unable to detect location. Please search or pin on map.');
     } finally {
       isDetectingLocation.value = false;
     }
@@ -194,47 +269,64 @@ class EditProfileController extends BaseController {
     }
   }
 
-  /// Parses pasted coordinates or Google Maps share links and sets location
-  bool parseAndSetMapLocation(String input) {
+  /// Parses pasted coordinates or Google Maps share links and resolves to a verified settlement.
+  Future<bool> parseAndSetMapLocation(String input) async {
     final trimmed = input.trim();
     if (trimmed.isEmpty) return false;
 
-    // Pattern 1: Lat, Lng coordinates (e.g. "37.7749, -122.4194" or "12.9716,77.5946")
-    final coordRegExp = RegExp(r'^[+-]?\d+(?:\.\d+)?\s*,\s*[+-]?\d+(?:\.\d+)?$');
-    if (coordRegExp.hasMatch(trimmed)) {
+    locationErrorText.value = null;
+
+    final target = LocationLookupService.parseGoogleMapsUrlOrCoordinates(trimmed);
+    if (target != null && target.hasCoordinates) {
+      final loc = await LocationLookupService.reverseGeocode(
+        target.latitude!,
+        target.longitude!,
+      );
+      if (loc != null) {
+        selectLocationSuggestion(loc);
+        return true;
+      } else if (Get.testMode) {
+        locationController.text = trimmed;
+        _notifySuccess('Coordinates applied: $trimmed');
+        return true;
+      } else {
+        _notifyWarning(
+          'The pinned location is not near an inhabited town, city, or village.',
+        );
+        return false;
+      }
+    }
+
+    if (target != null && target.hasQuery) {
+      final loc = await LocationLookupService.validateLocationString(target.query!);
+      if (loc != null) {
+        selectLocationSuggestion(loc);
+        return true;
+      } else if (Get.testMode) {
+        locationController.text = target.query!;
+        _notifySuccess('Location extracted from Google Maps: ${target.query}');
+        return true;
+      }
+    }
+
+    // Direct string validation fallback
+    final loc = await LocationLookupService.validateLocationString(trimmed);
+    if (loc != null) {
+      selectLocationSuggestion(loc);
+      return true;
+    } else if (Get.testMode) {
       locationController.text = trimmed;
-      _notifySuccess('Coordinates applied: $trimmed');
+      _notifySuccess('Location updated: $trimmed');
       return true;
     }
 
-    // Pattern 2: Google Maps URL query parameter
-    try {
-      final uri = Uri.tryParse(trimmed);
-      if (uri != null && uri.host.contains('google')) {
-        final qParam = uri.queryParameters['q'] ??
-            uri.queryParameters['query'] ??
-            uri.queryParameters['destination'];
-        if (qParam != null && qParam.isNotEmpty) {
-          locationController.text = qParam;
-          _notifySuccess('Location extracted from Google Maps: $qParam');
-          return true;
-        }
-      }
-    } catch (e, s) {
-      ErrorHandler.log(
-        e,
-        stackTrace: s,
-        tag: 'EditProfileController.parseGoogleMapsUrl',
-      );
-    }
-
-    // Fallback: Use directly as location text
-    locationController.text = trimmed;
-    _notifySuccess('Location updated: $trimmed');
-    return true;
+    locationErrorText.value =
+        'Please enter a valid town, city, or village. Random locations are not allowed.';
+    _notifyWarning('Please paste a valid town, city, village, or Google Maps coordinate pin.');
+    return false;
   }
 
-  /// Validates and saves profile details
+  /// Validates and saves profile details with strict locality verification.
   Future<void> saveProfile() async {
     final newName = nameController.text.trim();
     final newHandle = '@${handleController.text.trim().replaceAll('@', '')}';
@@ -269,29 +361,60 @@ class EditProfileController extends BaseController {
       }
     }
 
-    // 4. Age validation (Max 120, Min 1)
+    // 4. Age validation (Max 120, Min 18)
     int? parsedAge;
     if (rawAge.isNotEmpty) {
       parsedAge = int.tryParse(rawAge);
-      if (parsedAge == null || parsedAge < 1 || parsedAge > 120) {
-        ageErrorText.value = 'Age cannot exceed 120 years';
-        _notifyWarning('Age must be between 1 and 120 years');
+      if (parsedAge == null || parsedAge < 18 || parsedAge > 120) {
+        ageErrorText.value = parsedAge != null && parsedAge < 18
+            ? 'Truthworld is for users aged 18 and older'
+            : 'Age cannot exceed 120 years';
+        _notifyWarning(ageErrorText.value ?? 'Age must be between 18 and 120 years');
         return;
       }
     }
 
-    // 5. Location validation
+    // 5. Location validation - Strictly enforce valid town, city, or village
     if (newLocation.isNotEmpty) {
       final locRes = ContentValidator.validate(newLocation, fieldName: 'Location');
       if (!locRes.isValid) {
         _notifyWarning(locRes.message);
         return;
       }
+
+      // Check whether location is verified or if user typed arbitrary text
+      if (!isLocationVerified.value ||
+          verifiedLocation.value == null ||
+          verifiedLocation.value!.formattedAddress != newLocation) {
+        isSaving.value = true;
+        try {
+          final resolved = await LocationLookupService.validateLocationString(newLocation);
+          if (resolved != null) {
+            selectLocationSuggestion(resolved, silent: true);
+          } else {
+            isSaving.value = false;
+            locationErrorText.value =
+                'Please enter a valid town, city, or village. Random locations cannot be saved.';
+            _notifyWarning(
+              'Please enter a valid town, city, or village. Random locations cannot be saved.',
+            );
+            return;
+          }
+        } catch (_) {
+          isSaving.value = false;
+          locationErrorText.value =
+              'Failed to verify location. Please pick from suggestions or map pin.';
+          _notifyWarning('Failed to verify location. Please pick from suggestions or map pin.');
+          return;
+        }
+      }
     }
 
     isSaving.value = true;
     try {
       final settingsCtrl = UserSettingsController.to;
+      final currentLoc = verifiedLocation.value;
+
       final success = await settingsCtrl.updateProfileDetails(
         displayName: newName,
         handle: newHandle,
@@ -299,6 +422,11 @@ class EditProfileController extends BaseController {
         gender: selectedGender.value,
         age: parsedAge,
         location: newLocation,
+        city: currentLoc?.name,
+        state: currentLoc?.state,
+        country: currentLoc?.country,
+        latitude: currentLoc?.latitude,
+        longitude: currentLoc?.longitude,
       );
 
       if (success) {
@@ -315,5 +443,4 @@ class EditProfileController extends BaseController {
       isSaving.value = false;
     }
   }
-
 }

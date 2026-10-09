@@ -112,9 +112,32 @@ mixin UploadWizardMixin on UploadControllerBase {
         selectedChannel.value = matching;
       }
     }
+    if (video.isFactChecked ||
+        video.hasAiCredibility ||
+        video.factCheckTier == 'full_ground' ||
+        video.factCheckTier == 'standard') {
+      aiFactCheckEnabled.value = true;
+      aiFactCheckTier.value =
+          video.factCheckTier.isNotEmpty ? video.factCheckTier : 'full_ground';
+    }
+    if (video.factCheckReviewMode.isNotEmpty) {
+      aiFactCheckReviewMode.value = video.factCheckReviewMode;
+    }
 
     if (video.geminiApproved != null && video.geminiApproved!) {
       videoModerationStatus.value = 'APPROVED';
+    }
+
+    if (video.durationMs > 0) {
+      videoDuration.value = Duration(milliseconds: video.durationMs);
+      videoDurationSeconds.value = video.durationMs ~/ 1000;
+    } else if (video.durationValue.inMilliseconds > 0) {
+      videoDuration.value = video.durationValue;
+      videoDurationSeconds.value = video.durationValue.inSeconds;
+    }
+
+    if (videoUrl.value.isNotEmpty) {
+      initializeVideoPlayer();
     }
 
     isFormValid.value = titleController.text.trim().length >= 5;

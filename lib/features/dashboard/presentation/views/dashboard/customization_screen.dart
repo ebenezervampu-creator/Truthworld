@@ -562,26 +562,258 @@ class _CustomizationView extends StatelessWidget {
           ),
           const SizedBox(height: 32),
           _buildSectionTitle('Social Links'),
+          const SizedBox(height: 8),
+          const Text(
+            'Link your official profiles across social media to help viewers connect with your presence.',
+            style: TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              color: AppColors.textSecondary,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 16),
+          _buildTextField(
+            controller: controller.youtubeController,
+            label: 'YouTube',
+            hint: 'https://youtube.com/@channel',
+            prefixIcon: Icons.smart_display_outlined,
+          ),
           const SizedBox(height: 16),
           _buildTextField(
             controller: controller.twitterController,
             label: 'Twitter / X',
-            hint: 'https://twitter.com/username',
-            prefixIcon: Icons.link_rounded,
+            hint: 'https://x.com/username',
+            prefixIcon: Icons.alternate_email,
           ),
           const SizedBox(height: 16),
           _buildTextField(
             controller: controller.instagramController,
             label: 'Instagram',
             hint: 'https://instagram.com/username',
-            prefixIcon: Icons.link_rounded,
+            prefixIcon: Icons.camera_alt_outlined,
           ),
           const SizedBox(height: 16),
           _buildTextField(
             controller: controller.facebookController,
             label: 'Facebook',
             hint: 'https://facebook.com/username',
-            prefixIcon: Icons.link_rounded,
+            prefixIcon: Icons.facebook,
+          ),
+          const SizedBox(height: 16),
+          _buildTextField(
+            controller: controller.linkedinController,
+            label: 'LinkedIn',
+            hint: 'https://linkedin.com/in/username',
+            prefixIcon: Icons.work_outline,
+          ),
+          const SizedBox(height: 16),
+          _buildTextField(
+            controller: controller.tiktokController,
+            label: 'TikTok',
+            hint: 'https://tiktok.com/@username',
+            prefixIcon: Icons.music_note_outlined,
+          ),
+          const SizedBox(height: 16),
+          _buildTextField(
+            controller: controller.whatsappController,
+            label: 'WhatsApp Channel',
+            hint: 'https://whatsapp.com/channel/...',
+            prefixIcon: Icons.chat_outlined,
+          ),
+          const SizedBox(height: 16),
+          _buildTextField(
+            controller: controller.telegramController,
+            label: 'Telegram',
+            hint: 'https://t.me/username',
+            prefixIcon: Icons.send_outlined,
+          ),
+          const SizedBox(height: 16),
+          _buildTextField(
+            controller: controller.discordController,
+            label: 'Discord',
+            hint: 'https://discord.gg/server',
+            prefixIcon: Icons.forum_outlined,
+          ),
+          const SizedBox(height: 16),
+          _buildTextField(
+            controller: controller.githubController,
+            label: 'GitHub',
+            hint: 'https://github.com/username',
+            prefixIcon: Icons.code,
+          ),
+          const SizedBox(height: 16),
+          _buildTextField(
+            controller: controller.twitchController,
+            label: 'Twitch',
+            hint: 'https://twitch.tv/username',
+            prefixIcon: Icons.live_tv_outlined,
+          ),
+          const SizedBox(height: 16),
+          _buildTextField(
+            controller: controller.redditController,
+            label: 'Reddit',
+            hint: 'https://reddit.com/r/...',
+            prefixIcon: Icons.chat_bubble_outline,
+          ),
+          const SizedBox(height: 16),
+          _buildTextField(
+            controller: controller.patreonController,
+            label: 'Patreon',
+            hint: 'https://patreon.com/username',
+            prefixIcon: Icons.monetization_on_outlined,
+          ),
+          const SizedBox(height: 16),
+          _buildTextField(
+            controller: controller.threadsController,
+            label: 'Threads',
+            hint: 'https://threads.net/@username',
+            prefixIcon: Icons.alternate_email_outlined,
+          ),
+          if (controller.extraSocialControllers.isNotEmpty) ...[
+            for (final entry in controller.extraSocialControllers.entries) ...[
+              const SizedBox(height: 16),
+              _buildTextField(
+                controller: entry.value,
+                label: entry.key[0].toUpperCase() + entry.key.substring(1),
+                hint: 'https://${entry.key}.com/...',
+                prefixIcon: Icons.link_rounded,
+              ),
+            ],
+          ],
+          const SizedBox(height: 32),
+          _buildSectionTitle('Custom Links'),
+          const SizedBox(height: 8),
+          const Text(
+            'Add custom links to websites, your merchandise store, portfolio, or other external resources for your audience.',
+            style: TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              color: AppColors.textSecondary,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Obx(() {
+            if (controller.customLinks.isEmpty) {
+              return Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: AppColors.bgSurface,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.bgDivider),
+                ),
+                child: const Column(
+                  children: [
+                    Icon(
+                      Icons.add_link_rounded,
+                      size: 32,
+                      color: AppColors.textTertiary,
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'No custom links added yet.',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        color: AppColors.textSecondary,
+                        fontSize: 13,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Click "Add Custom Link" below to publish custom links for your channel.',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        color: AppColors.textTertiary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return Column(
+              children: List.generate(controller.customLinks.length, (index) {
+                final item = controller.customLinks[index];
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.bgSurface,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.bgDivider),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Custom Link #${index + 1}',
+                            style: const TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              color: AppColors.textPrimary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () =>
+                                controller.removeCustomLink(index),
+                            icon: const Icon(
+                              Icons.delete_outline_rounded,
+                              color: AppColors.error,
+                              size: 20,
+                            ),
+                            tooltip: 'Remove link',
+                            splashRadius: 20,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      _buildTextField(
+                        controller: item.titleController,
+                        label: 'Link Title',
+                        hint: 'e.g., My Store, Portfolio, Discord',
+                        prefixIcon: Icons.title_rounded,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildTextField(
+                        controller: item.urlController,
+                        label: 'Link URL',
+                        hint: 'https://example.com',
+                        prefixIcon: Icons.link_rounded,
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            );
+          }),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: controller.addCustomLink,
+            icon: const Icon(Icons.add, size: 18, color: Colors.white),
+            label: const Text(
+              'Add Custom Link',
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              side: const BorderSide(color: AppColors.bgDivider),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 18,
+                vertical: 12,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
           ),
         ],
       ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/search/data/models/search_result.dart';
 import 'package:truthworld/features/search/presentation/widgets/items/search_result_sub_cards.dart';
 
@@ -54,9 +55,7 @@ class SearchResultCard extends StatelessWidget {
 
   /// Helper to format view/sub counts.
   static String formatViews(int count) {
-    if (count < 1000) return count.toString();
-    if (count < 1000000) return '${(count / 1000).toStringAsFixed(1)}K';
-    return '${(count / 1000000).toStringAsFixed(1)}M';
+    return FormatUtils.formatCount(count);
   }
 
   /// Helper to format relative upload dates.

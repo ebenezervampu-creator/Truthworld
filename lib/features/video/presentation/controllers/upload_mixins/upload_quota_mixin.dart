@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:collection/collection.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
@@ -246,15 +247,28 @@ mixin UploadQuotaMixin on UploadControllerBase {
             isChannelsLoading.value = false;
             channelsError.value = '';
 
-            // Auto-select first channel if none selected or if selected channel changed
+            // Auto-select channel matching resumed draft if present, or first channel if none selected
             if (channels.isNotEmpty) {
+              final targetChanId = resumedVideoDraft.value?.channelId;
+              Channel? matched;
+              if (targetChanId != null && targetChanId.isNotEmpty) {
+                matched = channels
+                    .where(
+                      (c) => c.channelId == targetChanId || c.id == targetChanId,
+                    )
+                    .firstOrNull;
+              }
+
               if (selectedChannel.value == null ||
                   !channels.any((c) => c.id == selectedChannel.value!.id)) {
-                selectedChannel.value = channels.first;
+                selectedChannel.value = matched ?? channels.first;
                 refreshDailyUploadQuota();
                 debugPrint(
-                  'Auto-selected channel: ${channels.first.channelName}',
+                  'Auto-selected channel: ${selectedChannel.value?.channelName}',
                 );
+              } else if (matched != null && selectedChannel.value!.id != matched.id) {
+                selectedChannel.value = matched;
+                refreshDailyUploadQuota();
               }
             }
           },

@@ -262,9 +262,9 @@ class ChaptersController extends BaseController with ContentValidationMixin {
           .collection(FirestoreCollections.videos)
           .doc(video.id)
           .set({
-        'autoChaptersEnabled': enabled,
-        'aiFeatures': {'autoChapters': enabled},
-      }, SetOptions(merge: true));
+            'autoChaptersEnabled': enabled,
+            'aiFeatures': {'autoChapters': enabled},
+          }, SetOptions(merge: true));
 
       final updatedVideo = video.copyWith(autoChaptersEnabled: enabled);
       selectedVideo.value = updatedVideo;
@@ -276,8 +276,9 @@ class ChaptersController extends BaseController with ContentValidationMixin {
       }
 
       // If auto-chapters is disabled and no manual description timestamps or explicit chapters exist:
-      final descChapters =
-          VideoChapterParser.extractDescriptionChapters(video.description);
+      final descChapters = VideoChapterParser.extractDescriptionChapters(
+        video.description,
+      );
       final streaming = await VideoMediaService().getStreaming(video.id);
 
       if (!enabled && descChapters.isEmpty && streaming.chapters.isEmpty) {
@@ -301,12 +302,32 @@ class ChaptersController extends BaseController with ContentValidationMixin {
             : 'Automatic chapters turned off. Auto-chapters are hidden unless you provide description timestamps.',
       );
     } catch (e, stack) {
-      logger.error('Failed to toggle auto chapters', error: e, stackTrace: stack, tag: _tag);
+      logger.error(
+        'Failed to toggle auto chapters',
+        error: e,
+        stackTrace: stack,
+        tag: _tag,
+      );
       showError('Failed to update automatic chapters setting');
     }
   }
 
-  void addChapter(String title, Duration startTime) {
+  bool addChapter(String title, Duration startTime) {
+    if (startTime < Duration.zero) {
+      showError('Chapter timestamp cannot be negative.');
+      return false;
+    }
+
+    final video = selectedVideo.value;
+    if (video != null && video.durationValue > Duration.zero) {
+      if (startTime >= video.durationValue) {
+        showError(
+          'Chapter timestamp (${VideoDurationUtils.formatDuration(startTime)}) cannot exceed video duration (${video.duration}).',
+        );
+        return false;
+      }
+    }
+
     final newChapter = VideoChapter(title: title, startTime: startTime);
 
     // Check if start time is already in use
@@ -324,10 +345,28 @@ class ChaptersController extends BaseController with ContentValidationMixin {
 
     currentChapters.sort((a, b) => a.startTime.compareTo(b.startTime));
     hasUnsavedChanges.value = true;
+    return true;
   }
 
-  void updateChapter(int index, {String? title, Duration? startTime}) {
-    if (index < 0 || index >= currentChapters.length) return;
+  bool updateChapter(int index, {String? title, Duration? startTime}) {
+    if (index < 0 || index >= currentChapters.length) return false;
+
+    if (startTime != null) {
+      if (startTime < Duration.zero) {
+        showError('Chapter timestamp cannot be negative.');
+        return false;
+      }
+
+      final video = selectedVideo.value;
+      if (video != null && video.durationValue > Duration.zero) {
+        if (startTime >= video.durationValue) {
+          showError(
+            'Chapter timestamp (${VideoDurationUtils.formatDuration(startTime)}) cannot exceed video duration (${video.duration}).',
+          );
+          return false;
+        }
+      }
+    }
 
     final oldChapter = currentChapters[index];
     final updated = VideoChapter(
@@ -339,6 +378,7 @@ class ChaptersController extends BaseController with ContentValidationMixin {
     currentChapters[index] = updated;
     currentChapters.sort((a, b) => a.startTime.compareTo(b.startTime));
     hasUnsavedChanges.value = true;
+    return true;
   }
 
   void deleteChapter(int index) {
@@ -349,9 +389,19 @@ class ChaptersController extends BaseController with ContentValidationMixin {
 
   void shiftChapterTiming(int index, int shiftMilliseconds) {
     if (index < 0 || index >= currentChapters.length) return;
+    final video = selectedVideo.value;
     final chapter = currentChapters[index];
     var newMs = chapter.startTime.inMilliseconds + shiftMilliseconds;
     if (newMs < 0) newMs = 0;
+
+    if (video != null && video.durationValue > Duration.zero) {
+      if (newMs >= video.durationValue.inMilliseconds) {
+        showWarning(
+          'Chapter cannot be shifted past video duration (${video.duration}).',
+        );
+        return;
+      }
+    }
 
     updateChapter(index, startTime: Duration(milliseconds: newMs));
   }
@@ -360,6 +410,7 @@ class ChaptersController extends BaseController with ContentValidationMixin {
     final video = selectedVideo.value;
     if (video == null) return;
 
+    final videoDuration = video.durationValue;
     for (var i = 0; i < currentChapters.length; i++) {
       final ch = currentChapters[i];
       final titleVal = await validateContent(
@@ -368,6 +419,13 @@ class ChaptersController extends BaseController with ContentValidationMixin {
       );
       if (!titleVal.isValid) {
         showWarning(titleVal.message);
+        return;
+      }
+
+      if (videoDuration > Duration.zero && ch.startTime >= videoDuration) {
+        showError(
+          'Chapter "${ch.title}" at ${ch.formattedStartTime} cannot exceed video duration (${video.duration}). Please fix before saving.',
+        );
         return;
       }
     }
@@ -422,6 +480,10 @@ class ChaptersController extends BaseController with ContentValidationMixin {
     // Regular expression matching HH:MM:SS or MM:SS
     final regex = RegExp(r'(?:(\d{1,2}):)?(\d{1,2}):(\d{2})');
 
+    final video = selectedVideo.value;
+    final videoDuration = video?.durationValue ?? Duration.zero;
+    var skippedExceedingCount = 0;
+
     for (final line in lines) {
       if (line.trim().isEmpty) continue;
       final match = regex.firstMatch(line);
@@ -437,6 +499,11 @@ class ChaptersController extends BaseController with ContentValidationMixin {
           minutes: minutes,
           seconds: seconds,
         );
+
+        if (videoDuration > Duration.zero && duration >= videoDuration) {
+          skippedExceedingCount++;
+          continue;
+        }
 
         // Extract title (everything remaining in the line)
         var title = line.replaceFirst(match.group(0)!, '').trim();
@@ -461,8 +528,18 @@ class ChaptersController extends BaseController with ContentValidationMixin {
       currentChapters.value = existingMap.values.toList();
       currentChapters.sort((a, b) => a.startTime.compareTo(b.startTime));
       hasUnsavedChanges.value = true;
-      showSuccess(
-        'Successfully parsed and imported ${parsedChapters.length} chapters!',
+      if (skippedExceedingCount > 0) {
+        showWarning(
+          'Imported ${parsedChapters.length} chapter(s). Skipped $skippedExceedingCount timestamp(s) exceeding video duration (${video!.duration}).',
+        );
+      } else {
+        showSuccess(
+          'Successfully parsed and imported ${parsedChapters.length} chapters!',
+        );
+      }
+    } else if (skippedExceedingCount > 0) {
+      showError(
+        'All found timestamps exceeded video duration (${video!.duration}).',
       );
     } else {
       showError(
@@ -491,8 +568,10 @@ class ChaptersController extends BaseController with ContentValidationMixin {
     isAnalyzing.value = true;
     try {
       final description = video.description;
-      final parsedChapters =
-          VideoChapterParser.extractDescriptionChapters(description);
+      final parsedChapters = VideoChapterParser.extractDescriptionChapters(
+        description,
+        maxDuration: video.durationValue,
+      );
 
       if (parsedChapters.isNotEmpty) {
         final existingMap = {for (final c in currentChapters) c.startTime: c};
@@ -531,7 +610,12 @@ class ChaptersController extends BaseController with ContentValidationMixin {
         }
       }
     } catch (e, s) {
-      logger.error('Failed to auto-detect chapters', error: e, stackTrace: s, tag: _tag);
+      logger.error(
+        'Failed to auto-detect chapters',
+        error: e,
+        stackTrace: s,
+        tag: _tag,
+      );
       showError('Unable to detect chapters from video details.');
     } finally {
       isAnalyzing.value = false;

@@ -1,8 +1,11 @@
 import 'dart:ui';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/core/widgets/truth_lottie_animation.dart';
 import 'package:truthworld/features/video/data/models/fact_check_data_parser.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -198,15 +201,170 @@ class VideoAnalysisBottomSheet extends StatelessWidget {
         );
       }
 
+      final currentUid = AuthService.to.uid;
+      final userChannelId = AuthService.to.userChannel?.id;
+      final isOwner = currentUid.isNotEmpty &&
+          (video.ownerId == currentUid ||
+              video.userId == currentUid ||
+              (userChannelId != null &&
+                  userChannelId.isNotEmpty &&
+                  video.channelId == userChannelId));
+
+      final isPendingApproval = video.isFactCheckPendingApproval &&
+          !videoCtrl.rxVideo.value.isFactCheckApproved;
+
+      if (isPendingApproval && !isOwner) {
+        return _buildPendingReviewBlockerView();
+      }
+
       if (reportData.isEmpty && video.factCheckUrl.isEmpty && video.uiReport == null) {
         return VideoAnalysisEmptyFallback(video: video);
       }
 
-      return _buildFormattedDashboard(reportData);
+      return _buildFormattedDashboard(
+        reportData,
+        isOwner: isOwner,
+        isPendingApproval: isPendingApproval,
+      );
     });
   }
 
-  Widget _buildFormattedDashboard(Map<String, dynamic> data) {
+  Widget _buildOwnerApprovalBanner(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1B10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0xFFF59E0B).withValues(alpha: 0.4),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.lock_clock_rounded,
+            color: Color(0xFFF59E0B),
+            size: 24,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Creator Review Active',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'This report is hidden from viewers until you approve it.',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.7),
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                await FirebaseFirestore.instance
+                    .collection('videos')
+                    .doc(video.id)
+                    .update({
+                  'isFactCheckApproved': true,
+                  'aiFeatures.isFactCheckApproved': true,
+                });
+                videoCtrl.rxVideo.value = videoCtrl.rxVideo.value.copyWith(
+                  isFactCheckApproved: true,
+                );
+                AppSnackbar.success(
+                  'Fact-checking results approved & published for viewers!',
+                );
+              } catch (e) {
+                AppSnackbar.error(
+                  'Failed to approve fact-check. Please try again.',
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF10B981),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text(
+              'Approve for Viewers',
+              style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPendingReviewBlockerView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1B10),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                ),
+              ),
+              child: const Icon(
+                Icons.admin_panel_settings_outlined,
+                size: 40,
+                color: Color(0xFFF59E0B),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Verification Under Creator Review',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'The channel has elected to review fact-check results before making them public. Results will appear once approved by the creator.',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.6),
+                fontSize: 13,
+                height: 1.4,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFormattedDashboard(
+    Map<String, dynamic> data, {
+    required bool isOwner,
+    required bool isPendingApproval,
+  }) {
     final parsed = FactCheckDataParser.parse(
       data,
       fallbackReport: video.uiReport,
@@ -216,6 +374,7 @@ class VideoAnalysisBottomSheet extends StatelessWidget {
 
     return Column(
       children: [
+        if (isOwner && isPendingApproval) _buildOwnerApprovalBanner(context),
         _buildTabBar(parsed.claims.length),
         const Divider(height: 1, color: AppColors.bgDivider),
         Expanded(

@@ -17,6 +17,10 @@ class AuthChannelManager {
   Channel? get userChannel => _userChannel.value;
   Rxn<Channel> get rxUserChannel => _userChannel;
 
+  final Rxn<Channel> _deletedChannel = Rxn<Channel>();
+  Channel? get deletedChannel => _deletedChannel.value;
+  Rxn<Channel> get rxDeletedChannel => _deletedChannel;
+
   StreamSubscription? _channelSubscription;
   String? _subscribedUid;
   final Set<String> _fallbackResolvedUids = <String>{};
@@ -44,6 +48,11 @@ class AuthChannelManager {
     _userChannel.value = channel;
     _hasChannel.value =
         channel != null && channel.status != ChannelStatus.deleted;
+    if (_hasChannel.value) {
+      _deletedChannel.value = null;
+    } else if (channel != null && channel.status == ChannelStatus.deleted) {
+      _deletedChannel.value = channel;
+    }
     if (uid != null) {
       GetStorage().write('hasChannel_$uid', _hasChannel.value);
       if (_hasChannel.value) {
@@ -52,10 +61,16 @@ class AuthChannelManager {
     }
   }
 
+  /// Sets or clears deleted channel reference
+  void setDeletedChannel(Channel? channel) {
+    _deletedChannel.value = channel;
+  }
+
   /// Clears active channel reference and resets local cache.
   void clearUserChannel([String? uid]) {
     _userChannel.value = null;
     _hasChannel.value = false;
+    _deletedChannel.value = null;
     if (uid != null) {
       GetStorage().write('hasChannel_$uid', false);
       _fallbackResolvedUids.remove(uid);
@@ -96,14 +111,21 @@ class AuthChannelManager {
       }
 
       if (snap.docs.isNotEmpty) {
-        final activeChannels = snap.docs
-            .map(Channel.fromDocumentSnapshot)
+        final allChannels =
+            snap.docs.map(Channel.fromDocumentSnapshot).toList();
+        final activeChannels = allChannels
             .where((c) => c.status != ChannelStatus.deleted)
             .toList();
         if (activeChannels.isNotEmpty) {
           final ch = activeChannels.first;
           setUserChannel(ch, u.uid);
           return ch;
+        }
+        final deletedChannels = allChannels
+            .where((c) => c.status == ChannelStatus.deleted)
+            .toList();
+        if (deletedChannels.isNotEmpty) {
+          _deletedChannel.value = deletedChannels.first;
         }
       }
 
@@ -123,6 +145,8 @@ class AuthChannelManager {
           if (ch.status != ChannelStatus.deleted) {
             setUserChannel(ch, u.uid);
             return ch;
+          } else {
+            _deletedChannel.value = ch;
           }
         }
       }
@@ -178,16 +202,29 @@ class AuthChannelManager {
         .snapshots()
         .listen(
           (snapshot) async {
-            final activeChannels = snapshot.docs
+            final allChannels = snapshot.docs
                 .map(Channel.fromDocumentSnapshot)
+                .toList();
+
+            final activeChannels = allChannels
                 .where((c) => c.status != ChannelStatus.deleted)
                 .toList();
 
             if (activeChannels.isNotEmpty) {
               _hasChannel.value = true;
               _userChannel.value = activeChannels.first;
+              _deletedChannel.value = null;
               GetStorage().write('hasChannel_${user.uid}', true);
               return;
+            }
+
+            final deletedChannels = allChannels
+                .where((c) => c.status == ChannelStatus.deleted)
+                .toList();
+            if (deletedChannels.isNotEmpty) {
+              _deletedChannel.value = deletedChannels.first;
+            } else {
+              _deletedChannel.value = null;
             }
 
             // High-scale optimization: The overwhelming majority of users are viewers with no channel.

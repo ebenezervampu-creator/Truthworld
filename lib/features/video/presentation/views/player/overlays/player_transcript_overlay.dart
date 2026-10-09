@@ -16,10 +16,17 @@ class TranscriptOverlay extends StatelessWidget {
     // Proactively request transcript loading if not yet loaded
     if (ctrl.subtitleSegments.isEmpty &&
         (vc == null || vc.transcriptSegments.isEmpty) &&
+        (vc == null || !vc.transcriptController.hasAttemptedTranscriptFetch.value) &&
         (vc == null || !vc.isLoadingTranscript.value) &&
         !ctrl.isLoadingSubtitles.value) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        vc?.loadTranscriptForVideo();
+        if (ctrl.subtitleSegments.isEmpty &&
+            (vc == null || vc.transcriptSegments.isEmpty) &&
+            (vc == null || !vc.transcriptController.hasAttemptedTranscriptFetch.value) &&
+            (vc == null || !vc.isLoadingTranscript.value) &&
+            !ctrl.isLoadingSubtitles.value) {
+          vc?.loadTranscriptForVideo();
+        }
       });
     }
 
@@ -110,7 +117,7 @@ class TranscriptOverlay extends StatelessWidget {
                           const SizedBox(height: 14),
                           TextButton.icon(
                             onPressed: () {
-                              vc?.loadTranscriptForVideo();
+                              vc?.loadTranscriptForVideo(forceRefresh: true);
                             },
                             icon: const Icon(
                               Icons.refresh_rounded,

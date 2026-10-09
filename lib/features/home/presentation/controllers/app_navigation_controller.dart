@@ -179,7 +179,8 @@ class AppNavigationController extends BaseController {
     if (videoId.isEmpty) return false;
 
     try {
-      final userId = _auth.currentUser?.uid;
+      final currentUser = _auth.currentUser;
+      final userId = (currentUser != null && !currentUser.isAnonymous) ? currentUser.uid : null;
       final sessionId = "session_${videoId}_${userId ?? 'anon'}";
 
       final timestampMs = DateTime.now().millisecondsSinceEpoch;
@@ -204,7 +205,18 @@ class AppNavigationController extends BaseController {
         'dedupKey':
             dedupKey, // Server creates qualified_views/{dedupKey} via tx
       });
-      final headers = {'Content-Type': 'application/json'};
+
+      String? idToken;
+      if (currentUser != null && !currentUser.isAnonymous) {
+        try {
+          idToken = await currentUser.getIdToken();
+        } catch (_) {}
+      }
+
+      final headers = {
+        'Content-Type': 'application/json',
+        if (idToken != null && idToken.isNotEmpty) 'Authorization': 'Bearer $idToken',
+      };
 
       // Try direct Cloud Run service first, with fallback to Cloud Functions endpoint
       http.Response response;

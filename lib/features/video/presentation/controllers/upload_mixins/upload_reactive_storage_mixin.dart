@@ -135,6 +135,15 @@ mixin UploadReactiveStorageMixin on UploadControllerBase {
       if (aiSummaryEnabled.value != s.aiSummaryEnabled) {
         aiSummaryEnabled.value = s.aiSummaryEnabled;
       }
+      if (aiFactCheckEnabled.value != s.aiFactCheckEnabled) {
+        aiFactCheckEnabled.value = s.aiFactCheckEnabled;
+      }
+      if (aiFactCheckTier.value != s.aiFactCheckTier) {
+        aiFactCheckTier.value = s.aiFactCheckTier;
+      }
+      if (aiFactCheckReviewMode.value != s.aiFactCheckReviewMode) {
+        aiFactCheckReviewMode.value = s.aiFactCheckReviewMode;
+      }
       if (selectedCategory.value != s.selectedCategory) {
         selectedCategory.value = s.selectedCategory;
       }
@@ -276,6 +285,9 @@ mixin UploadReactiveStorageMixin on UploadControllerBase {
     addWorker(ever(aiGenerateDubbing, (v) => syncPrimitiveToState((s) => s.copyWith(aiGenerateDubbing: v))));
     addWorker(ever(aiDiarizationEnabled, (v) => syncPrimitiveToState((s) => s.copyWith(aiDiarizationEnabled: v))));
     addWorker(ever(aiSummaryEnabled, (v) => syncPrimitiveToState((s) => s.copyWith(aiSummaryEnabled: v))));
+    addWorker(ever(aiFactCheckEnabled, (v) => syncPrimitiveToState((s) => s.copyWith(aiFactCheckEnabled: v))));
+    addWorker(ever(aiFactCheckTier, (v) => syncPrimitiveToState((s) => s.copyWith(aiFactCheckTier: v))));
+    addWorker(ever(aiFactCheckReviewMode, (v) => syncPrimitiveToState((s) => s.copyWith(aiFactCheckReviewMode: v))));
   }
 
   // Channel Selection & Channels List
@@ -431,6 +443,8 @@ mixin UploadReactiveStorageMixin on UploadControllerBase {
   final RxBool aiFactCheckEnabled = false.obs;
   @override
   final RxString aiFactCheckTier = 'full_ground'.obs;
+  @override
+  final RxString aiFactCheckReviewMode = 'open_to_users'.obs;
   @override
   final Rx<PlatformFile?> voiceSampleFile = Rx<PlatformFile?>(null);
   @override

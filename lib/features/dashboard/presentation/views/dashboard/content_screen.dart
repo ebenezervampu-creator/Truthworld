@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/content/content_widgets.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart' show DashboardController;
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/trash_restore_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -33,7 +31,7 @@ class ContentScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 4,
+      length: 5,
       initialIndex: initialIndex,
       child: Scaffold(
         backgroundColor: AppColors.bgPage,
@@ -50,71 +48,26 @@ class ContentScreen extends StatelessWidget {
                 ),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 12.0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TabBar(
-                      isScrollable: true,
-                      indicatorColor: AppColors.brand,
-                      indicatorWeight: 3,
-                      labelColor: AppColors.textPrimary,
-                      unselectedLabelColor: AppColors.textSecondary,
-                      indicatorSize: TabBarIndicatorSize.label,
-                      labelStyle: AppTextStyles.titleMedium.copyWith(
-                        fontWeight: FontWeight.bold,
-                        fontFamily: TWTypography.brandFamily,
-                      ),
-                      unselectedLabelStyle: AppTextStyles.titleMedium.copyWith(
-                        fontWeight: FontWeight.normal,
-                      ),
-                      tabs: const [
-                        Tab(text: 'Videos'),
-                        Tab(text: 'Posts'),
-                        Tab(text: 'Drafts'),
-                        Tab(text: 'Scheduled'),
-                      ],
-                    ),
-                  ),
-                  Tooltip(
-                    message: 'Trash & Restore',
-                    child: TextButton.icon(
-                      onPressed: () {
-                        if (Get.isRegistered<DashboardController>()) {
-                          Get.find<DashboardController>().setSelectedIndex(13);
-                        } else {
-                          Get.to<dynamic>(
-                            () => TrashRestoreScreen(
-                              channelId: channelId,
-                              isDarkMode: isDarkMode,
-                            ),
-                          );
-                        }
-                      },
-                      icon: const Icon(
-                        Icons.auto_delete_outlined,
-                        size: 18,
-                        color: AppColors.textPrimary,
-                      ),
-                      label: Text(
-                        'Trash',
-                        style: AppTextStyles.bodySmall.copyWith(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      style: TextButton.styleFrom(
-                        backgroundColor: AppColors.bgSurfaceHover,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          side: const BorderSide(color: AppColors.bgDivider),
-                        ),
-                      ),
-                    ),
-                  ),
+              child: TabBar(
+                isScrollable: true,
+                indicatorColor: AppColors.brand,
+                indicatorWeight: 3,
+                labelColor: AppColors.textPrimary,
+                unselectedLabelColor: AppColors.textSecondary,
+                indicatorSize: TabBarIndicatorSize.label,
+                labelStyle: AppTextStyles.titleMedium.copyWith(
+                  fontWeight: FontWeight.bold,
+                  fontFamily: TWTypography.brandFamily,
+                ),
+                unselectedLabelStyle: AppTextStyles.titleMedium.copyWith(
+                  fontWeight: FontWeight.normal,
+                ),
+                tabs: const [
+                  Tab(text: 'Videos'),
+                  Tab(text: 'Posts'),
+                  Tab(text: 'Drafts'),
+                  Tab(text: 'Scheduled'),
+                  Tab(text: 'Trash'),
                 ],
               ),
             ),
@@ -126,6 +79,7 @@ class ContentScreen extends StatelessWidget {
             PostsTab(controller: controller, searchQuery: searchQuery),
             DraftsTab(channelId: channelId, isDarkMode: isDarkMode, controller: controller, searchQuery: searchQuery),
             ScheduledTab(controller: controller, searchQuery: searchQuery),
+            TrashTab(channelId: channelId, isDarkMode: isDarkMode, searchQuery: searchQuery),
           ],
         ),
       ),

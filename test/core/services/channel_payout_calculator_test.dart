@@ -264,5 +264,50 @@ void main() {
         expect(above.pendingLockedAmount, equals(0.0));
       });
     });
+
+    group('Channel Monetization Gate (Any Video >= 1k views & 10h + KYC completed)', () {
+      test('constants match exact qualification rules', () {
+        expect(ChannelPayoutCalculator.channelMonetizationViewsThreshold, equals(1000));
+        expect(ChannelPayoutCalculator.channelMonetizationWatchTimeMinutesThreshold, equals(600));
+      });
+
+      test('monetization turns ON only when both qualified video and KYC completed', () {
+        // Neither met: false
+        expect(
+          ChannelPayoutCalculator.isChannelMonetizationEligible(
+            hasQualifiedVideo: false,
+            isKycVerified: false,
+          ),
+          isFalse,
+        );
+
+        // Video threshold met (>=1k views & 10h), but KYC not verified: false
+        expect(
+          ChannelPayoutCalculator.isChannelMonetizationEligible(
+            hasQualifiedVideo: true,
+            isKycVerified: false,
+          ),
+          isFalse,
+        );
+
+        // KYC verified, but no video crossed threshold: false
+        expect(
+          ChannelPayoutCalculator.isChannelMonetizationEligible(
+            hasQualifiedVideo: false,
+            isKycVerified: true,
+          ),
+          isFalse,
+        );
+
+        // Both met: Monetization turns ON!
+        expect(
+          ChannelPayoutCalculator.isChannelMonetizationEligible(
+            hasQualifiedVideo: true,
+            isKycVerified: true,
+          ),
+          isTrue,
+        );
+      });
+    });
   });
 }

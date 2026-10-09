@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:shimmer/shimmer.dart';
@@ -85,16 +86,30 @@ class TopicVideoGrid extends StatelessWidget {
     bool isDesktop = false,
     bool isTablet = false,
   }) {
-    if (screenWidth < 480) {
-      return (crossAxisCount: 1, childAspectRatio: 1.05);
+    final isMobileDevice = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    if (isMobileDevice || (!isDesktop && screenWidth < 1000)) {
+      if (screenWidth < 480) {
+        return (crossAxisCount: 1, childAspectRatio: 1.05);
+      } else if (screenWidth >= 1600) {
+        return (crossAxisCount: 5, childAspectRatio: 0.95);
+      } else if (screenWidth >= 1024) {
+        return (crossAxisCount: 4, childAspectRatio: 0.95);
+      } else if (screenWidth >= 768 || isTablet) {
+        return (crossAxisCount: 3, childAspectRatio: 0.95);
+      } else {
+        return (crossAxisCount: 2, childAspectRatio: 0.9);
+      }
+    }
+    // Desktop layout with larger video cards
+    if (screenWidth >= 2800) {
+      return (crossAxisCount: 5, childAspectRatio: 1.25);
+    } else if (screenWidth >= 2100) {
+      return (crossAxisCount: 4, childAspectRatio: 1.25);
     } else if (screenWidth >= 1600) {
-      return (crossAxisCount: 5, childAspectRatio: 0.95);
-    } else if (screenWidth >= 1024 || isDesktop) {
-      return (crossAxisCount: 4, childAspectRatio: 0.95);
-    } else if (screenWidth >= 768 || isTablet) {
-      return (crossAxisCount: 3, childAspectRatio: 0.95);
+      return (crossAxisCount: 3, childAspectRatio: 1.25);
     } else {
-      return (crossAxisCount: 2, childAspectRatio: 0.9);
+      return (crossAxisCount: 2, childAspectRatio: 1.25);
     }
   }
 

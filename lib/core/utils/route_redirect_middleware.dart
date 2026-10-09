@@ -306,7 +306,6 @@ class AdminAuthGuardMiddleware extends GetMiddleware {
   static const List<String> authorizedOwnerEmails = [
     'hello@truthworld.in',
     'ebenezervampu4@gmail.com',
-    'admin@truthworld.com',
   ];
 
   @override

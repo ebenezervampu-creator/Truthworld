@@ -55,11 +55,6 @@ class CreatorIntelligencePage extends StatelessWidget {
             child: IntelligenceHeaderBanner(controller: controller),
           ),
 
-          // ── Filter Chips ──
-          SliverToBoxAdapter(
-            child: IntelligenceFilterChips(controller: controller),
-          ),
-
           // ── Main Content List ──
           Obx(() {
             if (controller.isLoading) {

@@ -7,7 +7,8 @@ void main() {
 
     bool isWhiteColor(String expr) {
       expr = expr.trim();
-      if (expr.contains('bgPage') ||
+      if (expr.contains('brandVariant') ||
+          expr.contains('bgPage') ||
           expr.contains('bgSurface') ||
           expr.contains('Colors.black') ||
           expr.contains('Colors.transparent') ||

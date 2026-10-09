@@ -11,7 +11,7 @@ import 'package:truthworld/features/video/data/models/video.dart';
 /// - Home feed shows content opposite to user's interests
 /// - Topics page shows contrarian/alternative perspective topics
 /// - Video screen shows videos representing the OPPOSITE perspective of the currently playing video
-///   (e.g., Iran President → Israel President / Opposing diplomatic views)
+///   (e.g., War/Conflict → Peace/Diplomacy/Humanitarian views)
 class FlipCoinService extends GetxService {
   static FlipCoinService get to {
     if (!Get.isRegistered<FlipCoinService>()) {
@@ -64,7 +64,7 @@ class FlipCoinService extends GetxService {
 
   /// Converts query to opposite/contrarian viewpoint
   /// e.g. 'risks of ai' -> 'breakthroughs and benefits of ai',
-  ///      'iran president' -> 'israel presidentdiplomacy',
+  ///      'advantages of x' -> 'disadvantages of x',
   ///      'pro' -> 'anti'
   String flipSearchQuery(String query) {
     if (query.trim().isEmpty) return query;
@@ -75,9 +75,6 @@ class FlipCoinService extends GetxService {
     // 1. Direct specific key phrase rules
     if (lower == 'risks of ai' || lower == 'risk of ai') {
       return 'breakthroughs and benefits of ai';
-    }
-    if (lower == 'iran president') {
-      return 'israel president diplomacy';
     }
     if (lower == 'pro') {
       return 'anti';
@@ -92,8 +89,6 @@ class FlipCoinService extends GetxService {
     final replacements = <RegExp, String>{
       RegExp(r'\brisks? of ai\b', caseSensitive: false):
           'breakthroughs and benefits of ai',
-      RegExp(r'\biran president\b', caseSensitive: false):
-          'israel president diplomacy',
       RegExp(r'\brisks of\b', caseSensitive: false):
           'breakthroughs and benefits of',
       RegExp(r'\bbenefits of\b', caseSensitive: false): 'risks and harms of',
@@ -101,6 +96,10 @@ class FlipCoinService extends GetxService {
           'breakthroughs and opportunities of',
       RegExp(r'\bopportunities of\b', caseSensitive: false):
           'dangers and risks of',
+      RegExp(r'\badvantages of\b', caseSensitive: false):
+          'disadvantages of',
+      RegExp(r'\bdisadvantages of\b', caseSensitive: false):
+          'advantages of',
       RegExp(r'\bpros and cons\b', caseSensitive: false): 'cons and pros',
       RegExp(r'\bpros of\b', caseSensitive: false): 'cons of',
       RegExp(r'\bcons of\b', caseSensitive: false): 'pros of',
@@ -138,7 +137,7 @@ class FlipCoinService extends GetxService {
 
   // ═══════════════════════════════════════════════════════════════════════════
   // 3-DIMENSIONAL CONTRAST ARCHITECTURE
-  // 1. Counterpart Actors & Affected Stakeholders (e.g. Israel ↔ Iran/Palestine/UN)
+  // 1. Counterpart Actors & Affected Stakeholders (e.g. Conflict ↔ Diplomacy/UN)
   // 2. Conceptual Contrasts (e.g. War ↔ Peace, Attack ↔ Ceasefire)
   // 3. Opposing Claims & Stances (e.g. Military Necessity ↔ Civilian Protection)
   // ═══════════════════════════════════════════════════════════════════════════
@@ -166,8 +165,8 @@ class FlipCoinService extends GetxService {
     'taiwan': ['china', 'us', 'pacific', 'japan'],
     'us': ['china', 'russia', 'iran', 'global south', 'eu', 'un'],
     'america': ['china', 'russia', 'iran', 'europe', 'global south'],
-    'india': ['pakistan', 'china', 'global south'],
-    'pakistan': ['india', 'afghanistan'],
+    'india': ['global south', 'un', 'diplomacy', 'asean', 'non-aligned'],
+    'pakistan': ['diplomacy', 'un', 'central asia', 'saarc'],
     'nato': ['russia', 'neutrality', 'peace treaty'],
     'eu': ['brexit', 'national sovereignty', 'russia'],
 
@@ -178,8 +177,6 @@ class FlipCoinService extends GetxService {
     'republican': ['democrat', 'liberal', 'progressive', 'independent'],
     'big tech': ['open source', 'antitrust', 'regulators', 'consumers', 'privacy advocates'],
     'corporation': ['workers', 'labor union', 'consumers', 'environmentalists', 'regulators'],
-    'zerodha': ['angel one', 'groww', 'sebi', 'passive indexers', 'financial advisors'],
-    'hike': ['whatsapp', 'telegram', 'signal', 'meta', 'open protocols'],
   };
 
   /// Dimension 2: Conceptual contrasts & foundational antinomies

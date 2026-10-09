@@ -301,7 +301,7 @@ class MemberAdFreeFeatureCard extends StatelessWidget {
                         children: [
                           Flexible(
                             child: Text(
-                              'Channel Premium (No Ads & 4K for Members)',
+                              'Channel Premium (No Ads & Up to 2K for Members)',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
@@ -333,7 +333,7 @@ class MemberAdFreeFeatureCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Transform channel memberships into a Channel Premium subscription for your audience. Active members unlock zero ads across your channel and 4K Ultra HD video streaming (up to 2160p). TruthWorld takes a 30% platform cut on memberships (Creator receives 70%).',
+                        'Transform channel memberships into a Channel Premium subscription for your audience. Active members unlock zero ads across your channel and high resolutions up to 2K (1440p QHD) video streaming for entire channel videos. TruthWorld takes a 30% platform cut on tiers with this bundle (Creator receives 70%). Tiers without the bundle receive 100% of revenue with 0% platform commission.',
                         style: TextStyle(
                           fontSize: 12,
                           color: isDarkMode ? AppColors.textSecondary : Colors.black54,
@@ -352,14 +352,14 @@ class MemberAdFreeFeatureCard extends StatelessWidget {
                             isEnabled: isEnabled,
                           ),
                           _buildPremiumChip(
-                            icon: Icons.four_k_rounded,
-                            label: '4K Ultra HD (2160p)',
+                            icon: Icons.high_quality_rounded,
+                            label: 'Up to 2K (1440p QHD)',
                             isDarkMode: isDarkMode,
                             isEnabled: isEnabled,
                           ),
                           _buildPremiumChip(
                             icon: Icons.percent_rounded,
-                            label: '70% Creator / 30% Platform',
+                            label: '70% Creator / 30% Platform Cut',
                             isDarkMode: isDarkMode,
                             isEnabled: isEnabled,
                           ),

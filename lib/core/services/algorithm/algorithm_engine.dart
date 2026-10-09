@@ -204,15 +204,18 @@ class AlgorithmEngine {
     return ((sim + 1.0) / 2.0).clamp(0.0, 1.0);
   }
 
-  /// Credibility Gate: Returns 0.0 if video fails credibility check
+  /// Credibility Gate: Computes credibility multiplier based on trust score.
+  /// Verified high-credibility content receives a positive distribution boost,
+  /// unverified content receives a fair baseline (0.90), and proven low-credibility
+  /// or misleading content is demoted.
   static double computeCredibilityGate(Video video) {
     final score = video.trustScore;
-    if (score == 0.0) return 1.0;
-    if (score >= 4.0) return 1.2;
-    if (score >= 3.0) return 1.1;
+    if (score >= 4.0) return 1.25;
+    if (score >= 3.0) return 1.15;
     if (score >= 2.0) return 1.0;
-    if (score >= 1.0) return 0.6;
-    return 0.3;
+    if (score <= 0.0) return 0.90;
+    if (score >= 1.0) return 0.50;
+    return 0.20;
   }
 
   /// Topic Affinity: Combines long-term interests + session interests + interest graph

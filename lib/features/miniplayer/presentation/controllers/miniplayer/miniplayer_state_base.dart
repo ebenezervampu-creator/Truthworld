@@ -6,6 +6,7 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/features/miniplayer/data/models/miniplayer_model.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
+import 'package:truthworld/features/video/presentation/services/video_playback_queue_service.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:video_player/video_player.dart';
 
@@ -80,6 +81,30 @@ abstract class MiniplayerStateBase extends BaseController
 
   /// Whether the video is currently rendered in system Picture-in-Picture mode.
   final RxBool isPiP = false.obs;
+
+  /// Whether autoplay next video is enabled for playback.
+  final RxBool isAutoplay = true.obs;
+
+  /// Whether miniplayer is currently actively switching videos.
+  final RxBool isNavigatingVideo = false.obs;
+
+  /// Whether a previous video exists in the playback queue.
+  bool get hasPreviousVideo {
+    isAutoplay.value; // register Rx for Obx
+    if (!isAutoplay.value) return false;
+    try {
+      return VideoPlaybackQueueService.to.hasPreviousVideo;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Whether a next video can be navigated to.
+  bool get hasNextVideo {
+    isAutoplay.value; // register Rx for Obx
+    if (!isAutoplay.value) return false;
+    return true;
+  }
 
   /// Live aspect ratio of the loaded video.
   double get currentAspectRatio {

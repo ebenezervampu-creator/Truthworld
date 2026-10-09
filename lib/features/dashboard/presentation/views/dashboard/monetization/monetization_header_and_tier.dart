@@ -12,15 +12,18 @@ import 'package:truthworld/theme/app_colors.dart';
 class MonetizationHeaderSection extends StatelessWidget {
   const MonetizationHeaderSection({
     required this.channel,
+    this.isMonetized,
     super.key,
   });
 
   final Channel? channel;
+  final bool? isMonetized;
 
   @override
   Widget build(BuildContext context) {
     final channelType = channel?.channelType ?? ChannelType.standard;
     final isCustom = channelType == ChannelType.custom;
+    final active = isMonetized ?? true;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -62,19 +65,31 @@ class MonetizationHeaderSection extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: Colors.green.withValues(alpha: 0.15),
+            color: active
+                ? Colors.green.withValues(alpha: 0.15)
+                : Colors.orange.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.green.withValues(alpha: 0.5)),
+            border: Border.all(
+              color: active
+                  ? Colors.green.withValues(alpha: 0.5)
+                  : Colors.orange.withValues(alpha: 0.5),
+            ),
           ),
-          child: const Row(
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.check_circle_rounded, color: Colors.white, size: 16),
-              SizedBox(width: 6),
+              Icon(
+                active
+                    ? Icons.check_circle_rounded
+                    : Icons.hourglass_top_rounded,
+                color: active ? Colors.green : Colors.orange,
+                size: 16,
+              ),
+              const SizedBox(width: 6),
               Text(
-                'ACTIVE',
+                active ? 'ACTIVE' : 'QUALIFICATION PENDING',
                 style: TextStyle(
-                  color: Colors.green,
+                  color: active ? Colors.green : Colors.orange,
                   fontWeight: FontWeight.bold,
                   fontSize: 12,
                 ),

@@ -25,6 +25,7 @@ import 'package:truthworld/features/video/presentation/controllers/video_engagem
 import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_recommendations_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_transcript_controller.dart';
+import 'package:truthworld/features/video/presentation/services/video_playback_queue_service.dart';
 import 'package:truthworld/services/video_hydration_service.dart';
 import 'package:video_player/video_player.dart';
 
@@ -205,6 +206,7 @@ mixin VideoHydrationFlowMixin on GetxController {
 
   void continueInitialization() {
     initializeAllMetadata();
+    VideoPlaybackQueueService.to.onVideoLoaded(video);
     startPlaybackFlow();
   }
 
@@ -288,7 +290,7 @@ mixin VideoHydrationFlowMixin on GetxController {
     }
     if (args?['isAudioOnly'] == true) {
       isAudioOnly.value = true;
-    } else if (args != null && args.containsKey('isAudioOnly') && args['isAudioOnly'] == false) {
+    } else {
       isAudioOnly.value = false;
       TowerPlayerPreferences.globalAudioOnly = false;
     }
@@ -325,14 +327,27 @@ mixin VideoHydrationFlowMixin on GetxController {
     try {
       final offlineMeta = await getOfflineVideoMetadata(videoId);
       if (offlineMeta != null) {
-        rxIsOffline.value = true;
-        if (offlineMeta.isAudioOnly) {
-          isAudioOnly.value = true;
+        final isExplicitOffline = args?['isOffline'] == true;
+        final isExplicitAudio = args?['isAudioOnly'] == true;
+        final isDeviceOffline = Get.isRegistered<ConnectivityService>() &&
+            !ConnectivityService.to.isConnected;
+
+        // If offline download is audio-only, NEVER hijack normal online video playback!
+        if (isExplicitOffline || isDeviceOffline || (!offlineMeta.isAudioOnly && !isExplicitAudio)) {
+          if (isExplicitOffline || isDeviceOffline) {
+            rxIsOffline.value = true;
+          }
+          if (offlineMeta.isAudioOnly && (isExplicitAudio || isDeviceOffline)) {
+            isAudioOnly.value = true;
+          } else {
+            isAudioOnly.value = false;
+            TowerPlayerPreferences.globalAudioOnly = false;
+          }
+          final offlineVideo = Video.fromOffline(offlineMeta);
+          rxVideo.value = offlineVideo;
+          _initLoadedVideo(args);
+          return;
         }
-        final offlineVideo = Video.fromOffline(offlineMeta);
-        rxVideo.value = offlineVideo;
-        _initLoadedVideo(args);
-        return;
       }
     } catch (_) {}
     final cached = DeepLinkService.instance.getVideoFromCache(videoId);
@@ -410,6 +425,9 @@ mixin VideoHydrationFlowMixin on GetxController {
     }
     if (args?['isAudioOnly'] == true) {
       isAudioOnly.value = true;
+    } else {
+      isAudioOnly.value = false;
+      TowerPlayerPreferences.globalAudioOnly = false;
     }
     final tag = 'video_${video.id}';
     if (!Get.isRegistered<VideoEngagementController>(tag: tag)) {

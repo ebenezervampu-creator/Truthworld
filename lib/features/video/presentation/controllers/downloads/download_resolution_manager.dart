@@ -162,72 +162,21 @@ class DownloadResolutionManager {
       }
     }
 
-    // 4. Fallback standard resolution ladder if only single/empty progressive streams found
-    if (resolvedResolutions.isEmpty) {
-      final baseMediaUrl = video.originalUrl.isNotEmpty &&
-              !video.originalUrl.contains('.m3u8') &&
-              !video.originalUrl.contains('.mpd')
-          ? video.originalUrl
-          : (video.videoUrl.isNotEmpty &&
-                  !video.videoUrl.contains('.m3u8') &&
-                  !video.videoUrl.contains('.mpd')
-              ? video.videoUrl
-              : '');
+    final baseMediaUrl = video.originalUrl.isNotEmpty &&
+            !video.originalUrl.contains('.m3u8') &&
+            !video.originalUrl.contains('.mpd')
+        ? video.originalUrl
+        : (video.videoUrl.isNotEmpty &&
+                !video.videoUrl.contains('.m3u8') &&
+                !video.videoUrl.contains('.mpd')
+            ? video.videoUrl
+            : (resolvedResolutions.isNotEmpty ? resolvedResolutions.last.url : ''));
 
-      resolvedResolutions.addAll([
-        VideoResolutionV2(
-          label: '1080p',
-          url: baseMediaUrl,
-          width: 1920,
-          height: 1080,
-          bitrate: 4500000,
-        ),
-        VideoResolutionV2(
-          label: '720p',
-          url: baseMediaUrl,
-          width: 1280,
-          height: 720,
-          bitrate: 2500000,
-        ),
-        VideoResolutionV2(
-          label: '480p',
-          url: baseMediaUrl,
-          width: 854,
-          height: 480,
-          bitrate: 1200000,
-        ),
-        VideoResolutionV2(
-          label: '360p',
-          url: baseMediaUrl,
-          width: 640,
-          height: 360,
-          bitrate: 800000,
-        ),
-        VideoResolutionV2(
-          label: '240p',
-          url: baseMediaUrl,
-          width: 426,
-          height: 240,
-          bitrate: 400000,
-        ),
-        VideoResolutionV2(
-          label: '144p',
-          url: baseMediaUrl,
-          width: 256,
-          height: 144,
-          bitrate: 200000,
-        ),
-      ]);
-    } else {
-      // Sort by height descending, then fps descending
-      resolvedResolutions.sort((a, b) {
-        final cmp = b.height.compareTo(a.height);
-        if (cmp != 0) return cmp;
-        return b.fps.compareTo(a.fps);
-      });
-    }
-
-    return resolvedResolutions;
+    // 4. Guarantee complete resolution ladder down to 144p for offline download options
+    return VideoResolutionV2.ensureCompleteLadder(
+      resolvedResolutions,
+      fallbackUrl: baseMediaUrl,
+    );
   }
 
   /// Parses numeric height from resolution labels (e.g. "1080p" -> 1080, "1080p60" -> 1080).

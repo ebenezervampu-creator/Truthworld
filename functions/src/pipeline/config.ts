@@ -56,7 +56,7 @@ export const PIPELINE_CONFIG = {
     consistency: "gemini-3.1-flash-lite",  // Ultra cost-effective contradiction detection (worker)
     translation: "gemini-3.1-flash-lite",  // Cost-effective translation lane (worker)
     profiling: "gemini-3.1-flash-lite",    // Speaker profiling (worker)
-    moderation: "gemini-3.1-flash-lite",   // Media, channel, and topic moderation (worker)
+    moderation: "gemini-2.5-flash",        // Multimodal video, channel, and topic moderation (Flash)
     fastTier: "gemini-3.1-flash-lite",     // Instant lightweight verification
   },
 

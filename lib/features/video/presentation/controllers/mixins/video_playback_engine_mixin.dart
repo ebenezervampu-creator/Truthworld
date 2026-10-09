@@ -9,14 +9,14 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
-import 'package:truthworld/core/services/ad_service.dart';
-import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
+import 'package:truthworld/features/video/presentation/controllers/adaptive_bitrate_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/audio_only_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_analytics_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
@@ -97,12 +97,54 @@ mixin VideoPlaybackEngineMixin on GetxController {
     }
   }
 
+  int _playerInitEpoch = 0;
+
+  bool _isControllerUsable(VideoPlayerController? vpc) {
+    if (vpc == null) return false;
+    try {
+      return vpc.value.isInitialized;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void _safeDisposeVpc(VideoPlayerController? vpc) {
+    if (vpc == null) return;
+    try {
+      vpc.removeListener(videoErrorListener);
+      vpc.removeListener(videoListener);
+    } catch (_) {}
+    try {
+      if (_isControllerUsable(vpc) && vpc.value.isPlaying) {
+        vpc.pause().catchError((_) {});
+      }
+    } catch (_) {}
+    try {
+      vpc.dispose().catchError((_) {});
+    } catch (_) {}
+  }
+
+  void _safeDisposeChewie(ChewieController? cc) {
+    if (cc == null) return;
+    if (identical(chewieController, cc)) {
+      chewieController = null;
+    }
+    try {
+      cc.removeListener(onChewieEvent);
+    } catch (_) {}
+    try {
+      cc.dispose();
+    } catch (_) {}
+  }
+
   Future<void> initializeVideoPlayer({String? overrideUrl}) async {
+    if (isClosed) return;
+    final currentEpoch = ++_playerInitEpoch;
+
     final isAuto = isAutoSwitching.value;
     final isSwitching = isSwitchingResolution.value;
     final isHandoffAvailable = VideoPlaybackHandoff.isActive(video.id);
-    final hasActivePlayer = videoPlayerController != null &&
-        videoPlayerController!.value.isInitialized;
+    final hasActivePlayer = isVpcInitialized;
 
     if (!isAuto && !isSwitching && !isHandoffAvailable && !hasActivePlayer) {
       rxIsLoading.value = true;
@@ -161,7 +203,11 @@ mixin VideoPlaybackEngineMixin on GetxController {
         rxIsLoading.value = false;
         showThumbnail.value = false;
       } else {
-        final targetUrl = (await resolvePlaybackTargetUrl(overrideUrl: overrideUrl))!;
+        final targetUrl = await resolvePlaybackTargetUrl(overrideUrl: overrideUrl);
+        if (isClosed || _playerInitEpoch != currentEpoch) return;
+        if (targetUrl == null || targetUrl.isEmpty) {
+          throw Exception('Failed to resolve target playback URL');
+        }
         debugPrint('[VideoController] Initializing Google CDN player for: $targetUrl');
 
         if (!kIsWeb &&
@@ -237,6 +283,190 @@ mixin VideoPlaybackEngineMixin on GetxController {
         }
       }
 
+      if (isClosed || _playerInitEpoch != currentEpoch) {
+        _safeDisposeVpc(newVpc);
+        return;
+      }
+
+      // ── YouTube-Grade Seamless Auto Mode Resolution Swap ──────
+      // If an existing controller is already active and we are in Auto mode (ABR),
+      // seamlessly pre-seek and pre-roll the new player in the background
+      // while keeping the old player playing uninterrupted until the exact frame handoff.
+      final isWarmSwap = oldVpc != null &&
+          _isControllerUsable(oldVpc) &&
+          isAuto;
+
+      if (isWarmSwap) {
+        final livePos = oldVpc.value.position;
+        final wasPlaying = oldVpc.value.isPlaying;
+        final currentSpeed = oldVpc.value.playbackSpeed;
+        final currentVol = oldVpc.value.volume;
+
+        // Pre-seek new player to the exact live frame before attaching to UI
+        if (livePos > Duration.zero) {
+          await newVpc.seekTo(livePos);
+        }
+        if (currentSpeed != 1.0) {
+          await newVpc.setPlaybackSpeed(currentSpeed);
+        }
+
+        if (wasPlaying) {
+          // Pre-roll new player muted so frames decode immediately
+          await newVpc.setVolume(0.0);
+          try {
+            await newVpc.play();
+          } catch (_) {}
+          // Unmute to match live volume
+          try {
+            await newVpc.setVolume(currentVol > 0 ? currentVol : 1.0);
+          } catch (_) {}
+        } else {
+          await newVpc.setVolume(currentVol > 0 ? currentVol : 1.0);
+        }
+
+        if (isClosed || _playerInitEpoch != currentEpoch) {
+          _safeDisposeVpc(newVpc);
+          return;
+        }
+
+        // Sync aspect ratio reactively
+        if (newVpc.value.aspectRatio > 0) {
+          rxAspectRatio.value = newVpc.value.aspectRatio;
+        }
+
+        // Atomically hand off active controller to reactive UI
+        videoPlayerController = newVpc;
+        showThumbnail.value = false;
+        rxIsLoading.value = false;
+
+        // Dispose old controller safely
+        _safeDisposeVpc(oldVpc);
+        _safeDisposeChewie(oldCc);
+        chewieController = null;
+
+        // Ensure background AudioOnlyService is completely deactivated
+        if (Get.isRegistered<AudioOnlyService>()) {
+          try {
+            final audioSvc = Get.find<AudioOnlyService>();
+            if (audioSvc.isActive.value || audioSvc.isPlaying.value) {
+              audioSvc.deactivateBackgroundPlayback();
+            }
+          } catch (_) {}
+        }
+
+        // Attach listeners to new controller
+        newVpc.addListener(videoErrorListener);
+        newVpc.addListener(videoListener);
+
+        // Sync TowerPlayerController seamlessly
+        final playerTag = video.id;
+        if (Get.isRegistered<TowerPlayerController>(tag: playerTag)) {
+          Get.find<TowerPlayerController>(tag: playerTag).sync(newVpc);
+        }
+
+        debugPrint(
+          '[VideoController] ⚡ YouTube-grade seamless auto resolution switch completed at ${livePos.inSeconds}s (Auto mode)',
+        );
+        return;
+      }
+
+      // ── Manual Resolution Switch (Particular Resolution Requested) ──
+      // When the user explicitly requests a particular resolution (e.g. 720p, 480p),
+      // this CAN cause buffering: pause old stream, show buffering spinner, seek to current timestamp,
+      // and resume once buffered.
+      final isManualSwitch = oldVpc != null &&
+          _isControllerUsable(oldVpc) &&
+          isSwitching &&
+          !isAuto;
+
+      if (isManualSwitch) {
+        final resumePos = oldVpc.value.position;
+        final wasPlaying = oldVpc.value.isPlaying;
+        final currentSpeed = oldVpc.value.playbackSpeed;
+        final currentVol = oldVpc.value.volume;
+
+        // Pause and mute old player immediately so user doesn't keep hearing old resolution
+        try {
+          if (_isControllerUsable(oldVpc)) {
+            oldVpc.removeListener(videoErrorListener);
+            oldVpc.removeListener(videoListener);
+            oldVpc.pause().catchError((_) {});
+          }
+        } catch (_) {}
+
+        // Pre-seek new player to the exact resume position
+        if (resumePos > Duration.zero) {
+          await newVpc.seekTo(resumePos);
+        }
+        if (currentSpeed != 1.0) {
+          await newVpc.setPlaybackSpeed(currentSpeed);
+        }
+        await newVpc.setVolume(currentVol > 0 ? currentVol : 1.0);
+
+        if (isClosed || _playerInitEpoch != currentEpoch) {
+          _safeDisposeVpc(newVpc);
+          return;
+        }
+
+        // Sync aspect ratio reactively
+        if (newVpc.value.aspectRatio > 0) {
+          rxAspectRatio.value = newVpc.value.aspectRatio;
+        }
+
+        // Hand off controller to reactive state
+        videoPlayerController = newVpc;
+        showThumbnail.value = false;
+        rxIsLoading.value = false;
+
+        // Dispose old controller safely
+        _safeDisposeVpc(oldVpc);
+        _safeDisposeChewie(oldCc);
+        chewieController = null;
+
+        // Ensure background AudioOnlyService is completely deactivated
+        if (Get.isRegistered<AudioOnlyService>()) {
+          try {
+            final audioSvc = Get.find<AudioOnlyService>();
+            if (audioSvc.isActive.value || audioSvc.isPlaying.value) {
+              audioSvc.deactivateBackgroundPlayback();
+            }
+          } catch (_) {}
+        }
+
+        // Attach listeners
+        newVpc.addListener(videoErrorListener);
+        newVpc.addListener(videoListener);
+
+        // Sync TowerPlayerController
+        final playerTag = video.id;
+        final towerCtrl = Get.isRegistered<TowerPlayerController>(tag: playerTag)
+            ? Get.find<TowerPlayerController>(tag: playerTag)
+            : null;
+        towerCtrl?.sync(newVpc);
+
+        if (wasPlaying) {
+          try {
+            await newVpc.play();
+          } catch (_) {}
+        }
+
+        if (towerCtrl != null) {
+          towerCtrl.isBuffering.value = newVpc.value.isBuffering;
+          towerCtrl.abr.playbackState.value =
+              wasPlaying ? PlaybackState.playing : PlaybackState.paused;
+        }
+
+        debugPrint(
+          '[VideoController] 🎬 Manual resolution switch to requested tier completed at ${resumePos.inSeconds}s',
+        );
+        return;
+      }
+
+      if (isClosed || _playerInitEpoch != currentEpoch) {
+        _safeDisposeVpc(newVpc);
+        return;
+      }
+
       // Sync aspect ratio reactively upon successful initialization
       if (newVpc.value.isInitialized && newVpc.value.aspectRatio > 0) {
         rxAspectRatio.value = newVpc.value.aspectRatio;
@@ -246,6 +476,25 @@ mixin VideoPlaybackEngineMixin on GetxController {
       videoPlayerController = newVpc;
       showThumbnail.value = false;
       rxIsLoading.value = false;
+
+      // Mute and pause old controller immediately to guarantee zero overlapping audio
+      if (oldVpc != null && oldVpc != newVpc) {
+        try {
+          if (_isControllerUsable(oldVpc)) {
+            oldVpc.pause().catchError((_) {});
+          }
+        } catch (_) {}
+      }
+
+      // Ensure any background AudioOnlyService is completely deactivated so two streams never play
+      if (Get.isRegistered<AudioOnlyService>()) {
+        try {
+          final audioSvc = Get.find<AudioOnlyService>();
+          if (audioSvc.isActive.value || audioSvc.isPlaying.value) {
+            audioSvc.deactivateBackgroundPlayback();
+          }
+        } catch (_) {}
+      }
 
       // Ensure volume is set to full unmuted playback on watch screen
       try {
@@ -355,40 +604,43 @@ mixin VideoPlaybackEngineMixin on GetxController {
         // Start stopwatch immediately for accurate tracking from second 0
         if (!watchStopwatch.isRunning) watchStopwatch.start();
 
-        mainController.trackWatchEvent(
-          videoId: video.id,
-          channelId: video.channelId,
-          eventType: 'video_start',
-          position: 0,
-          duration: newVpc.value.duration.inSeconds,
-          isSubscriber: isSub,
-          isNotSubscriber: isNotSub,
-        );
-      }
+        final rawDur = newVpc.value.duration.inSeconds;
+        final totalDur = rawDur > 0
+            ? rawDur
+            : (video.durationSeconds > 0
+                ? video.durationSeconds
+                : (video.durationValue.inSeconds > 0
+                    ? video.durationValue.inSeconds
+                    : 0));
 
-      final isPremium = Get.isRegistered<AuthService>() &&
-          AuthService.to.isPremiumUser.value;
-      final hasPreRollAd = !isPremium &&
-          Get.isRegistered<AdService>() &&
-          (AdService.to.getSponsorAdForVideo(video.id) != null ||
-              AdService.to.getSkippableVideoAds().isNotEmpty);
+        if (totalDur > 0) {
+          mainController.trackWatchEvent(
+            videoId: video.id,
+            channelId: video.channelId,
+            eventType: 'video_start',
+            position: 0,
+            duration: totalDur,
+            isSubscriber: isSub,
+            isNotSubscriber: isNotSub,
+          );
+        }
+      }
 
       chewieController = ChewieController(
         videoPlayerController: videoPlayerController!,
-        autoPlay: !hasPreRollAd,
         allowedScreenSleep: false,
         showControlsOnInitialize: false,
         placeholder: const ColoredBox(
           color: AppColors.bgPage,
           child: Center(
-            child: CircularProgressIndicator(color: AppColors.error),
+            child: CircularProgressIndicator(color: AppColors.brand),
           ),
         ),
         materialProgressColors: ChewieProgressColors(
-          playedColor: AppColors.error,
-          handleColor: AppColors.error,
-          backgroundColor: AppColors.textSecondary.withValues(alpha: 0.5),
-          bufferedColor: AppColors.textPrimary.withValues(alpha: 0.3),
+          playedColor: AppColors.brand,
+          handleColor: AppColors.brand,
+          backgroundColor: AppColors.brand.withValues(alpha: 0.2),
+          bufferedColor: AppColors.brand.withValues(alpha: 0.33),
         ),
         customControls: TowerCustomPlayer(
           videoPlayerController: videoPlayerController!,
@@ -447,23 +699,17 @@ mixin VideoPlaybackEngineMixin on GetxController {
 
       // Warm handoff: dispose old ones now that new ones are ready and synced
       if (oldVpc != null && oldVpc != newVpc) {
-        try {
-          oldVpc.removeListener(videoErrorListener);
-          oldVpc.removeListener(videoListener);
-        } catch (_) {}
-        try {
-          oldCc?.removeListener(onChewieEvent);
-          oldCc?.dispose();
-        } catch (_) {}
-        try {
-          oldVpc.dispose();
-        } catch (_) {}
+        _safeDisposeVpc(oldVpc);
+        _safeDisposeChewie(oldCc);
       }
 
       debugPrint(
         '[VideoController] Player initialized successfully (Handoff: $isAuto)',
       );
     } catch (e, stackTrace) {
+      if (isClosed || _playerInitEpoch != currentEpoch) {
+        return;
+      }
       debugPrint('[VideoController] Playback Error: $e');
       debugPrint('[VideoController] Stack trace: $stackTrace');
 
@@ -484,23 +730,17 @@ mixin VideoPlaybackEngineMixin on GetxController {
             'This video is currently unavailable. Please check your connection or try again.';
       }
     } finally {
-      rxIsLoading.value = false;
+      if (!isClosed) {
+        rxIsLoading.value = false;
+      }
     }
   }
 
   void disposePlayer() {
+    _playerInitEpoch++;
     videoSubscription?.cancel();
     languageRequestsSubscription?.cancel();
-    try {
-      chewieController?.removeListener(onChewieEvent);
-    } catch (_) {}
-    try {
-      videoPlayerController?.removeListener(videoErrorListener);
-      videoPlayerController?.removeListener(videoListener);
-    } catch (_) {}
-    try {
-      chewieController?.dispose();
-    } catch (_) {}
+    _safeDisposeChewie(chewieController);
     chewieController = null;
     try {
       analyticsController.stopTimer();
@@ -511,9 +751,7 @@ mixin VideoPlaybackEngineMixin on GetxController {
         Get.delete<TowerPlayerController>(tag: playerTag, force: true);
       }
     } catch (_) {}
-    try {
-      videoPlayerController?.dispose();
-    } catch (_) {}
+    _safeDisposeVpc(videoPlayerController);
     videoPlayerController = null;
   }
 

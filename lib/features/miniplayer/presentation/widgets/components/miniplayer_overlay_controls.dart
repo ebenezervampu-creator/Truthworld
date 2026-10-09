@@ -8,14 +8,14 @@ import 'package:truthworld/theme/app_theme.dart';
 class MiniplayerOverlayIconButton extends StatelessWidget {
   final IconData icon;
   final String tooltip;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final double size;
   final Color iconColor;
 
   const MiniplayerOverlayIconButton({
     required this.icon,
     required this.tooltip,
-    required this.onTap,
+    this.onTap,
     this.size = 18,
     Color? iconColor,
     super.key,
@@ -136,6 +136,60 @@ class MiniplayerCenterPlayButton extends StatelessWidget {
             ),
           ),
         ),
+      );
+    });
+  }
+}
+
+/// Center row with [⏮ Back Video], [▶ Center Play], [⏭ Next Video] for miniplayer overlay.
+class MiniplayerCenterControlsRow extends StatelessWidget {
+  final MiniplayerController controller;
+
+  const MiniplayerCenterControlsRow({
+    required this.controller,
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      if (controller.error.value.isNotEmpty) return const SizedBox.shrink();
+      final isAutoplayOn = controller.isAutoplay.value;
+      final hasPrev = controller.hasPreviousVideo;
+      final hasNext = controller.hasNextVideo;
+
+      final playButton = MiniplayerCenterPlayButton(controller: controller);
+
+      if (!isAutoplayOn) {
+        return playButton;
+      }
+
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Opacity(
+            opacity: hasPrev ? 1.0 : 0.4,
+            child: MiniplayerOverlayIconButton(
+              icon: Icons.skip_previous_rounded,
+              tooltip: hasPrev ? 'Previous Video' : 'No previous video',
+              size: 20,
+              onTap: hasPrev ? controller.playPrevious : null,
+            ),
+          ),
+          const SizedBox(width: 14),
+          playButton,
+          const SizedBox(width: 14),
+          Opacity(
+            opacity: hasNext ? 1.0 : 0.4,
+            child: MiniplayerOverlayIconButton(
+              icon: Icons.skip_next_rounded,
+              tooltip: hasNext ? 'Next Video' : 'No next video',
+              size: 20,
+              onTap: hasNext ? controller.playNext : null,
+            ),
+          ),
+        ],
       );
     });
   }
@@ -360,9 +414,9 @@ class MiniplayerDesktopControls extends StatelessWidget {
           ),
         ),
 
-        // Center: Play / Pause.
+        // Center: Back Video / Play / Next Video.
         Center(
-          child: MiniplayerCenterPlayButton(controller: controller),
+          child: MiniplayerCenterControlsRow(controller: controller),
         ),
       ],
     );

@@ -11,6 +11,7 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/network/app_http_client.dart';
 import 'package:truthworld/core/utils/isolate_compute_utils.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
+import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
@@ -22,6 +23,7 @@ class VideoTranscriptController extends BaseController {
   final RxBool isTranscriptVisible = false.obs;
   final RxList<SubtitleSegment> transcriptSegments = <SubtitleSegment>[].obs;
   final RxBool isLoadingTranscript = false.obs;
+  final RxBool hasAttemptedTranscriptFetch = false.obs;
 
   final RxBool isSummaryVisible = false.obs;
   final RxString moderationSummary = ''.obs;
@@ -39,6 +41,7 @@ class VideoTranscriptController extends BaseController {
       transcriptSegments.clear();
       activeSegmentIndex.value = -1;
       isTranscriptVisible.value = false;
+      hasAttemptedTranscriptFetch.value = false;
       moderationSummary.value = '';
     }
   }
@@ -189,13 +192,18 @@ class VideoTranscriptController extends BaseController {
   }
 
   /// Proactively finds, downloads, and parses the transcript/subtitles for [video].
-  Future<void> loadTranscriptForVideo(Video video, {String? defaultSubtitleUrl}) async {
+  Future<void> loadTranscriptForVideo(
+    Video video, {
+    String? defaultSubtitleUrl,
+    bool forceRefresh = false,
+  }) async {
     final playerCtrl = TowerPlayerController.getForTagOrActive(video.id);
 
     // Invalidate transcript if video ID changed to prevent displaying wrong video's transcript
     if (currentVideoId != null && currentVideoId != video.id) {
       transcriptSegments.clear();
       activeSegmentIndex.value = -1;
+      hasAttemptedTranscriptFetch.value = false;
       moderationSummary.value = '';
     }
     currentVideoId = video.id;
@@ -221,10 +229,20 @@ class VideoTranscriptController extends BaseController {
     }
 
     if (isLoadingTranscript.value) return;
+    if (!forceRefresh && hasAttemptedTranscriptFetch.value) return;
 
     isLoadingTranscript.value = true;
     playerCtrl?.isLoadingSubtitles.value = true;
     try {
+      void applySegments(List<SubtitleSegment> segs) {
+        transcriptSegments.assignAll(segs);
+        playerCtrl?.subtitleSegments.assignAll(segs);
+        if (isTranscriptVisible.value) {
+          final currentPos = playerCtrl?.videoPlayerController.value.position ?? Duration.zero;
+          syncToCurrentPosition(currentPos, forceScroll: true);
+        }
+      }
+
       // 1. Check existing availableSubtitles or mediaSubtitles
       var candidateUrl = video.mediaSubtitles['en'] ??
           (video.mediaSubtitles.isNotEmpty ? video.mediaSubtitles.values.first : null) ??
@@ -239,6 +257,7 @@ class VideoTranscriptController extends BaseController {
         }
       }
 
+      String? retrievedJobId;
       // 3. If still null, check root video document in Firestore
       if (candidateUrl == null || candidateUrl.isEmpty) {
         final snap = await FirebaseFirestore.instance
@@ -247,6 +266,7 @@ class VideoTranscriptController extends BaseController {
             .get();
         if (snap.exists && snap.data() != null) {
           final data = snap.data()!;
+          retrievedJobId = (data['jobId'] as String?)?.trim();
           final media = data['media'] as Map<String, dynamic>?;
           candidateUrl = (media?['transcriptionUrl'] as String?) ??
               (data['transcriptionUrl'] as String?) ??
@@ -265,24 +285,53 @@ class VideoTranscriptController extends BaseController {
         if (playerCtrl != null) {
           await playerCtrl.fetchAndParseSubtitles(candidateUrl);
           if (playerCtrl.subtitleSegments.isNotEmpty) {
-            transcriptSegments.assignAll(playerCtrl.subtitleSegments);
-            if (isTranscriptVisible.value) {
-              final currentPos = playerCtrl.videoPlayerController.value.position;
-              syncToCurrentPosition(currentPos, forceScroll: true);
-            }
+            applySegments(playerCtrl.subtitleSegments);
             return;
           }
         }
         final segs = await downloadAndParseTranscript(candidateUrl);
         if (segs.isNotEmpty) {
-          transcriptSegments.assignAll(segs);
-          playerCtrl?.subtitleSegments.assignAll(segs);
-          if (isTranscriptVisible.value) {
-            final currentPos = playerCtrl?.videoPlayerController.value.position ?? Duration.zero;
-            syncToCurrentPosition(currentPos, forceScroll: true);
-          }
+          applySegments(segs);
           return;
         }
+      }
+
+      // 4.5 Check Firestore transcripts collection directly for video.id
+      try {
+        final directTranscriptSnap = await FirebaseFirestore.instance
+            .collection('transcripts')
+            .doc(video.id)
+            .get();
+        if (directTranscriptSnap.exists && directTranscriptSnap.data() != null) {
+          final tData = directTranscriptSnap.data()!;
+          if (tData['utterances'] != null || tData['segments'] != null || tData['words'] != null) {
+            final segs = await parseTranscriptContent(jsonEncode(tData));
+            if (segs.isNotEmpty) {
+              applySegments(segs);
+              return;
+            }
+          }
+        }
+      } catch (_) {}
+
+      // 4.6 Check Firestore transcripts collection for jobId (if present)
+      if (retrievedJobId != null && retrievedJobId.isNotEmpty && retrievedJobId != video.id) {
+        try {
+          final jobTranscriptSnap = await FirebaseFirestore.instance
+              .collection('transcripts')
+              .doc(retrievedJobId)
+              .get();
+          if (jobTranscriptSnap.exists && jobTranscriptSnap.data() != null) {
+            final jData = jobTranscriptSnap.data()!;
+            if (jData['utterances'] != null || jData['segments'] != null || jData['words'] != null) {
+              final segs = await parseTranscriptContent(jsonEncode(jData));
+              if (segs.isNotEmpty) {
+                applySegments(segs);
+                return;
+              }
+            }
+          }
+        } catch (_) {}
       }
 
       // 5. Direct probe into Firebase Storage for pipeline-generated transcripts
@@ -298,6 +347,11 @@ class VideoTranscriptController extends BaseController {
         'transcripts/${video.id}.srt',
         'videos/${video.id}/transcript.json',
         'videos/${video.id}/transcription.json',
+        if (retrievedJobId != null && retrievedJobId.isNotEmpty && retrievedJobId != video.id) ...[
+          'transcripts/$retrievedJobId/full.json',
+          'subtitles/$retrievedJobId/en.vtt',
+          'subtitles/$retrievedJobId/en.srt',
+        ],
       ];
 
       for (final p in probePaths) {
@@ -307,12 +361,7 @@ class VideoTranscriptController extends BaseController {
             final content = utf8.decode(data, allowMalformed: true);
             final segs = await parseTranscriptContent(content);
             if (segs.isNotEmpty) {
-              transcriptSegments.assignAll(segs);
-              playerCtrl?.subtitleSegments.assignAll(segs);
-              if (isTranscriptVisible.value) {
-                final currentPos = playerCtrl?.videoPlayerController.value.position ?? Duration.zero;
-                syncToCurrentPosition(currentPos, forceScroll: true);
-              }
+              applySegments(segs);
               debugPrint('[VideoTranscriptController] ✅ Found transcript via storage probe: $p');
               return;
             }
@@ -337,6 +386,7 @@ class VideoTranscriptController extends BaseController {
     } finally {
       isLoadingTranscript.value = false;
       playerCtrl?.isLoadingSubtitles.value = false;
+      hasAttemptedTranscriptFetch.value = true;
     }
   }
 
@@ -390,11 +440,11 @@ class VideoTranscriptController extends BaseController {
 
   /// Fetches the AI Summary from moderation.summary in the video document or credibility cache
   Future<void> fetchSummary(Video video) async {
-    if (moderationSummary.value.isNotEmpty) return;
+    if (UserFeedbackSanitizer.isValidVideoSummary(moderationSummary.value)) return;
     isLoadingSummary.value = true;
     try {
       // 1. Direct check on video.moderationSummary from Video model
-      if (video.moderationSummary.isNotEmpty) {
+      if (UserFeedbackSanitizer.isValidVideoSummary(video.moderationSummary)) {
         moderationSummary.value = video.moderationSummary;
         isLoadingSummary.value = false;
         return;
@@ -402,7 +452,7 @@ class VideoTranscriptController extends BaseController {
 
       // 2. Check VideoMediaService credibility cache
       final credibility = await VideoMediaService().getCredibility(video.id);
-      if (credibility.summary.isNotEmpty) {
+      if (UserFeedbackSanitizer.isValidVideoSummary(credibility.summary)) {
         moderationSummary.value = credibility.summary;
         isLoadingSummary.value = false;
         return;
@@ -415,16 +465,20 @@ class VideoTranscriptController extends BaseController {
           .get();
       if (doc.exists && doc.data() != null) {
         final data = doc.data()!;
+        final topSummary = (data['summary'] as String?)?.trim() ?? '';
         final mod = data['moderation'] as Map<String, dynamic>?;
-        final summary = (mod != null && mod['summary'] != null && (mod['summary'] as String).isNotEmpty)
-            ? (mod['summary'] as String)
-            : ((data['summary'] as String?)?.isNotEmpty == true
-                ? (data['summary'] as String)
-                : ((mod != null && mod['explanation'] != null)
-                    ? (mod['explanation'] as String)
-                    : (data['description'] as String? ?? '')));
-        if (summary.isNotEmpty) {
-          moderationSummary.value = summary;
+        final modSummary = (mod?['summary'] as String?)?.trim() ?? '';
+
+        var candidate = '';
+        if (UserFeedbackSanitizer.isValidVideoSummary(topSummary)) {
+          candidate = topSummary;
+        } else if (UserFeedbackSanitizer.isValidVideoSummary(modSummary)) {
+          candidate = modSummary;
+        }
+
+        if (candidate.isNotEmpty) {
+          moderationSummary.value = candidate;
+          return;
         }
       }
     } catch (e, stackTrace) {

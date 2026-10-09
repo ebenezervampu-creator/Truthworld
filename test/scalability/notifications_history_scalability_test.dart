@@ -55,7 +55,7 @@ Video _makeHistoryVideo({
     title: title,
     description: 'Description for video $id',
     thumbnailUrl: 'https://example.com/thumb_$id.jpg',
-    videoUrl: 'https://cdn.truthworld.com/video_$id.mp4',
+    videoUrl: 'https://cdn.truthworld.in/video_$id.mp4',
     ownerId: 'owner_1',
     channelId: 'ch_1',
     channelName: 'Truth Channel',

@@ -176,7 +176,65 @@ class ChannelTypeSelectorModal extends StatelessWidget {
                       onTap: () =>
                           controller.selectPlan(ChannelPlanType.custom),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 14),
+                    InkWell(
+                      onTap: () async {
+                        final result = await Get.toNamed(
+                          '/channel-plan-comparison',
+                          arguments: {
+                            'initialPlan': selectedPlanVal == ChannelPlanType.custom
+                                ? 'custom'
+                                : 'standard',
+                          },
+                        );
+                        if (result is String) {
+                          controller.selectPlan(
+                            result == 'custom'
+                                ? ChannelPlanType.custom
+                                : ChannelPlanType.standard,
+                          );
+                        } else if (result is ChannelPlanType) {
+                          controller.selectPlan(result);
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF6366F1).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: const Color(0xFF6366F1).withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.compare_arrows_rounded,
+                              color: Color(0xFF818CF8),
+                              size: 16,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'Compare Standard vs Custom Benefits',
+                              style: TextStyle(
+                                color: Color(0xFF818CF8),
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(width: 6),
+                            Icon(
+                              Icons.arrow_forward_ios_rounded,
+                              color: Color(0xFF818CF8),
+                              size: 11,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
                     ChannelTypeBenefitsBox(
                       isStandard: isStandard,
                       isDark: isDark,

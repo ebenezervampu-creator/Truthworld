@@ -8,6 +8,15 @@ jest.mock('../../src/services/cashfreeService', () => {
   return {
     CashfreeService: {
       isConfigured: jest.fn().mockReturnValue(true),
+      isCurrencySupported: jest.fn().mockImplementation((cur) =>
+        ['INR', 'USD', 'EUR', 'GBP', 'CAD', 'AUD', 'AED', 'SGD', 'JPY'].includes(cur)
+      ),
+      isRestrictedCountry: jest.fn().mockImplementation((country) =>
+        ['AF', 'BY', 'CU', 'IR', 'IQ', 'PK', 'RU', 'SD', 'SY'].includes(country)
+      ),
+      isZeroDecimalCurrency: jest.fn().mockImplementation((cur) => cur === 'JPY'),
+      getMinimumAmount: jest.fn().mockImplementation((cur) => (cur === 'INR' ? 1.0 : 0.5)),
+      formatCurrencyAmount: jest.fn().mockImplementation((amt, cur) => (cur === 'INR' ? `₹${amt}` : `$${amt}`)),
       sanitizeOrderTags: jest.fn().mockImplementation((tags) => tags),
       createSubscriptionPlan: jest.fn().mockResolvedValue({}),
       createSubscription: jest.fn().mockResolvedValue({
@@ -107,5 +116,48 @@ describe('Callable: createCashfreeOrder', () => {
     expect(result.isSubscription).toBe(true);
     expect(result.subscriptionId).toBeDefined();
     expect(CashfreeService.createSubscription).toHaveBeenCalled();
+  });
+
+  it('should successfully create order for international USD transaction', async () => {
+    const context = authCallableContext(TEST_USERS.regular, {
+      amount: 10,
+      currency: 'USD',
+      purpose: 'superchat',
+      metadata: { userCountry: 'US' }
+    });
+    const result = await callOnCall(createCashfreeOrder, context);
+    expect(result.success).toBe(true);
+    expect(result.orderId).toBeDefined();
+    expect(CashfreeService.createOrder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderCurrency: 'USD',
+        orderAmount: 10
+      })
+    );
+  });
+
+  it('should throw invalid-argument when an unsupported currency is requested', async () => {
+    const context = authCallableContext(TEST_USERS.regular, {
+      amount: 50,
+      currency: 'FAKE_CURRENCY',
+      purpose: 'superchat'
+    });
+    await expect(callOnCall(createCashfreeOrder, context)).rejects.toThrow(HttpsError);
+    await expect(callOnCall(createCashfreeOrder, context)).rejects.toMatchObject({
+      code: 'invalid-argument'
+    });
+  });
+
+  it('should throw failed-precondition when user is in a restricted country', async () => {
+    const context = authCallableContext(TEST_USERS.regular, {
+      amount: 50,
+      currency: 'USD',
+      purpose: 'superchat',
+      metadata: { userCountry: 'PK' } // Pakistan is in Cashfree restricted country list
+    });
+    await expect(callOnCall(createCashfreeOrder, context)).rejects.toThrow(HttpsError);
+    await expect(callOnCall(createCashfreeOrder, context)).rejects.toMatchObject({
+      code: 'failed-precondition'
+    });
   });
 });

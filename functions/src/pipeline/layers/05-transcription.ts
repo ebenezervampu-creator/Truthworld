@@ -77,12 +77,23 @@ export class TranscriptionLayer {
       startedAt: Date.now(),
     });
 
+    let transcriptionFinished = false;
+
     try {
       const apiKey = PIPELINE_CONFIG.ASSEMBLYAI_KEY;
 
       // 1. Extract audio
       const audioUrl = await this.extractAudio(jobId, videoUrl);
-      const accessibleUrl = await this.getAccessibleUrl(audioUrl ?? videoUrl);
+      const rawCandidateUrl = audioUrl ?? videoUrl;
+      let accessibleUrl = rawCandidateUrl;
+      try {
+        accessibleUrl = await this.getAccessibleUrl(rawCandidateUrl);
+      } catch (urlSigningErr) {
+        logger.warn("[Transcription] URL accessibility resolution warning — continuing with source URL", {
+          jobId,
+          error: String(urlSigningErr),
+        });
+      }
 
       let enhanced: EnhancedTranscriptionResult;
       let transcriptId: string | null = null;
@@ -215,7 +226,8 @@ export class TranscriptionLayer {
       });
 
       // 5. Store & Propagate (Atomic completion)
-      await this.storeTranscript(jobId, userId, enhanced);
+      const resolvedVideoId = executionPlan.videoId || jobId;
+      await this.storeTranscript(jobId, userId, enhanced, resolvedVideoId);
       
       // Native Subtitles
       if (transcriptId && apiKey) {
@@ -354,7 +366,40 @@ export class TranscriptionLayer {
             ? enhanced.chapters
             : (existingVideoData.autoChapters || existingVideoData.chapters || []));
 
-      const finalSummary = gatewayDecision.summary || existingVideoData.summary || existingVideoData.moderationSummary || "";
+      // Sanitize summary candidates against leaked moderation strings
+      const isLeakedModeration = (s?: string) =>
+        !s ||
+        /moderation timed out/i.test(s) ||
+        /video approved pending/i.test(s) ||
+        /async review/i.test(s) ||
+        /moderation could not complete/i.test(s);
+
+      let finalSummary = gatewayDecision.summary || "";
+      if (isLeakedModeration(finalSummary)) {
+        finalSummary = "";
+      }
+      if (!finalSummary && !isLeakedModeration(existingVideoData.summary)) {
+        finalSummary = existingVideoData.summary;
+      }
+      if (!finalSummary && !isLeakedModeration(existingVideoData.moderationSummary)) {
+        finalSummary = existingVideoData.moderationSummary;
+      }
+      if (isLeakedModeration(finalSummary)) {
+        finalSummary = "";
+      }
+
+      // Ensure complete resolution ladder down to 144p: merge existing with default tiers
+      let finalAdaptiveResolutions = defaultAdaptiveResolutions;
+      if (Array.isArray(existingVideoData.adaptiveResolutions) && existingVideoData.adaptiveResolutions.length > 0) {
+        const merged = [...existingVideoData.adaptiveResolutions];
+        for (const defRes of defaultAdaptiveResolutions) {
+          if (!merged.some((r: any) => r.label?.toLowerCase() === defRes.label.toLowerCase() || r.height === defRes.height)) {
+            merged.push(defRes);
+          }
+        }
+        merged.sort((a: any, b: any) => (b.height || 0) - (a.height || 0));
+        finalAdaptiveResolutions = merged;
+      }
 
       const publicationData = {
         id: targetVideoId,
@@ -371,7 +416,7 @@ export class TranscriptionLayer {
         thumbnailUrl: finalThumbnailUrl,
         thumbnailVariants: finalThumbnailUrl ? [finalThumbnailUrl] : (existingVideoData.thumbnailVariants || []),
         animatedPreviewUrl: existingVideoData.animatedPreviewUrl || "",
-        adaptiveResolutions: existingVideoData.adaptiveResolutions || defaultAdaptiveResolutions,
+        adaptiveResolutions: finalAdaptiveResolutions,
         title: inferredTitle,
         description: finalDescription,
         summary: finalSummary,
@@ -504,6 +549,7 @@ export class TranscriptionLayer {
 
       // ── NOW (AND ONLY NOW) TRIGGER DOWNSTREAM RESOLUTION TRANSCODING & AI FEATURES ──
       await aggregationLayer.onStageComplete(jobId, "transcription", userId, executionPlan);
+      transcriptionFinished = true;
 
       // Fan-out immediately (Fact-checking, Dubbing, Transcoding, and Copyright)
       const fanoutTasks: Promise<any>[] = [];
@@ -573,7 +619,11 @@ export class TranscriptionLayer {
         const details = JSON.stringify(error.response?.data);
         msg = `AssemblyAI API Error: ${details || error.message}`;
       }
-      await EdgeLayer.failJob(jobId, "transcription", msg);
+      if (!transcriptionFinished) {
+        await EdgeLayer.failJob(jobId, "transcription", msg);
+      } else {
+        logger.error("[Transcription Gateway] Downstream fanout publish failure after transcription completed", { jobId, error: msg });
+      }
       throw error;
     }
   }
@@ -765,11 +815,13 @@ export class TranscriptionLayer {
   private async storeTranscript(
     jobId: string,
     userId: string,
-    result: EnhancedTranscriptionResult
+    result: EnhancedTranscriptionResult,
+    targetVideoId?: string
   ): Promise<void> {
-    // Lightweight Firestore doc (no large arrays — avoids 1MB doc limit)
-    await db().collection("transcripts").doc(jobId).set({
-      jobId, userId,
+    const transcriptData = {
+      jobId,
+      userId,
+      videoId: targetVideoId || jobId,
       text: result.text,
       language: result.detectedLanguage,
       confidence: result.confidence,
@@ -789,7 +841,13 @@ export class TranscriptionLayer {
         text: s.text,
         speaker: s.speaker,
       })),
-    });
+    };
+
+    // Lightweight Firestore doc (no large arrays — avoids 1MB doc limit)
+    await db().collection("transcripts").doc(jobId).set(transcriptData);
+    if (targetVideoId && targetVideoId !== jobId) {
+      await db().collection("transcripts").doc(targetVideoId).set(transcriptData, { merge: true });
+    }
 
     // Full result in Cloud Storage (avoids Firestore 1MB doc limit)
     const bucket = admin.storage().bucket();
@@ -798,6 +856,13 @@ export class TranscriptionLayer {
       JSON.stringify(result),
       { metadata: { contentType: "application/json" } }
     );
+    if (targetVideoId && targetVideoId !== jobId) {
+      const videoJsonPath = `transcripts/${targetVideoId}/full.json`;
+      await bucket.file(videoJsonPath).save(
+        JSON.stringify(result),
+        { metadata: { contentType: "application/json" } }
+      ).catch(() => {});
+    }
 
     // Update job doc with transcript path (Dual-write)
     await db().collection("video_jobs").doc(jobId).update({
@@ -1000,8 +1065,45 @@ Return STRICT JSON:
   "durationSeconds": 60
 }`;
 
+      let canonicalGcsUri = gcsUri;
+      if (!canonicalGcsUri.startsWith("gs://")) {
+        if (canonicalGcsUri.includes("storage.googleapis.com/")) {
+          const afterDomain = canonicalGcsUri.split("storage.googleapis.com/")[1]?.split("?")[0];
+          if (afterDomain) {
+            canonicalGcsUri = `gs://${afterDomain}`;
+          }
+        } else if (canonicalGcsUri.includes("firebasestorage.googleapis.com/v0/b/")) {
+          const parts = canonicalGcsUri.split("firebasestorage.googleapis.com/v0/b/")[1]?.split("/o/");
+          if (parts && parts.length === 2) {
+            const bucket = parts[0];
+            const objectPath = decodeURIComponent(parts[1].split("?")[0]);
+            canonicalGcsUri = `gs://${bucket}/${objectPath}`;
+          }
+        }
+      }
+
+      if (!canonicalGcsUri.startsWith("gs://")) {
+        try {
+          const targetVid = executionPlan.videoId || jobId;
+          const videoDocSnap = await db().collection("videos").doc(targetVid).get();
+          const vData = videoDocSnap.data();
+          const storagePath = vData?.storage?.videoPath || `videos/${targetVid}/original.mp4`;
+          const bucketName = admin.storage().bucket().name;
+          canonicalGcsUri = `gs://${bucketName}/${storagePath}`;
+        } catch (_) {}
+      }
+
+      const mimeType = canonicalGcsUri.endsWith(".wav")
+        ? "audio/wav"
+        : (canonicalGcsUri.endsWith(".mp3")
+          ? "audio/mp3"
+          : (canonicalGcsUri.endsWith(".aac")
+            ? "audio/aac"
+            : "video/mp4"));
+
       let res;
-      if (gcsUri.startsWith("gs://")) {
+      if (canonicalGcsUri.startsWith("gs://")) {
+        logger.info("[Transcription] Running Gemini fallback with GCS URI", { canonicalGcsUri, mimeType, jobId });
         res = await model.generateContent({
           contents: [
             {
@@ -1009,8 +1111,8 @@ Return STRICT JSON:
               parts: [
                 {
                   fileData: {
-                    mimeType: "video/mp4",
-                    fileUri: gcsUri,
+                    mimeType,
+                    fileUri: canonicalGcsUri,
                   },
                 },
                 { text: prompt },
@@ -1019,6 +1121,7 @@ Return STRICT JSON:
           ],
         });
       } else {
+        logger.warn("[Transcription] Unable to resolve GCS URI for Gemini fallback", { gcsUri, jobId });
         res = await model.generateContent(prompt);
       }
 

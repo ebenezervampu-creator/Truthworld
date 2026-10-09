@@ -217,6 +217,16 @@ class IntelligenceBrandingIssues {
           ],
         ),
       );
+    } else if (ch.avatarStatus == 'APPROVED') {
+      issueCards.add(
+        const IntelligenceIssueCard(
+          title: 'Channel Avatar & Thumbnails Approved',
+          description:
+              'Google Vision AI and Truthworld verification have approved your channel avatar image and media thumbnails.',
+          statusType: 'APPROVED',
+          icon: Icons.verified_user_rounded,
+        ),
+      );
     }
 
     return issueCards;
@@ -429,6 +439,16 @@ class IntelligenceBrandingIssues {
               ),
             ),
           ],
+        ),
+      );
+    } else if (ch.bannerStatus == 'APPROVED') {
+      issueCards.add(
+        const IntelligenceIssueCard(
+          title: 'Channel Banner Approved',
+          description:
+              'Your channel banner image has been verified and approved by Truthworld.',
+          statusType: 'APPROVED',
+          icon: Icons.verified_rounded,
         ),
       );
     }

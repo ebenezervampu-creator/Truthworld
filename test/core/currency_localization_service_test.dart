@@ -96,6 +96,26 @@ void main() {
       final formattedInr = currencyService.formatForUser(price: 100.0, itemCurrency: 'INR');
       expect(formattedInr, '₹100');
     });
+
+    test('Cashfree country and currency integration in CurrencyLocalizationService', () {
+      currencyService.userCountryCode.value = 'US';
+      expect(currencyService.isCashfreeSupported, isTrue);
+      expect(currencyService.isRestrictedByCashfree, isFalse);
+      expect(currencyService.userNativeCurrency, 'USD');
+      expect(currencyService.userCountryInfo.name, 'United States');
+
+      currencyService.userCountryCode.value = 'GB';
+      expect(currencyService.isCashfreeSupported, isTrue);
+      expect(currencyService.userNativeCurrency, 'GBP');
+
+      currencyService.userCountryCode.value = 'DE';
+      expect(currencyService.isCashfreeSupported, isTrue);
+      expect(currencyService.userNativeCurrency, 'EUR');
+
+      currencyService.userCountryCode.value = 'PK';
+      expect(currencyService.isCashfreeSupported, isFalse);
+      expect(currencyService.isRestrictedByCashfree, isTrue);
+    });
   });
 
   group('ChannelMembershipTier & ChannelMember currency localization', () {
@@ -179,17 +199,27 @@ void main() {
       expect(premiumCtrl.getFormattedPrice('4k_factchecked_monthly'), r'$3');
     });
 
-    test('Calculates correct INR prices for Indian viewers', () {
+    test('Calculates correct INR prices for Indian viewers based on live dollar price', () {
       currencyService.currencyOverride.value = 'INR';
+      currencyService.liveUsdToInrRate.value = 84.0;
       final premiumCtrl = Get.put(PremiumController());
 
-      expect(premiumCtrl.getPriceForPlan('audio_monthly'), 40.0);
-      expect(premiumCtrl.getPriceForPlan('individual_monthly'), 169.0);
-      expect(premiumCtrl.getPriceForPlan('4k_factchecked_monthly'), 249.0);
+      expect(premiumCtrl.getPriceForPlan('audio_monthly'), 42.0);
+      expect(premiumCtrl.getPriceForPlan('individual_monthly'), 168.0);
+      expect(premiumCtrl.getPriceForPlan('4k_factchecked_monthly'), 252.0);
 
-      expect(premiumCtrl.getFormattedPrice('audio_monthly'), '₹40');
-      expect(premiumCtrl.getFormattedPrice('individual_monthly'), '₹169');
-      expect(premiumCtrl.getFormattedPrice('4k_factchecked_monthly'), '₹249');
+      expect(premiumCtrl.getFormattedPrice('audio_monthly'), '₹42');
+      expect(premiumCtrl.getFormattedPrice('individual_monthly'), '₹168');
+      expect(premiumCtrl.getFormattedPrice('4k_factchecked_monthly'), '₹252');
+
+      // Dynamic update when dollar price changes (e.g. rate jumps to 90.0)
+      currencyService.liveUsdToInrRate.value = 90.0;
+      expect(premiumCtrl.getPriceForPlan('audio_monthly'), 45.0);
+      expect(premiumCtrl.getPriceForPlan('individual_monthly'), 180.0);
+      expect(premiumCtrl.getPriceForPlan('4k_factchecked_monthly'), 270.0);
+      expect(premiumCtrl.getFormattedPrice('audio_monthly'), '₹45');
+      expect(premiumCtrl.getFormattedPrice('individual_monthly'), '₹180');
+      expect(premiumCtrl.getFormattedPrice('4k_factchecked_monthly'), '₹270');
     });
   });
 

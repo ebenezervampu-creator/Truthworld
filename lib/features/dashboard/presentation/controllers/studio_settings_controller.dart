@@ -238,22 +238,28 @@ class StudioSettingsController extends BaseController {
         return false;
       }
 
-      // Soft-delete the channel
+      // Soft-delete the channel with a 30-day grace period
+      final now = DateTime.now().toUtc();
+      final gracePeriodExpiry = now.add(const Duration(days: 30));
+
       await _firestore
           .collection(FirestoreCollections.channels)
           .doc(targetChannelId)
           .update({
         'status': ChannelStatus.deleted.name,
+        'deletionScheduledAt': FieldValue.serverTimestamp(),
+        'deletionGracePeriodExpiresAt': Timestamp.fromDate(gracePeriodExpiry),
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      // Update user doc in Firestore to clear channel reference
+      // Update user doc in Firestore to retain channelId for grace period recovery
       try {
-        await _userRef.update({
-          'channelId': FieldValue.delete(),
+        await _userRef.set({
+          'channelId': targetChannelId,
+          'deletedChannelId': targetChannelId,
           'hasChannel': false,
           'updatedAt': FieldValue.serverTimestamp(),
-        });
+        }, SetOptions(merge: true));
       } catch (e, stackTrace) {
         ErrorHandler.log(
           e,
@@ -267,7 +273,9 @@ class StudioSettingsController extends BaseController {
         AuthService.to.hasChannel.value = false;
       }
 
-      showSuccess('Channel deleted successfully.');
+      showSuccess(
+        'Channel scheduled for deletion. You have a 30-day grace period to cancel and restore it.',
+      );
       return true;
     } catch (e) {
       ErrorHandler.log(e, tag: 'StudioSettingsController');

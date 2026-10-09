@@ -14,13 +14,27 @@ import { normalizeLanguageCodes, normalizeLanguageCode } from "../../shared/lang
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SUPPORTED_LANGUAGES = [
-  "en", "es", "fr", "de", "it", "pt", "ru",
-  "ja", "zh", "ko", "hi", "ar", "tr", "nl",
-  "pl", "sv", "da", "no", "fi", "el", "cs",
-  "hu", "ro", "uk", "he", "fa", "fil", "tl",
-  "ms", "bn", "te", "ta", "mr", "gu", "kn",
-  "ml", "pa", "or", "as", "ur", "ks", "sd",
-  "sa", "ne", "si", "my", "id", "th", "vi"
+  // 🇮🇳 Indian Languages
+  "te", "hi", "ta", "kn", "ml", "bn", "mr", "gu", "pa", "or",
+  "as", "ur", "ne", "sd", "sa", "ks", "gom", "mai", "doi", "mni-Mtei",
+  "brx", "sat", "bho",
+
+  // 🎙️ ElevenLabs Dubbing & Global Core (78+ Languages)
+  "en", "es", "fr", "de", "pt", "ar", "ru", "ja", "ko", "zh",
+  "it", "tr", "vi", "th", "id", "nl", "pl", "sv", "el", "he",
+  "fa", "uk", "fil", "tl", "ms", "cs", "da", "fi", "ro", "hu",
+  "no", "sk", "hr", "bg", "sr", "sl", "lt", "lv", "et", "si",
+  "sw", "my", "kk", "uz", "az", "hy", "ka", "am", "so", "zu",
+  "af", "sq", "eu", "be", "bs", "ca", "ceb", "ny", "gl", "ha",
+  "is", "ga", "jv", "ky", "lb", "mk", "ps", "cy", "ln", "mt",
+  "la",
+
+  // 🌐 Google Cloud Translation Subtitle Languages (135+ Languages)
+  "co", "eo", "fy", "ht", "haw", "hmn", "ig", "km", "rw", "ku",
+  "lo", "mg", "mi", "mn", "sm", "gd", "st", "sn", "su", "tg",
+  "tt", "tk", "ug", "xh", "yi", "yo", "ay", "bm", "dv", "ee",
+  "gn", "ilo", "kri", "lg", "om", "qu", "nso", "ti", "ts", "ak",
+  "chr", "yue", "lus", "tn", "hil", "war", "pam", "pag", "bcl", "cnh"
 ];
 
 interface ChannelLimits {

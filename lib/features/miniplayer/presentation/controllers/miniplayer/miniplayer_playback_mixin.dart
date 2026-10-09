@@ -11,6 +11,7 @@ import 'package:truthworld/features/miniplayer/presentation/controllers/miniplay
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer/miniplayer_subtitles_mixin.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
+import 'package:truthworld/features/video/presentation/services/video_playback_queue_service.dart';
 import 'package:video_player/video_player.dart';
 
 /// Mixin providing URL resolution, VideoPlayerController listeners, position tracking,
@@ -226,6 +227,64 @@ mixin MiniplayerPlaybackMixin on MiniplayerStateBase, MiniplayerSubtitlesMixin {
   // ═══════════════════════════════════════════════════════════════════════════
   // PLAYBACK CONTROLS
   // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Plays the next video in the queue or fallback recommendations.
+  Future<void> playNext() async {
+    if (!isAutoplay.value) return;
+    final current = currentVideo.value;
+    if (current == null) return;
+    if (isNavigatingVideo.value) return;
+    isNavigatingVideo.value = true;
+
+    try {
+      if (VideoPlaybackQueueService.to.hasForwardVideo) {
+        final next = VideoPlaybackQueueService.to.nextForwardVideo;
+        if (next != null) {
+          VideoPlaybackQueueService.to.pushCurrentForNext(next);
+          await showWithVideo(next);
+          return;
+        }
+      }
+
+      final fallback =
+          await VideoPlaybackQueueService.to.fetchFallbackNextVideo(current.id);
+      if (fallback != null && fallback.id != current.id) {
+        VideoPlaybackQueueService.to.pushCurrentForNext(fallback);
+        await showWithVideo(fallback);
+      }
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'MiniplayerController.playNext',
+      );
+    } finally {
+      isNavigatingVideo.value = false;
+    }
+  }
+
+  /// Plays the previous video in the queue stack.
+  Future<void> playPrevious() async {
+    if (!isAutoplay.value) return;
+    if (!VideoPlaybackQueueService.to.hasPreviousVideo) return;
+    if (isNavigatingVideo.value) return;
+    isNavigatingVideo.value = true;
+
+    try {
+      final prev = VideoPlaybackQueueService.to.popPreviousVideo();
+      if (prev != null) {
+        await showWithVideo(prev);
+      }
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'MiniplayerController.playPrevious',
+      );
+    } finally {
+      isNavigatingVideo.value = false;
+    }
+  }
 
   Future<void> togglePlayPause() async {
     final vpc = internalVpc;
@@ -493,11 +552,16 @@ mixin MiniplayerPlaybackMixin on MiniplayerStateBase, MiniplayerSubtitlesMixin {
           currentSubtitle.value = '';
         }
 
-        // Auto-collapse when complete
+        // Auto-advance or stop when complete
         if (val.position >= val.duration &&
             val.duration > Duration.zero &&
             !val.isPlaying) {
           isPlaying.value = false;
+          if (isAutoplay.value &&
+              activeClip.value == null &&
+              !isNavigatingVideo.value) {
+            playNext();
+          }
         }
       }),
     );

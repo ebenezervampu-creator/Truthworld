@@ -146,9 +146,20 @@ class VideoActionButtons {
                 // AI Credibility Check
                 Obx(() {
                   final video = controller.rxVideo.value;
-                  final hasCredibility = video.hasAiCredibility ||
-                      controller.video.hasAiCredibility ||
-                      controller.factCheckData.isNotEmpty;
+                  final currentUid = AuthService.to.uid;
+                  final userChannelId = AuthService.to.userChannel?.id;
+                  final isOwner = currentUid.isNotEmpty &&
+                      (video.ownerId == currentUid ||
+                          video.userId == currentUid ||
+                          (userChannelId != null &&
+                              userChannelId.isNotEmpty &&
+                              video.channelId == userChannelId));
+                  final isAllowedToView =
+                      video.canPublicViewFactCheck || isOwner;
+                  final hasCredibility = isAllowedToView &&
+                      (video.hasAiCredibility ||
+                          controller.video.hasAiCredibility ||
+                          controller.factCheckData.isNotEmpty);
                   if (!hasCredibility) return const SizedBox.shrink();
                   return Row(
                     mainAxisSize: MainAxisSize.min,
@@ -419,9 +430,21 @@ class VideoActionButtons {
                           // AI Credibility Check
                           Obx(() {
                             final video = controller.rxVideo.value;
-                            final hasCredibility = video.hasAiCredibility ||
-                                controller.video.hasAiCredibility ||
-                                controller.factCheckData.isNotEmpty;
+                            final currentUid = AuthService.to.uid;
+                            final userChannelId =
+                                AuthService.to.userChannel?.id;
+                            final isOwner = currentUid.isNotEmpty &&
+                                (video.ownerId == currentUid ||
+                                    video.userId == currentUid ||
+                                    (userChannelId != null &&
+                                        userChannelId.isNotEmpty &&
+                                        video.channelId == userChannelId));
+                            final isAllowedToView =
+                                video.canPublicViewFactCheck || isOwner;
+                            final hasCredibility = isAllowedToView &&
+                                (video.hasAiCredibility ||
+                                    controller.video.hasAiCredibility ||
+                                    controller.factCheckData.isNotEmpty);
                             if (!hasCredibility) return const SizedBox.shrink();
                             return Row(
                               mainAxisSize: MainAxisSize.min,

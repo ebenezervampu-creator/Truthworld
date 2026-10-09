@@ -99,6 +99,13 @@ class VideoPlaybackSource implements PlaybackSource {
     try {
       await _controller.play();
     } catch (e, s) {
+      final errStr = e.toString().toLowerCase();
+      if (errStr.contains('interrupted') ||
+          errStr.contains('aborterror') ||
+          errStr.contains('pause()') ||
+          errStr.contains('notallowederror')) {
+        return;
+      }
       ErrorHandler.log(
         e,
         stackTrace: s,
@@ -112,6 +119,12 @@ class VideoPlaybackSource implements PlaybackSource {
     try {
       await _controller.pause();
     } catch (e, s) {
+      final errStr = e.toString().toLowerCase();
+      if (errStr.contains('interrupted') ||
+          errStr.contains('aborterror') ||
+          errStr.contains('notallowederror')) {
+        return;
+      }
       ErrorHandler.log(
         e,
         stackTrace: s,

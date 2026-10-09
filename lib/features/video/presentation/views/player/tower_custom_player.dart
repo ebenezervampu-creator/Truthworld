@@ -1,7 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/controls/player_controls.dart';
@@ -69,7 +69,10 @@ class TowerCustomPlayer extends StatelessWidget {
             final playerHeight = constraints.maxHeight;
 
             return MouseRegion(
-              onHover: (_) => c.onInteraction(),
+              onHover: (_) {
+                if (kIsWeb && c.isHoverSuppressed) return;
+                c.onInteraction();
+              },
               child: KeyboardListener(
                 focusNode: c.focusNode,
                 autofocus: true,
@@ -179,6 +182,7 @@ class TowerCustomPlayer extends StatelessWidget {
                               child: MouseRegion(
                                 onHover: (_) {
                                   if (!c.isShowingAd.value) {
+                                    if (kIsWeb && c.isHoverSuppressed) return;
                                     c.onInteraction();
                                     if (!c.controlsVisible.value) {
                                       c.controlsVisible.value = true;
@@ -689,35 +693,8 @@ class TowerCustomPlayer extends StatelessWidget {
                                   : const SizedBox.shrink();
                             }),
 
-                            // ── Layer 8: Resolution switching overlay ──────────────
-                            Obx(() {
-                              if (c.isShowingAd.value || c.isPiP.value) {
-                                return const SizedBox.shrink();
-                              }
-                              // touch an observable
-                              c.isAudioOnly.value;
-                              var isSwitching = false;
-                              var isManual = false;
-                              try {
-                                final vc = c.videoController;
-                                if (vc != null) {
-                                  isSwitching = vc.isSwitchingResolution.value;
-                                  isManual = !vc.isAutoSwitching.value;
-                                }
-                              } catch (e, s) {
-                                ErrorHandler.log(
-                                  e,
-                                  stackTrace: s,
-                                  tag: 'TowerCustomPlayer.resolutionSwitchingCheck',
-                                );
-                              }
-                              final show = isSwitching && isManual;
-                              return show
-                                  ? const Positioned.fill(
-                                      child: SwitchingResolutionOverlay(),
-                                    )
-                                  : const SizedBox.shrink();
-                            }),
+                            // ── Layer 8: Resolution switching overlay (YouTube-grade seamless background handoff) ──────────────
+                            const SizedBox.shrink(),
 
                             // ── Layer 8.5: Ad Overlay ──────────────────────────────
                             Obx(() {

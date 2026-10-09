@@ -199,6 +199,28 @@ mixin ChannelCreationMixin on ChannelControllerBase {
         }
       }
 
+      // Profanity check on all custom links
+      for (final linkMap in customLinks) {
+        final title = (linkMap['title'] ?? '').trim();
+        final url = (linkMap['url'] ?? '').trim();
+        if (title.isNotEmpty) {
+          final titleValidation = await validateContent(title, fieldName: 'Custom Link Title');
+          if (!titleValidation.isValid) {
+            showErrorSnackbar('Please avoid offensive or profane language in custom link title.');
+            isSubmitting.value = false;
+            return;
+          }
+        }
+        if (url.isNotEmpty) {
+          final urlValidation = await validateContent(url, fieldName: 'Custom Link URL');
+          if (!urlValidation.isValid) {
+            showErrorSnackbar('Please avoid offensive or profane language in custom link URL.');
+            isSubmitting.value = false;
+            return;
+          }
+        }
+      }
+
       if (selectedCategory.value == null ||
           selectedCategory.value!.trim().isEmpty ||
           selectedCategories.isEmpty) {
@@ -390,6 +412,7 @@ mixin ChannelCreationMixin on ChannelControllerBase {
         'contactEmail': contactEmail.text.trim(),
         'websiteUrl': websiteUrl.text.trim(),
         'socialLinks': Map<String, dynamic>.from(socialLinks),
+        'customLinks': customLinks.where((e) => (e['url'] ?? '').trim().isNotEmpty).toList(),
 
         // Advanced settings from form
         'allowComments': advancedSettings['allowComments'] ?? true,

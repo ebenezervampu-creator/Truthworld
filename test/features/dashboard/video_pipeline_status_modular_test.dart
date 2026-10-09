@@ -198,6 +198,36 @@ void main() {
       expect(find.text('Factcheck (Verify)'), findsOneWidget);
     });
 
+    testWidgets('PipelineTimelineStages renders dubbing as skipped when creator skips dubbing', (tester) async {
+      final noDubVideo = Video.fromMap({
+        'id': 'no_dub_video_123',
+        'title': 'No Dubbing Video',
+        'channelId': 'chan_test_1',
+        'videoUrl': 'https://example.com/video.mp4',
+        'thumbnailUrl': 'https://example.com/thumb.jpg',
+        'status': 'published',
+        'languages': ['en'],
+        'language': 'en',
+      });
+
+      final stages = {
+        'upload': {'status': 'completed', 'progress': 100},
+        'validation': {'status': 'completed', 'progress': 100},
+        'transcription': {'status': 'completed', 'progress': 100},
+        'credibility': {'status': 'completed', 'progress': 100},
+        'dubbing': {'status': 'skipped', 'progress': 100},
+      };
+
+      await tester.pumpWidget(
+        createHarness(
+          PipelineTimelineStages(stages: stages, video: noDubVideo),
+        ),
+      );
+
+      expect(find.text('Localization (Dubbing)'), findsOneWidget);
+      expect(find.byIcon(Icons.skip_next_rounded), findsWidgets);
+    });
+
     testWidgets('PipelineArtifactLinksPanel renders direct download and viewer buttons', (tester) async {
       await tester.pumpWidget(
         createHarness(

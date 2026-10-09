@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -39,7 +40,11 @@ class ExploreTopicVideoSection extends StatelessWidget {
         ? Get.find<FollowingTopicsController>()
         : Get.put(FollowingTopicsController());
 
-    final sectionHeight = isMobile ? 260.0 : (isTablet ? 290.0 : 310.0);
+    final isMobileDevice = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    final sectionHeight = isMobile
+        ? 260.0
+        : (isTablet || isMobileDevice ? 290.0 : 360.0);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -316,7 +321,11 @@ class HorizontalVideoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cardWidth = isMobile ? 280.0 : (isTablet ? 320.0 : 360.0);
+    final isMobileDevice = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    final cardWidth = isMobile
+        ? 280.0
+        : (isTablet || isMobileDevice ? 320.0 : 420.0);
 
     return Container(
       width: cardWidth,

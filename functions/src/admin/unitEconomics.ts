@@ -235,10 +235,10 @@ export async function computeUnitEconomics(monthInput?: string): Promise<UnitEco
   });
 
   const tierPricesINR: Record<string, { name: string; inr: number; estInfraUSD: number }> = {
-    audio_monthly: { name: "Audio Premium", inr: 40, estInfraUSD: 0.10 },
-    individual_monthly: { name: "Individual Premium", inr: 169, estInfraUSD: 0.65 },
-    "4k_factchecked_monthly": { name: "4K + Fact-Checked", inr: 249, estInfraUSD: 1.10 },
-    family_monthly: { name: "Family Plan", inr: 399, estInfraUSD: 1.80 },
+    audio_monthly: { name: "Audio Premium", inr: Math.round(0.50 * USD_INR_RATE), estInfraUSD: 0.10 },
+    individual_monthly: { name: "Individual Premium", inr: Math.round(2.0 * USD_INR_RATE), estInfraUSD: 0.65 },
+    "4k_factchecked_monthly": { name: "4K + Fact-Checked", inr: Math.round(3.0 * USD_INR_RATE), estInfraUSD: 1.10 },
+    family_monthly: { name: "Family Plan", inr: Math.round(5.0 * USD_INR_RATE), estInfraUSD: 1.80 },
   };
 
   const userTierEconomics: UserTierEconomics[] = Object.entries(tierPricesINR).map(([tierId, meta]) => {

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
 import 'package:truthworld/features/advertiser/presentation/views/tabs/billing/billing_topup_dialog.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -81,30 +83,41 @@ class BillingPaymentGatewayCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 14),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Cashfree Payment Gateway (RBI Tokenized)',
-                        style: TextStyle(
-                          fontFamily: TWTypography.uiFamily,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                Expanded(
+                  child: Obx(() {
+                    final isIndian = !Get.isRegistered<CurrencyLocalizationService>() ||
+                        CurrencyLocalizationService.to.isIndianUser;
+                    final title = isIndian
+                        ? 'Cashfree Payment Gateway (RBI Tokenized)'
+                        : 'Cashfree Global Payment Gateway (PCI-DSS Level 1)';
+                    final desc = Get.isRegistered<CurrencyLocalizationService>()
+                        ? CurrencyLocalizationService.to.paymentMethodsDescription
+                        : 'Supports Instant UPI, Netbanking, Debit/Credit Cards with 256-bit SSL encryption.';
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontFamily: TWTypography.uiFamily,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Supports Instant UPI (Google Pay, PhonePe, Paytm, BHIM), Netbanking (50+ banks), Debit/Credit Cards, and Wallets with 256-bit SSL encryption.',
-                        style: TextStyle(
-                          fontFamily: TWTypography.uiFamily,
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
+                        const SizedBox(height: 4),
+                        Text(
+                          desc,
+                          style: const TextStyle(
+                            fontFamily: TWTypography.uiFamily,
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    );
+                  }),
                 ),
               ],
             ),

@@ -93,12 +93,11 @@ mixin ChannelManagementMixin on ChannelControllerBase {
     final registryCount = (chId != null && chId.isNotEmpty)
         ? ChannelSubscriptionController.channelSubscriberCounts[chId]
         : null;
-    final count = registryCount ?? subscriberCount.value;
-    if (count > 0) {
-      return FormatUtils.formatCount(count);
-    }
-    final fallback = selectedChannel.value?.subscriberCount ?? 0;
-    return FormatUtils.formatCount(fallback > 0 ? fallback : count);
+    final count = registryCount ??
+        (subscriberCount.value > 0
+            ? subscriberCount.value
+            : (selectedChannel.value?.subscriberCount ?? 0));
+    return FormatUtils.formatCount(count);
   }
 
   // ==========================================================================

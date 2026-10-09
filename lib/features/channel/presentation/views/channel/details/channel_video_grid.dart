@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:timeago/timeago.dart' as timeago;
@@ -60,7 +61,9 @@ class ChannelVideoListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final thumbWidth = isDesktop ? 280.0 : 160.0;
+    final isMobileDevice = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    final thumbWidth = (!isMobileDevice && isDesktop) ? 360.0 : (isDesktop ? 280.0 : 160.0);
     final thumbHeight = thumbWidth * 9 / 16;
 
     return Padding(

@@ -263,10 +263,18 @@ class ChannelMembershipJoinController extends BaseController {
       final rate = Get.isRegistered<CurrencyLocalizationService>()
           ? CurrencyLocalizationService.to.rate
           : CurrencyLocalizationService.defaultRate;
-      final calculatedAmount = tier.currency.toUpperCase() == 'INR'
+      final calculatedAmountINR = tier.currency.toUpperCase() == 'INR'
           ? tier.price
           : (tier.price * rate);
-      final amountINR = math.max(1.0, double.parse(calculatedAmount.toStringAsFixed(2)));
+      final amountINR = math.max(1.0, double.parse(calculatedAmountINR.toStringAsFixed(2)));
+
+      final calculatedAmountUSD = tier.currency.toUpperCase() == 'USD'
+          ? tier.price
+          : (tier.price / rate);
+      final amountUSD = math.max(0.50, double.parse(calculatedAmountUSD.toStringAsFixed(2)));
+
+      final chargeAmount = isIndian ? amountINR : amountUSD;
+      final chargeCurrency = isIndian ? 'INR' : 'USD';
       final autoPaySuffix = isAutoPay.value ? ' (Auto Pay)' : ' (One-Time)';
       final orderNote = isIndian
           ? (isUpgrading
@@ -277,7 +285,8 @@ class ChannelMembershipJoinController extends BaseController {
               : 'Membership$autoPaySuffix: ${channel?.name ?? "Channel"} - ${tier.name} (${tier.formattedPriceForUser(false)})');
 
       final paymentResult = await CashfreePaymentService.to.startPayment(
-        amount: amountINR,
+        amount: chargeAmount,
+        currency: chargeCurrency,
         purpose: 'channel_membership',
         orderNote: orderNote,
         metadata: {

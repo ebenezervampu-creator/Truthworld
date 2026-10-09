@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/services/cashfree/cashfree_country_support.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-/// Modal dialog for topping up advertiser prepaid balance.
+/// Modal dialog for topping up advertiser prepaid balance with country-aware currency and rails.
 class BillingTopUpDialog extends StatelessWidget {
   const BillingTopUpDialog({required this.controller, super.key});
   final AdvertiserPortalController controller;
@@ -14,8 +16,17 @@ class BillingTopUpDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final customAmountController = TextEditingController(text: '2000');
-    final selectedAmount = 2000.0.obs;
+    final isIndian = !Get.isRegistered<CurrencyLocalizationService>() ||
+        CurrencyLocalizationService.to.isIndianUser;
+    final currency = isIndian ? 'INR' : 'USD';
+    final currencySymbol = isIndian ? '₹' : r'$';
+    final presetAmounts = isIndian
+        ? const [1000, 2000, 5000, 10000]
+        : const [25, 50, 100, 250];
+
+    final defaultAmt = isIndian ? 2000.0 : 50.0;
+    final customAmountController = TextEditingController(text: defaultAmt.toInt().toString());
+    final selectedAmount = defaultAmt.obs;
 
     return AlertDialog(
       backgroundColor: const Color(0xFF161618),
@@ -47,9 +58,9 @@ class BillingTopUpDialog extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
-              'Select Amount (INR)',
-              style: TextStyle(
+            Text(
+              'Select Amount ($currency)',
+              style: const TextStyle(
                 fontFamily: TWTypography.uiFamily,
                 color: Colors.white,
                 fontWeight: FontWeight.w600,
@@ -60,7 +71,7 @@ class BillingTopUpDialog extends StatelessWidget {
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: [1000, 2000, 5000, 10000].map((amt) {
+              children: presetAmounts.map((amt) {
                 return Obx(() {
                   final isSel = selectedAmount.value == amt.toDouble();
                   return InkWell(
@@ -79,7 +90,7 @@ class BillingTopUpDialog extends StatelessWidget {
                         ),
                       ),
                       child: Text(
-                        '₹$amt',
+                        '$currencySymbol$amt',
                         style: TextStyle(
                           fontFamily: TWTypography.uiFamily,
                           fontSize: 13,
@@ -104,9 +115,9 @@ class BillingTopUpDialog extends StatelessWidget {
                 }
               },
               decoration: InputDecoration(
-                labelText: 'Custom Amount (₹)',
+                labelText: 'Custom Amount ($currencySymbol)',
                 labelStyle: const TextStyle(color: AppColors.textSecondary),
-                prefixText: '₹ ',
+                prefixText: '$currencySymbol ',
                 prefixStyle: const TextStyle(color: Colors.white),
                 filled: true,
                 fillColor: const Color(0xFF121214),
@@ -119,8 +130,8 @@ class BillingTopUpDialog extends StatelessWidget {
             const SizedBox(height: 16),
             Obx(() {
               final amt = selectedAmount.value;
-              final gst = amt * 0.18;
-              final total = amt + gst;
+              final tax = isIndian ? (amt * 0.18) : 0.0;
+              final total = amt + tax;
               return Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -134,15 +145,15 @@ class BillingTopUpDialog extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text('Wallet Credit:', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                        Text('₹${amt.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 12)),
+                        Text('$currencySymbol${amt.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 12)),
                       ],
                     ),
                     const SizedBox(height: 4),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('GST (18%):', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                        Text('₹${gst.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 12)),
+                        Text(isIndian ? 'GST (18%):' : 'Processing Fee (0%):', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                        Text('$currencySymbol${tax.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 12)),
                       ],
                     ),
                     const Divider(color: Color(0xFF27272A), height: 12),
@@ -150,13 +161,25 @@ class BillingTopUpDialog extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text('Total Payable:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-                        Text('₹${total.toStringAsFixed(2)}', style: const TextStyle(color: AppColors.brand, fontWeight: FontWeight.bold, fontSize: 14)),
+                        Text('$currencySymbol${total.toStringAsFixed(2)}', style: const TextStyle(color: AppColors.brand, fontWeight: FontWeight.bold, fontSize: 14)),
                       ],
                     ),
                   ],
                 ),
               );
             }),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.lock_outline_rounded, size: 12, color: AppColors.textTertiary),
+                const SizedBox(width: 4),
+                Text(
+                  'Secured by Cashfree • ${CashfreeCountrySupport.getPaymentMethodsSummary(currency == "INR" ? "IN" : "US")}',
+                  style: const TextStyle(fontSize: 11, color: AppColors.textTertiary),
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -169,9 +192,9 @@ class BillingTopUpDialog extends StatelessWidget {
           onPressed: () {
             final amt = selectedAmount.value;
             if (amt > 0) {
-              final gst = double.parse((amt * 0.18).toStringAsFixed(2));
-              final total = double.parse((amt + gst).toStringAsFixed(2));
-              controller.topUpWallet(total, netAmount: amt, taxAmount: gst);
+              final tax = isIndian ? double.parse((amt * 0.18).toStringAsFixed(2)) : 0.0;
+              final total = double.parse((amt + tax).toStringAsFixed(2));
+              controller.topUpWallet(total, netAmount: amt, taxAmount: tax);
               Get.back();
             }
           },

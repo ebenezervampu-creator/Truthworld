@@ -25,7 +25,7 @@ mixin AdTargetingMixin on AdMetricsMixin {
       if (auth.hasFullPremium) {
         return false;
       }
-      // Audio Premium (₹40): suppresses audio and audio_only ads
+      // Audio Premium ($0.50): suppresses audio and audio_only ads
       if (type == 'audio' || type == 'audio_only') {
         return false;
       }

@@ -468,7 +468,8 @@ class _MoreVideoCard extends StatelessWidget {
                               ),
 
                             // Fact Checked Badge (top-left)
-                            if (video.isFactChecked || video.hasAiCredibility)
+                            if ((video.isFactChecked || video.hasAiCredibility) &&
+                                video.canPublicViewFactCheck)
                               const VideoCardFactCheckBadge(),
                           ],
                         ),

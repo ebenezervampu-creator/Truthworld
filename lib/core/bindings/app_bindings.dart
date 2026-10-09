@@ -11,6 +11,7 @@ import 'package:truthworld/features/playlist/presentation/controllers/playlist_d
 import 'package:truthworld/features/search/presentation/controllers/search_controller.dart'
     as app_search;
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
+import 'package:truthworld/features/video/presentation/services/video_playback_queue_service.dart';
 
 export 'package:truthworld/features/dashboard/presentation/bindings/dashboard_binding.dart';
 
@@ -56,6 +57,10 @@ class VideoBinding extends Bindings {
     Get.lazyPut<PlaylistController>(PlaylistController.new, fenix: true);
     Get.lazyPut<PlaylistDialogController>(
       PlaylistDialogController.new,
+      fenix: true,
+    );
+    Get.lazyPut<VideoPlaybackQueueService>(
+      VideoPlaybackQueueService.new,
       fenix: true,
     );
   }

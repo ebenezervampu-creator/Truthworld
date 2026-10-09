@@ -139,12 +139,14 @@ class ChaptersWorkspacePane extends StatelessWidget {
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: AppColors.warning
-                                      .withValues(alpha: 0.15),
+                                  color: AppColors.warning.withValues(
+                                    alpha: 0.15,
+                                  ),
                                   borderRadius: BorderRadius.circular(4),
                                   border: Border.all(
-                                    color: AppColors.warning
-                                        .withValues(alpha: 0.3),
+                                    color: AppColors.warning.withValues(
+                                      alpha: 0.3,
+                                    ),
                                   ),
                                 ),
                                 child: const Text(
@@ -159,12 +161,37 @@ class ChaptersWorkspacePane extends StatelessWidget {
                             }),
                           ],
                         ),
-                        Text(
-                          'Manage content chapters & segment timestamps',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: textSecondaryColor,
-                          ),
+                        Row(
+                          children: [
+                            Text(
+                              'Duration: ${video.duration}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.brand,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '•',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: textSecondaryColor,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Manage content chapters & segment timestamps',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: textSecondaryColor,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -217,8 +244,11 @@ class ChaptersWorkspacePane extends StatelessWidget {
                                 ),
                               ),
                             )
-                          : const Icon(Icons.save_rounded,
-                              size: 18, color: Colors.black),
+                          : const Icon(
+                              Icons.save_rounded,
+                              size: 18,
+                              color: Colors.black,
+                            ),
                       label: Text(
                         controller.isSaving.value
                             ? 'Saving...'
@@ -251,22 +281,31 @@ class ChaptersWorkspacePane extends StatelessWidget {
                         controller: controller,
                         isDarkMode: isDarkMode,
                       ),
-                      icon: const Icon(Icons.download_rounded,
-                          size: 16, color: Colors.white),
+                      icon: const Icon(
+                        Icons.download_rounded,
+                        size: 16,
+                        color: Colors.white,
+                      ),
                       label: const Text('Import'),
                     ),
                     const VerticalDivider(),
                     TextButton.icon(
                       onPressed: controller.exportToClipboard,
-                      icon: const Icon(Icons.upload_rounded,
-                          size: 16, color: Colors.white),
+                      icon: const Icon(
+                        Icons.upload_rounded,
+                        size: 16,
+                        color: Colors.white,
+                      ),
                       label: const Text('Export'),
                     ),
                     const VerticalDivider(),
                     TextButton.icon(
                       onPressed: controller.autoDetectChapters,
-                      icon: const Icon(Icons.psychology,
-                          size: 16, color: Colors.white),
+                      icon: const Icon(
+                        Icons.psychology,
+                        size: 16,
+                        color: Colors.white,
+                      ),
                       label: const Text('AI Auto'),
                     ),
                   ],
@@ -303,7 +342,9 @@ class ChaptersWorkspacePane extends StatelessWidget {
                     return AnimatedBuilder(
                       animation: animation,
                       builder: (context, child) {
-                        final animValue = Curves.easeInOut.transform(animation.value);
+                        final animValue = Curves.easeInOut.transform(
+                          animation.value,
+                        );
                         final elevation = lerpDouble(0, 8, animValue)!;
                         final scale = lerpDouble(1, 1.02, animValue)!;
                         return Transform.scale(
@@ -333,7 +374,9 @@ class ChaptersWorkspacePane extends StatelessWidget {
                   itemBuilder: (context, index) {
                     final chapter = controller.currentChapters[index];
                     return KeyedSubtree(
-                      key: ValueKey('chapter_${chapter.startTime.inMilliseconds}_${chapter.title}_$index'),
+                      key: ValueKey(
+                        'chapter_${chapter.startTime.inMilliseconds}_${chapter.title}_$index',
+                      ),
                       child: ChaptersTimelineView.buildTimelineRow(
                         context,
                         controller: controller,
@@ -361,9 +404,7 @@ class ChaptersWorkspacePane extends StatelessWidget {
             color: AppColors.bgPage.withValues(alpha: 0.6),
             child: Center(
               child: Card(
-                color: isDarkMode
-                    ? AppColors.bgSurface
-                    : AppColors.textPrimary,
+                color: isDarkMode ? AppColors.bgSurface : AppColors.textPrimary,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
@@ -448,18 +489,15 @@ class ChaptersWorkspacePane extends StatelessWidget {
 
                       if (hasManual) {
                         badgeText = 'Manual Override Active';
-                        badgeColor =
-                            AppColors.success.withValues(alpha: 0.15);
+                        badgeColor = AppColors.success.withValues(alpha: 0.15);
                         badgeTextColor = AppColors.success;
                       } else if (!isAutoOn) {
                         badgeText = 'Auto-Chapters Off';
-                        badgeColor =
-                            AppColors.error.withValues(alpha: 0.15);
+                        badgeColor = AppColors.error.withValues(alpha: 0.15);
                         badgeTextColor = AppColors.error;
                       } else {
                         badgeText = 'AI Auto Fallback';
-                        badgeColor =
-                            AppColors.info.withValues(alpha: 0.15);
+                        badgeColor = AppColors.info.withValues(alpha: 0.15);
                         badgeTextColor = AppColors.info;
                       }
 

@@ -47,6 +47,18 @@ mixin TowerPlayerGesturesMixin on GetxController {
   double lastTapX = 0;
   double doubleTapX = 0;
 
+  DateTime? _suppressHoverUntil;
+
+  bool get isHoverSuppressed =>
+      _suppressHoverUntil != null &&
+      DateTime.now().isBefore(_suppressHoverUntil!);
+
+  void suppressHoverFor([
+    Duration duration = const Duration(milliseconds: 600),
+  ]) {
+    _suppressHoverUntil = DateTime.now().add(duration);
+  }
+
   void startHideTimer([Duration? timeout]);
   void setVolume(double val);
   Future<void> seekTo(Duration position);
@@ -64,6 +76,27 @@ mixin TowerPlayerGesturesMixin on GetxController {
       return;
     }
     if (isShowingAd.value) return;
+
+    // Web: if controls are already showing, tapping anywhere on the video viewport
+    // closes them immediately.
+    if (kIsWeb && controlsVisible.value) {
+      cancelPendingTap();
+      suppressHoverFor();
+      toggleControls();
+      return;
+    }
+
+    if (kIsWeb &&
+        (showCommentsPopup.value ||
+            showTranscriptPopup.value ||
+            showFactCheckPopup.value ||
+            showMoreVideos.value)) {
+      showCommentsPopup.value = false;
+      showTranscriptPopup.value = false;
+      showFactCheckPopup.value = false;
+      closeMoreVideos();
+      return;
+    }
 
     final now = DateTime.now();
     final half = playerWidth / 2;
@@ -120,6 +153,13 @@ mixin TowerPlayerGesturesMixin on GetxController {
       closeSettings();
       return;
     }
+    if (kIsWeb) {
+      if (controlsVisible.value) {
+        suppressHoverFor();
+      }
+      toggleControls();
+      return;
+    }
     final isTouch = !kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.android ||
             defaultTargetPlatform == TargetPlatform.iOS);
@@ -130,7 +170,30 @@ mixin TowerPlayerGesturesMixin on GetxController {
     }
   }
 
+  /// On Web: handles tapping the background dismiss layer when controls are visible.
+  void onBackgroundTapWeb() {
+    focusNode.requestFocus();
+    if (settingsOpen.value) {
+      closeSettings();
+      return;
+    }
+    if (showCommentsPopup.value ||
+        showTranscriptPopup.value ||
+        showFactCheckPopup.value ||
+        showMoreVideos.value) {
+      showCommentsPopup.value = false;
+      showTranscriptPopup.value = false;
+      showFactCheckPopup.value = false;
+      closeMoreVideos();
+      return;
+    }
+    cancelPendingTap();
+    suppressHoverFor();
+    toggleControls();
+  }
+
   void onInteraction() {
+    if (kIsWeb && isHoverSuppressed) return;
     if (!controlsVisible.value) controlsVisible.value = true;
     if (!isMuted.value && videoPlayerController.value.volume == 0.0) {
       try {

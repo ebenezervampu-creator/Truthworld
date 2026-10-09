@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/community_post_card.dart';
@@ -40,10 +41,17 @@ class FollowingTopicsPage extends GetView<FollowingTopicsController> {
     final isTablet = screenWidth >= 600 && screenWidth < 1024;
     final isDesktop = screenWidth >= 1024;
 
+    final isMobileDevice = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+
     // Responsive columns for video grid
     final crossAxisCount = isMobile
         ? 1
-        : (isTablet ? 2 : (screenWidth > 1440 ? 4 : 3));
+        : (isTablet || isMobileDevice
+            ? 2
+            : (screenWidth >= 2100
+                ? 4
+                : (screenWidth >= 1600 ? 3 : 2)));
 
     // Child aspect ratio ensuring no overflow
     final childAspectRatio = isMobile

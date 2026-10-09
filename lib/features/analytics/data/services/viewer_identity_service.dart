@@ -102,9 +102,29 @@ class ViewerIdentityService extends GetxService {
           iosInfo.systemVersion,
           iosInfo.name,
         ].join('|');
+      } else if (defaultTargetPlatform == TargetPlatform.windows) {
+        final winInfo = await deviceInfo.windowsInfo;
+        rawFingerprint = [
+          winInfo.deviceId,
+          winInfo.computerName,
+          winInfo.numberOfCores.toString(),
+        ].join('|');
+      } else if (defaultTargetPlatform == TargetPlatform.macOS) {
+        final macInfo = await deviceInfo.macOsInfo;
+        rawFingerprint = [
+          macInfo.systemGUID ?? '',
+          macInfo.model,
+          macInfo.computerName,
+        ].join('|');
+      } else if (defaultTargetPlatform == TargetPlatform.linux) {
+        final linuxInfo = await deviceInfo.linuxInfo;
+        rawFingerprint = [
+          linuxInfo.machineId ?? '',
+          linuxInfo.name,
+        ].join('|');
       } else {
-        // Desktop / other
-        rawFingerprint = 'desktop_${DateTime.now().microsecondsSinceEpoch}';
+        // Desktop / other fallback to persistent install ID
+        rawFingerprint = _getOrCreateInstallId();
       }
 
       _cachedDeviceFingerprint = rawFingerprint;

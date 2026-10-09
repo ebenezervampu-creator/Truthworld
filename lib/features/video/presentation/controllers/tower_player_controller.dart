@@ -1,10 +1,12 @@
 import 'package:chewie/chewie.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/features/video/data/services/storyboard_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/adaptive_bitrate_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/audio_only_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/playback_source.dart';
 import 'package:truthworld/features/video/presentation/controllers/player_lock_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_mixins/tower_mixins.dart';
@@ -12,6 +14,7 @@ import 'package:truthworld/features/video/presentation/controllers/tower_player/
 import 'package:truthworld/features/video/presentation/controllers/tower_player_overlay_manager.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/services/sleep_timer_service.dart';
+import 'package:truthworld/features/video/presentation/services/video_playback_queue_service.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:video_player/video_player.dart';
 
@@ -229,6 +232,11 @@ class TowerPlayerController extends BaseController
     startHideTimer();
     initABR();
     initAudioService();
+    if (audioService != null && audioService!.isActive.value) {
+      try {
+        audioService!.deactivateBackgroundPlayback();
+      } catch (_) {}
+    }
     trackAnalytics(PlayerEvent('player_init'));
 
     if (videoController != null) {
@@ -238,13 +246,16 @@ class TowerPlayerController extends BaseController
     }
 
     final vid = videoController?.video;
-    if (vid != null && vid.durationValue > Duration.zero) {
-      storyboardTrack.value = StoryboardService.generateHighDensityTrack(
-        totalDuration: vid.durationValue,
-        multiSheetUrls: vid.storyboardVariants,
-        singleSheetUrl: vid.storyboardUrl,
-        thumbnailVariants: vid.thumbnailVariants,
-      );
+    if (vid != null) {
+      VideoPlaybackQueueService.to.onVideoLoaded(vid);
+      if (vid.durationValue > Duration.zero) {
+        storyboardTrack.value = StoryboardService.generateHighDensityTrack(
+          totalDuration: vid.durationValue,
+          multiSheetUrls: vid.storyboardVariants,
+          singleSheetUrl: vid.storyboardUrl,
+          thumbnailVariants: vid.thumbnailVariants,
+        );
+      }
     }
 
     final isFromMiniplayer =
@@ -306,6 +317,28 @@ class TowerPlayerController extends BaseController
     }
 
     TowerPlayerRegistry.initPipChannel();
+  }
+
+  @override
+  void onInteraction() {
+    if (kIsWeb && isHoverSuppressed) return;
+    if (!controlsVisible.value) {
+      controlsVisible.value = true;
+    }
+    if (!isMuted.value && videoPlayerController.value.volume == 0.0) {
+      try {
+        videoPlayerController.setVolume(volume.value > 0 ? volume.value : 1.0);
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'TowerPlayerController.onInteraction',
+        );
+      }
+    }
+    if (!isDragging.value) {
+      startHideTimer();
+    }
   }
 
   void _attachVideoListener() {
@@ -471,17 +504,10 @@ class TowerPlayerController extends BaseController
     stopCommentsAutoPlay();
     try {
       chewieController?.removeListener(onInternalChewieChanged);
-    } catch (e, s) {
-      ErrorHandler.log(e,
-          stackTrace: s,
-          tag: 'TowerPlayerController.onClose.removeInternalChewie');
-    }
+    } catch (_) {}
     try {
       videoController?.chewieController?.removeListener(onOuterChewieChanged);
-    } catch (e, s) {
-      ErrorHandler.log(e,
-          stackTrace: s, tag: 'TowerPlayerController.onClose.removeOuterChewie');
-    }
+    } catch (_) {}
     TowerPlayerLifecycleHelper.disposeControllers(
       adPlayerController: adPlayerController,
       audioTrackController: audioTrackController,
@@ -541,6 +567,14 @@ class TowerPlayerController extends BaseController
     videoPlayerController = vpc;
     videoPlaybackSource = source;
     sleepTimerService.setActivePlayback(activePlayback);
+    if (Get.isRegistered<AudioOnlyService>()) {
+      try {
+        final audioSvc = Get.find<AudioOnlyService>();
+        if (audioSvc.isActive.value || audioSvc.isPlaying.value) {
+          audioSvc.deactivateBackgroundPlayback();
+        }
+      } catch (_) {}
+    }
 
     try {
       rxValue.value = vpc.value;

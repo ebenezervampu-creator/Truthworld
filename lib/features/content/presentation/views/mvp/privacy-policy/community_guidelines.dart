@@ -625,11 +625,20 @@ We rely on both automated systems and our active community to maintain these sta
 
 8. CREDIBILITY SCORING AND CLAIM ANALYSIS POLICY
 
-To help viewers evaluate statements and maintain truthfulness, Truthworld implements a Credibility Scoring System.
+To help viewers evaluate statements and maintain truthfulness without resorting to opaque censorship, Truthworld implements an Epistemic Credibility & Claim Verification System.
 
-• **Fact-Checking & Source Citations:** We extract key claims from uploaded media and use LLM (Large Language Model) APIs and public databases to check statements against reliable sources. These sources and citations are displayed alongside the video.
-• **Informational Nature:** Truthworld provides these automated checks and credibility scores for informational, academic, and educational purposes only. We just show sources and verify claims. Truthworld is not liable for any errors or inaccuracies in the automated evaluations or citations.
-• **Intermediary Shield:** Creators are responsible for the truthfulness of their content. Truthworld serves purely as an intermediary, utilizes third-party LLM APIs, and does not assume responsibility or legal liability for any claims or disputes arising from video content or credibility metrics.
+• **Claim-Level Grounding (No Binary "Fake" Labels):** Truthworld rejects blunt, monolithic "Fake" or "Banned" stamps. We extract discrete, atomic factual claims from audio speech and visual OCR, anchoring each claim to its exact timestamp in the video.
+• **Authoritative Source Grounding:** Verified claims are cross-referenced with primary, authoritative databases (Official Gazettes, Government portals, PIB Fact Check, judicial records, and peer-reviewed scientific registries). Citing links are displayed directly inside the player overlay for independent public inspection.
+• **Protection of Conscience & Religious Beliefs (Article 25):** We explicitly distinguish between empirical facts and personal or spiritual convictions. Theological claims, scriptural interpretations, and religious beliefs are categorized as faith-based context and are never subjected to empirical truth/falsity penalties.
+• **Bilateral Creator Dispute Recourse (Audi Alteram Partem):** Creators have the statutory and platform right to contest any automated claim analysis. By using the in-app dispute dialog, creators can submit counter-citations. During review, claims transparently reflect a "Dispute Pending Review" status rather than a unilateral verdict.
+• **Universal Intermediary Protection & Non-Destructive Overlays:** Truthworld acts purely as an Intermediary / Interactive Computer Service across global jurisdictions:
+  - *United States:* Protected under Section 230 of the Communications Decency Act (47 U.S.C. § 230(c)) and DMCA Safe Harbor (17 U.S.C. § 512). Automated fact-check overlays constitute protected Good Samaritan transparency annotations.
+  - *European Union & UK:* Governed under the Digital Services Act (Regulation (EU) 2022/2065, Articles 6, 16, 20, and 21), entitling users to internal appeals and certified out-of-court dispute settlement.
+  - *India & APAC:* Protected under Section 79 of the Information Technology Act, 2000, and Rule 3 of the IT (Intermediary Guidelines) Rules, 2021.
+  - *Universal Doctrine:* Fact-check overlays are non-destructive informational transparency layers (analogous to Community Notes) that do not alter the raw source video file or usurp creator authorship.
+• **Good Faith Public Truth Defense (BNS Section 356 / IPC Section 499):** Algorithmic verification is conducted objectively for the public good, falling squarely within the First and Ninth Exceptions to Section 356 of the Bharatiya Nyaya Sanhita, 2023 (Section 499 IPC) regarding imputations of truth made in good faith for public interest.
+
+
 
 9. COPYRIGHT AND INTELLECTUAL PROPERTY POLICY
 

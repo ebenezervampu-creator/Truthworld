@@ -101,30 +101,43 @@ export class BridgingConsensusEngine {
       validRatings.length
     );
 
-    // 5. Cross-Perspective Bridging Score (Harmonic Mean)
+    // 5. Cross-Perspective Bridging Score (Smoothed Harmonic Mean / Adaptive Consensus)
     const bridgingScore = this.computeHarmonicBridgingScore(
       leftRate,
       rightRate,
       centerRate,
-      leftCluster.length > 0,
-      rightCluster.length > 0
+      leftCluster.length,
+      rightCluster.length,
+      centerCluster.length,
+      perspectiveDivergence
     );
 
-    // 6. Status determination
+    // 6. Status determination (prevents unilateral factional veto on facts)
     let status: BridgingEvaluationResult["status"] = "pending_ratings";
 
     if (brigadeCheck.isBrigaded && validRatings.length < this.MIN_RATINGS_FOR_CONSENSUS) {
       status = "brigade_flagged";
     } else if (validRatings.length >= this.MIN_RATINGS_FOR_CONSENSUS) {
-      // Must have raters from opposing clusters for genuine bridging
       const hasOpposingClusters = leftCluster.length > 0 && rightCluster.length > 0;
+      const overallHelpfulRate = validRatings.filter(r => r.isHelpful).length / validRatings.length;
 
-      if (hasOpposingClusters && bridgingScore >= this.BRIDGING_THRESHOLD) {
-        status = "consensus_achieved";
-      } else if (bridgingScore < this.POLARIZED_REJECT_THRESHOLD && hasOpposingClusters) {
-        status = "rejected_polarized";
+      if (hasOpposingClusters) {
+        if (bridgingScore >= this.BRIDGING_THRESHOLD) {
+          status = "consensus_achieved";
+        } else if (bridgingScore < this.POLARIZED_REJECT_THRESHOLD) {
+          status = "rejected_polarized";
+        } else {
+          status = "pending_ratings"; // Needs more cross-perspective input
+        }
       } else {
-        status = "pending_ratings"; // Needs more cross-perspective input
+        // Non-polarized topics (e.g. scientific, historical, or universal community consensus)
+        if (overallHelpfulRate >= 0.75 && bridgingScore >= this.BRIDGING_THRESHOLD) {
+          status = "consensus_achieved";
+        } else if (overallHelpfulRate <= 0.30) {
+          status = "rejected_polarized";
+        } else {
+          status = "pending_ratings";
+        }
       }
     }
 
@@ -153,9 +166,10 @@ export class BridgingConsensusEngine {
 
     for (const r of ratings) {
       let weight = 1.0;
-      if (r.contributorReputationTier === "Trusted") weight = 1.8;
-      else if (r.contributorReputationTier === "Active") weight = 1.2;
-      else if (r.contributorReputationTier === "Unverified") weight = 0.6;
+      // Balanced weighting according to participatory consensus standards
+      if (r.contributorReputationTier === "Trusted") weight = 1.25;
+      else if (r.contributorReputationTier === "Active") weight = 1.10;
+      else if (r.contributorReputationTier === "Unverified") weight = 0.90;
 
       if (r.isHelpful) {
         weightedHelpful += weight;
@@ -170,20 +184,35 @@ export class BridgingConsensusEngine {
     leftRate: number,
     rightRate: number,
     centerRate: number,
-    hasLeft: boolean,
-    hasRight: boolean
+    leftCount: number,
+    rightCount: number,
+    centerCount: number,
+    perspectiveDivergence: number
   ): number {
-    if (!hasLeft || !hasRight) {
-      // Cannot bridge without opposing perspectives
-      return (leftRate + rightRate + centerRate) / 3 * 0.4;
+    // Empirical Bayes smoothing prevents single polarized outliers from vetoing
+    const smoothedLeft = (leftRate * leftCount + 0.5) / (leftCount + 1);
+    const smoothedRight = (rightRate * rightCount + 0.5) / (rightCount + 1);
+    const smoothedCenter = (centerRate * centerCount + 0.5) / (centerCount + 1);
+
+    if (leftCount > 0 && rightCount > 0) {
+      // Harmonic mean across opposing clusters with smoothing
+      const eps = 0.001;
+      const harmonicOpposing = (2 * smoothedLeft * smoothedRight) / (smoothedLeft + smoothedRight + eps);
+      return 0.7 * harmonicOpposing + 0.3 * smoothedCenter;
     }
 
-    // Harmonic mean across Left and Right
-    const eps = 0.001;
-    const harmonicOpposing = (2 * leftRate * rightRate) / (leftRate + rightRate + eps);
+    // When opposing clusters are not active (e.g. factual, scientific, non-ideological notes):
+    // Blend active clusters gracefully instead of penalizing with an artificial collapse
+    const activeRates: number[] = [];
+    if (leftCount > 0) activeRates.push(smoothedLeft);
+    if (rightCount > 0) activeRates.push(smoothedRight);
+    if (centerCount > 0) activeRates.push(smoothedCenter);
 
-    // Blend with center
-    return 0.8 * harmonicOpposing + 0.2 * centerRate;
+    const clusterAverage = activeRates.length > 0
+      ? activeRates.reduce((a, b) => a + b, 0) / activeRates.length
+      : 0.5;
+
+    return clusterAverage * (0.85 + 0.15 * perspectiveDivergence);
   }
 
   private static calculatePerspectiveDivergence(

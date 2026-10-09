@@ -506,7 +506,7 @@ mixin UploadPipelineMixin on UploadControllerBase {
               'videoUrl': downloadUrl,
               'status': targetStatus == 'draft'
                   ? 'draft'
-                  : 'processing',
+                  : (targetStatus == 'published' ? 'processing' : 'uploading'),
               'visibility': ?targetVisibility,
             });
       } catch (e, stackTrace) {
@@ -520,7 +520,7 @@ mixin UploadPipelineMixin on UploadControllerBase {
             .doc(uniqueId)
             .update({
               'videoUrl': downloadUrl,
-              'status': 'processing',
+              'status': 'uploading',
             });
       }
 

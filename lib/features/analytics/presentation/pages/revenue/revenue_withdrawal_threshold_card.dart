@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/analytics/presentation/controllers/revenue_analytics_controller.dart';
 import 'package:truthworld/features/analytics/presentation/widgets/revenue_withdrawal_dialog.dart';
@@ -12,8 +13,106 @@ import 'package:truthworld/theme/app_theme.dart';
     final available = controller.totalRevenue.value;
     final isHeld = controller.isWithdrawalHeld.value;
     final canWithdraw = controller.canWithdraw;
+    final isAwaitingFirstOfMonth = controller.isThresholdMetButAwaitingFirstOfMonth;
+    final isGraceDay = controller.isTodayGraceDay;
     final remaining = controller.remainingToWithdraw;
     final progress = controller.withdrawalProgress;
+    final isIndian = !Get.isRegistered<CurrencyLocalizationService>() || CurrencyLocalizationService.to.isIndianUser;
+    final nextPayoutFormatted = RevenueAnalyticsStateBase.upcomingFirstOfMonthFormatted;
+    final nextPayoutShort = RevenueAnalyticsStateBase.nextPayoutShortMonth;
+
+    Color statusColor;
+    String badgeText;
+    if (isHeld) {
+      statusColor = const Color(0xFFF59E0B);
+      badgeText = 'Hold (Surge)';
+    } else if (canWithdraw) {
+      statusColor = const Color(0xFF10B981);
+      badgeText = isGraceDay ? 'Grace Period (Day 2)' : 'Unlocked';
+    } else if (isAwaitingFirstOfMonth) {
+      statusColor = const Color(0xFF3B82F6);
+      badgeText = 'Opens 1st $nextPayoutShort';
+    } else {
+      statusColor = const Color(0xFFF59E0B);
+      badgeText = 'Min ₹100';
+    }
+
+    String subtitleText;
+    if (isHeld) {
+      subtitleText = 'TruthWorld is fronting 100% of viral surge costs. Upgrade plan to release withdrawals.';
+    } else if (canWithdraw) {
+      if (isGraceDay) {
+        subtitleText = isIndian
+            ? 'Grace Period (Day 2 of 2): Available for cash withdrawal to your bank or UPI'
+            : 'Grace Period (Day 2 of 2): Available for cash withdrawal to your bank or PayPal';
+      } else {
+        subtitleText = isIndian
+            ? 'Withdrawal window open today (1st of month) to your bank or UPI'
+            : 'Withdrawal window open today (1st of month) to your bank or PayPal';
+      }
+    } else if (isAwaitingFirstOfMonth) {
+      subtitleText = 'YouTube-style cycle: Cash withdrawals open 1st of every month (Next: $nextPayoutFormatted)';
+    } else {
+      subtitleText = 'Withdrawals open on 1st of month (Min ₹100 threshold • Missed funds roll over)';
+    }
+
+    String progressText;
+    if (canWithdraw) {
+      if (isGraceDay) {
+        progressText = 'Missed Day 1? 1-Day grace period is active today (Day 2)! Cash withdrawals are unlocked.';
+      } else {
+        progressText = 'Your channel balance has reached ₹100 and withdrawal window is open today (1st of the month)!';
+      }
+    } else if (isAwaitingFirstOfMonth) {
+      progressText = '₹100 threshold reached! Cash withdrawals open on the 1st day of every month (Next: $nextPayoutFormatted).';
+    } else {
+      progressText = '₹${remaining.toStringAsFixed(2)} more needed to reach ₹100. Withdrawals open on the 1st of every month.';
+    }
+
+    VoidCallback onButtonPressed;
+    IconData buttonIcon;
+    String buttonLabel;
+    Color buttonBgColor;
+    Color buttonBorderColor;
+
+    if (isHeld) {
+      buttonIcon = Icons.lock_clock_rounded;
+      buttonLabel = 'Withdrawal on Hold (Upgrade Plan)';
+      buttonBgColor = const Color(0xFFD97706);
+      buttonBorderColor = const Color(0xFFF59E0B);
+      onButtonPressed = () {
+        AppSnackbar.warning(
+          controller.withdrawalHoldReason.value.isNotEmpty
+              ? controller.withdrawalHoldReason.value
+              : 'TruthWorld has covered 100% of your viral infrastructure surge costs! Please upgrade your custom channel plan to release revenue withdrawals.',
+          title: 'Withdrawal On Hold',
+        );
+      };
+    } else if (canWithdraw) {
+      buttonIcon = Icons.payments_rounded;
+      buttonLabel = isGraceDay ? 'Withdraw Funds (Grace Period Day 2)' : 'Withdraw Funds';
+      buttonBgColor = const Color(0xFF10B981);
+      buttonBorderColor = const Color(0xFF10B981);
+      onButtonPressed = () {
+        RevenueWithdrawalDialog.show(context);
+      };
+    } else if (isAwaitingFirstOfMonth) {
+      buttonIcon = Icons.calendar_month_rounded;
+      buttonLabel = 'Withdraw on 1st of Month (Opens $nextPayoutShort 1st)';
+      buttonBgColor = const Color(0xFF1E293B);
+      buttonBorderColor = const Color(0xFF3B82F6);
+      onButtonPressed = () {
+        _showMonthlyPayoutScheduleDialog(context, controller);
+      };
+    } else {
+      buttonIcon = Icons.lock_outline_rounded;
+      buttonLabel = 'Withdraw Earnings (Minimum ₹100)';
+      buttonBgColor = const Color(0xFF27272A);
+      buttonBorderColor = const Color(0xFF3F3F46);
+      onButtonPressed = () {
+        _showThresholdNoticeDialog(context, controller);
+      };
+    }
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -23,8 +122,10 @@ import 'package:truthworld/theme/app_theme.dart';
         border: Border.all(
           color: isHeld
               ? const Color(0xFFF59E0B)
-              : (canWithdraw ? const Color(0xFF10B981) : const Color(0xFF27272A)),
-          width: isHeld || canWithdraw ? 1.5 : 1,
+              : (canWithdraw
+                  ? const Color(0xFF10B981)
+                  : (isAwaitingFirstOfMonth ? const Color(0xFF3B82F6) : const Color(0xFF27272A))),
+          width: isHeld || canWithdraw || isAwaitingFirstOfMonth ? 1.5 : 1,
         ),
       ),
       child: Column(
@@ -36,14 +137,13 @@ import 'package:truthworld/theme/app_theme.dart';
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: (isHeld
-                          ? const Color(0xFFF59E0B)
-                          : (canWithdraw ? const Color(0xFF10B981) : const Color(0xFFF59E0B)))
-                      .withValues(alpha: 0.15),
+                  color: statusColor.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  isHeld ? Icons.lock_clock_rounded : Icons.payments_rounded,
+                  isHeld
+                      ? Icons.lock_clock_rounded
+                      : (isAwaitingFirstOfMonth ? Icons.calendar_month_rounded : Icons.payments_rounded),
                   color: Colors.white,
                   size: 22,
                 ),
@@ -63,11 +163,7 @@ import 'package:truthworld/theme/app_theme.dart';
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      isHeld
-                          ? 'TruthWorld is fronting 100% of viral surge costs. Upgrade plan to release withdrawals.'
-                          : (canWithdraw
-                              ? 'Available for cash withdrawal to your bank or UPI'
-                              : 'Minimum cash withdrawal threshold is ₹100 (100 Rupees)'),
+                      subtitleText,
                       style: const TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 12,
@@ -79,24 +175,16 @@ import 'package:truthworld/theme/app_theme.dart';
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: (isHeld
-                          ? const Color(0xFFF59E0B)
-                          : (canWithdraw ? const Color(0xFF10B981) : const Color(0xFFF59E0B)))
-                      .withValues(alpha: 0.15),
+                  color: statusColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: (isHeld
-                            ? const Color(0xFFF59E0B)
-                            : (canWithdraw ? const Color(0xFF10B981) : const Color(0xFFF59E0B)))
-                        .withValues(alpha: 0.4),
+                    color: statusColor.withValues(alpha: 0.4),
                   ),
                 ),
                 child: Text(
-                  isHeld ? 'Hold (Surge)' : (canWithdraw ? 'Unlocked' : 'Min ₹100'),
+                  badgeText,
                   style: TextStyle(
-                    color: isHeld
-                        ? const Color(0xFFF59E0B)
-                        : (canWithdraw ? const Color(0xFF10B981) : const Color(0xFFF59E0B)),
+                    color: statusColor,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                   ),
@@ -140,7 +228,9 @@ import 'package:truthworld/theme/app_theme.dart';
                 value: progress,
                 backgroundColor: const Color(0xFF27272A),
                 valueColor: AlwaysStoppedAnimation(
-                  canWithdraw ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                  canWithdraw
+                      ? const Color(0xFF10B981)
+                      : (isAwaitingFirstOfMonth ? const Color(0xFF3B82F6) : const Color(0xFFF59E0B)),
                 ),
               ),
             ),
@@ -148,11 +238,11 @@ import 'package:truthworld/theme/app_theme.dart';
           const SizedBox(height: 8),
 
           Text(
-            canWithdraw
-                ? 'Your channel balance has reached ₹100! Cash withdrawals are unlocked.'
-                : '₹${remaining.toStringAsFixed(2)} more needed to reach the ₹100 (100 Rupees) cash withdrawal threshold.',
+            progressText,
             style: TextStyle(
-              color: canWithdraw ? const Color(0xFF10B981) : AppColors.textSecondary,
+              color: canWithdraw
+                  ? const Color(0xFF10B981)
+                  : (isAwaitingFirstOfMonth ? const Color(0xFF60A5FA) : AppColors.textSecondary),
               fontSize: 11,
             ),
           ),
@@ -191,48 +281,27 @@ import 'package:truthworld/theme/app_theme.dart';
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () {
-                if (isHeld) {
-                  AppSnackbar.warning(
-                    controller.withdrawalHoldReason.value.isNotEmpty
-                        ? controller.withdrawalHoldReason.value
-                        : 'TruthWorld has covered 100% of your viral infrastructure surge costs! Please upgrade your custom channel plan to release revenue withdrawals.',
-                    title: 'Withdrawal On Hold',
-                  );
-                } else if (canWithdraw) {
-                  RevenueWithdrawalDialog.show(context);
-                } else {
-                  _showThresholdNoticeDialog(context, controller);
-                }
-              },
+              onPressed: onButtonPressed,
               icon: Icon(
-                isHeld
-                    ? Icons.lock_clock_rounded
-                    : (canWithdraw ? Icons.payments_rounded : Icons.lock_outline_rounded),
+                buttonIcon,
                 color: Colors.white,
                 size: 18,
               ),
               label: Text(
-                isHeld
-                    ? 'Withdrawal on Hold (Upgrade Plan)'
-                    : (canWithdraw ? 'Withdraw Funds' : 'Withdraw Earnings (Minimum ₹100)'),
+                buttonLabel,
                 style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: isHeld
-                    ? const Color(0xFFD97706)
-                    : (canWithdraw ? const Color(0xFF10B981) : const Color(0xFF27272A)),
+                backgroundColor: buttonBgColor,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 13),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                   side: BorderSide(
-                    color: isHeld
-                        ? const Color(0xFFF59E0B)
-                        : (canWithdraw ? const Color(0xFF10B981) : const Color(0xFF3F3F46)),
+                    color: buttonBorderColor,
                   ),
                 ),
               ),
@@ -258,7 +327,7 @@ import 'package:truthworld/theme/app_theme.dart';
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Instant Use: You do not need to wait for ₹100 to use your earnings — your balance of ₹${available.toStringAsFixed(2)} is immediately usable for AI Subtitles and Dubbing!',
+                    'Instant Use: You do not need to wait for the 1st of the month or ₹100 to use your earnings — your balance of ₹${available.toStringAsFixed(2)} is immediately usable for AI Subtitles and Dubbing!',
                     style: const TextStyle(
                       color: Color(0xFFC7D2FE),
                       fontSize: 11,
@@ -271,6 +340,62 @@ import 'package:truthworld/theme/app_theme.dart';
           ),
         ],
       ),
+    );
+  }
+
+  void _showMonthlyPayoutScheduleDialog(
+    BuildContext context,
+    RevenueAnalyticsController controller,
+  ) {
+    final nextDate = RevenueAnalyticsStateBase.upcomingFirstOfMonthFormatted;
+    final available = controller.totalRevenue.value;
+
+    Get.defaultDialog(
+      title: 'YouTube-Style Monthly Payout',
+      backgroundColor: const Color(0xFF18181B),
+      titleStyle: const TextStyle(
+        color: AppColors.textPrimary,
+        fontWeight: FontWeight.bold,
+        fontSize: 17,
+      ),
+      content: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.calendar_month_rounded,
+                color: Colors.white,
+                size: 32,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'TruthWorld operates on a YouTube-standard monthly payout cycle:\n\n'
+              '• Monthly Window: Cash withdrawals open on the 1st of every month.\n'
+              '• 1-Day Grace Period: If you miss Day 1, you can still withdraw on Day 2.\n'
+              '• Automatic Rollover: If missed, 100% of your earnings roll over automatically to next month ($nextDate) — your funds never expire or disappear!\n\n'
+              'Your current accumulated earnings: ₹${available.toStringAsFixed(2)} (₹100 threshold met).\n\n'
+              'Instant AI Use: 100% of your earnings can be spent immediately anytime on AI Subtitles and Dubbing without waiting!',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+                height: 1.45,
+              ),
+            ),
+          ],
+        ),
+      ),
+      textConfirm: 'Got it',
+      confirmTextColor: Colors.black,
+      buttonColor: const Color(0xFF3B82F6),
+      onConfirm: Get.back,
     );
   }
 
@@ -304,12 +429,14 @@ import 'package:truthworld/theme/app_theme.dart';
             ),
             const SizedBox(height: 16),
             Text(
-              'The minimum cash withdrawal threshold is ₹100 (100 Rupees).'
+              'The minimum cash withdrawal threshold is ₹100 (100 Rupees), and cash withdrawals process on the 1st day of every month (with a 1-day grace period on Day 2).'
               '\n\n'
               'Your current accumulated earnings are ₹${controller.totalRevenue.value.toStringAsFixed(2)}. '
-              'You need ₹${controller.remainingToWithdraw.toStringAsFixed(2)} more in creator revenue to unlock direct cash withdrawals.'
+              'You need ₹${controller.remainingToWithdraw.toStringAsFixed(2)} more in creator revenue to reach the threshold.'
               '\n\n'
-              'Platform Advantage: 100% of your earnings can be spent immediately anytime on platform AI features (Subtitles, Dubbing, and Highlights) without meeting the ₹100 payout gate!',
+              'Next Payout Window: ${RevenueAnalyticsStateBase.upcomingFirstOfMonthFormatted}.'
+              '\n\n'
+              'YouTube Rollover Guarantee: Unwithdrawn or missed earnings automatically roll over to the next month without loss, and 100% can be spent immediately anytime on AI Subtitles and Dubbing!',
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: AppColors.textSecondary,

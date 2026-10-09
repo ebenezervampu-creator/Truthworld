@@ -34,12 +34,32 @@ class TrendingVideosService {
       final daysOld = DateTime.now().difference(date).inDays + 1; // Avoid division by zero
       final recencyWeight = 1.0 / daysOld;
 
-      // Trending Score Formula
-      final trendingScore =
+      // Credibility Multiplier based on verified trustScore
+      final trustScore = (data['trustScore'] as num?)?.toDouble() ?? 0.0;
+      final double credibilityMultiplier;
+      if (trustScore >= 4.0) {
+        credibilityMultiplier = 1.25;
+      } else if (trustScore >= 3.0) {
+        credibilityMultiplier = 1.15;
+      } else if (trustScore >= 2.0) {
+        credibilityMultiplier = 1.0;
+      } else if (trustScore <= 0.0) {
+        credibilityMultiplier = 0.90; // Fair baseline for unverified content
+      } else if (trustScore >= 1.0) {
+        credibilityMultiplier = 0.50; // Demote low credibility
+      } else {
+        credibilityMultiplier = 0.20; // Heavily demote false content (< 1.0)
+      }
+
+      // Base engagement score
+      final baseEngagement =
           (views * 0.5) +
           (likes * 0.3) +
           (comments * 0.2) +
           (recencyWeight * 100);
+
+      // Credibility-aware Trending Score Formula
+      final trendingScore = baseEngagement * credibilityMultiplier;
 
       return {...data, 'trendingScore': trendingScore};
     }).toList();

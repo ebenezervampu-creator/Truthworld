@@ -6,6 +6,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/network/app_http_client.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/cashfree/cashfree_country_support.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 
 /// Service that dynamically resolves the user's localized currency with
@@ -65,11 +66,24 @@ class CurrencyLocalizationService extends GetxService {
   static const String _storageKeyRate = 'realtime_usd_to_inr_rate';
   static const String _storageKeyUpdatedAt = 'realtime_usd_to_inr_updated_at';
   static const String _storageKeySource = 'realtime_usd_to_inr_source';
+  static const String _storageKeyCountry = 'cached_user_country_code';
+
+  Worker? _authCountryWorker;
 
   @override
   void onInit() {
     super.onInit();
     detectUserCountry();
+    if (Get.isRegistered<AuthService>()) {
+      _authCountryWorker = ever<String?>(AuthService.to.userCountry, (newCountry) {
+        if (newCountry != null && newCountry.isNotEmpty) {
+          final code = _normalizeCountryCode(newCountry);
+          if (code.isNotEmpty && code != userCountryCode.value) {
+            _persistCountryCode(code);
+          }
+        }
+      });
+    }
     if (enablePersistentStorage) {
       // Non-blocking real-time country refresh on every app launch.
       // Runs after detectUserCountry() so the Firestore-cached code is applied
@@ -86,6 +100,7 @@ class CurrencyLocalizationService extends GetxService {
   void onClose() {
     _refreshTimer?.cancel();
     _firestoreConfigSub?.cancel();
+    _authCountryWorker?.dispose();
     super.onClose();
   }
 
@@ -259,6 +274,7 @@ class CurrencyLocalizationService extends GetxService {
   /// Used as the immediate initial value at app start.
   /// A real-time correction is then applied asynchronously by [_refreshCountryFromIp].
   void detectUserCountry() {
+    // 1. Profile country from authenticated user's Firestore doc
     if (Get.isRegistered<AuthService>()) {
       final country = AuthService.to.userCountry.value;
       if (country != null && country.isNotEmpty) {
@@ -269,8 +285,29 @@ class CurrencyLocalizationService extends GetxService {
         }
       }
     }
-    // Default until the async IP refresh completes.
+
+    // 2. Previously cached country from persistent storage (preserves offline / returning unauthenticated users)
+    if (enablePersistentStorage) {
+      try {
+        final cached = GetStorage().read<String>(_storageKeyCountry);
+        if (cached != null && cached.length == 2) {
+          userCountryCode.value = cached.toUpperCase();
+          return;
+        }
+      } catch (_) {}
+    }
+
+    // 3. Default fallback until live IP check finishes
     userCountryCode.value = 'IN';
+  }
+
+  void _persistCountryCode(String code) {
+    userCountryCode.value = code;
+    if (enablePersistentStorage) {
+      try {
+        GetStorage().write(_storageKeyCountry, code);
+      } catch (_) {}
+    }
   }
 
   /// Fetches the real-time ISO 2-letter country code on every app launch.
@@ -279,7 +316,7 @@ class CurrencyLocalizationService extends GetxService {
   /// 2. api.country.is (Secondary, CORS-friendly, ultra-fast)
   /// 3. ipapi.co/json (Tertiary native/desktop fallback)
   /// Runs non-blocking after [detectUserCountry] so UI sees the cached
-  /// Firestore value immediately, then gets silently corrected if the live IP differs.
+  /// Firestore/storage/locale value immediately, then gets silently corrected if the live IP differs.
   Future<void> _refreshCountryFromIp() async {
     // 1. Primary: ipwho.is (CORS-friendly for Web, HTTPS)
     try {
@@ -291,7 +328,7 @@ class CurrencyLocalizationService extends GetxService {
         if (data['success'] == true) {
           final code = data['country_code']?.toString();
           if (code != null && code.length == 2) {
-            userCountryCode.value = code.toUpperCase();
+            _persistCountryCode(code.toUpperCase());
             return;
           }
         }
@@ -307,7 +344,7 @@ class CurrencyLocalizationService extends GetxService {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
         final code = data['country']?.toString();
         if (code != null && code.length == 2) {
-          userCountryCode.value = code.toUpperCase();
+          _persistCountryCode(code.toUpperCase());
           return;
         }
       }
@@ -322,7 +359,7 @@ class CurrencyLocalizationService extends GetxService {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
         final code = data['country_code']?.toString();
         if (code != null && code.length == 2) {
-          userCountryCode.value = code.toUpperCase();
+          _persistCountryCode(code.toUpperCase());
           return;
         }
       }
@@ -389,6 +426,50 @@ class CurrencyLocalizationService extends GetxService {
   /// Active currency for current user ('USD' for non-Indian, 'INR' for Indian)
   String get activeUserCurrency => isIndianUser ? 'INR' : 'USD';
   String get activeUserCurrencySymbol => isIndianUser ? '₹' : r'$';
+
+  /// Whether current viewer's country is supported by Cashfree Payment Gateway
+  bool get isCashfreeSupported =>
+      CashfreeCountrySupport.isCountrySupported(userCountryCode.value);
+
+  /// Whether current viewer's country is in Cashfree restricted/sanctioned list
+  bool get isRestrictedByCashfree =>
+      CashfreeCountrySupport.isRestrictedCountry(userCountryCode.value);
+
+  /// Full country information for current viewer
+  CashfreeCountryInfo get userCountryInfo =>
+      CashfreeCountrySupport.getCountryInfo(userCountryCode.value);
+
+  /// The viewer's local native currency supported by Cashfree (e.g. EUR, GBP, AED, CAD, SGD)
+  String get userNativeCurrency =>
+      CashfreeCountrySupport.getCurrencyForCountry(userCountryCode.value);
+
+  /// Human-friendly description of available payment methods for the viewer's country
+  String get paymentMethodsDescription =>
+      CashfreeCountrySupport.getPaymentMethodsDescription(userCountryCode.value);
+
+  /// Short badge summary of payment methods for current viewer
+  String get paymentMethodsSummary =>
+      CashfreeCountrySupport.getPaymentMethodsSummary(userCountryCode.value);
+
+  /// Summary for recurring mandates / autopay / subscriptions
+  String get mandateMethodsSummary =>
+      CashfreeCountrySupport.getMandateMethodsSummary(userCountryCode.value);
+
+  /// Available payment method names/badges for current viewer
+  List<String> get availablePaymentMethods =>
+      CashfreeCountrySupport.getAvailablePaymentMethods(userCountryCode.value);
+
+  /// Resolves payment methods summary for any specified country code
+  String getPaymentMethodsSummaryForCountry(String? countryCode) =>
+      CashfreeCountrySupport.getPaymentMethodsSummary(countryCode);
+
+  /// Resolves payment methods description for any specified country code
+  String getPaymentMethodsDescriptionForCountry(String? countryCode) =>
+      CashfreeCountrySupport.getPaymentMethodsDescription(countryCode);
+
+  /// Formats an amount using Cashfree currency rules and symbols
+  String formatInCurrency(double amount, String currency) =>
+      CashfreeCountrySupport.formatAmount(amount, currency);
 
   // ---------------------------------------------------------------------------
   // Conversion & Formatting APIs (Powered by Real-Time Market Rate)

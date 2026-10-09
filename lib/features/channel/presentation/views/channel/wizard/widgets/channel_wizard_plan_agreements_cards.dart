@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
+import 'package:truthworld/features/channel/presentation/views/channel/plan_selection/channel_plan_models.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class ChannelWizardPlanCard extends StatelessWidget {
@@ -30,13 +31,51 @@ class ChannelWizardPlanCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '9. Channel Plan',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                '9. Channel Plan',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              InkWell(
+                onTap: () => _openComparisonPage(context),
+                borderRadius: BorderRadius.circular(6),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6366F1).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: const Color(0xFF6366F1).withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.compare_arrows_rounded,
+                        color: Color(0xFF818CF8),
+                        size: 14,
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        'Compare',
+                        style: TextStyle(
+                          color: Color(0xFF818CF8),
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           buildContent(context),
@@ -99,8 +138,64 @@ class ChannelWizardPlanCard extends StatelessWidget {
             ),
           ),
         ),
+        const SizedBox(height: 10),
+        // Interactive "Compare Plans" button option
+        InkWell(
+          onTap: () => _openComparisonPage(context),
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              color: const Color(0xFF6366F1).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: const Color(0xFF6366F1).withValues(alpha: 0.3),
+              ),
+            ),
+            child: const Row(
+              children: [
+                Icon(
+                  Icons.compare_arrows_rounded,
+                  color: Color(0xFF818CF8),
+                  size: 16,
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Compare Standard & Custom Benefits',
+                    style: TextStyle(
+                      color: Color(0xFF818CF8),
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: Color(0xFF818CF8),
+                  size: 11,
+                ),
+              ],
+            ),
+          ),
+        ),
       ],
     );
+  }
+
+  Future<void> _openComparisonPage(BuildContext context) async {
+    final result = await Get.toNamed(
+      '/channel-plan-comparison',
+      arguments: {'initialPlan': controller.selectedPlan.value},
+    );
+    if (result is String && (result == 'standard' || result == 'custom')) {
+      controller.selectedPlan.value = result;
+      controller.planSelectionError.value = false;
+    } else if (result is ChannelPlanType) {
+      controller.selectedPlan.value =
+          result == ChannelPlanType.custom ? 'custom' : 'standard';
+      controller.planSelectionError.value = false;
+    }
   }
 
   void _showPlanPicker(BuildContext context, Map<String, String> planNames) {
@@ -158,6 +253,38 @@ class ChannelWizardPlanCard extends StatelessWidget {
                   );
                 });
               }),
+              const SizedBox(height: 8),
+              const Divider(height: 1, color: Color(0xFF27272A)),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Get.back();
+                    _openComparisonPage(context);
+                  },
+                  icon: const Icon(
+                    Icons.compare_arrows_rounded,
+                    color: Color(0xFF818CF8),
+                    size: 18,
+                  ),
+                  label: const Text(
+                    'Compare Standard & Custom Benefits',
+                    style: TextStyle(
+                      color: Color(0xFF818CF8),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFF6366F1)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),

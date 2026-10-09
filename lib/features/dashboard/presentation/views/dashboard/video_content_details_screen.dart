@@ -8,7 +8,9 @@ import 'package:truthworld/features/dashboard/presentation/controllers/chapters_
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/chapters_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/edit_videoscreen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/widgets/video_ai_features_card.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/widgets/video_pipeline_status.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/widgets/video_technical_details_card.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -306,9 +308,24 @@ class VideoContentDetailsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 20),
 
-            // Section Header
+            // AI Content Features & Localization Overview
+            VideoAIFeaturesOverviewCard(
+              video: video,
+              isDarkMode: isDarkMode,
+              controller: controller,
+            ),
+
+            // Complete Video Details (A - Z Technical Inventory)
+            VideoTechnicalDetailsCard(
+              video: video,
+              isDarkMode: isDarkMode,
+            ),
+
+            const SizedBox(height: 8),
+
+            // Section Header: Transcoding Pipeline & Moderation Stages
             Text(
-              'Content Pipeline & Safety Intelligence',
+              'Transcoding Pipeline & Safety Intelligence',
               style: AppTextStyles.titleMedium.copyWith(
                 color: AppColors.textPrimary,
                 fontWeight: FontWeight.bold,
@@ -317,7 +334,7 @@ class VideoContentDetailsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'Includes Video Content Moderation, Thumbnail Safety, AI Metadata, & Transcoding Pipeline Stages',
+              'Real-time edge transcoding, speech transcription, safety moderation, and artifact storage.',
               style: AppTextStyles.caption.copyWith(
                 color: AppColors.textSecondary,
               ),

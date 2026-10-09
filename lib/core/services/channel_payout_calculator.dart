@@ -43,6 +43,12 @@ class VideoWithdrawalEligibility {
 }
 
 class ChannelPayoutCalculator {
+  /// Channel monetization qualification threshold: 1,000 views on any video
+  static const int channelMonetizationViewsThreshold = 1000;
+
+  /// Channel monetization qualification threshold: 10 Hours (600 mins) watch time on any video
+  static const int channelMonetizationWatchTimeMinutesThreshold = 600;
+
   /// Channel video withdrawal threshold: 10 Hours (600 mins) of watch time per video (Standard & Custom)
   static const int channelWithdrawalWatchTimeMinutesThreshold =
       600; // 10 Hours
@@ -51,6 +57,17 @@ class ChannelPayoutCalculator {
 
   /// Channel video withdrawal threshold: 1,000 views per video (Standard & Custom)
   static const int channelWithdrawalViewsThreshold = 1000; // 1k Views
+
+  /// Evaluates whether a channel meets the qualification criteria to turn monetization ON:
+  /// 1. Any video of the channel has crossed 1,000 views AND 10 hours (600 mins) watch time.
+  /// 2. Creator KYC verification is completed.
+  /// Once ON, all videos on the channel generate revenue.
+  static bool isChannelMonetizationEligible({
+    required bool hasQualifiedVideo,
+    required bool isKycVerified,
+  }) {
+    return hasQualifiedVideo && isKycVerified;
+  }
 
   /// Calculates revenue payout for a Standard Channel:
   /// - Ad Revenue: 70% Creator / 30% Platform

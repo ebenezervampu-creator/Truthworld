@@ -902,6 +902,25 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
                 ],
               ],
             ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.lock_outline_rounded,
+                  size: 12,
+                  color: AppColors.textTertiary,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'Secured by Cashfree • ${CurrencyLocalizationService.to.paymentMethodsSummary}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textTertiary,
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),

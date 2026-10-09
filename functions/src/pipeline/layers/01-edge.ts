@@ -122,7 +122,7 @@ export class EdgeLayer {
         queue: { status: "running", progress: 50, startedAt: now },
         transcription: this.stagePending(),
         credibility: plan.enablePath1 ? this.stagePending() : this.stageSkipped(),
-        dubbing: plan.enablePath2 ? this.stagePending() : this.stageSkipped(),
+        dubbing: plan.generateDubbing ? this.stagePending() : this.stageSkipped(),
       };
 
       if (plan.enablePath2 || plan.enableReachEngine) {

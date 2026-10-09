@@ -4,6 +4,7 @@
 // Adaptive grid layout that provides excellent responsive behavior
 // across all device sizes with optimal column counts and spacing
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:truthworld/core/widgets/modern_video_card.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -64,10 +65,16 @@ class ResponsiveVideoGrid extends StatelessWidget {
   }
 
   Widget _buildGridView(BuildContext context) {
-    final columns = Responsive.getGridColumns(
-      context.screenWidth,
-      maxColumns: maxColumns ?? 4,
-    );
+    final isMobileDevice = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    final columns = isMobileDevice
+        ? Responsive.getGridColumns(
+            context.screenWidth,
+            maxColumns: maxColumns ?? 4,
+          )
+        : (context.screenWidth >= 2100
+            ? 4
+            : (context.screenWidth >= 1600 ? 3 : 2));
 
     return Padding(
       padding: padding ?? context.contentPadding,

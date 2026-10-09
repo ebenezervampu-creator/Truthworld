@@ -51,6 +51,55 @@ class UserFeedbackSanitizer {
     RegExp('server error', caseSensitive: false),
   ];
 
+  /// Known technical moderation, timeout, or developer status signatures that must NEVER leak as a video summary.
+  static final List<Pattern> _invalidSummaryPatterns = [
+    RegExp('moderation timed out', caseSensitive: false),
+    RegExp('video apppro?ved pending', caseSensitive: false),
+    RegExp('pending async review', caseSensitive: false),
+    RegExp('moderation could not complete', caseSensitive: false),
+    RegExp('video verification in progress', caseSensitive: false),
+    RegExp('held safely in review queue', caseSensitive: false),
+    RegExp('video held for admin', caseSensitive: false),
+    RegExp('admin manual review', caseSensitive: false),
+    RegExp('routed to admin', caseSensitive: false),
+    RegExp('gemini ai bypassed', caseSensitive: false),
+    RegExp('bypassed per system settings', caseSensitive: false),
+    RegExp('quota saturated', caseSensitive: false),
+    RegExp('quota_backpressure', caseSensitive: false),
+    RegExp('timeout_passthrough', caseSensitive: false),
+    RegExp('retry_exhausted_passthrough', caseSensitive: false),
+    RegExp('summary unavailable', caseSensitive: false),
+    RegExp('synthesis unavailable', caseSensitive: false),
+    RegExp('analysis unavailable', caseSensitive: false),
+    RegExp('peak load', caseSensitive: false),
+    RegExp('scheduled for verification review', caseSensitive: false),
+    RegExp('moderation system error', caseSensitive: false),
+    RegExp('strategic analysis unavailable', caseSensitive: false),
+    RegExp('infrastructure timeout', caseSensitive: false),
+  ];
+
+  /// Checks if a string is a genuine content summary and not a moderation/system message.
+  static bool isValidVideoSummary(String? summary) {
+    if (summary == null) return false;
+    final trimmed = summary.trim();
+    if (trimmed.isEmpty) return false;
+
+    for (final pattern in _invalidSummaryPatterns) {
+      if (trimmed.contains(pattern)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Returns a clean video summary if valid, or an empty string if invalid or a moderation message.
+  static String sanitizeVideoSummary(String? summary) {
+    if (!isValidVideoSummary(summary)) {
+      return '';
+    }
+    return summary!.trim();
+  }
+
   /// Generic or harsh titles that must be sanitized or removed.
   static final Set<String> _forbiddenTitles = {
     'error',

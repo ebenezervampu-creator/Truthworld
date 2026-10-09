@@ -2,8 +2,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/widgets/pipeline/pipeline_components.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/data/models/video_media.dart';
+import 'package:truthworld/features/video/data/services/video_media_service.dart';
+import 'package:truthworld/features/video/presentation/widgets/fact_check_report_widget.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 export 'package:truthworld/features/dashboard/presentation/views/dashboard/widgets/pipeline/pipeline_components.dart';
@@ -332,34 +336,16 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                                       ),
                                     ],
 
-                                    // Section 6: Video Verification Summary
-                                    if (video.description.isNotEmpty &&
-                                        video.status.name == 'ready') ...[
-                                      const SizedBox(height: 16),
-                                      _buildSectionTitle(
-                                        'Video Verification Summary',
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Container(
-                                        width: double.infinity,
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.bgSurfaceHover,
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          video.description,
-                                          style: AppTextStyles.bodyMedium
-                                              .copyWith(
-                                                fontSize: 13,
-                                                color: AppColors.textSecondary,
-                                                height: 1.4,
-                                              ),
-                                        ),
-                                      ),
-                                    ],
+                                    // Section 6: AI Verification & Fact-Checking Intelligence
+                                    _buildVerificationIntelligenceSection(
+                                      context,
+                                      stages,
+                                      jobDocData,
+                                      videoDocData,
+                                    ),
+
+                                    // Section 7: Creator Video Description
+                                    _buildCreatorDescriptionSection(),
 
                                     const SizedBox(height: 16),
                                     PipelineGenerateAIButton(
@@ -417,4 +403,449 @@ class VideoPipelineStatusWidget extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildVerificationIntelligenceSection(
+    BuildContext context,
+    Map<String, dynamic> stages,
+    Map<String, dynamic>? jobDocData,
+    Map<String, dynamic>? videoDocData,
+  ) {
+    final transcriptionData = stages['transcription'] as Map<String, dynamic>?;
+    final rawTranscriptionStatus =
+        (transcriptionData?['status'] as String?)?.toLowerCase() ?? 'pending';
+    final hasValidTranscript = video.transcriptionUrl.isNotEmpty &&
+        !video.transcriptionUrl.contains('placeholder');
+    final isTranscriptionFailed =
+        rawTranscriptionStatus == 'failed' && !hasValidTranscript;
+
+    final credibilityData = stages['credibility'] as Map<String, dynamic>?;
+    final rawCredibilityStatus =
+        (credibilityData?['status'] as String?)?.toLowerCase() ?? 'pending';
+
+    final jobOutputs =
+        (jobDocData?['outputs'] as Map<String, dynamic>?) ?? {};
+    final outputsTrustScore =
+        (jobOutputs['trustScore'] as num?)?.toDouble() ?? video.trustScore;
+
+    return StreamBuilder<VideoMediaCredibility>(
+      stream: VideoMediaService().streamCredibility(video.id),
+      builder: (context, credSnap) {
+        final cred = credSnap.data ??
+            VideoMediaService.credibilityCache[video.id] ??
+            const VideoMediaCredibility();
+
+        final hasCredibilityResults = cred.claims.isNotEmpty ||
+            cred.trustScore > 0 ||
+            outputsTrustScore > 0 ||
+            video.hasAiCredibility ||
+            rawCredibilityStatus == 'completed';
+
+        final effectiveTrustScore = cred.trustScore > 0
+            ? cred.trustScore
+            : (outputsTrustScore > 0 ? outputsTrustScore : video.trustScore);
+
+        final rawSummary = cred.summary.isNotEmpty
+            ? cred.summary
+            : ((videoDocData?['summary'] as String?) ?? '');
+        final hasRealAiSummary = rawSummary.isNotEmpty &&
+            rawSummary.trim() != video.description.trim();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                _buildSectionTitle('AI Fact-Checking & Credibility'),
+                const Spacer(),
+                if (hasCredibilityResults && effectiveTrustScore > 0)
+                  _buildMiniBadge(
+                    label: '${effectiveTrustScore.toInt()}% Trust Score',
+                    color: effectiveTrustScore >= 75
+                        ? AppColors.success
+                        : (effectiveTrustScore >= 50
+                            ? AppColors.warning
+                            : AppColors.error),
+                  )
+                else if (isTranscriptionFailed)
+                  _buildMiniBadge(
+                    label: 'Awaiting Transcript',
+                    color: AppColors.warning,
+                  )
+                else if (rawCredibilityStatus == 'in_progress')
+                  _buildMiniBadge(
+                    label: 'Verifying Claims...',
+                    color: AppColors.info,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            // Case 1: Transcription Failed -> Fact-checking blocked
+            if (isTranscriptionFailed && !hasCredibilityResults)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: AppColors.warning.withValues(alpha: 0.35),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.warning_amber_rounded,
+                          size: 18,
+                          color: AppColors.warning,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Speech Transcription Required for Fact-Checking',
+                            style: AppTextStyles.labelMedium.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.warning,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'TruthWorld extracts and verifies claims directly from spoken audio transcripts. Because speech transcription did not complete, AI claim verification cannot run yet.',
+                      style: AppTextStyles.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.3),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      icon: const Icon(
+                        Icons.refresh_rounded,
+                        size: 15,
+                        color: Colors.white,
+                      ),
+                      label: Text(
+                        'Retry Transcription & Fact-Checking',
+                        style: AppTextStyles.labelSmall.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      onPressed: () {
+                        final controller =
+                            Get.isRegistered<VideoManagementController>()
+                                ? Get.find<VideoManagementController>()
+                                : Get.put(VideoManagementController());
+                        showGenerateAIFeaturesQuickModal(
+                          context,
+                          video,
+                          controller,
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              )
+            // Case 2: Credibility In Progress
+            else if (rawCredibilityStatus == 'in_progress')
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.bgSurfaceHover,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: AppColors.info.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Credibility Engine in Progress',
+                            style: AppTextStyles.labelMedium.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Extracting verifiable claims from the transcript and cross-referencing authoritative sources...',
+                            style: AppTextStyles.bodySmall.copyWith(
+                              color: AppColors.textSecondary,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            // Case 3: Genuine Fact-Checking Results Available
+            else if (hasCredibilityResults)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.bgSurfaceHover,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: AppColors.bgDivider,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (hasRealAiSummary) ...[
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.auto_awesome_rounded,
+                            size: 15,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'AI Verification Summary',
+                            style: AppTextStyles.labelSmall.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        rawSummary,
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        if (cred.claims.isNotEmpty)
+                          _buildMiniBadge(
+                            label: '${cred.claims.length} Claims Evaluated',
+                            color: Colors.white70,
+                          ),
+                        if (cred.sources.isNotEmpty)
+                          _buildMiniBadge(
+                            label: '${cred.sources.length} Verified Sources',
+                            color: Colors.white70,
+                          ),
+                        if (cred.trustLabel != null &&
+                            cred.trustLabel!.isNotEmpty)
+                          _buildMiniBadge(
+                            label: cred.trustLabel!,
+                            color: effectiveTrustScore >= 75
+                                ? AppColors.success
+                                : AppColors.warning,
+                          ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.3),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      icon: const Icon(
+                        Icons.analytics_rounded,
+                        size: 16,
+                        color: Colors.white,
+                      ),
+                      label: Text(
+                        'View Full Fact-Check Report',
+                        style: AppTextStyles.labelMedium.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      onPressed: () {
+                        final factData = cred.toMap();
+                        if (!factData.containsKey('trustScore') ||
+                            (factData['trustScore'] as num? ?? 0) == 0) {
+                          factData['trustScore'] = effectiveTrustScore;
+                        }
+                        Get.bottomSheet(
+                          FactCheckReportWidget(
+                            data: factData,
+                            video: video,
+                          ),
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              )
+            // Case 4: Not yet run
+            else
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.bgSurfaceHover,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'No Fact-Check Report Generated Yet',
+                      style: AppTextStyles.labelMedium.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Generate on-demand AI fact-checking to extract claims and verify authenticity against trusted sources.',
+                      style: AppTextStyles.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.3),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      icon: const Icon(
+                        Icons.fact_check_rounded,
+                        size: 15,
+                        color: Colors.white,
+                      ),
+                      label: Text(
+                        'Run On-Demand Fact-Check',
+                        style: AppTextStyles.labelSmall.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      onPressed: () {
+                        final controller =
+                            Get.isRegistered<VideoManagementController>()
+                                ? Get.find<VideoManagementController>()
+                                : Get.put(VideoManagementController());
+                        showGenerateAIFeaturesQuickModal(
+                          context,
+                          video,
+                          controller,
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildCreatorDescriptionSection() {
+    if (video.description.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 16),
+        _buildSectionTitle('Creator Video Description'),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.bgSurfaceHover,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                video.description,
+                style: AppTextStyles.bodyMedium.copyWith(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Provided by creator at upload',
+                style: AppTextStyles.labelSmall.copyWith(
+                  fontSize: 11,
+                  color: AppColors.textTertiary,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 }
+

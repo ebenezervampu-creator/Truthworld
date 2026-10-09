@@ -6,6 +6,7 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/cashfree_service.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/live_chat_message.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -284,20 +285,29 @@ class LiveChatController extends BaseController {
       }
     }
 
-    if (amountINR.isNaN || amountINR.isInfinite || amountINR < 1.0) {
-      AppSnackbar.warning('Minimum Super Chat amount is ₹1.00.');
+    final isUsd = originalCurrency == 'USD' && originalAmount != null;
+    final isIndian = !Get.isRegistered<CurrencyLocalizationService>() ||
+        CurrencyLocalizationService.to.isIndianUser;
+    final chargeCurrency = isUsd ? 'USD' : (isIndian ? 'INR' : 'USD');
+    final chargeAmount = (chargeCurrency == 'USD' && originalAmount != null)
+        ? originalAmount
+        : double.parse(amountINR.toStringAsFixed(2));
+
+    final minAmount = chargeCurrency == 'USD' ? 0.50 : 1.0;
+    if (chargeAmount.isNaN || chargeAmount.isInfinite || chargeAmount < minAmount) {
+      final minStr = chargeCurrency == 'USD' ? r'$0.50' : '₹1.00';
+      AppSnackbar.warning('Minimum Super Chat amount is $minStr.');
       return false;
     }
 
     try {
       final cleanText = ContentValidator.cleanProfanity(text);
-      final isUsd = originalCurrency == 'USD' && originalAmount != null;
-      final orderNote = isUsd
-          ? 'Superchat on ${video!.title} (\$${originalAmount.toStringAsFixed(2)} USD)'
+      final orderNote = chargeCurrency == 'USD'
+          ? 'Superchat on ${video!.title} (\$$chargeAmount USD)'
           : 'Superchat on ${video!.title}';
-      final sanitizedAmountINR = double.parse(amountINR.toStringAsFixed(2));
       final paymentResult = await CashfreePaymentService.to.startPayment(
-        amount: sanitizedAmountINR,
+        amount: chargeAmount,
+        currency: chargeCurrency,
         purpose: 'superchat',
         orderNote: orderNote,
         metadata: {
@@ -306,8 +316,10 @@ class LiveChatController extends BaseController {
           'text': cleanText,
           'userName': currentUserName,
           'userProfilePicUrl': currentUserPhoto,
+          'chargeAmount': chargeAmount,
+          'currency': chargeCurrency,
           if (isUsd) 'originalAmount': originalAmount,
-          'originalCurrency': originalCurrency ?? 'INR',
+          'originalCurrency': originalCurrency ?? chargeCurrency,
         },
       );
 

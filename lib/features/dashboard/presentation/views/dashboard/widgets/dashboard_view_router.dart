@@ -7,7 +7,6 @@ import 'package:truthworld/features/dashboard/presentation/controllers/dashboard
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/analytics_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audience_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks_page.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/category_insights_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/chapters_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/content_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/copyright_screen.dart';
@@ -20,7 +19,6 @@ import 'package:truthworld/features/dashboard/presentation/views/dashboard/playl
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/studio_settings_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/topic_management_screen.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/trash_restore_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification_dashboard_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/widgets/dashboard_overview_content.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -105,13 +103,23 @@ class DashboardViewRouter extends StatelessWidget {
         );
       case 2:
         final tabParam = (Get.parameters['tab'] ?? '').toLowerCase();
-        final isDrafts = Get.currentRoute.toLowerCase().contains('/drafts') ||
+        final currentRoute = Get.currentRoute.toLowerCase();
+        final isDrafts = currentRoute.contains('/drafts') ||
             tabParam == 'drafts';
+        final isTrash = currentRoute.contains('/trash') ||
+            tabParam == 'trash' ||
+            tabParam == '13';
+        var initialIdx = 0;
+        if (isTrash) {
+          initialIdx = 4;
+        } else if (isDrafts) {
+          initialIdx = 2;
+        }
         return ContentScreen(
           channelId: channelId,
           isDarkMode: isDarkMode,
           searchQuery: dashboardController.searchQuery.value,
-          initialIndex: isDrafts ? 2 : 0,
+          initialIndex: initialIdx,
         );
       case 3:
         return AnalyticsScreen(
@@ -153,9 +161,11 @@ class DashboardViewRouter extends StatelessWidget {
           isDarkMode: isDarkMode,
         );
       case 13:
-        return TrashRestoreScreen(
+        return ContentScreen(
           channelId: channelId,
           isDarkMode: isDarkMode,
+          searchQuery: dashboardController.searchQuery.value,
+          initialIndex: 4,
         );
       case 14:
         return TopicManagementScreen(
@@ -182,11 +192,6 @@ class DashboardViewRouter extends StatelessWidget {
         );
       case 18:
         return MembershipsScreen(
-          channelId: channelId,
-          isDarkMode: isDarkMode,
-        );
-      case 19:
-        return CategoryInsightsScreen(
           channelId: channelId,
           isDarkMode: isDarkMode,
         );

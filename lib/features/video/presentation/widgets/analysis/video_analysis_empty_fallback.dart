@@ -71,12 +71,12 @@ class VideoAnalysisEmptyFallback extends StatelessWidget {
 
                   if (isAudioOnly) {
                     upgradeDescription =
-                        r'You currently have the $0.50 (₹40) Audio Premium plan. Upgrade to the $3 Fact-Checked Plan for only ₹209 ($3 - 40 rupees) to unlock verified and on-demand fact-checking on every video.';
-                    buttonLabel = r'Upgrade for ₹209 ($3 - 40 rupees)';
+                        r'You currently have the $0.50 Audio Premium plan. Upgrade to the $3 Fact-Checked Plan to unlock verified and on-demand fact-checking on every video with full credit applied.';
+                    buttonLabel = r'Upgrade to $3 Fact-Checked Plan';
                   } else if (hasFullPrem) {
                     upgradeDescription =
-                        r'You currently have TruthWorld Premium ($2). Upgrade to the $3 Fact-Checked Plan for only ₹80 ($3 - $2 credit applied) to unlock verified and on-demand fact-checking on every video.';
-                    buttonLabel = r'Upgrade for ₹80 ($3 - $2)';
+                        r'You currently have TruthWorld Premium ($2). Upgrade to the $3 Fact-Checked Plan to unlock verified and on-demand fact-checking on every video with full credit applied.';
+                    buttonLabel = r'Upgrade to $3 Fact-Checked Plan';
                   } else {
                     upgradeDescription =
                         r'On-demand AI video fact-checking is exclusive to the $3 TruthWorld Premium + Fact-Checked Plan. Upgrade to fact-check any video instantly with AI claim verification and truth scores.';

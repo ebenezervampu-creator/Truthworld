@@ -186,12 +186,10 @@ interface ClaimForHonesty {
 function getClaimHonestyContribution(c: ClaimForHonesty): number {
   const { claimType, assertiveness } = c;
 
-  // Faith/belief claims — reward humble framing, penalise authority
+  // Faith/belief claims — respect freedom of conviction; non-empirical doctrine
+  // is evaluated for sincere expression without penalizing assertiveness.
   if (claimType === 'doctrinal_metaphysical' || (claimType as string) === 'faith_based') {
-    if (assertiveness === 'casual' || assertiveness === 'moderate') return 1.0;
-    if (assertiveness === 'confident') return 0.5;
-    if (assertiveness === 'authoritative') return -0.5;
-    if (assertiveness === 'absolute') return -2.0;
+    return 1.0;
   }
 
   // Opinion/editorial claims
@@ -346,6 +344,21 @@ export function detectContextualFlags(
     const trigger = matchingClaims[0]?.text ?? '';
     flags.push({ topic: topic.topic, claimText: trigger, perspectives: topic.perspectives, aiNote: topic.aiNote });
   }
+
+  // Dynamic multi-perspective detection: surface nuance for disputed claims
+  for (const claim of claims) {
+    if ((claim.status as string) === 'disputed' && !flags.some(f => f.claimText === claim.text)) {
+      flags.push({
+        topic: 'Actively Debated Topic',
+        claimText: claim.text,
+        perspectives: [
+          { label: 'Competing Perspectives', explanation: 'Multiple credible perspectives or active scholarly/expert debates exist.' },
+        ],
+        aiNote: 'This topic involves active discussion across sources with differing legitimate perspectives.',
+      });
+    }
+  }
+
   return flags;
 }
 
@@ -508,9 +521,13 @@ export function computeCategoryAwareScore(
     if (claim.status === 'false_claim' || (claim.status as string) === 'false') {
       penaltyApplied += Math.abs(profile.falsehood_penalty);
       weightedSum = Math.max(0, weightedSum + profile.falsehood_penalty);
-    } else if (['needs_context', 'misleading', 'missing_context', 'mostly_true', 'disputed'].includes(claim.status as string)) {
+    } else if (claim.status === 'misleading') {
       penaltyApplied += Math.abs(profile.misleading_penalty);
       weightedSum = Math.max(0, weightedSum + profile.misleading_penalty);
+    } else if (['needs_context', 'missing_context'].includes(claim.status as string)) {
+      const contextPenalty = profile.misleading_penalty * 0.5;
+      penaltyApplied += Math.abs(contextPenalty);
+      weightedSum = Math.max(0, weightedSum + contextPenalty);
     }
   }
 

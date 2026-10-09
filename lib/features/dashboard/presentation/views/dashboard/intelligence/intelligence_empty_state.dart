@@ -21,14 +21,14 @@ class IntelligenceEmptyState extends StatelessWidget {
                 border: Border.all(color: AppColors.bgDivider),
               ),
               child: const Icon(
-                Icons.insights_rounded,
+                Icons.notifications_none_rounded,
                 size: 40,
                 color: Colors.white,
               ),
             ),
             const SizedBox(height: 16),
             const Text(
-              'No Creator Insights Yet',
+              'No Notifications Yet',
               style: TextStyle(
                 fontFamily: TWTypography.brandFamily,
                 fontFamilyFallback: TWTypography.fallbackFamilies,
@@ -40,7 +40,7 @@ class IntelligenceEmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             const Text(
-              'Milestones, video verification audit reports, and AI growth tips will appear here.',
+              'Channel milestones, updates, video verification audit reports, and alerts will appear here.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontFamily: TWTypography.uiFamily,

@@ -130,10 +130,18 @@ class WebPlatformUtilsImpl {
       final nav = web.window.navigator as JSObject;
       if (nav.has('connection')) {
         final conn = nav['connection'] as JSObject?;
-        if (conn != null && conn.has('downlink')) {
-          final downlink = conn['downlink'] as JSNumber?;
-          if (downlink != null) {
-            return downlink.toDartDouble * 1000;
+        if (conn != null) {
+          if (conn.has('saveData')) {
+            final saveData = conn['saveData'] as JSBoolean?;
+            if (saveData != null && saveData.toDart) {
+              return 800; // Data Saver mode active: conservative 800 kbps
+            }
+          }
+          if (conn.has('downlink')) {
+            final downlink = conn['downlink'] as JSNumber?;
+            if (downlink != null) {
+              return downlink.toDartDouble * 1000;
+            }
           }
         }
       }
@@ -284,6 +292,18 @@ class WebPlatformUtilsImpl {
 class _WebAudioPlayer implements WebAudioPlayerAdapter {
   web.HTMLAudioElement? _audioElement;
   web.MediaSession? _mediaSession;
+  double? _pendingSeekSeconds;
+
+  void _safePlay() {
+    if (_audioElement == null) return;
+    try {
+      final promise = _audioElement!.play();
+      promise.toDart.catchError((Object? err) {
+        // Suppress transient AbortError / NotAllowedError
+        return null;
+      });
+    } catch (_) {}
+  }
 
   @override
   void init({
@@ -304,7 +324,13 @@ class _WebAudioPlayer implements WebAudioPlayerAdapter {
       _audioElement!.onpause = ((web.Event _) => onPause()).toJS;
       _audioElement!.onended = ((web.Event _) => onEnded()).toJS;
       _audioElement!.onwaiting = ((web.Event _) => onWaiting()).toJS;
-      _audioElement!.oncanplay = ((web.Event _) => onCanPlay()).toJS;
+      _audioElement!.oncanplay = ((web.Event _) {
+        if (_pendingSeekSeconds != null && _audioElement != null) {
+          _audioElement!.currentTime = _pendingSeekSeconds!;
+          _pendingSeekSeconds = null;
+        }
+        onCanPlay();
+      }).toJS;
       _audioElement!.onerror = ((web.Event e) {
         onError('Unable to play audio. Please check your connection and try again.');
       }).toJS;
@@ -325,31 +351,42 @@ class _WebAudioPlayer implements WebAudioPlayerAdapter {
     _audioElement!.src = url;
     _audioElement!.volume = volume.clamp(0.0, 1.0);
     _audioElement!.loop = loop;
-    _audioElement!.play();
+    _safePlay();
   }
 
   @override
   void play() {
-    _audioElement?.play();
+    _safePlay();
   }
 
   @override
   void pause() {
-    _audioElement?.pause();
+    try {
+      _audioElement?.pause();
+    } catch (_) {}
   }
 
   @override
   void stop() {
     if (_audioElement != null) {
-      _audioElement!.pause();
-      _audioElement!.currentTime = 0;
+      try {
+        _audioElement!.pause();
+        _audioElement!.currentTime = 0;
+        _audioElement!.src = '';
+        _audioElement!.load();
+      } catch (_) {}
     }
   }
 
   @override
   void seek(double seconds) {
     if (_audioElement != null) {
-      _audioElement!.currentTime = seconds;
+      if (_audioElement!.readyState >= 1) {
+        _audioElement!.currentTime = seconds;
+        _pendingSeekSeconds = null;
+      } else {
+        _pendingSeekSeconds = seconds;
+      }
     }
   }
 
@@ -376,9 +413,12 @@ class _WebAudioPlayer implements WebAudioPlayerAdapter {
   @override
   void dispose() {
     if (_audioElement != null) {
-      _audioElement!.pause();
-      _audioElement!.src = '';
-      _audioElement!.remove();
+      _pendingSeekSeconds = null;
+      try {
+        _audioElement!.pause();
+        _audioElement!.src = '';
+        _audioElement!.remove();
+      } catch (_) {}
       _audioElement = null;
     }
   }

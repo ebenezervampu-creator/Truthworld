@@ -149,13 +149,18 @@ class VideoCard extends StatelessWidget {
     BuildContext context,
     VideoCardController controller,
   ) {
+    final isMobileDevice = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    final isDesktop = !isMobileDevice && MediaQuery.sizeOf(context).width >= 1000;
+    final thumbWidth = isDesktop ? 260.0 : AppTheme.sizes.thumbnailMediumWidth;
+
     return Padding(
       padding: EdgeInsets.all(AppTheme.spacing.sm),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: AppTheme.sizes.thumbnailMediumWidth,
+            width: thumbWidth,
             child: AspectRatio(
               aspectRatio: 16 / 9,
               child: VideoCardThumbnail(

@@ -10,6 +10,7 @@ import 'package:truthworld/core/services/pip_service.dart';
 import 'package:truthworld/core/utils/web_platform_utils.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/video/data/services/storyboard_service.dart';
+import 'package:truthworld/features/video/presentation/controllers/audio_only_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/playback_source.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
@@ -101,11 +102,29 @@ mixin TowerPlayerModesMixin on GetxController {
         playbackMode.value = PlaybackMode.video;
         isAudioOnly.value = false;
         TowerPlayerController.globalAudioOnly = false;
+        if (Get.arguments is Map) {
+          try {
+            (Get.arguments as Map)['isAudioOnly'] = false;
+          } catch (_) {}
+        }
+        if (Get.isRegistered<AudioOnlyService>()) {
+          try {
+            final audioSvc = Get.find<AudioOnlyService>();
+            if (audioSvc.isActive.value || audioSvc.isPlaying.value) {
+              audioSvc.deactivateBackgroundPlayback();
+            }
+          } catch (_) {}
+        }
         try {
-          if (Get.isRegistered<VideoController>(tag: tag)) {
-            Get.find<VideoController>(tag: tag).isAudioOnly.value = false;
-          } else if (Get.isRegistered<VideoController>()) {
-            Get.find<VideoController>().isAudioOnly.value = false;
+          final vc = this is TowerPlayerController
+              ? (this as TowerPlayerController).videoController
+              : (Get.isRegistered<VideoController>(tag: tag)
+                  ? Get.find<VideoController>(tag: tag)
+                  : (Get.isRegistered<VideoController>()
+                      ? Get.find<VideoController>()
+                      : null));
+          if (vc != null) {
+            vc.isAudioOnly.value = false;
           }
         } catch (e, s) {
           ErrorHandler.log(
@@ -127,11 +146,21 @@ mixin TowerPlayerModesMixin on GetxController {
         playbackMode.value = PlaybackMode.audio;
         isAudioOnly.value = true;
         TowerPlayerController.globalAudioOnly = true;
+        if (Get.arguments is Map) {
+          try {
+            (Get.arguments as Map)['isAudioOnly'] = true;
+          } catch (_) {}
+        }
         try {
-          if (Get.isRegistered<VideoController>(tag: tag)) {
-            Get.find<VideoController>(tag: tag).isAudioOnly.value = true;
-          } else if (Get.isRegistered<VideoController>()) {
-            Get.find<VideoController>().isAudioOnly.value = true;
+          final vc = this is TowerPlayerController
+              ? (this as TowerPlayerController).videoController
+              : (Get.isRegistered<VideoController>(tag: tag)
+                  ? Get.find<VideoController>(tag: tag)
+                  : (Get.isRegistered<VideoController>()
+                      ? Get.find<VideoController>()
+                      : null));
+          if (vc != null) {
+            vc.isAudioOnly.value = true;
           }
         } catch (e, s) {
           ErrorHandler.log(
@@ -275,30 +304,10 @@ mixin TowerPlayerModesMixin on GetxController {
   }
 
   void setupChewieListeners() {
-    try {
-      chewieController?.removeListener(onInternalChewieChanged);
-      chewieController?.addListener(onInternalChewieChanged);
-    } catch (e, s) {
-      ErrorHandler.log(
-        e,
-        stackTrace: s,
-        tag: 'TowerPlayerModesMixin.setupChewieListeners.internal',
-      );
-    }
-
-    try {
-      final vc = videoController;
-      if (vc != null && vc.chewieController != null) {
-        vc.chewieController!.removeListener(onOuterChewieChanged);
-        vc.chewieController!.addListener(onOuterChewieChanged);
-      }
-    } catch (e, s) {
-      ErrorHandler.log(
-        e,
-        stackTrace: s,
-        tag: 'TowerPlayerModesMixin.setupChewieListeners.outer',
-      );
-    }
+    // TowerCustomPlayer and TowerPlayerController natively manage full-screen,
+    // playback state, and UI controls. Chewie listeners are omitted to eliminate
+    // redundant overhead and prevent ChangeNotifier assertions against disposed controller
+    // instances during resolution switches.
   }
 
   void onInternalChewieChanged() {}
