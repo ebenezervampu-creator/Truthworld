@@ -910,6 +910,60 @@
       "httpsTrigger": {},
       "entryPoint": "moderateChannelManual"
     },
+    "getLeaderboard": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 100,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "httpsTrigger": {},
+      "entryPoint": "getLeaderboard"
+    },
+    "getRisingCreators": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 100,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "httpsTrigger": {},
+      "entryPoint": "getRisingCreators"
+    },
+    "getTrustBadge": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 100,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "httpsTrigger": {},
+      "entryPoint": "getTrustBadge"
+    },
     "onTopicWritten": {
       "availableMemoryMb": null,
       "timeoutSeconds": null,
@@ -1617,24 +1671,6 @@
       "labels": {},
       "callableTrigger": {},
       "entryPoint": "reportCommentNested"
-    },
-    "approveCommentNested": {
-      "availableMemoryMb": 256,
-      "timeoutSeconds": null,
-      "minInstances": null,
-      "maxInstances": 15,
-      "ingressSettings": null,
-      "concurrency": null,
-      "serviceAccountEmail": null,
-      "vpc": null,
-      "platform": "gcfv2",
-      "cpu": "gcf_gen1",
-      "region": [
-        "asia-south1"
-      ],
-      "labels": {},
-      "callableTrigger": {},
-      "entryPoint": "approveCommentNested"
     },
     "cleanupProcessedEvents": {
       "availableMemoryMb": 256,

@@ -111,6 +111,8 @@ export {
   getFollowingFeed,
 } from "./channels/social";
 export { onChannelWritten, onImageVerificationWritten, moderateChannelManual } from "./channels/moderation";
+export { getLeaderboard, getRisingCreators } from "./channels/discovery";
+export { getTrustBadge } from "./channels/embeds";
 export { onTopicWritten, moderateTopicManual } from "./topics/moderation";
 export { getHomeFeed } from "./channels/recommendations";
 export {
