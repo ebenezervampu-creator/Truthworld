@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/navigation/app_navigator.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/library/presentation/views/library/widgets/library_constants.dart';
@@ -91,7 +92,7 @@ class LibraryNavList extends StatelessWidget {
                             child: OutlinedButton.icon(
                               onPressed: () {
                                 HapticFeedback.lightImpact();
-                                Get.toNamed('/settings');
+                                AppNavigator.toSettings();
                               },
                               icon: const Icon(
                                 Icons.settings_outlined,
@@ -128,7 +129,7 @@ class LibraryNavList extends StatelessWidget {
                               child: OutlinedButton.icon(
                                 onPressed: () {
                                   HapticFeedback.lightImpact();
-                                  Get.toNamed('/channelscreen');
+                                  AppNavigator.toChannelWizard();
                                 },
                                 icon: const Icon(
                                   Icons.add_circle_outline,
@@ -171,25 +172,25 @@ class LibraryNavList extends StatelessWidget {
 
             if (hasChannel) {
               items.add(
-                LibraryListTile(
+                const LibraryListTile(
                   icon: Icons.account_balance_wallet_outlined,
                   title: 'Channel Wallet',
-                  onTap: () => Get.toNamed('/dashboard'),
+                  onTap: AppNavigator.toDashboard,
                 ),
               );
             }
 
             // Always display the Text and icon for every Tab
             items.addAll([
-              LibraryListTile(
+              const LibraryListTile(
                 icon: Icons.history_rounded,
                 title: 'History',
-                onTap: () => Get.toNamed('/history'),
+                onTap: AppNavigator.toWatchHistory,
               ),
-              LibraryListTile(
+              const LibraryListTile(
                 icon: Icons.video_collection_outlined,
                 title: 'My videos',
-                onTap: () => Get.toNamed('/myvideos'),
+                onTap: AppNavigator.toMyVideos,
               ),
               LibraryListTile(
                 icon: Icons.subscriptions_outlined,
@@ -200,39 +201,39 @@ class LibraryNavList extends StatelessWidget {
                       HomeController.indexSubscriptions,
                     );
                   } else {
-                    Get.toNamed('/subscriptions');
+                    AppNavigator.toSubscriptions();
                   }
                 },
               ),
-              LibraryListTile(
+              const LibraryListTile(
                 icon: Icons.playlist_play_rounded,
                 title: 'Playlists',
-                onTap: () => Get.toNamed('/playlistscreen'),
+                onTap: AppNavigator.toPlaylists,
               ),
-              LibraryListTile(
+              const LibraryListTile(
                 icon: Icons.people_outline_rounded,
                 title: 'Following Topics',
-                onTap: () => Get.toNamed('/following-topics'),
+                onTap: AppNavigator.toFollowingTopics,
               ),
-              LibraryListTile(
+              const LibraryListTile(
                 icon: Icons.thumb_up_outlined,
                 title: 'Liked videos',
-                onTap: () => Get.toNamed('/likedvideos'),
+                onTap: AppNavigator.toLikedVideos,
               ),
-              LibraryListTile(
+              const LibraryListTile(
                 icon: Icons.bookmark_outline_rounded,
                 title: 'Saved posts',
-                onTap: () => Get.toNamed('/saved-community-posts'),
+                onTap: AppNavigator.toSavedPosts,
               ),
-              LibraryListTile(
+              const LibraryListTile(
                 icon: Icons.comment_outlined,
                 title: 'Saved comments',
-                onTap: () => Get.toNamed('/saved-comments'),
+                onTap: AppNavigator.toSavedComments,
               ),
-              LibraryListTile(
+              const LibraryListTile(
                 icon: Icons.content_cut_rounded,
                 title: 'Clips',
-                onTap: () => Get.toNamed('/clips'),
+                onTap: AppNavigator.toClips,
               ),
               LibraryListTile(
                 icon: Icons.file_download_outlined,
@@ -248,7 +249,7 @@ class LibraryNavList extends StatelessWidget {
                       HomeController.indexDownloads,
                     );
                   } else {
-                    Get.toNamed('/downloads');
+                    AppNavigator.toDownloads();
                   }
                 },
               ),
@@ -261,7 +262,7 @@ class LibraryNavList extends StatelessWidget {
                       HomeController.indexSettings,
                     );
                   } else {
-                    Get.toNamed('/settings');
+                    AppNavigator.toSettings();
                   }
                 },
               ),
@@ -309,14 +310,14 @@ class LibraryNavList extends StatelessWidget {
                           ),
                         )
                       : null,
-                  onTap: () => Get.toNamed('/premium'),
+                  onTap: AppNavigator.toPremium,
                 );
               }),
               if (!hasChannel)
-                LibraryListTile(
+                const LibraryListTile(
                   icon: Icons.add_circle_outline,
                   title: 'Create Channel to upload videos',
-                  onTap: () => Get.toNamed('/channelscreen'),
+                  onTap: AppNavigator.toChannelWizard,
                 ),
             ]);
 

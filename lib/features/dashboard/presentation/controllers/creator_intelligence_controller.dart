@@ -10,6 +10,29 @@ import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
 
+/// Represents a channel video that has an active moderation, language policy, review, or processing notice.
+class ChannelVideoStatusItem {
+  const ChannelVideoStatusItem({
+    required this.id,
+    required this.title,
+    required this.status,
+    required this.reason,
+    required this.detectedLanguage,
+    required this.isLanguageRejection,
+    required this.thumbnailUrl,
+    required this.updatedAt,
+  });
+
+  final String id;
+  final String title;
+  final String status;
+  final String reason;
+  final String detectedLanguage;
+  final bool isLanguageRejection;
+  final String thumbnailUrl;
+  final DateTime updatedAt;
+}
+
 class CreatorIntelligenceController extends BaseController {
   CreatorIntelligenceController({
     required this.channelId,
@@ -29,8 +52,21 @@ class CreatorIntelligenceController extends BaseController {
   final Rx<Channel?> currentChannel = Rx<Channel?>(null);
   final RxInt copyrightClaimsCount = 0.obs;
 
+  /// Real-time channel video status lists for 100% channel clarity
+  final RxList<ChannelVideoStatusItem> rejectedVideos =
+      <ChannelVideoStatusItem>[].obs;
+  final RxList<ChannelVideoStatusItem> manualReviewVideos =
+      <ChannelVideoStatusItem>[].obs;
+  final RxList<ChannelVideoStatusItem> failedVideos =
+      <ChannelVideoStatusItem>[].obs;
+  final RxList<ChannelVideoStatusItem> processingVideos =
+      <ChannelVideoStatusItem>[].obs;
+  final RxList<ChannelVideoStatusItem> disputedVideos =
+      <ChannelVideoStatusItem>[].obs;
+
   StreamSubscription? _channelSubscription;
   StreamSubscription? _copyrightSubscription;
+  StreamSubscription? _videosSubscription;
 
   @override
   void onInit() {
@@ -38,12 +74,14 @@ class CreatorIntelligenceController extends BaseController {
     listenToNotifications();
     _listenToChannel();
     _listenToCopyrightClaims();
+    _listenToChannelVideos();
   }
 
   @override
   void onClose() {
     _channelSubscription?.cancel();
     _copyrightSubscription?.cancel();
+    _videosSubscription?.cancel();
     super.onClose();
   }
 
@@ -79,6 +117,168 @@ class CreatorIntelligenceController extends BaseController {
     );
   }
 
+  void _listenToChannelVideos() {
+    if (channelId.isEmpty && creatorId.isEmpty) return;
+    final query = channelId.isNotEmpty
+        ? _firestore
+            .collection(FirestoreCollections.videos)
+            .where('channelId', isEqualTo: channelId)
+            .limit(100)
+        : _firestore
+            .collection(FirestoreCollections.videos)
+            .where('userId', isEqualTo: creatorId)
+            .limit(100);
+
+    trackSubscription(
+      _videosSubscription = query.snapshots().listen((snapshot) {
+        final rejected = <ChannelVideoStatusItem>[];
+        final manualReview = <ChannelVideoStatusItem>[];
+        final failed = <ChannelVideoStatusItem>[];
+        final processing = <ChannelVideoStatusItem>[];
+        final disputed = <ChannelVideoStatusItem>[];
+
+        for (final doc in snapshot.docs) {
+          final data = doc.data();
+          final rawTitle = (data['title'] as String?)?.trim() ?? '';
+          final title = (rawTitle.isNotEmpty && rawTitle != 'Uploading...')
+              ? rawTitle
+              : 'Untitled Video';
+          final status =
+              ((data['status'] as String?) ?? '').trim().toLowerCase();
+          final modMap = data['moderation'] is Map
+              ? Map<String, dynamic>.from(data['moderation'] as Map)
+              : const <String, dynamic>{};
+          final modStatus =
+              ((modMap['status'] as String?) ?? '').trim().toLowerCase();
+          final disputeMap = data['factCheckDispute'] is Map
+              ? Map<String, dynamic>.from(data['factCheckDispute'] as Map)
+              : const <String, dynamic>{};
+          final disputeStatus =
+              ((disputeMap['status'] as String?) ?? '').trim().toLowerCase();
+
+          final rawReason = (data['rejectionReason'] as String?) ??
+              (data['reviewReason'] as String?) ??
+              (modMap['reason'] as String?) ??
+              (data['errorMessage'] as String?) ??
+              '';
+          final detectedLang = (modMap['detectedLanguage'] as String?) ??
+              (data['language'] as String?) ??
+              'en';
+          final policies = modMap['violatingPolicies'] is List
+              ? (modMap['violatingPolicies'] as List)
+                  .map((e) => e.toString())
+                  .toList()
+              : const <String>[];
+          final isLangRejection =
+              policies.contains('UNSUPPORTED_LANGUAGE') ||
+                  rawReason.toLowerCase().contains('english');
+          final thumbUrl = (data['thumbnailUrl'] as String?) ?? '';
+
+          var updatedTime = DateTime.now();
+          final ts = data['updatedAt'] ?? data['createdAt'];
+          if (ts is Timestamp) {
+            updatedTime = ts.toDate();
+          } else if (ts is int) {
+            updatedTime = DateTime.fromMillisecondsSinceEpoch(ts);
+          }
+
+          if (status == 'rejected' || modStatus == 'rejected') {
+            rejected.add(
+              ChannelVideoStatusItem(
+                id: doc.id,
+                title: title,
+                status: 'rejected',
+                reason: rawReason.isNotEmpty
+                    ? rawReason
+                    : 'This video did not meet Truthworld channel or community policies.',
+                detectedLanguage: detectedLang,
+                isLanguageRejection: isLangRejection,
+                thumbnailUrl: thumbUrl,
+                updatedAt: updatedTime,
+              ),
+            );
+          } else if (status == 'manual_review' ||
+              modStatus == 'manual_review' ||
+              modStatus == 'pending_review') {
+            manualReview.add(
+              ChannelVideoStatusItem(
+                id: doc.id,
+                title: title,
+                status: 'manual_review',
+                reason: rawReason.isNotEmpty
+                    ? rawReason
+                    : 'Held for manual human review by the Truthworld Trust & Safety team.',
+                detectedLanguage: detectedLang,
+                isLanguageRejection: false,
+                thumbnailUrl: thumbUrl,
+                updatedAt: updatedTime,
+              ),
+            );
+          } else if (status == 'failed' || status == 'error') {
+            failed.add(
+              ChannelVideoStatusItem(
+                id: doc.id,
+                title: title,
+                status: 'failed',
+                reason:
+                    'Video processing encountered an issue before completion. Please re-upload or retry from Content.',
+                detectedLanguage: detectedLang,
+                isLanguageRejection: false,
+                thumbnailUrl: thumbUrl,
+                updatedAt: updatedTime,
+              ),
+            );
+          } else if (status == 'processing' || status == 'uploading') {
+            processing.add(
+              ChannelVideoStatusItem(
+                id: doc.id,
+                title: title,
+                status: status,
+                reason:
+                    'Undergoing Truthworld AI transcription, primary English verification (90% rule), and safety checks.',
+                detectedLanguage: detectedLang,
+                isLanguageRejection: false,
+                thumbnailUrl: thumbUrl,
+                updatedAt: updatedTime,
+              ),
+            );
+          }
+
+          if (disputeStatus == 'pending_review' ||
+              disputeStatus == 'processing') {
+            disputed.add(
+              ChannelVideoStatusItem(
+                id: doc.id,
+                title: title,
+                status: 'disputed',
+                reason:
+                    'Fact-check appeal is currently being re-evaluated with your provided sources.',
+                detectedLanguage: detectedLang,
+                isLanguageRejection: false,
+                thumbnailUrl: thumbUrl,
+                updatedAt: updatedTime,
+              ),
+            );
+          }
+        }
+
+        rejected.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+        manualReview.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+        failed.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+        processing.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+        disputed.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+
+        rejectedVideos.value = rejected;
+        manualReviewVideos.value = manualReview;
+        failedVideos.value = failed;
+        processingVideos.value = processing;
+        disputedVideos.value = disputed;
+      }, onError: (err) {
+        debugPrint('[CreatorIntelligence] Channel videos stream error: $err');
+      }),
+    );
+  }
+
   bool get hasActiveIssues {
     final ch = currentChannel.value;
     final hasChannelStatusNotice = ch != null &&
@@ -102,6 +302,11 @@ class CreatorIntelligenceController extends BaseController {
             ch.bannerStatus == 'PENDING' ||
             ch.bannerStatus == 'APPROVED');
     final hasCopyrightIssues = copyrightClaimsCount.value > 0;
+    final hasVideoNotices = rejectedVideos.isNotEmpty ||
+        manualReviewVideos.isNotEmpty ||
+        failedVideos.isNotEmpty ||
+        processingVideos.isNotEmpty ||
+        disputedVideos.isNotEmpty;
     final hasCriticalNotifications = filteredNotifications
         .any((n) => n.priority == NotificationPriority.critical);
 
@@ -109,6 +314,7 @@ class CreatorIntelligenceController extends BaseController {
         hasAvatarNotice ||
         hasBannerNotice ||
         hasCopyrightIssues ||
+        hasVideoNotices ||
         hasCriticalNotifications;
   }
 
@@ -135,6 +341,9 @@ class CreatorIntelligenceController extends BaseController {
       }
     }
     if (copyrightClaimsCount.value > 0) count += copyrightClaimsCount.value;
+    count += rejectedVideos.length +
+        manualReviewVideos.length +
+        failedVideos.length;
     count += filteredNotifications
         .where((n) => n.priority == NotificationPriority.critical)
         .length;
@@ -302,7 +511,6 @@ class CreatorIntelligenceController extends BaseController {
       trackSubscription(_firestore
           .collection('user_notifications')
           .where('userId', isEqualTo: creatorId)
-          .orderBy('createdAt', descending: true)
           .limit(200)
           .snapshots()
           .listen(
@@ -321,7 +529,7 @@ class CreatorIntelligenceController extends BaseController {
     }
 
     // Also listen to user_notifications specifically addressed to this channelId
-    if (channelId.isNotEmpty && channelId != creatorId) {
+    if (channelId.isNotEmpty) {
       trackSubscription(_firestore
           .collection('user_notifications')
           .where('channelId', isEqualTo: channelId)
@@ -371,6 +579,15 @@ class CreatorIntelligenceController extends BaseController {
                   n.severity == NotificationSeverity.priority,
             )
             .toList();
+      } else if (cat == 'videos') {
+        result = result
+            .where(
+              (n) =>
+                  n.metadata?['itemType'] == 'video' ||
+                  n.metadata?['videoId'] != null ||
+                  n.title.toLowerCase().contains('video'),
+            )
+            .toList();
       } else if (cat == 'growth') {
         result = result
             .where(
@@ -382,7 +599,8 @@ class CreatorIntelligenceController extends BaseController {
             .where(
               (n) =>
                   n.category == 'verification' ||
-                  n.type.contains('verification'),
+                  n.type.contains('verification') ||
+                  n.type.contains('fact_check'),
             )
             .toList();
       } else if (cat == 'performance') {

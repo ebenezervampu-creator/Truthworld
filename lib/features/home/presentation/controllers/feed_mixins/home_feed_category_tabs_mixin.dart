@@ -127,12 +127,12 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
 
     QuerySnapshot? results;
 
-    // Tier 1: Query ordered by uploadedAt with local cache priority unless forceNetwork
+    // Tier 1: Query ordered by uploadedAt with server-side visibility & status filter
     try {
-      final query = firestore
-          .collection('videos')
-          .orderBy('uploadedAt', descending: true)
-          .limit(HomeFeedControllerBase.pageSize);
+      final query = VideoQueryBuilder.publicVideos(
+        firestore,
+        limit: HomeFeedControllerBase.pageSize,
+      );
       results = forceNetwork ? await query.get() : await query.getCacheFirst();
     } catch (e, stackTrace) {
       ErrorHandler.log(
@@ -145,10 +145,11 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
     // Tier 2: Query ordered by createdAt if uploadedAt query threw or returned 0 docs
     if (results == null || results.docs.isEmpty) {
       try {
-        final query = firestore
-            .collection('videos')
-            .orderBy('createdAt', descending: true)
-            .limit(HomeFeedControllerBase.pageSize);
+        final query = VideoQueryBuilder.publicVideos(
+          firestore,
+          orderByField: 'createdAt',
+          limit: HomeFeedControllerBase.pageSize,
+        );
         results = forceNetwork ? await query.get() : await query.getCacheFirst();
       } catch (e2, stackTrace2) {
         ErrorHandler.log(

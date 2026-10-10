@@ -231,15 +231,20 @@ class TruthVerificationDashboardPage extends StatelessWidget {
       }
     }
 
-    // 5. Positive trust/credibility score produced by verification
-    final score = trustScore ??
-        ((data['trustScore'] ??
-                data['credibilityScore'] ??
-                data['rating'] ??
-                0.0) as num)
-            .toDouble();
-    if (score > 0) {
-      return true;
+    // If fact-checking is explicitly disabled, baseline trustScore alone does NOT imply fact-checking.
+    final isExplicitlyDisabled = data['isFactChecked'] == false ||
+        (aiFeatures is Map && aiFeatures['factChecking'] == false);
+    if (!isExplicitlyDisabled) {
+      // 5. Positive trust/credibility score produced by verification
+      final score = trustScore ??
+          ((data['trustScore'] ??
+                  data['credibilityScore'] ??
+                  data['rating'] ??
+                  0.0) as num)
+              .toDouble();
+      if (score > 0) {
+        return true;
+      }
     }
 
     // 6. Direct fact-check URL present

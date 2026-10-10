@@ -33,6 +33,8 @@ import { videoGatewayService } from "../services/videoGatewayService";
 import { copyrightDetectionService } from "../services/copyrightDetection";
 import { copyrightClaimsService } from "../services/copyrightClaims";
 import { getVertexAI } from "../utils/ai-client";
+import { notifyUser } from "../../notifications/notifications";
+import { normalizeLanguageCode } from "../../shared/language-normalizer";
 
 const ASSEMBLY_BASE = "https://api.assemblyai.com/v2";
 const db = () => admin.firestore();
@@ -107,7 +109,7 @@ export class TranscriptionLayer {
           const shouldDiarize = await this.shouldEnableDiarization(jobId, userId, executionPlan);
           logger.info("[Transcription] Diarization decision", { jobId, shouldDiarize });
 
-          // 3. Submit to AssemblyAI (Universal-3 Pro English strictly)
+          // 3. Submit to AssemblyAI (Universal-3 Pro with automatic language detection)
           const isAccuracyMode = executionPlan.priorityMode === "accuracy";
           const speechModels = ["universal-3-pro"];
 
@@ -117,8 +119,7 @@ export class TranscriptionLayer {
               audio_url: accessibleUrl,
               speech_models: speechModels,
               speaker_labels: shouldDiarize,
-              language_detection: false, // Strict English: Disable language detection
-              language_code: "en",       // Universal-3 Pro English mode
+              language_detection: true, // Automatic language detection to detect Telugu / non-English
               punctuate: true,
               format_text: true,
               boost_param: isAccuracyMode ? "high" : "default",   // v7.2 Priority Mode
@@ -250,66 +251,20 @@ export class TranscriptionLayer {
         jobId,
         enhanced.text,
         enhanced.segments,
-        executionPlan
+        executionPlan,
+        enhanced.detectedLanguage
       );
 
-      // Resolve the canonical video document ID
+      // Resolve the canonical video document ID and existing metadata for Studio notifications
       const jobSnap = await db().collection("video_jobs").doc(jobId).get();
       const jobData = jobSnap.data() as any;
       const targetVideoId = executionPlan.videoId || jobData?.videoId || (jobData?.linkedVideoIds?.[0]) || jobId;
 
-      await db().collection("video_jobs").doc(jobId).set({
-        gatewayDecision,
-        updatedAt: Date.now()
-      }, { merge: true });
-
-      // HALT DOWNSTREAM PROCESSING IF REJECTED
-      if (gatewayDecision.status === "REJECTED") {
-        logger.warn("[Transcription Gateway] VIDEO REJECTED by Gateway — halting transcoding and publishing", {
-          jobId,
-          targetVideoId,
-          rejectionReason: gatewayDecision.rejectionReason,
-          violatingPolicies: gatewayDecision.violatingPolicies
-        });
-        await EdgeLayer.updateStageSync(jobId, "transcription", {
-          status: "failed",
-          error: `Video rejected by Gateway: ${gatewayDecision.rejectionReason}`
-        });
-        return { submitted: true }; // HALT
-      }
-
-      // HALT DOWNSTREAM PROCESSING IF MANUAL_REVIEW
-      if (gatewayDecision.status === "MANUAL_REVIEW") {
-        logger.warn("[Transcription Gateway] VIDEO SENT TO MANUAL REVIEW — queueing in Admin Portal & halting transcoding", {
-          jobId,
-          targetVideoId,
-          reviewReason: gatewayDecision.reviewReason,
-          sensitiveTopics: gatewayDecision.sensitiveTopics
-        });
-        await db().collection("admin_review_queue").doc(jobId).set({
-          jobId,
-          videoId: targetVideoId,
-          userId,
-          videoUrl,
-          transcriptText: enhanced.text,
-          gatewayDecision,
-          queuedAt: Date.now(),
-          status: "pending"
-        });
-        await EdgeLayer.updateStageSync(jobId, "transcription", {
-          status: "completed",
-          progress: 100
-        });
-        return { submitted: true }; // HALT UNTIL ADMIN APPROVAL
-      }
-
-      // ── APPROVED: PUBLISH VIDEO, THUMBNAIL & ALL METADATA TO FIRESTORE FIRST ──
-      // Fetch existing video document to preserve all user-supplied metadata
       const existingVideoSnap = await db().collection("videos").doc(targetVideoId).get();
       const existingVideoData = existingVideoSnap.data() || {};
 
       const finalThumbnailUrl = existingVideoData.thumbnailUrl || (executionPlan as any).thumbnailUrl || (executionPlan as any).thumbnail || "";
-      const finalChannelId = existingVideoData.channelId || (executionPlan as any).channelId || `channel_${userId}`;
+      const finalChannelId = existingVideoData.channelId || jobData?.channelId || (executionPlan as any).channelId || `channel_${userId}`;
       const finalChannelName = existingVideoData.channelName || (executionPlan as any).channelName || "Truthworld Channel";
       const finalChannelAvatarUrl = existingVideoData.channelImage || existingVideoData.channelAvatarUrl || (executionPlan as any).channelAvatarUrl || "";
       const finalCategory = existingVideoData.category || existingVideoData.videoCategory || gatewayDecision.category || "General";
@@ -320,6 +275,148 @@ export class TranscriptionLayer {
         ? existingVideoData.topics
         : ((gatewayDecision as any).topics || (executionPlan as any).topics || []);
 
+      const rawVideoTitle = (existingVideoData.title && existingVideoData.title !== "Uploading..." && existingVideoData.title.trim() !== "")
+        ? existingVideoData.title
+        : ((executionPlan as any).title || "Untitled Video");
+
+      await db().collection("video_jobs").doc(jobId).set({
+        gatewayDecision,
+        updatedAt: Date.now()
+      }, { merge: true });
+
+      // HALT DOWNSTREAM PROCESSING IF REJECTED
+      if (gatewayDecision.status === "REJECTED") {
+        const isLanguageRejection = (gatewayDecision.violatingPolicies || []).includes("UNSUPPORTED_LANGUAGE");
+        logger.warn("[Transcription Gateway] VIDEO REJECTED by Gateway — halting transcoding and publishing", {
+          jobId,
+          targetVideoId,
+          channelId: finalChannelId,
+          rejectionReason: gatewayDecision.rejectionReason,
+          violatingPolicies: gatewayDecision.violatingPolicies
+        });
+        await EdgeLayer.updateStageSync(jobId, "transcription", {
+          status: "failed",
+          error: `Video rejected by Gateway: ${gatewayDecision.rejectionReason}`
+        });
+
+        // Set video document in Firestore to status: "rejected"
+        await db().collection("videos").doc(targetVideoId).set({
+          status: "rejected",
+          rejectionReason: gatewayDecision.rejectionReason,
+          rejectionNotified: true,
+          moderation: {
+            status: "rejected",
+            reason: gatewayDecision.rejectionReason,
+            summary: gatewayDecision.summary || "",
+            detectedLanguage: enhanced.detectedLanguage || "unknown",
+            violatingPolicies: gatewayDecision.violatingPolicies || [],
+          },
+          updatedAt: Date.now()
+        }, { merge: true });
+
+        // Update video_jobs document
+        await db().collection("video_jobs").doc(jobId).set({
+          status: "rejected",
+          rejectionReason: gatewayDecision.rejectionReason,
+          updatedAt: Date.now()
+        }, { merge: true });
+
+        // Send priority notification to Creator Studio Notifications page
+        await notifyUser({
+          userId,
+          type: "verification_result",
+          severity: "priority",
+          title: isLanguageRejection
+            ? `Video Not Accepted (Language Policy): "${rawVideoTitle}"`
+            : `Video Moderation Rejected: "${rawVideoTitle}"`,
+          message: gatewayDecision.rejectionReason || `Your video "${rawVideoTitle}" could not be accepted because it did not meet Truthworld channel policies.`,
+          actionUrl: "/studio",
+          metadata: {
+            videoId: targetVideoId,
+            channelId: finalChannelId,
+            videoTitle: rawVideoTitle,
+            thumbnailUrl: finalThumbnailUrl,
+            reason: gatewayDecision.rejectionReason,
+            violatingPolicies: gatewayDecision.violatingPolicies || [],
+            detectedLanguage: enhanced.detectedLanguage || "unknown",
+            itemType: "video",
+            status: "rejected",
+            priority: "critical",
+            category: "verification",
+          },
+        }).catch((err) => {
+          logger.warn("[Transcription Gateway] Rejection notification failed (non-critical)", { err: String(err) });
+        });
+
+        return { submitted: true }; // HALT
+      }
+
+      // HALT DOWNSTREAM PROCESSING IF MANUAL_REVIEW
+      if (gatewayDecision.status === "MANUAL_REVIEW") {
+        logger.warn("[Transcription Gateway] VIDEO SENT TO MANUAL REVIEW — queueing in Admin Portal & halting transcoding", {
+          jobId,
+          targetVideoId,
+          channelId: finalChannelId,
+          reviewReason: gatewayDecision.reviewReason,
+          sensitiveTopics: gatewayDecision.sensitiveTopics
+        });
+        await Promise.all([
+          db().collection("admin_review_queue").doc(jobId).set({
+            jobId,
+            videoId: targetVideoId,
+            channelId: finalChannelId,
+            userId,
+            videoUrl,
+            transcriptText: enhanced.text,
+            gatewayDecision,
+            queuedAt: Date.now(),
+            status: "pending"
+          }),
+          db().collection("videos").doc(targetVideoId).set({
+            status: "manual_review",
+            reviewReason: gatewayDecision.reviewReason || "Queued for manual verification review.",
+            moderation: {
+              status: "manual_review",
+              reason: gatewayDecision.reviewReason || "Queued for manual verification review.",
+              sensitiveTopics: gatewayDecision.sensitiveTopics || [],
+              detectedLanguage: enhanced.detectedLanguage || "en",
+            },
+            updatedAt: Date.now()
+          }, { merge: true }),
+          EdgeLayer.updateStageSync(jobId, "transcription", {
+            status: "completed",
+            progress: 100
+          })
+        ]);
+
+        // Notify creator in Studio Notifications page about Manual Review hold
+        await notifyUser({
+          userId,
+          type: "verification_result",
+          severity: "priority",
+          title: `Video Under Manual Review: "${rawVideoTitle}"`,
+          message: `Your video "${rawVideoTitle}" is being reviewed by Truthworld Trust & Safety: ${gatewayDecision.reviewReason || "Queued for human inspection."}. You will receive an update here as soon as the review is complete.`,
+          actionUrl: "/studio",
+          metadata: {
+            videoId: targetVideoId,
+            channelId: finalChannelId,
+            videoTitle: rawVideoTitle,
+            thumbnailUrl: finalThumbnailUrl,
+            reason: gatewayDecision.reviewReason,
+            sensitiveTopics: gatewayDecision.sensitiveTopics || [],
+            itemType: "video",
+            status: "manual_review",
+            priority: "critical",
+            category: "verification",
+          },
+        }).catch((err) => {
+          logger.warn("[Transcription Gateway] Manual review notification failed (non-critical)", { err: String(err) });
+        });
+
+        return { submitted: true }; // HALT UNTIL ADMIN APPROVAL
+      }
+
+      // ── APPROVED: PUBLISH VIDEO, THUMBNAIL & ALL METADATA TO FIRESTORE FIRST ──
       // Infer clean title if missing or defaulted to 'Untitled Video'
       let inferredTitle = (existingVideoData.title && existingVideoData.title !== "Uploading..." && existingVideoData.title.trim() !== "")
         ? existingVideoData.title
@@ -547,6 +644,27 @@ export class TranscriptionLayer {
         thumbnailUrl: finalThumbnailUrl
       });
 
+      // Notify creator in Studio Notifications page that video passed gateway & is published
+      notifyUser({
+        userId,
+        type: "verification_result",
+        severity: "info",
+        title: `Video Approved & Published: "${inferredTitle}"`,
+        message: `Your video "${inferredTitle}" passed Truthworld language and safety verification and is now live.${isFactCheckingEnabled ? " AI Fact-Checking and multi-resolution transcoding are running in the background." : " Multi-resolution transcoding is running in the background."}`,
+        actionUrl: "/studio",
+        metadata: {
+          videoId: targetVideoId,
+          channelId: finalChannelId,
+          videoTitle: inferredTitle,
+          thumbnailUrl: finalThumbnailUrl,
+          itemType: "video",
+          status: "published",
+          category: "verification",
+        },
+      }).catch((err) => {
+        logger.warn("[Transcription Gateway] Approval notification failed (non-critical)", { err: String(err) });
+      });
+
       // ── NOW (AND ONLY NOW) TRIGGER DOWNSTREAM RESOLUTION TRANSCODING & AI FEATURES ──
       await aggregationLayer.onStageComplete(jobId, "transcription", userId, executionPlan);
       transcriptionFinished = true;
@@ -621,6 +739,26 @@ export class TranscriptionLayer {
       }
       if (!transcriptionFinished) {
         await EdgeLayer.failJob(jobId, "transcription", msg);
+        const failVideoId = executionPlan.videoId || jobId;
+        const failChannelId = (executionPlan as any).channelId || `channel_${userId}`;
+        const failTitle = (executionPlan as any).title || "Uploaded Video";
+        notifyUser({
+          userId,
+          type: "verification_result",
+          severity: "priority",
+          title: `Video Processing Issue: "${failTitle}"`,
+          message: `We encountered an unexpected issue while analyzing your video "${failTitle}". Please check your video in Creator Studio or try uploading again.`,
+          actionUrl: "/studio",
+          metadata: {
+            videoId: failVideoId,
+            channelId: failChannelId,
+            videoTitle: failTitle,
+            itemType: "video",
+            status: "failed",
+            priority: "critical",
+            category: "verification",
+          },
+        }).catch(() => {});
       } else {
         logger.error("[Transcription Gateway] Downstream fanout publish failure after transcription completed", { jobId, error: msg });
       }
@@ -890,42 +1028,139 @@ export class TranscriptionLayer {
 
   private async getAccessibleUrl(url: string): Promise<string> {
     logger.info("[Transcription] Resolving accessible URL", { url });
-    
-    // 1. If it's already an HTTP(S) URL, return it
-    if (url.startsWith("http")) return url;
+
+    if (!url || typeof url !== "string") {
+      throw new Error("Invalid or empty URL provided for transcription");
+    }
+
+    // 1. If it's already an active GCS signed URL with credentials/signature, return it directly
+    if (url.includes("X-Goog-Signature") || url.includes("GoogleAccessId")) {
+      logger.info("[Transcription] URL is already a signed GCS URL — using directly", { url });
+      return url;
+    }
+
+    let bucketName = PIPELINE_CONFIG.VIDEO_BUCKET || admin.storage().bucket().name;
+    let filePath = url;
+    let isStorageResource = false;
+
+    // 2. Parse gs:// scheme
+    if (url.startsWith("gs://")) {
+      const parts = url.replace("gs://", "").split("/");
+      bucketName = parts[0];
+      filePath = parts.slice(1).join("/");
+      isStorageResource = true;
+    } 
+    // 3. Parse HTTP/HTTPS URLs targeting Google Cloud Storage or Firebase Storage
+    else if (url.startsWith("http://") || url.startsWith("https://")) {
+      try {
+        const parsed = new URL(url);
+
+        // Firebase Storage API: https://firebasestorage.googleapis.com/v0/b/<bucket>/o/<encodedPath>
+        if (parsed.hostname.includes("firebasestorage.googleapis.com")) {
+          const match = parsed.pathname.match(/\/v0\/b\/([^/]+)\/o\/(.+)/);
+          if (match) {
+            bucketName = decodeURIComponent(match[1]);
+            filePath = decodeURIComponent(match[2].split("?")[0]);
+            isStorageResource = true;
+          }
+        }
+        // GCS standard path format: https://storage.googleapis.com/<bucket>/<path>
+        else if (parsed.hostname === "storage.googleapis.com") {
+          const segments = parsed.pathname.replace(/^\/+/, "").split("/");
+          if (segments.length >= 2) {
+            bucketName = decodeURIComponent(segments[0]);
+            filePath = decodeURIComponent(segments.slice(1).join("/").split("?")[0]);
+            isStorageResource = true;
+          }
+        }
+        // GCS virtual hosted: https://<bucket>.storage.googleapis.com/<path>
+        else if (parsed.hostname.endsWith(".storage.googleapis.com")) {
+          bucketName = decodeURIComponent(parsed.hostname.replace(".storage.googleapis.com", ""));
+          filePath = decodeURIComponent(parsed.pathname.replace(/^\/+/, "").split("?")[0]);
+          isStorageResource = true;
+        }
+        else {
+          // External third-party HTTP URL (e.g. external CDN)
+          logger.info("[Transcription] External non-GCS HTTP URL detected — returning directly", { url });
+          return url;
+        }
+      } catch (parseErr) {
+        logger.warn("[Transcription] Error parsing HTTP URL as storage URI", { url, error: String(parseErr) });
+      }
+    } else {
+      // Relative or bare path
+      isStorageResource = true;
+    }
+
+    if (!isStorageResource && (url.startsWith("http://") || url.startsWith("https://"))) {
+      return url;
+    }
 
     try {
-      let bucketName = PIPELINE_CONFIG.VIDEO_BUCKET;
-      let filePath = url;
+      filePath = filePath.replace(/^\/+/, "");
+      let targetBucket = bucketName ? admin.storage().bucket(bucketName) : admin.storage().bucket();
+      let file = targetBucket.file(filePath);
 
-      // 2. If it's a gs:// project path, parse it
-      if (url.startsWith("gs://")) {
-        const parts = url.replace("gs://", "").split("/");
-        bucketName = parts[0];
-        filePath = parts.slice(1).join("/");
+      // Verify file existence, fallback to default bucket if bucket names differ
+      try {
+        const [exists] = await file.exists();
+        if (!exists && targetBucket.name !== admin.storage().bucket().name) {
+          const defaultFile = admin.storage().bucket().file(filePath);
+          const [defaultExists] = await defaultFile.exists();
+          if (defaultExists) {
+            targetBucket = admin.storage().bucket();
+            file = defaultFile;
+          }
+        }
+      } catch (existsErr) {
+        logger.warn("[Transcription] File existence check non-fatal warning", {
+          error: String(existsErr),
+          bucket: targetBucket.name,
+          filePath,
+        });
       }
 
-      const bucket = admin.storage().bucket(bucketName);
-      const file = bucket.file(filePath);
+      // Generate a signed URL with read permissions valid for 2 hours
+      try {
+        const [signedUrl] = await file.getSignedUrl({
+          action: "read",
+          expires: Date.now() + 1000 * 60 * 60 * 2, // 2 hours
+        });
+        logger.info("[Transcription] Successfully generated signed URL for AssemblyAI", {
+          bucket: targetBucket.name,
+          filePath,
+        });
+        return signedUrl;
+      } catch (signingErr) {
+        logger.warn("[Transcription] file.getSignedUrl failed, trying download token fallback", {
+          error: String(signingErr),
+          filePath,
+        });
 
-      // Verify file exists
-      const [exists] = await file.exists();
-      if (!exists) {
-        throw new Error(`File not found in bucket: ${bucketName}/${filePath}`);
+        // Fallback: Check if file has firebaseStorageDownloadTokens in metadata
+        try {
+          const [metadata] = await file.getMetadata();
+          const tokens = metadata.metadata?.firebaseStorageDownloadTokens;
+          if (tokens) {
+            const token = String(tokens).split(",")[0].trim();
+            const tokenUrl = `https://firebasestorage.googleapis.com/v0/b/${targetBucket.name}/o/${encodeURIComponent(filePath)}?alt=media&token=${token}`;
+            logger.info("[Transcription] Generated download token URL fallback for AssemblyAI", { tokenUrl });
+            return tokenUrl;
+          }
+        } catch (tokenErr) {
+          logger.warn("[Transcription] Download token fallback failed", { error: String(tokenErr) });
+        }
+
+        // If it was already HTTP, return original URL rather than crashing
+        if (url.startsWith("http://") || url.startsWith("https://")) {
+          logger.warn("[Transcription] Falling back to original HTTP URL", { url });
+          return url;
+        }
+
+        throw signingErr;
       }
-
-      // Generate a signed URL valid for 2 hours
-      const [signedUrl] = await file.getSignedUrl({
-        action: "read",
-        expires: Date.now() + 1000 * 60 * 60 * 2,
-      });
-
-      return signedUrl;
     } catch (err) {
-      logger.error("[Transcription] Critical failure in URL signing", { url, error: String(err) });
-      
-      // Final Fallback: Try to construct a public download URL if bucket is public (risky)
-      // or just re-throw so the stage fails clearly
+      logger.error("[Transcription] Critical failure in URL signing for AssemblyAI", { url, error: String(err) });
       throw new Error(`Could not generate accessible URL for AssemblyAI: ${String(err)}`);
     }
   }
@@ -1038,11 +1273,13 @@ export class TranscriptionLayer {
         }
       }
 
-      const prompt = `You are an expert speech transcription engine for TruthWorld.
-Transcribe the English audio accurately.
+      const prompt = `You are an expert speech transcription and language detection engine for TruthWorld.
+Listen to the audio and determine the primary spoken language.
+If the audio is in English, transcribe it verbatim.
+If the audio is in a non-English language (such as Telugu, Hindi, Spanish, Tamil, etc.), accurately identify its ISO 639-1 code in "detectedLanguage" (e.g. "te" for Telugu, "hi" for Hindi, "es" for Spanish) and transcribe the spoken words.
 Return STRICT JSON:
 {
-  "detectedLanguage": "en",
+  "detectedLanguage": "ISO 639-1 code of the primary spoken language (e.g. 'en', 'te', 'hi', 'es', etc.)",
   "text": "Full verbatim transcript text",
   "segments": [
     {
@@ -1130,7 +1367,7 @@ Return STRICT JSON:
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
         const text = parsed.text || executionPlan.title || "Spoken content";
-        const detectedLanguage = parsed.detectedLanguage || "en";
+        const detectedLanguage = parsed.detectedLanguage ? normalizeLanguageCode(parsed.detectedLanguage) : "en";
         const segments: TimedSegment[] = Array.isArray(parsed.segments) && parsed.segments.length > 0
           ? parsed.segments.map((s: any, idx: number) => ({
               index: idx,

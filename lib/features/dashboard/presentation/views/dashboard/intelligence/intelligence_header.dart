@@ -175,14 +175,19 @@ class IntelligenceFilterChips extends StatelessWidget {
       'icon': Icons.warning_amber_rounded,
     },
     {
-      'id': 'growth',
-      'label': 'Milestones & Growth',
-      'icon': Icons.emoji_events_rounded,
+      'id': 'videos',
+      'label': 'Videos & Pipeline',
+      'icon': Icons.video_library_rounded,
     },
     {
       'id': 'verification',
       'label': 'Fact Verification',
       'icon': Icons.verified_user_rounded,
+    },
+    {
+      'id': 'growth',
+      'label': 'Milestones & Growth',
+      'icon': Icons.emoji_events_rounded,
     },
     {
       'id': 'performance',

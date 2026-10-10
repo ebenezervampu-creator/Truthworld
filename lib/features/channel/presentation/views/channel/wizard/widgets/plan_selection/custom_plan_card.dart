@@ -377,9 +377,11 @@ class CustomPlanCard extends StatelessWidget {
                       alignment: WrapAlignment.center,
                       spacing: isDesktop ? 6 : 8,
                       runSpacing: isDesktop ? 6 : 8,
-                      children: tierBadges
-                          .map((badge) => PlanBadgeItem(text: badge))
-                          .toList(),
+                      children: [
+                        const PlanBadgeItem(text: 'Phase 1: Unlimited • Zero Restriction'),
+                        ...tierBadges
+                            .map((badge) => PlanBadgeItem(text: badge)),
+                      ],
                     );
                   }),
                 ],

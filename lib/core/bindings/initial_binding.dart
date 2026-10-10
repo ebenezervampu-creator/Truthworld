@@ -140,9 +140,21 @@ class InitialBinding extends Bindings {
     Get.lazyPut(UserSignalTracker.new, fenix: true);
     Get.lazyPut(FeedAlgorithmService.new, fenix: true);
 
-    // Repositories
-    Get.lazyPut<VideoRepository>(VideoRepositoryImpl.new, fenix: true);
-    Get.lazyPut<ChannelRepository>(ChannelRepositoryImpl.new, fenix: true);
+    // Repositories (Injected via Composition Root)
+    Get.lazyPut<VideoRepository>(
+      () => VideoRepositoryImpl(
+        counterService: Get.isRegistered<DistributedCounterService>()
+            ? DistributedCounterService.to
+            : null,
+      ),
+      fenix: true,
+    );
+    Get.lazyPut<ChannelRepository>(
+      () => ChannelRepositoryImpl(
+        authService: Get.isRegistered<AuthService>() ? AuthService.to : null,
+      ),
+      fenix: true,
+    );
     Get.lazyPut<CommentRepository>(CommentRepositoryImpl.new, fenix: true);
     Get.lazyPut<CommunityRepository>(
       CommunityRepositoryImpl.new,

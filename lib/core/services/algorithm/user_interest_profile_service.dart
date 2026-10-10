@@ -290,7 +290,9 @@ class UserInterestProfileService extends GetxService {
       totalPct += normalizedPct;
 
       final isFactChecked = data['isFactChecked'] == true ||
-          ((data['trustScore'] as num?)?.toDouble() ?? 0.0) >= 3.5;
+          (data['factCheckUrl'] as String?)?.isNotEmpty == true ||
+          (data['media'] is Map &&
+              (data['media']['factCheckUrl'] as String?)?.isNotEmpty == true);
       if (isFactChecked) factCheckedCount++;
 
       final videoDurationSec = (data['videoDuration'] as num?)?.toInt() ?? (dur > 0 ? dur : 0);

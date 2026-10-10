@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
-import 'package:get/get.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/network/result.dart';
 
@@ -10,7 +9,8 @@ import 'package:truthworld/core/network/result.dart';
 /// defensive Firestore operations (`safeSet`, `safeUpdate`, `safeDelete`),
 /// and safe `Result<T>` mapping for all data layer implementations.
 abstract class BaseRepository {
-  const BaseRepository();
+  final bool isTestMode;
+  const BaseRepository({this.isTestMode = false});
 
   /// Execute an async data fetch task safely, transforming any thrown exceptions into a `Failure<T>`
   Future<Result<T>> safeFetch<T>(
@@ -20,7 +20,7 @@ abstract class BaseRepository {
     Duration timeout = const Duration(seconds: 15),
   }) async {
     final effectiveTimeout =
-        Get.testMode ? const Duration(milliseconds: 100) : timeout;
+        isTestMode ? const Duration(milliseconds: 100) : timeout;
     var attempts = 0;
     while (true) {
       attempts++;

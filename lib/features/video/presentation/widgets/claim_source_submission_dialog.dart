@@ -118,6 +118,80 @@ class ClaimSourceSubmissionDialog extends StatelessWidget {
                 if (!controller.isEligible)
                   _buildUpgradeCard(context)
                 else ...[
+                  // Creator Mode Switcher (Citation vs Formal Appeal)
+                  if (controller.isChannelOwner) ...[
+                    Obx(() {
+                      final isAppeal = controller.isAppealMode.value;
+                      return Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: InkWell(
+                                onTap: () => controller.setAppealMode(false),
+                                borderRadius: BorderRadius.circular(8),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: !isAppeal ? Colors.white.withValues(alpha: 0.16) : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: const Text(
+                                    'Provide Citation',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: InkWell(
+                                onTap: () => controller.setAppealMode(true),
+                                borderRadius: BorderRadius.circular(8),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: isAppeal ? Colors.amber.withValues(alpha: 0.22) : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.gavel_rounded,
+                                        size: 13,
+                                        color: isAppeal ? Colors.amber : Colors.white70,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'File IFCN Appeal',
+                                        style: TextStyle(
+                                          color: isAppeal ? Colors.amber : Colors.white70,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                    const SizedBox(height: 16),
+                  ],
+
                   // Target Selection (Claim or Entire Video)
                   Text(
                     'Target Claim / Scope',
@@ -131,13 +205,13 @@ class ClaimSourceSubmissionDialog extends StatelessWidget {
                   const SizedBox(height: 16),
 
                   // Source URL input
-                  Text(
-                    'Source URL',
+                  Obx(() => Text(
+                    controller.isAppealMode.value ? 'Rebuttal Evidence URL (Optional)' : 'Source URL',
                     style: AppTextStyles.bodyMedium.copyWith(
                       fontWeight: FontWeight.w600,
                       color: AppColors.textPrimary,
                     ),
-                  ),
+                  )),
                   const SizedBox(height: 6),
                   TextField(
                     controller: controller.urlController,
@@ -166,61 +240,72 @@ class ClaimSourceSubmissionDialog extends StatelessWidget {
                   const SizedBox(height: 16),
 
                   // Optional Title / Author
-                  Text(
-                    'Source Title / Author (Optional)',
-                    style: AppTextStyles.bodyMedium.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: controller.titleController,
-                    inputFormatters: TruthworldTextInputFormatters.standard,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 13,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'e.g. Nature Journal Article / Harvard Study',
-                      hintStyle: TextStyle(
-                        color: AppColors.textSecondary.withValues(alpha: 0.6),
-                      ),
-                      filled: true,
-                      fillColor: AppColors.bgInput,
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: AppColors.bgDivider),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
+                  Obx(() {
+                    if (controller.isAppealMode.value) return const SizedBox.shrink();
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Source Title / Author (Optional)',
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: controller.titleController,
+                          inputFormatters: TruthworldTextInputFormatters.standard,
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 13,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'e.g. Nature Journal Article / Harvard Study',
+                            hintStyle: TextStyle(
+                              color: AppColors.textSecondary.withValues(alpha: 0.6),
+                            ),
+                            filled: true,
+                            fillColor: AppColors.bgInput,
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: AppColors.bgDivider),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                    );
+                  }),
 
-                  // Citation Note
-                  Text(
-                    'Citation Excerpt / Note (Optional)',
+                  // Citation Note / Appeal Rationale
+                  Obx(() => Text(
+                    controller.isAppealMode.value
+                        ? 'Substantive Appeal Rationale (Min 10 characters)'
+                        : 'Citation Excerpt / Note (Optional)',
                     style: AppTextStyles.bodyMedium.copyWith(
                       fontWeight: FontWeight.w600,
                       color: AppColors.textPrimary,
                     ),
-                  ),
+                  )),
                   const SizedBox(height: 6),
                   TextField(
                     controller: controller.noteController,
                     inputFormatters: TruthworldTextInputFormatters.standard,
-                    maxLines: 2,
+                    maxLines: 3,
                     style: const TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 13,
                     ),
                     decoration: InputDecoration(
-                      hintText:
-                          'Briefly explain how this source verifies or clarifies the claim...',
+                      hintText: controller.isAppealMode.value
+                          ? 'Explain specifically why the verdict is inaccurate or contested...'
+                          : 'Briefly explain how this source verifies or clarifies the claim...',
                       hintStyle: TextStyle(
                         color: AppColors.textSecondary.withValues(alpha: 0.6),
                       ),
@@ -237,13 +322,16 @@ class ClaimSourceSubmissionDialog extends StatelessWidget {
                   // Submit button
                   Obx(() {
                     final isSubmitting = controller.isSubmitting.value;
+                    final isAppeal = controller.isAppealMode.value;
                     return SizedBox(
                       width: double.infinity,
                       height: 48,
                       child: ElevatedButton.icon(
                         onPressed: isSubmitting
                             ? null
-                            : () => controller.submitSource(context),
+                            : () => isAppeal
+                                ? controller.submitFormalAppeal(context)
+                                : controller.submitSource(context),
                         icon: isSubmitting
                             ? const SizedBox(
                                 width: 18,
@@ -253,22 +341,24 @@ class ClaimSourceSubmissionDialog extends StatelessWidget {
                                   color: Colors.white,
                                 ),
                               )
-                            : const Icon(
-                                Icons.send_rounded,
-                                color: AppColors.textPrimary,
+                            : Icon(
+                                isAppeal ? Icons.gavel_rounded : Icons.send_rounded,
+                                color: isAppeal ? Colors.black : AppColors.textPrimary,
                                 size: 18,
                               ),
                         label: Text(
                           isSubmitting
                               ? 'Submitting...'
-                              : 'Submit Evidence to Credibility System',
+                              : isAppeal
+                                  ? 'Escalate to IFCN Appeals Desk'
+                                  : 'Submit Evidence to Credibility System',
                           style: AppTextStyles.bodyMedium.copyWith(
                             fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
+                            color: isAppeal ? Colors.black : AppColors.textPrimary,
                           ),
                         ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF10B981),
+                          backgroundColor: isAppeal ? Colors.amber : const Color(0xFF10B981),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                           ),

@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/creator_intelligence_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/copyright_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/intelligence/intelligence_branding_issues.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/intelligence/intelligence_issue_card.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification_dashboard_page.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Container aggregating all Truthworld verification audits, channel status, and copyright notices.
@@ -221,6 +223,284 @@ class IntelligenceIssuesSection extends StatelessWidget {
       );
     }
 
+    // 5. Rejected Channel Videos (Language Policy or Moderation)
+    for (final v in controller.rejectedVideos) {
+      issueCards.add(
+        IntelligenceIssueCard(
+          title: v.isLanguageRejection
+              ? 'Video Not Accepted (Language Policy): "${v.title}"'
+              : 'Video Moderation Rejected: "${v.title}"',
+          description: v.isLanguageRejection
+              ? '${v.reason}\nDetected Language: ${v.detectedLanguage.toUpperCase()} • Truthworld requires English as the primary language (minimum 90% English; up to 10% secondary languages allowed for Ground News & quotes).'
+              : v.reason,
+          statusType: 'REJECTED',
+          icon: v.isLanguageRejection
+              ? Icons.translate_rounded
+              : Icons.videocam_off_rounded,
+          actions: [
+            ElevatedButton.icon(
+              onPressed: () {
+                if (Get.isRegistered<DashboardController>()) {
+                  Get.find<DashboardController>().setSelectedIndex(2);
+                } else {
+                  Get.toNamed('/studio');
+                }
+              },
+              icon: const Icon(
+                Icons.video_library_rounded,
+                color: Colors.white,
+                size: 15,
+              ),
+              label: const Text('Manage in Videos'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.error,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                textStyle: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            OutlinedButton.icon(
+              onPressed: () => Get.toNamed('/upload'),
+              icon: const Icon(
+                Icons.upload_rounded,
+                color: Colors.white,
+                size: 15,
+              ),
+              label: const Text('Upload English Video'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white,
+                backgroundColor: AppColors.bgSurfaceHover,
+                side: const BorderSide(color: AppColors.bgDivider),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                textStyle: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // 6. Videos Held for Manual Verification Review
+    for (final v in controller.manualReviewVideos) {
+      issueCards.add(
+        IntelligenceIssueCard(
+          title: 'Video Held for Manual Review: "${v.title}"',
+          description:
+              '${v.reason}\nOur Trust & Safety team is reviewing this video and will notify your channel once approved.',
+          statusType: 'MANUAL_REVIEW',
+          icon: Icons.policy_rounded,
+          actions: [
+            OutlinedButton.icon(
+              onPressed: () {
+                if (Get.isRegistered<DashboardController>()) {
+                  Get.find<DashboardController>().setSelectedIndex(2);
+                } else {
+                  Get.toNamed('/studio');
+                }
+              },
+              icon: const Icon(
+                Icons.video_library_rounded,
+                color: Colors.white,
+                size: 15,
+              ),
+              label: const Text('View in Videos'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white,
+                backgroundColor: AppColors.bgSurfaceHover,
+                side: const BorderSide(color: AppColors.bgDivider),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                textStyle: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // 7. Failed / Interrupted Video Pipeline Jobs
+    for (final v in controller.failedVideos) {
+      issueCards.add(
+        IntelligenceIssueCard(
+          title: 'Video Processing Interrupted: "${v.title}"',
+          description: v.reason,
+          statusType: 'FLAGGED',
+          icon: Icons.sync_problem_rounded,
+          actions: [
+            OutlinedButton.icon(
+              onPressed: () {
+                if (Get.isRegistered<DashboardController>()) {
+                  Get.find<DashboardController>().setSelectedIndex(2);
+                } else {
+                  Get.toNamed('/studio');
+                }
+              },
+              icon: const Icon(
+                Icons.video_library_rounded,
+                color: Colors.white,
+                size: 15,
+              ),
+              label: const Text('Manage in Videos'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white,
+                backgroundColor: AppColors.bgSurfaceHover,
+                side: const BorderSide(color: AppColors.bgDivider),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                textStyle: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // 8. Disputed Fact-Checks Re-Evaluating
+    for (final v in controller.disputedVideos) {
+      issueCards.add(
+        IntelligenceIssueCard(
+          title: 'Fact-Check Appeal In Progress: "${v.title}"',
+          description: v.reason,
+          statusType: 'PENDING',
+          icon: Icons.fact_check_rounded,
+          isLoading: true,
+          actions: [
+            OutlinedButton.icon(
+              onPressed: () {
+                TruthVerificationDashboardPage.targetVideoId.value = v.id;
+                if (Get.isRegistered<DashboardController>()) {
+                  Get.find<DashboardController>().setSelectedIndex(15);
+                } else {
+                  Get.to<void>(
+                    () => TruthVerificationDashboardPage(
+                      channelId: channelId,
+                      isDarkMode: true,
+                      initialVideoId: v.id,
+                    ),
+                  );
+                }
+              },
+              icon: const Icon(
+                Icons.fact_check_rounded,
+                color: Colors.white,
+                size: 15,
+              ),
+              label: const Text('View Fact-Checks Tab'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white,
+                backgroundColor: AppColors.bgSurfaceHover,
+                side: const BorderSide(color: AppColors.bgDivider),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                textStyle: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // 9. Videos Currently Undergoing Verification & Processing
+    for (final v in controller.processingVideos) {
+      issueCards.add(
+        IntelligenceIssueCard(
+          title: 'Video Verification & Processing Active: "${v.title}"',
+          description: v.reason,
+          statusType: 'PENDING',
+          icon: Icons.hourglass_top_rounded,
+          isLoading: true,
+          actions: [
+            OutlinedButton.icon(
+              onPressed: () {
+                if (Get.isRegistered<DashboardController>()) {
+                  Get.find<DashboardController>().setSelectedIndex(2);
+                } else {
+                  Get.toNamed('/studio');
+                }
+              },
+              icon: const Icon(
+                Icons.video_library_rounded,
+                color: Colors.white,
+                size: 15,
+              ),
+              label: const Text('Track in Videos'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white,
+                backgroundColor: AppColors.bgSurfaceHover,
+                side: const BorderSide(color: AppColors.bgDivider),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                textStyle: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     if (issueCards.isEmpty) return const SizedBox.shrink();
 
     final hasUrgentIssue = (ch != null &&
@@ -229,7 +509,9 @@ class IntelligenceIssuesSection extends StatelessWidget {
                 ch.avatarStatus == 'FLAGGED' ||
                 ch.bannerStatus == 'REJECTED' ||
                 ch.bannerStatus == 'FLAGGED')) ||
-        copyrightCount > 0;
+        copyrightCount > 0 ||
+        controller.rejectedVideos.isNotEmpty ||
+        controller.failedVideos.isNotEmpty;
 
     final headerColor = hasUrgentIssue ? AppColors.error : AppColors.brand;
     final headerBg = hasUrgentIssue ? AppColors.errorContainer : AppColors.infoContainer;

@@ -382,6 +382,7 @@ export type ClaimStatus =
   | "satire"
   | "unverifiable"
   | "faith_based_claim"
+  | "contested_interpretation"
   | "not_historically_verifiable";
 
 export interface VerifiedClaim extends FilteredClaim {
@@ -440,6 +441,29 @@ export interface VerifiedClaim extends FilteredClaim {
     historical: string;
     scientific: string;
   };
+  multiModelConsensus?: MultiModelConsensusMetadata;
+}
+
+export interface MultiModelConsensusMetadata {
+  checked: boolean;
+  agreed: boolean;
+  primaryVerdict: string;
+  secondaryVerdict?: string;
+  adjudicationRationale?: string;
+  crossExaminedAt: number;
+}
+
+export interface ClaimLedgerSummary {
+  totalClaimsChecked: number;
+  confirmedCount: number;
+  disputedCount: number;
+  unprovenCount: number;
+  falseCount: number;
+  contextualCount: number;
+  highestSeverityVerdict: 'verified_true' | 'mostly_true' | 'disputed' | 'false_claim' | 'unproven' | 'none';
+  verdictHeadline: string;
+  priorityNotice?: string;
+  verifiableRatio: number;
 }
 
 export interface EvidenceSummary {
@@ -1073,6 +1097,7 @@ export interface UserConfig {
   enableFactCheck: boolean;
   priority: 'low' | 'normal' | 'high';
   duration?: number; // duration in seconds
+  primaryLanguage?: string;
 }
 
 export interface ExecutionPlan {
@@ -1367,6 +1392,7 @@ export interface ExplainabilityResult {
   confidence: number;
   severity?: ClaimSeverity;
   severityLabel?: string;
+  multiModelConsensus?: MultiModelConsensusMetadata;
 }
 
 export interface SourceReference {
@@ -1445,6 +1471,7 @@ export interface CredibilityResult {
     extractionPartial?: boolean; // v11.1
     verificationCoverageRatio?: number; // v11.5
   };
+  claimLedger?: ClaimLedgerSummary;
   contentIntent?: {
     primaryIntent: string;
     intentScores?: Record<string, number>;

@@ -91,22 +91,29 @@ export const onVideoPublished = onDocumentUpdated(
     const isRejected = afterData.status === "rejected" || afterData.moderation?.status === "rejected";
     const becameRejected = !wasRejected && isRejected;
 
-    if (becameRejected) {
+    if (becameRejected && !afterData.rejectionNotified) {
       const uploaderId = afterData.userId || afterData.ownerId || afterData.uploaderId;
       if (uploaderId) {
         const reason = afterData.rejectionReason || afterData.moderation?.reason || "Content violates Community Guidelines";
-        const title = afterData.title && afterData.title !== "Uploading..." ? afterData.title : "your video";
+        const title = afterData.title && afterData.title !== "Uploading..." ? afterData.title : "Untitled Video";
+        const channelId = afterData.channelId || `channel_${uploaderId}`;
         notifyUser({
           userId: uploaderId,
           type: "verification_result",
           severity: "priority",
-          title: "Video Moderation Rejected",
-          message: `Your video "${title}" was rejected: ${reason}. Please update or replace your video to comply with guidelines.`,
+          title: `Video Moderation Rejected: "${title}"`,
+          message: `Your video "${title}" was rejected: ${reason}. Please update or replace your video in Studio to comply with Truthworld guidelines.`,
           actionUrl: "/studio",
           metadata: {
             videoId,
+            channelId,
+            videoTitle: title,
+            thumbnailUrl: afterData.thumbnailUrl || "",
             reason,
             itemType: "video",
+            status: "rejected",
+            priority: "critical",
+            category: "verification",
           },
         }).catch((err: any) =>
           logger.warn("[PublishGate] Rejection notification failed (non-critical)", { videoId, err: String(err) })
@@ -250,6 +257,58 @@ export const onVideoPublished = onDocumentUpdated(
           status: "rejected",
           rejectionReason: afterData.moderation?.reason || "Content violates Community Guidelines",
         });
+        return;
+      }
+
+      // 🔒 Language Policy Enforcement: TruthWorld is strictly English-only at this phase
+      const videoLang = normalizeLanguageCode(afterData.language || "en");
+      if (videoLang !== "en") {
+        logger.warn("[PublishGate] Video rejected — non-English language on English-only platform", {
+          videoId,
+          language: afterData.language,
+        });
+        const rejectionReason = `Truthworld currently only supports English channels and content (minimum 90% English). Non-English videos (${videoLang.toUpperCase()}) cannot be published at this stage.`;
+        await db.collection("videos").doc(videoId).set({
+          status: "rejected",
+          rejectionReason,
+          rejectionNotified: true,
+          moderation: {
+            status: "rejected",
+            reason: rejectionReason,
+            detectedLanguage: videoLang,
+            violatingPolicies: ["UNSUPPORTED_LANGUAGE"],
+          },
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+
+        const uploaderId = afterData.userId || afterData.ownerId || afterData.uploaderId;
+        if (uploaderId) {
+          const channelId = afterData.channelId || `channel_${uploaderId}`;
+          const videoTitle = afterData.title && afterData.title !== "Uploading..." ? afterData.title : "Untitled Video";
+          notifyUser({
+            userId: uploaderId,
+            type: "verification_result",
+            severity: "priority",
+            title: `Video Not Accepted (Language Policy): "${videoTitle}"`,
+            message: `Your video "${videoTitle}" was not accepted: ${rejectionReason}`,
+            actionUrl: "/studio",
+            metadata: {
+              videoId,
+              channelId,
+              videoTitle,
+              thumbnailUrl: afterData.thumbnailUrl || "",
+              reason: rejectionReason,
+              violatingPolicies: ["UNSUPPORTED_LANGUAGE"],
+              detectedLanguage: videoLang,
+              itemType: "video",
+              status: "rejected",
+              priority: "critical",
+              category: "verification",
+            },
+          }).catch((err: any) =>
+            logger.warn("[PublishGate] Rejection notification failed", { videoId, err: String(err) })
+          );
+        }
         return;
       }
 
@@ -486,6 +545,29 @@ export const onVideoPublished = onDocumentUpdated(
         retryCount: 0,
         source: "publish-gate",
       });
+
+      const resolvedChannelId = afterData.channelId || `channel_${userId}`;
+      notifyUser({
+        userId,
+        type: "verification_result",
+        severity: "info",
+        title: `Video Processing Started: "${title}"`,
+        message: `Your video "${title}" is now undergoing Truthworld AI transcription, primary English language verification (90% threshold), and safety checks.`,
+        actionUrl: "/studio",
+        metadata: {
+          videoId,
+          jobId,
+          channelId: resolvedChannelId,
+          videoTitle: title,
+          thumbnailUrl: afterData.thumbnailUrl || "",
+          itemType: "video",
+          status: "processing",
+          priority: "normal",
+          category: "verification",
+        },
+      }).catch((err: any) =>
+        logger.warn("[PublishGate] Processing started notification failed (non-critical)", { videoId, err: String(err) })
+      );
 
       // ⚡ FAST MULTIMODAL TRIAGE (Sub-60s provisional credibility & OCR check)
       if (enableFactChecking || aiFeatures.factChecking !== false) {

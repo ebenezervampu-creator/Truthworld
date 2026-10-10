@@ -11,12 +11,13 @@
  */
 
 import { auth, logger, runWith } from "firebase-functions/v1";
-import { onRequest } from "firebase-functions/v2/https";
+import { onRequest, onCall } from "firebase-functions/v2/https";
 import type { UserRecord } from "firebase-admin/auth";
 import * as admin from "firebase-admin";
 import { verifyAuth, setCorsHeaders } from "../utils/auth";
 import { isSessionRecent } from "../utils/securityHeaders";
 import { EmailService } from "../services/emailService";
+import { getDynamicPlatformLimits } from "../config/platformLimits";
 
 const db = () => admin.firestore();
 const storage = () => admin.storage();
@@ -321,6 +322,27 @@ export const onUserCreated = runWith({
       return;
     }
 
+    // 🔒 Phase Capacity Enforcement: Cap registrations when active phase limit is reached
+    const limits = await getDynamicPlatformLimits();
+    const usersCountSnap = await firestore.collection("users").count().get();
+    const totalUsers = usersCountSnap.data().count;
+    if (totalUsers > limits.MAX_STANDARD_USERS) {
+      await userRef.set(
+        {
+          accountStatus: "waitlisted",
+          isWaitlisted: true,
+          waitlistReason: `Phase ${limits.CURRENT_PHASE} user capacity (${limits.MAX_STANDARD_USERS.toLocaleString()}) reached.`,
+          waitlistPosition: totalUsers,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+      logger.warn(
+        `[onUserCreated] User ${uid} registered after Phase ${limits.CURRENT_PHASE} capacity limit reached (${totalUsers}/${limits.MAX_STANDARD_USERS} users). Account marked as waitlisted.`
+      );
+      return;
+    }
+
     // 2. Dispatch Welcome Email via EmailService (Google SMTP)
     const result = await EmailService.sendWelcomeEmail({
       to: email,
@@ -413,3 +435,31 @@ export const purgeUserAccount = onRequest(
     }
   }
 );
+
+/**
+ * 🔒 CHECK USER REGISTRATION CAPACITY
+ * Allows clients to query whether registration in current phase is open or waitlisted.
+ */
+export const checkUserRegistrationCapacity = onCall(
+  {
+    region: "asia-south1",
+    memory: "256MiB",
+    maxInstances: 20,
+  },
+  async () => {
+    const limits = await getDynamicPlatformLimits();
+    const usersSnap = await db().collection("users").count().get();
+    const count = usersSnap.data().count;
+    const isCapped = count >= limits.MAX_STANDARD_USERS;
+    return {
+      phase: limits.CURRENT_PHASE,
+      phaseName: limits.PHASE_NAME,
+      allowed: !isCapped,
+      currentUsers: count,
+      maxUsers: limits.MAX_STANDARD_USERS,
+      isWaitlisted: isCapped,
+      remainingSlots: Math.max(0, limits.MAX_STANDARD_USERS - count),
+    };
+  }
+);
+

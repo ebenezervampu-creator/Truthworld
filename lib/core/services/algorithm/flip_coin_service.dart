@@ -366,7 +366,7 @@ class FlipCoinService extends GetxService {
       }
 
       // 3. High credibility / fact-checked boost
-      if (candidateVideo.isFactChecked || candidateVideo.trustScore >= 3.5) {
+      if (candidateVideo.isFactChecked || candidateVideo.hasAiCredibility) {
         coldStartContrast += 0.2;
       }
 
@@ -459,7 +459,7 @@ class FlipCoinService extends GetxService {
     }
 
     // 6. Credibility / Fact-Checked Bonus
-    if (candidateVideo.isFactChecked || candidateVideo.trustScore >= 3.5) {
+    if (candidateVideo.isFactChecked || candidateVideo.hasAiCredibility) {
       contrastScore += 0.2;
     }
 
@@ -610,7 +610,7 @@ class FlipCoinService extends GetxService {
     if (currentVideo.category == candidateVideo.category && !isSameChannel && contrastScore > 0) {
       contrastScore += 0.2;
     }
-    if (candidateVideo.isFactChecked || candidateVideo.trustScore >= 3.5) {
+    if (candidateVideo.isFactChecked || candidateVideo.hasAiCredibility) {
       contrastScore += 0.2;
     }
     contrastScore = contrastScore.clamp(0.0, 2.0);

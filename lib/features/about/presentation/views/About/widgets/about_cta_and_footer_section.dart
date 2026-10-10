@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:get/get.dart';
+import 'package:truthworld/core/navigation/app_navigator.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -61,7 +61,7 @@ class AboutCTASection extends StatelessWidget {
                   AuthService.to.userChannel != null) {
                 StudioLauncher.openStudio();
               } else {
-                Get.toNamed('/channelscreen');
+                AppNavigator.toChannelWizard();
               }
             },
             style: ElevatedButton.styleFrom(
@@ -137,11 +137,11 @@ class AboutFooterSection extends StatelessWidget {
                 'hello@truthworld.in',
                 () => onSendEmail('hello@truthworld.in'),
               ),
-              _buildFooterLink('Terms of Service', () => Get.toNamed('/terms')),
-              _buildFooterLink('Privacy Policy', () => Get.toNamed('/privacy')),
+              _buildFooterLink('Terms of Service', AppNavigator.toTerms),
+              _buildFooterLink('Privacy Policy', AppNavigator.toPrivacy),
               _buildFooterLink(
                 'Copyright & DMCA',
-                () => Get.toNamed('/copyright-complaint'),
+                AppNavigator.toCopyrightComplaint,
               ),
               _buildFooterLink(
                 'LinkedIn',

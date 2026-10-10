@@ -10,6 +10,7 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
+import 'package:truthworld/core/navigation/app_navigator.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -348,7 +349,7 @@ class MyVideosController extends BaseController {
     if (Get.isRegistered<AuthService>()) {
       final auth = AuthService.to;
       if (!auth.isAuthenticated.value) {
-        Get.toNamed('/auth');
+        AppNavigator.toNamed('/auth');
         return;
       }
       if (!hasChannel) {
@@ -360,7 +361,7 @@ class MyVideosController extends BaseController {
       return;
     }
 
-    Get.toNamed('/upload');
+    AppNavigator.toUpload();
   }
 
   /// Displays a friendly dialog prompting user to create a channel first.
@@ -431,8 +432,8 @@ class MyVideosController extends BaseController {
                   const SizedBox(width: 8),
                   ElevatedButton(
                     onPressed: () {
-                      Get.back();
-                      Get.toNamed('/channelscreen');
+                      AppNavigator.back();
+                      AppNavigator.toChannelWizard();
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.textPrimary,

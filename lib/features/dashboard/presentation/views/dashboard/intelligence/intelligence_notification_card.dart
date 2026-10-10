@@ -25,13 +25,16 @@ class IntelligenceNotificationCard extends StatelessWidget {
   final bool isCriticalStyle;
 
   bool get _isFactCheckNotification =>
-      notification.type.contains('fact_check') ||
-      notification.type.contains('factcheck') ||
-      notification.metadata?['factCheckReviewMode'] != null ||
-      (notification.metadata?['videoId'] != null &&
-          (notification.title.toLowerCase().contains('fact') ||
-              notification.title.toLowerCase().contains('truth') ||
-              notification.title.toLowerCase().contains('verification')));
+      _videoStatus != 'rejected' &&
+      _videoStatus != 'manual_review' &&
+      _videoStatus != 'processing' &&
+      _videoStatus != 'failed' &&
+      (notification.type.contains('fact_check') ||
+          notification.type.contains('factcheck') ||
+          notification.metadata?['factCheckReviewMode'] != null ||
+          (notification.metadata?['videoId'] != null &&
+              (notification.title.toLowerCase().contains('fact') ||
+                  notification.title.toLowerCase().contains('truth'))));
 
   bool get _isReviewFirst =>
       notification.metadata?['factCheckReviewMode'] == 'first_to_creator';
@@ -42,6 +45,12 @@ class IntelligenceNotificationCard extends StatelessWidget {
 
   String get _videoId =>
       (notification.metadata?['videoId'] as String?) ?? '';
+
+  bool get _isVideoNotification =>
+      notification.metadata?['itemType'] == 'video' || _videoId.isNotEmpty;
+
+  String get _videoStatus =>
+      ((notification.metadata?['status'] as String?) ?? '').toLowerCase();
 
   void _handleAction(BuildContext context, NotificationActionItem action) {
     switch (action.type) {
@@ -81,19 +90,29 @@ class IntelligenceNotificationCard extends StatelessWidget {
     var badgeBg = AppColors.bgSurfaceHover;
     var badgeBorder = AppColors.bgDivider;
 
-    if (notification.type.contains('fact_check') ||
+    if (_videoStatus == 'rejected' ||
+        notification.priority == NotificationPriority.critical) {
+      leadingIcon = notification.title.toLowerCase().contains('language')
+          ? Icons.translate_rounded
+          : Icons.cancel_rounded;
+      badgeBg = AppColors.errorContainer;
+      badgeBorder = AppColors.error.withValues(alpha: 0.4);
+    } else if (_videoStatus == 'manual_review' ||
+        _videoStatus == 'failed' ||
+        notification.severity == NotificationSeverity.warning) {
+      leadingIcon = Icons.policy_rounded;
+      badgeBg = AppColors.warningContainer;
+      badgeBorder = AppColors.warning.withValues(alpha: 0.4);
+    } else if (_videoStatus == 'processing') {
+      leadingIcon = Icons.hourglass_top_rounded;
+      badgeBg = AppColors.infoContainer;
+      badgeBorder = AppColors.info.withValues(alpha: 0.4);
+    } else if (notification.type.contains('fact_check') ||
         notification.type.contains('factcheck') ||
         notification.type.contains('verification')) {
-      if (notification.priority == NotificationPriority.critical ||
-          notification.severity == NotificationSeverity.warning) {
-        leadingIcon = Icons.cancel_rounded;
-        badgeBg = AppColors.errorContainer;
-        badgeBorder = AppColors.error.withValues(alpha: 0.4);
-      } else {
-        leadingIcon = Icons.verified_rounded;
-        badgeBg = AppColors.successContainer;
-        badgeBorder = AppColors.success.withValues(alpha: 0.4);
-      }
+      leadingIcon = Icons.verified_rounded;
+      badgeBg = AppColors.successContainer;
+      badgeBorder = AppColors.success.withValues(alpha: 0.4);
     } else if (notification.type.contains('milestone')) {
       leadingIcon = Icons.emoji_events_rounded;
       badgeBg = AppColors.warningContainer;
@@ -232,7 +251,8 @@ class IntelligenceNotificationCard extends StatelessWidget {
                 // Action Buttons Row
                 if (notification.actions.isNotEmpty ||
                     notification.verificationReportId != null ||
-                    _isFactCheckNotification) ...[
+                    _isFactCheckNotification ||
+                    _isVideoNotification) ...[
                   const SizedBox(height: 12),
                   const Divider(height: 1, color: AppColors.bgDivider),
                   const SizedBox(height: 10),
@@ -241,6 +261,41 @@ class IntelligenceNotificationCard extends StatelessWidget {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
+                      if (_isVideoNotification)
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            controller.markAsRead(notification.id);
+                            if (Get.isRegistered<DashboardController>()) {
+                              Get.find<DashboardController>().setSelectedIndex(2);
+                            } else {
+                              Get.toNamed('/studio');
+                            }
+                          },
+                          icon: const Icon(
+                            Icons.video_library_rounded,
+                            size: 14,
+                            color: Colors.white,
+                          ),
+                          label: const Text('Manage in Videos'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: AppColors.bgDivider),
+                            backgroundColor: AppColors.bgSurfaceHover,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 7,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            textStyle: const TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              fontFamilyFallback: TWTypography.fallbackFamilies,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
                       if (_isFactCheckNotification && _videoId.isNotEmpty) ...[
                         if (_isReviewFirst && !_isApproved)
                           ElevatedButton.icon(

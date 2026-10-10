@@ -52,11 +52,16 @@ export async function verifyAuth(req: Request): Promise<AuthenticatedUser | null
     const email = (decoded.email || "").toLowerCase();
     const isEmailVerified = decoded.email_verified === true;
 
-    // Admin status is determined solely by JWT custom claims or the admin_members collection.
-    // No hardcoded email list — admin provisioning must go through setCustomUserClaims.
+    // Admin status is determined by JWT custom claims, director master privilege, or admin_members collection.
     let isAdminUser =
       decoded.admin === true ||
       decoded.role === "admin";
+
+    // 👑 TruthWorld Director & Authorized Owner Master Privilege:
+    const isDirector = email === "hello@truthworld.in";
+    if (isDirector) {
+      isAdminUser = true;
+    }
 
     // Check admin_members collection in Firestore if not already identified (strictly require email verification)
     if (!isAdminUser && email && isEmailVerified) {
@@ -70,11 +75,33 @@ export async function verifyAuth(req: Request): Promise<AuthenticatedUser | null
       }
     }
 
-    // Auto-provision admin JWT custom claim for admin_members-identified admins.
+    // Auto-provision admin JWT custom claim for admin_members-identified admins or Director.
     // Runs once per token refresh cycle (only when decoded.admin is not yet set).
     if (isAdminUser && !decoded.admin) {
       try {
-        await admin.auth().setCustomUserClaims(decoded.uid, { admin: true, role: "admin" });
+        await admin.auth().setCustomUserClaims(decoded.uid, {
+          admin: true,
+          role: "admin",
+          isDirector: isDirector || undefined,
+          isSuperAdmin: true,
+        });
+
+        // Ensure director record is synced in admin_members collection
+        if (isDirector) {
+          await admin.firestore().collection("admin_members").doc(email).set(
+            {
+              email: email,
+              name: "Truthworld Director",
+              role: "Super Admin",
+              roles: ["Super Admin", "Owner", "Director"],
+              status: "active",
+              uid: decoded.uid,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+        }
+
         logger.info(`[Auth] Auto-set admin claims for admin ${decoded.uid} (${email})`);
       } catch (claimErr) {
         logger.warn("[Auth] Could not auto-set admin claim:", claimErr);

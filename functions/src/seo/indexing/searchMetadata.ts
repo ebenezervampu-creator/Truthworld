@@ -29,10 +29,14 @@ export async function updateVideoSearchMetadata(db: admin.firestore.Firestore, v
   await db.collection("video_search").doc(videoId).set(searchDoc, { merge: true });
 
   if (embeddingVector && embeddingVector.length > 0) {
-    await db.collection("videos").doc(videoId).set({
-      embedding: admin.firestore.FieldValue.vector(embeddingVector),
-      titleLowercase: (data.title || "").toLowerCase(),
-    }, { merge: true });
+    const hasEmbedding = Boolean(data.embedding);
+    const hasTitleLowercase = Boolean(data.titleLowercase);
+    if (!hasEmbedding || !hasTitleLowercase) {
+      await db.collection("videos").doc(videoId).set({
+        embedding: admin.firestore.FieldValue.vector(embeddingVector),
+        titleLowercase: (data.title || "").toLowerCase(),
+      }, { merge: true });
+    }
   }
 }
 

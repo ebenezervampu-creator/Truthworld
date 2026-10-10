@@ -9,10 +9,24 @@ on:
       - main
 
 jobs:
-  test:
-    name: Build, Lint, and Test
+  security-scan:
+    name: Secret & Credential Leak Scan
     runs-on: ubuntu-latest
-    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks Secret Scanner
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+  functions-test:
+    name: Cloud Functions Build, Lint & Test
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: functions
@@ -21,10 +35,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 22
+      - name: Setup Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: functions/package-lock.json
 

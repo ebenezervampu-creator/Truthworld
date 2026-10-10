@@ -386,32 +386,36 @@ export const onVideoUploadedForResolution = onObjectFinalized(
       });
 
 
-      // ─── Autonomous Event Publishing (Per-Variant Concurrency) ───────────────────
-      // Instead of 1 monolithic job trying to transcode all 6 resolutions in a single function,
-      // dispatch individual Pub/Sub events for each variant so each variant executes in its
-      // own isolated Cloud Function instance with dedicated memory (2GiB) and fresh 540s timeout.
-      for (const variant of applicableResolutions) {
-        const variantEventId = `${videoId}_${variant.label}_${uuidv4().slice(0, 8)}`;
-        await MessagingService.publish("resolution.requested", {
-          eventId: variantEventId,
-          jobId: videoId,
-          userId,
-          timestamp: Date.now(),
-          data: {
-            videoId,
-            sourcePath: filePath,
-            sourceBucket: bucket,
-            sourceHeight,
-            variant, // Isolated variant for dedicated function instance
-            totalVariants: applicableResolutions.length,
-          },
-        }, {
-          source: "resolution-media-service",
-          userId,
-        });
-      }
+      // ─── Cost-Effective 2-Tier Event Publishing ───────────────────────────────────
+      // Instead of 8 separate Pub/Sub events (which boots 8 parallel 4GiB Cloud Functions
+      // each downloading the full 2GB raw video independently = 16GB download egress),
+      // we partition variants into:
+      // 1. Primary High-Res Tier (>= 720p): Downloads the 2GB original ONCE and transcodes 1080p/720p.
+      // 2. Secondary Mobile Tier (< 720p): Triggered automatically when 720p finishes, downscaling
+      //    from the completed 720p.mp4 (25MB instead of 2GB) in seconds!
+      const highTier = applicableResolutions.filter((r) => r.height >= 720);
+      const primaryBatch = highTier.length > 0 ? highTier : applicableResolutions;
 
-      console.log(`[Resolution Service] Published ${applicableResolutions.length} parallel resolution.requested events`, { videoId });
+      const primaryEventId = `${videoId}_primary_${uuidv4().slice(0, 8)}`;
+      await MessagingService.publish("resolution.requested", {
+        eventId: primaryEventId,
+        jobId: videoId,
+        userId,
+        timestamp: Date.now(),
+        data: {
+          videoId,
+          sourcePath: filePath,
+          sourceBucket: bucket,
+          sourceHeight,
+          variants: primaryBatch,
+          totalVariants: applicableResolutions.length,
+        },
+      }, {
+        source: "resolution-media-service",
+        userId,
+      });
+
+      console.log(`[Resolution Service] Published primary resolution batch (${primaryBatch.map((r) => r.label).join(", ")}) for ${videoId}`);
     } catch (error) {
       console.error(`[Resolution] Failed to process upload`, {
         filePath,
@@ -768,12 +772,13 @@ export const handleResolution = onMessagePublished(
 
         let sourceToDownload = sourcePath;
         // Optimization: For lower tiers (<= 480p), if 720p is already transcoded, use 720p as source to save 75% CPU and download bandwidth
-        if (variantsToProcess.length === 1 && variantsToProcess[0].height <= 480) {
+        const allLowTier = variantsToProcess.every((v) => v.height <= 480);
+        if (allLowTier) {
           const trans720Path = `resolutions/${videoId}/720p.mp4`;
           const [exists720] = await bucket.file(trans720Path).exists().catch(() => [false]);
           if (exists720) {
             sourceToDownload = trans720Path;
-            console.log(`[Resolution Worker] ⚡ Cascaded downscaling: using completed 720p.mp4 as transcode source for ${variantsToProcess[0].label}`, { videoId });
+            console.log(`[Resolution Worker] ⚡ Cascaded downscaling: using completed 720p.mp4 as transcode source for low tier batch`, { videoId });
           }
         }
 
@@ -1002,6 +1007,31 @@ export const handleResolution = onMessagePublished(
         const finalJobData = finalJobSnap.data();
         if (finalJobData) {
           const allVariants = Object.values(finalJobData.variants ?? {}) as any[];
+          const pendingVariants = allVariants.filter((v) => v.status === "pending");
+
+          // Auto-dispatch secondary low-tier batch if pending variants exist (now that high-tier is ready)
+          if (pendingVariants.length > 0) {
+            const secondaryEventId = `${videoId}_secondary_${uuidv4().slice(0, 8)}`;
+            await MessagingService.publish("resolution.requested", {
+              eventId: secondaryEventId,
+              jobId: videoId,
+              userId: finalJobData.userId,
+              timestamp: Date.now(),
+              data: {
+                videoId,
+                sourcePath,
+                sourceBucket,
+                sourceHeight: initialSourceHeight,
+                variants: pendingVariants,
+                totalVariants: finalJobData.totalVariants,
+              },
+            }, {
+              source: "resolution-media-service",
+              userId: finalJobData.userId,
+            });
+            console.log(`[Resolution Worker] ⚡ Dispatched secondary resolution batch (${pendingVariants.map((v) => v.label).join(", ")}) for ${videoId}`);
+          }
+
           const allDone = allVariants.length > 0 && allVariants.every(v => v.status === "completed" || v.status === "failed" || v.status === "skipped");
           if (allDone) {
             const hasCompleted = allVariants.some(v => v.status === "completed");
@@ -1438,4 +1468,6 @@ export const reconcileVideoResolutionManual = onRequest(
     }
   }
 );
+
+export { TranscoderGateway } from "./transcoderGateway";
 

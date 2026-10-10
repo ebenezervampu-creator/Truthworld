@@ -21,6 +21,11 @@ class AppConfig {
     defaultValue: 'https://asia-south1-truthworld-1.cloudfunctions.net',
   );
 
+  static const String cdnBaseUrl = String.fromEnvironment(
+    'CDN_BASE_URL',
+    defaultValue: 'https://storage.googleapis.com',
+  );
+
   static late AppConfig _instance;
   static AppConfig get instance => _instance;
 

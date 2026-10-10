@@ -77,13 +77,21 @@ class VideoAIFeaturesOverviewCard extends StatelessWidget {
                 rawSummary.trim() != video.description.trim();
 
             // 5. Fact-checking evaluation
+            final hasRealFactCheckReport = cred.claims.isNotEmpty ||
+                cred.factCheckUrl.isNotEmpty ||
+                video.factCheckUrl.isNotEmpty ||
+                (cred.uiReport != null &&
+                    (cred.uiReport!.keyClaims.isNotEmpty ||
+                        cred.uiReport!.summary.rating != null)) ||
+                (cred.factCheckStats != null &&
+                    cred.factCheckStats!.totalClaims > 0);
+            final isFactChecked = !video.isNonCredibilityCategory &&
+                (video.isFactChecked ||
+                    video.hasAiCredibility ||
+                    hasRealFactCheckReport);
             final effectiveTrustScore = cred.trustScore > 0
                 ? cred.trustScore
                 : video.trustScore;
-            final isFactChecked = video.hasAiCredibility ||
-                video.isFactChecked ||
-                cred.claims.isNotEmpty ||
-                effectiveTrustScore > 0;
 
             // Missing features calculation
             final missingFeatures = <String>[];

@@ -207,6 +207,67 @@ class FactCheckStats {
   };
 }
 
+/// 🏛 VERIFIABLE CLAIM LEDGER (Industry Standard)
+///
+/// Replaces arbitrary, deceptive scalar scores with an objective claim-by-claim ledger.
+class ClaimLedgerSummary {
+  const ClaimLedgerSummary({
+    required this.totalClaimsChecked,
+    required this.confirmedCount,
+    required this.disputedCount,
+    required this.unprovenCount,
+    required this.falseCount,
+    required this.contextualCount,
+    required this.highestSeverityVerdict,
+    required this.verdictHeadline,
+    this.priorityNotice,
+    this.verifiableRatio = 0.0,
+  });
+
+  factory ClaimLedgerSummary.fromMap(Map<String, dynamic> map) {
+    return ClaimLedgerSummary(
+      totalClaimsChecked: (map['totalClaimsChecked'] ?? 0) as int,
+      confirmedCount: (map['confirmedCount'] ?? 0) as int,
+      disputedCount: (map['disputedCount'] ?? 0) as int,
+      unprovenCount: (map['unprovenCount'] ?? 0) as int,
+      falseCount: (map['falseCount'] ?? 0) as int,
+      contextualCount: (map['contextualCount'] ?? 0) as int,
+      highestSeverityVerdict: (map['highestSeverityVerdict'] ?? 'none').toString(),
+      verdictHeadline: (map['verdictHeadline'] ?? '').toString(),
+      priorityNotice: map['priorityNotice']?.toString(),
+      verifiableRatio: (map['verifiableRatio'] is num)
+          ? (map['verifiableRatio'] as num).toDouble()
+          : 0.0,
+    );
+  }
+
+  final int totalClaimsChecked;
+  final int confirmedCount;
+  final int disputedCount;
+  final int unprovenCount;
+  final int falseCount;
+  final int contextualCount;
+  final String highestSeverityVerdict;
+  final String verdictHeadline;
+  final String? priorityNotice;
+  final double verifiableRatio;
+
+  bool get hasHighSeverityIssues => falseCount > 0 || disputedCount > 0;
+
+  Map<String, dynamic> toMap() => {
+    'totalClaimsChecked': totalClaimsChecked,
+    'confirmedCount': confirmedCount,
+    'disputedCount': disputedCount,
+    'unprovenCount': unprovenCount,
+    'falseCount': falseCount,
+    'contextualCount': contextualCount,
+    'highestSeverityVerdict': highestSeverityVerdict,
+    'verdictHeadline': verdictHeadline,
+    'priorityNotice': priorityNotice,
+    'verifiableRatio': verifiableRatio,
+  };
+}
+
 class HardeningMetadata {
   HardeningMetadata({
     required this.truthFloorApplied,
@@ -443,6 +504,9 @@ class ClaimResult {
     this.verdictBasis,
     this.evidence,
     this.consensus,
+    this.multiModelConsensus,
+    this.isAppealed,
+    this.appealStatus,
   });
 
   factory ClaimResult.fromMap(Map<String, dynamic> map) {
@@ -561,6 +625,11 @@ class ClaimResult {
       consensus: (map['consensus'] as List?)
           ?.map((c) => UIConsensus.fromMap(Map<String, dynamic>.from(c)))
           .toList(),
+      multiModelConsensus: map['multiModelConsensus'] is Map
+          ? Map<String, dynamic>.from(map['multiModelConsensus'])
+          : null,
+      isAppealed: map['isAppealed'] as bool?,
+      appealStatus: map['appealStatus']?.toString(),
     );
   }
   final String text;
@@ -582,6 +651,9 @@ class ClaimResult {
   final List<String>? verdictBasis;
   final List<UIEvidence>? evidence;
   final List<UIConsensus>? consensus;
+  final Map<String, dynamic>? multiModelConsensus;
+  final bool? isAppealed;
+  final String? appealStatus;
 
   Map<String, dynamic> toMap() => {
     'text': text,
@@ -599,6 +671,9 @@ class ClaimResult {
     'verdictBasis': verdictBasis,
     'evidence': evidence?.map((e) => e.toMap()).toList(),
     'consensus': consensus?.map((c) => c.toMap()).toList(),
+    'multiModelConsensus': multiModelConsensus,
+    'isAppealed': isAppealed,
+    'appealStatus': appealStatus,
   };
 }
 
@@ -660,6 +735,7 @@ class UIReport {
     this.counterSignals = const [],
     this.reviewRequestEnabled = true,
     this.keyClaims = const [],
+    this.claimLedger,
   });
 
   factory UIReport.fromMap(Map<String, dynamic> map) {
@@ -692,6 +768,59 @@ class UIReport {
             '')
         .toString();
 
+    final parsedKeyClaims = rawClaims
+        .map((c) => ClaimResult.fromMap(
+              Map<String, dynamic>.from(
+                c is Map ? c : {'text': c.toString()},
+              ),
+            ))
+        .toList();
+
+    int verdictPriority(ClaimResult c) {
+      final v = c.verdict.toLowerCase();
+      if (v.contains('false') || v.contains('incorrect') || v.contains('denial') || v.contains('misleading')) {
+        return 0; // Contradicted / False: Top priority at top of player
+      }
+      if (v.contains('dispute') || v.contains('inconclusive') || v.contains('limited')) {
+        return 1; // Caution / Disputed: High priority
+      }
+      if (v.contains('unproven') || v.contains('unsupported') || v.contains('unverified')) {
+        return 2; // Unproven
+      }
+      if (v.contains('true') || v.contains('correct')) {
+        return 3; // Confirmed True
+      }
+      return 4; // Opinion / Faith / Contextual
+    }
+
+    final prioritizedKeyClaims = List<ClaimResult>.from(parsedKeyClaims)
+      ..sort((a, b) => verdictPriority(a).compareTo(verdictPriority(b)));
+
+    ClaimLedgerSummary? parsedLedger;
+    if (map['claimLedger'] is Map) {
+      parsedLedger = ClaimLedgerSummary.fromMap(Map<String, dynamic>.from(map['claimLedger']));
+    } else if (prioritizedKeyClaims.isNotEmpty) {
+      final confirmed = prioritizedKeyClaims.where((c) => verdictPriority(c) == 3).length;
+      final disputed = prioritizedKeyClaims.where((c) => verdictPriority(c) == 1).length;
+      final falseCount = prioritizedKeyClaims.where((c) => verdictPriority(c) == 0).length;
+      final unproven = prioritizedKeyClaims.where((c) => verdictPriority(c) == 2).length;
+      final contextual = prioritizedKeyClaims.where((c) => verdictPriority(c) == 4).length;
+      final total = prioritizedKeyClaims.length;
+
+      parsedLedger = ClaimLedgerSummary(
+        totalClaimsChecked: total,
+        confirmedCount: confirmed,
+        disputedCount: disputed,
+        unprovenCount: unproven,
+        falseCount: falseCount,
+        contextualCount: contextual,
+        highestSeverityVerdict: falseCount > 0 ? 'false_claim' : disputed > 0 ? 'disputed' : unproven > 0 ? 'unproven' : 'verified_true',
+        verdictHeadline: '$confirmed Confirmed • $disputed Disputed • $falseCount False',
+        priorityNotice: falseCount > 0 ? 'Notice: $falseCount claim(s) contradicted by documented evidence.' : null,
+        verifiableRatio: total > 0 ? confirmed / total : 0.0,
+      );
+    }
+
     return UIReport(
       summary: UISummary.fromMap(summaryMap),
       quickVerdict: (map['quickVerdict'] ?? '').toString(),
@@ -713,13 +842,8 @@ class UIReport {
       conclusion: (map['conclusion'] ?? '').toString(),
       counterSignals: List<String>.from(map['counterSignals'] ?? []),
       reviewRequestEnabled: map['reviewRequestEnabled'] ?? true,
-      keyClaims: rawClaims
-          .map((c) => ClaimResult.fromMap(
-                Map<String, dynamic>.from(
-                  c is Map ? c : {'text': c.toString()},
-                ),
-              ))
-          .toList(),
+      keyClaims: prioritizedKeyClaims,
+      claimLedger: parsedLedger,
     );
   }
   final UISummary summary;
@@ -733,6 +857,7 @@ class UIReport {
   final List<String> counterSignals;
   final bool reviewRequestEnabled;
   final List<ClaimResult> keyClaims;
+  final ClaimLedgerSummary? claimLedger;
 
   Map<String, dynamic> toMap() {
     return {
@@ -747,6 +872,7 @@ class UIReport {
       'counterSignals': counterSignals,
       'reviewRequestEnabled': reviewRequestEnabled,
       'keyClaims': keyClaims.map((c) => c.toMap()).toList(),
+      'claimLedger': claimLedger?.toMap(),
     };
   }
 

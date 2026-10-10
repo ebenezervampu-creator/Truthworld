@@ -92,6 +92,8 @@ export const mockFile = {
   exists: jest.fn(async () => [true]),
   download: jest.fn(async () => [Buffer.from('<html><head><title>TruthWorld</title></head><body></body></html>')]),
   save: jest.fn(async () => {}),
+  getSignedUrl: jest.fn(async () => ['https://storage.googleapis.com/truthworld-1.firebasestorage.app/videos/test/original.mp4?X-Goog-Signature=mock']),
+  getMetadata: jest.fn(async () => [{ metadata: { firebaseStorageDownloadTokens: 'mock-token-123' } }]),
 };
 
 export const mockBucket = {

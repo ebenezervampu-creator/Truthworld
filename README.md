@@ -2,6 +2,26 @@
 
 A video-sharing platform built with Flutter, Firebase, and Cloud Functions — focused on credibility scoring, multi-language content, and transparent media.
 
+---
+
+## 📚 Developer Onboarding & Architecture Hub
+
+To help any incoming developer immediately understand every page, Cloud Function, feature, and flow in the codebase:
+
+| Guide | Description |
+| :--- | :--- |
+| 🚀 [**Developer Onboarding Runbook**](file:///c:/company/truthworld/docs/ONBOARDING.md) | "Day 1 to First PR": Flutter setup, flavors, Firebase emulators, and PR checklist |
+| 🏗️ [**System Architecture & C4 Model**](file:///c:/company/truthworld/docs/ARCHITECTURE.md) | Multi-flavor design, C4 container diagram, tech stack, and key ADRs |
+| 🖥️ [**Frontend Pages & Screen Catalog**](file:///c:/company/truthworld/docs/ROUTES.md) | Complete 80+ route map, GetX bindings, controllers, and access guards |
+| ⚡ [**Cloud Functions & API Catalog**](file:///c:/company/truthworld/docs/FUNCTIONS.md) | Pipeline workers, Cashfree payments, watchtime rollup, SEO SSR, and AI search |
+| 🎬 [**Video Processing & Credibility Flow**](file:///c:/company/truthworld/docs/FLOWS/video-pipeline-flow.md) | Sequence diagram of raw upload $\rightarrow$ transcription $\rightarrow$ fact-check $\rightarrow$ dubbing |
+| 💳 [**Payments & Creator Economy Flow**](file:///c:/company/truthworld/docs/FLOWS/payments-and-economy-flow.md) | Cashfree checkout, webhook verification, and creator payouts |
+| ⏱️ [**Watchtime & Live Viewers Flow**](file:///c:/company/truthworld/docs/FLOWS/watchtime-and-analytics-flow.md) | Heartbeat watch events, RTDB live viewers, and counter sharding |
+| 🗄️ [**Database & Security Models**](file:///c:/company/truthworld/docs/DATABASE.md) | Firestore collections, RTDB schemas, GCS buckets, and security rules |
+| 🔒 [**Security & Staging Environment Guide**](file:///c:/company/truthworld/docs/SECURITY_AND_STAGING.md) | Developer sandboxing, least privilege access, secret rotation, and CI gates |
+
+---
+
 ## Architecture
 
 ```

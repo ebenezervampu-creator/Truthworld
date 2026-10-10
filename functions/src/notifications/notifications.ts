@@ -27,12 +27,18 @@ export async function notifyUser(params: {
   try {
     const notificationId = db.collection(COL_NOTIFICATIONS).doc().id;
     const channelId = params.metadata?.channelId || "";
+    const priority = params.metadata?.priority || (params.severity === "priority" ? "critical" : (params.severity === "warning" ? "high" : "low"));
+    const category = params.metadata?.category || (params.type.includes("verification") || params.type.includes("fact_check") ? "verification" : "system");
+    const thumbnailUrl = params.metadata?.thumbnailUrl || "";
     const notification: any = {
       id: notificationId,
       userId: params.userId,
       ...(channelId ? { channelId } : {}),
       type: params.type,
       severity: params.severity,
+      priority,
+      category,
+      ...(thumbnailUrl ? { thumbnailUrl } : {}),
       title: params.title,
       message: params.message,
       actionUrl: params.actionUrl,

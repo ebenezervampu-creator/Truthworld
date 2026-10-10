@@ -413,10 +413,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
     final transcriptionData = stages['transcription'] as Map<String, dynamic>?;
     final rawTranscriptionStatus =
         (transcriptionData?['status'] as String?)?.toLowerCase() ?? 'pending';
-    final hasValidTranscript = video.transcriptionUrl.isNotEmpty &&
-        !video.transcriptionUrl.contains('placeholder');
-    final isTranscriptionFailed =
-        rawTranscriptionStatus == 'failed' && !hasValidTranscript;
+    final isTranscriptionFailed = rawTranscriptionStatus == 'failed';
 
     final credibilityData = stages['credibility'] as Map<String, dynamic>?;
     final rawCredibilityStatus =
@@ -425,7 +422,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
     final jobOutputs =
         (jobDocData?['outputs'] as Map<String, dynamic>?) ?? {};
     final outputsTrustScore =
-        (jobOutputs['trustScore'] as num?)?.toDouble() ?? video.trustScore;
+        (jobOutputs['trustScore'] as num?)?.toDouble();
 
     return StreamBuilder<VideoMediaCredibility>(
       stream: VideoMediaService().streamCredibility(video.id),
@@ -434,15 +431,36 @@ class VideoPipelineStatusWidget extends StatelessWidget {
             VideoMediaService.credibilityCache[video.id] ??
             const VideoMediaCredibility();
 
-        final hasCredibilityResults = cred.claims.isNotEmpty ||
-            cred.trustScore > 0 ||
-            outputsTrustScore > 0 ||
-            video.hasAiCredibility ||
-            rawCredibilityStatus == 'completed';
+        final hasRealFactCheckReport = cred.claims.isNotEmpty ||
+            cred.factCheckUrl.isNotEmpty ||
+            video.factCheckUrl.isNotEmpty ||
+            (cred.uiReport != null &&
+                (cred.uiReport!.keyClaims.isNotEmpty ||
+                    cred.uiReport!.summary.rating != null)) ||
+            (cred.factCheckStats != null &&
+                cred.factCheckStats!.totalClaims > 0);
+
+        final hasRealFactChecking = hasRealFactCheckReport ||
+            (rawCredibilityStatus == 'completed' &&
+                (cred.claims.isNotEmpty ||
+                    (outputsTrustScore != null && outputsTrustScore > 0)));
+
+        final isSkippedOrNotRequested = rawCredibilityStatus == 'skipped' ||
+            (rawCredibilityStatus == 'pending' &&
+                (video.factCheckTier == 'none' ||
+                    video.factCheckTier == 'off' ||
+                    !video.isFactChecked));
+
+        final hasCredibilityResults = !video.isNonCredibilityCategory &&
+            (hasRealFactChecking ||
+                (video.hasAiCredibility && !isSkippedOrNotRequested) ||
+                (video.isFactChecked && !isSkippedOrNotRequested));
 
         final effectiveTrustScore = cred.trustScore > 0
             ? cred.trustScore
-            : (outputsTrustScore > 0 ? outputsTrustScore : video.trustScore);
+            : ((outputsTrustScore != null && outputsTrustScore > 0)
+                ? outputsTrustScore
+                : video.trustScore);
 
         final rawSummary = cred.summary.isNotEmpty
             ? cred.summary
@@ -458,7 +476,17 @@ class VideoPipelineStatusWidget extends StatelessWidget {
               children: [
                 _buildSectionTitle('AI Fact-Checking & Credibility'),
                 const Spacer(),
-                if (hasCredibilityResults && effectiveTrustScore > 0)
+                if (isTranscriptionFailed && !hasRealFactChecking)
+                  _buildMiniBadge(
+                    label: 'Awaiting Transcript',
+                    color: AppColors.warning,
+                  )
+                else if (rawCredibilityStatus == 'skipped' && !hasCredibilityResults)
+                  _buildMiniBadge(
+                    label: 'Not Requested',
+                    color: AppColors.textTertiary,
+                  )
+                else if (hasCredibilityResults && effectiveTrustScore > 0)
                   _buildMiniBadge(
                     label: '${effectiveTrustScore.toInt()}% Trust Score',
                     color: effectiveTrustScore >= 75
@@ -467,22 +495,22 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                             ? AppColors.warning
                             : AppColors.error),
                   )
-                else if (isTranscriptionFailed)
-                  _buildMiniBadge(
-                    label: 'Awaiting Transcript',
-                    color: AppColors.warning,
-                  )
                 else if (rawCredibilityStatus == 'in_progress')
                   _buildMiniBadge(
                     label: 'Verifying Claims...',
                     color: AppColors.info,
+                  )
+                else
+                  _buildMiniBadge(
+                    label: 'Not Checked',
+                    color: AppColors.textTertiary,
                   ),
               ],
             ),
             const SizedBox(height: 8),
 
             // Case 1: Transcription Failed -> Fact-checking blocked
-            if (isTranscriptionFailed && !hasCredibilityResults)
+            if (isTranscriptionFailed && !hasRealFactChecking)
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),

@@ -7,6 +7,9 @@ import 'package:truthworld/core/base/ui_event.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/network/result.dart';
+import 'package:truthworld/core/state/reactive_property.dart';
+import 'package:truthworld/core/state/view_state_contract.dart';
+import 'package:truthworld/core/utils/safe_get.dart';
 import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 
 enum ViewState {
@@ -23,31 +26,52 @@ enum ViewState {
 
 /// Base controller for all feature controllers to standardize state management,
 /// worker lifecycle disposal, event-driven UI side-effects, cancellation support, and low-latency UI updates.
-class BaseController extends GetxController {
+class BaseController extends GetxController implements IStateController {
   final Rx<ViewState> rxState = ViewState.idle.obs;
+  @override
   ViewState get state => rxState.value;
 
+  /// Abstract reactive property contract (decoupled from GetX Rx).
+  @override
+  late final IReactiveProperty<ViewState> rxViewState =
+      RxReactiveProperty<ViewState>.fromRx(rxState);
+
   final RxString _errorMessage = ''.obs;
+  @override
   String get errorMessage => _errorMessage.value;
+
+  /// Abstract reactive property contract for errors.
+  late final IReactiveProperty<String> rxErrorProperty =
+      RxReactiveProperty<String>.fromRx(_errorMessage);
 
   bool _isDisposed = false;
   bool get isDisposed => _isDisposed || isClosed;
 
+  @override
   bool get isLoading => state == ViewState.loading;
+  @override
   bool get isRefreshing => state == ViewState.refreshing;
+  @override
   bool get isPaginationLoading => state == ViewState.paginationLoading;
+  @override
   bool get isError => state == ViewState.error;
+  @override
   bool get isEmpty => state == ViewState.empty;
+  @override
   bool get isSuccess => state == ViewState.success;
+  @override
   bool get isOffline => state == ViewState.offline;
+  @override
   bool get isCancelled => state == ViewState.cancelled;
 
   /// Pure event stream for UI side-effects (snackbars, dialogs, navigation)
   final StreamController<UiEvent> _uiEventController =
       StreamController<UiEvent>.broadcast();
+  @override
   Stream<UiEvent> get uiEvents => _uiEventController.stream;
 
   /// Emit an immutable [UiEvent] to listeners in presentation layer.
+  @override
   void emitUiEvent(UiEvent event) {
     if (!_uiEventController.isClosed) {
       _uiEventController.add(event);
@@ -64,6 +88,17 @@ class BaseController extends GetxController {
 
   /// Alias for [addWorker]
   void registerWorker(Worker worker) => addWorker(worker);
+
+  /// Safely resolves dependency [T] or returns null without throwing.
+  T? safeFind<T>({String? tag}) => SafeGet.findOrNull<T>(tag: tag);
+
+  /// Resolves dependency [T], automatically initializing it via [create] if missing.
+  T safeFindOrCreate<T>(
+    T Function() create, {
+    String? tag,
+    bool permanent = false,
+  }) =>
+      SafeGet.findOrCreate<T>(create, tag: tag, permanent: permanent);
 
   // =========================================================================
   // RESOURCE TRACKING — Auto-dispose subscriptions, timers, and controllers
@@ -167,6 +202,7 @@ class BaseController extends GetxController {
     debugPrint('🔴 [Exception] $_controllerName -> $error');
   }
 
+  @override
   void setViewState(ViewState state) {
     if (rxState.value != state) {
       debugPrint(
@@ -176,6 +212,7 @@ class BaseController extends GetxController {
     }
   }
 
+  @override
   void setError(String message) {
     logException(message);
     _errorMessage.value = message;
@@ -206,6 +243,7 @@ class BaseController extends GetxController {
     _page.value++;
   }
 
+  @override
   void clearError() {
     _errorMessage.value = '';
     if (state == ViewState.error) setViewState(ViewState.idle);

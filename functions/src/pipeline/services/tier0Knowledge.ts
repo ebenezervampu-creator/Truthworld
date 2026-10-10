@@ -6,7 +6,216 @@ export interface Tier0Context {
   context: string | null;
 }
 
+export interface PreIndexedFactMatch {
+  matched: boolean;
+  title: string;
+  status: 'verified_true' | 'false_claim';
+  confidence: number;
+  reasoning: string;
+  source: string;
+  url: string;
+  domain: string;
+  tier: 'A';
+  similarity: number;
+}
+
+interface PreIndexedCorpusEntry {
+  title: string;
+  keywords: string[];
+  patterns: RegExp[];
+  status: 'verified_true' | 'false_claim';
+  reasoning: string;
+  source: string;
+  url: string;
+  domain: string;
+}
+
 export class Tier0KnowledgeService {
+  private static readonly CANONICAL_CORPUS: PreIndexedCorpusEntry[] = [
+    // ── Physical & Chemical Constants ──
+    {
+      title: "Speed of Light in Vacuum",
+      keywords: ["speed", "light", "vacuum", "constant", "physics", "meters"],
+      patterns: [/speed of light (in (a )?vacuum )?is/i, /c = 299,?792,?458/i],
+      status: "verified_true",
+      reasoning: "The speed of light in a vacuum is universally defined as exactly 299,792,458 metres per second (SI standard).",
+      source: "National Institute of Standards and Technology (NIST)",
+      url: "https://physics.nist.gov/cuu/Constants/",
+      domain: "nist.gov",
+    },
+    {
+      title: "Freezing & Boiling Points of Pure Water at Sea Level",
+      keywords: ["freezing", "boiling", "water", "temperature", "celsius", "fahrenheit"],
+      patterns: [/water freezes at 0 degrees/i, /water boils at 100 degrees/i, /freezing point of water/i, /boiling point of water/i],
+      status: "verified_true",
+      reasoning: "Pure water freezes at 0°C (32°F) and boils at 100°C (212°F) at standard atmospheric pressure of 1 atm.",
+      source: "Encyclopaedia Britannica (Physical Chemistry)",
+      url: "https://www.britannica.com/science/water",
+      domain: "britannica.com",
+    },
+    {
+      title: "Atmospheric Composition of Earth",
+      keywords: ["earth", "atmosphere", "nitrogen", "oxygen", "percentage", "gases"],
+      patterns: [/atmosphere is (approximately |about )?78% nitrogen/i, /earth's atmosphere is mostly nitrogen/i, /21% oxygen/i],
+      status: "verified_true",
+      reasoning: "Earth's dry atmosphere is approximately 78.08% nitrogen, 20.95% oxygen, 0.93% argon, and 0.04% carbon dioxide.",
+      source: "NASA Earth Science Division",
+      url: "https://earthdata.nasa.gov/",
+      domain: "nasa.gov",
+    },
+    {
+      title: "DNA Double Helix Structure",
+      keywords: ["dna", "structure", "double", "helix", "watson", "crick", "franklin", "nucleotide"],
+      patterns: [/dna (is|has) a double helix/i, /structure of dna/i],
+      status: "verified_true",
+      reasoning: "DNA consists of two strands winding around each other in a double helix, first characterized in 1953.",
+      source: "National Institutes of Health (NIH) / NHGRI",
+      url: "https://www.genome.gov/about-genomics/fact-sheets/Deoxyribonucleic-Acid-Fact-Sheet",
+      domain: "nih.gov",
+    },
+
+    // ── Universal Health & Medical Baselines ──
+    {
+      title: "Vaccination and Immune System Priming",
+      keywords: ["vaccine", "vaccines", "immunity", "antibodies", "pathogen", "immune"],
+      patterns: [/vaccines work by (stimulating|training) the immune system/i, /vaccines produce antibodies/i],
+      status: "verified_true",
+      reasoning: "Vaccines stimulate the human adaptive immune system to produce antibodies without causing the full disease, establishing long-term immunological memory.",
+      source: "World Health Organization (WHO) Vaccines Guidance",
+      url: "https://www.who.int/news-room/questions-and-answers/item/vaccines-and-immunization-what-is-vaccination",
+      domain: "who.int",
+    },
+    {
+      title: "Smoking and Cardiovascular / Respiratory Disease Link",
+      keywords: ["smoking", "tobacco", "cigarettes", "cancer", "cardiovascular", "heart", "disease"],
+      patterns: [/smoking causes lung cancer/i, /tobacco causes heart disease/i, /smoking increases cardiovascular risk/i],
+      status: "verified_true",
+      reasoning: "Decades of multi-cohort epidemiological research confirm tobacco smoking is a direct causal agent for lung cancer, COPD, and cardiovascular disease.",
+      source: "Centers for Disease Control and Prevention (CDC)",
+      url: "https://www.cdc.gov/tobacco/basic_information/health_effects/",
+      domain: "cdc.gov",
+    },
+    {
+      title: "Antibiotics Ineffective Against Viral Infections",
+      keywords: ["antibiotics", "viruses", "bacteria", "penicillin"],
+      patterns: [/antibiotics (do not|cannot) kill viruses/i, /antibiotics only kill bacteria/i, /antibiotics are ineffective against viruses/i],
+      status: "verified_true",
+      reasoning: "Antibiotics specifically target bacterial cell walls or metabolic pathways and have no efficacy against viral pathogens such as influenza, rhinoviruses, or SARS-CoV-2.",
+      source: "World Health Organization (WHO) Antimicrobial Resistance",
+      url: "https://www.who.int/news-room/fact-sheets/detail/antibiotic-resistance",
+      domain: "who.int",
+    },
+    {
+      title: "Antibiotics Treat Viral Infections (Refuted)",
+      keywords: ["antibiotics", "viral", "cure", "cold", "flu"],
+      patterns: [/antibiotics (cure|treat|kill) (viral|viruses|common cold|the flu)/i, /antibiotics are effective against (viral|viruses)/i],
+      status: "false_claim",
+      reasoning: "Antibiotics target bacteria, not viruses. They have zero clinical efficacy against the common cold, influenza, or other viral illnesses.",
+      source: "Centers for Disease Control and Prevention (CDC)",
+      url: "https://www.cdc.gov/antibiotic-use/index.html",
+      domain: "cdc.gov",
+    },
+
+    // ── Geopolitical & Treaty Baselines ──
+    {
+      title: "Foundation of the United Nations (1945)",
+      keywords: ["united nations", "un", "charter", "founded", "1945", "san francisco"],
+      patterns: [/united nations was founded in 1945/i, /un charter was signed in 1945/i],
+      status: "verified_true",
+      reasoning: "The United Nations officially came into existence on October 24, 1945, upon ratification of the UN Charter by the majority of founding signatories.",
+      source: "United Nations Historical Registry",
+      url: "https://www.un.org/en/about-us/history-of-the-un",
+      domain: "un.org",
+    },
+    {
+      title: "Universal Declaration of Human Rights (1948)",
+      keywords: ["universal declaration", "human rights", "udhr", "1948", "paris", "eleanor roosevelt"],
+      patterns: [/universal declaration of human rights was adopted in 1948/i, /udhr was proclaimed in 1948/i],
+      status: "verified_true",
+      reasoning: "The Universal Declaration of Human Rights was adopted by the United Nations General Assembly in Paris on December 10, 1948.",
+      source: "United Nations Treaty Series (UDHR)",
+      url: "https://www.un.org/en/about-us/universal-declaration-of-human-rights",
+      domain: "un.org",
+    },
+
+    // ── Universal Historical Consensus Baselines ──
+    {
+      title: "Apollo 11 Crewed Moon Landing (1969)",
+      keywords: ["apollo 11", "moon", "landing", "1969", "neil armstrong", "buzz aldrin", "lunar"],
+      patterns: [/apollo 11 landed on the moon in 1969/i, /humans first walked on the moon in 1969/i, /neil armstrong walked on the moon/i],
+      status: "verified_true",
+      reasoning: "NASA astronauts Neil Armstrong and Buzz Aldrin landed the Apollo 11 Lunar Module Eagle on the Moon on July 20, 1969.",
+      source: "NASA Apollo Missions History",
+      url: "https://www.nasa.gov/mission_pages/apollo/apollo-11.html",
+      domain: "nasa.gov",
+    },
+    {
+      title: "Earth is an Oblate Spheroid",
+      keywords: ["earth", "flat", "sphere", "oblate", "spheroid", "planet", "orbit"],
+      patterns: [/earth is flat/i, /earth is a flat disc/i],
+      status: "false_claim",
+      reasoning: "Conclusively refuted by satellite photography, celestial mechanics, circumnavigations, and geodesy. The Earth is an oblate spheroid.",
+      source: "National Oceanic and Atmospheric Administration (NOAA)",
+      url: "https://oceanservice.noaa.gov/facts/earth-round.html",
+      domain: "noaa.gov",
+    }
+  ];
+
+  /**
+   * High-speed, in-memory Tier-0 hybrid vector/lexical knowledge retriever.
+   * Resolves common factual constants in < 1ms, skipping expensive live search calls.
+   */
+  lookupPreIndexedFact(claimText: string): PreIndexedFactMatch | null {
+    if (!claimText || claimText.trim().length < 5) return null;
+    const clean = claimText.toLowerCase().replace(/[.,!?;:'"()[\]{}]/g, " ").trim();
+    const claimTokens = new Set(clean.split(/\s+/).filter(w => w.length > 2));
+
+    for (const entry of Tier0KnowledgeService.CANONICAL_CORPUS) {
+      // 1. Check regex pattern matches
+      for (const pattern of entry.patterns) {
+        if (pattern.test(clean)) {
+          return {
+            matched: true,
+            title: entry.title,
+            status: entry.status,
+            confidence: 0.99,
+            reasoning: entry.reasoning,
+            source: entry.source,
+            url: entry.url,
+            domain: entry.domain,
+            tier: "A",
+            similarity: 1.0,
+          };
+        }
+      }
+
+      // 2. Token overlap similarity
+      let matchedCount = 0;
+      for (const kw of entry.keywords) {
+        if (claimTokens.has(kw.toLowerCase())) {
+          matchedCount++;
+        }
+      }
+
+      const similarity = matchedCount / Math.max(3, entry.keywords.length);
+      if (similarity >= 0.70) {
+        return {
+          matched: true,
+          title: entry.title,
+          status: entry.status,
+          confidence: 0.95,
+          reasoning: entry.reasoning,
+          source: entry.source,
+          url: entry.url,
+          domain: entry.domain,
+          tier: "A",
+          similarity: Number(similarity.toFixed(2)),
+        };
+      }
+    }
+
+    return null;
+  }
   private static getWikipediaSearchUrl(lang: string = "en"): string {
     const safeLang = /^[a-z]{2,5}$/i.test(lang) ? lang.toLowerCase() : "en";
     return `https://${safeLang}.wikipedia.org/w/api.php`;
@@ -49,6 +258,10 @@ export class Tier0KnowledgeService {
       if (searchTerms.length < 3) return null;
 
       const apiUrl = Tier0KnowledgeService.getWikipediaSearchUrl(lang);
+      const wikiHeaders = {
+        'User-Agent': 'TruthWorldFactCheckEngine/1.0 (https://truthworld.co; contact@truthworld.co)',
+        'Accept': 'application/json',
+      };
 
       // 2. Search Wikipedia for the best matching page title
       const searchRes = await axios.get(apiUrl, {
@@ -60,6 +273,7 @@ export class Tier0KnowledgeService {
           format: 'json',
           srlimit: 1
         },
+        headers: wikiHeaders,
         timeout: Tier0KnowledgeService.MAX_TIMEOUT_MS
       });
 
@@ -82,6 +296,7 @@ export class Tier0KnowledgeService {
           formatversion: 2,
           format: 'json'
         },
+        headers: wikiHeaders,
         timeout: Tier0KnowledgeService.MAX_TIMEOUT_MS
       });
 

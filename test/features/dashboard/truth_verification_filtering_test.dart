@@ -116,5 +116,30 @@ void main() {
         isFalse,
       );
     });
+
+    test('returns false for video where factChecking is disabled even if trustScore is 100', () {
+      // Models video such as "Are Eggs Vegetarian or Non-Vegetarian?" where fact-checking was not requested
+      final eggsVideoData = <String, dynamic>{
+        'title': 'Are Eggs Vegetarian or Non-Vegetarian? 🥚 The Science & Truth Explained',
+        'factCheckReviewMode': 'open_to_users',
+        'isFactCheckApproved': true,
+        'isFactChecked': false,
+        'trustScore': 100,
+        'claims': <dynamic>[],
+        'factCheckUrl': '',
+        'aiFeatures': {
+          'factChecking': false,
+          'factCheckTier': 'full_ground',
+        },
+      };
+      expect(
+        TruthVerificationDashboardPage.hasFactChecking(
+          eggsVideoData,
+          claims: [],
+          trustScore: 100.0,
+        ),
+        isFalse,
+      );
+    });
   });
 }

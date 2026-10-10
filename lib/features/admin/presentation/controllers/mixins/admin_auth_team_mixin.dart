@@ -40,15 +40,17 @@ mixin AdminAuthTeamMixin on BaseController {
   StreamSubscription<QuerySnapshot>? _adminMembersSub;
 
   static const List<String> authorizedOwnerEmails = [
-    'hello@truthworld.in',
-    'ebenezervampu4@gmail.com',
+    String.fromEnvironment(
+      'ADMIN_OWNER_EMAIL',
+      defaultValue: 'hello@truthworld.in',
+    ),
   ];
 
   // Email & Password login controllers
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-  final RxString loginEmail = 'hello@truthworld.in'.obs;
-  final RxString loginPassword = '12345'.obs;
+  final RxString loginEmail = ''.obs;
+  final RxString loginPassword = ''.obs;
   final RxBool needsPasswordSetup = false.obs;
 
   /// Returns true if the currently signed-in admin is the platform owner ("only me")

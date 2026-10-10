@@ -391,17 +391,19 @@ export const trackWatchEvent = onRequest(
         return;
       }
 
-      // LAYER 2: IP fraud detection — track IP and block known bot IPs
-      const clientIP = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim()
-        ?? req.socket.remoteAddress ?? "";
-      const ipHash = (clientIP && clientIP !== "::1" && !clientIP.startsWith("127."))
-        ? hashIP(clientIP) : "unknown";
-      const isAnonymous = body.userId === "anonymous";
-      const ipCheck = await trackAndCheckIP(ipHash, body.videoId!, isAnonymous);
-      if (ipCheck.blocked) {
-        logger.warn(`[FraudDefense] Blocked IP ${ipHash}: ${ipCheck.reason} videoId=${body.videoId}`);
-        res.status(429).send({ error: "Rate limit" });
-        return;
+      // LAYER 2: IP fraud detection — only run expensive IP tracking on video_start or 10% sample
+      if (body.eventType === "video_start" || Math.random() < 0.1) {
+        const clientIP = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim()
+          ?? req.socket.remoteAddress ?? "";
+        const ipHash = (clientIP && clientIP !== "::1" && !clientIP.startsWith("127."))
+          ? hashIP(clientIP) : "unknown";
+        const isAnonymous = body.userId === "anonymous";
+        const ipCheck = await trackAndCheckIP(ipHash, body.videoId!, isAnonymous);
+        if (ipCheck.blocked) {
+          logger.warn(`[FraudDefense] Blocked IP ${ipHash}: ${ipCheck.reason} videoId=${body.videoId}`);
+          res.status(429).send({ error: "Rate limit" });
+          return;
+        }
       }
 
       // LAYER 3: Concurrent session limit — max 3 simultaneous videos per user
@@ -414,59 +416,60 @@ export const trackWatchEvent = onRequest(
         }
       }
 
-      // â”€â”€ Geo â”€â”€
+      // ── Geo ──
       const rawIp =
         (req.headers["x-forwarded-for"] as string) ??
         req.socket.remoteAddress ??
         "";
       const state = await resolveState(rawIp);
 
-      // ── Write ──
-      await db.collection("watch_events").add({
-        videoId: body.videoId,
-        userId: body.userId,
-        sessionId: body.sessionId,
-        eventType: body.eventType,
-        position,
-        duration,
-        prevPosition,
-        issubscriber: body.issubscriber === true || body.issubscriber === "true",
-        isNotsubscriber: body.isNotsubscriber === true || (body.isNotsubscriber === "true"),
-        state,
-        playbackQuality: body.playbackQuality ?? "auto",
-        playbackRate: body.playbackRate ?? 1.0,
-        trafficSource: body.trafficSource ?? "direct",
-        playerState: body.playerState ?? "normal",
-        isMuted: body.isMuted ?? false,
-        volume: body.volume ?? 1.0,
-        deviceModel: body.deviceModel ?? "unknown",
-        platform: body.platform ?? "unknown",
-        networkType: body.networkType ?? "unknown",
-        language: body.language ?? "en",
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
+      // ── Write raw log only on milestones / start / completion (skips routine heartbeats to cut writes) ──
+      if (body.eventType !== "watch_ping") {
+        await db.collection("watch_events").add({
+          videoId: body.videoId,
+          userId: body.userId,
+          sessionId: body.sessionId,
+          eventType: body.eventType,
+          position,
+          duration,
+          prevPosition,
+          issubscriber: body.issubscriber === true || body.issubscriber === "true",
+          isNotsubscriber: body.isNotsubscriber === true || (body.isNotsubscriber === "true"),
+          state,
+          playbackQuality: body.playbackQuality ?? "auto",
+          playbackRate: body.playbackRate ?? 1.0,
+          trafficSource: body.trafficSource ?? "direct",
+          playerState: body.playerState ?? "normal",
+          isMuted: body.isMuted ?? false,
+          volume: body.volume ?? 1.0,
+          deviceModel: body.deviceModel ?? "unknown",
+          platform: body.platform ?? "unknown",
+          networkType: body.networkType ?? "unknown",
+          language: body.language ?? "en",
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
 
       // ── Maintain 'one user, one video' log ──
-      // This solves the 'permission-denied' issue by using the Admin SDK
       const { userId, videoId, sessionId } = body;
       const isAuth = userId && userId !== "anonymous";
       const identityKey = isAuth ? userId : (body.viewerHash || sessionId!);
       const docId = `${identityKey}_${videoId}`;
 
-      // Check premium subscriber status for revenue distribution (server-side, cannot be spoofed)
-      let isPremiumSubscriber = false;
-      if (body.userId && body.userId !== "anonymous") {
+      // Check existing session document first to avoid redundant user doc lookups
+      const sessionRef = db.collection("watch_sessions").doc(docId);
+      const sessionSnap = await sessionRef.get();
+      const existingSessionData = sessionSnap.exists ? sessionSnap.data() : null;
+
+      // Check premium subscriber status for revenue distribution (cached from sessionDoc if available)
+      let isPremiumSubscriber = existingSessionData?.isPremiumSubscriber === true;
+      if (!isPremiumSubscriber && body.userId && body.userId !== "anonymous" && !existingSessionData) {
         try {
           const userSnap = await db.collection("users").doc(body.userId).get();
           isPremiumSubscriber = userSnap.exists && userSnap.data()?.isPremium === true;
         } catch (_) { /* non-blocking */ }
       }
-
-      // Check existing session document to prevent duplicate watch time for re-watching
-      const sessionRef = db.collection("watch_sessions").doc(docId);
-      const sessionSnap = await sessionRef.get();
-      const existingSessionData = sessionSnap.exists ? sessionSnap.data() : null;
 
       const currentWatchSeconds = Math.max(0, Number(existingSessionData?.watchTimeSeconds || 0));
       const isAlreadyWatched = existingSessionData?.isAlreadyWatched === true ||
@@ -551,7 +554,7 @@ export const trackWatchEvent = onRequest(
         }
       }
 
-      let targetChannelId = body.channelId;
+      let targetChannelId = body.channelId || existingSessionData?.channelId;
 
       if (!targetChannelId && body.videoId) {
         const videoSnap = await db.collection("videos").doc(body.videoId).get();
@@ -605,26 +608,6 @@ export const trackWatchEvent = onRequest(
                 { merge: true }
               )
               .catch((err) => logger.warn("[WatchTime] Video shard write warning:", err));
-
-            // Best-effort update on parent video document with epistemic duration ceiling
-            db.collection("videos")
-              .doc(body.videoId)
-              .get()
-              .then((vDoc) => {
-                if (!vDoc.exists) return;
-                const vData = vDoc.data()!;
-                const vDur = duration || Number(vData.durationSeconds || 0) ||
-                  (vData.durationMs ? Math.floor(Number(vData.durationMs) / 1000) : 0);
-                const currentTotal = Number(vData.totalWatchTimeSeconds || 0);
-                const vViews = Math.max(1, Number(vData.viewCount || vData.views || 1));
-                const maxAllowed = vDur > 0 ? vViews * vDur : Infinity;
-                const nextTotal = Math.min(currentTotal + creditedDelta, maxAllowed);
-                return vDoc.ref.update({
-                  totalWatchTimeSeconds: nextTotal,
-                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                });
-              })
-              .catch(() => {});
           }
 
           const channelShardRef = db
@@ -642,16 +625,6 @@ export const trackWatchEvent = onRequest(
               { merge: true }
             )
             .catch((err) => logger.warn("[WatchTime] Channel shard write warning:", err));
-
-          // Best-effort update on parent channel document for immediate UI reads without transaction lock
-          db.collection("channels")
-            .doc(targetChannelId)
-            .update({
-              totalWatchTimeSeconds: admin.firestore.FieldValue.increment(creditedDelta),
-              "metrics.totalWatchTimeMinutes": admin.firestore.FieldValue.increment(creditedDelta / 60),
-              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            })
-            .catch(() => {});
         }
       }
 

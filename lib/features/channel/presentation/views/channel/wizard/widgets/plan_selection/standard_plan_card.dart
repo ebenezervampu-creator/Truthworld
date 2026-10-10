@@ -112,6 +112,7 @@ class StandardPlanCard extends StatelessWidget {
                     spacing: isDesktop ? 6 : 8,
                     runSpacing: isDesktop ? 6 : 8,
                     children: const [
+                      PlanBadgeItem(text: 'Phase 1: Limited to 100 Channels'),
                       PlanBadgeItem(text: '70% Revenue Share (Ads & Premium)'),
                       PlanBadgeItem(text: '100% Memberships & Superchats'),
                       PlanBadgeItem(text: '10 min/day upload'),

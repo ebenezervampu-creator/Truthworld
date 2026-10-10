@@ -220,6 +220,74 @@ import 'package:url_launcher/url_launcher.dart';
               const Divider(color: Colors.white12, height: 1),
               const SizedBox(height: 12),
 
+              () {
+                final isAppealed = claim['isAppealed'] == true;
+                final rawAppealStatus = (claim['appealStatus'] ?? '').toString().trim();
+
+                if (!isAppealed) return const SizedBox.shrink();
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.amber.withValues(alpha: 0.35)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.gavel_rounded, size: 14, color: Colors.amber),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          rawAppealStatus.isNotEmpty
+                              ? 'UNDER FORMAL APPEAL (${rawAppealStatus.toUpperCase()}) — NEUTRAL REVIEW'
+                              : 'UNDER FORMAL APPEAL — NEUTRAL EDITORIAL REVIEW',
+                          style: const TextStyle(
+                            color: Colors.amber,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }(),
+
+              () {
+                final publicNote = (claim['publicNote'] ?? '').toString().trim();
+                if (publicNote.isEmpty) return const SizedBox.shrink();
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.blueGrey.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.info_outline_rounded, size: 14, color: Colors.white70),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          publicNote,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 11.5,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }(),
+
               // AI Verification Response
               Container(
                 padding: const EdgeInsets.all(12),

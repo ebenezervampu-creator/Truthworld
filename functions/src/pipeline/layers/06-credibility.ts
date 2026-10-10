@@ -20,6 +20,7 @@ import {
   SynthesisResult,
   ClaimStatus,
   ClaimNature,
+  ClaimLedgerSummary,
 } from "../types";
 import { FactExtractionService }   from "../services/factExtraction";
 import { ClaimVerificationService } from "../services/claimVerification";
@@ -38,7 +39,8 @@ import { SpeakerRegistryService }    from "../services/speakerRegistry";
 import { SpeakerReputationService }  from "../services/speakerReputationService";
 import { registryService } from "../registry/RegistryService";
 import { sourceTrustService } from "../services/sourceTrustService";
-import { getAnalysisRepository, AnalysisRepository } from "../services/analysisRepository.js";
+import { tier0KnowledgeService } from "../services/tier0Knowledge";
+import { getAnalysisRepository, AnalysisRepository } from "../services/analysisRepository";
 import { costEngine } from "../services/cost-engine";
 import { JobTokenTracker } from "../utils/ai-utils";
 
@@ -389,7 +391,32 @@ export class CredibilityEngine {
             verificationMethod: 'deterministic' // v11.5
           });
         } else {
-          stillUncached.push(claim);
+          // v22.0: Tier-0 Pre-Indexed Knowledge Base Lookup (instant vector/lexical match)
+          const t0Match = tier0KnowledgeService.lookupPreIndexedFact(claim.text);
+          if (t0Match) {
+            registryHits.push({
+              ...claim,
+              claimId: `claim_t0_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+              status: t0Match.status,
+              verificationConfidence: t0Match.confidence,
+              evidenceConfidence: 1.0,
+              reasoning: t0Match.reasoning,
+              sources: [t0Match.source],
+              richSources: [{
+                title: t0Match.title,
+                url: t0Match.url,
+                directUrl: t0Match.url,
+                domain: t0Match.domain,
+                tier: "A",
+                snippet: t0Match.reasoning,
+                retrievalMethod: 'tier0_local_store',
+              }],
+              isGrounded: true,
+              verificationMethod: 'deterministic',
+            });
+          } else {
+            stillUncached.push(claim);
+          }
         }
       }
 
@@ -765,7 +792,39 @@ export class CredibilityEngine {
         verificationCoverageRatio: 1.0,
       };
 
+      // v22.0: Verifiable Claim Ledger (Replaces ambiguous scalar scoring with transparent ledger)
+      const confirmedCount = allVerified.filter(c => c.status === 'verified_true' || c.status === 'mostly_true' || c.status === 'correct' || c.status === 'mostly_correct').length;
+      const disputedCount = allVerified.filter(c => c.status === 'disputed' || c.status === 'inconclusive' || c.status === 'limited_support' || c.status === 'contested_interpretation').length;
+      const falseCount = allVerified.filter(c => c.status === 'false_claim' || c.status === 'incorrect' || c.status === 'verified_false' || c.status === 'historical_consensus_denial' || c.status === 'misleading').length;
+      const unprovenCount = allVerified.filter(c => c.status === 'unproven' || c.status === 'unsupported' || c.status === 'verification_timeout').length;
+      const contextualCount = allVerified.filter(c => c.status === 'opinion_claim' || c.status === 'religious_belief' || c.status === 'satire_claim' || c.status === 'faith_based_claim' || c.status === 'not_historically_verifiable').length;
+      const totalClaimsChecked = allVerified.length;
 
+      let highestSeverityVerdict: ClaimLedgerSummary['highestSeverityVerdict'] = 'none';
+      if (falseCount > 0) highestSeverityVerdict = 'false_claim';
+      else if (disputedCount > 0) highestSeverityVerdict = 'disputed';
+      else if (unprovenCount > 0) highestSeverityVerdict = 'unproven';
+      else if (confirmedCount > 0) highestSeverityVerdict = 'verified_true';
+
+      const verdictHeadline = `${confirmedCount} Confirmed • ${disputedCount} Disputed • ${falseCount} False`;
+      const priorityNotice = falseCount > 0
+        ? `Notice: ${falseCount} claim(s) contradicted by documented evidence.`
+        : disputedCount > 0
+          ? `Notice: ${disputedCount} claim(s) have conflicting or inconclusive evidence.`
+          : undefined;
+
+      const claimLedger: ClaimLedgerSummary = {
+        totalClaimsChecked,
+        confirmedCount,
+        disputedCount,
+        unprovenCount,
+        falseCount,
+        contextualCount,
+        highestSeverityVerdict,
+        verdictHeadline,
+        priorityNotice,
+        verifiableRatio: totalClaimsChecked > 0 ? Number((confirmedCount / totalClaimsChecked).toFixed(3)) : 0,
+      };
 
       const result: CredibilityResult = {
         analysisState:    'VERIFIED' as any, // v12.0: Analysis completes but no scoring
@@ -784,6 +843,7 @@ export class CredibilityEngine {
         speakers:         speakerBreakdowns,
         speakerIdentities,
         claims:           explainableResults,
+        claimLedger,
         
         deductions:       [], // v12.0: Deductions removed
         
@@ -1270,6 +1330,7 @@ export class CredibilityEngine {
         timestampStart: claim.start ?? 0,
         timestampEnd:   claim.end   ?? 0,
         confidence:     claim.verificationConfidence ?? claim.confidence ?? 0.5,
+        multiModelConsensus: claim.multiModelConsensus,
       };
     });
   }

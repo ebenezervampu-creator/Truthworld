@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/constants/platform_limits.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/data/models/channel.dart';
@@ -90,6 +91,35 @@ mixin ChannelCreationMixin on ChannelControllerBase {
         }
       } catch (e, s) {
         ErrorHandler.log(e, stackTrace: s, tag: 'ChannelCreationMixin.checkExistingChannelDoc');
+      }
+
+      // 0.1. Phase 1 Platform Capacity Check:
+      // Standard channels capped at 100 max.
+      // Custom channels have ZERO restriction (unlimited).
+      if (selectedChannelType.value == ChannelType.standard) {
+        try {
+          final countSnap = await firestore
+              .collection(ChannelControllerBase.channelsCol)
+              .where('channelType', isEqualTo: ChannelType.standard.name)
+              .where('status', isNotEqualTo: ChannelStatus.deleted.name)
+              .count()
+              .get();
+
+          final count = countSnap.count ?? 0;
+          if (count >= PlatformLimits.maxStandardChannels) {
+            showErrorSnackbar(
+              PlatformLimits.standardChannelLimitMessage,
+            );
+            isSubmitting.value = false;
+            return;
+          }
+        } catch (e, s) {
+          ErrorHandler.log(
+            e,
+            stackTrace: s,
+            tag: 'ChannelCreationMixin.checkStandardChannelCapacity',
+          );
+        }
       }
 
       // 1. Validation for requirements
@@ -237,6 +267,15 @@ mixin ChannelCreationMixin on ChannelControllerBase {
         selectedPlan.value = 'standard';
       }
       planSelectionError.value = false;
+
+      // 🔒 Language Policy Enforcement: Truthworld is accepting only English channels as of now
+      if (language.value.trim().toLowerCase() != 'en') {
+        showErrorSnackbar(
+          'Truthworld currently accepts channel creation only in English. All other languages are invite-only at this stage.',
+        );
+        isSubmitting.value = false;
+        return;
+      }
 
       if (!agreeTerms.value || !agreeGuidelines.value) {
         showErrorSnackbar('Please agree to both Terms & Conditions and Community Guidelines.');
@@ -386,7 +425,7 @@ mixin ChannelCreationMixin on ChannelControllerBase {
         'isVerified': false,
         'subscriberCount': 0,
         'videoCount': 0,
-        'language': language.value.isNotEmpty ? language.value : 'en',
+        'language': 'en',
         'country': country.value,
         'channelTypeCategory': channelTypeCategory.value,
         'entityType': channelTypeCategory.value,

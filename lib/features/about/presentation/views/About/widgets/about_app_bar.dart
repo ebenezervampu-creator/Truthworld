@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/navigation/app_navigator.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -42,7 +43,7 @@ class AboutModernAppBar extends StatelessWidget implements PreferredSizeWidget {
       ),
       actions: [
         TextButton(
-          onPressed: () => Get.toNamed('/terms'),
+          onPressed: AppNavigator.toTerms,
           style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
           child: const Text(
             'Terms',
@@ -54,7 +55,7 @@ class AboutModernAppBar extends StatelessWidget implements PreferredSizeWidget {
           ),
         ),
         TextButton(
-          onPressed: () => Get.toNamed('/privacy'),
+          onPressed: AppNavigator.toPrivacy,
           style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
           child: const Text(
             'Privacy',
@@ -71,7 +72,7 @@ class AboutModernAppBar extends StatelessWidget implements PreferredSizeWidget {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: ElevatedButton(
-              onPressed: () => Get.toNamed('/channelscreen'),
+              onPressed: AppNavigator.toChannelWizard,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.textPrimary,
                 foregroundColor: AppColors.bgPage,

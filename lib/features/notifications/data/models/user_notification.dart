@@ -229,25 +229,40 @@ class UserNotification {
 
     final isRead = json['read'] as bool? ?? (json['status'] == 'read');
 
+    final meta = json['metadata'] is Map
+        ? Map<String, dynamic>.from(json['metadata'] as Map)
+        : null;
+    final parsedSeverity = NotificationSeverity.fromString(
+      json['severity'] as String? ?? json['priority'] as String?,
+    );
+    final rawPriority = json['priority'] as String? ??
+        (meta?['priority'] as String?) ??
+        (parsedSeverity == NotificationSeverity.priority
+            ? 'critical'
+            : (parsedSeverity == NotificationSeverity.warning ? 'high' : null));
+    final rawCategory = json['category'] as String? ??
+        (meta?['category'] as String?) ??
+        'system';
+    final rawThumb = json['thumbnailUrl'] as String? ??
+        (meta?['thumbnailUrl'] as String?);
+
     return UserNotification(
       id: docId.isNotEmpty ? docId : (json['id'] as String? ?? ''),
       userId: json['userId'] as String? ?? json['creatorId'] as String? ?? '',
       type: json['type'] as String? ?? 'system_announcement',
-      severity: NotificationSeverity.fromString(
-        json['severity'] as String? ?? json['priority'] as String?,
-      ),
-      priority: NotificationPriority.fromString(json['priority'] as String?),
+      severity: parsedSeverity,
+      priority: NotificationPriority.fromString(rawPriority),
       status: NotificationLifecycle.fromString(json['status'] as String?),
-      category: json['category'] as String? ?? 'system',
+      category: rawCategory,
       rankingScore: (json['rankingScore'] as num?)?.toDouble() ?? 0.0,
       title: json['title'] as String? ?? 'Notification',
       message: json['message'] as String? ?? '',
-      thumbnailUrl: json['thumbnailUrl'] as String?,
+      thumbnailUrl: rawThumb,
       actionUrl: json['actionUrl'] as String?,
       verificationReportId: json['verificationReportId'] as String?,
       actions: actionItems,
       analyticsSnapshot: snapData,
-      metadata: json['metadata'] as Map<String, dynamic>?,
+      metadata: meta,
       read: isRead,
       createdAt: parsedTime,
       expiresAt: expTime,

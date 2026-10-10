@@ -316,7 +316,7 @@ class CreateContentLanguageLockSection extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              "Every video uploaded from this channel is registered and processed in the channel's official language. Dubbing into 70+ other languages is available in the AI Features section.",
+              'Videos must be primarily in English (at least 90% English). Up to 10% in other languages is permitted for ground reporting interviews, quotes, or regional phrases. AI dubbing into 70+ languages is available in the AI Features section.',
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.45),
                 fontSize: 11,

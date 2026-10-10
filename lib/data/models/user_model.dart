@@ -50,7 +50,8 @@ enum AccountStatus {
   active,
   suspended,
   deleted,
-  deactivated;
+  deactivated,
+  waitlisted;
 
   String get value => name;
 
@@ -62,6 +63,8 @@ enum AccountStatus {
         return AccountStatus.deleted;
       case 'deactivated':
         return AccountStatus.deactivated;
+      case 'waitlisted':
+        return AccountStatus.waitlisted;
       default:
         return AccountStatus.active;
     }

@@ -14,6 +14,9 @@ export default defineConfig({
           if (id.includes('node_modules/firebase/firestore')) {
             return 'vendor-firebase-firestore';
           }
+          if (id.includes('node_modules/firebase/functions')) {
+            return 'vendor-firebase-functions';
+          }
           if (id.includes('node_modules/firebase')) {
             return 'vendor-firebase-core';
           }

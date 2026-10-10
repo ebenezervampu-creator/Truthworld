@@ -16,6 +16,7 @@ import {
   VerifiedClaim,
   VerificationMethod,
   EvidenceSummary,
+  MultiModelConsensusMetadata,
 } from "../types";
 import { containsVerifiablePredicate } from "./contentIntentDetector";
 import { withAiRetry, extractCandidateText } from "../utils/ai-utils";
@@ -294,8 +295,13 @@ export class ClaimVerificationService {
 
       // Bucket 2 (Opinion) & Bucket 3 (Belief) -> Opinions (Labeling only)
       if (isOpinionOrBelief) {
+        const isExplicitlySubjective = [
+          /^(i feel|i think|i personally think|in my opinion|in my personal opinion|i prefer|i like|i love|i hate)\b/i,
+          /\b(my favorite|my personal preference|personally speaking)\b/i,
+        ].some(regex => regex.test(claim.text.toLowerCase()));
+
         // RESCUE: If it contains a verifiable predicate, it might be Bucket 1 in disguise
-        if (claim.isVerifiableEvent || containsVerifiablePredicate(claim.text)) {
+        if (!isExplicitlySubjective && (claim.isVerifiableEvent || containsVerifiablePredicate(claim.text))) {
           toVerify.push(tagged);
           return;
         }
@@ -445,6 +451,17 @@ PROTOCOL:
    {"title": "United Nations Treaty Series — Vienna Convention on Diplomatic Relations", "sourceType": "legal", "author": "United Nations", "bookTitle": "UN Treaty Series", "volume": "Vol. 500", "yearPublished": 1961, "pageNumbers": "pp. 95-126", "url": "https://treaties.un.org/doc/Publication/UNTS/Volume%20500/v500.pdf", "snippet": "The premises of the diplomatic mission shall be inviolable under Article 22."}
    {"title": "The Lancet — Global Vaccine Efficacy Analysis", "sourceType": "journal", "author": "M. Voysey et al.", "journalName": "The Lancet", "volume": "Vol. 397, No. 10269", "yearPublished": 2021, "doi": "10.1016/S0140-6736(20)32661-1", "pageNumbers": "pp. 99-111", "url": "https://doi.org/10.1016/S0140-6736(20)32661-1", "snippet": "Demonstrated 70.4% pooled efficacy against symptomatic laboratory-confirmed infection."}
 10. TIMELESS CLAIMS: For timeless historical, religious, or supernatural claims, you may output "Timeless" in the "freshness" field, and set the rating accordingly without penalizing for lack of recent news.
+11. DIGITAL & ARCHIVAL AVAILABILITY BIAS (MANDATORY SAFEGUARD):
+   Centralized repositories (Wikipedia, PubMed, NIST, SEC) inherently have coverage gaps regarding regional vernacular, local folklore, oral traditions, and non-digitized community history.
+   If an empirical or historical claim pertains to regional, oral, or hyper-local unindexed heritage, and web search returns no digitized matches:
+   - You MUST NOT classify the claim as "FALSE" or "MISLEADING".
+   - Classify it as label: "NOT HISTORICALLY VERIFIABLE" or "INCONCLUSIVE" or "HISTORICAL TRADITION" with evidenceLevel: "NONE".
+   - In "publicNote", state: "Digital Archival Scarcity: This claim concerns local, regional, or oral history where centralized digital archives are sparse. Classified as Inconclusive to prevent digital availability bias."
+12. EMERGING SCIENCE & FRONTIER EVENTS (EPISTEMIC HUMILITY PROTOCOL):
+   During breaking crises (real-time news, sudden geopolitical conflicts) or frontier scientific research (preprints on arXiv/bioRxiv/medRxiv, Phase 1/2 clinical trials, preliminary lab findings):
+   - Multi-year consensus DOES NOT exist.
+   - Unless an authoritative regulatory agency (WHO, FDA, CDC) has issued an explicit unambiguous emergency warning/refutation, DO NOT declare the claim "VERIFIED TRUE" or "FALSE".
+   - Classify emerging/frontier claims as label: "DISPUTED" or "INCONCLUSIVE" with publicNote: "Frontier / Breaking Event: Empirical or scientific consensus is actively developing. Evaluated with epistemic humility."
 ${tier0Injection}
 ### BATCH TO VERIFY:
 ${remainingToVerify.map(c => {
@@ -814,12 +831,26 @@ RETURN JSON:
             publicNote = `Only ${evSummary.independentPublishers} unique source(s) found. Minimum ${options.minSourcesRequired} required for verification.`;
           }
 
+          // v22.0: Multi-Model Cross-Examination for high-severity or sensitive domain claims
+          const crossExam = await this.crossExamineClaim(
+            claim.text,
+            finalStatus,
+            verification.summary,
+            finalSources,
+            domainContext
+          );
+          finalStatus = crossExam.adjudicatedStatus;
+          if (crossExam.publicNote) {
+            publicNote = crossExam.publicNote;
+          }
+
           const resolvedNature = (verification.nature as any) || claim.nature;
           const isTimeless = resolvedNature === ClaimNature.HISTORICAL_FACT || resolvedNature === ClaimNature.RELIGIOUS_CLAIM || resolvedNature === ClaimNature.SUPERNATURAL_CLAIM;
 
           return {
             ...claim,
             status: finalStatus,
+            multiModelConsensus: crossExam.consensusMetadata,
             verificationConfidence: verification.confidence,
             reasoning: verification.summary,
             sources: finalSources.map(s => s.title),
@@ -1836,5 +1867,228 @@ Output JSON format:
       logger.error("[ClaimVerification] Citation Retrieval Retry Pass failed", { err });
       return new Map();
     }
+  }
+
+  /**
+   * 🏛️ Digital & Archival Availability Bias Guard
+   * Detects regional, local, oral history, or vernacular topics where centralized digital archives
+   * (e.g. English Wikipedia/PubMed) have systemic coverage gaps.
+   */
+  detectDigitalArchivalScarcity(claimText: string, domainContext?: string): { isScarcity: boolean; reason?: string } {
+    const text = claimText.toLowerCase();
+    const scarcityPatterns = [
+      /\b(?:oral history|oral tradition|folklore|tribal lore|indigenous elder|village elder|panchayat record|local legend|vernacular ballad|district folklore|regional dialect|unwritten custom|customary law|village archive|folk song|ancestral lineage)\b/i,
+      /\b(?:sub-district|tehsil|mandal|gram panchayat|barrio|comuna|freguesia|local chieftain|clan elder|parish record)\b/i,
+    ];
+
+    if (scarcityPatterns.some(p => p.test(text))) {
+      return {
+        isScarcity: true,
+        reason: "Claim concerns local, regional, oral, or unindexed cultural accounts where digital archives are sparse.",
+      };
+    }
+
+    return { isScarcity: false };
+  }
+
+  /**
+   * 🔭 Emerging Science & Frontier Events Guard
+   * Detects breaking news, recent ongoing crises, or nascent scientific literature (preprints, Phase 1/2)
+   * where authoritative consensus does not yet exist.
+   */
+  detectFrontierOrBreakingEvent(claimText: string): { isFrontier: boolean; reason?: string } {
+    const text = claimText.toLowerCase();
+    const breakingPatterns = [
+      /\b(?:breaking news|just reported|just announced|today|yesterday|this week|developing story|unconfirmed reports|eyewitness video|breaking update)\b/i,
+    ];
+    const frontierSciencePatterns = [
+      /\b(?:preprint|biorxiv|medrxiv|arxiv preprint|phase 1 trial|phase 2 trial|pilot clinical trial|in vitro study|mouse model study|novel variant|novel strain|first human patient|room-temperature superconductor|lab breakthrough|early preclinical)\b/i,
+      /\b(?:first-in-human|preliminary data|early release|interim results|unreplicated study)\b/i,
+    ];
+
+    if (breakingPatterns.some(p => p.test(text))) {
+      return {
+        isFrontier: true,
+        reason: "Breaking or recent real-time event where verified official consensus is actively developing.",
+      };
+    }
+
+    if (frontierSciencePatterns.some(p => p.test(text))) {
+      return {
+        isFrontier: true,
+        reason: "Frontier scientific research or preliminary trial where definitive multi-cohort consensus has not consolidated.",
+      };
+    }
+
+    return { isFrontier: false };
+  }
+
+  /**
+   * Dual-Model / Multi-Model Cross-Examination
+   *
+   * Adversarially cross-checks high-severity verdicts (false/misleading) and sensitive
+   * domains (health, finance, politics) to eliminate single-model hallucinations and bias.
+   * Enforces Epistemic Humility for frontier events and Digital Archival Scarcity guards.
+   */
+  async crossExamineClaim(
+    claimText: string,
+    primaryVerdict: ClaimStatus,
+    primaryReasoning: string,
+    primarySources: RichSource[],
+    domain: string
+  ): Promise<{
+    adjudicatedStatus: ClaimStatus;
+    consensusMetadata: MultiModelConsensusMetadata;
+    publicNote?: string;
+  }> {
+    const isHighSeverity = primaryVerdict === 'false_claim' || primaryVerdict === 'misleading';
+    const isSensitiveDomain = ['health', 'finance', 'politics', 'elections', 'news'].includes(domain.toLowerCase());
+    const frontierCheck = this.detectFrontierOrBreakingEvent(claimText);
+    const scarcityCheck = this.detectDigitalArchivalScarcity(claimText, domain);
+    const isFrontier = frontierCheck.isFrontier;
+    const isDigitalScarcity = scarcityCheck.isScarcity;
+
+    if (!isHighSeverity && !isSensitiveDomain && !isFrontier && !isDigitalScarcity) {
+      return {
+        adjudicatedStatus: primaryVerdict,
+        consensusMetadata: {
+          checked: false,
+          agreed: true,
+          primaryVerdict,
+          crossExaminedAt: Date.now(),
+        },
+      };
+    }
+
+    // Immediate Guard: Digital Archival Scarcity Override
+    // If a regional/oral claim was deemed false without authoritative Tier A/B counter-proof,
+    // prevent digital availability bias by de-escalating to not_historically_verifiable.
+    if (isDigitalScarcity && isHighSeverity) {
+      const hasDirectHardCounterProof = primarySources.some(s => s.tier === 'A' || s.tier === 'B');
+      if (!hasDirectHardCounterProof) {
+        logger.info(`[CrossExamination] Digital archival scarcity de-escalation for claim "${claimText}".`);
+        return {
+          adjudicatedStatus: 'not_historically_verifiable',
+          consensusMetadata: {
+            checked: true,
+            agreed: false,
+            primaryVerdict,
+            secondaryVerdict: 'NOT_HISTORICALLY_VERIFIABLE',
+            adjudicationRationale: "De-escalated to prevent digital archival availability bias on unindexed regional/oral history.",
+            crossExaminedAt: Date.now(),
+          },
+          publicNote: "Digital Archival Scarcity: This claim concerns local, regional, or oral history where centralized digital archives are sparse. Classified as Inconclusive to prevent digital availability bias.",
+        };
+      }
+    }
+
+    try {
+      let specialContextInstruction = "";
+      if (isFrontier) {
+        specialContextInstruction = `\nSPECIAL CONTEXT (FRONTIER / BREAKING EVENT):
+This claim was flagged as emerging science or a breaking real-time event (${frontierCheck.reason}).
+Established multi-year consensus DOES NOT exist.
+Unless an official public health/safety regulatory agency (WHO, FDA, CDC) has issued an explicit emergency refutation or safety warning, this claim MUST NOT be declared FALSE or TRUE with premature certainty.
+If consensus is nascent or actively developing, secondaryVerdict MUST be "DISPUTED" or "INCONCLUSIVE".\n`;
+      } else if (isDigitalScarcity) {
+        specialContextInstruction = `\nSPECIAL CONTEXT (DIGITAL ARCHIVAL SCARCITY):
+This claim concerns local, regional, or oral history (${scarcityCheck.reason}).
+Absence of indexed English web pages MUST NEVER be used as grounds to label this claim FALSE.
+If digital records are sparse, secondaryVerdict MUST be "NOT_HISTORICALLY_VERIFIABLE" or "INCONCLUSIVE".\n`;
+      }
+
+      const crossExamPrompt = `ROLE: TruthWorld Independent Verification Auditor & Cross-Examiner.
+CLAIM: "${claimText}"
+PRIMARY AUTOMATED VERDICT: ${primaryVerdict.toUpperCase()}
+PRIMARY RATIONALE: ${primaryReasoning}
+DOMAIN: ${domain}
+${specialContextInstruction}
+TASK:
+Critically cross-examine this verdict.
+1. Is this claim conclusively, unarguably contradicted by established consensus?
+2. Or does it involve contested interpretation, legitimate context, preliminary research, or scholarly debate?
+3. If genuine ambiguity or scholarly debate exists, it MUST NOT be declared FALSE.
+
+RESPOND IN STRICT JSON:
+{
+  "secondaryVerdict": "CONFIRMED_FALSE" | "CONFIRMED_TRUE" | "DISPUTED" | "INCONCLUSIVE",
+  "concursWithPrimary": true | false,
+  "adjudicationRationale": "Brief audit explanation"
+}`;
+
+      const model = this.genAI.getGenerativeModel({
+        model: "gemini-2.5-flash",
+      });
+
+      const res = await model.generateContent(crossExamPrompt);
+      const resText = extractCandidateText(res.response?.candidates?.[0]) || "";
+      const match = resText.match(/\{[\s\S]*\}/);
+
+      if (match) {
+        const parsed = JSON.parse(match[0]);
+        const concurs = Boolean(parsed.concursWithPrimary);
+        const secVerdict = String(parsed.secondaryVerdict || "").toUpperCase();
+
+        // Frontier Science / Breaking Story Override:
+        // Do not allow premature certainty on developing frontier stories.
+        if (isFrontier && (primaryVerdict === 'false_claim' || primaryVerdict === 'verified_true')) {
+          if (!concurs || secVerdict === 'DISPUTED' || secVerdict === 'INCONCLUSIVE') {
+            logger.info(`[CrossExamination] Frontier event de-escalated to Disputed with Epistemic Humility for claim "${claimText}".`);
+            return {
+              adjudicatedStatus: 'disputed',
+              consensusMetadata: {
+                checked: true,
+                agreed: false,
+                primaryVerdict,
+                secondaryVerdict: secVerdict,
+                adjudicationRationale: parsed.adjudicationRationale || "Frontier research or breaking event where consensus is actively developing.",
+                crossExaminedAt: Date.now(),
+              },
+              publicNote: "Frontier / Breaking Event: Empirical or scientific consensus is actively developing. Evaluated with epistemic humility.",
+            };
+          }
+        }
+
+        if (isHighSeverity && !concurs) {
+          logger.info(`[CrossExamination] Conflict detected on claim "${claimText}". Primary: ${primaryVerdict}, Secondary: ${secVerdict}. De-escalating to disputed.`);
+          return {
+            adjudicatedStatus: 'disputed',
+            consensusMetadata: {
+              checked: true,
+              agreed: false,
+              primaryVerdict,
+              secondaryVerdict: secVerdict,
+              adjudicationRationale: parsed.adjudicationRationale || "Cross-examination detected scholarly or contextual divergence.",
+              crossExaminedAt: Date.now(),
+            },
+            publicNote: "Multi-model cross-examination revealed conflicting evidence between primary and secondary evaluation models. Classified as Disputed for editorial fairness.",
+          };
+        }
+
+        return {
+          adjudicatedStatus: primaryVerdict,
+          consensusMetadata: {
+            checked: true,
+            agreed: true,
+            primaryVerdict,
+            secondaryVerdict: secVerdict,
+            adjudicationRationale: parsed.adjudicationRationale || "Cross-examination confirmed primary verdict with high consensus.",
+            crossExaminedAt: Date.now(),
+          },
+        };
+      }
+    } catch (err) {
+      logger.warn(`[CrossExamination] Secondary cross-examination pass failed, keeping primary verdict: ${(err as any)?.message}`);
+    }
+
+    return {
+      adjudicatedStatus: primaryVerdict,
+      consensusMetadata: {
+        checked: true,
+        agreed: true,
+        primaryVerdict,
+        crossExaminedAt: Date.now(),
+      },
+    };
   }
 }

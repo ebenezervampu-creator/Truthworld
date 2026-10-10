@@ -1,12 +1,13 @@
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:truthworld/core/config/app_config.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/firebase_options.dart';
 
 class StorageUtils {
   static final Map<String, String> _fastUrlCache = {};
 
-  /// Instantly generates a direct Firebase Storage HTTP download URL from a gs://, storage.googleapis.com,
-  /// or standard path, completely bypassing slow network roundtrips.
+  /// Instantly generates a direct Google Cloud CDN / HTTP download URL from a gs://, storage.googleapis.com,
+  /// or standard path, completely bypassing slow network roundtrips and high direct egress rates.
   /// Results are cached in RAM for 0ms subsequent lookups.
   static String getFastDownloadUrl(String pathOrGsUrl) {
     if (pathOrGsUrl.isEmpty) return '';
@@ -35,9 +36,8 @@ class StorageUtils {
           : pathOrGsUrl;
 
       final cleanPath = path.startsWith('/') ? path.substring(1) : path;
-      final encodedPath = Uri.encodeComponent(cleanPath);
-      result =
-          'https://firebasestorage.googleapis.com/v0/b/$bucket/o/$encodedPath?alt=media';
+      // Route via Google Cloud CDN origin for high-speed edge caching and low egress billing ($0.02-$0.08/GB instead of $0.12+/GB)
+      result = '${AppConfig.cdnBaseUrl}/$bucket/$cleanPath';
     }
 
     _fastUrlCache[pathOrGsUrl] = result;

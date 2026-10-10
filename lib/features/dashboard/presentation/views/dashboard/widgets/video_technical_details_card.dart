@@ -180,7 +180,7 @@ class VideoTechnicalDetailsCard extends StatelessWidget {
                   _buildMetaRow(
                     label: 'Fact-Check JSON Disclosure',
                     value: video.factCheckUrl.isNotEmpty
-                        ? 'Available (factChecks/${video.id}/full.json)'
+                        ? 'Available (Stored in GCS)'
                         : 'Not Generated',
                     badgeColor: video.factCheckUrl.isNotEmpty
                         ? AppColors.success

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:truthworld/features/video/data/models/claim_verdict_helper.dart';
+import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/theme/tw_radius.dart';
 import 'package:truthworld/theme/tw_typography.dart';
 
@@ -21,6 +22,53 @@ class TruthCredibilityBadge extends StatelessWidget {
     this.pill = true,
     super.key,
   });
+
+  /// Factory constructor to build from a [ClaimLedgerSummary] (Verifiable Claim Ledger standard).
+  factory TruthCredibilityBadge.fromLedger({
+    required ClaimLedgerSummary ledger,
+    bool showGlow = true,
+    EdgeInsetsGeometry? padding,
+    double fontSize = 10,
+    double iconSize = 12,
+    bool pill = true,
+    Key? key,
+  }) {
+    final isFalse = ledger.falseCount > 0;
+    final isDisputed = !isFalse && ledger.disputedCount > 0;
+    final isVerified = !isFalse && !isDisputed && ledger.confirmedCount > 0;
+
+    String label;
+    IconData icon;
+
+    if (isFalse) {
+      label = '${ledger.falseCount} CONTRADICTED';
+      icon = Icons.cancel_outlined;
+    } else if (isDisputed) {
+      label = '${ledger.disputedCount} DISPUTED';
+      icon = Icons.warning_amber_rounded;
+    } else if (isVerified) {
+      label = '${ledger.confirmedCount} CONFIRMED';
+      icon = Icons.verified_rounded;
+    } else {
+      label = '${ledger.totalClaimsChecked} CLAIMS CHECKED';
+      icon = Icons.fact_check_outlined;
+    }
+
+    return TruthCredibilityBadge(
+      key: key,
+      label: label,
+      color: Colors.white,
+      icon: icon,
+      isVerified: isVerified,
+      isDisputed: isDisputed,
+      isFalse: isFalse,
+      showGlow: showGlow,
+      padding: padding,
+      fontSize: fontSize,
+      iconSize: iconSize,
+      pill: pill,
+    );
+  }
 
   /// Factory constructor to resolve status from a raw string.
   factory TruthCredibilityBadge.fromStatus({

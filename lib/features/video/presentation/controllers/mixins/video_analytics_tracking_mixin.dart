@@ -368,7 +368,7 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
           channelId: video.channelId,
           durationSec: effectiveWatch,
           completion: (percentage / 100.0).clamp(0.0, 1.0),
-          isFactChecked: video.isFactChecked || video.trustScore >= 3.5,
+          isFactChecked: video.isFactChecked || video.hasAiCredibility,
         );
       }
     } catch (e, stackTrace) {

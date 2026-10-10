@@ -21,14 +21,36 @@ export const onVideoSeoWritten = onDocumentWritten(
   },
   async (event) => {
     const videoId = event.params.videoId;
+    const beforeData = event.data?.before?.data();
     const afterData = event.data?.after?.data();
     if (!afterData) return;
+
+    // Cost-effective delta guard: compare indexing-relevant fields
+    const textOrMetaChanged = !beforeData ||
+      beforeData.title !== afterData.title ||
+      beforeData.description !== afterData.description ||
+      beforeData.category !== afterData.category ||
+      beforeData.channelName !== afterData.channelName ||
+      JSON.stringify(beforeData.tags || []) !== JSON.stringify(afterData.tags || []);
+
+    const statusOrVisibilityChanged = !beforeData ||
+      (beforeData.visibility || "").toLowerCase() !== (afterData.visibility || "").toLowerCase() ||
+      (beforeData.status || "").toLowerCase() !== (afterData.status || "").toLowerCase();
+
+    // If neither text metadata nor visibility/status changed, bail out immediately!
+    // This stops infinite loops from embedding writes and ignores view/watchtime/like counter updates.
+    if (!textOrMetaChanged && !statusOrVisibilityChanged) {
+      return;
+    }
 
     const db = admin.firestore();
     const visibility = (afterData.visibility || "").toLowerCase();
     const status = (afterData.status || "").toLowerCase();
 
-    await updateVideoSearchMetadata(db, videoId, afterData);
+    // Only update search metadata / embeddings if textual content actually changed
+    if (textOrMetaChanged) {
+      await updateVideoSearchMetadata(db, videoId, afterData);
+    }
 
     if (visibility === "public" && status === "ready") {
       await db.collection("dirty_shards").doc("videos-001").set({
@@ -109,13 +131,32 @@ export const onChannelSeoWritten = onDocumentWritten(
   },
   async (event) => {
     const channelId = event.params.channelId;
+    const beforeData = event.data?.before?.data();
     const afterData = event.data?.after?.data();
     if (!afterData) return;
+
+    const channelMetaChanged = !beforeData ||
+      beforeData.displayName !== afterData.displayName ||
+      beforeData.name !== afterData.name ||
+      beforeData.handle !== afterData.handle ||
+      beforeData.about !== afterData.about ||
+      beforeData.description !== afterData.description ||
+      (beforeData.profile?.photoUrl || beforeData.avatarUrl) !== (afterData.profile?.photoUrl || afterData.avatarUrl);
+
+    const channelStatusChanged = !beforeData ||
+      (beforeData.status || "").toLowerCase() !== (afterData.status || "").toLowerCase();
+
+    // If channel metadata or status did not change, skip writing dirty shards/search metadata
+    if (!channelMetaChanged && !channelStatusChanged) {
+      return;
+    }
 
     const db = admin.firestore();
     const status = (afterData.status || "").toLowerCase();
 
-    await updateChannelSearchMetadata(db, channelId, afterData);
+    if (channelMetaChanged) {
+      await updateChannelSearchMetadata(db, channelId, afterData);
+    }
 
     if (status === "active") {
       await db.collection("dirty_shards").doc("channels-001").set({

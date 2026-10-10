@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_repository.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
@@ -12,12 +11,18 @@ import 'package:truthworld/features/video/data/models/video.dart';
 
 class VideoRepositoryImpl extends BaseRepository implements VideoRepository {
   final VideoRemoteDataSource _remoteDataSource;
+  final DistributedCounterService? _counterService;
+  final FirebaseFirestore _firestore;
 
   VideoRepositoryImpl({
     FirebaseFirestore? firestore,
     VideoRemoteDataSource? remoteDataSource,
-  }) : _remoteDataSource = remoteDataSource ??
-            FirestoreVideoRemoteDataSource(firestore: firestore);
+    DistributedCounterService? counterService,
+    super.isTestMode,
+  })  : _firestore = firestore ?? FirebaseFirestore.instance,
+        _remoteDataSource = remoteDataSource ??
+            FirestoreVideoRemoteDataSource(firestore: firestore),
+        _counterService = counterService;
 
   VideoEntity _mapToEntity(Video model) {
     return model.toEntity();
@@ -106,10 +111,9 @@ class VideoRepositoryImpl extends BaseRepository implements VideoRepository {
   @override
   Future<Result<void>> incrementViewCount(String videoId) async {
     try {
-      final counterService = Get.isRegistered<DistributedCounterService>()
-          ? DistributedCounterService.to
-          : Get.put(DistributedCounterService());
-      await counterService.incrementVideoViews(videoId: videoId);
+      final counter = _counterService ??
+          DistributedCounterService(firestore: _firestore);
+      await counter.incrementVideoViews(videoId: videoId);
       return Result.success(null);
     } catch (e, stackTrace) {
       ErrorHandler.log(

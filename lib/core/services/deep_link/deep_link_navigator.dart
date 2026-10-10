@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/navigation/app_navigator.dart';
 import 'package:truthworld/core/services/cashfree_service.dart';
 import 'package:truthworld/core/services/deep_link/deep_link_cache_manager.dart';
 import 'package:truthworld/core/services/deep_link/deep_link_url_parser.dart';
@@ -116,24 +117,24 @@ mixin DeepLinkNavigator on DeepLinkCacheManager {
           StudioLauncher.openStudio();
         } else {
           if (replace) {
-            Get.offNamed<void>('/studio');
+            AppNavigator.offNamed('/studio');
           } else {
-            Get.toNamed<void>('/studio');
+            AppNavigator.toStudio();
           }
         }
 
       case TruthworldUrlType.admin:
         if (replace) {
-          Get.offNamed<void>('/admin');
+          AppNavigator.offNamed('/admin');
         } else {
-          Get.toNamed<void>('/admin');
+          AppNavigator.toAdmin();
         }
 
       case TruthworldUrlType.upload:
         if (replace) {
-          Get.offNamed<void>('/upload');
+          AppNavigator.offNamed('/upload');
         } else {
-          Get.toNamed<void>('/upload');
+          AppNavigator.toUpload();
         }
 
       case TruthworldUrlType.settings:
@@ -148,13 +149,13 @@ mixin DeepLinkNavigator on DeepLinkCacheManager {
           }
         }
         if (replace) {
-          Get.offNamed<void>('/settings');
+          AppNavigator.offNamed('/settings');
         } else {
-          Get.toNamed<void>('/settings');
+          AppNavigator.toSettings();
         }
 
       case TruthworldUrlType.home:
-        Get.offAllNamed<void>('/');
+        AppNavigator.offAllNamed('/');
 
       case TruthworldUrlType.policy:
         _handlePolicyNavigation(parsed, replace: replace);
@@ -249,9 +250,9 @@ mixin DeepLinkNavigator on DeepLinkCacheManager {
     );
 
     if (replace) {
-      Get.offNamed<void>(routeUrl, arguments: args, preventDuplicates: false);
+      AppNavigator.offNamed(routeUrl, arguments: args, preventDuplicates: false);
     } else {
-      Get.toNamed<void>(routeUrl, arguments: args, preventDuplicates: false);
+      AppNavigator.toNamed(routeUrl, arguments: args, preventDuplicates: false);
     }
   }
 
@@ -274,9 +275,9 @@ mixin DeepLinkNavigator on DeepLinkCacheManager {
     );
 
     if (replace) {
-      Get.offNamed<void>(routeUrl, arguments: args, preventDuplicates: false);
+      AppNavigator.offNamed(routeUrl, arguments: args, preventDuplicates: false);
     } else {
-      Get.toNamed<void>(routeUrl, arguments: args, preventDuplicates: false);
+      AppNavigator.toNamed(routeUrl, arguments: args, preventDuplicates: false);
     }
   }
 
@@ -299,9 +300,9 @@ mixin DeepLinkNavigator on DeepLinkCacheManager {
     );
 
     if (replace) {
-      Get.offNamed<void>(routeUrl, arguments: args, preventDuplicates: false);
+      AppNavigator.offNamed(routeUrl, arguments: args, preventDuplicates: false);
     } else {
-      Get.toNamed<void>(routeUrl, arguments: args, preventDuplicates: false);
+      AppNavigator.toNamed(routeUrl, arguments: args, preventDuplicates: false);
     }
   }
 
@@ -324,9 +325,9 @@ mixin DeepLinkNavigator on DeepLinkCacheManager {
     );
 
     if (replace) {
-      Get.offNamed<void>(routeUrl, arguments: args, preventDuplicates: false);
+      AppNavigator.offNamed(routeUrl, arguments: args, preventDuplicates: false);
     } else {
-      Get.toNamed<void>(routeUrl, arguments: args, preventDuplicates: false);
+      AppNavigator.toNamed(routeUrl, arguments: args, preventDuplicates: false);
     }
   }
 
@@ -339,9 +340,9 @@ mixin DeepLinkNavigator on DeepLinkCacheManager {
 
     final routeUrl = '/post/$postId';
     if (replace) {
-      Get.offNamed<void>(routeUrl);
+      AppNavigator.offNamed(routeUrl);
     } else {
-      Get.toNamed<void>(routeUrl);
+      AppNavigator.toNamed(routeUrl);
     }
   }
 
@@ -380,9 +381,9 @@ mixin DeepLinkNavigator on DeepLinkCacheManager {
     }
 
     if (replace) {
-      Get.offNamed<void>(route);
+      AppNavigator.offNamed(route);
     } else {
-      Get.toNamed<void>(route);
+      AppNavigator.toNamed(route);
     }
   }
 

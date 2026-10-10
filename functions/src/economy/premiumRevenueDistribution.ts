@@ -115,6 +115,10 @@ async function runDistribution(
       batchOps++;
     };
 
+    // In-memory lookup caches across all subscribers to eliminate N x M read amplification
+    const channelCache = new Map<string, { ownerId: string; isCustom: boolean }>();
+    const videoChannelMap = new Map<string, string>();
+
     // --- 3. Process each subscriber ---
     for (const subDoc of subsSnap.docs) {
       const subData = subDoc.data();
@@ -191,30 +195,40 @@ async function runDistribution(
           const watchSecs = Math.max(0, Number(sess.watchTimeSeconds || 0));
           if (watchSecs < MIN_WATCH_SECONDS) continue;
 
-          // Resolve channelId: prefer session.channelId, fallback to video doc lookup
+          // Resolve channelId: prefer session.channelId, fallback to cached video doc lookup
           let channelId: string | undefined = sess.channelId;
           let ownerId = "";
           let isCustom = false;
 
           if (!channelId && sess.videoId) {
-            try {
-              const videoDoc = await db.collection("videos").doc(sess.videoId).get();
-              if (videoDoc.exists) {
-                channelId = videoDoc.data()?.channelId;
-              }
-            } catch (_) { /* ignore */ }
+            if (videoChannelMap.has(sess.videoId)) {
+              channelId = videoChannelMap.get(sess.videoId);
+            } else {
+              try {
+                const videoDoc = await db.collection("videos").doc(sess.videoId).get();
+                if (videoDoc.exists) {
+                  channelId = videoDoc.data()?.channelId;
+                  if (channelId) videoChannelMap.set(sess.videoId, channelId);
+                }
+              } catch (_) { /* ignore */ }
+            }
           }
 
           if (!channelId) continue;
 
-          // Resolve channel owner and type for security rules and split calculation
-          if (!ownerId) {
+          // Resolve channel owner and type using in-memory cache (reduces reads from O(N*M) to O(UniqueChannels))
+          if (channelCache.has(channelId)) {
+            const cachedCh = channelCache.get(channelId)!;
+            ownerId = cachedCh.ownerId;
+            isCustom = cachedCh.isCustom;
+          } else {
             try {
               const chDoc = await db.collection("channels").doc(channelId).get();
               if (chDoc.exists) {
                 const chData = chDoc.data() || {};
                 ownerId = chData.ownerId || "";
                 isCustom = chData.type === "custom" || chData.channelType === "custom";
+                channelCache.set(channelId, { ownerId, isCustom });
               }
             } catch (_) { /* ignore */ }
           }

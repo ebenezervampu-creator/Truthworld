@@ -26,6 +26,7 @@ export interface BridgingEvaluationResult {
   disputeId: string;
   totalRatings: number;
   status: "pending_ratings" | "consensus_achieved" | "rejected_polarized" | "brigade_flagged";
+  isProvisional?: boolean;
   bridgingScore: number; // 0.0 to 1.0
   perspectiveDivergence: number; // 0.0 to 1.0 (how diverse the raters are)
   leftHelpfulRate: number;
@@ -114,6 +115,7 @@ export class BridgingConsensusEngine {
 
     // 6. Status determination (prevents unilateral factional veto on facts)
     let status: BridgingEvaluationResult["status"] = "pending_ratings";
+    let isProvisional = false;
 
     if (brigadeCheck.isBrigaded && validRatings.length < this.MIN_RATINGS_FOR_CONSENSUS) {
       status = "brigade_flagged";
@@ -139,14 +141,38 @@ export class BridgingConsensusEngine {
           status = "pending_ratings";
         }
       }
+    } else if (validRatings.length >= 2 && !brigadeCheck.isBrigaded) {
+      // 🌉 Sparse-Graph Cold Start: Adaptive Bayesian Shrinkage & Authoritative Anchor Bootstrapping
+      // When 2 <= N < 5, if raters have high reputation and unanimous/near-unanimous agreement,
+      // allow provisional resolution instead of locking indefinitely in pending_ratings.
+      const trustedRaters = validRatings.filter(r => r.contributorReputationTier === "Trusted" || r.contributorReputationTier === "Active");
+      const helpfulCount = validRatings.filter(r => r.isHelpful).length;
+      const unhelpfulCount = validRatings.length - helpfulCount;
+
+      // Bayesian prior smoothing (prior mean = 0.5, pseudo-count m = 1.0)
+      const bayesianHelpfulRate = (helpfulCount + 0.5) / (validRatings.length + 1.0);
+
+      if (trustedRaters.length >= 2 && bayesianHelpfulRate >= 0.75 && unhelpfulCount === 0) {
+        status = "consensus_achieved";
+        isProvisional = true;
+      } else if (trustedRaters.length >= 2 && bayesianHelpfulRate <= 0.25 && helpfulCount === 0) {
+        status = "rejected_polarized";
+        isProvisional = true;
+      } else {
+        status = "pending_ratings";
+      }
     }
 
-    const confidenceScore = Math.min(1.0, validRatings.length / 10.0) * perspectiveDivergence;
+    const baseConfidence = validRatings.length >= this.MIN_RATINGS_FOR_CONSENSUS
+      ? Math.min(1.0, validRatings.length / 10.0) * Math.max(0.2, perspectiveDivergence)
+      : Math.min(0.65, (validRatings.length / 5.0) * 0.7);
+    const confidenceScore = Number(baseConfidence.toFixed(3));
 
     return {
       disputeId,
       totalRatings: validRatings.length,
       status,
+      isProvisional,
       bridgingScore: Number(bridgingScore.toFixed(3)),
       perspectiveDivergence: Number(perspectiveDivergence.toFixed(3)),
       leftHelpfulRate: Number(leftRate.toFixed(3)),
@@ -154,7 +180,7 @@ export class BridgingConsensusEngine {
       centerHelpfulRate: Number(centerRate.toFixed(3)),
       isBrigadeSuspected: brigadeCheck.isBrigaded,
       brigadeReason: brigadeCheck.reason,
-      confidenceScore: Number(confidenceScore.toFixed(3)),
+      confidenceScore,
     };
   }
 

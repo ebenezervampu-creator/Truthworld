@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/core/navigation/app_navigator.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/core/widgets/clickable_url_text.dart';
@@ -30,13 +31,13 @@ class SavedCommentsScreen extends GetView<SavedCommentsController> {
 
     switch (comment.sourceType) {
       case 'video':
-        Get.toNamed<dynamic>('/watch/${comment.sourceId}', arguments: navArgs);
+        AppNavigator.toNamed<dynamic>('/watch/${comment.sourceId}', arguments: navArgs);
       case 'topic':
-        Get.toNamed<dynamic>('/topic/${comment.sourceId}', arguments: navArgs);
+        AppNavigator.toNamed<dynamic>('/topic/${comment.sourceId}', arguments: navArgs);
       case 'community_post':
-        Get.toNamed<dynamic>('/home', arguments: navArgs);
+        AppNavigator.toNamed<dynamic>('/home', arguments: navArgs);
       default:
-        Get.toNamed<dynamic>('/home', arguments: navArgs);
+        AppNavigator.toNamed<dynamic>('/home', arguments: navArgs);
     }
   }
 

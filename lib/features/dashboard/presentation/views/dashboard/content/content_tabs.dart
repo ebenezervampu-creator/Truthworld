@@ -630,7 +630,6 @@ class TrashTab extends StatelessWidget {
       channelId: channelId,
       isDarkMode: isDarkMode,
       searchQuery: searchQuery,
-      showBackButton: false,
     );
   }
 }

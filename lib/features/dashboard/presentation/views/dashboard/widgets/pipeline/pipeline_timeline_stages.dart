@@ -60,11 +60,10 @@ class PipelineTimelineStages extends StatelessWidget {
         (transcriptionData?['status'] as String?)?.toLowerCase() ?? 'pending';
     final hasValidTranscript =
         video.transcriptionUrl.isNotEmpty && !video.transcriptionUrl.contains('placeholder');
-    final isTranscriptionFailed =
-        rawTranscriptionStatus == 'failed' && !hasValidTranscript;
+    final isTranscriptionFailed = rawTranscriptionStatus == 'failed';
     final isTranscriptionDone =
         rawTranscriptionStatus == 'completed' ||
-        (rawTranscriptionStatus != 'running' && hasValidTranscript);
+        (rawTranscriptionStatus != 'running' && !isTranscriptionFailed && hasValidTranscript);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -99,14 +98,20 @@ class PipelineTimelineStages extends StatelessWidget {
               status = 'completed';
             }
           } else if (key == 'credibility') {
-            if (isTranscriptionFailed && status != 'completed') {
+            if (status == 'skipped') {
+              status = 'skipped';
+              statusSubtitle = 'Not Requested';
+            } else if (isTranscriptionFailed && status != 'completed') {
               status = 'blocked';
               statusSubtitle = 'Requires Transcription';
             } else if (video.hasAiCredibility || video.factCheckUrl.isNotEmpty || status == 'completed') {
               status = 'completed';
             } else if (status == 'pending' &&
-                (video.factCheckTier == 'none' || video.factCheckTier == 'off')) {
+                (video.factCheckTier == 'none' ||
+                    video.factCheckTier == 'off' ||
+                    !video.isFactChecked)) {
               status = 'skipped';
+              statusSubtitle = 'Not Requested';
             }
           } else if (key == 'dubbing') {
             final hasDubbedOutput = video.dubbedVideos.isNotEmpty ||

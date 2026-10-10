@@ -142,15 +142,58 @@ export class AudioIdentityService {
   }
 
   private async getAccessibleUrl(url: string): Promise<string> {
-    if (url.startsWith("http")) return url;
-    const bucket = admin.storage().bucket();
-    const filePath = url.replace("gs://" + bucket.name + "/", "");
-    const file = bucket.file(filePath);
-    const [signedUrl] = await file.getSignedUrl({
-      action: "read",
-      expires: Date.now() + 3600 * 1000,
-    });
-    return signedUrl;
+    if (!url) return url;
+    if (url.includes("X-Goog-Signature") || url.includes("GoogleAccessId")) return url;
+
+    let bucketName = admin.storage().bucket().name;
+    let filePath = url;
+    let isStorage = false;
+
+    if (url.startsWith("gs://")) {
+      const parts = url.replace("gs://", "").split("/");
+      bucketName = parts[0];
+      filePath = parts.slice(1).join("/");
+      isStorage = true;
+    } else if (url.startsWith("http://") || url.startsWith("https://")) {
+      try {
+        const parsed = new URL(url);
+        if (parsed.hostname.includes("firebasestorage.googleapis.com")) {
+          const match = parsed.pathname.match(/\/v0\/b\/([^/]+)\/o\/(.+)/);
+          if (match) {
+            bucketName = decodeURIComponent(match[1]);
+            filePath = decodeURIComponent(match[2].split("?")[0]);
+            isStorage = true;
+          }
+        } else if (parsed.hostname === "storage.googleapis.com") {
+          const segments = parsed.pathname.replace(/^\/+/, "").split("/");
+          if (segments.length >= 2) {
+            bucketName = decodeURIComponent(segments[0]);
+            filePath = decodeURIComponent(segments.slice(1).join("/").split("?")[0]);
+            isStorage = true;
+          }
+        } else if (parsed.hostname.endsWith(".storage.googleapis.com")) {
+          bucketName = decodeURIComponent(parsed.hostname.replace(".storage.googleapis.com", ""));
+          filePath = decodeURIComponent(parsed.pathname.replace(/^\/+/, "").split("?")[0]);
+          isStorage = true;
+        }
+      } catch (_) {}
+    }
+
+    if (!isStorage && (url.startsWith("http://") || url.startsWith("https://"))) {
+      return url;
+    }
+
+    try {
+      const bucket = admin.storage().bucket(bucketName);
+      const file = bucket.file(filePath.replace(/^\/+/, ""));
+      const [signedUrl] = await file.getSignedUrl({
+        action: "read",
+        expires: Date.now() + 3600 * 1000,
+      });
+      return signedUrl;
+    } catch (_) {
+      return url;
+    }
   }
 }
 

@@ -7,6 +7,7 @@ import 'package:truthworld/components/ui/google_onboarding_sheet.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
+import 'package:truthworld/core/navigation/app_navigator.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/settings/presentation/views/settings/widgets/settings_section_card.dart';
@@ -584,7 +585,7 @@ class GeneralAccountSection extends StatelessWidget {
   }
 
   void _showEditProfileDialog(BuildContext context) {
-    Get.toNamed('/settings/edit-profile');
+    AppNavigator.toEditProfile();
   }
 
   Widget _buildSubscriptionTile(BuildContext context) {
@@ -607,7 +608,7 @@ class GeneralAccountSection extends StatelessWidget {
           style: TextStyle(fontSize: 13, color: context.colors.textSecondary),
         ),
         trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
-        onTap: () => Get.toNamed('/premium'),
+        onTap: AppNavigator.toPremium,
       );
     });
   }
@@ -633,7 +634,7 @@ class GeneralAccountSection extends StatelessWidget {
           style: TextStyle(fontSize: 13, color: context.colors.textSecondary),
         ),
         trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
-        onTap: () => Get.toNamed('/dashboard'),
+        onTap: AppNavigator.toDashboard,
       );
     });
   }

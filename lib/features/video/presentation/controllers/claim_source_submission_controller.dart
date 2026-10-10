@@ -28,6 +28,7 @@ class ClaimSourceSubmissionController extends BaseController
 
   late final RxString selectedTarget;
   final RxBool isSubmitting = false.obs;
+  final RxBool isAppealMode = false.obs;
 
   bool get isPremiumUser =>
       Get.isRegistered<AuthService>() && AuthService.to.isPremiumUser.value;
@@ -39,6 +40,11 @@ class ClaimSourceSubmissionController extends BaseController
           AuthService.to.user!.uid == video.channelId);
 
   bool get isEligible => isPremiumUser || isChannelOwner;
+
+  void setAppealMode(bool appeal) {
+    isAppealMode.value = appeal;
+    update();
+  }
 
   @override
   void onInit() {
@@ -160,6 +166,82 @@ class ClaimSourceSubmissionController extends BaseController
       if (context.mounted) {
         isSubmitting.value = false;
         AppSnackbar.error('Unable to submit source. Please try again.');
+      }
+    }
+  }
+
+  /// Submits a formal appeal to the Independent Fact-Check Appeals Desk.
+  Future<void> submitFormalAppeal(BuildContext context) async {
+    if (!isChannelOwner) {
+      AppSnackbar.warning('Only the channel creator may file a formal editorial appeal.');
+      return;
+    }
+
+    final note = noteController.text.trim();
+    if (note.length < 10) {
+      AppSnackbar.warning('Please provide a substantive rationale (at least 10 characters) for your appeal.');
+      return;
+    }
+
+    final url = urlController.text.trim();
+    String? normalizedUrl;
+    if (url.isNotEmpty) {
+      final urlValidation = SourceUrlSanitizer.validateAuthoritativeSource(url);
+      if (!urlValidation.isValid) {
+        AppSnackbar.warning(urlValidation.errorMessage ?? 'Please enter a valid supporting link.');
+        return;
+      }
+      normalizedUrl = urlValidation.normalizedUrl;
+    }
+
+    isSubmitting.value = true;
+    try {
+      final user = Get.isRegistered<AuthService>() ? AuthService.to.user : null;
+      if (user == null) {
+        AppSnackbar.warning('Please sign in to file an editorial appeal.');
+        isSubmitting.value = false;
+        return;
+      }
+
+      final claimId = (initialClaim?['claimId'] ?? initialClaim?['id'] ?? 'claim_${DateTime.now().millisecondsSinceEpoch}').toString();
+      final claimText = selectedTarget.value;
+      final originalVerdict = (initialClaim?['verdict'] ?? initialClaim?['status'] ?? 'disputed').toString();
+
+      final appealData = <String, dynamic>{
+        'videoId': video.id,
+        'claimId': claimId,
+        'appellantId': user.uid,
+        'channelId': video.channelId,
+        'claimText': claimText,
+        'originalVerdict': originalVerdict,
+        'creatorRationale': note,
+        'evidenceUrls': normalizedUrl != null ? [normalizedUrl] : <String>[],
+        'status': 'submitted',
+        'submittedAt': FieldValue.serverTimestamp(),
+      };
+
+      final appealDoc = await FirebaseFirestore.instance.collection('claim_appeals').add(appealData);
+
+      // Update video document state to under_appeal
+      await FirebaseFirestore.instance.collection('videos').doc(video.id).update({
+        'credibility.isAppealed': true,
+        'credibility.appealStatus': 'pending',
+        'factCheckDispute.activeAppealId': appealDoc.id,
+        'factCheckDispute.status': 'under_appeal',
+        'factCheckDispute.lastAppealedAt': FieldValue.serverTimestamp(),
+      });
+
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        AppSnackbar.success(
+          'Your appeal has been escalated to the Independent Fact-Check Appeals Desk.',
+        );
+      }
+    } catch (e) {
+      ErrorHandler.log(e);
+      if (context.mounted) {
+        isSubmitting.value = false;
+        AppSnackbar.error('Unable to submit appeal. Please try again.');
       }
     }
   }

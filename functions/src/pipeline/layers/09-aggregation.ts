@@ -14,7 +14,7 @@ import { logger } from "../utils/logger";
 import { reputationService } from "../services/reputationService";
 import { SpeakerReputationService } from "../services/speakerReputationService";
 import { CredibilityResult } from "../types";
-import { getAnalysisRepository, AnalysisRepository } from "../services/analysisRepository.js";
+import { getAnalysisRepository, AnalysisRepository } from "../services/analysisRepository";
 import { normalizeLanguageCode } from "../../shared/language-normalizer";
 import { notifyUser } from "../../notifications/notifications";
 
@@ -553,6 +553,7 @@ export class AggregationLayer {
             },
             trustLabel: null,
             isVerified: !!cred, // v12.0: Flag for recommendations
+            isFactChecked: !!(cred && ((cred.claims && cred.claims.length > 0) || directFactCheckUrl)),
             ...(vData?.factCheckReviewMode ? { factCheckReviewMode: vData.factCheckReviewMode } : {}),
             ...(vData?.isFactCheckApproved !== undefined ? { isFactCheckApproved: vData.isFactCheckApproved } : {}),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),

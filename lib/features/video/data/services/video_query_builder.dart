@@ -14,6 +14,8 @@ class VideoQueryBuilder {
     String? channelId,
     String orderByField = 'uploadedAt',
     bool descending = true,
+    bool onlyPublic = true,
+    bool onlyReady = true,
   }) {
     Query query = firestore.collection(collectionName);
 
@@ -30,6 +32,16 @@ class VideoQueryBuilder {
         category == 'New' ||
         category == '⭐ Popular' ||
         category == 'Popular';
+
+    // Server-side status & visibility filtering matching composite index:
+    // status ASC, visibility ASC, [uploadedAt/createdAt/views] DESC
+    if (onlyReady && isSpecialCategory) {
+      query = query.where('status', isEqualTo: 'ready');
+    }
+
+    if (onlyPublic && isSpecialCategory) {
+      query = query.where('visibility', isEqualTo: 'public');
+    }
 
     if (!isSpecialCategory) {
       query = query.where('category', isEqualTo: category);

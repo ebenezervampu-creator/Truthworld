@@ -4,9 +4,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/constants/platform_limits.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/user_model.dart';
 
 /// Handles Firestore user document synchronization, legacy account consolidation, and deletion.
@@ -129,6 +131,33 @@ class AuthFirestoreSync {
           if (legacyData['topicAffinities'] != null) createMap['topicAffinities'] = legacyData['topicAffinities'];
           if (legacyData['topicExploreCounts'] != null) createMap['topicExploreCounts'] = legacyData['topicExploreCounts'];
           if (legacyData['exploredTopicSlugs'] != null) createMap['exploredTopicSlugs'] = legacyData['exploredTopicSlugs'];
+        }
+
+        // 🔒 Phase 1 Capacity Enforcement: Cap registrations after 10,000 users
+        try {
+          final usersCountSnap = await FirebaseFirestore.instance
+              .collection(FirestoreCollections.users)
+              .count()
+              .get();
+          final currentUsersCount = usersCountSnap.count ?? 0;
+          if (currentUsersCount >= PlatformLimits.maxStandardUsers) {
+            createMap['accountStatus'] = 'waitlisted';
+            createMap['isWaitlisted'] = true;
+            createMap['waitlistReason'] =
+                'Phase 1 capacity (${PlatformLimits.maxStandardUsers} users) reached.';
+            createMap['waitlistPosition'] = currentUsersCount + 1;
+            
+            AppSnackbar.show(
+              'Early Access Notice',
+              PlatformLimits.userRegistrationLimitMessage,
+            );
+          }
+        } catch (e, s) {
+          ErrorHandler.log(
+            e,
+            stackTrace: s,
+            tag: 'AuthFirestoreSync.checkUserCapacity',
+          );
         }
 
         await userDoc.set(createMap);

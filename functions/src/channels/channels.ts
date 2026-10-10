@@ -5,6 +5,8 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { logger } from "firebase-functions/v2";
 import { Channel, ChannelType } from "../pipeline/types";
 import { EmailService } from "../services/emailService";
+import { getDynamicPlatformLimits } from "../config/platformLimits";
+import { normalizeLanguageCode } from "../shared/language-normalizer";
 
 const db = () => admin.firestore();
 
@@ -94,6 +96,18 @@ export const createChannel = onCall(
     let coverUrl = data.coverUrl || data.bannerUrl || data.bannerImageUrl;
     
     const locale = data.locale || "en";
+    const rawLanguage = data.language || data.channelLanguage || locale;
+    const normalizedLocale = normalizeLanguageCode(locale);
+    const normalizedLanguage = normalizeLanguageCode(rawLanguage);
+
+    // 🔒 Language Policy Enforcement: Truthworld is accepting only English channels as of now
+    if (normalizedLocale !== "en" || normalizedLanguage !== "en") {
+      throw new HttpsError(
+        "failed-precondition",
+        "Truthworld is accepting only English channels as of now. All other world languages are invite-only at this stage."
+      );
+    }
+
     const defaultPlatform = data.defaultPlatform || "youtube";
     const category = data.category || "other";
     const rawCategories = data.categories || data.category;
@@ -175,7 +189,29 @@ export const createChannel = onCall(
         const channelRef = db().collection(CHANNELS_COLLECTION).doc(channelId);
 
         const now = Date.now();
-        const channelType = data.type || 'standard';
+        const rawType = data.channelType || data.type || 'standard';
+        const channelType: ChannelType = rawType === 'custom' ? 'custom' : 'standard';
+
+        // 🔒 Phase Capacity Enforcement:
+        // - Standard channels: Strictly capped at MAX_STANDARD_CHANNELS
+        // - Custom channels: ZERO RESTRICTION (Unlimited)
+        if (channelType === 'standard') {
+          const limits = await getDynamicPlatformLimits();
+          const [allChannelsSnap, customChannelsSnap] = await Promise.all([
+            db().collection(CHANNELS_COLLECTION).where("status", "!=", "deleted").count().get(),
+            db().collection(CHANNELS_COLLECTION).where("channelType", "==", "custom").where("status", "!=", "deleted").count().get(),
+          ]);
+          const totalActive = allChannelsSnap.data().count;
+          const totalCustom = customChannelsSnap.data().count;
+          const activeStandardCount = Math.max(0, totalActive - totalCustom);
+
+          if (activeStandardCount >= limits.MAX_STANDARD_CHANNELS) {
+            throw new HttpsError(
+              "resource-exhausted",
+              `Phase ${limits.CURRENT_PHASE} standard channel capacity (${limits.MAX_STANDARD_CHANNELS}) has been reached. Custom channels have no restriction and can be created immediately, or you can apply for the standard creator waitlist.`
+            );
+          }
+        }
         
         // Unified Revenue shares based on channel type:
         // - Standard: 70% Creator on Ads & Premium Subs (30% Platform), 100% on Memberships & Superchats (0% Platform).
@@ -195,6 +231,7 @@ export const createChannel = onCall(
           about: description || "",
           description: description || "",
           type: channelType, 
+          language: "en",
           outstandingCosts: 0,
           hasPaidSubscriptionBuyout: false,
           createdAt: now,
@@ -679,6 +716,52 @@ export const cleanupExpiredDeletedChannelsScheduled = onSchedule(
     }
 
     logger.info(`[ChannelCleanup] Completed grace period purge: ${purgedCount} expired channels permanently deleted.`);
+  }
+);
+
+/**
+ * 📊 GET PLATFORM CAPACITY STATUS
+ * Returns real-time capacity and quota headroom for the active platform phase.
+ */
+export const getPlatformCapacity = onCall(
+  {
+    region: "asia-south1",
+    memory: "256MiB",
+    maxInstances: 20,
+  },
+  async () => {
+    const limits = await getDynamicPlatformLimits();
+    const [usersSnap, allChannelsSnap, customChannelsSnap] = await Promise.all([
+      db().collection(USERS_COLLECTION).count().get(),
+      db().collection(CHANNELS_COLLECTION).where("status", "!=", "deleted").count().get(),
+      db().collection(CHANNELS_COLLECTION).where("channelType", "==", "custom").where("status", "!=", "deleted").count().get(),
+    ]);
+
+    const totalUsers = usersSnap.data().count;
+    const totalActiveChannels = allChannelsSnap.data().count;
+    const customChannels = customChannelsSnap.data().count;
+    const standardChannels = Math.max(0, totalActiveChannels - customChannels);
+
+    return {
+      phase: limits.CURRENT_PHASE,
+      phaseName: limits.PHASE_NAME,
+      users: {
+        current: totalUsers,
+        limit: limits.MAX_STANDARD_USERS,
+        isCapped: totalUsers >= limits.MAX_STANDARD_USERS,
+        remainingSlots: Math.max(0, limits.MAX_STANDARD_USERS - totalUsers),
+      },
+      standardChannels: {
+        current: standardChannels,
+        limit: limits.MAX_STANDARD_CHANNELS,
+        isCapped: standardChannels >= limits.MAX_STANDARD_CHANNELS,
+        remainingSlots: Math.max(0, limits.MAX_STANDARD_CHANNELS - standardChannels),
+      },
+      customChannels: {
+        current: customChannels,
+        isUnlimited: true,
+      },
+    };
   }
 );
 

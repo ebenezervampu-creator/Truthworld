@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_repository.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
@@ -14,15 +13,22 @@ class ChannelRepositoryImpl extends BaseRepository
     implements ChannelRepository {
   final FirebaseFirestore _firestore;
   final ChannelRemoteDataSource _remoteDataSource;
+  final AuthService? _authService;
+  final void Function(Channel)? _onChannelCreated;
 
   DocumentSnapshot? _lastSubDoc;
 
   ChannelRepositoryImpl({
     FirebaseFirestore? firestore,
     ChannelRemoteDataSource? remoteDataSource,
+    AuthService? authService,
+    void Function(Channel)? onChannelCreated,
+    super.isTestMode,
   })  : _firestore = firestore ?? FirebaseFirestore.instance,
         _remoteDataSource = remoteDataSource ??
-            FirestoreChannelRemoteDataSource(firestore: firestore);
+            FirestoreChannelRemoteDataSource(firestore: firestore),
+        _authService = authService,
+        _onChannelCreated = onChannelCreated;
 
   ChannelEntity _mapToEntity(Channel model) {
     return model.toEntity();
@@ -223,9 +229,11 @@ class ChannelRepositoryImpl extends BaseRepository
       final doc = await ref.get();
       final createdChannel = Channel.fromDocumentSnapshot(doc);
 
-      // Update AuthService in-memory state if registered
-      if (Get.isRegistered<AuthService>()) {
-        AuthService.to.setUserChannel(createdChannel);
+      // Update AuthService in-memory state if injected or notify callback
+      if (_authService != null) {
+        _authService.setUserChannel(createdChannel);
+      } else if (_onChannelCreated != null) {
+        _onChannelCreated(createdChannel);
       }
 
       return _mapToEntity(createdChannel);

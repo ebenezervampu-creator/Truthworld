@@ -62,6 +62,13 @@ mixin UploadSubmissionMixin on
     debugPrint('Starting final video metadata update (isDraft: $isDraft)...');
 
     final channelLang = channelLanguageCode;
+    // 🔒 Language Policy Enforcement: TruthWorld is strictly English-only at this phase
+    if (channelLang != 'en') {
+      const msg = 'Truthworld currently only supports English channels and content. Non-English video uploads are not accepted at this stage.';
+      AppSnackbar.warning(msg);
+      throw Exception(msg);
+    }
+
     final effectiveSelectedLangs = selectedLanguages.contains(channelLang)
         ? selectedLanguages
         : [channelLang, ...selectedLanguages];

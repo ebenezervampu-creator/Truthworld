@@ -20,7 +20,7 @@ import { DistributionLayer } from "./04-distribution";
 import { costEngine } from "../services/cost-engine";
 import { pipelineEstimator } from "../services/pipeline-estimator";
 import { logger } from "../utils/logger";
-import { getAnalysisRepository, AnalysisRepository } from "../services/analysisRepository.js";
+import { getAnalysisRepository, AnalysisRepository } from "../services/analysisRepository";
 import { normalizeLanguageCode } from "../../shared/language-normalizer";
 
 const db = () => admin.firestore();
@@ -96,6 +96,11 @@ export class EdgeLayer {
 
       if (!validation.valid) {
         return this.rejected(`Invalid config: ${validation.errors.join(", ")}`);
+      }
+
+      // 🔒 Language Policy Enforcement: TruthWorld is strictly English-only at this phase
+      if (userConfig.primaryLanguage && normalizeLanguageCode(userConfig.primaryLanguage) !== "en") {
+        return this.rejected("Truthworld currently only supports English content. Non-English videos cannot be accepted at this stage.");
       }
 
       // ── 2. Pre-flight cost estimate ───────────────────────────────────────────

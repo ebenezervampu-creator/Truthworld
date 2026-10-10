@@ -53,8 +53,8 @@ mixin VideoEngagementActionsMixin on GetxController {
   void handleVideoCompletion(VideoPlayerValue value);
 
   static const List<int> _milestoneThresholds = [25, 50, 75, 100];
-  // Industry Standard: 60-second telemetry pulse (cuts network calls & invocations by 66% while capturing 100% of watch time on pause/exit via flushRemainingWatchTime)
-  static const int _watchPingIntervalSeconds = 60;
+  // Industry Standard: 120-second telemetry pulse (cuts network calls & invocations by 50% while capturing 100% of watch time on pause/exit via flushRemainingWatchTime)
+  static const int _watchPingIntervalSeconds = 120;
   static const int _crossDeviceResumeIntervalSeconds = 45;
 
   void videoListener() {

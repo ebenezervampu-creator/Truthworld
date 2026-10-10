@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/navigation/app_navigator.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/get_instance_extensions.dart';
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
@@ -147,9 +148,7 @@ Widget _buildDesktopHeader(BuildContext context) {
                 borderRadius: BorderRadius.circular(22),
                 color: darkSurfaceVariant.withValues(alpha: 0.3),
                 child: InkWell(
-                  onTap: () {
-                    Get.toNamed('/search');
-                  },
+                  onTap: AppNavigator.toSearch,
                   borderRadius: BorderRadius.circular(22),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -233,15 +232,13 @@ List<Widget> _buildAppBarActions(BuildContext context, bool isMobile) {
           color: darkSurfaceVariant.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: IconButton(
-          icon: const Icon(
+        child: const IconButton(
+          icon: Icon(
             Icons.search_rounded,
             color: Colors.white,
           ),
           tooltip: 'Search',
-          onPressed: () {
-            Get.toNamed('/search');
-          },
+          onPressed: AppNavigator.toSearch,
         ),
       ),
       _buildNotificationLogo(context, isMobile: true),
@@ -286,15 +283,13 @@ Widget _buildNotificationLogo(BuildContext context, {bool isMobile = false}) {
         alignment: Alignment.center,
         clipBehavior: Clip.none,
         children: [
-          IconButton(
-            icon: const Icon(
+          const IconButton(
+            icon: Icon(
               Icons.notifications_outlined,
               size: 24,
               color: Colors.white,
             ),
-            onPressed: () {
-              Get.toNamed('/notifications');
-            },
+            onPressed: AppNavigator.toNotifications,
             tooltip: 'Notifications',
           ),
           if (totalCount > 0)

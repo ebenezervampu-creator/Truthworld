@@ -100,6 +100,8 @@ export {
   pruneLiveChatBacklogs,
 } from "./livechat/liveChat";
 export {
+  createChannel,
+  getPlatformCapacity,
   onChannelCreatedSyncUser,
   dispatchChannelWelcomeEmail,
   cleanupExpiredDeletedChannelsScheduled,
@@ -147,7 +149,25 @@ export {
   onUserNotificationCreated,
 } from "./notifications/triggers";
 export { trackActivity } from "./users/signals";
-export { onUserCreated, onUserDeleted, purgeUserAccount } from "./users/userLifecycle";
+export {
+  onUserCreated,
+  onUserDeleted,
+  purgeUserAccount,
+  checkUserRegistrationCapacity,
+} from "./users/userLifecycle";
+export {
+  PLATFORM_LIMITS,
+  ACTIVE_PHASE,
+  PHASE_CONFIGS,
+  getPhaseConfig,
+  getDynamicPlatformLimits,
+  clearLimitsCache,
+} from "./config/platformLimits";
+export {
+  setPlatformPhase,
+  getPlatformPhaseConfig,
+  admitWaitlistedUsers,
+} from "./admin/platformPhaseAdmin";
 
 // ─── Comments & Community ─────────────────────────────────────────────────────
 export {
@@ -219,3 +239,7 @@ export {
 
 // ─── Edge Feed CDN Server ───────────────────────────────────────────────────
 export { publicFeedServer } from "./feed/publicFeedServer";
+
+// ─── IFCN Fact-Check Appeals Desk ───────────────────────────────────────────
+export { submitClaimAppeal, resolveClaimAppeal, verifyGovernanceAuditChain } from "./pipeline/appealsDeskEndpoints";
+

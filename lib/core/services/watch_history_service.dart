@@ -62,15 +62,16 @@ class WatchHistoryService extends GetxService {
       final userId = AuthService.to.uid;
       if (userId.isEmpty) return;
 
-      // 1. Listen to permanent Firestore watch history (bounded to 200 items for cost efficiency)
-      _historySubscription = _firestore
+      // 1. One-time fetch of recent watch history (bounded to 25 items for fast boot & minimal read costs)
+      // Real-time resume synchronization is continuously handled by the zero-cost RTDB listener below.
+      _firestore
           .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('watch_history')
           .orderBy('watchedAt', descending: true)
-          .limit(200)
-          .snapshots()
-          .listen(
+          .limit(25)
+          .get()
+          .then(
             (snapshot) {
               for (final doc in snapshot.docs) {
                 final data = doc.data();
@@ -97,7 +98,7 @@ class WatchHistoryService extends GetxService {
             },
             onError: (e) {
               logger.error(
-                'Error listening to watch history: $e',
+                'Error fetching initial watch history: $e',
                 tag: 'WATCH_HISTORY',
               );
             },

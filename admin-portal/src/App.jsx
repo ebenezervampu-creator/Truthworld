@@ -23,6 +23,7 @@ import {
   getDoc
 } from "firebase/firestore";
 import { auth, db } from "./firebase";
+import AppealsDeskTab from "./components/AppealsDeskTab";
 
 const ROLES_DEFINITION = [
   {
@@ -138,6 +139,15 @@ function App() {
   const [newPasswordInput, setNewPasswordInput] = useState("");
   const [confirmPasswordInput, setConfirmPasswordInput] = useState("");
   const [revealedPasswords, setRevealedPasswords] = useState({});
+  const [platformPhaseConfig, setPlatformPhaseConfig] = useState({
+    currentPhase: 1,
+    phaseName: "Phase 1: Alpha / Early Creators",
+    maxStandardUsers: 10000,
+    maxStandardChannels: 100,
+    isCustomChannelUnlimited: true,
+    updatedBy: "",
+  });
+  const [isUpdatingPhase, setIsUpdatingPhase] = useState(false);
 
   const isOwner = Boolean(
     user &&
@@ -174,7 +184,7 @@ function App() {
   };
 
   const getAllowedTabs = () => {
-    const allTabs = ["dashboard", "videos", "topics", "channels", "images", "reports", "logs", "team", "users"];
+    const allTabs = ["dashboard", "videos", "topics", "channels", "images", "reports", "appeals", "logs", "team", "users"];
     if (isOwner) allTabs.push("language_requests");
     const allowed = allTabs.filter(t => isTabAllowed(t));
     return allowed.length > 0 ? allowed : ["team"];
@@ -202,11 +212,13 @@ function App() {
     pendingChannels: 0,
     pendingTopics: 0,
     pendingReports: 0,
+    pendingAppeals: 0,
     totalVideos: 0,
     totalImages: 0,
     totalChannels: 0,
     totalTopics: 0,
     totalReports: 0,
+    totalAppeals: 0,
   });
 
   // Selection / Modal States
@@ -228,9 +240,10 @@ function App() {
         try {
           const idTokenResult = await currentUser.getIdTokenResult(true);
           const email = currentUser.email?.toLowerCase();
+          const isDirector = email === "hello@truthworld.in";
 
-          // 1. Check custom claim (source of truth)
-          let hasAdminAccess = idTokenResult.claims.admin === true;
+          // 1. Check custom claim or director status (source of truth)
+          let hasAdminAccess = isDirector || idTokenResult.claims.admin === true;
           let memberData = null;
 
           // 2. Check admin_members collection by UID or email
@@ -253,16 +266,22 @@ function App() {
           }
 
           if (hasAdminAccess) {
-            const primaryRole = memberData?.role || (idTokenResult.claims.admin ? "Super Admin" : "Moderator");
-            const roles = Array.isArray(memberData?.roles) && memberData.roles.length > 0
-              ? memberData.roles
-              : (memberData?.role ? memberData.role.split(",").map(r => r.trim()).filter(Boolean) : ["Super Admin"]);
+            const primaryRole = isDirector
+              ? "Super Admin"
+              : (memberData?.role || (idTokenResult.claims.admin ? "Super Admin" : "Moderator"));
+            const roles = isDirector
+              ? ["Super Admin", "Owner", "Director"]
+              : (Array.isArray(memberData?.roles) && memberData.roles.length > 0
+                ? memberData.roles
+                : (memberData?.role ? memberData.role.split(",").map(r => r.trim()).filter(Boolean) : ["Super Admin"]));
 
             setUser({
               ...currentUser,
               role: primaryRole,
               roles: roles,
-              name: memberData?.name || currentUser.displayName || email?.split("@")[0] || "Admin",
+              name: isDirector
+                ? (memberData?.name || "TruthWorld Director")
+                : (memberData?.name || currentUser.displayName || email?.split("@")[0] || "Admin"),
             });
             setIsAdmin(true);
             setError("");
@@ -291,6 +310,25 @@ function App() {
   // Real-time Firestore Listeners (only run when admin is logged in)
   useEffect(() => {
     if (!user || !isAdmin) return;
+
+    // 0. Listen to Platform Limits & Rollout Phase in real-time
+    const platformLimitsRef = doc(db, "system_settings", "platform_limits");
+    const unsubPlatformLimits = onSnapshot(platformLimitsRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const d = docSnap.data();
+        setPlatformPhaseConfig({
+          currentPhase: Number(d.currentPhase) || 1,
+          phaseName: d.phaseName || `Phase ${d.currentPhase}`,
+          maxStandardUsers: Number(d.maxStandardUsers) || 10000,
+          maxStandardChannels: Number(d.maxStandardChannels) || 100,
+          isCustomChannelUnlimited: d.isCustomChannelUnlimited !== false,
+          updatedBy: d.updatedBy || "",
+          updatedAt: d.updatedAt,
+        });
+      }
+    }, (err) => {
+      console.warn("Platform limits listener warning:", err);
+    });
 
     // 1. Listen to Moderation Modes configuration in real-time
     const modesDocRef = doc(db, "admin_settings", "moderation_modes");
@@ -489,6 +527,31 @@ function App() {
       console.error("Reports subscription failed:", err);
     });
 
+    // 7b. Listen to Claim Appeals
+    const appealsQuery = query(
+      collection(db, "claim_appeals"),
+      limit(100)
+    );
+    const unsubAppeals = onSnapshot(appealsQuery, (snapshot) => {
+      const appealList = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      const pendingCount = appealList.filter(a => {
+        const s = (a.status || 'submitted').toLowerCase();
+        return s === 'submitted' || s === 'under_review' || s === 'under_secondary_review';
+      }).length;
+
+      setSystemStats(prev => ({
+        ...prev,
+        pendingAppeals: pendingCount,
+        totalAppeals: appealList.length
+      }));
+    }, (err) => {
+      console.warn("Claim appeals subscription warning:", err);
+    });
+
     // 8. Listen to Admin Team Members
     const membersQuery = collection(db, "admin_members");
     const unsubMembers = onSnapshot(membersQuery, (snapshot) => {
@@ -549,6 +612,7 @@ function App() {
     }
 
     return () => {
+      unsubPlatformLimits();
       unsubModes();
       unsubVideos();
       unsubImages();
@@ -556,6 +620,7 @@ function App() {
       unsubTopics();
       unsubLogs();
       unsubReports();
+      unsubAppeals();
       unsubMembers();
       unsubUsers();
       unsubLangReqs();
@@ -596,6 +661,51 @@ function App() {
       setError(`Failed to update mode: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setModeUpdatingKey(null);
+    }
+  };
+
+  // Handle Transition to Any Platform Phase (Director & Super Admin)
+  const handleSwitchPhase = async (targetPhase) => {
+    const presets = {
+      1: { name: "Phase 1: Alpha / Early Creators", users: 10000, channels: 100 },
+      2: { name: "Phase 2: Beta Scale & Ecosystem Expansion", users: 100000, channels: 1000 },
+      3: { name: "Phase 3: Public General Availability", users: 1000000, channels: 10000 },
+    };
+    const target = presets[targetPhase] || { name: `Phase ${targetPhase}`, users: 100000, channels: 1000 };
+    if (!window.confirm(`Switch platform capacity from Phase ${platformPhaseConfig.currentPhase} to Phase ${targetPhase} (${target.name})?\n\n- Users: ${target.users.toLocaleString()}\n- Standard Channels: ${target.channels.toLocaleString()}\n- Custom Channels: Unlimited`)) {
+      return;
+    }
+    setIsUpdatingPhase(true);
+    setError("");
+    setSuccessMsg("");
+    try {
+      await setDoc(doc(db, "system_settings", "platform_limits"), {
+        currentPhase: targetPhase,
+        phaseName: target.name,
+        maxStandardUsers: target.users,
+        maxStandardChannels: target.channels,
+        isCustomChannelUnlimited: true,
+        updatedBy: user?.email || "hello@truthworld.in",
+        updatedAt: new Date(),
+      }, { merge: true });
+
+      // Record in audit_logs
+      await setDoc(doc(collection(db, "audit_logs")), {
+        action: "UPDATE_PLATFORM_PHASE",
+        category: "PLATFORM_GOVERNANCE",
+        targetPhase,
+        previousPhase: platformPhaseConfig.currentPhase,
+        actorEmail: user?.email || "hello@truthworld.in",
+        createdAt: new Date(),
+        details: `Platform phase transitioned to Phase ${targetPhase} (${target.name}) by ${user?.email || "hello@truthworld.in"}`,
+      });
+
+      setSuccessMsg(`Platform successfully transitioned to Phase ${targetPhase} (${target.name})!`);
+      setTimeout(() => setSuccessMsg(""), 5000);
+    } catch (err) {
+      setError(`Failed to update platform phase: ${err.message}`);
+    } finally {
+      setIsUpdatingPhase(false);
     }
   };
 
@@ -1358,6 +1468,19 @@ function App() {
                 </button>
               </li>
             )}
+            {isTabAllowed("appeals") && (
+              <li>
+                <button 
+                  className={`nav-item ${currentTab === "appeals" ? "active" : ""}`}
+                  onClick={() => { setCurrentTab("appeals"); setSelectedItem(null); setSelectedType(null); }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                  </svg>
+                  <span>Appeals Desk ({systemStats.pendingAppeals || 0})</span>
+                </button>
+              </li>
+            )}
             {isTabAllowed("logs") && (
               <li>
                 <button 
@@ -1477,6 +1600,7 @@ function App() {
               {currentTab === "topics" && "Topics Moderation & Verifications"}
               {currentTab === "images" && "Image Moderation Queue"}
               {currentTab === "reports" && "Video & Content Reports"}
+              {currentTab === "appeals" && "IFCN Ombudsman Appeals Desk"}
               {currentTab === "logs" && "Audit Logs & Actions History"}
               {currentTab === "team" && "Team Access & Member Management"}
               {currentTab === "language_requests" && "Channel Language Requests (Owner Only)"}
@@ -1488,6 +1612,7 @@ function App() {
               {currentTab === "topics" && "Manage topic details and thumbnails with On/Off Gemini bypass button."}
               {currentTab === "images" && "Inspect flagged thumbnails, avatars, and community posts."}
               {currentTab === "reports" && "User-submitted reports for videos, comments, and channels."}
+              {currentTab === "appeals" && "Adjudicate contested fact-check claims, enforce dual-ombudsman quorum, and verify SHA-256 audit chains."}
               {currentTab === "logs" && "History of quarantined resources and manual administrator decisions."}
               {currentTab === "team" && "Add members with custom credentials, copy/share login access, and change passwords."}
               {currentTab === "language_requests" && "Review creator requests to launch channels in invite-only languages."}
@@ -1502,6 +1627,182 @@ function App() {
           {/* TAB 1: DASHBOARD */}
           {currentTab === "dashboard" && (
             <div>
+              {/* Platform Phase & Capacity Control (Director & Super Admin) */}
+              <div className="glass section-card" style={{ marginBottom: "30px", border: "1px solid rgba(255,255,255,0.15)", background: "linear-gradient(135deg, rgba(255,255,255,0.03), rgba(0,0,0,0.4))" }}>
+                <div className="section-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div className="section-title">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2">
+                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                    </svg>
+                    <h3 style={{ fontSize: "1.15rem", fontWeight: "bold" }}>Platform Rollout Phase & Quota Governance (Director Control)</h3>
+                  </div>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <span className="section-badge" style={{ backgroundColor: "#2563eb", color: "#fff", fontWeight: "bold" }}>
+                      Active: Phase {platformPhaseConfig.currentPhase}
+                    </span>
+                    <span className="section-badge">Live Real-time</span>
+                  </div>
+                </div>
+
+                <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", margin: "10px 0 16px" }}>
+                  Director control for platform quotas. Click any phase below to immediately transition platform registration capacity and standard channel limits in real-time.
+                </p>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "16px", marginBottom: "16px" }}>
+                  {/* Phase 1 Option Card */}
+                  <div
+                    style={{
+                      padding: "16px",
+                      borderRadius: "12px",
+                      border: platformPhaseConfig.currentPhase === 1 ? "2px solid #3b82f6" : "1px solid rgba(255,255,255,0.1)",
+                      background: platformPhaseConfig.currentPhase === 1 ? "rgba(59, 130, 246, 0.12)" : "rgba(255,255,255,0.02)",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                        <span style={{ fontWeight: "bold", fontSize: "1rem", color: "#fff" }}>Phase 1: Alpha</span>
+                        {platformPhaseConfig.currentPhase === 1 && (
+                          <span style={{ fontSize: "0.75rem", padding: "2px 8px", borderRadius: "10px", background: "#3b82f6", color: "#fff", fontWeight: "bold" }}>ACTIVE NOW</span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "4px" }}>
+                        👤 Standard Users: <strong>10,000</strong>
+                      </div>
+                      <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "4px" }}>
+                        📺 Standard Channels: <strong>100</strong>
+                      </div>
+                      <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                        ✨ Custom Channels: <strong style={{ color: "#34d399" }}>Unlimited</strong>
+                      </div>
+                    </div>
+                    <button
+                      className="btn"
+                      disabled={isUpdatingPhase || platformPhaseConfig.currentPhase === 1}
+                      onClick={() => handleSwitchPhase(1)}
+                      style={{
+                        marginTop: "14px",
+                        padding: "8px 12px",
+                        fontSize: "0.85rem",
+                        backgroundColor: platformPhaseConfig.currentPhase === 1 ? "#374151" : "#1f2937",
+                        color: platformPhaseConfig.currentPhase === 1 ? "#9ca3af" : "#fff",
+                        border: "1px solid rgba(255,255,255,0.2)",
+                        borderRadius: "8px",
+                        cursor: platformPhaseConfig.currentPhase === 1 ? "default" : "pointer",
+                      }}
+                    >
+                      {platformPhaseConfig.currentPhase === 1 ? "✓ Phase 1 Active" : "Activate Phase 1"}
+                    </button>
+                  </div>
+
+                  {/* Phase 2 Option Card */}
+                  <div
+                    style={{
+                      padding: "16px",
+                      borderRadius: "12px",
+                      border: platformPhaseConfig.currentPhase === 2 ? "2px solid #10b981" : "1px solid rgba(255,255,255,0.1)",
+                      background: platformPhaseConfig.currentPhase === 2 ? "rgba(16, 185, 129, 0.12)" : "rgba(255,255,255,0.02)",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                        <span style={{ fontWeight: "bold", fontSize: "1rem", color: "#fff" }}>Phase 2: Beta Scale</span>
+                        {platformPhaseConfig.currentPhase === 2 && (
+                          <span style={{ fontSize: "0.75rem", padding: "2px 8px", borderRadius: "10px", background: "#10b981", color: "#fff", fontWeight: "bold" }}>ACTIVE NOW</span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "4px" }}>
+                        👤 Standard Users: <strong>100,000</strong>
+                      </div>
+                      <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "4px" }}>
+                        📺 Standard Channels: <strong>1,000</strong>
+                      </div>
+                      <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                        ✨ Custom Channels: <strong style={{ color: "#34d399" }}>Unlimited</strong>
+                      </div>
+                    </div>
+                    <button
+                      className="btn"
+                      disabled={isUpdatingPhase || platformPhaseConfig.currentPhase === 2}
+                      onClick={() => handleSwitchPhase(2)}
+                      style={{
+                        marginTop: "14px",
+                        padding: "8px 12px",
+                        fontSize: "0.85rem",
+                        backgroundColor: platformPhaseConfig.currentPhase === 2 ? "#374151" : "#059669",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "8px",
+                        fontWeight: "600",
+                        cursor: platformPhaseConfig.currentPhase === 2 ? "default" : "pointer",
+                      }}
+                    >
+                      {platformPhaseConfig.currentPhase === 2 ? "✓ Phase 2 Active" : "Activate Phase 2"}
+                    </button>
+                  </div>
+
+                  {/* Phase 3 Option Card */}
+                  <div
+                    style={{
+                      padding: "16px",
+                      borderRadius: "12px",
+                      border: platformPhaseConfig.currentPhase === 3 ? "2px solid #8b5cf6" : "1px solid rgba(255,255,255,0.1)",
+                      background: platformPhaseConfig.currentPhase === 3 ? "rgba(139, 92, 246, 0.12)" : "rgba(255,255,255,0.02)",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                        <span style={{ fontWeight: "bold", fontSize: "1rem", color: "#fff" }}>Phase 3: Public Scale</span>
+                        {platformPhaseConfig.currentPhase === 3 && (
+                          <span style={{ fontSize: "0.75rem", padding: "2px 8px", borderRadius: "10px", background: "#8b5cf6", color: "#fff", fontWeight: "bold" }}>ACTIVE NOW</span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "4px" }}>
+                        👤 Standard Users: <strong>1,000,000</strong>
+                      </div>
+                      <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "4px" }}>
+                        📺 Standard Channels: <strong>10,000</strong>
+                      </div>
+                      <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                        ✨ Custom Channels: <strong style={{ color: "#34d399" }}>Unlimited</strong>
+                      </div>
+                    </div>
+                    <button
+                      className="btn"
+                      disabled={isUpdatingPhase || platformPhaseConfig.currentPhase === 3}
+                      onClick={() => handleSwitchPhase(3)}
+                      style={{
+                        marginTop: "14px",
+                        padding: "8px 12px",
+                        fontSize: "0.85rem",
+                        backgroundColor: platformPhaseConfig.currentPhase === 3 ? "#374151" : "#7c3aed",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "8px",
+                        fontWeight: "600",
+                        cursor: platformPhaseConfig.currentPhase === 3 ? "default" : "pointer",
+                      }}
+                    >
+                      {platformPhaseConfig.currentPhase === 3 ? "✓ Phase 3 Active" : "Activate Phase 3"}
+                    </button>
+                  </div>
+                </div>
+
+                {platformPhaseConfig.updatedBy && (
+                  <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontStyle: "italic" }}>
+                    Last changed by: {platformPhaseConfig.updatedBy}
+                  </div>
+                )}
+              </div>
+
               {/* Overall Pipeline Control Switchboard */}
               <div className="glass section-card" style={{ marginBottom: "30px" }}>
                 <div className="section-header">
@@ -2427,6 +2728,11 @@ function App() {
                 </div>
               )}
             </div>
+          )}
+
+          {/* TAB: IFCN FACT-CHECK APPEALS DESK */}
+          {currentTab === "appeals" && (
+            <AppealsDeskTab user={user} formatDate={formatDate} />
           )}
 
           {/* TAB 7: AUDIT LOGS */}
